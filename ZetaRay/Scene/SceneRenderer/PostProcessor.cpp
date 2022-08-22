@@ -179,8 +179,8 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 
 	if (settings.RTIndirectDiffuse)
 	{
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LO,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LO));
+		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI,
+			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
 		if (settings.DenoiseIndirectDiffuseLi)
 		{
@@ -364,7 +364,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 	if (settings.RTIndirectDiffuse && const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
 	{
 		renderGraph.AddInput(postData.FinalPassHandle,
-			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO).GetPathID(),
+			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		if (settings.DenoiseIndirectDiffuseLi)

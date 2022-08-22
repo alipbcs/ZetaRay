@@ -6,7 +6,6 @@
 #include "../Common/Material.h"
 #include "../Common/Sampler.hlsli"
 #include "../Common/RT.hlsli"
-#include "../Common/SH.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -49,9 +48,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		// (hopefully) denoised L_ind
 		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 			GBUFFER_OFFSET::BASE_COLOR];
-		const float3 diffuseReflectance = g_baseColor[DTid.xy].xyz;
-		
-		/*
+		float4 baseColor = g_baseColor[DTid.xy];
+
 		Texture2D<uint4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];
 		uint2 integratedVals = g_denoisedLind[DTid.xy].xy;
 		float3 L_o = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
@@ -60,36 +58,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		float3 L_ind_mc_est = L_o * diffuseReflectance;
 		
 		color += L_ind_mc_est * g_frame.SunIlluminance;
-		*/
-
-		Texture2D<uint4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];
-		uint3 integratedVals = g_denoisedLind[DTid.xy].xyz;
-		
-		// plan
-		float4 lumaSH = float4(f16tof32(integratedVals.x), f16tof32(integratedVals.x >> 16), 
-			f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
-		float Co = f16tof32(integratedVals.z);
-		float Cg = f16tof32(integratedVals.z >> 16);
-
-		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-		float3 normal = DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
-
-		// convolve incoming radiance with max(0, cos(theta))
-		// Convolution becomes dot product in SH basis. We have the MC estimate
-		// of SH coeffs for incoming radiance, and SH coeffs for max(0, cos(theta)) are 
-		// known in closed form
-		float irradY = 0.0f;
-		irradY += lumaSH.x * COS_THETA_SH_COEFFS[0];
-//		irradY += lumaSH.y * normal.y * COS_THETA_SH_COEFFS[1];
-//		irradY += lumaSH.z * normal.z * COS_THETA_SH_COEFFS[1];
-//		irradY += lumaSH.w * normal.x * COS_THETA_SH_COEFFS[1];
-		
-		irradY = max(0.0f, irradY);
-		color = (half3) YCoCgToRGB(float3(irradY, Co, Cg)) * diffuseReflectance *  g_frame.SunIlluminance;
 	}
 	
-	if(g_local.AccumulateInscattering)
-	{	
+	if (g_local.AccumulateInscattering)
+	{
 		GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 		float linearDepth = g_depth[DTid.xy];
 

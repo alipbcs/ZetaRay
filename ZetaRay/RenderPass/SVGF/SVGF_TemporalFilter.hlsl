@@ -23,6 +23,7 @@
 #include "../Common/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -65,8 +66,7 @@ float4 ComputeDepthConsistency(float4 prevDepths, float currDepth, float2 dzdx_d
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-float4 SampleTemporalCache(in uint3 DTid, out uint tspp, out float4 irradY_SH, out float irradCo, out float irradCg,
-	out float lum, out float lumSq)
+void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out float lum, out float lumSq)
 {
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
@@ -86,7 +86,7 @@ float4 SampleTemporalCache(in uint3 DTid, out uint tspp, out float4 irradY_SH, o
 	//	p2-----------p3
 	const float2 f = prevPosTS * screenDim;
 	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
-	const float2 offset = f - (topLeft + 0.5f);	
+	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / screenDim;
 	
 	// previous frame's normals
@@ -136,7 +136,7 @@ float4 SampleTemporalCache(in uint3 DTid, out uint tspp, out float4 irradY_SH, o
 									 IsInRange(topLeft + float2(0, 1), screenDim),
 									 IsInRange(topLeft + float2(1, 1), screenDim));
 
-	float4 weights = normalWeights * depthWeights * bilinearWeights * isInBounds;	
+	float4 weights = normalWeights * depthWeights * bilinearWeights * isInBounds;
 	const float weightSum = dot(1.0f, weights);
 	
 	if (g_local.MinConsistentWeight < weightSum)
@@ -145,72 +145,54 @@ float4 SampleTemporalCache(in uint3 DTid, out uint tspp, out float4 irradY_SH, o
 		weights *= rcp(weightSum);
 		
 		// tspp
-		Texture2D<uint> g_prevTspp = ResourceDescriptorHeap[g_local.PrevTemporalCacheTSPPDescHeapIdx];
-		uint4 histTspp = g_prevTspp.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+		Texture2D<uint4> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheDescHeapIdx];
+		const uint4 histB = g_prevTemporalCache.GatherBlue(g_samPointClamp, topLeftTexelUV).wzxy;
+		uint4 histTspp = histB & 0xffff;
 		
 		// as tspp is an integer, make sure it's at least 1, otherwise tspp would remain at zero forever
 		histTspp = max(1, histTspp);
 		tspp = round(dot(histTspp, weights));
 
-		if(tspp > 0)
+		if (tspp > 0)
 		{
-			// don't accumulate more than MaxTspp temporal samples (temporal lag <-> blur tradeoff)
-			tspp = min(tspp + 1, g_local.MaxTspp);
-
-			Texture2D<uint4> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheDescHeapIdx];
+			// color
+			float3 colorHistSamples[4];
 			const uint4 histR = g_prevTemporalCache.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 			const uint4 histG = g_prevTemporalCache.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 			
-			// irradiance, luma in SH1
-			float4 histIrradY_SH[4];
-			histIrradY_SH[0] = float4(f16tof32(histR.x), f16tof32(histR.x >> 16), f16tof32(histG.x), f16tof32(histG.x >> 16));
-			histIrradY_SH[1] = float4(f16tof32(histR.y), f16tof32(histR.y >> 16), f16tof32(histG.y), f16tof32(histG.y >> 16));
-			histIrradY_SH[2] = float4(f16tof32(histR.z), f16tof32(histR.z >> 16), f16tof32(histG.z), f16tof32(histG.z >> 16));
-			histIrradY_SH[3] = float4(f16tof32(histR.w), f16tof32(histR.w >> 16), f16tof32(histG.w), f16tof32(histG.w >> 16));
-			
-			irradY_SH = histIrradY_SH[0] * weights[0] +
-					histIrradY_SH[1] * weights[1] +
-					histIrradY_SH[2] * weights[2] +
-					histIrradY_SH[3] * weights[3];
-			
-			// irradiance, CoCg 
-			const uint4 histB = g_prevTemporalCache.GatherBlue(g_samPointClamp, topLeftTexelUV).wzxy;
-			const float4 histCo = f16tof32(histB);
-			const float4 histCg = f16tof32(histB >> 16);
-			
-			irradCo = dot(weights, histCo);
-			irradCg = dot(weights, histCg);
+			colorHistSamples[0] = float3(f16tof32(histR.x >> 16), f16tof32(histG.x), f16tof32(histG.x >> 16));
+			colorHistSamples[1] = float3(f16tof32(histR.y >> 16), f16tof32(histG.y), f16tof32(histG.y >> 16));
+			colorHistSamples[2] = float3(f16tof32(histR.z >> 16), f16tof32(histG.z), f16tof32(histG.z >> 16));
+			colorHistSamples[3] = float3(f16tof32(histR.w >> 16), f16tof32(histG.w), f16tof32(histG.w >> 16));
+					
+			color = colorHistSamples[0] * weights[0] +
+					colorHistSamples[1] * weights[1] +
+					colorHistSamples[2] * weights[2] +
+					colorHistSamples[3] * weights[3];
 			
 			// lum
-			const uint4 histA = g_prevTemporalCache.GatherAlpha(g_samPointClamp, topLeftTexelUV).wzxy;
-			const float4 lumHist = f16tof32(histA);
+			const float4 lumHist = f16tof32(histR);
 			lum = dot(weights, lumHist);
 			
 			// lum^2
-			const float4 lumSqHist = f16tof32(histA >> 16);
+			const float4 lumSqHist = f16tof32(histB >> 16);
 			lumSq = dot(weights, lumSqHist);
 		}
 	}
-	
-	return weights;
 }
 
-void Integrate(in uint3 DTid, inout uint tspp, inout float4 temporalIrradY_SH, inout float temporalIrradCo, inout float temporalIrradCg, 
-	inout float temporalLum, inout float temporalLumSq)
+void Integrate(in uint3 DTid, inout uint tspp, inout float3 color, inout float lum, inout float lumSq)
 {
-	Texture2D<uint4> g_indirectLi = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
-	const uint4 noisySignal = g_indirectLi[DTid.xy];
-	const float currLum = asfloat(noisySignal.w);
+	Texture2D<half4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
+	const half3 noisySignal = g_indirectLiRayT[DTid.xy].rgb;
+	
+	const float currLum = LuminanceFromLinearRGB(noisySignal.rgb);
 	const float currLumSq = currLum * currLum;
 
-	const float4 currY_Sh = float4(f32tof16(noisySignal.x), f32tof16(noisySignal.x >> 16), f32tof16(noisySignal.y), f32tof16(noisySignal.y >> 16));
-	const float currCo = f32tof16(noisySignal.z);
-	const float currCg = f32tof16(noisySignal.z >> 16);
-	
 	RWTexture2D<half> g_spatialLumVar = ResourceDescriptorHeap[g_local.SpatialLumVarDescHeapIdx];
 	float lumVariance;
 	
-	if (tspp > 100)
+	if (tspp > 0)
 	{
 		// don't accumulate more than MaxTspp temporal samples (temporal lag <-> blur tradeoff)
 		tspp = min(tspp + 1, g_local.MaxTspp);
@@ -220,20 +202,14 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float4 temporalIrradY_SH, i
 //		const float accumulationSpeed = clamp(1.0f / (1.0f + tspp), g_local.MinAccumulationSpeed, 1.0f);
 		const float accumulationSpeed = 1.0f / (1.0f + tspp);
 		
-		// Y
-		temporalIrradY_SH = lerp(temporalIrradY_SH, currY_Sh, accumulationSpeed);
-
-		// Co
-		temporalIrradCo = lerp(temporalIrradCo, currCo, accumulationSpeed);
-
-		// Cg
-		temporalIrradCg = lerp(temporalIrradCg, currCg, accumulationSpeed);
+		// color
+		color = lerp(color, noisySignal, accumulationSpeed);
 		
 		// lum
-		temporalLum = lerp(temporalLum, currLum, accumulationSpeed);
+		lum = lerp(lum, currLum, accumulationSpeed);
 		
 		// lum^2
-		temporalLumSq = lerp(temporalLumSq, currLumSq, accumulationSpeed);
+		lumSq = lerp(lumSq, currLumSq, accumulationSpeed);
 		
 		// variance		
 		// if tspp is too low, use the spatial estimate instead
@@ -242,8 +218,8 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float4 temporalIrradY_SH, i
 			// var = E[X^2]- E[X]^2
 			// E[X^2] = lum^2
 			// E[X] = lum
-			const float meanLum = temporalLum / tspp;
-			float temporalVariance = (temporalLumSq / tspp) - meanLum * meanLum;
+			const float meanLum = lum / tspp;
+			float temporalVariance = (lumSq / tspp) - meanLum * meanLum;
 			temporalVariance *= (float) tspp / (tspp - 1.0f);
 			temporalVariance = max(temporalVariance, 0.0f);
 		
@@ -259,11 +235,7 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float4 temporalIrradY_SH, i
 	else
 	{
 		tspp = 1;
-		temporalIrradY_SH = currY_Sh;
-		temporalIrradCo = currCo;
-		temporalIrradCg = currCg;
-		temporalLum = currLum;
-		temporalLumSq = currLumSq;
+		color = noisySignal.rgb;
 	}
 }
 
@@ -274,13 +246,11 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float4 temporalIrradY_SH, i
 [numthreads(TEMPORAL_FILTER_THREAD_GROUP_SIZE_X, TEMPORAL_FILTER_THREAD_GROUP_SIZE_Y, TEMPORAL_FILTER_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	if(!IsInRange(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!IsInRange(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	uint tspp = 0;
-	float4 irradY_SH = 0.0f.xxxx;
-	float irradCo = 0.0f;
-	float iradCg = 0.0f;
+	float3 color = 0.0f.xxx;
 	float lum = 0.0f;
 	float lumSq = 0.0f;
 
@@ -292,24 +262,18 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	if (isSurfaceMarker < MIN_ALPHA_CUTOFF)
 		return;
 	
-	float4 w = 0;
 	// sample temporal cache using a bilinear tap with custom weights
 	if (g_local.IsTemporalCacheValid)
-		w = SampleTemporalCache(DTid, tspp, irradY_SH, irradCo, iradCg, lum, lumSq);
+		SampleTemporalCache(DTid, tspp, color, lum, lumSq);
 
 	// integrate history and current frame
-	Integrate(DTid, tspp, irradY_SH, irradCo, iradCg, lum, lumSq);
+	Integrate(DTid, tspp, color, lum, lumSq);
 
-	uint4 ret;
-	ret.x = (f32tof16(irradY_SH.y) << 16) | f32tof16(irradY_SH.x);
-	ret.y = (f32tof16(irradY_SH.w) << 16) | f32tof16(irradY_SH.z);
-	ret.z = (f32tof16(iradCg) << 16) | f32tof16(irradCo);
-	ret.w = (f32tof16(lumSq) << 16) | f32tof16(lum);
-	ret.z = asuint(tspp / 32.0f);
+	uint3 ret;
+	ret.x = (f32tof16(color.r) << 16) | f32tof16(lum);
+	ret.y = (f32tof16(color.b) << 16) | f32tof16(color.g);
+	ret.z = (f32tof16(lumSq) << 16) | tspp;
 	
 	RWTexture2D<uint4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
-	g_nextTemporalCache[DTid.xy] = ret;
-	
-	RWTexture2D<uint> g_temporalCahceTSPP = ResourceDescriptorHeap[g_local.NextTemporalCacheTSPPDescHeapIdx];
-	g_temporalCahceTSPP[DTid.xy] = tspp;
+	g_nextTemporalCache[DTid.xy].xyz = ret;
 }

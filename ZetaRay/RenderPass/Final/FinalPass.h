@@ -28,7 +28,7 @@ namespace ZetaRay
 			enum class SHADER_IN_GPU_DESC
 			{
 				FINAL_LIGHTING,
-				INDIRECT_DIFFUSE_LO,
+				INDIRECT_DIFFUSE_LI,
 				SVGF_SPATIAL_VAR,
 				SVGF_TEMPORAL_CACHE,
 				COUNT
@@ -84,7 +84,7 @@ namespace ZetaRay
 				{
 					DEFAULT,
 					BASE_COLOR,
-					NORMALS, 
+					NORMALS,
 					METALNESS_ROUGHNESS,
 					MOTION_VECTOR,
 					DEPTH,
@@ -93,16 +93,16 @@ namespace ZetaRay
 					SVGF_TEMPORAL_CACHE
 				};
 
-				inline static const char* RenderOptions[] = {  "Default", "BaseColor", "Normals", 
-					"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse", 
-					"SVGF_SpatialVariance", "SVGF_TemporalCache"};
+				inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normals",
+					"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse",
+					"SVGF_SpatialVariance", "SVGF_TemporalCache" };
 			};
 
 			cbFinalPass m_cbLocal;
-			
+
 			// needed for shader hot-reload
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC m_cachedPsoDesc;
-			
+
 			// parameter callbacks
 			void DoTonemappingCallback(const ParamVariant& p) noexcept;
 			void ChangeRenderOptionCallback(const ParamVariant& p) noexcept;

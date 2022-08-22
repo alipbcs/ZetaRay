@@ -4,7 +4,6 @@
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/SH.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -104,7 +103,8 @@ float4 mainPS(VSOut psin) : SV_Target
 	
 	// either output of TAA or composited lighting
 	Texture2D<half4> g_in = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
-	half3 color = g_in.SampleLevel(g_samPointClamp, uv, 0).xyz;
+	float3 color = g_in.SampleLevel(g_samPointClamp, uv, 0).xyz;
+	//float3 color = g_in[psin.PosSS.xy].xyz;
 	
 	if (g_local.DoTonemapping)
 	{
@@ -113,23 +113,23 @@ float4 mainPS(VSOut psin) : SV_Target
 //		float linearExposure = (g_local.KeyValue / avgLum);
 		float3 exposedColor = color * exposure;
 		float3 toneMapped = LinearTosRGB(ACESFitted(exposedColor) * 1.8f);
+		//float3 toneMapped = AMDTonemapper(exposedColor);
 //		float3 toneMapped = ToneMapFilmicALU(exposedColor);
-		color = (half3) toneMapped;
+		color = toneMapped;
 	}
 		
 	if (g_local.DisplayDepth)
 	{
 		GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 		float z = g_depth.SampleLevel(g_samPointClamp, uv, 0);
-		color = half(z);
+		color = z;
 	}
 	else if (g_local.DisplayNormals)
 	{
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		half2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
-		color = (half3) DecodeUnitNormalFromHalf2(encodedNormal.xy);
-		color = abs(color);
-		//float3 geometricNormal = DecodeUnitNormalFromHalf2(encodedNormal.zw);		
+		color = DecodeUnitNormalFromHalf2(encodedNormal.xy);
+		color = abs(color);	
 	}
 	else if (g_local.DisplayBaseColor)
 	{
@@ -142,81 +142,34 @@ float4 mainPS(VSOut psin) : SV_Target
 		GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 			GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 		half2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
-		color = half3(0.0f, mr);
+		color = float3(0.0f, mr);
 	}
 	else if (g_local.DisplayMotionVec)
 	{
 		GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 			GBUFFER_OFFSET::MOTION_VECTOR];
-		half2 mv = g_motionVector.SampleLevel(g_samPointClamp, uv, 0);
-		color = half3(mv, 0.0f);
-	}	
+		float2 mv = g_motionVector.SampleLevel(g_samPointClamp, uv, 0);
+		color = float3(mv, 0.0f);
+	}
 	else if (g_local.DisplayIndirectDiffuse)
 	{
-		Texture2D<uint4> g_indirectLo = ResourceDescriptorHeap[g_local.IndirectDiffuseLoDescHeapIdx];
-		uint4 Lo = g_indirectLo[psin.PosSS.xy].xyzw;
-	
-		// plan
-		float4 lumaSH = float4(f16tof32(Lo.x), f16tof32(Lo.x >> 16), f16tof32(Lo.y), f16tof32(Lo.y >> 16));
-		float Co = f16tof32(Lo.z);
-		float Cg = f16tof32(Lo.z >> 16);
-
-		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-		float3 normal = DecodeUnitNormalFromHalf2(g_normal[psin.PosSS.xy]);
-
-		// convolve incoming radiance with max(0, cos(theta))
-		// Convolution becomes dot product in SH basis. We have the MC estimate
-		// of SH coeffs for incoming radiance, and SH coeffs for max(0, cos(theta)) are 
-		// known in closed form
-		float irradY = 0.0f;
-		irradY += lumaSH.x * COS_THETA_SH_COEFFS[0];
-		irradY += lumaSH.y * normal.y * COS_THETA_SH_COEFFS[1];
-		irradY += lumaSH.z * normal.z * COS_THETA_SH_COEFFS[1];
-		irradY += lumaSH.w * normal.x * COS_THETA_SH_COEFFS[1];
-		
-		irradY = max(0.0f, irradY);
-		
-		//float modifier = SHBasis00 * irradY * rcp(lumaSH.x) * rcp(asfloat(Lo.w));
-		//float2 CoCg = float2(Co, Cg) * saturate(modifier);
-		//color = (half3) YCoCgToRGB(float3(irradY, CoCg));
-		color = half3(irradY.xxx);
-		
-		// orig
-		//color = YCoCgToRGB(half3(asfloat16(uint16_t(Lo.x)), asfloat16(uint16_t(Lo.y)), asfloat16(uint16_t(Lo.z))));
-		//color = (half3) YCoCgToRGB(float3(f16tof32(Lo.x), f16tof32(Lo.y), f16tof32(Lo.z)));
-		//color = half3(f16tof32(Lo.x), f16tof32(Lo.y), f16tof32(Lo.z));
-	}	
+		Texture2D<float4> g_indirectLi = ResourceDescriptorHeap[g_local.IndirectDiffuseLiDescHeapIdx];
+		color = g_indirectLi[psin.PosSS.xy].xyz;
+	}
 	else if (g_local.DisplaySvgfSpatialVariance)
 	{
 		Texture2D<half> g_var = ResourceDescriptorHeap[g_local.SVGFSpatialVarDescHeapIdx];
-		half var = g_var.SampleLevel(g_samPointClamp, uv, 0);
+		float var = g_var.SampleLevel(g_samPointClamp, uv, 0);
 		color = var.xxx;
 	}
 	else if (g_local.DisplaySvgfTemporalCache)
 	{
 		Texture2D<uint4> g_temporalCache = ResourceDescriptorHeap[g_local.SVGFTemporalCacheDescHeapIdx];
-		uint3 temporal = g_temporalCache[psin.PosSS.xy].xyz;
 		
-		/*
-		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-		float3 normal = DecodeUnitNormalFromHalf2(g_normal[psin.PosSS.xy]);
-
-		float4 lumaSH = float4(f16tof32(temporal.x), f16tof32(temporal.x >> 16), f16tof32(temporal.y), f16tof32(temporal.y >> 16));
-		float Co = f16tof32(temporal.z);
-		float Cg = f16tof32(temporal.z >> 16);
-		
-		float irradY = 0.0f;
-		irradY += lumaSH.x * COS_THETA_SH_COEFFS[0];
-		irradY += lumaSH.y * normal.y * COS_THETA_SH_COEFFS[1];
-		irradY += lumaSH.z * normal.z * COS_THETA_SH_COEFFS[1];
-		irradY += lumaSH.w * normal.x * COS_THETA_SH_COEFFS[1];
-		
-		irradY = max(0.0f, irradY);
-		
-		//color = (half3) YCoCgToRGB(float3(irradY, Co, Cg)) * 1e-6;
-		*/
-		color = half3(asfloat(temporal.z).xxx);
+		// warning: can't sample from uint textures, following is invalid when upscaling is enabled
+		uint2 integratedVals = g_temporalCache[psin.PosSS.xy].xy;
+		color = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
 	}
-		
+	
 	return float4(color, 1.0f);
 }

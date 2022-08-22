@@ -63,10 +63,6 @@ struct cbTemporalFilter
 	// RWTexture2D<uint4>: (colMean, colVar, lumVar);
 	uint_ SpatialLumVarDescHeapIdx;
 
-	// Texture2D<uint8>
-	uint_ PrevTemporalCacheTSPPDescHeapIdx;
-	uint_ NextTemporalCacheTSPPDescHeapIdx;
-
 	// maybe enable in the future to experiment with temporal cache <-> recent frame tradeoffs
 //	float MinAccumulationSpeed;
 

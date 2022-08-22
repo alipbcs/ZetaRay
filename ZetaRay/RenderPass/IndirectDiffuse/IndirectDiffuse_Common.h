@@ -9,6 +9,7 @@
 
 struct cbIndirectDiffuse
 {
+	uint_ OutputDescHeapIdx;
 	uint16_t InputWidth;
 	uint16_t InputHeight;
 	uint16_t DispatchDimX;
@@ -16,8 +17,6 @@ struct cbIndirectDiffuse
 	uint16_t TileWidth;
 	uint16_t Log2TileWidth;
 	uint16_t NumGroupsInTile;
-
-	uint_ OutputLoDescHeapIdx;
 };
 
 #endif

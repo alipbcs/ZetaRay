@@ -42,7 +42,7 @@ void HorizontalPass(uint3 Gid, uint Gidx)
 	// reshape original 8x8 group into 4x16 so that each 16 threads work on one image row
 	const uint2 Gidx4x16 = uint2(Gidx & (16 - 1), Gidx >> 4);
 		
-	Texture2D<uint4> g_indirectLi = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
+	Texture2D<half4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 
     // Horizontally filter 4 rows of 16 pixels. Next iterations filters
@@ -72,7 +72,8 @@ void HorizontalPass(uint3 Gid, uint Gidx)
 		{
 			depth = ComputeLinearDepthReverseZ(g_depth[pixelAddr], g_frame.CameraNear);
 			
-			lum = asfloat(g_indirectLi[pixelAddr].w);
+			float3 color = g_indirectLiRayT[pixelAddr].rgb;
+			lum = LuminanceFromLinearRGB(color);
 			lumSq = lum * lum;
 		}
 				
@@ -87,12 +88,12 @@ void HorizontalPass(uint3 Gid, uint Gidx)
 		// row
 		float lumSum = Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X ? lum : 0.0f;
 		float lumSqSum = Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X ? lumSq : 0.0f;
-		float numValues = ((Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X) && isInScreenBounds) ? 1.0f: 0.0f;
+		float numValues = ((Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X) && isInScreenBounds) ? 1.0f : 0.0f;
 		numValues *= DepthTest(centerDepth, depth, g_local.Radius);
 		
 		for (int i = 0; i < g_local.Radius; i++)
 		{
-			const int neighborAddr = Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X ? 
+			const int neighborAddr = Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X ?
 											1 + Gidx4x16.x + i + rowToWaveAdjustment :
 											// +1 is to skip over loaded values
 											1 + Gidx4x16.x - SPATIAL_VAR_THREAD_GROUP_SIZE_X + g_local.Radius + i + rowToWaveAdjustment;
@@ -112,12 +113,12 @@ void HorizontalPass(uint3 Gid, uint Gidx)
 		numValues += WaveReadLaneAt(numValues, secondHalfLaneIdx);
 
 		// cache depth values that are needed in the vertical pass
-		const float depth8x8 = WaveReadLaneAt(depth, 
+		const float depth8x8 = WaveReadLaneAt(depth,
 			min(Gidx4x16.x + g_local.Radius + rowToWaveAdjustment, WaveGetLaneCount() - 1));
 
 		// add the two sub-computations (row's first and second halves)
 		if (Gidx4x16.x < SPATIAL_VAR_THREAD_GROUP_SIZE_X)
-		{			
+		{
 			float2 lumMoments;
 			lumMoments.x = lumSum;
 			lumMoments.y = lumSqSum;
@@ -140,7 +141,7 @@ void VerticalPass(uint3 DTid, uint3 GTid)
 	for (int i = 0; i < 2 * g_local.Radius + 1; i++)
 	{
 		float2 lumMoments = g_lumMoments[GTid.y + i][GTid.x];
-		float numNeighborValues = g_numValidVals[GTid.y + i][GTid.x];	
+		float numNeighborValues = g_numValidVals[GTid.y + i][GTid.x];
 
 		float neighborDepth = g_depthCache[GTid.y + i][GTid.x];
 		float depthWeight = DepthTest(depth, neighborDepth, abs(i - g_local.Radius));
@@ -159,7 +160,7 @@ void VerticalPass(uint3 DTid, uint3 GTid)
 	varianceLum *= (float) numValues / max(numValues - 1.0f, 1.0f);
 	varianceLum = max(varianceLum, 0.0f);
 	
-	RWTexture2D<half> g_outLumVar = ResourceDescriptorHeap[g_local.SpatialLumVarDescHeapIdx];	
+	RWTexture2D<half> g_outLumVar = ResourceDescriptorHeap[g_local.SpatialLumVarDescHeapIdx];
 	g_outLumVar[DTid.xy] = half(varianceLum);
 }
 
@@ -180,7 +181,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	HorizontalPass(Gid, Gidx);
 	GroupMemoryBarrierWithGroupSync();
 	
-	if(isSurface)
+	if (isSurface)
 		VerticalPass(DTid, GTid);
 	else
 	{

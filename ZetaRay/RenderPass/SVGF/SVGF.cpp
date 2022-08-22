@@ -114,8 +114,6 @@ void SVGF::Reset() noexcept
 	m_descTable.Reset();
 	m_temporalCacheColLum[0].Reset();
 	m_temporalCacheColLum[1].Reset();
-	m_temporalCacheTSPP[0].Reset();
-	m_temporalCacheTSPP[1].Reset();
 	//m_temporalFilterBuff.Reset();
 	//m_spatialVarBuff.Reset();
 	//m_waveletTransformBuff->Reset();
@@ -144,18 +142,18 @@ void SVGF::Render(CommandList& cmdList) noexcept
 
 	// spatial variance
 	{
-		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LO] != 0, "Input descriptor heap idx hasn't been set.");
+		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI] != 0, "Input descriptor heap idx hasn't been set.");
 
 		computeCmdList.PIXBeginEvent("SVGF_SpatialVariance");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_VARIANCE]);
 
-		m_cbSpatialVar.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LO];
+		m_cbSpatialVar.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI];
 		m_cbSpatialVar.SpatialLumVarDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_UAV);
 		m_rootSig.SetRootConstants(0, sizeof(cbSpatialVar) / sizeof(DWORD), &m_cbSpatialVar);
 
 		m_rootSig.End(computeCmdList);
 
-		computeCmdList.Dispatch((UINT)CeilUnsignedIntDiv(w, TEMPORAL_FILTER_THREAD_GROUP_SIZE_X), 
+		computeCmdList.Dispatch((UINT)CeilUnsignedIntDiv(w, TEMPORAL_FILTER_THREAD_GROUP_SIZE_X),
 			(UINT)CeilUnsignedIntDiv(h, TEMPORAL_FILTER_THREAD_GROUP_SIZE_Y),
 			TEMPORAL_FILTER_THREAD_GROUP_SIZE_Z);
 
@@ -184,15 +182,13 @@ void SVGF::Render(CommandList& cmdList) noexcept
 				(UINT)CeilUnsignedIntDiv(h, GAUSSAIN_FILT_THREAD_GROUP_SIZE_Y),
 				GAUSSAIN_FILT_THREAD_GROUP_SIZE_Z);
 		}
-		
+
 		computeCmdList.PIXEndEvent();
 	}
 
 	const uint32_t prevTemporalCacheSRV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_SRV : (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_SRV;
 	const uint32_t nextTemporalCacheUAV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_UAV : (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_UAV;
 
-	const uint32_t prevTemporalCacheTSPPSRV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_TSPP_A_SRV : (int)DESC_TABLE::TEMPORAL_CACHE_TSPP_B_SRV;
-	const uint32_t nextTemporalCacheTSPPUAV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_TSPP_B_UAV : (int)DESC_TABLE::TEMPORAL_CACHE_TSPP_A_UAV;
 
 	// temporal filter
 	{
@@ -202,13 +198,11 @@ void SVGF::Render(CommandList& cmdList) noexcept
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_FILTER]);
 
 		m_cbTemporalFilter.LinearDepthGradDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::LINEAR_DEPTH_GRAD];
-		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LO];
+		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI];
 		m_cbTemporalFilter.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheSRV);
 		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheUAV);
 		m_cbTemporalFilter.SpatialLumVarDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_UAV);
 		m_cbTemporalFilter.IsTemporalCacheValid = m_isTemporalCacheValid;
-		m_cbTemporalFilter.PrevTemporalCacheTSPPDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheTSPPSRV);
-		m_cbTemporalFilter.NextTemporalCacheTSPPDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheTSPPUAV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cbTemporalFilter) / sizeof(DWORD), &m_cbTemporalFilter);
 		m_rootSig.End(computeCmdList);
@@ -225,7 +219,7 @@ void SVGF::Render(CommandList& cmdList) noexcept
 	}
 
 	// atrous wavelet transform
-	if(m_waveletTransform)
+	if (m_waveletTransform)
 	{
 		computeCmdList.PIXBeginEvent("SVGF_AtrousWaveletTransform");
 
@@ -263,7 +257,7 @@ void SVGF::Render(CommandList& cmdList) noexcept
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 		}
-		
+
 		computeCmdList.PIXEndEvent();
 	}
 
@@ -311,54 +305,20 @@ void SVGF::CreateResources() noexcept
 		uavDesc.Format = ResourceFormats::TEMPORAL_CACHE_COLOR_LUM;
 
 		device->CreateShaderResourceView(m_temporalCacheColLum[0].GetResource(),
-			&srvDesc, 
+			&srvDesc,
 			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_SRV));
 		device->CreateUnorderedAccessView(m_temporalCacheColLum[0].GetResource(),
-			nullptr, 
-			&uavDesc, 
+			nullptr,
+			&uavDesc,
 			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_UAV));
 
 		device->CreateShaderResourceView(m_temporalCacheColLum[1].GetResource(),
 			&srvDesc,
 			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_SRV));
 		device->CreateUnorderedAccessView(m_temporalCacheColLum[1].GetResource(),
-			nullptr, 
+			nullptr,
 			&uavDesc,
 			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_UAV));
-	}
-
-	// temporal cache- TSPP
-	{
-		m_temporalCacheTSPP[0] = renderer.GetGpuMemory().GetTexture2D("SVGF_TEMPORAL_CACHE_TSPP_A",
-			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			ResourceFormats::TEMPORAL_CACHE_TSPP,
-			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | TEXTURE_FLAGS::INIT_TO_ZERO);
-
-		m_temporalCacheTSPP[1] = renderer.GetGpuMemory().GetTexture2D("SVGF_TEMPORAL_CACHE_TSPP_B",
-			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			ResourceFormats::TEMPORAL_CACHE_TSPP,
-			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | TEXTURE_FLAGS::INIT_TO_ZERO);
-
-		srvDesc.Format = ResourceFormats::TEMPORAL_CACHE_TSPP;
-		uavDesc.Format = ResourceFormats::TEMPORAL_CACHE_TSPP;
-
-		device->CreateShaderResourceView(m_temporalCacheTSPP[0].GetResource(),
-			&srvDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_TSPP_A_SRV));
-		device->CreateUnorderedAccessView(m_temporalCacheTSPP[0].GetResource(),
-			nullptr,
-			&uavDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_TSPP_A_UAV));
-
-		device->CreateShaderResourceView(m_temporalCacheTSPP[1].GetResource(),
-			&srvDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_TSPP_B_SRV));
-		device->CreateUnorderedAccessView(m_temporalCacheTSPP[1].GetResource(),
-			nullptr,
-			&uavDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_TSPP_B_UAV));
 	}
 
 	// color mean-variance + lum variance
@@ -405,14 +365,14 @@ void SVGF::InitParams() noexcept
 
 	ParamVariant maxTSPP;
 	maxTSPP.InitInt("Renderer", "SVGF", "MaxTSPP", fastdelegate::MakeDelegate(this, &SVGF::MaxTSPPCallback),
-		DefaultParamVals::MaxTSPP,		// val	
+		DefaultParamVals::MaxTSPP,		// val
 		1,								// min
-		32,							// max
+		32,								// max
 		1);								// step
 	App::AddParam(maxTSPP);
 
 	ParamVariant minTSPPtoUseTemporalVar;
-	minTSPPtoUseTemporalVar.InitInt("Renderer", "SVGF", "MinTSPPTemporalVar", 
+	minTSPPtoUseTemporalVar.InitInt("Renderer", "SVGF", "MinTSPPTemporalVar",
 		fastdelegate::MakeDelegate(this, &SVGF::MinTSPPForTemporalVarCallback),
 		DefaultParamVals::MinTSPPtoUseTemporalVar,		// val	
 		1,												// min
@@ -423,7 +383,7 @@ void SVGF::InitParams() noexcept
 	// adjustment for this wasn't exposed (fixed at 1.1) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 56
 	ParamVariant bilateralNormalScale;
-	bilateralNormalScale.InitFloat("Renderer", "SVGF", "NormalConsScale", 
+	bilateralNormalScale.InitFloat("Renderer", "SVGF", "NormalConsScale",
 		fastdelegate::MakeDelegate(this, &SVGF::BilateralNormalScaleCallback),
 		DefaultParamVals::BilinearNormalScale,		// val	
 		1.0f,										// min
@@ -434,7 +394,7 @@ void SVGF::InitParams() noexcept
 	// adjustment for this wasn't exposed (fixed at 32) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 57
 	ParamVariant bilateralNormalExp;
-	bilateralNormalExp.InitFloat("Renderer", "SVGF", "NormalConsExp", 
+	bilateralNormalExp.InitFloat("Renderer", "SVGF", "NormalConsExp",
 		fastdelegate::MakeDelegate(this, &SVGF::BilateralNormalExpCallback),
 		DefaultParamVals::BilinearNormalExp,		// val	
 		16.0f,										// min
@@ -443,7 +403,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(bilateralNormalExp);
 
 	ParamVariant bilateralDepthScale;
-	bilateralDepthScale.InitFloat("Renderer", "SVGF", "DepthConsScale", 
+	bilateralDepthScale.InitFloat("Renderer", "SVGF", "DepthConsScale",
 		fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthScaleCallback),
 		DefaultParamVals::BilinearDepthScale,		// val	
 		0.1f,										// min
@@ -454,7 +414,7 @@ void SVGF::InitParams() noexcept
 	// adjustment for this wasn't exposed (fixed at 0.5) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 53
 	ParamVariant bilateralDepthCutoff;
-	bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff", 
+	bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff",
 		fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthCutoffCallback),
 		DefaultParamVals::BilinearDepthCutoff,		// val	
 		0.0f,										// min
@@ -462,52 +422,52 @@ void SVGF::InitParams() noexcept
 		0.01f);										// step
 	App::AddParam(bilateralDepthCutoff);
 
-//	ParamVariant neighborhoodClamping;
-//	neighborhoodClamping.InitBool("Renderer", "SVGF", "NeighborhoodClamping", 
-//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingCallback),
-//		DefaultParamVals::NeighborhoodClamping);
-//	App::AddParam(neighborhoodClamping);
+	//	ParamVariant neighborhoodClamping;
+	//	neighborhoodClamping.InitBool("Renderer", "SVGF", "NeighborhoodClamping", 
+	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingCallback),
+	//		DefaultParamVals::NeighborhoodClamping);
+	//	App::AddParam(neighborhoodClamping);
 
-//	ParamVariant neighborhoodClampingStdScale;
-//	neighborhoodClampingStdScale.InitFloat("Renderer", "SVGF", "NeighborhoodClampingStdScale", 
-//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingStdScaleCallback),
-//		DefaultParamVals::NeighborhoodClampingStdScale,		// val	
-//		0.1f,												// min
-//		10.0f,												// max
-//		0.1f);												// step
-//	App::AddParam(neighborhoodClampingStdScale);
+	//	ParamVariant neighborhoodClampingStdScale;
+	//	neighborhoodClampingStdScale.InitFloat("Renderer", "SVGF", "NeighborhoodClampingStdScale", 
+	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingStdScaleCallback),
+	//		DefaultParamVals::NeighborhoodClampingStdScale,		// val	
+	//		0.1f,												// min
+	//		10.0f,												// max
+	//		0.1f);												// step
+	//	App::AddParam(neighborhoodClampingStdScale);
 
-//	ParamVariant neighborhoodClampingMinStd;
-//	neighborhoodClampingMinStd.InitFloat("Renderer", "SVGF", "NeighborhoodClampingMinStd", 
-//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingMinStdCallback),
-//		DefaultParamVals::NeighborhoodClampingMinStd,		// val	
-//		0.0f,												// min
-//		1.0f,												// max
-//		0.01f);												// step
-//	App::AddParam(neighborhoodClampingMinStd);
+	//	ParamVariant neighborhoodClampingMinStd;
+	//	neighborhoodClampingMinStd.InitFloat("Renderer", "SVGF", "NeighborhoodClampingMinStd", 
+	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingMinStdCallback),
+	//		DefaultParamVals::NeighborhoodClampingMinStd,		// val	
+	//		0.0f,												// min
+	//		1.0f,												// max
+	//		0.01f);												// step
+	//	App::AddParam(neighborhoodClampingMinStd);
 
-//	ParamVariant neighborhoodClampingTSPP;
-//	neighborhoodClampingTSPP.InitFloat("Renderer", "SVGF", "NeighborhoodClampingTSPPAdjustment", 
-//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingTSPPAdjCallback),
-//		DefaultParamVals::NeighborhoodClampingTSPPAdj,		// val	
-//		0.0f,												// min
-//		10.0f,												// max
-//		0.05f);												// step
-//	App::AddParam(neighborhoodClampingTSPP);
+	//	ParamVariant neighborhoodClampingTSPP;
+	//	neighborhoodClampingTSPP.InitFloat("Renderer", "SVGF", "NeighborhoodClampingTSPPAdjustment", 
+	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingTSPPAdjCallback),
+	//		DefaultParamVals::NeighborhoodClampingTSPPAdj,		// val	
+	//		0.0f,												// min
+	//		10.0f,												// max
+	//		0.05f);												// step
+	//	App::AddParam(neighborhoodClampingTSPP);
 
-	// adjustment for this wasn't exposed (fixed at 0.1) 
-	// TemporalSupersampling_BlendWithCurrentFrameCS.hlsl, line 95
-	//ParamVariant minLumVariance;
-	//minLumVariance.InitFloat("Renderer", "SVGF", "MinLumVar", 
-	//	fastdelegate::MakeDelegate(this, &SVGF::MinLumVarCallback),
-	//	DefaultParamVals::MinLumVariance,		// val	
-	//	0.0f,									// min
-	//	5.0f,									// max
-	//	0.1f);									// step
-	//App::AddParam(minLumVariance);
+		// adjustment for this wasn't exposed (fixed at 0.1) 
+		// TemporalSupersampling_BlendWithCurrentFrameCS.hlsl, line 95
+		//ParamVariant minLumVariance;
+		//minLumVariance.InitFloat("Renderer", "SVGF", "MinLumVar", 
+		//	fastdelegate::MakeDelegate(this, &SVGF::MinLumVarCallback),
+		//	DefaultParamVals::MinLumVariance,		// val	
+		//	0.0f,									// min
+		//	5.0f,									// max
+		//	0.1f);									// step
+		//App::AddParam(minLumVariance);
 
-	// adjustment for this wasn't exposed (fixed at 1e-3) 
-	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 154
+		// adjustment for this wasn't exposed (fixed at 1e-3) 
+		// TemporalSupersampling_ReverseReprojectCS.hlsl, line 154
 	ParamVariant minConsistentWeight;
 	minConsistentWeight.InitFloat("Renderer", "SVGF", "MinConsWeight",
 		fastdelegate::MakeDelegate(this, &SVGF::MinConsistentWeightCallback),
@@ -518,7 +478,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(minConsistentWeight);
 
 	ParamVariant spatialVarianceRadius;
-	spatialVarianceRadius.InitInt("Renderer", "SVGF", "SpatialVarRadius", 
+	spatialVarianceRadius.InitInt("Renderer", "SVGF", "SpatialVarRadius",
 		fastdelegate::MakeDelegate(this, &SVGF::SpatialVarRadiusCallback),
 		DefaultParamVals::SpatialVarianceRadius,		// val	
 		1,												// min
@@ -527,7 +487,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(spatialVarianceRadius);
 
 	ParamVariant filterSpatialVariance;
-	filterSpatialVariance.InitBool("Renderer", "SVGF", "FilterSpatialVariance", 
+	filterSpatialVariance.InitBool("Renderer", "SVGF", "FilterSpatialVariance",
 		fastdelegate::MakeDelegate(this, &SVGF::FilterSpatialVarCallback),
 		m_filterSpatialVariance);
 	App::AddParam(filterSpatialVariance);
@@ -551,7 +511,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(edgeStoppingDepthWeightCutoff);
 
 	ParamVariant edgeStoppingLumSigma;
-	edgeStoppingLumSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingLumSigma", 
+	edgeStoppingLumSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingLumSigma",
 		fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingLumSigmaCallback),
 		DefaultParamVals::EdgeStoppingLumSigma,		// val	
 		0.1f,										// min
@@ -560,7 +520,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(edgeStoppingLumSigma);
 
 	ParamVariant edgeStoppingNormalSigma;
-	edgeStoppingNormalSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingNormalSigma", 
+	edgeStoppingNormalSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingNormalSigma",
 		fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingNormalSigmaCallback),
 		DefaultParamVals::EdgeStoppingNormalSigma,		// val	
 		1.0f,											// min
@@ -569,7 +529,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(edgeStoppingNormalSigma);
 
 	ParamVariant edgeStoppingDepthSigma;
-	edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma", 
+	edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma",
 		fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthSigmaCallback),
 		DefaultParamVals::EdgeStoppingDepthSigma,		// val	
 		0.0f,											// min
@@ -584,7 +544,7 @@ void SVGF::InitParams() noexcept
 		1,													// min
 		5,													// max
 		1);													// step
-	App::AddParam(numWaveletFilterPasses);	
+	App::AddParam(numWaveletFilterPasses);
 }
 
 void SVGF::MaxTSPPCallback(const ParamVariant& p) noexcept

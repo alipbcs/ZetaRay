@@ -189,7 +189,7 @@ namespace ZetaRay
 			LINEAR_DEPTH_GRAD,
 			SPATIAL_VAR,
 			TEMPORAL_CACHE,
-			INDIRECT_LO,
+			INDIRECT_LI,
 			COUNT
 		};
 

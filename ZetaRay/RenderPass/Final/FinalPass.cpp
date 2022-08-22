@@ -125,7 +125,7 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 
 	Assert(m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING] > 0, "Gpu Desc Idx hasn't been set.");
 	m_cbLocal.InputDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING];
-	m_cbLocal.IndirectDiffuseLoDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LO];
+	m_cbLocal.IndirectDiffuseLiDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI];
 	m_cbLocal.SVGFSpatialVarDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::SVGF_SPATIAL_VAR];
 	m_cbLocal.SVGFTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::SVGF_TEMPORAL_CACHE];
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);

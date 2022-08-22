@@ -30,7 +30,6 @@ StructuredBuffer<uint> g_frameMeshData : register(t6, space0);
 #define NUM_BINS 8
 #define DO_THREAD_GROUP_SWIZZLING
 #define DO_RAY_BINNING
-#define PROJECT_TO_SH_BASIS
 
 struct HitSurface
 {
@@ -80,7 +79,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 geometricNormal)
 	// protect against self-intersection
 //	float3 adjustedOrigin = OffsetRayOrigin(pos, geometricNormal, wi);
 	//float3 adjustedOrigin = OffsetRayRTG(pos, geometricNormal);
-//	float3 adjustedOrigin = pos + 1e-2f * geometricNormal;
+	//float3 adjustedOrigin = pos + 1e-2f * geometricNormal;
 
 	RayQuery < RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
@@ -108,7 +107,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 geometricNormal)
 bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out HitSurface surface)
 {
 	// protect against self-intersection
-//	float3 adjustedOrigin = pos + 1e-6f * geometricNormal;
+//	float3 adjustedOrigin = pos + 1e-3f * geometricNormal;
 //	float3 adjustedOrigin = OffsetRayRTG(pos, geometricNormal);
 //	const float3 adjustedOrigin = OffsetRayOrigin(pos, geometricNormal, wi);
 
@@ -299,7 +298,7 @@ float3 DirectLighting(HitSurface hitInfo)
 	float3 tr = EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
-	//float3 L_i = (brdf * g_frame.SunIlluminance * tr);
+	//half3 L_i = (half3) (brdf * g_frame.SunIlluminance * tr);
 	float3 L_i = (brdf * tr);
 	float3 L_e = mat.EmissiveFactor;
 
@@ -312,7 +311,7 @@ float3 DirectLighting(HitSurface hitInfo)
 	return (L_i + L_e);
 }
 
-float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, out uint16_t sortedIdx, out float cosTheta)
+float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, out uint16_t sortedIdx)
 {
 	// reconstruct position from depth buffer
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -331,36 +330,35 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	half2 packedNormals = g_normal[DTid];
 	float3 shadingNormal = DecodeUnitNormalFromHalf2(packedNormals.xy);
-	half2 encodedNormal = packedNormals.xy;
+	//half2 encodedGeometricNormal = packedNormals.zw;
+	half2 encodedGeometricNormal = packedNormals.xy;
 	
 	// sample the cosine-weighted hemisphere above surfact pos
 	float3 wi = float3(INVALID_RAY_DIR, INVALID_RAY_DIR, INVALID_RAY_DIR);
 	if (shouldThisLaneTrace)
 	{
-		//const uint sampleIdx = g_frame.FrameNum & 31;
-		const uint sampleIdx = 0;
+		const uint sampleIdx = g_frame.FrameNum & 31;
+		//const uint sampleIdx = 0;
 		const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 0);
+			DTid.x, DTid.y, sampleIdx, 2);
 		const float u1 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 1);
+			DTid.x, DTid.y, sampleIdx, 3);
 
-		wi = SampleLambertianBrdf(shadingNormal, float2(u0, u1), cosTheta);
+		wi = SampleLambertianBrdf(shadingNormal, float2(u0, u1));
 	}
 	
 	// trace a ray along wi to find a possible surface point
 	bool isRayValid;
 	HitSurface hitInfo;
-	bool hit = Trace(Gidx, posW, wi, encodedNormal, hitInfo, isRayValid, sortedIdx);
+	bool hit = Trace(Gidx, posW, wi, encodedGeometricNormal, hitInfo, isRayValid, sortedIdx);
 
 	// what's the incoming radiance (Li) from this surface point
-	float3 L_i = 0.0.xxx;
+	float3 L_i = 0.0;
 
 	// if the ray hit a surface, compute direct lighting at the given surface point, otherise do miss shading,
 	// which returns the incoming radiance from sky
 	if (hit)
-	{
 		L_i = DirectLighting(hitInfo);
-	}
 	else if (isRayValid)
 	{
 #if defined(DO_RAY_BINNING)
@@ -432,9 +430,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	shouldThisLaneTrace = shouldThisLaneTrace && (isSurfaceMarker > MIN_ALPHA_CUTOFF);
 
 	uint16_t sortedIdx;
-	float cosTheta;
 	float4 val = 0.0.xxxx;
-	val.xyz = ComputeIndirectLi(swizzledDTid, Gidx, shouldThisLaneTrace, sortedIdx, cosTheta);
+	val.xyz = ComputeIndirectLi(swizzledDTid, Gidx, shouldThisLaneTrace, sortedIdx);
 
 #if defined(DO_RAY_BINNING)
 	g_sortedOrigin[Gidx] = val.xyz;
@@ -449,51 +446,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// write the results to memory
 	if (shouldThisLaneTrace)
 	{
-		RWTexture2D<uint4> g_outLo = ResourceDescriptorHeap[g_local.OutputLoDescHeapIdx];
-		
-#if defined(PROJECT_TO_SH_BASIS)		
-		float3 wi = g_sortedDir[sortedIdx];
-		const float3 valYCoCg = RGBToYCoCg(val.rgb);
-		
-		// plan
-		
-		float4 lumaSH = ProjectToSH1(wi, valYCoCg.x);
-		
-		// samples (w) were drawn from a cosine-weighted hemisphere distribution where
-		//		P(theta, phi) = cos(theta) / PI,
-		//
-		// Therefore, the MC estimate of SH coefficients of incoming radiance (f(l, m)) are:
-		//		f_l^m = L_i(w) * Y_L^m(w) / P(w)
-		//		f_l^m = (L_i(w) * Y_L^m(w) / cos(theta)) * PI
-		//
-		// Since Lambertian BRDF is BaseColor / PI, for BRDF * irradiance, PI cancels out.
-		//float pdf = wi.y;
-		float pdf = cosTheta;
-		lumaSH /= pdf;
-		
-		uint4 ret;
-		ret.x = (f32tof16(lumaSH.y) << 16) | f32tof16(lumaSH.x);
-		ret.y = (f32tof16(lumaSH.w) << 16) | f32tof16(lumaSH.z);
-		ret.z = (f32tof16(valYCoCg.z) << 16) | f32tof16(valYCoCg.y);
-		ret.w = asuint(LuminanceFromLinearRGB(val.rgb));
-		g_outLo[swizzledDTid] = ret;
-			
-		// orig
-		/*
-		uint4 ret;
-		ret.x = f32tof16(valYCoCg.x);
-		ret.y = f32tof16(valYCoCg.y);
-		ret.z = f32tof16(valYCoCg.z);
-		ret.w = asuint(LuminanceFromLinearRGB(val.rgb));
-		g_outLo[swizzledDTid] = ret;		
-		*/
-		
-#else
-		uint2 ret;
-		ret.x = (f32tof16(val.y) >> 16) | f32tof16(val.x);
-		ret.y = f32tof16(val.z);
-		
-		outLiRayT[swizzledDTid].xy = ret;
-#endif
+		RWTexture2D<float4> outLiRayT = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];		
+		outLiRayT[swizzledDTid].xyz = val.xyz;
 	}
 }

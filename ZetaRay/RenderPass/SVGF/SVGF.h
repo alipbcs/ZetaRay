@@ -17,7 +17,7 @@ namespace ZetaRay
 		{
 			enum class SHADER_IN_RES
 			{
-				INDIRECT_LO,
+				INDIRECT_LI,
 				LINEAR_DEPTH_GRAD,
 				COUNT
 			};
@@ -26,8 +26,6 @@ namespace ZetaRay
 			{
 				TEMPORAL_CACHE_COL_LUM_A,
 				TEMPORAL_CACHE_COL_LUM_B,
-				TEMPORAL_CACHE_TSPP_A,
-				TEMPORAL_CACHE_TSPP_B,
 				SPATIAL_VAR,
 				COUNT
 			};
@@ -48,17 +46,15 @@ namespace ZetaRay
 			const Texture& GetOutput(SHADER_OUT_RES i) const noexcept
 			{
 				Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
-				
+
 				switch (i)
 				{
 				case SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A:
 					return m_temporalCacheColLum[0];
 				case SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B:
 					return m_temporalCacheColLum[1];
-				case SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_A:
-					return m_temporalCacheTSPP[0];
-				case SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_B:
-					return m_temporalCacheTSPP[1];
+					//case SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_TSPP:
+					//	return m_temporalCacheTSPP;
 				default:
 					if (!m_filterSpatialVariance)
 						return m_spatialLumVar;
@@ -95,10 +91,7 @@ namespace ZetaRay
 				TEMPORAL_CACHE_COL_LUM_B_UAV,
 				SPATIAL_LUM_VAR_UAV,
 				SPATIAL_LUM_VAR_FILTERED_UAV,
-				TEMPORAL_CACHE_TSPP_A_SRV,
-				TEMPORAL_CACHE_TSPP_A_UAV,
-				TEMPORAL_CACHE_TSPP_B_SRV,
-				TEMPORAL_CACHE_TSPP_B_UAV,
+				TEMPORAL_CACHE_TSPP_UAV,
 				COUNT
 			};
 
@@ -149,7 +142,6 @@ namespace ZetaRay
 			uint32_t m_inputGpuHeapIndices[(int)SHADER_IN_RES::COUNT];
 
 			Texture m_temporalCacheColLum[2];
-			Texture m_temporalCacheTSPP[2];
 			Texture m_spatialLumVar;
 			Texture m_spatialLumVarFiltered;
 

@@ -28,8 +28,8 @@ void RayTracer::CreateDescriptors(const RenderSettings& settings, RayTracerData&
 		Assert(!data.DescTableAll.IsEmpty(), "descriptor table hasn't been allocated yet.");
 
 		// Direct3D api doesn't accept const pointers
-		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO);
-		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LO));
+		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI);
+		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
 	}
 
 	if (data.IndirectDiffusePass.IsInitialized() && settings.DenoiseIndirectDiffuseLi)
@@ -77,8 +77,8 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 	{
 		data.IndirectDiffusePass.Init();
 
-		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO);
-		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LO));
+		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI);
+		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
 	}
 
 	if (settings.DenoiseIndirectDiffuseLi)
@@ -103,8 +103,8 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 
 		data.SVGF_Pass.SetDescriptor(SVGF::SHADER_IN_RES::LINEAR_DEPTH_GRAD, 
 			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::LINEAR_DEPTH_GRAD));
-		data.SVGF_Pass.SetDescriptor(SVGF::SHADER_IN_RES::INDIRECT_LO, 
-			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LO));
+		data.SVGF_Pass.SetDescriptor(SVGF::SHADER_IN_RES::INDIRECT_LI, 
+			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
 		const Texture& spatialVar = data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::SPATIAL_VAR);
 		CreateTexture2DSRV(spatialVar, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::SPATIAL_VAR));
@@ -138,7 +138,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 				RENDER_NODE_TYPE::COMPUTE, dlg);
 
 			// Direct3D api functions don't accept const pointers
-			Texture& outLo = const_cast<Texture&>(data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO));
+			Texture& outLo = const_cast<Texture&>(data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI));
 			renderGraph.RegisterResource(outLo.GetResource(), outLo.GetPathID());
 
 			// SVGF
@@ -165,12 +165,8 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 					// Direct3D api doesn't accept const pointers
 					Texture& temporalCacheIn = const_cast<Texture&>(data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A));
 					Texture& temporalCacheOut = const_cast<Texture&>(data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B));
-					Texture& temporalCacheTSPPIn = const_cast<Texture&>(data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_A));
-					Texture& temporalCacheTSPPOut = const_cast<Texture&>(data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_B));
 					renderGraph.RegisterResource(temporalCacheIn.GetResource(), temporalCacheIn.GetPathID());
 					renderGraph.RegisterResource(temporalCacheOut.GetResource(), temporalCacheOut.GetPathID());
-					renderGraph.RegisterResource(temporalCacheTSPPIn.GetResource(), temporalCacheTSPPIn.GetPathID());
-					renderGraph.RegisterResource(temporalCacheTSPPOut.GetResource(), temporalCacheTSPPOut.GetPathID());
 
 					Texture& spatialVar = const_cast<Texture&>(data.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::SPATIAL_VAR));
 					renderGraph.RegisterResource(spatialVar.GetResource(), spatialVar.GetPathID());
@@ -218,7 +214,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddOutput(data.IndirectDiffusePassHandle,
-				data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO).GetPathID(),
+				data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// SVGF
@@ -259,7 +255,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddInput(data.SVGF_PassHandle,
-					data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LO).GetPathID(),
+					data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddOutput(data.SVGF_PassHandle,
@@ -280,22 +276,6 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 
 				renderGraph.AddOutput(data.SVGF_PassHandle,
 					data.SVGF_Pass.GetOutput(outTemporalCacheIdx).GetPathID(),
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-				const SVGF::SHADER_OUT_RES outTemporalCacheTSPPIdx = outIdx == 0 ?
-					SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_B :
-					SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_A;
-
-				const SVGF::SHADER_OUT_RES inTemporalCacheTSPPIdx = outIdx == 0 ?
-					SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_A :
-					SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_TSPP_B;
-
-				renderGraph.AddInput(data.SVGF_PassHandle,
-					data.SVGF_Pass.GetOutput(inTemporalCacheTSPPIdx).GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddOutput(data.SVGF_PassHandle,
-					data.SVGF_Pass.GetOutput(outTemporalCacheTSPPIdx).GetPathID(),
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 			}
 		}

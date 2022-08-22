@@ -105,7 +105,7 @@ void IndirectDiffuse::Init() noexcept
 		s_rpObjs.m_rootSig.Get(),
 		COMPILED_CS[0]);
 
-	m_outUAV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_outUAV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
 	CreateOutput();
 
 	App::AddShaderReloadHandler("IndirectDiffuse", fastdelegate::MakeDelegate(this, &IndirectDiffuse::ReloadShaders));
@@ -119,8 +119,7 @@ void IndirectDiffuse::Reset() noexcept
 		s_rpObjs.Clear();
 	}
 
-	m_outLi.Reset();
-	m_outWo.Reset();
+	m_out.Reset();
 	m_outUAV.Reset();
 }
 
@@ -149,7 +148,7 @@ void IndirectDiffuse::Render(CommandList& cmdList) noexcept
 	cbIndirectDiffuse cb;
 	cb.InputWidth = w;
 	cb.InputHeight = h;
-	cb.OutputLoDescHeapIdx = m_outUAV.GPUDesciptorHeapIndex((int)DESC_TABLE::INDIRECT_LI_UAV);
+	cb.OutputDescHeapIdx = m_outUAV.GPUDesciptorHeapIndex();
 	cb.DispatchDimX = dispatchDimX;
 	cb.DispatchDimY = dispatchDimY;
 	cb.TileWidth = 8;
@@ -170,7 +169,7 @@ void IndirectDiffuse::CreateOutput() noexcept
 {
 	auto& renderer = App::GetRenderer();
 
-	m_outLi = renderer.GetGpuMemory().GetTexture2D("IndirectDiffuse_Li",
+	m_out = renderer.GetGpuMemory().GetTexture2D("IndirectDiffuse_out",
 		renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 		INDIRECT_LI_TEX_FORMAT,
 		D3D12_RESOURCE_STATE_COMMON,
@@ -182,7 +181,7 @@ void IndirectDiffuse::CreateOutput() noexcept
 	uavDesc.Texture2D.MipSlice = 0;
 	uavDesc.Texture2D.PlaneSlice = 0;
 
-	renderer.GetDevice()->CreateUnorderedAccessView(m_outLi.GetResource(), nullptr, &uavDesc, m_outUAV.CPUHandle((int)DESC_TABLE::INDIRECT_LI_UAV));
+	renderer.GetDevice()->CreateUnorderedAccessView(m_out.GetResource(), nullptr, &uavDesc, m_outUAV.CPUHandle(0));
 }
 
 void IndirectDiffuse::ReloadShaders() noexcept

@@ -19,7 +19,7 @@ struct cbFinalPass
 	uint_ DisplaySvgfTemporalCache;
 	uint_ DoTonemapping;
 
-	uint_ IndirectDiffuseLoDescHeapIdx;
+	uint_ IndirectDiffuseLiDescHeapIdx;
 	uint_ SVGFSpatialVarDescHeapIdx;
 	uint_ SVGFTemporalCacheDescHeapIdx;
 };

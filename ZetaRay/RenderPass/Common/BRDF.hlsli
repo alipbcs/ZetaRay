@@ -215,7 +215,7 @@ float3 LambertianBrdfDivPdf(SurfaceInteraction surfaceInteraction)
 	return surfaceInteraction.diffuseReflectance;
 }
 
-float3 SampleLambertianBrdf(float3 shadingNormal, float2 u, out float cosTheta)
+float3 SampleLambertianBrdf(float3 shadingNormal, float2 u)
 {	
 	// build rotation quaternion that maps shading normal to y = (0, 1, 0)
 	float3 snCrossY = float3(-shadingNormal.z, 0.0f, shadingNormal.x);
@@ -226,8 +226,6 @@ float3 SampleLambertianBrdf(float3 shadingNormal, float2 u, out float cosTheta)
 	float pdf;
 	float3 wiLocal = SampleCosineWeightedHemisphere(u, pdf);
 
-	cosTheta = wiLocal.y;
-	
 	// transform wh from local space to world space
 	float4 qReverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
 	float3 wiWorld = RotateVector(wiLocal, qReverse);
@@ -235,13 +233,14 @@ float3 SampleLambertianBrdf(float3 shadingNormal, float2 u, out float cosTheta)
 	return wiWorld;
 }
 
+/*
 // w.r.t. solid angle
 float LambertianBrdfPdf(float3 wi)
 {
 	// wi.z = cos(theta)
 	return wi.z * ONE_DIV_PI;
 }
-
+*/
 //--------------------------------------------------------------------------------------
 // Specular Microfacet Model
 //--------------------------------------------------------------------------------------
