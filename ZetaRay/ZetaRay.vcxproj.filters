@@ -1,0 +1,670 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Resource Files">
+      <UniqueIdentifier>{67DA6AB6-F800-4c08-8B7A-83BB121AAD01}</UniqueIdentifier>
+      <Extensions>rc;ico;cur;bmp;dlg;rc2;rct;bin;rgs;gif;jpg;jpeg;jpe;resx;tiff;tif;png;wav;mfcribbon-ms</Extensions>
+    </Filter>
+    <Filter Include="Core">
+      <UniqueIdentifier>{647bba8a-a095-487d-aca9-7521f4e81518}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene">
+      <UniqueIdentifier>{f376f1a7-4ce4-416e-b6b2-0b6d57ed5f30}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Utility">
+      <UniqueIdentifier>{5329d16d-75d1-4a1b-9eab-901af9210893}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Model">
+      <UniqueIdentifier>{a7890d0b-33cb-49e1-b1f1-83e4ed0fb7dc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RayTracing">
+      <UniqueIdentifier>{306e31a4-0b3b-41d3-9519-f2ba2cfeb248}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Win32">
+      <UniqueIdentifier>{f32266e4-7f74-465e-964b-5d0cffac6ca5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External">
+      <UniqueIdentifier>{7f1228ee-b2a7-4b71-962f-9eb951a386ba}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="External\imgui">
+      <UniqueIdentifier>{41147940-f685-4401-9108-db5cb14e38a8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Math">
+      <UniqueIdentifier>{d6402ed1-9579-4c90-991e-e954e61a995a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Scene\SceneRenderer">
+      <UniqueIdentifier>{c2f91e5d-cab2-4e49-a1c2-5ad56209bcf0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass">
+      <UniqueIdentifier>{cc9a2bf3-e38d-40b1-9fa7-0b5fd657d0b8}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Common">
+      <UniqueIdentifier>{f563901c-5d7f-4fbf-adc0-9c75c29712ce}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\SVGF">
+      <UniqueIdentifier>{16c02b3c-cee4-4cb7-aee8-f91fd34a726f}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\IndirectDiffuse">
+      <UniqueIdentifier>{fc9a0c26-f9fa-4072-b25f-f4c50e3cb20c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\ReSTIR">
+      <UniqueIdentifier>{11b918ab-7531-412e-b86e-ab51352b17e0}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Compositing">
+      <UniqueIdentifier>{275fea52-7849-4833-b2ac-28b4365a2a0a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\GUI">
+      <UniqueIdentifier>{98ba0078-fcf8-4e42-b204-593672f918bf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\PathTracer">
+      <UniqueIdentifier>{e20e4cc3-27b0-4522-b558-abd347547e06}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\TAA">
+      <UniqueIdentifier>{00e5590d-0a16-46e0-a3e8-be01615da64a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="SupportSystem">
+      <UniqueIdentifier>{adae9f9e-3499-4247-b982-5f3cfc2543ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\LuminanceReduction">
+      <UniqueIdentifier>{67387612-b77f-48d7-a851-0482716c74de}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="natvis">
+      <UniqueIdentifier>{a0c52caa-d1eb-4d50-b101-e5db52816163}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Clear">
+      <UniqueIdentifier>{7d567170-21b5-41a0-bb2d-83cc7083966c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Sky">
+      <UniqueIdentifier>{5622b568-da4b-4af1-98c3-1c6a77afc0e5}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Sun">
+      <UniqueIdentifier>{b8271afe-1e34-4ad4-99ec-779f1d2348ed}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\GBuffer">
+      <UniqueIdentifier>{73bb5a33-33a2-4e99-bc4f-4636598d202b}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\Final">
+      <UniqueIdentifier>{6ec1c57e-e962-4051-8be1-4a8d56fa1969}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="RenderPass\FSR2">
+      <UniqueIdentifier>{4ca95847-9537-4dbc-9c1f-53122882b965}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="Core\CommandList.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\CommandQueue.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\DescriptorHeap.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GpuMemory.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\PipelineStateLibrary.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RenderGraph.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\SharedShaderResources.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\BVH.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\Camera.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\Scene.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\AssetManager.cpp">
+      <Filter>Scene</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\Mesh.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="RayTracing\RtAccelerationStructure.cpp">
+      <Filter>RayTracing</Filter>
+    </ClCompile>
+    <ClCompile Include="RayTracing\Sampler.cpp">
+      <Filter>RayTracing</Filter>
+    </ClCompile>
+    <ClCompile Include="Model\glTF2.cpp">
+      <Filter>Model</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Surface.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Sampling.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Direct3DHelpers.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Win32\Filesystem.cpp">
+      <Filter>Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Device.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Renderer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\RootSignature.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\SceneRenderer\SceneRenderer.cpp">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\SceneRenderer\GBufferRenderer.cpp">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\SceneRenderer\LightManager.cpp">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\SceneRenderer\PostProcessor.cpp">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="Scene\SceneRenderer\RayTracer.cpp">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Compositing\Compositing.cpp">
+      <Filter>RenderPass\Compositing</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\SVGF\SVGF.cpp">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\IndirectDiffuse\IndirectDiffuse.cpp">
+      <Filter>RenderPass\IndirectDiffuse</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\SVGF\LinearDepthGradient.cpp">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClCompile>
+    <ClCompile Include="SupportSystem\MemoryPool.cpp">
+      <Filter>SupportSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\ReSTIR\ReSTIR.cpp">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </ClCompile>
+    <ClCompile Include="SupportSystem\ThreadPool.cpp">
+      <Filter>SupportSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="SupportSystem\Task.cpp">
+      <Filter>SupportSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\GUI\GuiPass.cpp">
+      <Filter>RenderPass\GUI</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\PathTracer\PathTracer.cpp">
+      <Filter>RenderPass\PathTracer</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\TAA\TAA.cpp">
+      <Filter>RenderPass\TAA</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\RenderPass.cpp">
+      <Filter>RenderPass</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\LuminanceReduction\LuminanceReduction.cpp">
+      <Filter>RenderPass\LuminanceReduction</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Clear\ClearPass.cpp">
+      <Filter>RenderPass\Clear</Filter>
+    </ClCompile>
+    <ClCompile Include="SupportSystem\Param.cpp">
+      <Filter>SupportSystem</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\GpuTimer.cpp">
+      <Filter>Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Win32\App.cpp">
+      <Filter>Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="Utility\Error.cpp">
+      <Filter>Utility</Filter>
+    </ClCompile>
+    <ClCompile Include="Math\Common.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Sky\Sky.cpp">
+      <Filter>RenderPass\Sky</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Sky\SkyDome.cpp">
+      <Filter>RenderPass\Sky</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Sun\SunLight.cpp">
+      <Filter>RenderPass\Sun</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\Final\FinalPass.cpp">
+      <Filter>RenderPass\Final</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\GBuffer\GBufferPass.cpp">
+      <Filter>RenderPass\GBuffer</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\FSR2\FSR2.cpp">
+      <Filter>RenderPass\FSR2</Filter>
+    </ClCompile>
+    <ClCompile Include="Win32\Win32Common.cpp">
+      <Filter>Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\FSR2\Backend.cpp">
+      <Filter>RenderPass\FSR2</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\imgui.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\imgui_draw.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\imgui_tables.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\imgui_widgets.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\implot.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\implot_items.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+    <ClCompile Include="..\External\imgui\imnodes.cpp">
+      <Filter>External\imgui</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Core\CommandList.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\CommandQueue.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\DescriptorHeap.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GpuMemory.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\PipelineStateLibrary.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RenderGraph.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\RootSignature.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\SharedShaderResources.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\ZetaRay.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\BVH.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\Camera.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\Scene.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\Assets.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\Mesh.h">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="RayTracing\RtAccelerationStructure.h">
+      <Filter>RayTracing</Filter>
+    </ClInclude>
+    <ClInclude Include="RayTracing\Sampler.h">
+      <Filter>RayTracing</Filter>
+    </ClInclude>
+    <ClInclude Include="Model\glTF2.h">
+      <Filter>Model</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Error.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Vertex.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Vector.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Matrix.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Common.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Surface.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\CollisionTypes.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Sampling.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\RNG.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Direct3DHelpers.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\dds.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\CollisionFuncs.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\Quaternion.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\Filesystem.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Device.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Renderer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\Timer.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\Win32Common.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\AssetManager.h">
+      <Filter>Scene</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\VectorFuncs.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\SmallVector.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\SceneRenderer\SceneRenderer.h">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClInclude>
+    <ClInclude Include="Scene\SceneRenderer\SceneRendererImpl.h">
+      <Filter>Scene\SceneRenderer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Compositing\Compositing.h">
+      <Filter>RenderPass\Compositing</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Compositing\Compositing_Common.h">
+      <Filter>RenderPass\Compositing</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\LightVoxelGrid\Data.h">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\SVGF\SVGF.h">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Common\FrameConstants.h">
+      <Filter>RenderPass\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\IndirectDiffuse\IndirectDiffuse_Common.h">
+      <Filter>RenderPass\IndirectDiffuse</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\IndirectDiffuse\IndirectDiffuse.h">
+      <Filter>RenderPass\IndirectDiffuse</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\SVGF\LinearDepthGradient_Common.h">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\SVGF\LinearDepthGradient.h">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\Param.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\MemoryPool.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\ReSTIR\ReSTIR_Common.h">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\ReSTIR\ReSTIR.h">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Common\RtCommon.h">
+      <Filter>RenderPass\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\ThreadPool.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\Task.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\GUI\GuiPass.h">
+      <Filter>RenderPass\GUI</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Common\HLSLCompat.h">
+      <Filter>RenderPass\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\PathTracer\PathTracer_Common.h">
+      <Filter>RenderPass\PathTracer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\PathTracer\PathTracer.h">
+      <Filter>RenderPass\PathTracer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Common\LightSourceData.h">
+      <Filter>RenderPass\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Common\Material.h">
+      <Filter>RenderPass\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\TAA\TAA_Common.h">
+      <Filter>RenderPass\TAA</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\TAA\TAA.h">
+      <Filter>RenderPass\TAA</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\RenderPass.h">
+      <Filter>RenderPass</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\LuminanceReduction\Reduction_Common.h">
+      <Filter>RenderPass\LuminanceReduction</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\LuminanceReduction\LuminanceReduction.h">
+      <Filter>RenderPass\LuminanceReduction</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\GUI\GuiPass_Common.h">
+      <Filter>RenderPass\GUI</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\StlMemoryAllocator.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Function.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\MatrixFuncs.h">
+      <Filter>Math</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\Win32.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\HashTable.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Constants.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Clear\ClearPass.h">
+      <Filter>RenderPass\Clear</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\Span.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\GpuTimer.h">
+      <Filter>Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Utility\SynchronizedView.h">
+      <Filter>Utility</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\App.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Sky\Sky.h">
+      <Filter>RenderPass\Sky</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Sky\Sky_Common.h">
+      <Filter>RenderPass\Sky</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Sky\SkyDome.h">
+      <Filter>RenderPass\Sky</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Sun\SunLight.h">
+      <Filter>RenderPass\Sun</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Final\FinalPass.h">
+      <Filter>RenderPass\Final</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\Final\FinalPass_Common.h">
+      <Filter>RenderPass\Final</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\GBuffer\GBuffer_Common.h">
+      <Filter>RenderPass\GBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\GBuffer\GBufferPass.h">
+      <Filter>RenderPass\GBuffer</Filter>
+    </ClInclude>
+    <ClInclude Include="SupportSystem\Stat.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\SVGF\SVGF_Common.h">
+      <Filter>RenderPass\SVGF</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\FSR2\FSR2.h">
+      <Filter>RenderPass\FSR2</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\FSR2\Backend.h">
+      <Filter>RenderPass\FSR2</Filter>
+    </ClInclude>
+    <ClInclude Include="..\External\imgui\imconfig.h">
+      <Filter>External\imgui</Filter>
+    </ClInclude>
+    <ClInclude Include="Win32\Log.h">
+      <Filter>Win32</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="RenderPass\Common\BRDF.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\Common.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\LightVoxelGrid\Common.hlsli">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </None>
+    <None Include="RenderPass\Common\GBuffers.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\ReSTIR\ReSTIR_Funcs.hlsli">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </None>
+    <None Include="RenderPass\Common\RT.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\Sampler.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\SamplingTransformations.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\LightSourceFuncs.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\StaticTextureSamplers.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\VolumetricLighting.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+    <None Include="RenderPass\Common\SH.hlsli">
+      <Filter>RenderPass\Common</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="RenderPass\Compositing\Compositing.hlsl">
+      <Filter>RenderPass\Compositing</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\SVGF\SVGF_TemporalFilter.hlsl">
+      <Filter>RenderPass\SVGF</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\SVGF\SVGF_SpatialVariance.hlsl">
+      <Filter>RenderPass\SVGF</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\SVGF\SVGF_AtrousWaveletTransform.hlsl">
+      <Filter>RenderPass\SVGF</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\SVGF\LinearDepthGradient.hlsl">
+      <Filter>RenderPass\SVGF</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_TemporalPass.hlsl">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_SpatialPass.hlsl">
+      <Filter>RenderPass\ReSTIR</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\PathTracer\PathTracer_Inline.hlsl">
+      <Filter>RenderPass\PathTracer</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\TAA\TAA.hlsl">
+      <Filter>RenderPass\TAA</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\LuminanceReduction\ReductionFirst.hlsl">
+      <Filter>RenderPass\LuminanceReduction</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\LuminanceReduction\ReductionSecond.hlsl">
+      <Filter>RenderPass\LuminanceReduction</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\GUI\ImGui.hlsl">
+      <Filter>RenderPass\GUI</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl">
+      <Filter>RenderPass\IndirectDiffuse</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\SVGF\SVGF_GaussianFilter.hlsl">
+      <Filter>RenderPass\SVGF</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\Sky\Inscattering.hlsl">
+      <Filter>RenderPass\Sky</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\Sky\SkyViewLUT.hlsl">
+      <Filter>RenderPass\Sky</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\Sky\SkyDome.hlsl">
+      <Filter>RenderPass\Sky</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\Sun\SunLight.hlsl">
+      <Filter>RenderPass\Sun</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\Final\FinalPass.hlsl">
+      <Filter>RenderPass\Final</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\GBuffer\GBufferPass.hlsl">
+      <Filter>RenderPass\GBuffer</Filter>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\natvis\Container.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="..\natvis\imgui.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+    <Natvis Include="..\natvis\Win32.natvis">
+      <Filter>natvis</Filter>
+    </Natvis>
+  </ItemGroup>
+</Project>

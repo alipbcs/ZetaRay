@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
+    <Type Name="ZetaRay::Vector&lt;*&gt;">
+        <DisplayString>{{ size={m_end - m_beg} }}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">m_end - m_beg</Item>
+            <Item Name="[capacity]" ExcludeView="simple">m_last - m_beg</Item>
+            <ArrayItems>
+                <Size>m_end - m_beg</Size>
+                <ValuePointer>m_beg</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="ZetaRay::SmallVector&lt;*&gt;">
+        <DisplayString>{{ size={m_end - m_beg} }}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">m_end - m_beg</Item>
+            <Item Name="[capacity]" ExcludeView="simple">m_last - m_beg</Item>
+            <ArrayItems>
+                <Size>m_end - m_beg</Size>
+                <ValuePointer>m_beg</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="ZetaRay::HashTable&lt;*&gt;">
+        <DisplayString>{{ capacity={m_end - m_beg} }}</DisplayString>
+        <Expand>
+            <Item Name="[capacity]" ExcludeView="simple">m_end - m_beg</Item>
+            <Item Name="[num_entries]" ExcludeView="simple">m_numEntries</Item>
+            <ArrayItems>
+                <Size>m_end - m_beg</Size>
+                <ValuePointer>m_beg</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+    <Type Name="ZetaRay::Span&lt;*&gt;">
+        <DisplayString>{{ size={m_size} }}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">m_size</Item>
+            <ArrayItems>
+                <Size>m_size</Size>
+                <ValuePointer>m_ptr</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
+
+    <Type Name="ZetaRay::Win32::Filesystem::Path">
+        <DisplayString>{m_path.m_beg}, [size={m_path.m_end - m_path.m_beg}]</DisplayString>
+        <StringView>m_path.m_beg</StringView>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">m_path.m_end - m_path.m_beg</Item>
+        </Expand>
+    </Type>
+    
+</AutoVisualizer>
