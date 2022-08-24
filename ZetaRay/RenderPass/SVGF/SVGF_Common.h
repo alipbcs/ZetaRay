@@ -28,8 +28,7 @@ struct cbTemporalFilter
 
 	float BilinearNormalScale;
 	float BilinearNormalExp;
-	float BilinearDepthScale;
-	float BilinearDepthCutoff;
+	float BilinearGeometryMaxPlaneDist;
 
 	float ClampingMinStd;
 	float ClampingStdScale;
@@ -132,8 +131,8 @@ static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
 // Gaussian Filter
 static const int16_t Radius = 1;
 static const int16_t KernelWidth = 2 * Radius + 1;
-//static const float Kernel1D[2 * Radius + 1] = { 0.27901, 0.44198, 0.27901 };
-static const float Kernel1D[2 * Radius + 1] = { 0.3125f, 0.375f, 0.3125f };
+static const float Kernel1D[2 * Radius + 1] = { 0.27901, 0.44198, 0.27901 };
+//static const float Kernel1D[2 * Radius + 1] = { 0.3125f, 0.375f, 0.3125f };
 static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
 {
 	{Kernel1D[0] * Kernel1D[0], Kernel1D[0] * Kernel1D[1], Kernel1D[0] * Kernel1D[2]},

@@ -99,9 +99,8 @@ VSOut mainVS(uint vertexID : SV_VertexID)
 
 float4 mainPS(VSOut psin) : SV_Target
 {
-	const float2 uv = psin.PosSS.xy / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
+	const float2 uv = (psin.PosSS.xy + 0.5f) / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
 	
-	// either output of TAA or composited lighting
 	Texture2D<half4> g_in = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	float3 color = g_in.SampleLevel(g_samPointClamp, uv, 0).xyz;
 	//float3 color = g_in[psin.PosSS.xy].xyz;
@@ -149,7 +148,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 			GBUFFER_OFFSET::MOTION_VECTOR];
 		float2 mv = g_motionVector.SampleLevel(g_samPointClamp, uv, 0);
-		color = float3(mv, 0.0f);
+		color = float3(abs(mv), 0.0f);
 	}
 	else if (g_local.DisplayIndirectDiffuse)
 	{
@@ -167,8 +166,16 @@ float4 mainPS(VSOut psin) : SV_Target
 		Texture2D<uint4> g_temporalCache = ResourceDescriptorHeap[g_local.SVGFTemporalCacheDescHeapIdx];
 		
 		// warning: can't sample from uint textures, following is invalid when upscaling is enabled
-		uint2 integratedVals = g_temporalCache[psin.PosSS.xy].xy;
+		uint4 integratedVals = g_temporalCache[psin.PosSS.xy].xyzw;
 		color = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
+		color.r += asfloat(integratedVals.w);
+		
+//		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+//			GBUFFER_OFFSET::BASE_COLOR];
+//		color = g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz;
+//		color *= 0.5f;
+//		float f = asfloat(integratedVals.w);
+//		color.r += 1 - f;
 	}
 	
 	return float4(color, 1.0f);

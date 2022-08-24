@@ -179,8 +179,6 @@ GBUFFER_OUT mainPS(VSOut psin)
 	float2 currPosTS = TextureSpaceFromNDC(currUnjitteredPosNDC);
 	float2 motionVecTS = currPosTS - prevPosTS;
 
-//	float2 motionVecNDC = currUnjitteredPosNDC - prevUnjitteredPosNDC;
-			
 	// eq. (31) in Ray Tracing Gems 1, ch. 20
 	float phi = length(ddx(shadingNormal) + ddy(shadingNormal));
 	

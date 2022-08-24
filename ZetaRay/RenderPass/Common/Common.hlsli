@@ -79,7 +79,7 @@ float3 WorldPosFromTexturePos(float2 posTS, float linearDepth, float tanHalfFOV,
 	const float2 posNDC = NDCFromTextureSpace(posTS);
 	const float xView = posNDC.x * tanHalfFOV * aspectRatio;
 	const float yView = posNDC.y * tanHalfFOV;
-	float3 posW = float3(xView, yView, linearDepth);
+	float3 posW = float3(xView, yView, 1.0f) * linearDepth;
 	posW = mul(viewInv, float4(posW, 1.0f));
 	
 	return posW;

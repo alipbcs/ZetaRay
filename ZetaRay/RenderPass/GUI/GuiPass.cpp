@@ -405,7 +405,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 void GuiPass::RenderSettingsWindow() noexcept
 {
 	ImGui::SetNextWindowBgAlpha(0.85f);
-	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoSavedSettings);
+	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
 	ImGui::SetWindowSize(ImVec2(0.19f * App::GetRenderer().GetDisplayWidth(), (float)App::GetRenderer().GetDisplayHeight() * 0.45f), 
 		ImGuiCond_FirstUseEver);
@@ -488,7 +488,7 @@ void GuiPass::RenderSettingsWindow() noexcept
 void GuiPass::RenderProfilerWindow() noexcept
 {
 	ImGui::SetNextWindowBgAlpha(0.1f);
-	ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoSavedSettings);
+	ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
 
 	const float w = App::GetRenderer().GetDisplayWidth() * 0.17f;
 	const float h = App::GetRenderer().GetDisplayHeight() * 0.7f;
@@ -596,7 +596,7 @@ void GuiPass::RenderRenderGraphWindow() noexcept
 	const float h = (float)App::GetRenderer().GetDisplayHeight();
 
 	ImGui::SetNextWindowBgAlpha(0.8f);
-	ImGui::Begin("Render Graph", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoSavedSettings);
+	ImGui::Begin("Render Graph", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::SetWindowPos(ImVec2(x, 0.0f), ImGuiCond_FirstUseEver);
 	ImGui::SetWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
 

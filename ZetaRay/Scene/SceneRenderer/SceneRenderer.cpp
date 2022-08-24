@@ -45,7 +45,8 @@ void SceneRenderer::Init() noexcept
 	// for 1st frame
 	//data->m_frameConstants.UseReverseZ = RendererConstants::USE_REVERSE_Z;
 	data->m_frameConstants.PrevViewProj = store(vVP);
-	data->m_frameConstants.PrevViewInv = float3x4(cam.GetCurrView());
+	data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
+	data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
 	data->m_frameConstants.RayOffset = 3e-2f;
 
 	data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
@@ -354,6 +355,7 @@ void SceneRenderer::UpdateFrameConstants() noexcept
 	data->m_frameConstants.PixelSpreadAngle = cam.GetPixelSpreadAngle();
 	data->m_frameConstants.TanHalfFOV = tanf(0.5f * cam.GetFOV());
 	data->m_frameConstants.CurrProj = cam.GetCurrProj();
+	data->m_frameConstants.PrevView = data->m_frameConstants.CurrView;
 	data->m_frameConstants.CurrView = float3x4(cam.GetCurrView());
 	data->m_frameConstants.PrevViewProj = m_data->m_frameConstants.CurrViewProj;
 	data->m_frameConstants.CurrViewProj = store(vVP);

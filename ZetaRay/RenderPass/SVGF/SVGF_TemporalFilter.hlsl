@@ -23,7 +23,6 @@
 #include "../Common/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 
-
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -35,7 +34,6 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-// computes similarity (consistency) between history and current sample
 float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 {
 	float4 weights = float4(dot(prevNormals[0], currNormal),
@@ -44,29 +42,40 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 	                        dot(prevNormals[3], currNormal));
 
 	// adjust tolerance of difference; scale > 1 causes tests to be less stringent and vice versa
-	weights *= saturate(g_local.BilinearNormalScale * weights);
+	weights = saturate(g_local.BilinearNormalScale * weights);
 	weights = pow(weights, g_local.BilinearNormalExp);
 	
 	return weights;
 }
 
-float4 ComputeDepthConsistency(float4 prevDepths, float currDepth, float2 dzdx_dzdy)
+float4 ComputeDepthConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos)
 {
-	// 1st order taylor series approximation (i.e. tangent plane)
-	float threshold = abs(dzdx_dzdy.x) + abs(dzdx_dzdy.y);
-	threshold = max(threshold, 1e-7f);
-	threshold *= g_local.BilinearDepthScale;
+	float3 prevPos[4];
+	prevPos[0] = WorldPosFromTexturePos(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv);
+	prevPos[1] = WorldPosFromTexturePos(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv);
+	prevPos[2] = WorldPosFromTexturePos(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv);
+	prevPos[3] = WorldPosFromTexturePos(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv);
 	
-	// differences in range 0 < |prev - curr| < (ddx + ddy) * DepthScale are consistent
-	//float4 weights = min(NextFloat32Up(threshold) / NextFloat32Up(abs(currDepth - prevDepths)), 1.0f);
-	float4 weights = min(threshold / max(abs(currDepth - prevDepths), 1e-7f), 1.0f);
-	weights *= (weights >= g_local.BilinearDepthCutoff);
+	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
+		dot(currNormal, prevPos[1] - currPos),
+		dot(currNormal, prevPos[2] - currPos),
+		dot(currNormal, prevPos[3] - currPos));
+	
+	planeDist *= (planeDist >= 0);
+	
+//	float4 weights = saturate(1 - planeDist / g_local.BilinearDepthMaxDist);
+	float4 weights = planeDist <= g_local.BilinearGeometryMaxPlaneDist;
 	
 	return weights;
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out float lum, out float lumSq)
+bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out float lum, out float lumSq, 
+	out float4 weights)
 {
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
@@ -78,7 +87,10 @@ void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 	const half2 motionVec = g_motionVector[DTid.xy];
 	const float2 prevPosTS = currPosTS - motionVec;
 
-	// offset of prevPixelPos from the 4 surrounding pixels
+	if (any(abs(prevPosTS) - prevPosTS))
+		return false;
+	
+	// offset of prevPixelPos from surrounding pixels
 	//	p0-----------p1
 	//	|-------------|
 	//	|--prev-------|
@@ -119,31 +131,38 @@ void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 
 	// current frame's depth
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float currDepth = ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
+	const float currLinearDepth = ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
 
-	Texture2D<float2> g_linearDepthGrad = ResourceDescriptorHeap[g_local.LinearDepthGradDescHeapIdx];
-	const float2 dzdx_dzdy = g_linearDepthGrad[DTid.xy];
-	const float4 depthWeights = ComputeDepthConsistency(prevDepths, currDepth, dzdx_dzdy);
+	const float3 currPos = WorldPosFromTexturePos(currPosTS, currLinearDepth, g_frame.TanHalfFOV,
+		g_frame.AspectRatio, g_frame.CurrViewInv);
 	
-	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
-									       offset.x * (1.0f - offset.y),
-									       (1.0f - offset.x) * offset.y,
-									       offset.x * offset.y);
-		
+	float2 prevUVs[4];
+	prevUVs[0] = topLeftTexelUV;
+	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
+	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
+	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
+	const float4 depthWeights = ComputeDepthConsistency(prevDepths, prevUVs, currNormal, currPos);
+	
 	// weight must be zero for out-of-bound samples
 	const float4 isInBounds = float4(IsInRange(topLeft, screenDim),
 									 IsInRange(topLeft + float2(1, 0), screenDim),
 									 IsInRange(topLeft + float2(0, 1), screenDim),
 									 IsInRange(topLeft + float2(1, 1), screenDim));
 
-	float4 weights = normalWeights * depthWeights * bilinearWeights * isInBounds;
-	const float weightSum = dot(1.0f, weights);
+	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
+									       offset.x * (1.0f - offset.y),
+									       (1.0f - offset.x) * offset.y,
+									       offset.x * offset.y);
 	
+	weights = normalWeights * depthWeights * bilinearWeights * isInBounds;
+	const float weightSum = dot(1.0f, weights);
+
+//	if (1e-6 < weightSum)
 	if (g_local.MinConsistentWeight < weightSum)
 	{
 		// uniformly distribute the weight over the consistent samples
 		weights *= rcp(weightSum);
-		
+
 		// tspp
 		Texture2D<uint4> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheDescHeapIdx];
 		const uint4 histB = g_prevTemporalCache.GatherBlue(g_samPointClamp, topLeftTexelUV).wzxy;
@@ -151,8 +170,9 @@ void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 		
 		// as tspp is an integer, make sure it's at least 1, otherwise tspp would remain at zero forever
 		histTspp = max(1, histTspp);
-		tspp = round(dot(histTspp, weights));
-
+		uint maxTspp = max(max(histTspp.x, histTspp.y), max(histTspp.z, histTspp.w));
+		tspp = min(round(dot(histTspp, weights)), maxTspp + 1);
+		
 		if (tspp > 0)
 		{
 			// color
@@ -178,10 +198,14 @@ void SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 			const float4 lumSqHist = f16tof32(histB >> 16);
 			lumSq = dot(weights, lumSqHist);
 		}
+		
+		return true;
 	}
+	
+	return false;
 }
 
-void Integrate(in uint3 DTid, inout uint tspp, inout float3 color, inout float lum, inout float lumSq)
+void Integrate(in uint3 DTid, in bool foundTemporalSamples, inout uint tspp, inout float3 color, inout float lum, inout float lumSq)
 {
 	Texture2D<half4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
 	const half3 noisySignal = g_indirectLiRayT[DTid.xy].rgb;
@@ -192,16 +216,16 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float3 color, inout float l
 	RWTexture2D<half> g_spatialLumVar = ResourceDescriptorHeap[g_local.SpatialLumVarDescHeapIdx];
 	float lumVariance;
 	
-	if (tspp > 0)
-	{
-		// don't accumulate more than MaxTspp temporal samples (temporal lag <-> blur tradeoff)
-		tspp = min(tspp + 1, g_local.MaxTspp);
-		
+	if (foundTemporalSamples)
+	{		
 		// use linear weights as opposed to exponential weights (used in the paper), which
 		// comparatively give higher weight to initial samples (useful for right after disocclusion)
 //		const float accumulationSpeed = clamp(1.0f / (1.0f + tspp), g_local.MinAccumulationSpeed, 1.0f);
 		const float accumulationSpeed = 1.0f / (1.0f + tspp);
-		
+	
+		// don't accumulate more than MaxTspp temporal samples (temporal lag <-> blur tradeoff)
+		tspp = min(tspp + 1, g_local.MaxTspp);
+
 		// color
 		color = lerp(color, noisySignal, accumulationSpeed);
 		
@@ -236,6 +260,8 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float3 color, inout float l
 	{
 		tspp = 1;
 		color = noisySignal.rgb;
+		lum = currLum;
+		lumSq = currLumSq;
 	}
 }
 
@@ -262,18 +288,22 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	if (isSurfaceMarker < MIN_ALPHA_CUTOFF)
 		return;
 	
+	float4 temp = 0.0f.xxxx;
+	bool success = false;
+	
 	// sample temporal cache using a bilinear tap with custom weights
 	if (g_local.IsTemporalCacheValid)
-		SampleTemporalCache(DTid, tspp, color, lum, lumSq);
+		success = SampleTemporalCache(DTid, tspp, color, lum, lumSq, temp);
 
 	// integrate history and current frame
-	Integrate(DTid, tspp, color, lum, lumSq);
+	Integrate(DTid, success, tspp, color, lum, lumSq);
 
-	uint3 ret;
+	uint4 ret;
 	ret.x = (f32tof16(color.r) << 16) | f32tof16(lum);
 	ret.y = (f32tof16(color.b) << 16) | f32tof16(color.g);
 	ret.z = (f32tof16(lumSq) << 16) | tspp;
+	ret.w = asuint(1.0f - (tspp / 32.0f));
 	
 	RWTexture2D<uint4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
-	g_nextTemporalCache[DTid.xy].xyz = ret;
+	g_nextTemporalCache[DTid.xy].xyzw = ret;
 }

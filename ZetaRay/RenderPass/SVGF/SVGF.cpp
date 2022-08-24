@@ -74,9 +74,9 @@ void SVGF::Init() noexcept
 	m_cbTemporalFilter.MinConsistentWeight = DefaultParamVals::MinConsistentWeight;
 	m_cbTemporalFilter.BilinearNormalScale = DefaultParamVals::BilinearNormalScale;
 	m_cbTemporalFilter.BilinearNormalExp = DefaultParamVals::BilinearNormalExp;
-	m_cbTemporalFilter.BilinearDepthScale = DefaultParamVals::BilinearDepthScale;
-	m_cbTemporalFilter.BilinearDepthCutoff = DefaultParamVals::BilinearDepthCutoff;
-	m_cbTemporalFilter.MinLumVariance = DefaultParamVals::MinLumVariance;
+	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = DefaultParamVals::BilinearGeometryMaxPlaneDist;
+	//m_cbTemporalFilter.BilinearDepthCutoff = DefaultParamVals::BilinearDepthCutoff;
+	//m_cbTemporalFilter.MinLumVariance = DefaultParamVals::MinLumVariance;
 	//m_cbTemporalFilter.ClampHistory = DefaultParamVals::NeighborhoodClamping;
 	//m_cbTemporalFilter.ClampingMinStd = DefaultParamVals::NeighborhoodClampingMinStd;
 	//m_cbTemporalFilter.ClampingStdScale = DefaultParamVals::NeighborhoodClampingStdScale;
@@ -88,12 +88,12 @@ void SVGF::Init() noexcept
 	m_cbWaveletTransform.DepthSigma = DefaultParamVals::EdgeStoppingDepthSigma;
 	m_cbWaveletTransform.NormalSigma = DefaultParamVals::EdgeStoppingNormalSigma;
 	m_cbWaveletTransform.LumSigma = DefaultParamVals::EdgeStoppingLumSigma;
-	m_cbWaveletTransform.MinVarianceToFilter = DefaultParamVals::MinVarianceToFilter;
+	//m_cbWaveletTransform.MinVarianceToFilter = DefaultParamVals::MinVarianceToFilter;
 
 	App::AddShaderReloadHandler("SVGF_SpatialVar", fastdelegate::MakeDelegate(this, &SVGF::ReloadSpatialVar));
 	App::AddShaderReloadHandler("SVGF_Temporal", fastdelegate::MakeDelegate(this, &SVGF::ReloadTemporalPass));
 	App::AddShaderReloadHandler("SVGF_GaussianFilter", fastdelegate::MakeDelegate(this, &SVGF::ReloadGaussianFilter));
-	App::AddShaderReloadHandler("SVGF_WaveletFilter", fastdelegate::MakeDelegate(this, &SVGF::ReloadWaveletFilter));
+	App::AddShaderReloadHandler("SVGF_WaveletTransform", fastdelegate::MakeDelegate(this, &SVGF::ReloadWaveletFilter));
 }
 
 void SVGF::Reset() noexcept
@@ -104,7 +104,7 @@ void SVGF::Reset() noexcept
 		App::RemoveShaderReloadHandler("SVGF_SpatialVar");
 		App::RemoveShaderReloadHandler("SVGF_SpatialVar");
 		App::RemoveShaderReloadHandler("SVGF_GaussianFilter");
-		App::RemoveShaderReloadHandler("SVGF_WaveletFilter");
+		App::RemoveShaderReloadHandler("SVGF_WaveletTransform");
 	}
 
 	memset(m_inputGpuHeapIndices, 0, (int)SHADER_IN_RES::COUNT * sizeof(uint32_t));
@@ -383,8 +383,8 @@ void SVGF::InitParams() noexcept
 	// adjustment for this wasn't exposed (fixed at 1.1) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 56
 	ParamVariant bilateralNormalScale;
-	bilateralNormalScale.InitFloat("Renderer", "SVGF", "NormalConsScale",
-		fastdelegate::MakeDelegate(this, &SVGF::BilateralNormalScaleCallback),
+	bilateralNormalScale.InitFloat("Renderer", "SVGF", "BilinearNormalScale",
+		fastdelegate::MakeDelegate(this, &SVGF::BilinearNormalScaleCallback),
 		DefaultParamVals::BilinearNormalScale,		// val	
 		1.0f,										// min
 		5.0f,										// max
@@ -394,8 +394,8 @@ void SVGF::InitParams() noexcept
 	// adjustment for this wasn't exposed (fixed at 32) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 57
 	ParamVariant bilateralNormalExp;
-	bilateralNormalExp.InitFloat("Renderer", "SVGF", "NormalConsExp",
-		fastdelegate::MakeDelegate(this, &SVGF::BilateralNormalExpCallback),
+	bilateralNormalExp.InitFloat("Renderer", "SVGF", "BilinearNormalExp",
+		fastdelegate::MakeDelegate(this, &SVGF::BilinearNormalExpCallback),
 		DefaultParamVals::BilinearNormalExp,		// val	
 		16.0f,										// min
 		128.0f,										// max
@@ -403,24 +403,24 @@ void SVGF::InitParams() noexcept
 	App::AddParam(bilateralNormalExp);
 
 	ParamVariant bilateralDepthScale;
-	bilateralDepthScale.InitFloat("Renderer", "SVGF", "DepthConsScale",
-		fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthScaleCallback),
-		DefaultParamVals::BilinearDepthScale,		// val	
-		0.1f,										// min
-		10.0f,										// max
-		0.01f);										// step
+	bilateralDepthScale.InitFloat("Renderer", "SVGF", "MaxPlaneDist",
+		fastdelegate::MakeDelegate(this, &SVGF::BilinearGeometryMaxPlaneDistCallback),
+		DefaultParamVals::BilinearGeometryMaxPlaneDist,		// val	
+		0.1e-3f,											// min
+		1.0f,												// max
+		0.1e-3f);											// step
 	App::AddParam(bilateralDepthScale);
 
 	// adjustment for this wasn't exposed (fixed at 0.5) 
 	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 53
-	ParamVariant bilateralDepthCutoff;
-	bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff",
-		fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthCutoffCallback),
-		DefaultParamVals::BilinearDepthCutoff,		// val	
-		0.0f,										// min
-		1.0f,										// max
-		0.01f);										// step
-	App::AddParam(bilateralDepthCutoff);
+	//ParamVariant bilateralDepthCutoff;
+	//bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff",
+	//	fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthCutoffCallback),
+	//	DefaultParamVals::BilinearDepthCutoff,		// val	
+	//	0.0f,										// min
+	//	1.0f,										// max
+	//	0.01f);										// step
+	//App::AddParam(bilateralDepthCutoff);
 
 	//	ParamVariant neighborhoodClamping;
 	//	neighborhoodClamping.InitBool("Renderer", "SVGF", "NeighborhoodClamping", 
@@ -538,7 +538,7 @@ void SVGF::InitParams() noexcept
 	App::AddParam(edgeStoppingDepthSigma);
 
 	ParamVariant numWaveletFilterPasses;
-	numWaveletFilterPasses.InitInt("Renderer", "SVGF", "#WaveletFilterPasses",
+	numWaveletFilterPasses.InitInt("Renderer", "SVGF", "#WaveletTransformPasses",
 		fastdelegate::MakeDelegate(this, &SVGF::NumWaveletPassesCallback),
 		DefaultParamVals::NumWaveletTransformPasses,		// val	
 		1,													// min
@@ -557,24 +557,19 @@ void SVGF::MinTSPPForTemporalVarCallback(const ParamVariant& p) noexcept
 	m_cbTemporalFilter.MinTsppToUseTemporalVar = p.GetInt().m_val;
 }
 
-void SVGF::BilateralNormalScaleCallback(const ParamVariant& p) noexcept
+void SVGF::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
 {
 	m_cbTemporalFilter.BilinearNormalScale = p.GetFloat().m_val;
 }
 
-void SVGF::BilateralNormalExpCallback(const ParamVariant& p) noexcept
+void SVGF::BilinearNormalExpCallback(const ParamVariant& p) noexcept
 {
 	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
 }
 
-void SVGF::BilateralDepthScaleCallback(const ParamVariant& p) noexcept
+void SVGF::BilinearGeometryMaxPlaneDistCallback(const ParamVariant& p) noexcept
 {
-	m_cbTemporalFilter.BilinearDepthScale = p.GetFloat().m_val;
-}
-
-void SVGF::BilateralDepthCutoffCallback(const ParamVariant& p) noexcept
-{
-	m_cbTemporalFilter.BilinearDepthCutoff = p.GetFloat().m_val;
+	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = p.GetFloat().m_val;
 }
 
 void SVGF::MinLumVarCallback(const ParamVariant& p) noexcept

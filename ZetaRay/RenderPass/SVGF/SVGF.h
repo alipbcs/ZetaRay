@@ -117,10 +117,9 @@ namespace ZetaRay
 				static constexpr int NumWaveletTransformPasses = 1;
 				static constexpr int MaxTSPP = 32;
 				static constexpr int MinTSPPtoUseTemporalVar = 4;
-				static constexpr float BilinearNormalScale = 1.1f;
-				static constexpr float BilinearNormalExp = 32.0f;
-				static constexpr float BilinearDepthScale = 3.0f;
-				static constexpr float BilinearDepthCutoff = 0.5f;
+				static constexpr float BilinearNormalScale = 1.4f;
+				static constexpr float BilinearNormalExp = 16.0f;
+				static constexpr float BilinearGeometryMaxPlaneDist = 0.1f;
 				//static constexpr bool NeighborhoodClamping = true;
 				//static constexpr float NeighborhoodClampingStdScale = 0.6f;
 				//static constexpr float NeighborhoodClampingMinStd = 0.05f;
@@ -128,7 +127,6 @@ namespace ZetaRay
 				static constexpr float MinLumVariance = 0.1f;
 				static constexpr float MinConsistentWeight = 1e-3f;
 				static constexpr int SpatialVarianceRadius = 4;
-				static constexpr float MinVarianceToFilter = 0.0f;
 				static constexpr float EdgeStoppingDepthWeightCutoff = 0.2f;
 				static constexpr float EdgeStoppingLumSigma = 4.0f;
 				static constexpr float EdgeStoppingNormalSigma = 128.0f;
@@ -161,14 +159,9 @@ namespace ZetaRay
 			// parameter callbacks
 			void MaxTSPPCallback(const ParamVariant& p) noexcept;
 			void MinTSPPForTemporalVarCallback(const ParamVariant& p) noexcept;
-			void BilateralNormalScaleCallback(const ParamVariant& p) noexcept;
-			void BilateralNormalExpCallback(const ParamVariant& p) noexcept;
-			void BilateralDepthScaleCallback(const ParamVariant& p) noexcept;
-			void BilateralDepthCutoffCallback(const ParamVariant& p) noexcept;
-			//void NeighborhoodClampingCallback(const ParamVariant& p) noexcept;
-			//void NeighborhoodClampingStdScaleCallback(const ParamVariant& p) noexcept;
-			//void NeighborhoodClampingMinStdCallback(const ParamVariant& p) noexcept;
-			//void NeighborhoodClampingTSPPAdjCallback(const ParamVariant& p) noexcept;
+			void BilinearNormalScaleCallback(const ParamVariant& p) noexcept;
+			void BilinearNormalExpCallback(const ParamVariant& p) noexcept;
+			void BilinearGeometryMaxPlaneDistCallback(const ParamVariant& p) noexcept;
 			void MinLumVarCallback(const ParamVariant& p) noexcept;
 			void MinConsistentWeightCallback(const ParamVariant& p) noexcept;
 			void SpatialVarRadiusCallback(const ParamVariant& p) noexcept;
