@@ -5,7 +5,13 @@
 #include "GpuMemory.h"
 #include "GpuTimer.h"
 
-namespace ZetaRay
+namespace ZetaRay::Support
+{
+	struct TaskSet;
+	struct ParamVariant;
+}
+
+namespace ZetaRay::Core
 {
 	struct CommandQueue;
 	class CommandList;
@@ -13,8 +19,6 @@ namespace ZetaRay
 	class ComputeCmdList;
 	class CopyCmdList;
 	class SharedShaderResources;
-	struct TaskSet;
-	struct ParamVariant;
 
 	class Renderer
 	{
@@ -30,7 +34,7 @@ namespace ZetaRay
 		void OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept;
 		void BeginFrame() noexcept;
 		void SubmitResourceCopies() noexcept;
-		void EndFrame(TaskSet& endFrameTS) noexcept;
+		void EndFrame(Support::TaskSet& endFrameTS) noexcept;
 
 		ID3D12Device8* GetDevice() { return m_deviceObjs.m_device.Get(); };
 		const char* GetDeviceDescription() { return m_deviceObjs.m_deviceName; }
@@ -99,7 +103,7 @@ namespace ZetaRay
 	private:
 		void ResizeBackBuffers(HWND hwnd) noexcept;
 		void InitStaticSamplers() noexcept;
-		void SetVSync(const ParamVariant& p) noexcept;
+		void SetVSync(const Support::ParamVariant& p) noexcept;
 
 		DeviceObjects m_deviceObjs;
 

@@ -3,7 +3,7 @@
 #include "../Core/ZetaRay.h"
 #include <float.h>
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
     // Source: PCG (https://www.pcg-random.org/)
     // "PCG is a family of simple fast space-efficient statistically good algorithms for random number generation."

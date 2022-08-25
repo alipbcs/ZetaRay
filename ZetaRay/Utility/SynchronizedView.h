@@ -2,7 +2,7 @@
 
 #include "../Win32/Win32.h"
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
 	template<typename T>
 	struct RSynchronizedView

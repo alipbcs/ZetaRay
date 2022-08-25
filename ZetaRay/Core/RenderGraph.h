@@ -4,10 +4,9 @@
 #include "../Utility/Span.h"
 #include <FastDelegate/FastDelegate.h>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	class CommandList;
-	struct TaskSet;
 
 	enum class RENDER_NODE_TYPE
 	{
@@ -94,7 +93,7 @@ namespace ZetaRay
 		void AddOutput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState) noexcept;
 
 		// Builds the graph and submits the rendering tasks with appropriate order
-		void Build(TaskSet& ts) noexcept;
+		void Build(Support::TaskSet& ts) noexcept;
 
 		// Draws the render graph
 		void DebugDrawGraph() noexcept;
@@ -106,9 +105,9 @@ namespace ZetaRay
 		static constexpr int MAX_NUM_PRODUCERS = 4;
 
 		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
-		void BuildTaskGraph(TaskSet& ts) noexcept;
-		void Sort(Span<SmallVector<RenderNodeHandle>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept;
-		void InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcept;
+		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
+		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
+		void InsertResourceBarriers(Util::Span<RenderNodeHandle> mapping) noexcept;
 
 #ifdef _DEBUG
 		void Log() noexcept;
@@ -173,7 +172,7 @@ namespace ZetaRay
 
 		// make sure this doesn't get reset between frames as some states carry over to the
 		// next frame. Producers should be reset though
-		SmallVector<ResourceMetadata> m_frameResources;
+		Util::SmallVector<ResourceMetadata> m_frameResources;
 		//int m_currFrameIdx = 0;
 		int m_prevFramesNumResources = 0;
 
@@ -237,9 +236,9 @@ namespace ZetaRay
 			static constexpr int MAX_NAME_LENGTH = 16;
 			char Name[MAX_NAME_LENGTH];
 
-			SmallVector<Dependency, 2> Inputs;
-			SmallVector<Dependency, 1> Outputs;
-			SmallVector<D3D12_RESOURCE_BARRIER> Barriers;
+			Util::SmallVector<Dependency, 2> Inputs;
+			Util::SmallVector<Dependency, 1> Outputs;
+			Util::SmallVector<D3D12_RESOURCE_BARRIER> Barriers;
 
 			int Indegree = 0;
 			int BatchIdx = -1;

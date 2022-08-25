@@ -1,5 +1,5 @@
 #include "SceneRendererImpl.h"
-#include "../Scene.h"
+#include "../SceneCore.h"
 #include "../../Win32/App.h"
 #include "../../Win32/Timer.h"
 #include "../../Win32/Log.h"
@@ -8,16 +8,12 @@
 #include "../../SupportSystem/Task.h"
 #include "../../Math/MatrixFuncs.h"
 
-
-using namespace ZetaRay;
+using namespace ZetaRay::Scene;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Win32;
-
-namespace
-{
-	uint32_t g_i = 0;
-}
 
 //--------------------------------------------------------------------------------------
 // SceneRenderer

@@ -6,7 +6,11 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::RT;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 //--------------------------------------------------------------------------------------
 // RayTracer

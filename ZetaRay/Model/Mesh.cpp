@@ -7,6 +7,9 @@
 #include "../Win32/App.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Model;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------

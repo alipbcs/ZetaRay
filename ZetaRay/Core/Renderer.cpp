@@ -9,6 +9,8 @@
 #include "../Win32/Timer.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
 // Renderer

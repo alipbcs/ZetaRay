@@ -1,13 +1,14 @@
 #include "Surface.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------
 // Surfaces
 //--------------------------------------------------------------------------------------
 
-bool Math::ComputeMeshTangentVectors(Vector<VertexPosNormalTexTangent>& vertices,
+bool ZetaRay::Math::ComputeMeshTangentVectors(Vector<VertexPosNormalTexTangent>& vertices,
 	const Vector<INDEX_TYPE>& indices, bool rhsIndices) noexcept
 {
 	for (auto& v : vertices)

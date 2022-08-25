@@ -5,7 +5,7 @@
 #include "../Win32/Filesystem.h"
 #include <atomic>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	class PipelineStateLibrary
 	{
@@ -37,7 +37,7 @@ namespace ZetaRay
 		
 		ID3D12PipelineState* GetComputePSO(uint64_t nameID,
 			ID3D12RootSignature* rootSig,
-			Span<const uint8_t> compiledBlob) noexcept;
+			Util::Span<const uint8_t> compiledBlob) noexcept;
 
 	private:
 		struct Entry
@@ -60,8 +60,8 @@ namespace ZetaRay
 		Win32::Filesystem::Path m_psoLibPath1;
 		ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
 
-		SmallVector<Entry> m_compiledPSOs;
-		SmallVector<uint8_t> m_cachedBlob;
+		Util::SmallVector<Entry> m_compiledPSOs;
+		Util::SmallVector<uint8_t> m_cachedBlob;
 		//std::atomic_bool m_vecLock;
 		SRWLOCK m_vecLock = SRWLOCK_INIT;			
 		

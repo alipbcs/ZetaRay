@@ -4,7 +4,7 @@
 #include "../Math/Vector.h"
 #include "../RenderPass/Common/HLSLCompat.h"
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 #if USE_16_BIT_INDICES
 	static const DXGI_FORMAT MESH_INDEX_FORMAT = DXGI_FORMAT_R16_UINT;

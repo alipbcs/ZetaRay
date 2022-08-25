@@ -6,7 +6,10 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Util;
 
 void GBufferRenderer::Init(const RenderSettings& settings, GBufferRendererData& data) noexcept
 {
@@ -296,7 +299,7 @@ void GBufferRenderer::Shutdown(GBufferRendererData& data) noexcept
 void GBufferRenderer::Update(GBufferRendererData& gbuffData, const LightManagerData& lightManagerData) noexcept
 {
 	const int outIdx = App::GetRenderer().CurrOutIdx();
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	const Vector<uint64_t>& frameInstances = scene.GetFrameInstances();
 	const int oldNumRenderPasses = gbuffData.NumRenderPasses;
 

@@ -3,7 +3,7 @@
 #include "../Utility/HashTable.h"
 #include <shared_mutex>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	struct UploadHeapBuffer;
 	struct DefaultHeapBuffer;
@@ -40,9 +40,9 @@ namespace ZetaRay
 		void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t) noexcept;
 
 	private:
-		HashTable<const DescriptorTable*> m_descTables;
-		HashTable<const UploadHeapBuffer*> m_uploadHeapBuffs;
-		HashTable<const DefaultHeapBuffer*> m_defaultHeapBuffs;
+		Util::HashTable<const DescriptorTable*> m_descTables;
+		Util::HashTable<const UploadHeapBuffer*> m_uploadHeapBuffs;
+		Util::HashTable<const DefaultHeapBuffer*> m_defaultHeapBuffs;
 
 		std::shared_mutex m_descTableMtx;
 		std::shared_mutex m_uploadHeapMtx;

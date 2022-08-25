@@ -4,7 +4,7 @@
 #include "../Math/Common.h"
 #include <xxHash-0.8.0/xxhash.h>
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	struct Stat
 	{

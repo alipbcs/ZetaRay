@@ -3,7 +3,7 @@
 #include "../Math/Vector.h"
 #include <FastDelegate/FastDelegate.h>
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	//--------------------------------------------------------------------------------------
 	// FloatParam

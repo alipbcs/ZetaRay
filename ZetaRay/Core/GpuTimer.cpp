@@ -5,6 +5,7 @@
 #include "CommandList.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 void GpuTimer::Init() noexcept
 {
@@ -81,7 +82,7 @@ void GpuTimer::EndQuery(ComputeCmdList* cmdList, uint32_t begHeapIdx) noexcept
 
 bool GpuTimer::EndFrame(ComputeCmdList* cmdList) noexcept
 {
-	int queryCount = m_queryCount[m_currFrameIdx].load(std::memory_order_relaxed) - 1;
+	int queryCount = m_queryCount[m_currFrameIdx].load(std::memory_order_acquire) - 1;
 	m_numQueryHist[m_currFrameIdx] = queryCount;
 
 	if (queryCount < 1)

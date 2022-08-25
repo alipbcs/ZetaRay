@@ -4,10 +4,11 @@
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Win32/App.h"
 
-using namespace ZetaRay;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Scene;
 
 //--------------------------------------------------------------------------------------
 // LuminanceReduction

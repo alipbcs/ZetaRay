@@ -2,7 +2,7 @@
 
 #include "../Core/ZetaRay.h"
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
     // Ref: https://stackoverflow.com/questions/18633697/fastdelegate-and-lambdas-cant-get-them-to-work-don-clugstons-fastest-possib
     struct Function

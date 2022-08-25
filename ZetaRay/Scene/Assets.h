@@ -5,7 +5,7 @@
 #include "../Win32/Filesystem.h"
 #include "../RenderPass/Common/Material.h"
 
-namespace ZetaRay
+namespace ZetaRay::Scene
 {
 	struct AffineTransformation
 	{
@@ -45,8 +45,8 @@ namespace ZetaRay
 	{
 		struct MeshSubset
 		{
-			SmallVector<VertexPosNormalTexTangent> Vertices;
-			SmallVector<INDEX_TYPE> Indices;
+			Util::SmallVector<Core::VertexPosNormalTexTangent> Vertices;
+			Util::SmallVector<INDEX_TYPE> Indices;
 			int MaterialIdx;
 			int MeshIdx;
 			int MeshPrimIdx;

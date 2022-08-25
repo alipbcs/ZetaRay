@@ -2,13 +2,16 @@
 #include "../../Core/Renderer.h"
 #include "../../Core/CommandList.h"
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
-#include "../../Scene/Scene.h"
+#include "../../Scene/SceneCore.h"
 #include "../../Model/Mesh.h"
 #include "../../Win32/App.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Model;
 
 //--------------------------------------------------------------------------------------
 // SkyDome

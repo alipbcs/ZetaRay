@@ -5,7 +5,7 @@
 #include "Error.h"
 #include <utility>	// std::swap
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
 	//--------------------------------------------------------------------------------------
 	// Vector
@@ -178,7 +178,7 @@ namespace ZetaRay
 				return;
 
 			// allocate memory to accomodate the new size
-			void* mem = App::AllocateMemory(n * sizeof(T), nullptr, Alignment);
+			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, Alignment);
 
 			const size_t oldSize = size();
 
@@ -232,7 +232,7 @@ namespace ZetaRay
 
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
-				App::FreeMemory(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 			// adjust the pointers
 			m_beg = reinterpret_cast<T*>(mem);
@@ -424,7 +424,7 @@ namespace ZetaRay
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
 			{
-				App::FreeMemory(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 				m_beg = nullptr;
 				m_end = nullptr;
@@ -476,10 +476,10 @@ namespace ZetaRay
 			{
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					App::FreeMemory(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 				// allocate memory to accomodate new size
-				void* mem = App::AllocateMemory(newSize * sizeof(T), nullptr, Alignment);
+				void* mem = App::AllocateFromMemoryPool(newSize * sizeof(T), nullptr, Alignment);
 
 				// adjust the pointers
 				m_beg = reinterpret_cast<T*>(mem);
@@ -601,7 +601,7 @@ namespace ZetaRay
 			}
 
 			// allocate memory to accomodate new size
-			void* mem = App::AllocateMemory(n * sizeof(T), nullptr, Alignment);
+			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, Alignment);
 
 			const size_t oldSize = size();
 
@@ -654,7 +654,7 @@ namespace ZetaRay
 
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					App::FreeMemory(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 			}
 
 			// adjust the pointers

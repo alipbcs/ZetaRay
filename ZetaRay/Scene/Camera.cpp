@@ -6,7 +6,8 @@
 #include "../Math/Sampling.h"
 #include "../SupportSystem/Param.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Support;
 using namespace ZetaRay::Math;
 
 namespace

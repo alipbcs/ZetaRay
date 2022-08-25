@@ -8,7 +8,10 @@ using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Win32;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 void LightManager::Init(const RenderSettings& settings, LightManagerData& data) noexcept
 {

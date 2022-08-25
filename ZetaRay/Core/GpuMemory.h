@@ -4,7 +4,7 @@
 #include "../Utility/Error.h"
 #include <memory>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	namespace Internal
 	{

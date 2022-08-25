@@ -3,15 +3,16 @@
 #include "../Core/ZetaRay.h"
 #include <FastDelegate/FastDelegate.h>
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
-	class Renderer;
-	class Scene;
 	struct TaskSet;
 	struct alignas(64) Task;
 	struct ParamVariant;
 	struct Stat;
+}
 
+namespace ZetaRay::Util
+{
 	template<typename T, int Alignment>
 	class Vector;
 
@@ -21,14 +22,27 @@ namespace ZetaRay
 	template<typename T>
 	struct RWSynchronizedView;
 
-	namespace Win32
-	{
-		struct Timer;
-	}
-
 	template<typename T>
 	struct Span;
+}
 
+namespace ZetaRay::Win32
+{
+	struct Timer;
+}
+
+namespace ZetaRay::Core
+{
+	class Renderer;
+}
+
+namespace ZetaRay::Scene
+{
+	class SceneCore;
+}
+
+namespace ZetaRay::App
+{
 	struct ShaderReloadHandler
 	{
 		ShaderReloadHandler() = default;
@@ -41,69 +55,67 @@ namespace ZetaRay
 		fastdelegate::FastDelegate0<> Dlg;
 	};
 
-	namespace App
-	{
-		void InitSimple() noexcept;
-		void Init() noexcept;
-		int Run() noexcept;
-		void Abort() noexcept;
+	typedef void* (*AllocateMemoryFunc)(size_t, const char*, int);
 
-		void* AllocateMemory(size_t size, const char* n = nullptr, int alignment = alignof(std::max_align_t)) noexcept;
-		void FreeMemory(void* pMem, size_t size, const char* n = nullptr, int alignment = alignof(std::max_align_t)) noexcept;
+	void InitSimple() noexcept;
+	void Init() noexcept;
+	int Run() noexcept;
+	void Abort() noexcept;
 
-		// thread-safe
-		int RegisterTask() noexcept;
-		// thread-safe
-		void TaskFinalizedCallback(int handle, int indegree) noexcept;
-		// thread-safe
-		void WaitForAdjacentHeadNodes(int handle) noexcept;
-		void SignalAdjacentTailNodes(int* taskIDs, int n) noexcept;
+	void* AllocateFromMemoryPool(size_t size, const char* n = nullptr, uint32_t alignment = alignof(std::max_align_t)) noexcept;
+	void FreeMemoryPool(void* pMem, size_t size, const char* n = nullptr, uint32_t alignment = alignof(std::max_align_t)) noexcept;
 
-		// Submits task to priority thread pool
-		void Submit(Task&& t) noexcept;
-		void Submit(TaskSet&& ts) noexcept;
-		void SubmitBackground(Task&& t) noexcept;
-		void FlushMainThreadPool() noexcept;
-		void FlushAllThreadPools() noexcept;
+	// thread-safe
+	int RegisterTask() noexcept;
+	// thread-safe
+	void TaskFinalizedCallback(int handle, int indegree) noexcept;
+	// thread-safe
+	void WaitForAdjacentHeadNodes(int handle) noexcept;
+	void SignalAdjacentTailNodes(int* taskIDs, int n) noexcept;
 
-		//HWND GetHWND() noexcept;
-		Renderer& GetRenderer() noexcept;
-		Scene& GetScene() noexcept;
-		int GetNumThreads() noexcept;
-		uint32_t GetDPI() noexcept;
-		float GetUpscalingFactor() noexcept;
-		void SetUpscalingEnablement(bool e) noexcept;
-		bool IsFullScreen() noexcept;
-		const Win32::Timer& GetTimer() noexcept;
+	// Submits task to priority thread pool
+	void Submit(Support::Task&& t) noexcept;
+	void Submit(Support::TaskSet&& ts) noexcept;
+	void SubmitBackground(Support::Task&& t) noexcept;
+	void FlushMainThreadPool() noexcept;
+	void FlushAllThreadPools() noexcept;
 
-		Span<uint32_t> GetMainThreadIDs() noexcept;
-		Span<uint32_t> GetAllThreadIDs() noexcept;
+	//HWND GetHWND() noexcept;
+	Core::Renderer& GetRenderer() noexcept;
+	Scene::SceneCore& GetScene() noexcept;
+	int GetNumThreads() noexcept;
+	uint32_t GetDPI() noexcept;
+	float GetUpscalingFactor() noexcept;
+	void SetUpscalingEnablement(bool e) noexcept;
+	bool IsFullScreen() noexcept;
+	const Win32::Timer& GetTimer() noexcept;
 
-		void AddParam(ParamVariant& p) noexcept;
-		void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-		RWSynchronizedView<Vector<ParamVariant, alignof(std::max_align_t)>> GetParams() noexcept;
+	Util::Span<uint32_t> GetMainThreadIDs() noexcept;
+	Util::Span<uint32_t> GetAllThreadIDs() noexcept;
 
-		void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
-		void RemoveShaderReloadHandler(const char* name) noexcept;
-		RSynchronizedView<Vector<ShaderReloadHandler, alignof(std::max_align_t)>> GetShaderReloadHandlers() noexcept;
+	void AddParam(Support::ParamVariant& p) noexcept;
+	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, alignof(std::max_align_t)>> GetParams() noexcept;
 
-		void AddFrameStat(const char* group, const char* name, int i) noexcept;
-		void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
-		void AddFrameStat(const char* group, const char* name, float f) noexcept;
-		void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
-		void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
-		RWSynchronizedView<Vector<Stat, alignof(std::max_align_t)>> GetStats() noexcept;
-		Span<double> GetFrameTimeHistory() noexcept;
+	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
+	void RemoveShaderReloadHandler(const char* name) noexcept;
+	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, alignof(std::max_align_t)>> GetShaderReloadHandlers() noexcept;
 
-		const char* GetPSOCacheDir() noexcept;
-		const char* GetCompileShadersDir() noexcept;
-		const char* GetAssetDir() noexcept;
-		const char* GetDXCPath() noexcept;
-		const char* GetToolsDir() noexcept;
-		const char* GetRenderPassDir() noexcept;
+	void AddFrameStat(const char* group, const char* name, int i) noexcept;
+	void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
+	void AddFrameStat(const char* group, const char* name, float f) noexcept;
+	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
+	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::Stat, alignof(std::max_align_t)>> GetStats() noexcept;
+	Util::Span<double> GetFrameTimeHistory() noexcept;
 
-		void LockStdOut() noexcept;
-		void UnlockStdOut() noexcept;
-	};
+	const char* GetPSOCacheDir() noexcept;
+	const char* GetCompileShadersDir() noexcept;
+	const char* GetAssetDir() noexcept;
+	const char* GetDXCPath() noexcept;
+	const char* GetToolsDir() noexcept;
+	const char* GetRenderPassDir() noexcept;
+
+	void LockStdOut() noexcept;
+	void UnlockStdOut() noexcept;
 }
-

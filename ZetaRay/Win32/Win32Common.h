@@ -14,7 +14,7 @@ namespace ZetaRay::Win32
         constexpr uint8_t AVX2 = 0x8;
     };
 
-    void WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept;
+    void WideToCharStr(const wchar_t* wideStr, Util::Span<char> str) noexcept;
 
     uint8_t CheckSIMDSupport(uint8_t query) noexcept;
 

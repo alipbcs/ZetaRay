@@ -4,7 +4,7 @@
 #include "../Math/Surface.h"
 #include "../Math/Quaternion.h"
 #include "../Scene/Assets.h"
-#include "../Scene/Scene.h"
+#include "../Scene/SceneCore.h"
 #include "Mesh.h"
 #include "../RenderPass/Common/RtCommon.h"
 #include "../SupportSystem/Task.h"
@@ -28,7 +28,12 @@
 #include <tinyglTF/tiny_gltf.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Model::glTF2;
 using namespace ZetaRay::Win32;
 
 //--------------------------------------------------------------------------------------
@@ -47,13 +52,11 @@ namespace
 
 	struct IntemediateInstance
 	{
-		Math::float4x3 LocalTransform;
+		float4x3 LocalTransform;
 		int MeshIdx;
 		std::string_view Name;
 		uint64_t ParentID;
 	};
-
-	static const char* COMPRESSED_DDS_DIR = "compressed";
 
 	/*
 	struct EmissiveMeshPower
@@ -247,7 +250,7 @@ namespace
 
 	void ProcessMeshes(uint64_t sceneID, tinygltf::Model& model, size_t offset, size_t size) noexcept
 	{
-		Scene& scene = App::GetScene();
+		SceneCore& scene = App::GetScene();
 
 		for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
 		{
@@ -265,10 +268,25 @@ namespace
 				Check(prim.indices != -1, "No Index buffer was set.");
 				Check(prim.mode == TINYGLTF_MODE_TRIANGLES, "Non-triangle meshes are not supported.");
 
-				auto posIit = prim.attributes.find("POSITION");
+				auto posIt = prim.attributes.find("POSITION");
+
+				// workaround for weird bug when /fsanitize=address is used. For some
+				// reason "POSITION" becomes "POSITIONsssss"
+				if (posIt == prim.attributes.end())
+				{
+					for (auto it = prim.attributes.begin(); it != prim.attributes.end(); it++)
+					{
+						if (it->first.starts_with("POSITION"))
+						{
+							posIt = it;
+							break;
+						}
+					}
+				}
+				
 				//Check((posIit != prim.attributes.end() || posIit->second != -1),
 				//	"POSITION was not found in the vertex attributes.");
-				Check(posIit != prim.attributes.end(), "POSITION was not found in the vertex attributes.");
+				Check(posIt != prim.attributes.end(), "POSITION was not found in the vertex attributes.");
 
 				auto normalit = prim.attributes.find("NORMAL");
 				//Check((normalit != prim.attributes.end() || normalit->second != -1),
@@ -276,17 +294,31 @@ namespace
 				Check(normalit != prim.attributes.end(), "NORMAL was not found in the vertex attributes.");
 
 				auto texIt = prim.attributes.find("TEXCOORD_0");
+
+				// workaround for weird bug when /fsanitize=address is used. For some
+				// reason "TEXCOORD_0" becomes "TEXCOORD_0sssss"
+				if (texIt == prim.attributes.end())
+				{
+					for (auto it = prim.attributes.begin(); it != prim.attributes.end(); it++)
+					{
+						if (it->first.starts_with("TEXCOORD_0"))
+						{
+							texIt = it;
+							break;
+						}
+					}
+				}
 				//Check((texIt != prim.attributes.end() || texIt->second != -1),
 				//	"TEXCOORD_0 was not found in the vertex attributes.");
 				Check(texIt != prim.attributes.end(), "TEXCOORD_0 was not found in the vertex attributes.");
 
 				// populate the vertex attributes
-				subset.Vertices.resize(model.accessors[posIit->second].count);
+				subset.Vertices.resize(model.accessors[posIt->second].count);
 
 				uint64_t meshID = MeshID(sceneID, subset.MeshIdx, subset.MeshPrimIdx);
 
 				// POSITION
-				ProcessPositions(model, posIit->second, subset.Vertices);
+				ProcessPositions(model, posIt->second, subset.Vertices);
 
 				// NORMAL
 				ProcessNormals(model, normalit->second, subset.Vertices);
@@ -330,7 +362,7 @@ namespace
 		size_t offset, size_t size) noexcept
 	{
 		//int idx = 0;
-		Scene& scene = App::GetScene();
+		SceneCore& scene = App::GetScene();
 
 		auto getAlphaMode = [](const std::string& s) noexcept
 		{
@@ -434,7 +466,7 @@ namespace
 	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId, 
 		Vector<IntemediateInstance>& instances, bool zUpToYupConversion) noexcept
 	{
-		uint64_t currInstanceID = Scene::ROOT_ID;
+		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
 		if (node.mesh != -1)
 		{
@@ -503,7 +535,7 @@ namespace
 			// each mesh has at least 1 primitive and any of those can be designated as the parent instance
 			// note Scene calucaltes instance ID with proper meshPrimitive index, this instance ID is only 
 			// used to establish parent-child relationships
-			currInstanceID = Scene::InstanceID(sceneID, node.name.c_str(), node.mesh, 0);
+			currInstanceID = SceneCore::InstanceID(sceneID, node.name.c_str(), node.mesh, 0);
 		}
 
 		for (int c : node.children)
@@ -518,7 +550,7 @@ namespace
 		for (int i : model.scenes[model.defaultScene].nodes)
 		{
 			const tinygltf::Node& node = model.nodes[i];
-			ProcessNodeSubtree(node, sceneID, model, Scene::ROOT_ID, instances, zUpToYupConversion);
+			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances, zUpToYupConversion);
 		}
 	}
 
@@ -555,7 +587,7 @@ namespace
 				}
 				*/
 
-				Scene& scene = App::GetScene();
+				SceneCore& scene = App::GetScene();
 				scene.AddInstance(sceneID, ZetaMove(desc));
 
 				meshPrimIdx++;
@@ -643,7 +675,7 @@ namespace
 	*/
 }
 
-void glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexcept
+void Model::glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexcept
 {
 	tinygltf::TinyGLTF loader;
 	tinygltf::Model model;
@@ -660,7 +692,7 @@ void glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexcept
 	Check(model.defaultScene != -1, "invalid defaultScene value.");
 
 	const uint64_t sceneID = XXH3_64bits(s.c_str(), s.size());
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 
 	size_t numMeshes = 0;
 	for (const auto& mesh : model.meshes)

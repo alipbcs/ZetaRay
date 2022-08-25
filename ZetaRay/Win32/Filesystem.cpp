@@ -2,7 +2,7 @@
 #include "../Utility/Error.h"
 #include "Win32.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Win32;
 
 //--------------------------------------------------------------------------------------

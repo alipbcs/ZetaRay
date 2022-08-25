@@ -2,7 +2,7 @@
 #include "../Win32/App.h"
 #include "Renderer.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 //--------------------------------------------------------------------------------------
 // CommandContext

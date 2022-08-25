@@ -2,7 +2,8 @@
 #include "../Win32/App.h"
 #include "../Win32/Timer.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
 
 //--------------------------------------------------------------------------------------
 // Task

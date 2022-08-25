@@ -5,9 +5,11 @@
 #include "../../Win32/App.h"
 #include "../../SupportSystem/Param.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Scene;
 
 //--------------------------------------------------------------------------------------
 // Sky

@@ -5,7 +5,7 @@
 #include "../../Core/CommandList.h"
 #include "../../SupportSystem/Param.h"
 #include "../../SupportSystem/Stat.h"
-#include "../../Scene/Scene.h"
+#include "../../Scene/SceneCore.h"
 #include "../../Win32/App.h"
 #include "../../Win32/Timer.h"
 #include "../../Utility/SynchronizedView.h"
@@ -13,10 +13,13 @@
 #include <imgui/implot.h>
 #include <algorithm>
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DHelper;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Scene;
 
 namespace
 {
@@ -76,11 +79,11 @@ namespace
 				ImGui::Text("%s", param.GetName());
 				bool changed = false;
 
-				if (ImGui::SliderFloat("pitch", reinterpret_cast<float*>(&pitch), 0.0f, Math::TWO_PI, "%.4f"))
+				if (ImGui::SliderFloat("pitch", reinterpret_cast<float*>(&pitch), 0.0f, TWO_PI, "%.4f"))
 				{
 					changed = true;
 				}
-				if (ImGui::SliderFloat("yaw", reinterpret_cast<float*>(&yaw), 0.0f, Math::TWO_PI, "%.4f"))
+				if (ImGui::SliderFloat("yaw", reinterpret_cast<float*>(&yaw), 0.0f, TWO_PI, "%.4f"))
 				{
 					changed = true;
 				}

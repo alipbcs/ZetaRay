@@ -4,7 +4,7 @@
 #include "Device.h"
 #include <map>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	struct DescriptorTable;
 
@@ -66,7 +66,7 @@ namespace ZetaRay
 			uint32_t Count;
 		};
 
-		SmallVector<PendingDescTable> m_pending;
+		Util::SmallVector<PendingDescTable> m_pending;
 
 		ComPtr<ID3D12Fence> m_fence;
 

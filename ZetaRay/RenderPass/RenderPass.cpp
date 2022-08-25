@@ -3,7 +3,7 @@
 #include "../Core/Renderer.h"
 #include ".../../../Win32/App.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 
 void RpObjects::Init(const char* name,

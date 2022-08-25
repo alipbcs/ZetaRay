@@ -3,7 +3,7 @@
 #include "../../Core/CommandList.h"
 #include "../../Core/Constants.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 
 void ClearPass::Clear(CommandList& cmdList) noexcept

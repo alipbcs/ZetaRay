@@ -5,7 +5,7 @@
 #include "../Core/Device.h"
 #include "../Win32/Log.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Support;
 
 namespace
 {

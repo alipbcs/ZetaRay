@@ -5,7 +5,7 @@
 #include <shared_mutex>
 #include <concurrentqueue-1.0.3/concurrentqueue.h>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	class CommandList;
 
@@ -64,7 +64,7 @@ namespace ZetaRay
 			uint64_t FenceToWaitFor;
 		};
 
-		SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
+		Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
 
 		// Source: https://github.com/cameron314/concurrentqueue
 		struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits

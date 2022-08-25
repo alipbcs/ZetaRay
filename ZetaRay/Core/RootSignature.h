@@ -2,7 +2,7 @@
 
 #include "Device.h"
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	class GraphicsCmdList;
 	class ComputeCmdList;

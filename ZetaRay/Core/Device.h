@@ -74,7 +74,7 @@ using Microsoft::WRL::ComPtr;
 #endif
 #endif
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	class DeviceObjects
 	{

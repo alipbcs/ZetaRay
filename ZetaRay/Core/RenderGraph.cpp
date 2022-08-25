@@ -15,7 +15,10 @@
 #endif // _DEBUG
 
 using namespace ZetaRay;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 namespace
 {

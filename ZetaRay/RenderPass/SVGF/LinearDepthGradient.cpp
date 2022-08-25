@@ -6,7 +6,9 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::RenderPass;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Scene;
 
 //--------------------------------------------------------------------------------------
 // IndirectDiffuse

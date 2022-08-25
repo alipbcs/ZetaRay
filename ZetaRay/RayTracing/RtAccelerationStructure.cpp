@@ -3,15 +3,19 @@
 #include "../../Win32/Timer.h"
 #include "../Core/Renderer.h"
 #include "../Core/CommandList.h"
-#include "../Scene/Scene.h"
+#include "../Scene/SceneCore.h"
 #include "../Math/Matrix.h"
 #include "../Model/Mesh.h"
 #include "../RenderPass/Common/RtCommon.h"
 #include "../Core/SharedShaderResources.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::RT;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 namespace
 {
@@ -48,7 +52,7 @@ namespace
 
 void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 
 	if (scene.m_numStaticInstances == 0)
 		return;
@@ -153,7 +157,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 
 void StaticBLAS::FillMeshTransformBufferForBuild() noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	const int transfromMatSize = sizeof(float) * 12;
 
 	m_perMeshTransformForBuild = App::GetRenderer().GetGpuMemory().GetUploadHeapBuffer(
@@ -249,7 +253,7 @@ void StaticBLAS::Clear() noexcept
 
 void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	auto mesh = scene.GetMeshData(m_meshID);
 
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
@@ -302,7 +306,7 @@ void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 
 void DynamicBLAS::Update(ComputeCmdList& cmdList) noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	auto mesh = scene.GetMeshData(m_meshID);
 
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
@@ -376,7 +380,7 @@ void TLAS::Render(CommandList& cmdList) noexcept
 
 void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	const int outIdx = App::GetRenderer().CurrOutIdx();
 
 	const int numInstances = (int)m_dynamicBLASes.size() + (scene.m_numStaticInstances > 0);
@@ -485,7 +489,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 
 void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 
 	// From DXR specs:
 	// acceleration structures must always be in D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
@@ -606,7 +610,7 @@ void TLAS::Clear() noexcept
 
 void TLAS::BuildFrameMeshInstanceData() noexcept
 {
-	Scene& scene = App::GetScene();
+	SceneCore& scene = App::GetScene();
 	const size_t numInstances = scene.m_IDtoTreePos.size();
 	SmallVector<uint32_t> frameInstanceData;
 	frameInstanceData.resize(numInstances);

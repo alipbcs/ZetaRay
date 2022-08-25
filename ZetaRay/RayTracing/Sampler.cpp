@@ -6,6 +6,9 @@
 #include "../SupportSystem/Task.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::RT;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Win32;
 
 void Sampler::InitLowDiscrepancyBlueNoise() noexcept

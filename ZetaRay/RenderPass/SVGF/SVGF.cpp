@@ -5,10 +5,12 @@
 #include "../../Win32/App.h"
 #include "../../SupportSystem/Param.h"
 
-using namespace ZetaRay;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
 // SVGF

@@ -6,7 +6,7 @@
 #define USE_PIX
 #include <WinPixEventRuntime/pix3.h>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	//--------------------------------------------------------------------------------------
 	// CommandList

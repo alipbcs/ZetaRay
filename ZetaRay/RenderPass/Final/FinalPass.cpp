@@ -5,8 +5,10 @@
 #include "../../Model/Mesh.h"
 #include "../../Win32/App.h"
 
-using namespace ZetaRay;
 using namespace ZetaRay::RenderPass;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------

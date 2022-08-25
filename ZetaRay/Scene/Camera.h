@@ -3,10 +3,13 @@
 #include "../Math/Matrix.h"
 #include "../Math/CollisionTypes.h"
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	struct ParamVariant;
+}
 
+namespace ZetaRay::Scene
+{
 	class Camera
 	{
 	public:
@@ -45,7 +48,7 @@ namespace ZetaRay
 
 	private:
 		void UpdateProj() noexcept;
-		void SetJitteringEnabled(const ParamVariant& p) noexcept;
+		void SetJitteringEnabled(const Support::ParamVariant& p) noexcept;
 
 		Math::float4x4a m_view;
 		Math::float4x4a m_viewInv;

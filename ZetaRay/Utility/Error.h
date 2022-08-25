@@ -21,7 +21,7 @@
 // Error checking
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
     void ReportError(const char* title, const char* msg) noexcept;
     void ReportErrorWin32(const char* file, int line, const char* call) noexcept;
@@ -36,8 +36,8 @@ namespace ZetaRay
         char buff[256];                                                                       \
         int n = stbsp_snprintf(buff, 256, "%s: %d\n", __FILE__, __LINE__);                    \
         stbsp_snprintf(buff + n, 256 - n, formatStr, __VA_ARGS__);                            \
-        ZetaRay::ReportError("Assertion failed", buff);                                       \
-        ZetaRay::DebugBreak();                                                                \
+        ZetaRay::Util::ReportError("Assertion failed", buff);                                 \
+        ZetaRay::Util::DebugBreak();                                                          \
     }
 #else
 #define Assert(expr, formatStr, ...) ((void)0)
@@ -46,8 +46,8 @@ namespace ZetaRay
 #define AssertWin32(expr)                                           \
     if(!(expr))                                                     \
     {                                                               \
-        ZetaRay::ReportErrorWin32(__FILE__, __LINE__, #expr);       \
-        ZetaRay::DebugBreak();                                      \
+        ZetaRay::Util::ReportErrorWin32(__FILE__, __LINE__, #expr); \
+        ZetaRay::Util::DebugBreak();                                \
     }
 
 #ifdef _DEBUG   
@@ -58,8 +58,8 @@ namespace ZetaRay
         char buff[256];                                                                      \
         int n = stbsp_snprintf(buff, 256, "%s: %d\n", __FILE__, __LINE__);                   \
         stbsp_snprintf(buff + n, 256 - n, formatStr, __VA_ARGS__);                           \
-        ZetaRay::ReportError("Fatal Error", buff);                                           \
-        ZetaRay::DebugBreak();                                                               \
+        ZetaRay::Util::ReportError("Fatal Error", buff);                                     \
+        ZetaRay::Util::DebugBreak();                                                         \
     }
 #endif
 #else
@@ -70,8 +70,8 @@ namespace ZetaRay
         char buff[256];                                                                      \
         int n = stbsp_snprintf(buff, 256, "%s: %d\n", __FILE__, __LINE__);                   \
         stbsp_snprintf(buff + n, 256 - n, formatStr, __VA_ARGS__);                           \
-        ZetaRay::ReportError("Fatal Error", buff);                                           \
-        ZetaRay::DebugBreak();                                                               \
+        ZetaRay::Util::ReportError("Fatal Error", buff);                                     \
+        ZetaRay::Util::DebugBreak();                                                         \
     }
 #endif
 #endif

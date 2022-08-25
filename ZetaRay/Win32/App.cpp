@@ -9,7 +9,7 @@
 #include "../Core/Renderer.h"
 #include "../Core/CommandQueue.h"			// just for std::unique_ptr<>
 #include "../Core/SharedShaderResources.h"	// just for std::unique_ptr<>
-#include "../Scene/Scene.h"
+#include "../Scene/SceneCore.h"
 #include "../SupportSystem/ThreadPool.h"
 #include "../Utility/RNG.h"
 #include "../../Assets/Fonts/SegoeUI.h"
@@ -33,7 +33,14 @@ namespace
 	};	
 }
 
-namespace ZetaRay
+using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Scene;
+
+namespace
 {
 	struct AppData
 	{
@@ -74,11 +81,11 @@ namespace ZetaRay
 		float m_cameraMoveSpeed = 0.1f;
 		float m_cameraZoomSpeed = 0.005f;
 
-		Win32::Timer m_timer;
+		Timer m_timer;
 		Renderer m_renderer;
 		ThreadPool m_mainThreadPool;
 		ThreadPool m_backgroundThreadPool;
-		Scene m_scene;
+		SceneCore m_scene;
 
 		struct alignas(64) ThreadContext
 		{
@@ -114,7 +121,7 @@ namespace ZetaRay
 		bool m_isInitialized = false;
 	};
 
-	static ZetaRay::AppData* g_pApp = nullptr;
+	static AppData* g_pApp = nullptr;
 }
 
 namespace ZetaRay::AppImpl
@@ -1053,7 +1060,7 @@ namespace ZetaRay
 		PostQuitMessage(0);
 	}
 
-	void* App::AllocateMemory(size_t size, const char* str, int alignment) noexcept
+	void* App::AllocateFromMemoryPool(size_t size, const char* str, uint32_t alignment) noexcept
 	{
 		//return malloc(size);
 
@@ -1078,7 +1085,7 @@ namespace ZetaRay
 		return mem;	
 	}
 
-	void App::FreeMemory(void* pMem, size_t size, const char* str, int alignment) noexcept
+	void App::FreeMemoryPool(void* pMem, size_t size, const char* str, uint32_t alignment) noexcept
 	{
 		//free(pMem);
 	
@@ -1194,7 +1201,7 @@ namespace ZetaRay
 	}
 
 	Renderer& App::GetRenderer() noexcept { return g_pApp->m_renderer; }
-	Scene& App::GetScene() noexcept { return g_pApp->m_scene; }
+	SceneCore& App::GetScene() noexcept { return g_pApp->m_scene; }
 	int App::GetNumThreads() noexcept { return g_pApp->m_processorCoreCount; }
 	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }
 	float  App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }

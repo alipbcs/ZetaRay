@@ -8,8 +8,8 @@
 #include "../../Win32/Win32Common.h"
 #include "../../Win32/Log.h"
 
-using namespace ZetaRay;
 using namespace ZetaRay::RenderPass;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass::FSR2_Internal;
 using namespace ZetaRay::Math;
 

@@ -5,7 +5,7 @@
 #include <cstdio>
 #include <string.h>
 
-using namespace ZetaRay;
+using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
 // MemoryPool

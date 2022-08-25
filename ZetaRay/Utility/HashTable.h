@@ -3,7 +3,7 @@
 #include "../Math/Common.h"
 #include "../Win32/App.h"
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
 	// Open-set addressing with linear probing
 	// 
@@ -125,7 +125,7 @@ namespace ZetaRay
 
 			// free the previously allocated memory
 			if(bucket_count())
-				App::FreeMemory(m_beg, bucket_count() * sizeof(Entry), "HashTable", alignof(Entry));
+				App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), "HashTable", alignof(Entry));
 		}
 
 		inline void swap(HashTable& other) noexcept
@@ -196,7 +196,7 @@ namespace ZetaRay
 			Entry* oldTable = m_beg;
 			const size_t oldBucketCount = bucket_count();
 
-			m_beg = reinterpret_cast<Entry*>(App::AllocateMemory(n * sizeof(Entry), "HashTable", alignof(Entry)));
+			m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), "HashTable", alignof(Entry)));
 			// adjust the end pointer
 			m_end = m_beg + n;
 
@@ -235,7 +235,7 @@ namespace ZetaRay
 			}
 
 			// free the previously allocated memory
-			App::FreeMemory(oldTable, oldBucketCount * sizeof(Entry), "HashTable", alignof(Entry));
+			App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), "HashTable", alignof(Entry));
 		}
 
 		static constexpr size_t MIN_NUM_BUCKETS = 4;

@@ -3,7 +3,7 @@
 #include "../Utility/Error.h"
 #include <algorithm>
 
-using namespace ZetaRay;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 namespace

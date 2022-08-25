@@ -171,7 +171,7 @@
       <TreatWarningAsError>true</TreatWarningAsError>
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <BasicRuntimeChecks>Default</BasicRuntimeChecks>
-      <BufferSecurityCheck>false</BufferSecurityCheck>
+      <BufferSecurityCheck>true</BufferSecurityCheck>
       <EnableEnhancedInstructionSet>AdvancedVectorExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Fast</FloatingPointModel>
       <RuntimeTypeInfo>false</RuntimeTypeInfo>
@@ -274,6 +274,7 @@
     <ClCompile Include="Core\RenderGraph.cpp" />
     <ClCompile Include="Core\RootSignature.cpp" />
     <ClCompile Include="Core\SharedShaderResources.cpp" />
+    <ClCompile Include="Math\BVH.cpp" />
     <ClCompile Include="Math\Common.cpp" />
     <ClCompile Include="Math\Surface.cpp" />
     <ClCompile Include="Math\Sampling.cpp" />
@@ -292,16 +293,14 @@
     <ClCompile Include="RenderPass\LuminanceReduction\LuminanceReduction.cpp" />
     <ClCompile Include="RenderPass\PathTracer\PathTracer.cpp" />
     <ClCompile Include="RenderPass\RenderPass.cpp" />
-    <ClCompile Include="RenderPass\ReSTIR\ReSTIR.cpp" />
     <ClCompile Include="RenderPass\Sky\Sky.cpp" />
     <ClCompile Include="RenderPass\Sky\SkyDome.cpp" />
     <ClCompile Include="RenderPass\Sun\SunLight.cpp" />
     <ClCompile Include="RenderPass\SVGF\LinearDepthGradient.cpp" />
     <ClCompile Include="RenderPass\SVGF\SVGF.cpp" />
     <ClCompile Include="RenderPass\TAA\TAA.cpp" />
-    <ClCompile Include="Scene\BVH.cpp" />
     <ClCompile Include="Scene\Camera.cpp" />
-    <ClCompile Include="Scene\Scene.cpp" />
+    <ClCompile Include="Scene\SceneCore.cpp" />
     <ClCompile Include="Scene\AssetManager.cpp" />
     <ClCompile Include="Scene\SceneRenderer\GBufferRenderer.cpp" />
     <ClCompile Include="Scene\SceneRenderer\LightManager.cpp" />
@@ -335,6 +334,7 @@
     <ClInclude Include="Core\SharedShaderResources.h" />
     <ClInclude Include="Core\Vertex.h" />
     <ClInclude Include="Core\ZetaRay.h" />
+    <ClInclude Include="Math\BVH.h" />
     <ClInclude Include="Math\CollisionTypes.h" />
     <ClInclude Include="Math\CollisionFuncs.h" />
     <ClInclude Include="Math\Common.h" />
@@ -372,9 +372,6 @@
     <ClInclude Include="RenderPass\PathTracer\PathTracer_Common.h" />
     <ClInclude Include="RenderPass\RenderPass.h" />
     <ClInclude Include="RenderPass\GUI\GuiPass.h" />
-    <ClInclude Include="RenderPass\LightVoxelGrid\Data.h" />
-    <ClInclude Include="RenderPass\ReSTIR\ReSTIR.h" />
-    <ClInclude Include="RenderPass\ReSTIR\ReSTIR_Common.h" />
     <ClInclude Include="RenderPass\Sky\Sky.h" />
     <ClInclude Include="RenderPass\Sky\SkyDome.h" />
     <ClInclude Include="RenderPass\Sky\Sky_Common.h" />
@@ -386,16 +383,15 @@
     <ClInclude Include="RenderPass\TAA\TAA_Common.h" />
     <ClInclude Include="RenderPass\TAA\TAA.h" />
     <ClInclude Include="Scene\AssetManager.h" />
-    <ClInclude Include="Scene\BVH.h" />
     <ClInclude Include="Scene\Camera.h" />
-    <ClInclude Include="Scene\Scene.h" />
+    <ClInclude Include="Scene\SceneCore.h" />
     <ClInclude Include="Scene\Assets.h" />
     <ClInclude Include="Scene\SceneRenderer\SceneRenderer.h" />
     <ClInclude Include="Scene\SceneRenderer\SceneRendererImpl.h" />
+    <ClInclude Include="SupportSystem\MemoryArena.h" />
     <ClInclude Include="SupportSystem\MemoryPool.h" />
     <ClInclude Include="SupportSystem\Param.h" />
     <ClInclude Include="SupportSystem\Stat.h" />
-    <ClInclude Include="SupportSystem\StlMemoryAllocator.h" />
     <ClInclude Include="SupportSystem\Task.h" />
     <ClInclude Include="SupportSystem\ThreadPool.h" />
     <ClInclude Include="Utility\Error.h" />
@@ -423,8 +419,6 @@
     <None Include="RenderPass\Common\SH.hlsli" />
     <None Include="RenderPass\Common\StaticTextureSamplers.hlsli" />
     <None Include="RenderPass\Common\VolumetricLighting.hlsli" />
-    <None Include="RenderPass\LightVoxelGrid\Common.hlsli" />
-    <None Include="RenderPass\ReSTIR\ReSTIR_Funcs.hlsli" />
     <CustomBuild Include="RenderPass\SVGF\SVGF_SpatialVariance.hlsl">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\SVGF\SVGF_SpatialVariance.hlsl main cs</Command>
@@ -436,24 +430,6 @@
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>
-    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_SpatialPass.hlsl">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\ReSTIR\ReSTIR_SpatialPass.hlsl main cs</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)/Assets/CompiledShaders/Debug/%(Filename)_cs.cso;</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\ReSTIR\ReSTIR_SpatialPass.hlsl main cs --release</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_cs.cso;</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_TemporalPass.hlsl">
-      <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\ReSTIR\ReSTIR_TemporalPass.hlsl main cs</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)/Assets/CompiledShaders/Debug/%(Filename)_cs.cso;</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\ReSTIR\ReSTIR_TemporalPass.hlsl main cs --release</Command>
-      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_cs.cso;</Outputs>
-      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
-    </CustomBuild>
     <CustomBuild Include="RenderPass\SVGF\SVGF_AtrousWaveletTransform.hlsl">
       <FileType>Document</FileType>
       <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\SVGF\SVGF_AtrousWaveletTransform.hlsl main cs</Command>

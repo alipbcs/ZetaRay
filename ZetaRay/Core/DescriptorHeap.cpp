@@ -6,6 +6,7 @@
 #include "../Utility/Error.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 //--------------------------------------------------------------------------------------
 // DescriptorTable

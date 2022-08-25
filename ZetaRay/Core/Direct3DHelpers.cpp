@@ -6,7 +6,9 @@
 #include <memory>
 
 using namespace ZetaRay;
-using namespace ZetaRay::Direct3DHelper;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 #define ISBITMASK( r,g,b,a ) ( ddpf.RBitMask == r && ddpf.GBitMask == g && ddpf.BBitMask == b && ddpf.ABitMask == a )
 
@@ -789,7 +791,7 @@ void Direct3DHelper::LoadDDSFromFile(const char* path,
     FillSubresourceData(header, subresources, bitData, bitSize, width, height, depth, mipCount, format);
 }
 
-D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DHelper::GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout, 
+D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DHelper::GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
     int numRenderTargets, 
     DXGI_FORMAT* rtvFormats, 
     DXGI_FORMAT dsvFormat, 
@@ -854,7 +856,7 @@ void Direct3DHelper::CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDes
     CheckHR(device->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(pipelineState)));
 }
 
-void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
@@ -927,7 +929,7 @@ void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice, UINT numSlices, 
+void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice, UINT numSlices,
     UINT firstSliceIdx) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");

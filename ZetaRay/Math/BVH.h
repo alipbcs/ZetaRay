@@ -9,12 +9,9 @@
 #include "../Utility/SmallVector.h"
 #include "../Math/CollisionTypes.h"
 
-namespace ZetaRay
+namespace ZetaRay::Math
 {
-	namespace Math
-	{
-		struct alignas(16) float4x4a;
-	}
+	struct alignas(16) float4x4a;
 
 	class BVH
 	{
@@ -42,10 +39,10 @@ namespace ZetaRay
 		void Clear() noexcept;
 
 		// Builds the BVH
-		void Build(Vector<BVHInput>&& instances) noexcept;
+		void Build(Util::Vector<BVHInput>&& instances) noexcept;
 
 		// Updates the BVH for the given instance
-		void Update(Vector<BVHUpdateInput>&& instances) noexcept;
+		void Update(Util::Vector<BVHUpdateInput>&& instances) noexcept;
 
 		// Removes given model from the BVH
 		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
@@ -54,7 +51,7 @@ namespace ZetaRay
 		// view-frustum is in the view-space
 		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 			const Math::float4x4a& viewToWorld,
-			Vector<uint64_t>& instanceIDs);
+			Util::Vector<uint64_t>& instanceIDs);
 
 		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
 		// be in world-space
@@ -77,7 +74,7 @@ namespace ZetaRay
 		{
 			bool IsInitialized() noexcept { return Parent != -1; }
 			void InitAsLeaf(int base, int count, int parent) noexcept;
-			void InitAsInternal(const Vector<BVH::BVHInput>& models, int base, int count,
+			void InitAsInternal(const Util::Vector<BVH::BVHInput>& models, int base, int count,
 				int right, int parent) noexcept;
 			inline bool IsLeaf() const { return RightChild == -1; }
 
@@ -117,10 +114,10 @@ namespace ZetaRay
 		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx) noexcept;
 
 		// tree-hierarchy is stored as an array
-		SmallVector<Node> m_nodes;
+		Util::SmallVector<Node> m_nodes;
 
 		// array of inputs to build a BVH for. During BVH build, elements are moved around
-		SmallVector<BVHInput> m_instances;
+		Util::SmallVector<BVHInput> m_instances;
 
 		uint32_t m_numNodes = 0;
 	};

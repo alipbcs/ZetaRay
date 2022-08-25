@@ -7,7 +7,7 @@
 
 namespace ZetaRay::Math
 {
-	bool ComputeMeshTangentVectors(Vector<VertexPosNormalTexTangent>& vertices, const Vector<INDEX_TYPE>& indices,
+	bool ComputeMeshTangentVectors(Util::Vector<Core::VertexPosNormalTexTangent>&vertices, const Util::Vector<INDEX_TYPE>& indices,
 		bool rhsIndices = false) noexcept;
 
 	// Returns barrycentric-coordinates (u, v, w) of point p relative to triangle v0v1v2 (ordered clockwise)

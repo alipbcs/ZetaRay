@@ -6,9 +6,10 @@
 #include "../Core/SharedShaderResources.h"
 #include "../Win32/App.h"
 
-using namespace ZetaRay;
-using namespace ZetaRay::Internal;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Scene::Internal;
 using namespace ZetaRay::Win32;
+using namespace ZetaRay::Util;
 
 //--------------------------------------------------------------------------------------
 // TextureDescriptorTable

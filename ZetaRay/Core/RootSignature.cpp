@@ -8,6 +8,7 @@
 #include <xxHash-0.8.0/xxhash.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts) noexcept
 	: m_numParams(nCBV + nSRV + nUAV + (nConsts > 0 ? 1 : 0)),

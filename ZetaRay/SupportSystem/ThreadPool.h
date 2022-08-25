@@ -3,7 +3,7 @@
 #include "Task.h"
 #include <concurrentqueue-1.0.3/blockingconcurrentqueue.h>
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	enum class THREAD_PRIORITY
 	{
@@ -39,7 +39,7 @@ namespace ZetaRay
 		bool TryFlush() noexcept;
 
 		int ThreadPoolSize() const { return m_threadPoolSize; }
-		Span<std::thread::id> ThreadIDs() { return Span(m_threadIDs, m_threadPoolSize); }
+		Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
 
 	private:
 		void WorkerThread() noexcept;

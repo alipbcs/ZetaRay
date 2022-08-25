@@ -9,7 +9,12 @@
 #include <algorithm>
 #include <xxHash-0.8.0/xxhash.h>
 
-namespace ZetaRay::Internal
+using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
+
+namespace ZetaRay::Core::Internal
 {
 	// Upload heap resource management is mostly based on "GraphicsMemory" class from DirectXTK12 
 	// library (MIT License), available here:
@@ -853,11 +858,9 @@ namespace ZetaRay::Internal
 		uint64_t m_fenceVal = 1;
 		bool m_inBeginEndBlock = false;
 	};
-
 }
 
-using namespace ZetaRay;
-using namespace ZetaRay::Internal;
+using namespace ZetaRay::Core::Internal;
 
 //--------------------------------------------------------------------------------------
 // UploadHeapBuffer

@@ -1,4 +1,4 @@
-#include "Scene.h"
+#include "SceneCore.h"
 #include "../Core/Renderer.h"
 #include "../Win32/App.h"
 #include "../Model/Mesh.h"
@@ -9,8 +9,10 @@
 #include "../SupportSystem/Task.h"
 #include <algorithm>
 
-using namespace ZetaRay;
-using namespace ZetaRay::Internal;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Scene::Internal;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Win32;
 
@@ -37,7 +39,7 @@ namespace
 // Scene
 //--------------------------------------------------------------------------------------
 
-Scene::Scene() noexcept
+SceneCore::SceneCore() noexcept
 	: k_matBuffID(XXH3_64bits(SceneRenderer::MATERIAL_BUFFER, strlen(SceneRenderer::MATERIAL_BUFFER))),
 	k_metallicRoughnessID(XXH3_64bits(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE, 
 		strlen(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE))),
@@ -53,7 +55,7 @@ Scene::Scene() noexcept
 {
 }
 
-void Scene::Init() noexcept
+void SceneCore::Init() noexcept
 {
 	//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
 //	Math::DegreeToRadians(85.0f), 0.1f, 10000.0f, true);
@@ -84,13 +86,13 @@ void Scene::Init() noexcept
 	m_sceneRenderer.Init();
 }
 
-void Scene::OnWindowSizeChanged() noexcept
+void SceneCore::OnWindowSizeChanged() noexcept
 {
 	//m_camera.OnWindowSizeChanged();
 	m_sceneRenderer.OnWindowSizeChanged();
 }
 
-void Scene::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
+void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
 {
 	if (m_isPaused)
 		return;
@@ -127,7 +129,7 @@ void Scene::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) noexce
 	m_sceneRenderer.Update(sceneRendererTS);
 }
 
-void Scene::Recycle() noexcept
+void SceneCore::Recycle() noexcept
 {
 	if (m_baseColorDescTable.Pending.empty() &&
 		m_normalsDescTable.Pending.empty() &&
@@ -148,7 +150,7 @@ void Scene::Recycle() noexcept
 	m_nextFenceVal++;
 }
 
-void Scene::Shutdown() noexcept
+void SceneCore::Shutdown() noexcept
 {
 	ID3D12Fence* fence = m_fence.Get();
 	App::GetRenderer().SignalDirectQueue(fence, m_nextFenceVal);
@@ -186,7 +188,7 @@ void Scene::Shutdown() noexcept
 	m_sceneRenderer.Shutdown();
 }
 
-Math::AABB Scene::GetWorldAABB() noexcept
+AABB SceneCore::GetWorldAABB() noexcept
 {
 	// BVH hasn't been built yet
 	// TODO replace with something less hacky
@@ -196,7 +198,7 @@ Math::AABB Scene::GetWorldAABB() noexcept
 	return m_bvh.GetWorldAABB();
 }
 
-void Scene::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, size_t numNodes) noexcept
+void SceneCore::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, size_t numNodes) noexcept
 {
 	auto& it = m_sceneMetadata[sceneID];
 	it.MaterialIDs.reserve(numMats);
@@ -204,7 +206,7 @@ void Scene::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, siz
 	it.Instances.reserve(numNodes);
 }
 
-void Scene::AddMesh(uint64_t sceneID, Asset::MeshSubset&& mesh) noexcept
+void SceneCore::AddMesh(uint64_t sceneID, Asset::MeshSubset&& mesh) noexcept
 {
 	const uint64_t meshFromSceneID = MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
 	const uint64_t matFromSceneID = MaterialID(sceneID, mesh.MaterialIdx);
@@ -218,7 +220,7 @@ void Scene::AddMesh(uint64_t sceneID, Asset::MeshSubset&& mesh) noexcept
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void Scene::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noexcept
+void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noexcept
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -303,13 +305,13 @@ void Scene::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noexcep
 	ReleaseSRWLockExclusive(&m_matLock);
 }
 
-Scene::TreePos* Scene::FindTreePosFromID(uint64_t id) noexcept
+SceneCore::TreePos* SceneCore::FindTreePosFromID(uint64_t id) noexcept
 {
 	TreePos* treePos = m_IDtoTreePos.find(id);
 	return treePos;
 }
 
-void Scene::AddInstance(uint64_t sceneID, Asset::InstanceDesc&& instance) noexcept
+void SceneCore::AddInstance(uint64_t sceneID, Asset::InstanceDesc&& instance) noexcept
 {
 	const uint64_t meshID = MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
 	const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
@@ -376,7 +378,7 @@ void Scene::AddInstance(uint64_t sceneID, Asset::InstanceDesc&& instance) noexce
 	ReleaseSRWLockExclusive(&m_instanceLock);
 }
 
-int Scene::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3& localTransform,
+int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3& localTransform,
 	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept
 {
 	auto& parentLevel = m_sceneGraph[treeLevel - 1];
@@ -426,7 +428,7 @@ int Scene::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3& lo
 	return insertIdx;
 }
 
-void Scene::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffset, bool isSorted) noexcept
+void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffset, bool isSorted) noexcept
 {
 #ifdef _DEBUG
 	TreePos *p = FindTreePosFromID(id);
@@ -461,7 +463,7 @@ void Scene::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffse
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
-void Scene::AddEnvLightSource(const Filesystem::Path& p) noexcept
+void SceneCore::AddEnvLightSource(const Filesystem::Path& p) noexcept
 {
 	// HDRi
 	Filesystem::Path pathToEnvMap(App::GetAssetDir());
@@ -485,7 +487,7 @@ void Scene::AddEnvLightSource(const Filesystem::Path& p) noexcept
 	m_sceneRenderer.SetEnvLightSource(pathToEnvMap, pathToPatches);
 }
 
-float4x3 Scene::GetToWorld(uint64_t id) noexcept
+float4x3 SceneCore::GetToWorld(uint64_t id) noexcept
 {
 	TreePos* p = FindTreePosFromID(id);
 	Assert(p, "instance with ID %llu was not found in the scene-graph.", id);
@@ -493,7 +495,7 @@ float4x3 Scene::GetToWorld(uint64_t id) noexcept
 	return m_sceneGraph[p->Level].m_toWorlds[p->Offset];
 }
 
-float4x3 Scene::GetPrevToWorld(uint64_t key) noexcept
+float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
 {
 	int beg = 0;
 	int end = (int)m_prevToWorlds.size();
@@ -520,7 +522,7 @@ float4x3 Scene::GetPrevToWorld(uint64_t key) noexcept
 	return float4x3(store(identity()));
 }
 
-uint64_t Scene::GetMeshIDForInstance(uint64_t id) noexcept
+uint64_t SceneCore::GetMeshIDForInstance(uint64_t id) noexcept
 {
 	TreePos* p = FindTreePosFromID(id);
 	Assert(p, "instance with ID %llu was not found in the scene-graph.", id);
@@ -528,7 +530,7 @@ uint64_t Scene::GetMeshIDForInstance(uint64_t id) noexcept
 	return m_sceneGraph[p->Level].m_meshIDs[p->Offset];
 }
 
-void Scene::RebuildBVH() noexcept
+void SceneCore::RebuildBVH() noexcept
 {
 	SmallVector<BVH::BVHInput> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
@@ -553,7 +555,7 @@ void Scene::RebuildBVH() noexcept
 	m_bvh.Build(ZetaMove(allInstances));
 }
 
-void Scene::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdateInstances) noexcept
+void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdateInstances) noexcept
 {
 	m_prevToWorlds.clear();
 	const int numLevels = (int)m_sceneGraph.size();
@@ -612,7 +614,7 @@ void Scene::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdateInst
 		});
 }
 
-void Scene::UpdateAnimations(float t, Vector<AnimationUpdateOut>& animVec) noexcept
+void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut>& animVec) noexcept
 {
 	for (int i = 0; i < m_animationOffsets.size(); i++)
 	{
@@ -692,7 +694,7 @@ void Scene::UpdateAnimations(float t, Vector<AnimationUpdateOut>& animVec) noexc
 	}
 }
 
-void Scene::UpdateLocalTransforms(Vector<AnimationUpdateOut>&& animVec) noexcept
+void SceneCore::UpdateLocalTransforms(Vector<AnimationUpdateOut>&& animVec) noexcept
 {
 	for(auto& update : animVec)
 	{
@@ -732,7 +734,7 @@ void Scene::UpdateLocalTransforms(Vector<AnimationUpdateOut>&& animVec) noexcept
 	}
 }
 
-void Scene::RemoveFromLevel(int index, int level) noexcept
+void SceneCore::RemoveFromLevel(int index, int level) noexcept
 {
 	// 1. Subtract one from parent's number of children
 	// 2. Shift base index of all the parent's right siblings left

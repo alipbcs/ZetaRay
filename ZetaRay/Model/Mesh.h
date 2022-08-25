@@ -5,14 +5,14 @@
 #include "../Core/GpuMemory.h"
 #include "../Core/Vertex.h"
 
-namespace ZetaRay
+namespace ZetaRay::Model
 {
 	struct TriangleMesh
 	{
 		TriangleMesh() noexcept = default;
 
-		TriangleMesh(Vector<VertexPosNormalTexTangent>&& vertices, 
-			Vector<INDEX_TYPE>&& indices,
+		TriangleMesh(Util::Vector<Core::VertexPosNormalTexTangent>&& vertices, 
+			Util::Vector<INDEX_TYPE>&& indices,
 			uint64_t matID) noexcept;
 		
 		TriangleMesh(const TriangleMesh&) = delete;
@@ -26,7 +26,7 @@ namespace ZetaRay
 			D3D12_VERTEX_BUFFER_VIEW vbv;
 			vbv.BufferLocation = m_vertexBuffer.GetGpuVA();
 			vbv.SizeInBytes = static_cast<UINT>(m_vertexBuffer.GetDesc().Width);
-			vbv.StrideInBytes = sizeof(VertexPosNormalTexTangent);
+			vbv.StrideInBytes = sizeof(Core::VertexPosNormalTexTangent);
 
 			return vbv;
 		}
@@ -35,22 +35,22 @@ namespace ZetaRay
 		{
 			D3D12_INDEX_BUFFER_VIEW ibv;
 			ibv.BufferLocation = m_indexBuffer.GetGpuVA();
-			ibv.Format = MESH_INDEX_FORMAT;
+			ibv.Format = Core::MESH_INDEX_FORMAT;
 			ibv.SizeInBytes = static_cast<UINT>(m_indexBuffer.GetDesc().Width);
 
 			return ibv;
 		}
 
 		// Descriptors to VB and IB of this mesh
-		DescriptorTable m_descTable;
+		Core::DescriptorTable m_descTable;
 
 		Math::AABB m_AABB;
 
 		//SmallVector<VertexPosNormalTexTangent> m_vertices;
 		//SmallVector<INDEX_TYPE> m_indices;
 
-		DefaultHeapBuffer m_vertexBuffer;
-		DefaultHeapBuffer m_indexBuffer;
+		Core::DefaultHeapBuffer m_vertexBuffer;
+		Core::DefaultHeapBuffer m_indexBuffer;
 
 		uint64_t m_materialID;
 		uint32_t m_numVertices;
@@ -64,17 +64,17 @@ namespace ZetaRay
 		//void ComputeBox(Vector<VertexPosNormalTexTangent>& vertices, Vector<uint16_t>& indices, 
 		//	Math::float3 size) noexcept;
 
-		void ComputeSphere(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeSphere(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float diameter, size_t tessellation) noexcept;
-		void ComputeCylinder(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeCylinder(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept;
-		void ComputeCone(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeCone(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float diameter, float height, size_t tessellation) noexcept;
-		void ComputeTorus(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeTorus(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float diameter, float thickness, size_t tessellation) noexcept;
-		void ComputeTeapot(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeTeapot(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float size, size_t tessellation) noexcept;
-		void ComputeGrid(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+		void ComputeGrid(Util::Vector<Core::VertexPosNormalTexTangent>& vertices, Util::Vector<INDEX_TYPE>& indices,
 			float width, float depth, uint32_t m, uint32_t n) noexcept;
 	}
 }

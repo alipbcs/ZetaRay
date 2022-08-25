@@ -23,7 +23,7 @@
 //
 //							....
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	class MemoryPool
 	{

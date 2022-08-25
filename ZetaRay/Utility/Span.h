@@ -2,7 +2,7 @@
 
 #include "SmallVector.h"
 
-namespace ZetaRay
+namespace ZetaRay::Util
 {
 	template<typename T>
 	struct Span

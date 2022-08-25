@@ -2,6 +2,7 @@
 #include <xxHash-0.8.0/xxhash.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 //--------------------------------------------------------------------------------------
 // SharedShaderResources

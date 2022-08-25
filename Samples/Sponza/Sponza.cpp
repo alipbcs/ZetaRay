@@ -4,7 +4,7 @@
 
 #include <Win32/Log.h>
 #include <Win32/Timer.h>
-#include <Scene/Scene.h>
+#include <Scene/SceneCore.h>
 #include <Model/glTF2.h>
 #include <fcntl.h>
 #include <io.h>
@@ -46,15 +46,14 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     //const char* p = "warehouse\\warehouse.gltf";
     //const char* p = "bistro\\bistro_v3.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
-    glTF2::Load(p);
+    Model::glTF2::Load(p);
 
     timer.End();
     App::FlushMainThreadPool();
     LOG("gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
 
     // add an environment light
-    const char* envMapPath = "EnvMap\\champagne_castle_1_1k.dds";
-    Scene& scene = App::GetScene();
+ //   const char* envMapPath = "EnvMap\\champagne_castle_1_1k.dds";
  //   scene.AddEnvLightSource(envMapPath);
 
     int ret = App::Run();

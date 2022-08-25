@@ -3,7 +3,7 @@
 #include <xxHash-0.8.0/xxhash.h>
 #include <string.h>
 
-using namespace ZetaRay;
+using namespace ZetaRay::Support;
 
 void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
 	fastdelegate::FastDelegate1<const ParamVariant&> dlg) noexcept

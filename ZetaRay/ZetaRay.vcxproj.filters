@@ -47,9 +47,6 @@
     <Filter Include="RenderPass\IndirectDiffuse">
       <UniqueIdentifier>{fc9a0c26-f9fa-4072-b25f-f4c50e3cb20c}</UniqueIdentifier>
     </Filter>
-    <Filter Include="RenderPass\ReSTIR">
-      <UniqueIdentifier>{11b918ab-7531-412e-b86e-ab51352b17e0}</UniqueIdentifier>
-    </Filter>
     <Filter Include="RenderPass\Compositing">
       <UniqueIdentifier>{275fea52-7849-4833-b2ac-28b4365a2a0a}</UniqueIdentifier>
     </Filter>
@@ -112,13 +109,10 @@
     <ClCompile Include="Core\SharedShaderResources.cpp">
       <Filter>Core</Filter>
     </ClCompile>
-    <ClCompile Include="Scene\BVH.cpp">
-      <Filter>Scene</Filter>
-    </ClCompile>
     <ClCompile Include="Scene\Camera.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
-    <ClCompile Include="Scene\Scene.cpp">
+    <ClCompile Include="Scene\SceneCore.cpp">
       <Filter>Scene</Filter>
     </ClCompile>
     <ClCompile Include="Scene\AssetManager.cpp">
@@ -186,9 +180,6 @@
     </ClCompile>
     <ClCompile Include="SupportSystem\MemoryPool.cpp">
       <Filter>SupportSystem</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderPass\ReSTIR\ReSTIR.cpp">
-      <Filter>RenderPass\ReSTIR</Filter>
     </ClCompile>
     <ClCompile Include="SupportSystem\ThreadPool.cpp">
       <Filter>SupportSystem</Filter>
@@ -274,6 +265,9 @@
     <ClCompile Include="..\External\imgui\imnodes.cpp">
       <Filter>External\imgui</Filter>
     </ClCompile>
+    <ClCompile Include="Math\BVH.cpp">
+      <Filter>Math</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\CommandList.h">
@@ -303,13 +297,10 @@
     <ClInclude Include="Core\ZetaRay.h">
       <Filter>Core</Filter>
     </ClInclude>
-    <ClInclude Include="Scene\BVH.h">
-      <Filter>Scene</Filter>
-    </ClInclude>
     <ClInclude Include="Scene\Camera.h">
       <Filter>Scene</Filter>
     </ClInclude>
-    <ClInclude Include="Scene\Scene.h">
+    <ClInclude Include="Scene\SceneCore.h">
       <Filter>Scene</Filter>
     </ClInclude>
     <ClInclude Include="Scene\Assets.h">
@@ -402,9 +393,6 @@
     <ClInclude Include="RenderPass\Compositing\Compositing_Common.h">
       <Filter>RenderPass\Compositing</Filter>
     </ClInclude>
-    <ClInclude Include="RenderPass\LightVoxelGrid\Data.h">
-      <Filter>RenderPass\ReSTIR</Filter>
-    </ClInclude>
     <ClInclude Include="RenderPass\SVGF\SVGF.h">
       <Filter>RenderPass\SVGF</Filter>
     </ClInclude>
@@ -428,12 +416,6 @@
     </ClInclude>
     <ClInclude Include="SupportSystem\MemoryPool.h">
       <Filter>SupportSystem</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderPass\ReSTIR\ReSTIR_Common.h">
-      <Filter>RenderPass\ReSTIR</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderPass\ReSTIR\ReSTIR.h">
-      <Filter>RenderPass\ReSTIR</Filter>
     </ClInclude>
     <ClInclude Include="RenderPass\Common\RtCommon.h">
       <Filter>RenderPass\Common</Filter>
@@ -479,9 +461,6 @@
     </ClInclude>
     <ClInclude Include="RenderPass\GUI\GuiPass_Common.h">
       <Filter>RenderPass\GUI</Filter>
-    </ClInclude>
-    <ClInclude Include="SupportSystem\StlMemoryAllocator.h">
-      <Filter>SupportSystem</Filter>
     </ClInclude>
     <ClInclude Include="Utility\Function.h">
       <Filter>Utility</Filter>
@@ -555,6 +534,12 @@
     <ClInclude Include="Win32\Log.h">
       <Filter>Win32</Filter>
     </ClInclude>
+    <ClInclude Include="SupportSystem\MemoryArena.h">
+      <Filter>SupportSystem</Filter>
+    </ClInclude>
+    <ClInclude Include="Math\BVH.h">
+      <Filter>Math</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RenderPass\Common\BRDF.hlsli">
@@ -563,14 +548,8 @@
     <None Include="RenderPass\Common\Common.hlsli">
       <Filter>RenderPass\Common</Filter>
     </None>
-    <None Include="RenderPass\LightVoxelGrid\Common.hlsli">
-      <Filter>RenderPass\ReSTIR</Filter>
-    </None>
     <None Include="RenderPass\Common\GBuffers.hlsli">
       <Filter>RenderPass\Common</Filter>
-    </None>
-    <None Include="RenderPass\ReSTIR\ReSTIR_Funcs.hlsli">
-      <Filter>RenderPass\ReSTIR</Filter>
     </None>
     <None Include="RenderPass\Common\RT.hlsli">
       <Filter>RenderPass\Common</Filter>
@@ -609,12 +588,6 @@
     </CustomBuild>
     <CustomBuild Include="RenderPass\SVGF\LinearDepthGradient.hlsl">
       <Filter>RenderPass\SVGF</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_TemporalPass.hlsl">
-      <Filter>RenderPass\ReSTIR</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\ReSTIR\ReSTIR_SpatialPass.hlsl">
-      <Filter>RenderPass\ReSTIR</Filter>
     </CustomBuild>
     <CustomBuild Include="RenderPass\PathTracer\PathTracer_Inline.hlsl">
       <Filter>RenderPass\PathTracer</Filter>

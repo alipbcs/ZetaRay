@@ -8,11 +8,14 @@ namespace ZetaRay::Win32::Filesystem
 	struct Path;
 }
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	struct TaskSet;
 	struct ParamVariant;
+}
 
+namespace ZetaRay::Scene
+{
 	class SceneRenderer
 	{
 	public:
@@ -35,12 +38,12 @@ namespace ZetaRay
 		~SceneRenderer() noexcept;
 
 		void Init() noexcept;
-		void Update(TaskSet& ts) noexcept;
-		void Render(TaskSet& ts) noexcept;
+		void Update(Support::TaskSet& ts) noexcept;
+		void Render(Support::TaskSet& ts) noexcept;
 		void Shutdown() noexcept;
 
 		//void AddAnalyticalLightSource(LightSourceType t) noexcept;
-		void AddEmissiveInstance(uint64_t instanceID, Vector<float, 32>&& lumen) noexcept;
+		void AddEmissiveInstance(uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
 		void SetEnvLightSource(const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
 		void OnWindowSizeChanged() noexcept;
 
@@ -51,26 +54,26 @@ namespace ZetaRay
 
 	private:
 		void UpdateFrameConstants() noexcept;
-		void RayOffset(const ParamVariant& p) noexcept;
-		void SetTAAEnablement(const ParamVariant& p) noexcept;
-		void SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept;
-		void SetIndierctDiffuseDenoiserEnablement(const ParamVariant& p) noexcept;
-		void SetInscatteringEnablement(const ParamVariant& p) noexcept;
-		void SetUpscalingMethod(const ParamVariant& p) noexcept;
-		void ModifySunDir(const ParamVariant& p) noexcept;
-		void ModifySunLux(const ParamVariant& p) noexcept;
-		void ModifySunAngularRadius(const ParamVariant& p) noexcept;
-		void ModifyRayleighSigmaSColor(const ParamVariant& p) noexcept;
-		void ModifyRayleighSigmaSScale(const ParamVariant& p) noexcept;
-		void ModifyMieSigmaA(const ParamVariant& p) noexcept;
-		void ModifyMieSigmaS(const ParamVariant& p) noexcept;
-		void ModifyOzoneSigmaAColor(const ParamVariant& p) noexcept;
-		void ModifyOzoneSigmaAScale(const ParamVariant& p) noexcept;
-		void ModifygForPhaseHG(const ParamVariant& p) noexcept;
+		void RayOffset(const Support::ParamVariant& p) noexcept;
+		void SetTAAEnablement(const Support::ParamVariant& p) noexcept;
+		void SetIndirectDiffuseEnablement(const Support::ParamVariant& p) noexcept;
+		void SetIndierctDiffuseDenoiserEnablement(const Support::ParamVariant& p) noexcept;
+		void SetInscatteringEnablement(const Support::ParamVariant& p) noexcept;
+		void SetUpscalingMethod(const Support::ParamVariant& p) noexcept;
+		void ModifySunDir(const Support::ParamVariant& p) noexcept;
+		void ModifySunLux(const Support::ParamVariant& p) noexcept;
+		void ModifySunAngularRadius(const Support::ParamVariant& p) noexcept;
+		void ModifyRayleighSigmaSColor(const Support::ParamVariant& p) noexcept;
+		void ModifyRayleighSigmaSScale(const Support::ParamVariant& p) noexcept;
+		void ModifyMieSigmaA(const Support::ParamVariant& p) noexcept;
+		void ModifyMieSigmaS(const Support::ParamVariant& p) noexcept;
+		void ModifyOzoneSigmaAColor(const Support::ParamVariant& p) noexcept;
+		void ModifyOzoneSigmaAScale(const Support::ParamVariant& p) noexcept;
+		void ModifygForPhaseHG(const Support::ParamVariant& p) noexcept;
 
 		std::unique_ptr<PrivateData> m_data;
-		RenderGraph m_renderGraph;
-		DefaultHeapBuffer m_frameConstantsBuff;
+		Core::RenderGraph m_renderGraph;
+		Core::DefaultHeapBuffer m_frameConstantsBuff;
 
 		struct Defaults
 		{		
@@ -94,6 +97,5 @@ namespace ZetaRay
 		};
 
 		inline static const char* UpscalingOptions[] = { "Point", "FSR 2.0 (Quality)", "Native" };
-
 	};
 }

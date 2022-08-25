@@ -3,6 +3,7 @@
 #include "Constants.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
 
 // PIX crashes when debug layer is enabled
 #define ENABLE_DEBUG_LAYER

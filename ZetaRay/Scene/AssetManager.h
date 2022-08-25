@@ -5,7 +5,7 @@
 #include "../RenderPass/Common/Material.h"
 #include "../Utility/HashTable.h"
 
-namespace ZetaRay
+namespace ZetaRay::Scene
 {
 	struct MeshData
 	{
@@ -18,7 +18,7 @@ namespace ZetaRay
 	};
 }
 
-namespace ZetaRay::Internal
+namespace ZetaRay::Scene::Internal
 {
 	//--------------------------------------------------------------------------------------
 	// TextureDescriptorTable: manages a descriptor table containing textures of one of the
@@ -46,25 +46,25 @@ namespace ZetaRay::Internal
 
 		struct ToBeFreedTexture
 		{
-			Texture T;
+			Core::Texture T;
 			uint64_t FenceVal;
 			uint32_t TableOffset;
 		};
 
-		SmallVector<ToBeFreedTexture> Pending;
+		Util::SmallVector<ToBeFreedTexture> Pending;
 
 		static constexpr int NUM_DESCRIPTORS = 1024;
 		static constexpr int NUM_MASKS = NUM_DESCRIPTORS >> 6;
 
 		struct CacheEntry
 		{
-			Texture T;
+			Core::Texture T;
 			uint32_t TableOffset = -1;
 			uint32_t RefCount = 0;
 		};
 
-		DescriptorTable Table;
-		HashTable<CacheEntry> Cache;
+		Core::DescriptorTable Table;
+		Util::HashTable<CacheEntry> Cache;
 
 		// 32 * 64 = 2048 texture slots
 		uint64_t Bitset[NUM_MASKS] = { 0 };
@@ -112,16 +112,16 @@ namespace ZetaRay::Internal
 			uint16_t Offset;
 		};
 
-		SmallVector<ToBeRemoved> Pending;
+		Util::SmallVector<ToBeRemoved> Pending;
 
 	private:
 		static constexpr int NUM_MATERIALS = 2048;
 		static constexpr int NUM_MASKS = NUM_MATERIALS >> 6;
 
-		UploadHeapBuffer Buffer;
+		Core::UploadHeapBuffer Buffer;
 			
 		// references to elements are not stable
-		HashTable<Material> MaterialTable;
+		Util::HashTable<Material> MaterialTable;
 
 		// 32 * 64 = 2048 texture slots
 		uint64_t Bitset[NUM_MASKS] = { 0 };
@@ -137,8 +137,8 @@ namespace ZetaRay::Internal
 	struct MeshManager
 	{
 		void Add(uint64_t id, 
-			Vector<VertexPosNormalTexTangent>&& vertices,
-			Vector<INDEX_TYPE>&& indices, uint64_t matID) noexcept;
+			Util::Vector<Core::VertexPosNormalTexTangent>&& vertices,
+			Util::Vector<INDEX_TYPE>&& indices, uint64_t matID) noexcept;
 
 		// TODO: running time is O(n * logn) 
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
@@ -180,6 +180,6 @@ namespace ZetaRay::Internal
 		}
 
 	private:
-		HashTable<TriangleMesh> m_meshes;
+		Util::HashTable<Model::TriangleMesh> m_meshes;
 	};
 }

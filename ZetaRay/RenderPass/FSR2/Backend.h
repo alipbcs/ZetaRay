@@ -3,7 +3,7 @@
 #include "../RenderPass.h"
 #include <FSR2/Include/ffx_fsr2.h>
 
-namespace ZetaRay
+namespace ZetaRay::Core
 {
 	struct Texture;
 	class CommandList;
@@ -22,8 +22,8 @@ namespace ZetaRay::RenderPass::FSR2_Internal
 	void Shutdown() noexcept;
 	bool IsInitialized() noexcept;
 	//void OnWindowResized(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight) noexcept;
-	const Texture& GetUpscaledOutput() noexcept;
-	void Dispatch(CommandList& cmdList, const DispatchParams& params) noexcept;
+	const Core::Texture& GetUpscaledOutput() noexcept;
+	void Dispatch(Core::CommandList& cmdList, const DispatchParams& params) noexcept;
 
 	FfxErrorCode Fsr2CreateDeviceFunc(FfxFsr2Interface* backendInterface, FfxDevice outDevice);
 	FfxErrorCode Fsr2GetDeviceCapabilities(FfxFsr2Interface* backendInterface,

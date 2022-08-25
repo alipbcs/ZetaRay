@@ -5,7 +5,7 @@
 #include "../Utility/Function.h"
 #include <atomic>
 
-namespace ZetaRay
+namespace ZetaRay::Support
 {
 	enum class TASK_PRIORITY
 	{
@@ -25,16 +25,16 @@ namespace ZetaRay
 		static constexpr int MAX_NAME_LENGTH = 64;
 
 		Task() noexcept = default;
-		Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept;
+		Task(const char* name, TASK_PRIORITY p, Util::Function&& f) noexcept;
 		~Task() noexcept = default;
 
 		Task(Task&&) noexcept;
 		Task& operator=(Task&&) noexcept;
 
-		void Reset(const char* name, TASK_PRIORITY p, Function&& f) noexcept;
+		void Reset(const char* name, TASK_PRIORITY p, Util::Function&& f) noexcept;
 		const char* GetName() const { return m_name; }
 		int GetSignalHandle() const { return m_signalHandle; }
-		Span<int> GetAdjacencies() { return Span(m_adjacentTailNodes); }
+		Util::Span<int> GetAdjacencies() { return Util::Span(m_adjacentTailNodes); }
 		TASK_PRIORITY GetPriority() { return m_priority; }
 
 		__forceinline void DoTask() noexcept
@@ -44,8 +44,8 @@ namespace ZetaRay
 		}
 
 	private:
-		Function m_dlg;
-		SmallVector<int> m_adjacentTailNodes;
+		Util::Function m_dlg;
+		Util::SmallVector<int> m_adjacentTailNodes;
 		char m_name[MAX_NAME_LENGTH];
 		int m_signalHandle = -1;
 		int m_indegree = 0;
@@ -98,7 +98,7 @@ namespace ZetaRay
 		TaskSet(const TaskSet&) = delete;
 		TaskSet& operator=(const TaskSet&) = delete;
 
-		inline TaskHandle EmplaceTask(const char* name, Function&& f) noexcept
+		inline TaskHandle EmplaceTask(const char* name, Util::Function&& f) noexcept
 		{
 			Check(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
 			Check(m_currSize < MAX_NUM_TASKS - 2, "current implementation of this functions doesn't support more than 64 tasks.");
@@ -123,7 +123,7 @@ namespace ZetaRay
 		void Finalize(WaitObject* waitObj = nullptr) noexcept;
 
 		int GetSize() { return m_currSize; }
-		Span<Task> GetTasks() { return Span(m_tasks, m_currSize); }
+		Util::Span<Task> GetTasks() { return Util::Span(m_tasks, m_currSize); }
 
 	private:
 		struct TaskMetadata

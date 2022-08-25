@@ -4,6 +4,7 @@
 #include <intrin.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Util;
 
 void Win32::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
 {

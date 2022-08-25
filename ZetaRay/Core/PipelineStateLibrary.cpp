@@ -5,6 +5,8 @@
 #include "../Win32/Log.h"
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Win32;
 
 //--------------------------------------------------------------------------------------

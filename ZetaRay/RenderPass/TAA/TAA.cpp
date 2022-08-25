@@ -4,9 +4,11 @@
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Win32/App.h"
 
-using namespace ZetaRay;
+using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
 // TAA
