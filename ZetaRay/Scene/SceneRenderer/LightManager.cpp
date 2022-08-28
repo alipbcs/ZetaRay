@@ -269,7 +269,7 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 	else
 		data.CompositPass.SetInscatteringEnablement(false);
 
-	if (settings.DenoiseIndirectDiffuseLi)
+	if (settings.DenoiseIndirectDiffuse)
 	{
 		data.CompositPass.SetIndirectDiffuseEnablement(true);
 
@@ -408,7 +408,7 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 
-		if (settings.DenoiseIndirectDiffuseLi)
+		if (settings.DenoiseIndirectDiffuse)
 		{
 			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ?
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B :

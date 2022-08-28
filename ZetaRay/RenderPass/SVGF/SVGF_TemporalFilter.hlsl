@@ -52,29 +52,29 @@ float4 ComputeDepthConsistency(float4 prevDepths, float2 prevUVs[4], float3 curr
 {
 	float3 prevPos[4];
 	prevPos[0] = WorldPosFromTexturePos(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv);
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	prevPos[1] = WorldPosFromTexturePos(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv);
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	prevPos[2] = WorldPosFromTexturePos(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv);
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	prevPos[3] = WorldPosFromTexturePos(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv);
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
 		dot(currNormal, prevPos[2] - currPos),
 		dot(currNormal, prevPos[3] - currPos));
 	
-	planeDist *= (planeDist >= 0);
+//	planeDist *= (planeDist >= 0);
 	
-//	float4 weights = saturate(1 - planeDist / g_local.BilinearDepthMaxDist);
-	float4 weights = planeDist <= g_local.BilinearGeometryMaxPlaneDist;
+	float4 weights = saturate(1 - abs(planeDist) / g_local.BilinearGeometryMaxPlaneDist);
+//	float4 weights = planeDist <= g_local.BilinearGeometryMaxPlaneDist;
 	
 	return weights;
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out float lum, out float lumSq, 
+void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color, out float lum, out float lumSq, 
 	out float4 weights)
 {
 	// pixel position for this thread
@@ -88,7 +88,7 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 	const float2 prevPosTS = currPosTS - motionVec;
 
 	if (any(abs(prevPosTS) - prevPosTS))
-		return false;
+		return;
 	
 	// offset of prevPixelPos from surrounding pixels
 	//	p0-----------p1
@@ -134,7 +134,7 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 	const float currLinearDepth = ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
 
 	const float3 currPos = WorldPosFromTexturePos(currPosTS, currLinearDepth, g_frame.TanHalfFOV,
-		g_frame.AspectRatio, g_frame.CurrViewInv);
+		g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -154,7 +154,8 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
 	
-	weights = normalWeights * depthWeights * bilinearWeights * isInBounds;
+	//weights = normalWeights * depthWeights * bilinearWeights * isInBounds;
+	weights = depthWeights * bilinearWeights * isInBounds;
 	const float weightSum = dot(1.0f, weights);
 
 //	if (1e-6 < weightSum)
@@ -169,8 +170,8 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 		uint4 histTspp = histB & 0xffff;
 		
 		// as tspp is an integer, make sure it's at least 1, otherwise tspp would remain at zero forever
-		histTspp = max(1, histTspp);
 		uint maxTspp = max(max(histTspp.x, histTspp.y), max(histTspp.z, histTspp.w));
+		histTspp = max(1, histTspp);
 		tspp = min(round(dot(histTspp, weights)), maxTspp + 1);
 		
 		if (tspp > 0)
@@ -184,7 +185,7 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 			colorHistSamples[1] = float3(f16tof32(histR.y >> 16), f16tof32(histG.y), f16tof32(histG.y >> 16));
 			colorHistSamples[2] = float3(f16tof32(histR.z >> 16), f16tof32(histG.z), f16tof32(histG.z >> 16));
 			colorHistSamples[3] = float3(f16tof32(histR.w >> 16), f16tof32(histG.w), f16tof32(histG.w >> 16));
-					
+
 			color = colorHistSamples[0] * weights[0] +
 					colorHistSamples[1] * weights[1] +
 					colorHistSamples[2] * weights[2] +
@@ -197,18 +198,14 @@ bool SampleTemporalCache(in uint3 DTid, out uint tspp, out float3 color, out flo
 			// lum^2
 			const float4 lumSqHist = f16tof32(histB >> 16);
 			lumSq = dot(weights, lumSqHist);
-		}
-		
-		return true;
+		}		
 	}
-	
-	return false;
 }
 
-void Integrate(in uint3 DTid, in bool foundTemporalSamples, inout uint tspp, inout float3 color, inout float lum, inout float lumSq)
+void Integrate(in uint3 DTid, inout uint tspp, inout float3 color, inout float lum, inout float lumSq)
 {
-	Texture2D<half4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
-	const half3 noisySignal = g_indirectLiRayT[DTid.xy].rgb;
+	Texture2D<float4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
+	const float3 noisySignal = g_indirectLiRayT[DTid.xy].rgb;
 	
 	const float currLum = LuminanceFromLinearRGB(noisySignal.rgb);
 	const float currLumSq = currLum * currLum;
@@ -216,52 +213,36 @@ void Integrate(in uint3 DTid, in bool foundTemporalSamples, inout uint tspp, ino
 	RWTexture2D<half> g_spatialLumVar = ResourceDescriptorHeap[g_local.SpatialLumVarDescHeapIdx];
 	float lumVariance;
 	
-	if (foundTemporalSamples)
-	{		
-		// use linear weights as opposed to exponential weights (used in the paper), which
-		// comparatively give higher weight to initial samples (useful for right after disocclusion)
+	// use linear weights as opposed to exponential weights (used in the paper), which
+	// comparatively give higher weight to initial samples (useful for right after disocclusion)
 //		const float accumulationSpeed = clamp(1.0f / (1.0f + tspp), g_local.MinAccumulationSpeed, 1.0f);
-		const float accumulationSpeed = 1.0f / (1.0f + tspp);
+	const float accumulationSpeed = 1.0f / (1.0f + tspp);
 	
-		// don't accumulate more than MaxTspp temporal samples (temporal lag <-> blur tradeoff)
-		tspp = min(tspp + 1, g_local.MaxTspp);
+	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
+	tspp = min(tspp + 1, g_local.MaxTspp);
 
-		// color
-		color = lerp(color, noisySignal, accumulationSpeed);
+	// color
+	color = lerp(color, noisySignal, accumulationSpeed);
 		
-		// lum
-		lum = lerp(lum, currLum, accumulationSpeed);
-		
-		// lum^2
-		lumSq = lerp(lumSq, currLumSq, accumulationSpeed);
-		
-		// variance		
-		// if tspp is too low, use the spatial estimate instead
-		if (tspp > g_local.MinTsppToUseTemporalVar)
-		{
-			// var = E[X^2]- E[X]^2
-			// E[X^2] = lum^2
-			// E[X] = lum
-			const float meanLum = lum / tspp;
-			float temporalVariance = (lumSq / tspp) - meanLum * meanLum;
-			temporalVariance *= (float) tspp / (tspp - 1.0f);
-			temporalVariance = max(temporalVariance, 0.0f);
-		
-			lumVariance = temporalVariance;
-
-			// TODO is this necessary?
-			//lumVariance = max(lumVariance, g_local.MinLumVariance);
-
-			// rewrtie var
-			g_spatialLumVar[DTid.xy] = half(lumVariance);
-		}
-	}
-	else
+	// lum
+	lum = lerp(lum, currLum, accumulationSpeed);
+	
+	// lum^2
+	lumSq = lerp(lumSq, currLumSq, accumulationSpeed);
+	
+	// variance		
+	// if tspp is too low, use the spatial estimate instead
+	if (tspp > g_local.MinTsppToUseTemporalVar)
 	{
-		tspp = 1;
-		color = noisySignal.rgb;
-		lum = currLum;
-		lumSq = currLumSq;
+		// var = E[X^2]- E[X]^2
+		// E[X^2] = lum^2
+		// E[X] = lum	(divide by tspp has already happended as part of previous lerps)
+		float temporalVariance = lumSq - lum * lum;
+		temporalVariance *= (float) tspp / (tspp - 1.0f);
+		temporalVariance = max(temporalVariance, 0.0f);
+		
+		// rewrtie var, each pixel only reads and writes to its own values
+		g_spatialLumVar[DTid.xy] = half(temporalVariance);
 	}
 }
 
@@ -289,14 +270,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		return;
 	
 	float4 temp = 0.0f.xxxx;
-	bool success = false;
 	
 	// sample temporal cache using a bilinear tap with custom weights
 	if (g_local.IsTemporalCacheValid)
-		success = SampleTemporalCache(DTid, tspp, color, lum, lumSq, temp);
+		SampleTemporalCache(DTid, tspp, color, lum, lumSq, temp);
 
 	// integrate history and current frame
-	Integrate(DTid, success, tspp, color, lum, lumSq);
+	Integrate(DTid, tspp, color, lum, lumSq);
 
 	uint4 ret;
 	ret.x = (f32tof16(color.r) << 16) | f32tof16(lum);

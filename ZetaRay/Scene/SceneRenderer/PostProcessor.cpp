@@ -185,7 +185,7 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
-		if (settings.DenoiseIndirectDiffuseLi)
+		if (settings.DenoiseIndirectDiffuse)
 		{
 			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::SVGF_TEMPORAL_CACHE,
 				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
@@ -370,7 +370,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		if (settings.DenoiseIndirectDiffuseLi)
+		if (settings.DenoiseIndirectDiffuse)
 		{
 			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ? 
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B : 

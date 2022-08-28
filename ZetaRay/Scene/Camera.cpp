@@ -107,11 +107,11 @@ void Camera::Update() noexcept
 {
 	if (m_jitteringEnabled)
 	{
-		uint64_t frame = App::GetTimer().GetTotalFrameCount();
+		const uint64_t frame = App::GetTimer().GetTotalFrameCount();
 		//m_currJitter = k_halton[frame & 0x7];	// frame % 8
 		m_currJitter = k_halton[frame % m_jitterPhaseCount];	// frame % jitterPhaseCount
 		
-		// shift each pixel by a value in [-1 / PixelWidth, 1 / PixelWidth] * [-1 / PixelHeight, 1 / PixelHeight]
+		// shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
 		m_currProjOffset = m_currJitter * float2(m_pixelSampleAreaWidth, m_pixelSampleAreaHeight) * float2(2.0f, -2.0f);
 
 		m_proj.m[2].x = m_currProjOffset.x;
@@ -123,11 +123,7 @@ void Camera::UpdateProj() noexcept
 {
 	v_float4x4 vP;
 
-	if constexpr (!RendererConstants::USE_REVERSE_Z)
-		vP = perspective(m_aspectRatio, m_FOV, m_nearZ, m_farZ);
-	else
-		vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ);
-	
+	vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ);
 	m_proj = store(vP);
 
 	m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
@@ -136,6 +132,8 @@ void Camera::UpdateProj() noexcept
 void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
 {
 	m_jitteringEnabled = p.GetBool();
+	m_proj.m[2].x = 0.0f;
+	m_proj.m[2].y = 0.0f;
 }
 
 void Camera::OnWindowSizeChanged() noexcept

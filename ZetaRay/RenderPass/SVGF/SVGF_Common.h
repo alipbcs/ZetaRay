@@ -39,9 +39,6 @@ struct cbTemporalFilter
 	// Resources
 	//
 
-	// Texture2D<float2>
-	uint_ LinearDepthGradDescHeapIdx;
-
 	// Incoming indirect light L_i for each surface position (element w is rayhitdist) in
 	// the gbuffer. Note that is indirect light being received by the surface pos rather than the 
 	// indirect light reflected back towards the viewer (due to indirect illumination L_i). Reason 
@@ -85,11 +82,12 @@ struct cbSpatialVar
 
 struct cbAtrousWaveletFilter
 {
-	float DepthWeightCutoff;
-	float DepthSigma;
+//	float DepthWeightCutoff;
+//	float DepthSigma;
 	float NormalSigma;
 	float LumSigma;
 	float MinVarianceToFilter;
+	float MaxPlaneDist;
 
 	uint_ Step;
 	uint16_t DispatchDimX;
@@ -100,8 +98,6 @@ struct cbAtrousWaveletFilter
 
 	uint_ IntegratedTemporalCacheDescHeapIdx;
 	uint_ LumVarianceDescHeapIdx;
-	// Texture2D<float2>
-	uint_ LinearDepthGradDescHeapIdx;
 };
 
 struct cbGaussianFilter
@@ -132,6 +128,7 @@ static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
 static const int16_t Radius = 1;
 static const int16_t KernelWidth = 2 * Radius + 1;
 static const float Kernel1D[2 * Radius + 1] = { 0.27901, 0.44198, 0.27901 };
+//static const float Kernel1D[2 * Radius + 1] = { 0.25, 0.5, 0.25 };
 //static const float Kernel1D[2 * Radius + 1] = { 0.3125f, 0.375f, 0.3125f };
 static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
 {

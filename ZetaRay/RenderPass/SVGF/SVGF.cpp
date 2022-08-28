@@ -76,7 +76,7 @@ void SVGF::Init() noexcept
 	m_cbTemporalFilter.MinConsistentWeight = DefaultParamVals::MinConsistentWeight;
 	m_cbTemporalFilter.BilinearNormalScale = DefaultParamVals::BilinearNormalScale;
 	m_cbTemporalFilter.BilinearNormalExp = DefaultParamVals::BilinearNormalExp;
-	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = DefaultParamVals::BilinearGeometryMaxPlaneDist;
+	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	//m_cbTemporalFilter.BilinearDepthCutoff = DefaultParamVals::BilinearDepthCutoff;
 	//m_cbTemporalFilter.MinLumVariance = DefaultParamVals::MinLumVariance;
 	//m_cbTemporalFilter.ClampHistory = DefaultParamVals::NeighborhoodClamping;
@@ -86,8 +86,9 @@ void SVGF::Init() noexcept
 
 	m_cbSpatialVar.Radius = DefaultParamVals::SpatialVarianceRadius;
 
-	m_cbWaveletTransform.DepthWeightCutoff = DefaultParamVals::EdgeStoppingDepthWeightCutoff;
-	m_cbWaveletTransform.DepthSigma = DefaultParamVals::EdgeStoppingDepthSigma;
+	//m_cbWaveletTransform.DepthWeightCutoff = DefaultParamVals::EdgeStoppingDepthWeightCutoff;
+	//m_cbWaveletTransform.DepthSigma = DefaultParamVals::EdgeStoppingDepthSigma;
+	m_cbWaveletTransform.MaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	m_cbWaveletTransform.NormalSigma = DefaultParamVals::EdgeStoppingNormalSigma;
 	m_cbWaveletTransform.LumSigma = DefaultParamVals::EdgeStoppingLumSigma;
 	//m_cbWaveletTransform.MinVarianceToFilter = DefaultParamVals::MinVarianceToFilter;
@@ -174,16 +175,13 @@ void SVGF::Render(CommandList& cmdList) noexcept
 		m_rootSig.SetRootConstants(0, sizeof(cbGaussianFilter) / sizeof(DWORD), &m_cbGaussianFilter);
 		m_rootSig.End(computeCmdList);
 
-		for (int i = 0; i < 1; i++)
-		{
-			// issue a UAV barrier to make sure spatial variance pass is done writing to it
-			auto barrier = Direct3DHelper::UAVBarrier(m_spatialLumVar.GetResource());
-			computeCmdList.UAVBarrier(1, &barrier);
+		// issue a UAV barrier to make sure spatial variance pass is done writing to it
+		auto barrier = Direct3DHelper::UAVBarrier(m_spatialLumVar.GetResource());
+		computeCmdList.UAVBarrier(1, &barrier);
 
-			computeCmdList.Dispatch((UINT)CeilUnsignedIntDiv(w, GAUSSAIN_FILT_THREAD_GROUP_SIZE_X),
-				(UINT)CeilUnsignedIntDiv(h, GAUSSAIN_FILT_THREAD_GROUP_SIZE_Y),
-				GAUSSAIN_FILT_THREAD_GROUP_SIZE_Z);
-		}
+		computeCmdList.Dispatch((UINT)CeilUnsignedIntDiv(w, GAUSSAIN_FILT_THREAD_GROUP_SIZE_X),
+			(UINT)CeilUnsignedIntDiv(h, GAUSSAIN_FILT_THREAD_GROUP_SIZE_Y),
+			GAUSSAIN_FILT_THREAD_GROUP_SIZE_Z);
 
 		computeCmdList.PIXEndEvent();
 	}
@@ -191,27 +189,34 @@ void SVGF::Render(CommandList& cmdList) noexcept
 	const uint32_t prevTemporalCacheSRV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_SRV : (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_SRV;
 	const uint32_t nextTemporalCacheUAV = outIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_B_UAV : (int)DESC_TABLE::TEMPORAL_CACHE_COL_LUM_A_UAV;
 
-
 	// temporal filter
 	{
-		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::LINEAR_DEPTH_GRAD] != 0, "LINEAR_DEPTH_GRAD descriptor heap idx was not set.");
-
 		computeCmdList.PIXBeginEvent("SVGF_TemporalFilter");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_FILTER]);
 
-		m_cbTemporalFilter.LinearDepthGradDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::LINEAR_DEPTH_GRAD];
 		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI];
 		m_cbTemporalFilter.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheSRV);
 		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheUAV);
-		m_cbTemporalFilter.SpatialLumVarDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_UAV);
 		m_cbTemporalFilter.IsTemporalCacheValid = m_isTemporalCacheValid;
 
 		m_rootSig.SetRootConstants(0, sizeof(cbTemporalFilter) / sizeof(DWORD), &m_cbTemporalFilter);
 		m_rootSig.End(computeCmdList);
 
-		// issue a UAV barrier to make sure spatial variance pass is done writing to it
-		auto barrier = Direct3DHelper::UAVBarrier(m_spatialLumVar.GetResource());
-		computeCmdList.UAVBarrier(1, &barrier);
+		// issue a UAV barrier to make sure variance pass is done writing to it
+		if (!m_filterSpatialVariance)
+		{
+			m_cbTemporalFilter.SpatialLumVarDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_UAV);
+
+			auto barrier = Direct3DHelper::UAVBarrier(m_spatialLumVar.GetResource());
+			computeCmdList.UAVBarrier(1, &barrier);
+		}
+		else
+		{
+			m_cbTemporalFilter.SpatialLumVarDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_FILTERED_UAV);
+
+			auto barrier = Direct3DHelper::UAVBarrier(m_spatialLumVarFiltered.GetResource());
+			computeCmdList.UAVBarrier(1, &barrier);
+		}
 
 		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, TEMPORAL_FILTER_THREAD_GROUP_SIZE_X),
 			(uint32_t)CeilUnsignedIntDiv(h, TEMPORAL_FILTER_THREAD_GROUP_SIZE_Y),
@@ -238,7 +243,6 @@ void SVGF::Render(CommandList& cmdList) noexcept
 
 		Assert((1 << m_cbWaveletTransform.Log2TileWidth) == m_cbWaveletTransform.TileWidth, "these must be equal");
 
-		m_cbWaveletTransform.LinearDepthGradDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::LINEAR_DEPTH_GRAD];
 		m_cbWaveletTransform.IntegratedTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheUAV);
 		m_cbWaveletTransform.LumVarianceDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_LUM_VAR_UAV);
 
@@ -252,7 +256,8 @@ void SVGF::Render(CommandList& cmdList) noexcept
 
 			computeCmdList.UAVBarrier(ArraySize(uavBarriers), uavBarriers);
 
-			m_cbWaveletTransform.Step = 1 << i;
+			//m_cbWaveletTransform.Step = 1 << i;
+			m_cbWaveletTransform.Step = 1 << (m_numWaveletFilterPasses - 1 - i);
 
 			m_rootSig.SetRootConstants(0, sizeof(cbAtrousWaveletFilter) / sizeof(DWORD), &m_cbWaveletTransform);
 			m_rootSig.End(computeCmdList);
@@ -262,9 +267,6 @@ void SVGF::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.PIXEndEvent();
 	}
-
-	// ping-pong between temporal caches
-	//std::swap(m_temporalCache[0], m_temporalCache[1]);
 
 	m_isTemporalCacheValid = true;
 }
@@ -406,11 +408,11 @@ void SVGF::InitParams() noexcept
 
 	ParamVariant bilateralDepthScale;
 	bilateralDepthScale.InitFloat("Renderer", "SVGF", "MaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &SVGF::BilinearGeometryMaxPlaneDistCallback),
-		DefaultParamVals::BilinearGeometryMaxPlaneDist,		// val	
-		0.1e-3f,											// min
-		1.0f,												// max
-		0.1e-3f);											// step
+		fastdelegate::MakeDelegate(this, &SVGF::MaxPlaneDistCallback),
+		DefaultParamVals::MaxPlaneDist,				// val	
+		1e-2f,										// min
+		5.0f,										// max
+		1e-2f);										// step
 	App::AddParam(bilateralDepthScale);
 
 	// adjustment for this wasn't exposed (fixed at 0.5) 
@@ -503,14 +505,23 @@ void SVGF::InitParams() noexcept
 	//	0.01f);										// step
 	//App::AddParam(minVarianceToFilter);
 
-	ParamVariant edgeStoppingDepthWeightCutoff;
-	edgeStoppingDepthWeightCutoff.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthWeightCutoff",
-		fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthWeightCutoffCallback),
-		DefaultParamVals::EdgeStoppingDepthWeightCutoff,		// val	
-		0.0f,													// min
-		2.0f,													// max
-		0.01f);													// step
-	App::AddParam(edgeStoppingDepthWeightCutoff);
+	//ParamVariant edgeStoppingDepthWeightCutoff;
+	//edgeStoppingDepthWeightCutoff.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthWeightCutoff",
+	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthWeightCutoffCallback),
+	//	DefaultParamVals::EdgeStoppingDepthWeightCutoff,		// val	
+	//	0.0f,													// min
+	//	2.0f,													// max
+	//	0.01f);													// step
+	//App::AddParam(edgeStoppingDepthWeightCutoff);
+
+	//ParamVariant edgeStoppingDepthSigma;
+	//edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma",
+	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthSigmaCallback),
+	//	DefaultParamVals::EdgeStoppingDepthSigma,		// val	
+	//	0.0f,											// min
+	//	10.0f,											// max
+	//	0.02f);											// step
+	//App::AddParam(edgeStoppingDepthSigma);
 
 	ParamVariant edgeStoppingLumSigma;
 	edgeStoppingLumSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingLumSigma",
@@ -529,15 +540,6 @@ void SVGF::InitParams() noexcept
 		256.0f,											// max
 		4.0f);											// step
 	App::AddParam(edgeStoppingNormalSigma);
-
-	ParamVariant edgeStoppingDepthSigma;
-	edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma",
-		fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthSigmaCallback),
-		DefaultParamVals::EdgeStoppingDepthSigma,		// val	
-		0.0f,											// min
-		10.0f,											// max
-		0.02f);											// step
-	App::AddParam(edgeStoppingDepthSigma);
 
 	ParamVariant numWaveletFilterPasses;
 	numWaveletFilterPasses.InitInt("Renderer", "SVGF", "#WaveletTransformPasses",
@@ -569,9 +571,10 @@ void SVGF::BilinearNormalExpCallback(const ParamVariant& p) noexcept
 	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
 }
 
-void SVGF::BilinearGeometryMaxPlaneDistCallback(const ParamVariant& p) noexcept
+void SVGF::MaxPlaneDistCallback(const ParamVariant& p) noexcept
 {
 	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = p.GetFloat().m_val;
+	m_cbWaveletTransform.MaxPlaneDist = p.GetFloat().m_val;
 }
 
 void SVGF::MinLumVarCallback(const ParamVariant& p) noexcept
@@ -594,15 +597,10 @@ void SVGF::FilterSpatialVarCallback(const ParamVariant& p) noexcept
 	m_filterSpatialVariance = p.GetBool();
 }
 
-void SVGF::MinVarToFilterCallback(const ParamVariant& p) noexcept
-{
-	m_cbWaveletTransform.MinVarianceToFilter = p.GetFloat().m_val;
-}
-
-void SVGF::EdgeStoppingDepthWeightCutoffCallback(const ParamVariant& p) noexcept
-{
-	m_cbWaveletTransform.DepthWeightCutoff = p.GetFloat().m_val;
-}
+//void SVGF::MinVarToFilterCallback(const ParamVariant& p) noexcept
+//{
+//	m_cbWaveletTransform.MinVarianceToFilter = p.GetFloat().m_val;
+//}
 
 void SVGF::EdgeStoppingLumSigmaCallback(const ParamVariant& p) noexcept
 {
@@ -614,10 +612,15 @@ void SVGF::EdgeStoppingNormalSigmaCallback(const ParamVariant& p) noexcept
 	m_cbWaveletTransform.NormalSigma = p.GetFloat().m_val;
 }
 
-void SVGF::EdgeStoppingDepthSigmaCallback(const ParamVariant& p) noexcept
-{
-	m_cbWaveletTransform.DepthSigma = p.GetFloat().m_val;
-}
+//void SVGF::EdgeStoppingDepthWeightCutoffCallback(const ParamVariant& p) noexcept
+//{
+//	m_cbWaveletTransform.DepthWeightCutoff = p.GetFloat().m_val;
+//}
+
+//void SVGF::EdgeStoppingDepthSigmaCallback(const ParamVariant& p) noexcept
+//{
+//	m_cbWaveletTransform.DepthSigma = p.GetFloat().m_val;
+//}
 
 void SVGF::NumWaveletPassesCallback(const ParamVariant& p) noexcept
 {

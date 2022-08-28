@@ -28,63 +28,29 @@ ConstantBuffer<cbFrameConstants> g_frame: register(b1);
 // Edge-stopping functions and other helpers
 //--------------------------------------------------------------------------------------
 
-// inputDepth: linear depth of input
-// sampleDepth: linear depth of sample
-// dxdy: partial derivate of linear depth at input
-//
-// For a filter with radius R, we compute the contribution of samples
-// at offsets (i, j) where -R < i,j < R and take the weighted average.
-//
-// Linear z is not linear in screen space. Therefore, for given scree-space offset q
-// relative to z0, find linear z corresponding to z0 + q.
-//	
-// Assuming a local linear model at view space position P0:
-//		1 / P.Z = 1 / P0.Z + q(1 / P1.Z - 1 / P0.Z)
-//
-// which means, for view space point P, P lies at a line connecting P0 and P1 where projection
-// of P on projection window (at z = d), has offset q from projection of P.
-//		
-// With Z1 = Z0 + dz and q = pixel offset, we can compute P.z.
-float DepthWeightFunction(float inputZ, float sampleZ, float2 dz, uint2 screenSpaceOffset)
+float GeometryWeight(float sampleDepth, float2 sampleUV, float3 currNormal, float3 currPos)
 {
-	float weight;
+	float3 samplePos = WorldPosFromTexturePos(sampleUV, sampleDepth, g_frame.TanHalfFOV,
+		g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
-	float2 Z1 = inputZ + dz;
-	float2 Z = (1.0f / (1.0f / inputZ) + screenSpaceOffset * ((1.0f / Z1) - (1.0f / inputZ)));
-	float2 t = Z - inputZ;
-	t *= sign(screenSpaceOffset);
-	
-	// Linear approximation:
-	// f(x) = f(a) + f'(a)(x - a)
-	// f(x) - f(a) = f'(a)(x - a)
-	// if differene is within tolerance, accept it:
-	//		0 < |sample - input| < tolerance
-	// use f(x) - f(a) as tolerance
-	float tolerance = g_local.DepthSigma * dot(1, abs(t));
-	float depthDifference = abs(sampleZ - inputZ);
-	
-	// anything in 0 < x < minfloatprecision becomes 0. Reduces banding.
-	depthDifference = max(0.0f, NextFloat32Down(depthDifference));
-	weight = exp(-depthDifference / NextFloat32Up(tolerance));
-	
-	// zero contribution for anything below cutoff
-	weight = weight >= g_local.DepthWeightCutoff;
+	float planeDist = dot(currNormal, samplePos - currPos);
+	float weight = saturate(1.0f - abs(planeDist) / g_local.MaxPlaneDist);
 	
 	return weight;
 }
 
-float NormalWeightFunction(float3 input, float3 sample)
+float NormalWeight(float3 input, float3 sample)
 {
 	return pow(max(0.0f, dot(input, sample)), g_local.NormalSigma);
 }
 
-float LuminanceWeightFunction(float lum, float sampleLum, float lumStd, int2 offset)
+float LuminanceWeight(float lum, float sampleLum, float lumStd, int2 offset)
 {
 	float lumDiff = abs(lum - sampleLum);
-	float std = g_local.LumSigma * lumStd + 0.005f;
+	float std = g_local.LumSigma * lumStd + 0.1f;
 	
 	// increase the tolerance for pixels that are further apart
-	//std *= 1.0f / length(offset);
+	std *= 1.0f / length(offset);
 
 	// bilateral range filtering
 	// filter more if variance is high (likely there's more noise)	
@@ -94,7 +60,7 @@ float LuminanceWeightFunction(float lum, float sampleLum, float lumStd, int2 off
 }
 
 void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum, in float lumStd, 
-	in float3 normal, in float linearDepth, in float2 dzdx_dzdy, out float3 filtered, out float weightSum)
+	in float3 normal, in float linearDepth, out float3 filtered, out float weightSum)
 {
 	const int16_t2 renderDim = int16_t2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -116,6 +82,9 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	RWTexture2D<uint4> g_integratedTemporalCache = ResourceDescriptorHeap[g_local.IntegratedTemporalCacheDescHeapIdx];
 
+	const float2 uv = (DTid + 0.5f) / renderDim;
+	const float3 pos = WorldPosFromTexturePos(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+	
 	[unroll]
 	for (int16_t y = 0; y < KernelWidth; y++)
 	{
@@ -131,19 +100,20 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 			if (IsInRange(sampleAddr, renderDim))
 			{
 				const float sampleDepth = ComputeLinearDepthReverseZ(g_currDepth[sampleAddr], g_frame.CameraNear);
-				const float w_z = DepthWeightFunction(linearDepth, sampleDepth, dzdx_dzdy, sampleAddr);
+				const float2 sampleUV = (sampleAddr + 0.5f) / renderDim;
+				const float w_z = GeometryWeight(sampleDepth, sampleUV, normal, pos);
 					
 				const float3 sampleNormal = DecodeUnitNormalFromHalf2(g_currNormal[sampleAddr].xy);
-				const float w_n = NormalWeightFunction(normal, sampleNormal);
+				const float w_n = NormalWeight(normal, sampleNormal);
 					
 				const uint2 integratedVals = g_integratedTemporalCache[sampleAddr].xy;
 				const float3 sampleColor = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
 				const float sampleLum = f16tof32(integratedVals.x);
 
-				const float w_l = LuminanceWeightFunction(integratedLum, sampleLum, lumStd, offset);
+				const float w_l = LuminanceWeight(integratedLum, sampleLum, lumStd, offset);
 
-				//const float weight = w_z * w_n * w_l * Kernel2D[y][x];
-				const float weight = w_l * w_n * Kernel2D[y][x];
+				const float weight = w_z * w_n * Kernel2D[y][x];
+				//const float weight = w_z * w_n * Kernel2D[y][x];
 				weightedColor += weight * sampleColor;
 				weightSum += weight;
 			}
@@ -203,17 +173,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
 	RWTexture2D<half> g_lumVar = ResourceDescriptorHeap[g_local.LumVarianceDescHeapIdx];
 	const float lumVar = g_lumVar[swizzledDTid];
+	const float lumStd = sqrt(lumVar);
 	
-	if (lumVar < g_local.MinVarianceToFilter)
-		return;
+//	if (lumVar < g_local.MinVarianceToFilter)
+//		return;
 	
 	// integrated data
-	RWTexture2D<uint4> g_integratedTemporalCache = ResourceDescriptorHeap[g_local.IntegratedTemporalCacheDescHeapIdx];
-	uint2 integratedVals = g_integratedTemporalCache[swizzledDTid].xy;
+	RWTexture2D<uint4> g_temporalCache = ResourceDescriptorHeap[g_local.IntegratedTemporalCacheDescHeapIdx];
+	uint2 integratedVals = g_temporalCache[swizzledDTid].xy;
 
 	const float3 color = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
 	const float lum = f16tof32(integratedVals.x);
-	const float lumStd = sqrt(lumVar);
 	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -223,13 +193,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float linearDepth = ComputeLinearDepthReverseZ(g_currDepth[swizzledDTid], g_frame.CameraNear);
 
-	// partial derivatives of linear depth
-	Texture2D<float2> g_linearDepthGrad = ResourceDescriptorHeap[g_local.LinearDepthGradDescHeapIdx];
-	const float2 dzdx_dzdy = g_linearDepthGrad[swizzledDTid];
-
 	float3 filtered;
 	float weightSum;
-	Filter(swizzledDTid, color, lum, lumStd, normal, linearDepth, dzdx_dzdy, filtered, weightSum);
+	Filter(swizzledDTid, color, lum, lumStd, normal, linearDepth, filtered, weightSum);
 	
 	if (weightSum > 1e-6)
 	{
@@ -237,7 +203,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		uint2 ret;
 		ret.x = (f32tof16(filtered.r) << 16) | f32tof16(lum);
 		ret.y = (f32tof16(filtered.b) << 16) | f32tof16(filtered.g);
-		g_integratedTemporalCache[swizzledDTid].xy = ret;
+		g_temporalCache[swizzledDTid].xy = ret;
 		
 		// smooth out increasingly smaller variations. if an edge survives one iteration, it 
 		// will survive all the subsequent iterations.

@@ -54,7 +54,7 @@ float2 SignNotZero(float2 v)
 	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
 }
 
-half3 MissShading(float3 rayDir)
+float3 MissShading(float3 rayDir)
 {
 	Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 
@@ -69,8 +69,8 @@ half3 MissShading(float3 rayDir)
 	phi *= ONE_DIV_TWO_PI;
 
 	float2 uv = float2(phi, theta);
-	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
-
+	float3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
+	
 	return color;
 }
 
@@ -107,7 +107,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 geometricNormal)
 bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out HitSurface surface)
 {
 	// protect against self-intersection
-//	float3 adjustedOrigin = pos + 1e-3f * geometricNormal;
+	float3 adjustedOrigin = pos + 1e-1f * geometricNormal;
 //	float3 adjustedOrigin = OffsetRayRTG(pos, geometricNormal);
 //	const float3 adjustedOrigin = OffsetRayOrigin(pos, geometricNormal, wi);
 
@@ -115,7 +115,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out 
 		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
 
 	RayDesc ray;
-	ray.Origin = pos;
+	ray.Origin = adjustedOrigin;
 	ray.TMin = g_frame.RayOffset;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
@@ -281,7 +281,7 @@ float3 DirectLighting(HitSurface hitInfo)
 	}
 
 	// no normal mapping for now...
-	float ndotWi = dot(normal, -g_frame.SunDir);
+	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
 
 	// assume the surface is Lambertian
 	half3 diffuseReflectance = baseColor * (1.0h - metalness);
@@ -298,8 +298,7 @@ float3 DirectLighting(HitSurface hitInfo)
 	float3 tr = EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
-	//half3 L_i = (half3) (brdf * g_frame.SunIlluminance * tr);
-	float3 L_i = (brdf * tr);
+	float3 L_i = brdf * tr * g_frame.SunIlluminance;
 	float3 L_e = mat.EmissiveFactor;
 
 	if (mat.EmissiveTexture != -1)
@@ -308,7 +307,7 @@ float3 DirectLighting(HitSurface hitInfo)
 		L_e *= g_emissiveMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).rgb;
 	}
 
-	return (L_i + L_e);
+	return L_i + L_e;
 }
 
 float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, out uint16_t sortedIdx)
@@ -330,7 +329,6 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	half2 packedNormals = g_normal[DTid];
 	float3 shadingNormal = DecodeUnitNormalFromHalf2(packedNormals.xy);
-	//half2 encodedGeometricNormal = packedNormals.zw;
 	half2 encodedGeometricNormal = packedNormals.xy;
 	
 	// sample the cosine-weighted hemisphere above surfact pos

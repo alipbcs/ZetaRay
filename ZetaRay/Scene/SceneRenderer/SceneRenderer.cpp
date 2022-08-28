@@ -47,7 +47,7 @@ void SceneRenderer::Init() noexcept
 
 	data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
 	data->m_frameConstants.SunDir.normalize();
-	data->m_frameConstants.SunIlluminance = 40.0f;
+	data->m_frameConstants.SunIlluminance = 150.0f;
 	// sun angular diamter ~ 0.545 degrees 
 	// 0.5 degrees == 0.0087266 radians 
 	// cos(0.0087266 / 2)
@@ -117,7 +117,7 @@ void SceneRenderer::Init() noexcept
 		ParamVariant enableDenoiser;
 		enableDenoiser.InitBool("Renderer", "Settings", "IndirectDiffuseDenoiser",
 			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiserEnablement),
-			m_data->m_settings.DenoiseIndirectDiffuseLi);
+			m_data->m_settings.DenoiseIndirectDiffuse);
 		App::AddParam(enableDenoiser);
 
 		ParamVariant enableInscattering;
@@ -393,6 +393,7 @@ void SceneRenderer::OnWindowSizeChanged() noexcept
 
 void SceneRenderer::SetTAAEnablement(const ParamVariant& p) noexcept
 {
+	Check(!m_data->m_settings.Fsr2, "TAA & FSR2 can't be enabled at the same time.");
 	m_data->m_settings.TAA = p.GetBool();
 }
 
@@ -403,7 +404,7 @@ void SceneRenderer::SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept
 
 void SceneRenderer::SetIndierctDiffuseDenoiserEnablement(const ParamVariant& p) noexcept
 {
-	m_data->m_settings.DenoiseIndirectDiffuseLi = m_data->m_settings.RTIndirectDiffuse && p.GetBool();
+	m_data->m_settings.DenoiseIndirectDiffuse = m_data->m_settings.RTIndirectDiffuse && p.GetBool();
 }
 
 void SceneRenderer::SetInscatteringEnablement(const ParamVariant& p) noexcept
@@ -427,6 +428,8 @@ void SceneRenderer::SetUpscalingMethod(const ParamVariant& p) noexcept
 	}
 	else if (u == Upscaling::FSR2)
 	{
+		Check(!m_data->m_settings.TAA, "TAA & FSR2 can't be enabled at the same time.");
+
 		// following order is important
 		App::SetUpscalingEnablement(true);
 		m_data->m_settings.Fsr2 = true;

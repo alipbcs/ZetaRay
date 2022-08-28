@@ -175,9 +175,6 @@
     <ClCompile Include="RenderPass\IndirectDiffuse\IndirectDiffuse.cpp">
       <Filter>RenderPass\IndirectDiffuse</Filter>
     </ClCompile>
-    <ClCompile Include="RenderPass\SVGF\LinearDepthGradient.cpp">
-      <Filter>RenderPass\SVGF</Filter>
-    </ClCompile>
     <ClCompile Include="SupportSystem\MemoryPool.cpp">
       <Filter>SupportSystem</Filter>
     </ClCompile>
@@ -405,12 +402,6 @@
     <ClInclude Include="RenderPass\IndirectDiffuse\IndirectDiffuse.h">
       <Filter>RenderPass\IndirectDiffuse</Filter>
     </ClInclude>
-    <ClInclude Include="RenderPass\SVGF\LinearDepthGradient_Common.h">
-      <Filter>RenderPass\SVGF</Filter>
-    </ClInclude>
-    <ClInclude Include="RenderPass\SVGF\LinearDepthGradient.h">
-      <Filter>RenderPass\SVGF</Filter>
-    </ClInclude>
     <ClInclude Include="SupportSystem\Param.h">
       <Filter>SupportSystem</Filter>
     </ClInclude>
@@ -534,9 +525,6 @@
     <ClInclude Include="Win32\Log.h">
       <Filter>Win32</Filter>
     </ClInclude>
-    <ClInclude Include="SupportSystem\MemoryArena.h">
-      <Filter>SupportSystem</Filter>
-    </ClInclude>
     <ClInclude Include="Math\BVH.h">
       <Filter>Math</Filter>
     </ClInclude>
@@ -584,9 +572,6 @@
       <Filter>RenderPass\SVGF</Filter>
     </CustomBuild>
     <CustomBuild Include="RenderPass\SVGF\SVGF_AtrousWaveletTransform.hlsl">
-      <Filter>RenderPass\SVGF</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\SVGF\LinearDepthGradient.hlsl">
       <Filter>RenderPass\SVGF</Filter>
     </CustomBuild>
     <CustomBuild Include="RenderPass\PathTracer\PathTracer_Inline.hlsl">

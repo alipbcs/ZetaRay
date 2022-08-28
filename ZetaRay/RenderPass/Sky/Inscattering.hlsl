@@ -26,7 +26,6 @@ RaytracingAccelerationStructure g_sceneBVH : register(t0, space0);
 groupshared float3 g_waveTr[WAVE_SIZE];
 groupshared float3 g_waveLs[WAVE_SIZE];
 
-static const float NUM_SLICES = float(INSCATTERING_THREAD_GROUP_SIZE_X);
 static const float Halton[8] = { 0.5f, 0.25f, 0.75f, 0.125f, 0.625f, 0.375f, 0.875f, 0.0625f };
 
 //--------------------------------------------------------------------------------------
@@ -38,7 +37,8 @@ float GetVoxelLinearDepth(uint voxelZ)
 //	float z = g_local.VoxelGridNearZ + ((float) voxelZ / NUM_SLICES) * (g_local.VoxelGridDepth - 0.03f);
 //	z *= exp(-(NUM_SLICES - voxelZ - 1) / NUM_SLICES);
 
-	float z = g_local.VoxelGridNearZ + pow(voxelZ / NUM_SLICES, g_local.DepthMappingExp) * (g_local.VoxelGridFarZ - g_local.VoxelGridNearZ);
+	float z = g_local.VoxelGridNearZ + pow((float) voxelZ / float(INSCATTERING_THREAD_GROUP_SIZE_X), g_local.DepthMappingExp) *
+		(g_local.VoxelGridFarZ - g_local.VoxelGridNearZ);
 	
 	return z;
 }
@@ -175,7 +175,7 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
 		tr, Ls);
 	
 	// wave size is always a power of 2
-	const int waveIdx = voxelID.z >> LOG_WAVE_SIZE;
+	const uint waveIdx = voxelID.z >> LOG_WAVE_SIZE;
 	
 	if ((Gidx & (WAVE_SIZE - 1)) == WAVE_SIZE - 1)
 	{
@@ -190,7 +190,7 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
 	
 	// account for inscattering and transmittance from eariler waves.
 	// transmittance from wave start to each voxel is already accounted for
-	for (int wave = 0; wave < waveIdx; wave++)
+	for (uint wave = 0; wave < waveIdx; wave++)
 	{
 		prevLs += g_waveLs[wave] * totalTr;		
 		totalTr *= g_waveTr[wave];		// transmittance is multiplicative along a given ray

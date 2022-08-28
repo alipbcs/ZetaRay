@@ -44,7 +44,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	
 //	float3 adjustedRayOrigin = pos;
 //	float3 adjustedRayOrigin = OffsetRayRTG(pos, geometricNormal);
-	float3 adjustedRayOrigin = pos + normal * 1e-3f;
+	float3 adjustedRayOrigin = pos + normal * 5e-3f;
 //	float3 adjustedRayOrigin = posW + geometricNormal * g_frame.RayOffset;
 
 //	const float3 adjustedRayOrigin = OffsetRayOrigin(pos, geometricNormal, wi);

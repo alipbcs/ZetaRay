@@ -17,7 +17,6 @@
 #include "../../RenderPass/Final/FinalPass.h"
 #include "../../RenderPass/GUI/GuiPass.h"
 #include "../../RenderPass/Sky/Sky.h"
-#include "../../RenderPass/SVGF/LinearDepthGradient.h"
 #include "../../RenderPass/SVGF/SVGF.h"
 #include "../../RayTracing/RtAccelerationStructure.h"
 #include "../../RayTracing/Sampler.h"
@@ -36,7 +35,7 @@ namespace ZetaRay::Scene
 		bool SunLighting = true;
 		bool Inscattering = false;
 		bool RTIndirectDiffuse = true;
-		bool DenoiseIndirectDiffuseLi = false;
+		bool DenoiseIndirectDiffuse = false;
 		bool TAA = false;
 		bool Fsr2 = false;
 	};
@@ -177,16 +176,12 @@ namespace ZetaRay::Scene
 		RenderPass::IndirectDiffuse IndirectDiffusePass;
 		Core::RenderNodeHandle IndirectDiffusePassHandle;
 
-		RenderPass::LinearDepthGradient LinearDepthGradPass;
-		Core::RenderNodeHandle LinearDepthGradPassHandle;
-
 		RenderPass::SVGF SVGF_Pass;
 		Core::RenderNodeHandle SVGF_PassHandle;
 
 		// Descriptors
 		enum DESC_TABLE
 		{
-			LINEAR_DEPTH_GRAD,
 			SPATIAL_VAR,
 			TEMPORAL_CACHE,
 			INDIRECT_LI,

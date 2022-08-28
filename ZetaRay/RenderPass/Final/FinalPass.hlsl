@@ -168,6 +168,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		// warning: can't sample from uint textures, following is invalid when upscaling is enabled
 		uint4 integratedVals = g_temporalCache[psin.PosSS.xy].xyzw;
 		color = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
+		//color = float3(asfloat(integratedVals.x), asfloat(integratedVals.y), asfloat(integratedVals.z));
 		color.r += asfloat(integratedVals.w);
 		
 //		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

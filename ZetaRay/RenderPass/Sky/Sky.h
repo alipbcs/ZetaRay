@@ -74,7 +74,7 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr int NumVoxelsX = 256;
+			static constexpr int NumVoxelsX = 192;
 			static constexpr int NumVoxelsY = int(NumVoxelsX / 1.77f);
 			static constexpr float DetphMapExp = 2.0f;
 			static constexpr float VoxelGridNearZ = 0.05f;

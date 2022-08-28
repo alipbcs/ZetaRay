@@ -40,24 +40,31 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	// directions w_i. For this distribution, PDF(w_i) = n.w_i / Pi 
 	//
 	// Plugging in above and since Lambertian BRDF is diffuseReflectance / Pi, we have:
-	// MC_estimate(L_ind) = L_ind * diffuseReflectance * n.w_i / Pdf(w_i) * Pi
+	// MC_estimate(L_ind) = L_ind * diffuseReflectance / PI * n.w_i / Pdf(w_i)
 	//					  = L_ind * diffuseReflectance
 
+	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::BASE_COLOR];
+	float4 baseColor = g_baseColor[DTid.xy];
+
+	if (baseColor.w < MIN_ALPHA_CUTOFF)
+	{
+		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
+		return;
+	}
+	
 	if (g_local.UseDenoised)
 	{
 		// (hopefully) denoised L_ind
-		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-			GBUFFER_OFFSET::BASE_COLOR];
-		float4 baseColor = g_baseColor[DTid.xy];
-
 		Texture2D<uint4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];
-		uint2 integratedVals = g_denoisedLind[DTid.xy].xy;
-		float3 L_o = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
-	
+		uint3 integratedVals = g_denoisedLind[DTid.xy].xyz;
+		float3 L_i = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
+
+		// TODO account for Fresnel
 		const float3 diffuseReflectance = baseColor.rgb;
-		float3 L_ind_mc_est = L_o * diffuseReflectance;
+		float3 L_o = L_i * diffuseReflectance;
 		
-		color += L_ind_mc_est * g_frame.SunIlluminance;
+		color += L_o;
 	}
 	
 	if (g_local.AccumulateInscattering)
@@ -80,7 +87,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 			//const float3 uvw = float3(posTS, 12 / 32.0);
 		
 			half3 inscattering = g_voxelGrid.SampleLevel(g_samLinearClamp, posCube, 0.0f).rgb;
-			color += inscattering * 1.5f;
+			color += inscattering;
 		}
 	}
 	

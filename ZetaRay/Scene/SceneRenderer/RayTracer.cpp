@@ -35,23 +35,10 @@ void RayTracer::CreateDescriptors(const RenderSettings& settings, RayTracerData&
 		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI);
 		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
 	}
-
-	if (data.IndirectDiffusePass.IsInitialized() && settings.DenoiseIndirectDiffuseLi)
-	{
-		Assert(!data.DescTableAll.IsEmpty(), "descriptor table hasn't been allocated yet.");
-
-		// no need to create temporal cache srv since it's recreated every frame
-
-		// Linear-depth grad SRV
-		const Texture& linearDepthGradTex = data.LinearDepthGradPass.GetOutput(LinearDepthGradient::GRADIENT);
-		CreateTexture2DSRV(linearDepthGradTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::LINEAR_DEPTH_GRAD));
-	}
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	if(data.LinearDepthGradPass.IsInitialized())
-		data.LinearDepthGradPass.OnWindowResized();
 	if(data.IndirectDiffusePass.IsInitialized())
 		data.IndirectDiffusePass.OnWindowResized();
 	if(data.SVGF_Pass.IsInitialized())
@@ -65,9 +52,7 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 	data.DescTableAll.Reset();
 	data.RtAS.Clear();
 	data.RtSampler.Clear();
-	data.LinearDepthGradPass.Reset();
 	data.IndirectDiffusePass.Reset();
-	//data.ReSTIR_Pass.Reset();
 	data.SVGF_Pass.Reset();
 }
 
@@ -85,17 +70,10 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
 	}
 
-	if (settings.DenoiseIndirectDiffuseLi)
+	if (settings.DenoiseIndirectDiffuse)
 	{
 		if (!data.SVGF_Pass.IsInitialized())
-		{
 			data.SVGF_Pass.Init();
-			data.LinearDepthGradPass.Init();
-
-			// Linear-depth grad SRV
-			const Texture& linearDepthGradTex = data.LinearDepthGradPass.GetOutput(LinearDepthGradient::GRADIENT);
-			CreateTexture2DSRV(linearDepthGradTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::LINEAR_DEPTH_GRAD));
-		}
 
 		// temporal cache changes every frame due to ping-ponging
 		const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ?
@@ -105,8 +83,6 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 		const Texture& temporalCache = data.SVGF_Pass.GetOutput(temporalCacheIdx);
 		CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
 
-		data.SVGF_Pass.SetDescriptor(SVGF::SHADER_IN_RES::LINEAR_DEPTH_GRAD, 
-			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::LINEAR_DEPTH_GRAD));
 		data.SVGF_Pass.SetDescriptor(SVGF::SHADER_IN_RES::INDIRECT_LI, 
 			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
@@ -146,19 +122,8 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 			renderGraph.RegisterResource(outLo.GetResource(), outLo.GetPathID());
 
 			// SVGF
-			if (settings.DenoiseIndirectDiffuseLi)
+			if (settings.DenoiseIndirectDiffuse)
 			{
-				// LinearDepthGradient
-				{
-					fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.LinearDepthGradPass,
-						&LinearDepthGradient::Render);
-					data.LinearDepthGradPassHandle = renderGraph.RegisterRenderPass("LinearDepthGradient",
-						RENDER_NODE_TYPE::COMPUTE, dlg);
-
-					Texture& out = data.LinearDepthGradPass.GetOutput(LinearDepthGradient::GRADIENT);
-					renderGraph.RegisterResource(out.GetResource(), out.GetPathID());
-				}
-
 				// svgf
 				{
 					fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SVGF_Pass,
@@ -226,17 +191,8 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 			// 2. Previous GBuffers
 			// 3. Linear-depth Grad
 			// 4. indirect lighting
-			if (settings.DenoiseIndirectDiffuseLi)
+			if (settings.DenoiseIndirectDiffuse)
 			{
-				// linear-depth gradient
-				renderGraph.AddInput(data.LinearDepthGradPassHandle,
-					gbuffData.DepthBuffer[outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddOutput(data.LinearDepthGradPassHandle,
-					data.LinearDepthGradPass.GetOutput(LinearDepthGradient::GRADIENT).GetPathID(),
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
 				// svgf
 				renderGraph.AddInput(data.SVGF_PassHandle,
 					gbuffData.Normal[outIdx].GetPathID(),
@@ -252,10 +208,6 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 
 				renderGraph.AddInput(data.SVGF_PassHandle,
 					gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.SVGF_PassHandle,
-					data.LinearDepthGradPass.GetOutput(LinearDepthGradient::GRADIENT).GetPathID(),
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddInput(data.SVGF_PassHandle,

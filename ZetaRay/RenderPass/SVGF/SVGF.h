@@ -23,7 +23,6 @@ namespace ZetaRay::RenderPass
 		enum class SHADER_IN_RES
 		{
 			INDIRECT_LI,
-			LINEAR_DEPTH_GRAD,
 			COUNT
 		};
 
@@ -124,7 +123,7 @@ namespace ZetaRay::RenderPass
 			static constexpr int MinTSPPtoUseTemporalVar = 4;
 			static constexpr float BilinearNormalScale = 1.4f;
 			static constexpr float BilinearNormalExp = 16.0f;
-			static constexpr float BilinearGeometryMaxPlaneDist = 0.1f;
+			static constexpr float MaxPlaneDist = 0.1f;
 			//static constexpr bool NeighborhoodClamping = true;
 			//static constexpr float NeighborhoodClampingStdScale = 0.6f;
 			//static constexpr float NeighborhoodClampingMinStd = 0.05f;
@@ -166,16 +165,16 @@ namespace ZetaRay::RenderPass
 		void MinTSPPForTemporalVarCallback(const Support::ParamVariant& p) noexcept;
 		void BilinearNormalScaleCallback(const Support::ParamVariant& p) noexcept;
 		void BilinearNormalExpCallback(const Support::ParamVariant& p) noexcept;
-		void BilinearGeometryMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
+		void MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
 		void MinLumVarCallback(const Support::ParamVariant& p) noexcept;
 		void MinConsistentWeightCallback(const Support::ParamVariant& p) noexcept;
 		void SpatialVarRadiusCallback(const Support::ParamVariant& p) noexcept;
 		void FilterSpatialVarCallback(const Support::ParamVariant& p) noexcept;
-		void MinVarToFilterCallback(const Support::ParamVariant& p) noexcept;
-		void EdgeStoppingDepthWeightCutoffCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingLumSigmaCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingNormalSigmaCallback(const Support::ParamVariant& p) noexcept;
-		void EdgeStoppingDepthSigmaCallback(const Support::ParamVariant& p) noexcept;
+		//void EdgeStoppingDepthWeightCutoffCallback(const Support::ParamVariant& p) noexcept;
+		//void EdgeStoppingDepthSigmaCallback(const Support::ParamVariant& p) noexcept;
+		//void MinVarToFilterCallback(const Support::ParamVariant& p) noexcept;
 		void NumWaveletPassesCallback(const Support::ParamVariant& p) noexcept;
 		void WaveletFilterCallback(const Support::ParamVariant& p) noexcept;
 

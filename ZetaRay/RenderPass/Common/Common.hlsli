@@ -74,11 +74,12 @@ float2 TextureSpaceFromScreenSpace(uint2 posSS, float2 screenDim)
 	return posTS;
 }
 
-float3 WorldPosFromTexturePos(float2 posTS, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv)
+float3 WorldPosFromTexturePos(float2 posTS, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv, 
+	float2 jitter)
 {
 	const float2 posNDC = NDCFromTextureSpace(posTS);
-	const float xView = posNDC.x * tanHalfFOV * aspectRatio;
-	const float yView = posNDC.y * tanHalfFOV;
+	const float xView = posNDC.x * tanHalfFOV * aspectRatio - jitter.x;
+	const float yView = posNDC.y * tanHalfFOV - jitter.y;
 	float3 posW = float3(xView, yView, 1.0f) * linearDepth;
 	posW = mul(viewInv, float4(posW, 1.0f));
 	
@@ -246,68 +247,6 @@ float3 sRGBToLinear(float3 color)
 	float3 linearRGB = color <= 0.04045f ? linearRGBLo : linearRGBHi;
 
 	return linearRGB;
-}
-
-float3 RGBToYCoCg(float3 rgb)
-{
-//	half3 YCoCg;
-//	YCoCg.x = dot(rgb, half3(+0.25f, +0.50f, +0.25f));
-//	YCoCg.y = dot(rgb, half3(+0.50f, +0.00f, -0.50f));
-//	YCoCg.z = dot(rgb, half3(-0.25f, +0.50f, -0.25f));
-//	return YCoCg;
-	
-//	float3 YCoCg;
-//	YCoCg.x = dot(rgb, float3(+0.25f, +0.50f, +0.25f));
-//	YCoCg.y = dot(rgb, float3(+0.50f, +0.00f, -0.50f));
-//	YCoCg.z = dot(rgb, float3(-0.25f, +0.50f, -0.25f));
-//	return YCoCg;
-	
-	float Co = rgb.x - rgb.z;
-	float t = rgb.z + Co * 0.5f;
-	float Cg = rgb.y - t;
-	float Y = t + Cg * 0.5f;
-
-	return float3(Y, Co, Cg);
-}
-
-/*
-float3 RGBToYCoCg(float3 rgb)
-{
-	float3 YCoCg;
-	YCoCg.x = dot(rgb, float3(+0.25f, +0.50f, +0.25f));
-	YCoCg.y = dot(rgb, float3(+0.50f, +0.00f, -0.50f));
-	YCoCg.z = dot(rgb, float3(-0.25f, +0.50f, -0.25f));
-	return YCoCg;
-}
-
-half3 YCoCgToRGB(half3 YCoCg)
-{
-	half3 rgb;
-	
-	half tmp = YCoCg.x - YCoCg.z * half(0.5f);
-	rgb.g = YCoCg.z + tmp;
-	rgb.b = tmp - YCoCg.y * half(0.5f);
-	rgb.r = rgb.b + YCoCg.y;
-	
-	return rgb;
-}
-*/
-float3 YCoCgToRGB(float3 YCoCg)
-{
-	float3 rgb;
-
-	float t = YCoCg.x - YCoCg.z * 0.5;
-	float g = YCoCg.z + t;
-	float b = t - YCoCg.y * 0.5;
-	float r = b + YCoCg.y;
-	rgb = float3(r, g, b);
-
-//	float tmp = YCoCg.x - YCoCg.z * 0.5f;
-//	rgb.g = YCoCg.z + tmp;
-//	rgb.b = tmp - YCoCg.y * 0.5f;
-//	rgb.r = rgb.b + YCoCg.y;
-	
-	return rgb;
 }
 
 bool IsInRange(int2 pos, int2 dim)
