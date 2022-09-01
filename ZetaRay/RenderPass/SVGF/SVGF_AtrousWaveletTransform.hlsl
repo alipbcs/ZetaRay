@@ -66,8 +66,8 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 	
 	// Eq (1) in paper
 	// center pixel has weight 1
-	float3 weightedColor = integratedColor * Kernel2D[Radius][Radius];
-	weightSum = Kernel2D[Radius][Radius];
+	float3 weightedColor = integratedColor * k_kernel2D[k_radius][k_radius];
+	weightSum = k_kernel2D[k_radius][k_radius];
 				
 	// kernel widths 3x3 to 65x65
 	// step 1 --> 3x3
@@ -86,15 +86,15 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 	const float3 pos = WorldPosFromTexturePos(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	[unroll]
-	for (int16_t y = 0; y < KernelWidth; y++)
+	for (int16_t y = 0; y < k_kernelWidth; y++)
 	{
 		[unroll]
-		for (int16_t x = 0; x < KernelWidth; x++)
+		for (int16_t x = 0; x < k_kernelWidth; x++)
 		{
-			if (x == Radius && y == Radius)
+			if (x == k_radius && y == k_radius)
 				continue;
 				
-			int16_t2 offset = (int16_t2(x, y) - Radius) * waveletScale;
+			int16_t2 offset = (int16_t2(x, y) - k_radius) * waveletScale;
 			int16_t2 sampleAddr = DTid + offset;
 				
 			if (IsInRange(sampleAddr, renderDim))
@@ -112,8 +112,8 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 
 				const float w_l = LuminanceWeight(integratedLum, sampleLum, lumStd, offset);
 
-				const float weight = w_z * w_n * Kernel2D[y][x];
-				//const float weight = w_z * w_n * Kernel2D[y][x];
+				const float weight = w_z * w_n * k_kernel2D[y][x];
+				//const float weight = w_z * w_n * k_kernel2D[y][x];
 				weightedColor += weight * sampleColor;
 				weightSum += weight;
 			}

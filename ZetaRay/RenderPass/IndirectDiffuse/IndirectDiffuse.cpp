@@ -119,10 +119,10 @@ void IndirectDiffuse::Reset() noexcept
 	{
 		App::RemoveShaderReloadHandler("IndirectDiffuse");
 		s_rpObjs.Clear();
+		
+		m_out.Reset();
+		m_outUAV.Reset();
 	}
-
-	m_out.Reset();
-	m_outUAV.Reset();
 }
 
 void IndirectDiffuse::OnWindowResized() noexcept

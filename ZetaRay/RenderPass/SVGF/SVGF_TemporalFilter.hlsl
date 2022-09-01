@@ -65,8 +65,6 @@ float4 ComputeDepthConsistency(float4 prevDepths, float2 prevUVs[4], float3 curr
 		dot(currNormal, prevPos[2] - currPos),
 		dot(currNormal, prevPos[3] - currPos));
 	
-//	planeDist *= (planeDist >= 0);
-	
 	float4 weights = saturate(1 - abs(planeDist) / g_local.BilinearGeometryMaxPlaneDist);
 //	float4 weights = planeDist <= g_local.BilinearGeometryMaxPlaneDist;
 	

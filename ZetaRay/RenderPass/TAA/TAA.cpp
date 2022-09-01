@@ -88,21 +88,19 @@ void TAA::Reset() noexcept
 		App::RemoveParam("Renderer", "TAA", "CatmullRomFiltering");
 
 		App::RemoveShaderReloadHandler("TAA");
+
+	#ifdef _DEBUG
+		memset(m_inputDesc, 0, (int)SHADER_IN_DESC::COUNT * sizeof(uint32_t));
+		m_pso = nullptr;
+	#endif // _DEBUG
+
+		m_antiAliased[0].Reset();
+		m_antiAliased[1].Reset();
+
+		m_descTable.Reset();
+
+		m_isTemporalTexValid = false;
 	}
-
-#ifdef _DEBUG
-	memset(m_inputDesc, 0, (int)SHADER_IN_DESC::COUNT * sizeof(uint32_t));
-#endif // _DEBUG
-
-	m_pso = nullptr;
-
-	m_antiAliased[0].Reset();
-	m_antiAliased[1].Reset();
-
-	m_descTable.Reset();
-	//m_rootSig.Reset();
-
-	m_isTemporalTexValid = false;
 }
 
 void TAA::OnWindowResized() noexcept

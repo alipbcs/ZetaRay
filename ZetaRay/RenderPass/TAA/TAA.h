@@ -67,7 +67,7 @@ namespace ZetaRay::RenderPass
 
 		inline static const char* COMPILED_CS[] = { "TAA_cs.cso" };
 
-		// ping-pong between input/output
+		// ping-pong between input & output
 		Core::Texture m_antiAliased[2];
 		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
 

@@ -88,14 +88,12 @@ namespace ZetaRay::RenderPass
 		enum class DESC_TABLE
 		{
 			INDIRECT_LI_SRV,
-			LINEAR_DEPTH_GRAD_SRV,
 			TEMPORAL_CACHE_COL_LUM_A_SRV,
 			TEMPORAL_CACHE_COL_LUM_A_UAV,
 			TEMPORAL_CACHE_COL_LUM_B_SRV,
 			TEMPORAL_CACHE_COL_LUM_B_UAV,
 			SPATIAL_LUM_VAR_UAV,
 			SPATIAL_LUM_VAR_FILTERED_UAV,
-			TEMPORAL_CACHE_TSPP_UAV,
 			COUNT
 		};
 
@@ -111,8 +109,7 @@ namespace ZetaRay::RenderPass
 
 		struct ResourceFormats
 		{
-			static constexpr DXGI_FORMAT TEMPORAL_CACHE_COLOR_LUM = DXGI_FORMAT_R32G32B32A32_UINT;
-			static constexpr DXGI_FORMAT TEMPORAL_CACHE_TSPP = DXGI_FORMAT_R8_UINT;
+			static constexpr DXGI_FORMAT TEMPORAL_CACHE = DXGI_FORMAT_R32G32B32A32_UINT;
 			static constexpr DXGI_FORMAT SPATIAL_LUM_VAR = DXGI_FORMAT_R16_FLOAT;
 		};
 
@@ -133,7 +130,7 @@ namespace ZetaRay::RenderPass
 			static constexpr int SpatialVarianceRadius = 4;
 			static constexpr float EdgeStoppingDepthWeightCutoff = 0.2f;
 			static constexpr float EdgeStoppingLumSigma = 4.0f;
-			static constexpr float EdgeStoppingNormalSigma = 128.0f;
+			static constexpr float EdgeStoppingNormalSigma = 256.0f;
 			static constexpr float EdgeStoppingDepthSigma = 1.0f;
 		};
 

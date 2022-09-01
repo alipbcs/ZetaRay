@@ -112,29 +112,28 @@ struct cbGaussianFilter
 
 #if defined(FILTER_5x5)
 // Filter is based on B_Spline interpolation
-static const int16_t Radius = 2;
-static const int16_t KernelWidth = 2 * Radius + 1;
-static const float Kernel1D[2 * Radius + 1] = { 1.0f / 16, 1.0f / 4, 3.0f / 8, 1.0f / 4, 1.0f / 16 };
-static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
+static const int16_t k_radius = 2;
+static const int16_t k_kernelWidth = 2 * k_radius + 1;
+static const float k_kernel1D[2 * k_radius + 1] = { 1.0f / 16, 1.0f / 4, 3.0f / 8, 1.0f / 4, 1.0f / 16 };
+static const float k_kernel2D[2 * k_radius + 1][2 * k_radius + 1] =
 {
-	Kernel1D[0] * Kernel1D[0], Kernel1D[0] * Kernel1D[1], Kernel1D[0] * Kernel1D[2], Kernel1D[0] * Kernel1D[3], Kernel1D[0] * Kernel1D[4],
-	Kernel1D[1] * Kernel1D[0], Kernel1D[1] * Kernel1D[1], Kernel1D[1] * Kernel1D[2], Kernel1D[1] * Kernel1D[3], Kernel1D[1] * Kernel1D[4],
-	Kernel1D[2] * Kernel1D[0], Kernel1D[2] * Kernel1D[1], Kernel1D[2] * Kernel1D[2], Kernel1D[2] * Kernel1D[3], Kernel1D[2] * Kernel1D[4],
-	Kernel1D[3] * Kernel1D[0], Kernel1D[3] * Kernel1D[1], Kernel1D[3] * Kernel1D[2], Kernel1D[3] * Kernel1D[3], Kernel1D[3] * Kernel1D[4],
-	Kernel1D[4] * Kernel1D[0], Kernel1D[4] * Kernel1D[1], Kernel1D[4] * Kernel1D[2], Kernel1D[4] * Kernel1D[3], Kernel1D[4] * Kernel1D[4],
+	k_kernel1D[0] * k_kernel1D[0], k_kernel1D[0] * k_kernel1D[1], k_kernel1D[0] * k_kernel1D[2], k_kernel1D[0] * k_kernel1D[3], k_kernel1D[0] * k_kernel1D[4],
+	k_kernel1D[1] * k_kernel1D[0], k_kernel1D[1] * k_kernel1D[1], k_kernel1D[1] * k_kernel1D[2], k_kernel1D[1] * k_kernel1D[3], k_kernel1D[1] * k_kernel1D[4],
+	k_kernel1D[2] * k_kernel1D[0], k_kernel1D[2] * k_kernel1D[1], k_kernel1D[2] * k_kernel1D[2], k_kernel1D[2] * k_kernel1D[3], k_kernel1D[2] * k_kernel1D[4],
+	k_kernel1D[3] * k_kernel1D[0], k_kernel1D[3] * k_kernel1D[1], k_kernel1D[3] * k_kernel1D[2], k_kernel1D[3] * k_kernel1D[3], k_kernel1D[3] * k_kernel1D[4],
+	k_kernel1D[4] * k_kernel1D[0], k_kernel1D[4] * k_kernel1D[1], k_kernel1D[4] * k_kernel1D[2], k_kernel1D[4] * k_kernel1D[3], k_kernel1D[4] * k_kernel1D[4],
 };
 #elif defined(FILTER_3x3)
 // Gaussian Filter
-static const int16_t Radius = 1;
-static const int16_t KernelWidth = 2 * Radius + 1;
-static const float Kernel1D[2 * Radius + 1] = { 0.27901, 0.44198, 0.27901 };
-//static const float Kernel1D[2 * Radius + 1] = { 0.25, 0.5, 0.25 };
-//static const float Kernel1D[2 * Radius + 1] = { 0.3125f, 0.375f, 0.3125f };
-static const float Kernel2D[2 * Radius + 1][2 * Radius + 1] =
+static const int16_t k_radius = 1;
+static const int16_t k_kernelWidth = 2 * k_radius + 1;
+static const float k_kernel1D[2 * k_radius + 1] = { 0.27901, 0.44198, 0.27901 };
+//static const float k_kernel1D[2 * Radius + 1] = { 0.25, 0.5, 0.25 };
+static const float k_kernel2D[2 * k_radius + 1][2 * k_radius + 1] =
 {
-	{Kernel1D[0] * Kernel1D[0], Kernel1D[0] * Kernel1D[1], Kernel1D[0] * Kernel1D[2]},
-	{Kernel1D[1] * Kernel1D[0], Kernel1D[1] * Kernel1D[1], Kernel1D[1] * Kernel1D[2]},
-	{Kernel1D[2] * Kernel1D[0], Kernel1D[2] * Kernel1D[1], Kernel1D[2] * Kernel1D[2]}
+	{k_kernel1D[0] * k_kernel1D[0], k_kernel1D[0] * k_kernel1D[1], k_kernel1D[0] * k_kernel1D[2]},
+	{k_kernel1D[1] * k_kernel1D[0], k_kernel1D[1] * k_kernel1D[1], k_kernel1D[1] * k_kernel1D[2]},
+	{k_kernel1D[2] * k_kernel1D[0], k_kernel1D[2] * k_kernel1D[1], k_kernel1D[2] * k_kernel1D[2]}
 };
 #endif
 

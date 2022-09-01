@@ -19,6 +19,19 @@ using namespace ZetaRay::Support;
 SVGF::SVGF() noexcept
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
+	// local CB	
+	m_rootSig.InitAsConstants(0,					// root idx
+		NUM_CONSTS,									// num DWORDs
+		0,											// register num
+		0);											// register space
+
+	// frame constants
+	m_rootSig.InitAsCBV(1,							// root idx
+		1,											// register num
+		0,											// register space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
+		D3D12_SHADER_VISIBILITY_ALL,
+		SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME);
 }
 
 SVGF::~SVGF() noexcept
@@ -39,21 +52,6 @@ void SVGF::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto* samplers = App::GetRenderer().GetStaticSamplers();
-
-	// local CB	
-	m_rootSig.InitAsConstants(0,					// root idx
-		NUM_CONSTS,									// num DWORDs
-		0,											// register num
-		0);											// register space
-
-	// frame constants
-	m_rootSig.InitAsCBV(1,							// root idx
-		1,											// register num
-		0,											// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
-		SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME);
-
 	s_rpObjs.Init("SVGF", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
 
 	m_psos[(int)SHADERS::TEMPORAL_FILTER] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::TEMPORAL_FILTER,
@@ -79,15 +77,9 @@ void SVGF::Init() noexcept
 	m_cbTemporalFilter.BilinearGeometryMaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	//m_cbTemporalFilter.BilinearDepthCutoff = DefaultParamVals::BilinearDepthCutoff;
 	//m_cbTemporalFilter.MinLumVariance = DefaultParamVals::MinLumVariance;
-	//m_cbTemporalFilter.ClampHistory = DefaultParamVals::NeighborhoodClamping;
-	//m_cbTemporalFilter.ClampingMinStd = DefaultParamVals::NeighborhoodClampingMinStd;
-	//m_cbTemporalFilter.ClampingStdScale = DefaultParamVals::NeighborhoodClampingStdScale;
-	//m_cbTemporalFilter.ClampingTsppAdjustmentScaleByDifference = DefaultParamVals::NeighborhoodClampingTSPPAdj;
 
 	m_cbSpatialVar.Radius = DefaultParamVals::SpatialVarianceRadius;
 
-	//m_cbWaveletTransform.DepthWeightCutoff = DefaultParamVals::EdgeStoppingDepthWeightCutoff;
-	//m_cbWaveletTransform.DepthSigma = DefaultParamVals::EdgeStoppingDepthSigma;
 	m_cbWaveletTransform.MaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	m_cbWaveletTransform.NormalSigma = DefaultParamVals::EdgeStoppingNormalSigma;
 	m_cbWaveletTransform.LumSigma = DefaultParamVals::EdgeStoppingLumSigma;
@@ -104,26 +96,37 @@ void SVGF::Reset() noexcept
 	if (IsInitialized())
 	{
 		s_rpObjs.Clear();
+
+		App::RemoveParam("Renderer", "SVGF", "AtrousWaveletTransform");
+		App::RemoveParam("Renderer", "SVGF", "MaxTSPP");
+		App::RemoveParam("Renderer", "SVGF", "MinTSPPTemporalVar");
+		App::RemoveParam("Renderer", "SVGF", "BilinearNormalScale");
+		App::RemoveParam("Renderer", "SVGF", "BilinearNormalExp");
+		App::RemoveParam("Renderer", "SVGF", "MaxPlaneDist");
+		App::RemoveParam("Renderer", "SVGF", "MinConsWeight");
+		App::RemoveParam("Renderer", "SVGF", "SpatialVarRadius");
+		App::RemoveParam("Renderer", "SVGF", "FilterSpatialVariance");
+		App::RemoveParam("Renderer", "SVGF", "EdgeStoppingLumSigma");
+		App::RemoveParam("Renderer", "SVGF", "EdgeStoppingNormalSigma");
+		App::RemoveParam("Renderer", "SVGF", "#WaveletTransformPasses");
+
 		App::RemoveShaderReloadHandler("SVGF_SpatialVar");
-		App::RemoveShaderReloadHandler("SVGF_SpatialVar");
+		App::RemoveShaderReloadHandler("SVGF_Temporal");
 		App::RemoveShaderReloadHandler("SVGF_GaussianFilter");
 		App::RemoveShaderReloadHandler("SVGF_WaveletTransform");
+
+#ifdef _DEBUG
+		memset(m_inputGpuHeapIndices, 0, (int)SHADER_IN_RES::COUNT * sizeof(uint32_t));
+		memset(m_psos, 0, (int)SHADERS::COUNT * sizeof(ID3D12PipelineState*));
+#endif // _DEBUG
+
+		m_spatialLumVar.Reset();
+		m_descTable.Reset();
+		m_temporalCacheColLum[0].Reset();
+		m_temporalCacheColLum[1].Reset();
+		
+		m_isTemporalCacheValid = false;
 	}
-
-	memset(m_inputGpuHeapIndices, 0, (int)SHADER_IN_RES::COUNT * sizeof(uint32_t));
-	memset(m_psos, 0, (int)SHADERS::COUNT * sizeof(ID3D12PipelineState*));
-
-	m_spatialLumVar.Reset();
-	m_descTable.Reset();
-	m_temporalCacheColLum[0].Reset();
-	m_temporalCacheColLum[1].Reset();
-	//m_temporalFilterBuff.Reset();
-	//m_spatialVarBuff.Reset();
-	//m_waveletTransformBuff->Reset();
-
-	m_descTable.Reset();
-
-	m_isTemporalCacheValid = false;
 }
 
 void SVGF::OnWindowResized() noexcept
@@ -295,18 +298,18 @@ void SVGF::CreateResources() noexcept
 	{
 		m_temporalCacheColLum[0] = renderer.GetGpuMemory().GetTexture2D("SVGF_TEMPORAL_CACHE_A",
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			ResourceFormats::TEMPORAL_CACHE_COLOR_LUM,
+			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
 			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 		m_temporalCacheColLum[1] = renderer.GetGpuMemory().GetTexture2D("SVGF_TEMPORAL_CACHE_B",
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			ResourceFormats::TEMPORAL_CACHE_COLOR_LUM,
+			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
 			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		srvDesc.Format = ResourceFormats::TEMPORAL_CACHE_COLOR_LUM;
-		uavDesc.Format = ResourceFormats::TEMPORAL_CACHE_COLOR_LUM;
+		srvDesc.Format = ResourceFormats::TEMPORAL_CACHE;
+		uavDesc.Format = ResourceFormats::TEMPORAL_CACHE;
 
 		device->CreateShaderResourceView(m_temporalCacheColLum[0].GetResource(),
 			&srvDesc,
@@ -415,63 +418,8 @@ void SVGF::InitParams() noexcept
 		1e-2f);										// step
 	App::AddParam(bilateralDepthScale);
 
-	// adjustment for this wasn't exposed (fixed at 0.5) 
-	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 53
-	//ParamVariant bilateralDepthCutoff;
-	//bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff",
-	//	fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthCutoffCallback),
-	//	DefaultParamVals::BilinearDepthCutoff,		// val	
-	//	0.0f,										// min
-	//	1.0f,										// max
-	//	0.01f);										// step
-	//App::AddParam(bilateralDepthCutoff);
-
-	//	ParamVariant neighborhoodClamping;
-	//	neighborhoodClamping.InitBool("Renderer", "SVGF", "NeighborhoodClamping", 
-	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingCallback),
-	//		DefaultParamVals::NeighborhoodClamping);
-	//	App::AddParam(neighborhoodClamping);
-
-	//	ParamVariant neighborhoodClampingStdScale;
-	//	neighborhoodClampingStdScale.InitFloat("Renderer", "SVGF", "NeighborhoodClampingStdScale", 
-	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingStdScaleCallback),
-	//		DefaultParamVals::NeighborhoodClampingStdScale,		// val	
-	//		0.1f,												// min
-	//		10.0f,												// max
-	//		0.1f);												// step
-	//	App::AddParam(neighborhoodClampingStdScale);
-
-	//	ParamVariant neighborhoodClampingMinStd;
-	//	neighborhoodClampingMinStd.InitFloat("Renderer", "SVGF", "NeighborhoodClampingMinStd", 
-	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingMinStdCallback),
-	//		DefaultParamVals::NeighborhoodClampingMinStd,		// val	
-	//		0.0f,												// min
-	//		1.0f,												// max
-	//		0.01f);												// step
-	//	App::AddParam(neighborhoodClampingMinStd);
-
-	//	ParamVariant neighborhoodClampingTSPP;
-	//	neighborhoodClampingTSPP.InitFloat("Renderer", "SVGF", "NeighborhoodClampingTSPPAdjustment", 
-	//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingTSPPAdjCallback),
-	//		DefaultParamVals::NeighborhoodClampingTSPPAdj,		// val	
-	//		0.0f,												// min
-	//		10.0f,												// max
-	//		0.05f);												// step
-	//	App::AddParam(neighborhoodClampingTSPP);
-
-		// adjustment for this wasn't exposed (fixed at 0.1) 
-		// TemporalSupersampling_BlendWithCurrentFrameCS.hlsl, line 95
-		//ParamVariant minLumVariance;
-		//minLumVariance.InitFloat("Renderer", "SVGF", "MinLumVar", 
-		//	fastdelegate::MakeDelegate(this, &SVGF::MinLumVarCallback),
-		//	DefaultParamVals::MinLumVariance,		// val	
-		//	0.0f,									// min
-		//	5.0f,									// max
-		//	0.1f);									// step
-		//App::AddParam(minLumVariance);
-
-		// adjustment for this wasn't exposed (fixed at 1e-3) 
-		// TemporalSupersampling_ReverseReprojectCS.hlsl, line 154
+	// adjustment for this wasn't exposed (fixed at 1e-3) 
+	// TemporalSupersampling_ReverseReprojectCS.hlsl, line 154
 	ParamVariant minConsistentWeight;
 	minConsistentWeight.InitFloat("Renderer", "SVGF", "MinConsWeight",
 		fastdelegate::MakeDelegate(this, &SVGF::MinConsistentWeightCallback),
@@ -495,33 +443,6 @@ void SVGF::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &SVGF::FilterSpatialVarCallback),
 		m_filterSpatialVariance);
 	App::AddParam(filterSpatialVariance);
-
-	//ParamVariant minVarianceToFilter;
-	//minVarianceToFilter.InitFloat("Renderer", "SVGF", "MinVarToFilter", 
-	//	fastdelegate::MakeDelegate(this, &SVGF::MinVarToFilterCallback),
-	//	DefaultParamVals::MinVarianceToFilter,		// val	
-	//	0.0f,										// min
-	//	1.0f,										// max
-	//	0.01f);										// step
-	//App::AddParam(minVarianceToFilter);
-
-	//ParamVariant edgeStoppingDepthWeightCutoff;
-	//edgeStoppingDepthWeightCutoff.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthWeightCutoff",
-	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthWeightCutoffCallback),
-	//	DefaultParamVals::EdgeStoppingDepthWeightCutoff,		// val	
-	//	0.0f,													// min
-	//	2.0f,													// max
-	//	0.01f);													// step
-	//App::AddParam(edgeStoppingDepthWeightCutoff);
-
-	//ParamVariant edgeStoppingDepthSigma;
-	//edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma",
-	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthSigmaCallback),
-	//	DefaultParamVals::EdgeStoppingDepthSigma,		// val	
-	//	0.0f,											// min
-	//	10.0f,											// max
-	//	0.02f);											// step
-	//App::AddParam(edgeStoppingDepthSigma);
 
 	ParamVariant edgeStoppingLumSigma;
 	edgeStoppingLumSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingLumSigma",
@@ -549,6 +470,88 @@ void SVGF::InitParams() noexcept
 		5,													// max
 		1);													// step
 	App::AddParam(numWaveletFilterPasses);
+
+	// adjustment for this wasn't exposed (fixed at 0.5) 
+// TemporalSupersampling_ReverseReprojectCS.hlsl, line 53
+//ParamVariant bilateralDepthCutoff;
+//bilateralDepthCutoff.InitFloat("Renderer", "SVGF", "DepthConsCutoff",
+//	fastdelegate::MakeDelegate(this, &SVGF::BilateralDepthCutoffCallback),
+//	DefaultParamVals::BilinearDepthCutoff,		// val	
+//	0.0f,										// min
+//	1.0f,										// max
+//	0.01f);										// step
+//App::AddParam(bilateralDepthCutoff);
+
+//	ParamVariant neighborhoodClamping;
+//	neighborhoodClamping.InitBool("Renderer", "SVGF", "NeighborhoodClamping", 
+//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingCallback),
+//		DefaultParamVals::NeighborhoodClamping);
+//	App::AddParam(neighborhoodClamping);
+
+//	ParamVariant neighborhoodClampingStdScale;
+//	neighborhoodClampingStdScale.InitFloat("Renderer", "SVGF", "NeighborhoodClampingStdScale", 
+//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingStdScaleCallback),
+//		DefaultParamVals::NeighborhoodClampingStdScale,		// val	
+//		0.1f,												// min
+//		10.0f,												// max
+//		0.1f);												// step
+//	App::AddParam(neighborhoodClampingStdScale);
+
+//	ParamVariant neighborhoodClampingMinStd;
+//	neighborhoodClampingMinStd.InitFloat("Renderer", "SVGF", "NeighborhoodClampingMinStd", 
+//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingMinStdCallback),
+//		DefaultParamVals::NeighborhoodClampingMinStd,		// val	
+//		0.0f,												// min
+//		1.0f,												// max
+//		0.01f);												// step
+//	App::AddParam(neighborhoodClampingMinStd);
+
+//	ParamVariant neighborhoodClampingTSPP;
+//	neighborhoodClampingTSPP.InitFloat("Renderer", "SVGF", "NeighborhoodClampingTSPPAdjustment", 
+//		fastdelegate::MakeDelegate(this, &SVGF::NeighborhoodClampingTSPPAdjCallback),
+//		DefaultParamVals::NeighborhoodClampingTSPPAdj,		// val	
+//		0.0f,												// min
+//		10.0f,												// max
+//		0.05f);												// step
+//	App::AddParam(neighborhoodClampingTSPP);
+
+	// adjustment for this wasn't exposed (fixed at 0.1) 
+	// TemporalSupersampling_BlendWithCurrentFrameCS.hlsl, line 95
+	//ParamVariant minLumVariance;
+	//minLumVariance.InitFloat("Renderer", "SVGF", "MinLumVar", 
+	//	fastdelegate::MakeDelegate(this, &SVGF::MinLumVarCallback),
+	//	DefaultParamVals::MinLumVariance,		// val	
+	//	0.0f,									// min
+	//	5.0f,									// max
+	//	0.1f);									// step
+	//App::AddParam(minLumVariance);
+	// 
+	//ParamVariant minVarianceToFilter;
+	//minVarianceToFilter.InitFloat("Renderer", "SVGF", "MinVarToFilter", 
+	//	fastdelegate::MakeDelegate(this, &SVGF::MinVarToFilterCallback),
+	//	DefaultParamVals::MinVarianceToFilter,		// val	
+	//	0.0f,										// min
+	//	1.0f,										// max
+	//	0.01f);										// step
+	//App::AddParam(minVarianceToFilter);
+
+	//ParamVariant edgeStoppingDepthWeightCutoff;
+	//edgeStoppingDepthWeightCutoff.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthWeightCutoff",
+	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthWeightCutoffCallback),
+	//	DefaultParamVals::EdgeStoppingDepthWeightCutoff,		// val	
+	//	0.0f,													// min
+	//	2.0f,													// max
+	//	0.01f);													// step
+	//App::AddParam(edgeStoppingDepthWeightCutoff);
+
+	//ParamVariant edgeStoppingDepthSigma;
+	//edgeStoppingDepthSigma.InitFloat("Renderer", "SVGF", "EdgeStoppingDepthSigma",
+	//	fastdelegate::MakeDelegate(this, &SVGF::EdgeStoppingDepthSigmaCallback),
+	//	DefaultParamVals::EdgeStoppingDepthSigma,		// val	
+	//	0.0f,											// min
+	//	10.0f,											// max
+	//	0.02f);											// step
+	//App::AddParam(edgeStoppingDepthSigma);
 }
 
 void SVGF::MaxTSPPCallback(const ParamVariant& p) noexcept

@@ -31,6 +31,7 @@ namespace ZetaRay::RenderPass
 		~Sky() noexcept;
 
 		void Init(int lutWidth, int lutHeight, bool doInscattering) noexcept;
+		bool IsInitialized() noexcept { return m_psos[(int)SHADERS::SKY_LUT] != nullptr; };
 		bool IsInscatteringEnabled() noexcept { return m_doInscattering; }
 		void Reset() noexcept;
 		void SetInscatteringEnablement(bool b) noexcept;
@@ -58,7 +59,7 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbSky) / sizeof(DWORD);
 
-		struct ResourceFromats
+		struct ResourceFormats
 		{
 			static constexpr DXGI_FORMAT INSCATTERING_VOXEL_GRID = DXGI_FORMAT_R11G11B10_FLOAT;
 			static constexpr DXGI_FORMAT SKY_VIEW_LUT = DXGI_FORMAT_R11G11B10_FLOAT;
@@ -74,11 +75,11 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr int NumVoxelsX = 192;
-			static constexpr int NumVoxelsY = int(NumVoxelsX / 1.77f);
-			static constexpr float DetphMapExp = 2.0f;
-			static constexpr float VoxelGridNearZ = 0.05f;
-			static constexpr float VoxelGridFarZ = 30.0f;
+			static constexpr int NUM_VOXELS_X = 192;
+			static constexpr int NUM_VOXELS_Y = int(NUM_VOXELS_X / 1.77f);
+			static constexpr float DEPTH_MAP_EXP = 2.0f;
+			static constexpr float VOXEL_GRID_NEAR_Z = 0.05f;
+			static constexpr float VOXEL_GRID_FAR_Z = 30.0f;
 		};
 
 		// voxel grid

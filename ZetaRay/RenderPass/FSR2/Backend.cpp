@@ -442,7 +442,6 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 		g_fsr2Data = new FSR2_Data;
 
 	FfxFsr2Interface fsr2Interface;
-
 	fsr2Interface.fpCreateDevice = FSR2_Internal::Fsr2CreateDeviceFunc;
 	fsr2Interface.fpCreatePipeline = FSR2_Internal::Fsr2CreatePipeline;
 	fsr2Interface.fpCreateResource = FSR2_Internal::Fsr2CreateResource;
@@ -455,7 +454,9 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 	fsr2Interface.fpRegisterResource = FSR2_Internal::Fsr2RegisterResource;
 	fsr2Interface.fpScheduleRenderJob = FSR2_Internal::Fsr2ScheduleRenderJob;
 	fsr2Interface.fpUnregisterResources = FSR2_Internal::Fsr2UnregisterResources;
-
+	fsr2Interface.scratchBuffer = nullptr;
+	fsr2Interface.scratchBufferSize = 0;
+	
 	auto& renderer = App::GetRenderer();
 
 	FfxFsr2ContextDescription ctxDesc;
@@ -678,10 +679,6 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 
 FfxErrorCode FSR2_Internal::Fsr2CreateDeviceFunc(FfxFsr2Interface* backendInterface, FfxDevice outDevice)
 {
-	auto* device = App::GetRenderer().GetDevice();
-	Assert(device, "Device was NULL");
-	outDevice = device;
-
 	return FFX_OK;
 }
 
@@ -1096,28 +1093,6 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 		memcpy(outPipeline->cbResourceBindings[cbIndex].name, shaderBlob.boundCBVResourceNames[cbIndex], 
 			strlen(shaderBlob.boundCBVResourceNames[cbIndex]));
 	}
-
-	/*
-	if (!g_fsr2Data->m_passes[pass].PSO.Get())
-	{
-		// PSO
-		D3D12_COMPUTE_PIPELINE_STATE_DESC computePsoDesc;
-		computePsoDesc.pRootSignature = g_fsr2Data->m_passes[pass].RootSig.Get();
-		computePsoDesc.CS.pShaderBytecode = shaderBlob.data;
-		computePsoDesc.CS.BytecodeLength = shaderBlob.size;
-		computePsoDesc.NodeMask = 0;
-		computePsoDesc.CachedPSO.pCachedBlob = nullptr;
-		computePsoDesc.CachedPSO.CachedBlobSizeInBytes = 0;
-		computePsoDesc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
-
-		auto* device = App::GetRenderer().GetDevice();
-		CheckHR(device->CreateComputePipelineState(&computePsoDesc, IID_PPV_ARGS(g_fsr2Data->m_passes[pass].PSO.GetAddressOf())));
-		
-		// to figure out each PSO corresponds to which pass
-		Assert(g_fsr2Data->m_currMapIdx < FFX_FSR2_PASS_COUNT, "Invalid pass idx");
-		g_fsr2Data->m_psoToPassMap[g_fsr2Data->m_currMapIdx++] = PsoMap{ .PSO = g_fsr2Data->m_passes[pass].PSO.Get(), .Pass = pass };
-	}
-	*/
 
 	// check if the PSO already exists in the PSO lib
 	g_fsr2Data->m_passes[pass].PSO = g_fsr2Data->m_psoLib.GetComputePSO(pass,

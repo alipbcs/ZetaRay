@@ -55,11 +55,11 @@ void FSR2Pass::Reset() noexcept
 	if (IsInitialized())
 	{
 		FSR2_Internal::Shutdown();
-	}
 
 #ifdef _DEBUG
-	memset(&m_inputResources, 0, sizeof(m_inputResources));
+		memset(&m_inputResources, 0, sizeof(m_inputResources));
 #endif // _DEBUG
+	}
 }
 
 void FSR2Pass::Render(CommandList& cmdList) noexcept

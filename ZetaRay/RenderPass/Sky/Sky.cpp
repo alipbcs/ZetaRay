@@ -71,11 +71,11 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 
 	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
 
-	m_localCB.DepthMappingExp = DefaultParamVals::DetphMapExp;
-	m_localCB.VoxelGridNearZ = DefaultParamVals::VoxelGridNearZ;
-	m_localCB.VoxelGridFarZ = DefaultParamVals::VoxelGridFarZ;
-	m_localCB.NumVoxelsX = DefaultParamVals::NumVoxelsX;
-	m_localCB.NumVoxelsY = DefaultParamVals::NumVoxelsY;
+	m_localCB.DepthMappingExp = DefaultParamVals::DEPTH_MAP_EXP;
+	m_localCB.VoxelGridNearZ = DefaultParamVals::VOXEL_GRID_NEAR_Z;
+	m_localCB.VoxelGridFarZ = DefaultParamVals::VOXEL_GRID_FAR_Z;
+	m_localCB.NumVoxelsX = DefaultParamVals::NUM_VOXELS_X;
+	m_localCB.NumVoxelsY = DefaultParamVals::NUM_VOXELS_Y;
 
 	CreateSkyviewLUT();
 	App::AddShaderReloadHandler("SkyViewLUT", fastdelegate::MakeDelegate(this, &Sky::ReloadSkyLUTShader));
@@ -85,16 +85,16 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 
 void Sky::Reset() noexcept
 {
-	if (m_psos[(int)SHADERS::SKY_LUT])
+	if (IsInitialized())
 	{
 		App::RemoveShaderReloadHandler("SkyViewLUT");
 		s_rpObjs.Clear();
-	}
 
-	m_descTable.Reset();
-	m_lut.Reset();
+		m_descTable.Reset();
+		m_lut.Reset();
 	
-	SetInscatteringEnablement(false);
+		SetInscatteringEnablement(false);
+	}
 }
 
 void Sky::SetInscatteringEnablement(bool b) noexcept
@@ -112,7 +112,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 
 		ParamVariant depthExp;
 		depthExp.InitFloat("Renderer", "Inscattering", "DepthMapExp", fastdelegate::MakeDelegate(this, &Sky::DepthMapExpCallback),
-			DefaultParamVals::DetphMapExp,			// val	
+			DefaultParamVals::DEPTH_MAP_EXP,		// val	
 			1.0f,									// min
 			5.0f,									// max
 			0.2f);									// step
@@ -120,7 +120,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 
 		ParamVariant voxelGridNearZ;
 		voxelGridNearZ.InitFloat("Renderer", "Inscattering", "VoxelGridNearZ", fastdelegate::MakeDelegate(this, &Sky::VoxelGridNearZCallback),
-			DefaultParamVals::VoxelGridNearZ,		// val	
+			DefaultParamVals::VOXEL_GRID_NEAR_Z,	// val	
 			0.0f,									// min
 			1.0f,									// max
 			1e-2f);									// step
@@ -128,7 +128,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 
 		ParamVariant voxelGridFarZ;
 		voxelGridFarZ.InitFloat("Renderer", "Inscattering", "VoxelGridFarZ", fastdelegate::MakeDelegate(this, &Sky::VoxelGridFarZCallback),
-			DefaultParamVals::VoxelGridFarZ,		// val	
+			DefaultParamVals::VOXEL_GRID_FAR_Z,		// val	
 			10.0f,									// min
 			200.0f,									// max
 			1.0f);									// step
@@ -201,13 +201,13 @@ void Sky::CreateSkyviewLUT() noexcept
 
 	m_lut = renderer.GetGpuMemory().GetTexture2D("SkyLUT",
 		m_localCB.LutWidth, m_localCB.LutHeight,
-		ResourceFromats::SKY_VIEW_LUT,
+		ResourceFormats::SKY_VIEW_LUT,
 		D3D12_RESOURCE_STATE_COMMON,
 		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Format = ResourceFromats::SKY_VIEW_LUT;
+	uavDesc.Format = ResourceFormats::SKY_VIEW_LUT;
 	uavDesc.Texture2D.MipSlice = 0;
 	uavDesc.Texture2D.PlaneSlice = 0;
 
@@ -223,13 +223,13 @@ void Sky::CreateVoxelGrid() noexcept
 
 	m_voxelGrid = renderer.GetGpuMemory().GetTexture3D("InscatteringVoxelGrid",
 		m_localCB.NumVoxelsX, m_localCB.NumVoxelsY, INSCATTERING_THREAD_GROUP_SIZE_X,
-		ResourceFromats::INSCATTERING_VOXEL_GRID,
+		ResourceFormats::INSCATTERING_VOXEL_GRID,
 		D3D12_RESOURCE_STATE_COMMON,
 		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
-	uavDesc.Format = ResourceFromats::INSCATTERING_VOXEL_GRID;
+	uavDesc.Format = ResourceFormats::INSCATTERING_VOXEL_GRID;
 	uavDesc.Texture3D.MipSlice = 0;
 	uavDesc.Texture3D.WSize = INSCATTERING_THREAD_GROUP_SIZE_X;
 	uavDesc.Texture3D.FirstWSlice = 0;

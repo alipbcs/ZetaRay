@@ -78,10 +78,12 @@ void LuminanceReduction::Init() noexcept
 void LuminanceReduction::Reset() noexcept
 {
 	if (m_psos[0])
+	{
 		s_rpObjs.Clear();
 
-	m_reducedLumIntermediate.Reset();
-	m_reducedLum.Reset();
+		m_reducedLumIntermediate.Reset();
+		m_reducedLum.Reset();
+	}
 }
 
 void LuminanceReduction::OnWindowResized() noexcept
