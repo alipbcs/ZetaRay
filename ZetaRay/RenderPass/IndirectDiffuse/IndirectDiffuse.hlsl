@@ -3,7 +3,7 @@
 #include "../Common/LightSourceFuncs.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/BRDF.hlsli"
-#include "../Common/Sampler.hlsli"
+#include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/RT.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
@@ -37,6 +37,7 @@ struct HitSurface
 	float2 uv;
 	half2 ShadingNormal;
 	uint16_t MatID;
+	half T;
 };
 
 groupshared uint g_binOffset[NUM_BINS];
@@ -153,7 +154,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out 
 		surface.uv = uv;
 		surface.ShadingNormal = EncodeUnitNormalAsHalf2(normal);
 		surface.MatID = (uint16_t) packedMeshData & 0xff;
-		//		surface.T = (half) rayQuery.CommittedRayT();
+		surface.T = (half) rayQuery.CommittedRayT();
 
 		return true;
 	}
@@ -310,7 +311,7 @@ float3 DirectLighting(HitSurface hitInfo)
 	return L_i + L_e;
 }
 
-float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, out uint16_t sortedIdx)
+float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, out uint16_t sortedIdx, out half rayT)
 {
 	// reconstruct position from depth buffer
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -338,9 +339,9 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 		const uint sampleIdx = g_frame.FrameNum & 31;
 		//const uint sampleIdx = 0;
 		const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 2);
+			DTid.x, DTid.y, sampleIdx, 0);
 		const float u1 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 3);
+			DTid.x, DTid.y, sampleIdx, 1);
 
 		wi = SampleLambertianBrdf(shadingNormal, float2(u0, u1));
 	}
@@ -356,7 +357,10 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 	// if the ray hit a surface, compute direct lighting at the given surface point, otherise do miss shading,
 	// which returns the incoming radiance from sky
 	if (hit)
+	{
 		L_i = DirectLighting(hitInfo);
+		rayT = hitInfo.T;
+	}
 	else if (isRayValid)
 	{
 #if defined(DO_RAY_BINNING)
@@ -428,23 +432,27 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	shouldThisLaneTrace = shouldThisLaneTrace && (isSurfaceMarker > MIN_ALPHA_CUTOFF);
 
 	uint16_t sortedIdx;
-	float4 val = 0.0.xxxx;
-	val.xyz = ComputeIndirectLi(swizzledDTid, Gidx, shouldThisLaneTrace, sortedIdx);
+	half rayT = 0.0;
+	float3 val = 0.0.xxx;
+	val = ComputeIndirectLi(swizzledDTid, Gidx, shouldThisLaneTrace, sortedIdx, rayT);
 
 #if defined(DO_RAY_BINNING)
 	g_sortedOrigin[Gidx] = val.xyz;
-
+	g_sortedDir[Gidx].x = rayT;
+	
 	GroupMemoryBarrierWithGroupSync();
 
 //	if (shouldThisLaneTrace)
 	val.xyz = g_sortedOrigin[sortedIdx];
 	val = max(0.0, val);
+	
+	rayT = (half) g_sortedDir[sortedIdx].x;
 #endif	
 	
 	// write the results to memory
 	if (shouldThisLaneTrace)
 	{
 		RWTexture2D<float4> outLiRayT = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];		
-		outLiRayT[swizzledDTid].xyz = val.xyz;
+		outLiRayT[swizzledDTid] = float4(val.xyz, rayT);
 	}
 }

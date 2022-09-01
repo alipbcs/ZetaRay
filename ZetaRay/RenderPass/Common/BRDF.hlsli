@@ -31,7 +31,7 @@
 #define BRDF_H
 
 #include "Common.hlsli"
-#include "SamplingTransformations.hlsli"
+#include "Sampling.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Fresnel
@@ -227,8 +227,8 @@ float3 SampleLambertianBrdf(float3 shadingNormal, float2 u)
 	float3 wiLocal = SampleCosineWeightedHemisphere(u, pdf);
 
 	// transform wh from local space to world space
-	float4 qReverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
-	float3 wiWorld = RotateVector(wiLocal, qReverse);
+	float4 qInverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
+	float3 wiWorld = RotateVector(wiLocal, qInverse);
 	
 	return wiWorld;
 }

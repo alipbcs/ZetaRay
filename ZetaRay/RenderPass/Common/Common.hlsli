@@ -51,7 +51,7 @@ float2 NDCFromTextureSpace(float2 posTS)
 
 float2 TextureSpaceFromNDC(float2 posNDC)
 {
-	float x =  0.5f * posNDC.x + 0.5f;
+	float x = 0.5f * posNDC.x + 0.5f;
 	float y = -0.5f * posNDC.y + 0.5f;
 	
 	return float2(x, y);
@@ -601,35 +601,6 @@ void SwizzleGroupID(in uint2 Gid, in uint2 GTid, uint2 groupDim, in uint2 dispat
 	
 	swizzledGid = uint2(swizzledGidx % dispatchDim.x, swizzledGidx / dispatchDim.x);
 	swizzledDTid = swizzledGid * groupDim + GTid;
-}
-
-// Ref: "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space"
-// This is for 32 samples per-pixel
-// Sample index: frame number % 32
-// Sample dimension: (0, 1) for the indirect samples and more for additional dimensions
-float samplerBlueNoiseErrorDistribution(StructuredBuffer<uint> g_owenScrambledSobolSeq,
-	StructuredBuffer<uint> g_rankingTile, StructuredBuffer<uint> g_scramblingTile,
-	int pixel_i, int pixel_j, int sampleIndex, int sampleDimension)
-{
-	// wrap arguments
-	pixel_i = pixel_i & 127;
-	pixel_j = pixel_j & 127;
-	sampleIndex = sampleIndex & 255;
-	sampleDimension = sampleDimension & 255;
-
-	// xor index based on optimized ranking
-	int rankedSampleIndex = sampleIndex ^ g_rankingTile[sampleDimension + (pixel_i + pixel_j * 128) * 8];
-
-	// fetch value in sequence
-	int value = g_owenScrambledSobolSeq[sampleDimension + rankedSampleIndex * 256];
-
-	// If the dimension is optimized, xor sequence value based on optimized scrambling
-	value = value ^ g_scramblingTile[(sampleDimension & 7) + (pixel_i + pixel_j * 128) * 8];
-
-	// convert to float and return
-	float v = (0.5f + value) / 256.0f;
-	
-	return v;
 }
 
 #endif // COMMON_H

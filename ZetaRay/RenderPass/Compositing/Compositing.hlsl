@@ -4,7 +4,7 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Material.h"
-#include "../Common/Sampler.hlsli"
+#include "../Common/Sampling.hlsli"
 #include "../Common/RT.hlsli"
 
 //--------------------------------------------------------------------------------------
