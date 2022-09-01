@@ -119,7 +119,6 @@ void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, 
 	desc.Scaling = DXGI_SCALING_NONE;
 	desc.AlphaMode = DXGI_ALPHA_MODE_IGNORE;
 	desc.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
-	//desc.Flags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
 	desc.Flags = m_swapChainFlags;
 
 	IDXGISwapChain1* swapChain;
@@ -127,7 +126,8 @@ void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, 
 	CheckHR(swapChain->QueryInterface(IID_PPV_ARGS(m_dxgiSwapChain.GetAddressOf())));
 	swapChain->Release();
 
-	//CheckHR(m_dxgiSwapChain->SetMaximumFrameLatency(maxLatency));
+	CheckHR(m_dxgiSwapChain->SetMaximumFrameLatency(maxLatency));
+	m_frameLatencyWaitableObj = m_dxgiSwapChain->GetFrameLatencyWaitableObject();
 }
 
 void DeviceObjects::ResizeSwapChain(int w, int h, int maxLatency) noexcept

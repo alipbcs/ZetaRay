@@ -965,12 +965,13 @@ namespace ZetaRay
 			{
 				if (!g_pApp->m_isActive)
 				{
-					Sleep(50);
+					Sleep(16);
 					continue;
 				}
 
-				// Help out while there are unfinished tasks from the previous frame
+				// help out while there are unfinished tasks from the previous frame
 				bool success = g_pApp->m_mainThreadPool.TryFlush();
+				
 				// don't block the message-handling thread
 				if (!success)
 					continue;

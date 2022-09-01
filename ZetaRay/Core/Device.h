@@ -92,7 +92,8 @@ namespace ZetaRay::Core
 
 		bool m_tearingSupport = false;
 		//UINT m_swapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
-		UINT m_swapChainFlags = 0;
+		UINT m_swapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
+		HANDLE m_frameLatencyWaitableObj;
 
 		char m_deviceName[64] = { '\0' };
 	};

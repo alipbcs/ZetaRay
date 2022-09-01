@@ -109,19 +109,19 @@ void Renderer::ResizeBackBuffers(HWND hwnd) noexcept
 	if (m_backBuffers[0].GetResource())
 	{
 		for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
-		{
 			m_backBuffers[i].Reset(false);
-		}
 
 		m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, RendererConstants::MAX_SWAPCHAIN_FRAME_LATENCY);
 	}
 	else
-		m_deviceObjs.CreateSwapChain(m_directQueue->GetCommandQueue(), 
-			hwnd, 
+	{
+		m_deviceObjs.CreateSwapChain(m_directQueue->GetCommandQueue(),
+			hwnd,
 			m_displayWidth, m_displayHeight,
 			RendererConstants::NUM_BACK_BUFFERS,
 			Direct3DHelper::NoSRGB(RendererConstants::BACK_BUFFER_FORMAT),
 			RendererConstants::MAX_SWAPCHAIN_FRAME_LATENCY);
+	}
 
 	m_currBackBuffIdx = m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
 
@@ -225,10 +225,11 @@ void Renderer::OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight,
 
 void Renderer::BeginFrame() noexcept
 {
+	// blocks until eariliest queued present is completed
+	WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 50);
+
 	if (App::GetTimer().GetTotalFrameCount() > 0)
-	{
 		m_gpuMemory.BeginFrame();
-	}
 	
 	m_gpuTimer.BeginFrame();
 }
