@@ -125,11 +125,11 @@ void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 	const float2 motionVec = g_motionVector[DTid.xy];
 	
 	// motion vector is relative to texture space
-	float2 currPosTS = float2(DTid.x + 0.5f, DTid.y + 0.5f) / renderDim;
-	float2 histPosTS = currPosTS - motionVec;	
+	float2 currUV = float2(DTid.x + 0.5f, DTid.y + 0.5f) / renderDim;
+	float2 prevUV = currUV - motionVec;
 	
 	// no history sample was available
-	if (any(abs(histPosTS) - histPosTS))
+	if (any(abs(prevUV) - prevUV))
 	{
 		g_antiAliased[DTid.xy] = half4(reconstructed, 0.0h);
 		return;
@@ -139,9 +139,9 @@ void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 	
 	float3 prevSample;
 	if (g_local.CatmullRomFiltering)
-		prevSample = SampleTextureCatmullRom_5Tap(g_prevColor, g_samLinearClamp, histPosTS, renderDim);
+		prevSample = SampleTextureCatmullRom_5Tap(g_prevColor, g_samLinearClamp, prevUV, renderDim);
 	else
-		prevSample = g_prevColor.SampleLevel(g_samLinearClamp, histPosTS, 0).xyz;
+		prevSample = g_prevColor.SampleLevel(g_samLinearClamp, prevUV, 0).xyz;
 
 	// helps with reducing fireflies
 	// Ref: https://graphicrants.blogspot.com/2013/12/tone-mapping.html

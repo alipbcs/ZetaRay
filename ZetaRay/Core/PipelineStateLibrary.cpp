@@ -15,7 +15,7 @@ using namespace ZetaRay::Win32;
 
 PipelineStateLibrary::~PipelineStateLibrary() noexcept
 {
-	ClearnAndFlushToDisk();
+	ClearAndFlushToDisk();
 }
 
 void PipelineStateLibrary::Init(const char* name) noexcept
@@ -59,24 +59,26 @@ void PipelineStateLibrary::Init(const char* name) noexcept
 		ResetPsoLib();
 }
 
-void PipelineStateLibrary::ClearnAndFlushToDisk() noexcept
+void PipelineStateLibrary::ClearAndFlushToDisk() noexcept
 {
-	if (!m_foundOnDisk && m_psoLibrary)
+	if (m_psoLibrary)
 	{
-		size_t serializedSize = m_psoLibrary->GetSerializedSize();
-		uint8_t* psoLib = new(std::nothrow) uint8_t[serializedSize];
+		if (!m_foundOnDisk)
+		{
+			size_t serializedSize = m_psoLibrary->GetSerializedSize();
+			uint8_t* psoLib = new(std::nothrow) uint8_t[serializedSize];
 
-		CheckHR(m_psoLibrary->Serialize(psoLib, serializedSize));
-		Filesystem::WriteToFile(m_psoLibPath1.Get(), psoLib, (uint32_t)serializedSize);
+			CheckHR(m_psoLibrary->Serialize(psoLib, serializedSize));
+			Filesystem::WriteToFile(m_psoLibPath1.Get(), psoLib, (uint32_t)serializedSize);
 
-		delete[] psoLib;
+			delete[] psoLib;
+		}
+
 		m_psoLibrary = nullptr;
 	}
 
 	for (auto e : m_compiledPSOs)
-	{
 		e.PSO->Release();
-	}
 
 	m_compiledPSOs.free();
 	m_cachedBlob.free();

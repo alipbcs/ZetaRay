@@ -50,7 +50,7 @@ void RpObjects::Clear() noexcept
 
 		}
 
-		m_psoLib.ClearnAndFlushToDisk();
+		m_psoLib.ClearAndFlushToDisk();
 		m_initFlag.store(false, std::memory_order_release);
 	}
 }

@@ -218,17 +218,15 @@ float3 LambertianBrdfDivPdf(SurfaceInteraction surfaceInteraction)
 float3 SampleLambertianBrdf(float3 shadingNormal, float2 u)
 {	
 	// build rotation quaternion that maps shading normal to y = (0, 1, 0)
-	float3 snCrossY = float3(-shadingNormal.z, 0.0f, shadingNormal.x);
-	float4 q = float4(snCrossY, 1.0f + dot(shadingNormal, float3(0.0f, 1.0f, 0.0f)));
-	//float3 snCrossZ = float3(shadingNormal.y, -shadingNormal.x, 0.0f);
-	//float4 q = float4(snCrossZ, 1.0f + dot(shadingNormal, float3(0.0f, 0.0f, 1.0f)));
+//	float3 snCrossY = float3(shadingNormal.z, 0.0f, -shadingNormal.x);
+//	float4 q = float4(snCrossY, 1.0f + dot(shadingNormal, float3(0.0f, 1.0f, 0.0f)));
+	float4 q = QuaternionFromY(shadingNormal);
 	
 	float pdf;
 	float3 wiLocal = SampleCosineWeightedHemisphere(u, pdf);
 
 	// transform wh from local space to world space
-	float4 qInverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
-	float3 wiWorld = RotateVector(wiLocal, qInverse);
+	float3 wiWorld = RotateVector(wiLocal, q);
 	
 	return wiWorld;
 }

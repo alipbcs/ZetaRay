@@ -41,15 +41,15 @@ float4 ComputeLinearDepthReverseZ(float4 zNDC, float near)
 	return near / zNDC;
 }
 
-float2 NDCFromTextureSpace(float2 posTS)
+float2 NDCFromUV(float2 uv)
 {
-	float2 posNDC = posTS * 2.0f - 1.0f;
+	float2 posNDC = uv * 2.0f - 1.0f;
 	posNDC.y = -posNDC.y;
 	
 	return posNDC;
 }
 
-float2 TextureSpaceFromNDC(float2 posNDC)
+float2 UVFromNDC(float2 posNDC)
 {
 	float x = 0.5f * posNDC.x + 0.5f;
 	float y = -0.5f * posNDC.y + 0.5f;
@@ -66,18 +66,18 @@ float2 ScreenSpaceFromNDC(float2 posNDC, float2 screenDim)
 	return posSS;
 }
 
-float2 TextureSpaceFromScreenSpace(uint2 posSS, float2 screenDim)
+float2 UVFromScreenSpace(uint2 posSS, float2 screenDim)
 {
-	float2 posTS = float2(posSS) + 0.5f;
-	posTS /= screenDim;
-
-	return posTS;
+	float2 uv = float2(posSS) + 0.5f;
+	uv /= screenDim;
+	
+	return uv;
 }
 
-float3 WorldPosFromTexturePos(float2 posTS, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv, 
+float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv, 
 	float2 jitter)
 {
-	const float2 posNDC = NDCFromTextureSpace(posTS);
+	const float2 posNDC = NDCFromUV(uv);
 	const float xView = posNDC.x * tanHalfFOV * aspectRatio - jitter.x;
 	const float yView = posNDC.y * tanHalfFOV - jitter.y;
 	float3 posW = float3(xView, yView, 1.0f) * linearDepth;
@@ -89,8 +89,8 @@ float3 WorldPosFromTexturePos(float2 posTS, float linearDepth, float tanHalfFOV,
 float3 WorldPosFromScreenSpacePos(float2 posSS, float2 screenDim, float linearDepth, float tanHalfFOV,
 	float aspectRatio, float3x4 viewInv, float2 jitter)
 {
-	const float2 posTS = TextureSpaceFromScreenSpace(posSS, screenDim);
-	const float2 posNDC = NDCFromTextureSpace(posTS);
+	const float2 uv = UVFromScreenSpace(posSS, screenDim);
+	const float2 posNDC = NDCFromUV(uv);
 	const float xView = posNDC.x * tanHalfFOV * aspectRatio - jitter.x;
 	const float yView = posNDC.y * tanHalfFOV - jitter.y;
 	float3 posW = float3(xView, yView, 1.0f) * linearDepth;
@@ -326,11 +326,100 @@ float3 GetPerpendicularVector(float3 u)
 	return cross(u, float3(xm, ym, zm));
 }
 
-// given 'w', returns a coordiante system (u, v, w)
-void CoordinateSystem(float3 w, out float3 u, out float3 v)
+// Quaternion that rotates u to v
+float4 QuaternionFromVectors(float3 u, float3 v)
 {
-	u = GetPerpendicularVector(w);
-	v = cross(w, u);
+	float unormvorm = sqrt(dot(u, u) * dot(v, v));
+	float udotv = dot(u, v);
+	float4 q;
+	
+	if (unormvorm - udotv > 1e-6 * unormvorm)
+	{
+		float3 imaginary = cross(v, u);
+		float real = udotv + unormvorm;
+		
+		q = normalize(float4(imaginary, real));
+	}
+	else
+	{
+		float3 p = GetPerpendicularVector(normalize(u));
+
+		// rotate 180/2 = 90 degrees
+		q = float4(p, 0.0f);
+		
+		// p is already normalized so no need to normalize q
+	}
+	
+	return q;
+}
+
+// Quaternion that rotates u to v
+// u and v are assumed to be normalized
+float4 QuaternionFromUnitVectors(float3 u, float3 v)
+{
+	float udotv = dot(u, v);
+	float4 q;
+	
+	// u == -v is a singularity
+	if (udotv < 1.0f - 1e-6)
+	{
+		float3 imaginary = cross(v, u);
+		float real = udotv + 1.0f;
+		q = normalize(float4(imaginary, real));
+	}
+	else
+	{
+		float3 p = GetPerpendicularVector(u);
+
+		// rotate 180/2 = 90 degrees
+		q = float4(p, 0.0f);
+		
+		// p is already normalized, so no need to normalize q
+	}
+	
+	return q;
+}
+
+// Quaternion that rotates Y to u
+// u is assumed to be normalized
+float4 QuaternionFromY(float3 u)
+{
+	float4 q;
+	float real = 1.0f + u.y;
+	
+	// u = (0, -1, 0) is a singularity
+	if (real > 1e-6)
+	{
+		// build rotation quaternion that maps y = (0, 1, 0) to u
+		float3 yCrossU = float3(u.z, 0.0f, -u.x);
+		q = float4(yCrossU, real);
+		q = normalize(q);
+	}
+	else
+	{
+		// rotate 180/2 = 90 degrees around X-axis (Z-axis works too since both are perperndicular to Y)
+		q = float4(1.0f, 0.0f, 0.0f, 0.0f);
+		
+		// no need to normalize q
+	}
+	
+	return q;
+}
+
+// rotate u using rotation quaternion q by computing q * u * q*
+// * is quaternion multiplication
+// q* is the conjugate of q
+// Ref: https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
+float3 RotateVector(float3 u, float4 q)
+{
+	float3 imaginary = q.xyz;
+	float real = q.w;
+	
+	float3 rotated = 2.0f * dot(imaginary, u) * imaginary +
+					(real * real - dot(imaginary, imaginary)) * u +
+					2.0f * real * cross(imaginary, u);
+
+	return rotated;
 }
 
 // Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
@@ -358,78 +447,6 @@ float ArcTan(float x)
 	poly = (xAbs < 1.0f) ? poly : PI_DIV_2 - poly;
 
 	return (x < 0.0f) ? -poly : poly;
-}
-
-// Computes a rotation quaternion representing rotation from u to v
-// Same as computing a rotation around axis matrix, but requires 
-// less computation
-float4 RotationQuaternionFromVectors(float3 u, float3 v)
-{
-	float unormvorm = sqrt(dot(u, u) * dot(v, v));
-	float udotv = dot(u, v);
-	float4 q;
-	
-	if (unormvorm - udotv > 1e-6 * unormvorm)
-	{
-		float3 imaginary = cross(v, u);
-		float real = udotv + unormvorm;
-		
-		q = normalize(float4(imaginary, real));
-	}
-	else
-	{
-		float3 p = GetPerpendicularVector(normalize(u));
-
-		// rotate 180/2 = 90 degrees
-		q = float4(p, 0.0f);
-		
-		// p is already normalized so no need to normalize q
-	}
-	
-	return q;
-}
-
-// u and v are assumed to be normalized
-float4 RotationQuaternionFromVectorsNormal(float3 u, float3 v)
-{
-	float udotv = dot(u, v);
-	float4 q;
-	
-	// if theta isn't almost 180
-	if (1.0f - udotv > 1e-6)
-	{
-		float3 imaginary = cross(v, u);
-		float real = udotv + 1.0f;
-		
-		q = normalize(float4(imaginary, real));
-	}
-	else
-	{
-		float3 p = GetPerpendicularVector(u);
-
-		// rotate 180/2 = 90 degrees
-		q = float4(p, 0.0f);
-		
-		// p is already normalized so no need to normalize q
-	}
-	
-	return q;
-}
-
-// rotate u using rotation quaternion q by computing q * u * q*
-// * is quaternion multiplication
-// q* is the conjugate of q
-// Ref: https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
-float3 RotateVector(float3 u, float4 q)
-{
-	float3 imaginary = q.xyz;
-	float real = q.w;
-	
-	float3 rotated = 2.0f * dot(imaginary, u) * imaginary +
-					(real * real - dot(imaginary, imaginary)) * u +
-					2.0f * real * cross(imaginary, u);
-
-	return rotated;
 }
 
 // dPdx(y) can be estimated with ddx(y)(PosW)

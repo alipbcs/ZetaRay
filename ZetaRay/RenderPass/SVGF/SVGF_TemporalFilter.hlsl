@@ -51,14 +51,14 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 float4 ComputeDepthConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos)
 {
 	float3 prevPos[4];
-	prevPos[0] = WorldPosFromTexturePos(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[1] = WorldPosFromTexturePos(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[2] = WorldPosFromTexturePos(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[3] = WorldPosFromTexturePos(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[0] = WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[1] = WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[2] = WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[3] = WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
@@ -78,14 +78,14 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color, out f
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
 	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 currPosTS = (DTid.xy + 0.5f) / screenDim;
+	const float2 currUV = (DTid.xy + 0.5f) / screenDim;
 
 	// compute pixel position corresponding to current pixel in previous frame (in texture space)
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
 	const half2 motionVec = g_motionVector[DTid.xy];
-	const float2 prevPosTS = currPosTS - motionVec;
+	const float2 prevUV = currUV - motionVec;
 
-	if (any(abs(prevPosTS) - prevPosTS))
+	if (any(abs(prevUV) - prevUV))
 		return;
 	
 	// offset of prevPixelPos from surrounding pixels
@@ -94,7 +94,7 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color, out f
 	//	|--prev-------|
 	//	|-------------|
 	//	p2-----------p3
-	const float2 f = prevPosTS * screenDim;
+	const float2 f = prevUV * screenDim;
 	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / screenDim;
@@ -131,8 +131,8 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color, out f
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float currLinearDepth = ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
 
-	const float3 currPos = WorldPosFromTexturePos(currPosTS, currLinearDepth, g_frame.TanHalfFOV,
-		g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+	const float3 currPos = WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;

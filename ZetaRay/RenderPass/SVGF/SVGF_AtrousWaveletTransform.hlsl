@@ -30,8 +30,8 @@ ConstantBuffer<cbFrameConstants> g_frame: register(b1);
 
 float GeometryWeight(float sampleDepth, float2 sampleUV, float3 currNormal, float3 currPos)
 {
-	float3 samplePos = WorldPosFromTexturePos(sampleUV, sampleDepth, g_frame.TanHalfFOV,
-		g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+	float3 samplePos = WorldPosFromUV(sampleUV, sampleDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+		g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	float planeDist = dot(currNormal, samplePos - currPos);
 	float weight = saturate(1.0f - abs(planeDist) / g_local.MaxPlaneDist);
@@ -83,7 +83,7 @@ void Filter(in int16_t2 DTid, in float3 integratedColor, in float integratedLum,
 	RWTexture2D<uint4> g_integratedTemporalCache = ResourceDescriptorHeap[g_local.IntegratedTemporalCacheDescHeapIdx];
 
 	const float2 uv = (DTid + 0.5f) / renderDim;
-	const float3 pos = WorldPosFromTexturePos(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+	const float3 pos = WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	[unroll]
 	for (int16_t y = 0; y < k_kernelWidth; y++)

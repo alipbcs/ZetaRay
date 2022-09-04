@@ -10,7 +10,7 @@
 #include "Common.hlsli"
 #include "LightSourceData.h"
 #include "Material.h"
-#include "SamplingTransformations.hlsli"
+#include "Sampling.hlsli"
 #include "StaticTextureSamplers.hlsli"
 
 //--------------------------------------------------------------------------------------

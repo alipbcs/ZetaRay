@@ -4,7 +4,7 @@
 #include "../Common/LightSourceFuncs.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 #include "../Common/RT.hlsli"
-#include "../Common/Sampler.hlsli"
+#include "../Common/Sampling.hlsli"
 #include "Sky_Common.h"
 
 //--------------------------------------------------------------------------------------

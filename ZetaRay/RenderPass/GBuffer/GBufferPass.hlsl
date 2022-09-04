@@ -175,8 +175,8 @@ GBUFFER_OUT mainPS(VSOut psin)
 	currUnjitteredPosNDC -= g_frame.CurrCameraJitter;
 
 	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
-	float2 prevPosTS = TextureSpaceFromNDC(prevUnjitteredPosNDC);
-	float2 currPosTS = TextureSpaceFromNDC(currUnjitteredPosNDC);
+	float2 prevPosTS = UVFromNDC(prevUnjitteredPosNDC);
+	float2 currPosTS = UVFromNDC(currUnjitteredPosNDC);
 	float2 motionVecTS = currPosTS - prevPosTS;
 
 	// eq. (31) in Ray Tracing Gems 1, ch. 20

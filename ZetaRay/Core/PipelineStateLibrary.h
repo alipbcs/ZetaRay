@@ -19,7 +19,7 @@ namespace ZetaRay::Core
 		void Init(const char* name) noexcept;
 		
 		// Warning: Shouldn't be called while the GPU is still referencing the contained PSOs
-		void ClearnAndFlushToDisk() noexcept;
+		void ClearAndFlushToDisk() noexcept;
 
 		// Warning: Calling Reload for RenderPasses that have more than one instance will lead
 		// to use-after-free bug
