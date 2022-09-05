@@ -15,8 +15,6 @@ struct cbFinalPass
 	uint_ DisplayMetalnessRoughness;
 	uint_ DisplayMotionVec;
 	uint_ DisplayIndirectDiffuse;
-	uint_ DisplaySvgfSpatialVariance;
-	uint_ DisplaySvgfTemporalCache;
 	uint_ DisplayStadTemporalCache;
 	uint_ DoTonemapping;
 	uint_ VisualizeOcclusion;

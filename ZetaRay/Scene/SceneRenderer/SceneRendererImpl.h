@@ -17,7 +17,6 @@
 #include "../../RenderPass/Final/FinalPass.h"
 #include "../../RenderPass/GUI/GuiPass.h"
 #include "../../RenderPass/Sky/Sky.h"
-#include "../../RenderPass/SVGF/SVGF.h"
 #include "../../RenderPass/STAD/STAD.h"
 #include "../../RayTracing/RtAccelerationStructure.h"
 #include "../../RayTracing/Sampler.h"
@@ -31,7 +30,7 @@ using Data = ZetaRay::Scene::SceneRenderer::PrivateData;
 
 namespace ZetaRay::Scene
 {
-	inline static const char* Denoisers[] = { "None", "SVGF", "STAD" };
+	inline static const char* Denoisers[] = { "None", "STAD" };
 	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "FSR 2.0 (Quality)" };
 
 	struct alignas(64) RenderSettings
@@ -178,16 +177,12 @@ namespace ZetaRay::Scene
 		RenderPass::IndirectDiffuse IndirectDiffusePass;
 		Core::RenderNodeHandle IndirectDiffuseHandle;
 
-		RenderPass::SVGF SvgfPass;
-		Core::RenderNodeHandle SvgfHandle;
-		
 		RenderPass::STAD StadPass;
 		Core::RenderNodeHandle StadHandle;
 
 		// Descriptors
 		enum DESC_TABLE
 		{
-			SPATIAL_VAR,
 			TEMPORAL_CACHE,
 			INDIRECT_LI,
 			COUNT

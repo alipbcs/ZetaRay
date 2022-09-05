@@ -113,9 +113,8 @@ namespace ZetaRay::RenderPass
 			static constexpr float BilinearMaxPlaneDist = 0.1f;
 			static constexpr float BilinearNormalScale = 1.4f;
 			static constexpr float BilinearNormalExp = 16.0f;
-			static constexpr float MinConsistentWeight = 1e-3f;
 			static constexpr float EdgeStoppingMaxPlaneDist = 3.0f;
-			static constexpr float EdgeStoppingNormalExp = 16.0f;
+			static constexpr float EdgeStoppingNormalExp = 8.0f;
 			static constexpr float FilterRadiusBase = 5e-2f;
 			static constexpr float FilterRadiusScale = 1.0f;
 		};

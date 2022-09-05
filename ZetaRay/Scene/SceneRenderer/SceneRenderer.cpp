@@ -393,8 +393,6 @@ void SceneRenderer::SetIndierctDiffuseDenoiser(const ParamVariant& p) noexcept
 
 	if (u == DENOISER::NONE)
 		m_data->m_settings.IndirectDiffuseDenoiser = DENOISER::NONE;
-	else if (u == DENOISER::SVGF)
-		m_data->m_settings.IndirectDiffuseDenoiser = m_data->m_settings.RTIndirectDiffuse ? DENOISER::SVGF : DENOISER::NONE;
 	else if (u == DENOISER::STAD)
 		m_data->m_settings.IndirectDiffuseDenoiser = m_data->m_settings.RTIndirectDiffuse ? DENOISER::STAD : DENOISER::NONE;
 }

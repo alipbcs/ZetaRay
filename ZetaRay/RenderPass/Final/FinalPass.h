@@ -35,7 +35,6 @@ namespace ZetaRay::RenderPass
 		{
 			FINAL_LIGHTING,
 			INDIRECT_DIFFUSE_LI,
-			SVGF_SPATIAL_VAR,
 			DENOISER_TEMPORAL_CACHE,
 			COUNT
 		};
@@ -95,14 +94,11 @@ namespace ZetaRay::RenderPass
 				MOTION_VECTOR,
 				DEPTH,
 				INDIRECT_DIFFUSE,
-				SVGF_SPATIAL_VAR,
-				SVGF_TEMPORAL_CACHE,
 				STAD_TEMPORAL_CACHE
 			};
 
 			inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normals",
-				"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse",
-				"SVGF_SpatialVariance", "SVGF_TemporalCache", "STAD_TemporalCache"};
+				"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse", "STAD_TemporalCache"};
 		};
 
 		cbFinalPass m_cbLocal;

@@ -53,20 +53,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		return;
 	}
 	
-	if (g_local.SvgfDenoiser)
-	{
-		// (hopefully) denoised L_ind
-		Texture2D<uint4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];
-		uint3 integratedVals = g_denoisedLind[DTid.xy].xyz;
-		float3 L_i = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
-
-		// TODO account for Fresnel
-		const float3 diffuseReflectance = baseColor.rgb;
-		float3 L_o = L_i * diffuseReflectance;
-		
-		color += L_o;
-	}
-	else if (g_local.StadDenoiser)
+	if (g_local.StadDenoiser)
 	{
 		// (hopefully) denoised L_ind
 		Texture2D<float4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];

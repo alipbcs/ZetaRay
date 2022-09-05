@@ -155,31 +155,6 @@ float4 mainPS(VSOut psin) : SV_Target
 		Texture2D<float4> g_indirectLi = ResourceDescriptorHeap[g_local.IndirectDiffuseLiDescHeapIdx];
 		color = g_indirectLi[psin.PosSS.xy].xyz;
 	}
-	else if (g_local.DisplaySvgfSpatialVariance)
-	{
-		Texture2D<half> g_var = ResourceDescriptorHeap[g_local.SVGFSpatialVarDescHeapIdx];
-		float var = g_var.SampleLevel(g_samPointClamp, uv, 0);
-		color = var.xxx;
-	}
-	else if (g_local.DisplaySvgfTemporalCache)
-	{
-		Texture2D<uint4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
-		
-		// warning: can't sample from uint textures, following is invalid when upscaling is enabled
-		uint4 integratedVals = g_temporalCache[psin.PosSS.xy].xyzw;
-		color = float3(f16tof32(integratedVals.x >> 16), f16tof32(integratedVals.y), f16tof32(integratedVals.y >> 16));
-		//color = float3(asfloat(integratedVals.x), asfloat(integratedVals.y), asfloat(integratedVals.z));
-
-		if (g_local.VisualizeOcclusion)
-			color.r += asfloat(integratedVals.w);
-		
-//		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-//			GBUFFER_OFFSET::BASE_COLOR];
-//		color = g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz;
-//		color *= 0.5f;
-//		float f = asfloat(integratedVals.w);
-//		color.r += 1 - f;
-	}
 	else if (g_local.DisplayStadTemporalCache)
 	{
 		Texture2D<float4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];

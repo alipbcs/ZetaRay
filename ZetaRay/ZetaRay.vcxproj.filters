@@ -41,9 +41,6 @@
     <Filter Include="RenderPass\Common">
       <UniqueIdentifier>{f563901c-5d7f-4fbf-adc0-9c75c29712ce}</UniqueIdentifier>
     </Filter>
-    <Filter Include="RenderPass\SVGF">
-      <UniqueIdentifier>{16c02b3c-cee4-4cb7-aee8-f91fd34a726f}</UniqueIdentifier>
-    </Filter>
     <Filter Include="RenderPass\IndirectDiffuse">
       <UniqueIdentifier>{fc9a0c26-f9fa-4072-b25f-f4c50e3cb20c}</UniqueIdentifier>
     </Filter>
@@ -171,9 +168,6 @@
     </ClCompile>
     <ClCompile Include="RenderPass\Compositing\Compositing.cpp">
       <Filter>RenderPass\Compositing</Filter>
-    </ClCompile>
-    <ClCompile Include="RenderPass\SVGF\SVGF.cpp">
-      <Filter>RenderPass\SVGF</Filter>
     </ClCompile>
     <ClCompile Include="RenderPass\IndirectDiffuse\IndirectDiffuse.cpp">
       <Filter>RenderPass\IndirectDiffuse</Filter>
@@ -396,9 +390,6 @@
     <ClInclude Include="RenderPass\Compositing\Compositing_Common.h">
       <Filter>RenderPass\Compositing</Filter>
     </ClInclude>
-    <ClInclude Include="RenderPass\SVGF\SVGF.h">
-      <Filter>RenderPass\SVGF</Filter>
-    </ClInclude>
     <ClInclude Include="RenderPass\Common\FrameConstants.h">
       <Filter>RenderPass\Common</Filter>
     </ClInclude>
@@ -516,9 +507,6 @@
     <ClInclude Include="SupportSystem\Stat.h">
       <Filter>SupportSystem</Filter>
     </ClInclude>
-    <ClInclude Include="RenderPass\SVGF\SVGF_Common.h">
-      <Filter>RenderPass\SVGF</Filter>
-    </ClInclude>
     <ClInclude Include="RenderPass\FSR2\FSR2.h">
       <Filter>RenderPass\FSR2</Filter>
     </ClInclude>
@@ -574,15 +562,6 @@
     <CustomBuild Include="RenderPass\Compositing\Compositing.hlsl">
       <Filter>RenderPass\Compositing</Filter>
     </CustomBuild>
-    <CustomBuild Include="RenderPass\SVGF\SVGF_TemporalFilter.hlsl">
-      <Filter>RenderPass\SVGF</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\SVGF\SVGF_SpatialVariance.hlsl">
-      <Filter>RenderPass\SVGF</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\SVGF\SVGF_AtrousWaveletTransform.hlsl">
-      <Filter>RenderPass\SVGF</Filter>
-    </CustomBuild>
     <CustomBuild Include="RenderPass\PathTracer\PathTracer_Inline.hlsl">
       <Filter>RenderPass\PathTracer</Filter>
     </CustomBuild>
@@ -600,9 +579,6 @@
     </CustomBuild>
     <CustomBuild Include="RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl">
       <Filter>RenderPass\IndirectDiffuse</Filter>
-    </CustomBuild>
-    <CustomBuild Include="RenderPass\SVGF\SVGF_GaussianFilter.hlsl">
-      <Filter>RenderPass\SVGF</Filter>
     </CustomBuild>
     <CustomBuild Include="RenderPass\Sky\Inscattering.hlsl">
       <Filter>RenderPass\Sky</Filter>

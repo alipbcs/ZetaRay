@@ -407,17 +407,7 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 
-		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
-		{
-			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ?
-				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B :
-				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A;
-
-			renderGraph.AddInput(lightManagerData.CompositingHandle,
-				rayTracerData.SvgfPass.GetOutput(temporalCacheIdx).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-		}
-		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			renderGraph.AddInput(lightManagerData.CompositingHandle,
 				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),

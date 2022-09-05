@@ -72,8 +72,6 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	m_cbLocal.DisplayNormals = false;
 	m_cbLocal.DisplayMotionVec = false;
 	m_cbLocal.DisplayIndirectDiffuse = false;
-	m_cbLocal.DisplaySvgfSpatialVariance = false;
-	m_cbLocal.DisplaySvgfTemporalCache = false;
 	m_cbLocal.DisplayStadTemporalCache = false;
 	m_cbLocal.DoTonemapping = true;
 
@@ -134,7 +132,6 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	Assert(m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING] > 0, "Gpu Desc Idx hasn't been set.");
 	m_cbLocal.InputDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING];
 	m_cbLocal.IndirectDiffuseLiDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI];
-	m_cbLocal.SVGFSpatialVarDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::SVGF_SPATIAL_VAR];
 	m_cbLocal.DenoiserTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE];
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
@@ -170,8 +167,6 @@ void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 	m_cbLocal.DisplayNormals = false;
 	m_cbLocal.DisplayMotionVec = false;
 	m_cbLocal.DisplayIndirectDiffuse = false;
-	m_cbLocal.DisplaySvgfSpatialVariance = false;
-	m_cbLocal.DisplaySvgfTemporalCache = false;
 	m_cbLocal.DisplayStadTemporalCache = false;
 
 	if (curr == DefaultParamVals::BASE_COLOR)
@@ -186,10 +181,6 @@ void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 		m_cbLocal.DisplayMotionVec = true;
 	else if (curr == DefaultParamVals::INDIRECT_DIFFUSE)
 		m_cbLocal.DisplayIndirectDiffuse = true;
-	else if (curr == DefaultParamVals::SVGF_SPATIAL_VAR)
-		m_cbLocal.DisplaySvgfSpatialVariance = true;
-	else if (curr == DefaultParamVals::SVGF_TEMPORAL_CACHE)
-		m_cbLocal.DisplaySvgfTemporalCache = true;
 	else if (curr == DefaultParamVals::STAD_TEMPORAL_CACHE)
 		m_cbLocal.DisplayStadTemporalCache = true;
 }

@@ -104,7 +104,6 @@ namespace ZetaRay::Scene::Settings
 	enum class DENOISER
 	{
 		NONE,
-		SVGF,
 		STAD,
 		COUNT
 	};

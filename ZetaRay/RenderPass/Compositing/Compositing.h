@@ -32,21 +32,7 @@ namespace ZetaRay::RenderPass
 		void SetInscatteringEnablement(bool b) { m_localCB.AccumulateInscattering = b; }
 		void SetIndirectDiffusDenoiser(Scene::Settings::DENOISER d) 
 		{ 
-			if (d == Scene::Settings::DENOISER::NONE)
-			{
-				m_localCB.SvgfDenoiser = 0;
-				m_localCB.StadDenoiser = 0;
-			}
-			else if (d == Scene::Settings::DENOISER::SVGF)
-			{
-				m_localCB.SvgfDenoiser = 1;
-				m_localCB.StadDenoiser = 0;
-			}
-			else if (d == Scene::Settings::DENOISER::STAD)
-			{
-				m_localCB.SvgfDenoiser = 0;
-				m_localCB.StadDenoiser = 1;
-			}
+			m_localCB.StadDenoiser = (d == Scene::Settings::DENOISER::STAD);
 		}
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_localCB.VoxelGridNearZ = zNear, m_localCB.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_localCB.DepthMappingExp = p; }

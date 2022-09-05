@@ -185,14 +185,7 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
-		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
-		{
-			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
-				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
-			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::SVGF_SPATIAL_VAR,
-				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_VAR));
-		}		
-		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
 				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
@@ -371,21 +364,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
-		{
-			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ? 
-				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B : 
-				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A;
-
-			renderGraph.AddInput(postData.FinalHandle,
-				rayTracerData.SvgfPass.GetOutput(temporalCacheIdx).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(postData.FinalHandle,
-				rayTracerData.SvgfPass.GetOutput(SVGF::SHADER_OUT_RES::SPATIAL_VAR).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-		}
-		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			renderGraph.AddInput(postData.FinalHandle,
 				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),

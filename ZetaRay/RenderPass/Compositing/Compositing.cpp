@@ -55,7 +55,6 @@ void Compositing::Init() noexcept
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
 
-	m_localCB.SvgfDenoiser = 0;
 	m_localCB.StadDenoiser = 0;
 	m_localCB.AccumulateInscattering = false;
 
