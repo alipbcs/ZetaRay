@@ -18,6 +18,7 @@
 #include "../../RenderPass/GUI/GuiPass.h"
 #include "../../RenderPass/Sky/Sky.h"
 #include "../../RenderPass/SVGF/SVGF.h"
+#include "../../RenderPass/STAD/STAD.h"
 #include "../../RayTracing/RtAccelerationStructure.h"
 #include "../../RayTracing/Sampler.h"
 #include "../../RenderPass/FSR2/FSR2.h"
@@ -30,14 +31,16 @@ using Data = ZetaRay::Scene::SceneRenderer::PrivateData;
 
 namespace ZetaRay::Scene
 {
+	inline static const char* Denoisers[] = { "None", "SVGF", "STAD" };
+	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "FSR 2.0 (Quality)" };
+
 	struct alignas(64) RenderSettings
 	{
 		bool SunLighting = true;
 		bool Inscattering = false;
 		bool RTIndirectDiffuse = true;
-		bool DenoiseIndirectDiffuse = false;
-		bool TAA = false;
-		bool Fsr2 = false;
+		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::STAD;
+		Settings::AA AntiAliasing = Settings::AA::NATIVE;
 	};
 
 	struct alignas(64) GBufferRendererData
@@ -126,16 +129,16 @@ namespace ZetaRay::Scene
 
 		// Render Passes
 		RenderPass::SunLight SunLightPass;
-		Core::RenderNodeHandle SunLightPassHandle;
+		Core::RenderNodeHandle SunLightHandle;
 
 		RenderPass::SkyDome SkyDomePass;
-		Core::RenderNodeHandle SkyDomePassHandle;
+		Core::RenderNodeHandle SkyDomeHandle;
 
-		RenderPass::Compositing CompositPass;
-		Core::RenderNodeHandle CompositPassHandle;
+		RenderPass::Compositing CompositingPass;
+		Core::RenderNodeHandle CompositingHandle;
 
 		RenderPass::Sky SkyPass;
-		Core::RenderNodeHandle SkyPassHandle;
+		Core::RenderNodeHandle SkyHandle;
 	};
 
 	struct alignas(64) PostProcessData
@@ -143,18 +146,17 @@ namespace ZetaRay::Scene
 		// Render Passes
 		RenderPass::TAA TaaPass;
 		Core::RenderNodeHandle TaaHandle;
-
 		RenderPass::FSR2Pass Fsr2Pass;
-		Core::RenderNodeHandle Fsr2PassHandle;
+		Core::RenderNodeHandle Fsr2Handle;
 
 		RenderPass::LuminanceReduction LumReductionPass;
-		Core::RenderNodeHandle LumReductionPassHandle;
+		Core::RenderNodeHandle LumReductionHandle;
 
 		RenderPass::FinalPass FinalDrawPass;
-		Core::RenderNodeHandle FinalPassHandle;
+		Core::RenderNodeHandle FinalHandle;
 
-		RenderPass::GuiPass ImGuiPass;
-		Core::RenderNodeHandle ImGuiPassHandle;
+		RenderPass::GuiPass GuiPass;
+		Core::RenderNodeHandle GuiHandle;
 
 		// Descriptors
 		Core::DescriptorTable TaaOrFsr2OutSRV;
@@ -171,13 +173,16 @@ namespace ZetaRay::Scene
 		RT::Sampler RtSampler;
 
 		// Render Passes
-		Core::RenderNodeHandle RtASBuildPassHandle;
+		Core::RenderNodeHandle RtASBuildHandle;
 
 		RenderPass::IndirectDiffuse IndirectDiffusePass;
-		Core::RenderNodeHandle IndirectDiffusePassHandle;
+		Core::RenderNodeHandle IndirectDiffuseHandle;
 
-		RenderPass::SVGF SVGF_Pass;
-		Core::RenderNodeHandle SVGF_PassHandle;
+		RenderPass::SVGF SvgfPass;
+		Core::RenderNodeHandle SvgfHandle;
+		
+		RenderPass::STAD StadPass;
+		Core::RenderNodeHandle StadHandle;
 
 		// Descriptors
 		enum DESC_TABLE
@@ -201,6 +206,8 @@ namespace ZetaRay::Scene
 		PostProcessData m_postProcessorData;
 		RayTracerData m_raytracerData;
 	};
+
+	static constexpr int q = sizeof(SceneRenderer::PrivateData);
 }
 
 //--------------------------------------------------------------------------------------
@@ -251,10 +258,11 @@ namespace ZetaRay::Scene::LightManager
 namespace ZetaRay::Scene::RayTracer
 {
 	void Init(const RenderSettings& settings, RayTracerData& data) noexcept;
-	void CreateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Shutdown(RayTracerData& data) noexcept;
 
+	void UpdateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept;
+	void UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Update(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph) noexcept;
 	void DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, RayTracerData& rtData, 
@@ -268,16 +276,16 @@ namespace ZetaRay::Scene::RayTracer
 namespace ZetaRay::Scene::PostProcessor
 {
 	void Init(const RenderSettings& settings, PostProcessData& postData, const LightManagerData& lightManagerData) noexcept;
-	void UpdateDescriptors(const RenderSettings& settings, const LightManagerData& lightManagerData, 
-		PostProcessData& postData) noexcept;	
-	void UpdatePasses(const RenderSettings& settings, PostProcessData& postData) noexcept;
 	void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data, 
 		const LightManagerData& lightManagerData) noexcept;
 	void Shutdown(PostProcessData& data) noexcept;
 
-	void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph) noexcept;
+	void UpdateDescriptors(const RenderSettings& settings, const LightManagerData& lightManagerData, 
+		PostProcessData& postData) noexcept;	
+	void UpdatePasses(const RenderSettings& settings, PostProcessData& postData) noexcept;
 	void Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, const LightManagerData& lightManagerData, 
 		const RayTracerData& rayTracerData, PostProcessData& data) noexcept;
+	void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph) noexcept;
 	void DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, const LightManagerData& lightManagerData,
 		const RayTracerData& rayTracerData, PostProcessData& postData, Core::RenderGraph& renderGraph) noexcept;
 }

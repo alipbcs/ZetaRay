@@ -12,6 +12,7 @@ using namespace ZetaRay::Scene;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Scene::Settings;
 
 void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postData, const LightManagerData& lightManagerData) noexcept
 {
@@ -41,9 +42,9 @@ void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postDa
 		postData.FinalDrawPass.Init(psoDesc);
 	}
 
-	// UI
+	// GUI
 	{
-		postData.ImGuiPass.Init();
+		postData.GuiPass.Init();
 
 		postData.HdrLightAccumSRV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
 		postData.HdrLightAccumRTV = App::GetRenderer().GetRtvDescriptorHeap().Allocate(1);
@@ -56,17 +57,15 @@ void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postDa
 void PostProcessor::UpdateDescriptors(const RenderSettings& settings, const LightManagerData& lightManagerData, 
 	PostProcessData& postData) noexcept
 {
-	if (settings.Fsr2)
+	if (settings.AntiAliasing == AA::FSR2)
 	{
-		//LOG("PostProcessor::UpdateDescriptors");
-
 		const Texture& upscaled = postData.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
 		Assert(upscaled.IsInitialized(), "Upscaled output hasn't been initialized.");
 		Assert(!postData.TaaOrFsr2OutSRV.IsEmpty(), "Empty desc. table.");
 
 		CreateTexture2DSRV(upscaled, postData.TaaOrFsr2OutSRV.CPUHandle(0));
 	}
-	else if (settings.TAA)
+	else if (settings.AntiAliasing == AA::NATIVE_TAA)
 	{
 		const int outIdx = App::GetRenderer().CurrOutIdx();
 
@@ -79,19 +78,19 @@ void PostProcessor::UpdateDescriptors(const RenderSettings& settings, const Ligh
 
 void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData& postData) noexcept
 {
-	if (!settings.Fsr2 && postData.Fsr2Pass.IsInitialized())
+	if (settings.AntiAliasing != AA::FSR2 && postData.Fsr2Pass.IsInitialized())
 	{
 		postData.Fsr2Pass.Reset();
 		postData.TaaOrFsr2OutSRV.Reset();
 	}
 
-	if (!settings.TAA && postData.TaaPass.IsInitialized())
+	if (settings.AntiAliasing != AA::NATIVE_TAA && postData.TaaPass.IsInitialized())
 	{
 		postData.TaaPass.Reset();
 		postData.TaaOrFsr2OutSRV.Reset();
 	}
 
-	if (settings.TAA)
+	if (settings.AntiAliasing == AA::NATIVE_TAA)
 	{
 		if(!postData.TaaPass.IsInitialized())
 			postData.TaaPass.Init();
@@ -99,7 +98,7 @@ void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData
 		if(postData.TaaOrFsr2OutSRV.IsEmpty())
 			postData.TaaOrFsr2OutSRV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
 	}
-	else if (settings.Fsr2)
+	else if (settings.AntiAliasing == AA::FSR2)
 	{
 		if(!postData.Fsr2Pass.IsInitialized())
 			postData.Fsr2Pass.Init();
@@ -112,9 +111,9 @@ void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData
 void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& postData, 
 	const LightManagerData& lightManagerData) noexcept
 {
-	if (settings.TAA)
+	if (settings.AntiAliasing == AA::NATIVE_TAA)
 		postData.TaaPass.OnWindowResized();
-	else if (settings.Fsr2)
+	else if (settings.AntiAliasing == AA::FSR2)
 		postData.Fsr2Pass.OnWindowResized();
 
 	postData.LumReductionPass.OnWindowResized();
@@ -133,7 +132,8 @@ void PostProcessor::Shutdown(PostProcessData& data) noexcept
 	data.FinalDrawPass.Reset();
 	data.LumReductionPass.Reset();
 	data.TaaPass.Reset();
-	data.ImGuiPass.Reset();
+	data.Fsr2Pass.Reset();
+	data.GuiPass.Reset();
 }
 
 void PostProcessor::Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
@@ -150,14 +150,14 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 	const DefaultHeapBuffer& avgLumBuff = data.LumReductionPass.GetOutput(LuminanceReduction::SHADER_OUT_RES::AVG_LUM);
 	data.FinalDrawPass.SetBuffer(FinalPass::SHADER_IN_BUFFER_DESC::AVG_LUM, avgLumBuff.GetGpuVA());
 
-	data.ImGuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::DEPTH_BUFFER, gbuffData.DSVDescTable[outIdx].CPUHandle(0));
-	data.ImGuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::RTV, backBuffRTV);
+	data.GuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::DEPTH_BUFFER, gbuffData.DSVDescTable[outIdx].CPUHandle(0));
+	data.GuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::RTV, backBuffRTV);
 
 	// Lum Reduction
 	data.LumReductionPass.SetDescriptor(LuminanceReduction::SHADER_IN_DESC::COMPOSITED, data.HdrLightAccumSRV.GPUDesciptorHeapIndex(0));
 
 	// TAA
-	if (settings.TAA)
+	if (settings.AntiAliasing == AA::NATIVE_TAA)
 	{
 		data.TaaPass.SetDescriptor(TAA::SHADER_IN_DESC::SIGNAL, data.HdrLightAccumSRV.GPUDesciptorHeapIndex(0));
 
@@ -165,7 +165,7 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
 	}
 	// FSR2
-	else if(settings.Fsr2)
+	else if(settings.AntiAliasing == AA::FSR2)
 	{
 		data.Fsr2Pass.SetInput(FSR2Pass::SHADER_IN_RES::DEPTH, const_cast<Texture&>(gbuffData.DepthBuffer[outIdx]).GetResource());
 		data.Fsr2Pass.SetInput(FSR2Pass::SHADER_IN_RES::MOTION_VECTOR, const_cast<Texture&>(gbuffData.MotionVec).GetResource());
@@ -185,12 +185,17 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferRenderer
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
 
-		if (settings.DenoiseIndirectDiffuse)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
 		{
-			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::SVGF_TEMPORAL_CACHE,
+			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
 				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
 			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::SVGF_SPATIAL_VAR,
 				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_VAR));
+		}		
+		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		{
+			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
+				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
 		}
 	}
 }
@@ -200,7 +205,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 	if (App::GetTimer().GetTotalFrameCount() > 2)
 	{
 		// TAA
-		if (settings.TAA)
+		if (settings.AntiAliasing == AA::NATIVE_TAA)
 		{
 			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.TaaPass,
 				&TAA::Render);
@@ -214,12 +219,12 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 			renderGraph.RegisterResource(taaB.GetResource(), taaB.GetPathID());
 		}
 		// FSR2
-		else if (settings.Fsr2)
+		else if (settings.AntiAliasing == AA::FSR2)
 		{
 			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.Fsr2Pass,
 				&FSR2Pass::Render);
 
-			data.Fsr2PassHandle = renderGraph.RegisterRenderPass("FSR2", RENDER_NODE_TYPE::COMPUTE, dlg);
+			data.Fsr2Handle = renderGraph.RegisterRenderPass("FSR2", RENDER_NODE_TYPE::COMPUTE, dlg);
 
 			const Texture& upscaled = data.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
 			renderGraph.RegisterResource(const_cast<Texture&>(upscaled).GetResource(), upscaled.GetPathID());
@@ -231,7 +236,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.LumReductionPass,
 			&LuminanceReduction::Render);
 
-		data.LumReductionPassHandle = renderGraph.RegisterRenderPass("LuminanceReduction", RENDER_NODE_TYPE::COMPUTE, dlg);
+		data.LumReductionHandle = renderGraph.RegisterRenderPass("LuminanceReduction", RENDER_NODE_TYPE::COMPUTE, dlg);
 
 		DefaultHeapBuffer& avgLumBuff = data.LumReductionPass.GetOutput(LuminanceReduction::SHADER_OUT_RES::AVG_LUM);
 		renderGraph.RegisterResource(avgLumBuff.GetResource(), avgLumBuff.GetPathID());
@@ -239,18 +244,14 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 
 	// Final
 	{
-		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.FinalDrawPass,
-			&FinalPass::Render);
-
-		data.FinalPassHandle = renderGraph.RegisterRenderPass("FinalPass", RENDER_NODE_TYPE::RENDER, dlg);
+		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.FinalDrawPass, &FinalPass::Render);
+		data.FinalHandle = renderGraph.RegisterRenderPass("FinalPass", RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
 	// ImGui
 	{
-		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.ImGuiPass,
-			&GuiPass::Render);
-
-		data.ImGuiPassHandle = renderGraph.RegisterRenderPass("GuiPass", RENDER_NODE_TYPE::RENDER, dlg);
+		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.GuiPass, &GuiPass::Render);
+		data.GuiHandle = renderGraph.RegisterRenderPass("GuiPass", RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
 	// register backbuffer
@@ -270,7 +271,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 	if (App::GetTimer().GetTotalFrameCount() > 2)
 	{
 		// TAA
-		if (settings.TAA)
+		if (settings.AntiAliasing == AA::NATIVE_TAA)
 		{
 			const TAA::SHADER_OUT_RES taaCurrOutIdx = outIdx == 0 ? TAA::SHADER_OUT_RES::OUTPUT_B : TAA::SHADER_OUT_RES::OUTPUT_A;
 			const TAA::SHADER_OUT_RES taaPrevOutIdx = outIdx == 0 ? TAA::SHADER_OUT_RES::OUTPUT_A : TAA::SHADER_OUT_RES::OUTPUT_B;
@@ -300,41 +301,41 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// Final
-			renderGraph.AddInput(postData.FinalPassHandle,
+			renderGraph.AddInput(postData.FinalHandle,
 				taaCurrOut.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 		// FSR2
-		else if (settings.Fsr2)
+		else if (settings.AntiAliasing == AA::FSR2)
 		{
 			// FSR2
-			renderGraph.AddInput(postData.Fsr2PassHandle,
+			renderGraph.AddInput(postData.Fsr2Handle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(postData.Fsr2PassHandle,
+			renderGraph.AddInput(postData.Fsr2Handle,
 				lightManagerData.HdrLightAccumTex.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(postData.Fsr2PassHandle,
+			renderGraph.AddInput(postData.Fsr2Handle,
 				gbuffData.MotionVec.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			// TODO find a better way to do this
 			// make FSR2 dependant on compositing
-			renderGraph.AddInput(postData.Fsr2PassHandle,
+			renderGraph.AddInput(postData.Fsr2Handle,
 				RenderGraph::DUMMY_RES::RES_2,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			const Texture& upscaled = postData.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
 			Assert(upscaled.IsInitialized(), "Upscaled output hasn't been initialized.");
 
-			renderGraph.AddOutput(postData.Fsr2PassHandle,
+			renderGraph.AddOutput(postData.Fsr2Handle,
 				upscaled.GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// Final
-			renderGraph.AddInput(postData.FinalPassHandle,
+			renderGraph.AddInput(postData.Fsr2Handle,
 				upscaled.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
@@ -345,62 +346,68 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 	// lum-reduction
 	{
 		// make lum-reduction dependant on compositing
-		renderGraph.AddInput(postData.LumReductionPassHandle,
+		renderGraph.AddInput(postData.LumReductionHandle,
 			RenderGraph::DUMMY_RES::RES_2,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		renderGraph.AddInput(postData.LumReductionPassHandle,
+		renderGraph.AddInput(postData.LumReductionHandle,
 			lightManagerData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 
-		renderGraph.AddOutput(postData.LumReductionPassHandle,
+		renderGraph.AddOutput(postData.LumReductionHandle,
 			avgLumBuff.GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
 	// Final
-	renderGraph.AddInput(postData.FinalPassHandle,
+	renderGraph.AddInput(postData.FinalHandle,
 		avgLumBuff.GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 	if (settings.RTIndirectDiffuse && const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
 	{
-		renderGraph.AddInput(postData.FinalPassHandle,
+		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		if (settings.DenoiseIndirectDiffuse)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
 		{
 			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ? 
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B : 
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A;
 
-			renderGraph.AddInput(postData.FinalPassHandle,
-				rayTracerData.SVGF_Pass.GetOutput(temporalCacheIdx).GetPathID(),
+			renderGraph.AddInput(postData.FinalHandle,
+				rayTracerData.SvgfPass.GetOutput(temporalCacheIdx).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(postData.FinalPassHandle,
-				rayTracerData.SVGF_Pass.GetOutput(SVGF::SHADER_OUT_RES::SPATIAL_VAR).GetPathID(),
+			renderGraph.AddInput(postData.FinalHandle,
+				rayTracerData.SvgfPass.GetOutput(SVGF::SHADER_OUT_RES::SPATIAL_VAR).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
+		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		{
+			renderGraph.AddInput(postData.FinalHandle,
+				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}
 
-	renderGraph.AddOutput(postData.FinalPassHandle,
+	renderGraph.AddOutput(postData.FinalHandle,
 		App::GetRenderer().GetCurrBackBuffer().GetPathID(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
 
 	// For GUI-Pass
-	renderGraph.AddOutput(postData.FinalPassHandle,
+	renderGraph.AddOutput(postData.FinalHandle,
 		RenderGraph::DUMMY_RES::RES_1,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// ImGui, due to blending, it should go last
-	renderGraph.AddInput(postData.ImGuiPassHandle,
+	renderGraph.AddInput(postData.GuiHandle,
 		RenderGraph::DUMMY_RES::RES_1,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	renderGraph.AddOutput(postData.ImGuiPassHandle,
+	renderGraph.AddOutput(postData.GuiHandle,
 		App::GetRenderer().GetCurrBackBuffer().GetPathID(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
 }

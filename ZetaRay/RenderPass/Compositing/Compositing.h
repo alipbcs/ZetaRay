@@ -4,6 +4,7 @@
 #include "../../Core/RootSignature.h"
 #include "../../Core/GpuMemory.h"
 #include "Compositing_Common.h"
+#include "../../Scene/SceneRenderer/SceneRenderer.h"
 
 namespace ZetaRay::Core
 {
@@ -29,7 +30,24 @@ namespace ZetaRay::RenderPass
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
 		void Reset() noexcept;
 		void SetInscatteringEnablement(bool b) { m_localCB.AccumulateInscattering = b; }
-		void SetIndirectDiffuseEnablement(bool b) { m_localCB.UseDenoised = b; }
+		void SetIndirectDiffusDenoiser(Scene::Settings::DENOISER d) 
+		{ 
+			if (d == Scene::Settings::DENOISER::NONE)
+			{
+				m_localCB.SvgfDenoiser = 0;
+				m_localCB.StadDenoiser = 0;
+			}
+			else if (d == Scene::Settings::DENOISER::SVGF)
+			{
+				m_localCB.SvgfDenoiser = 1;
+				m_localCB.StadDenoiser = 0;
+			}
+			else if (d == Scene::Settings::DENOISER::STAD)
+			{
+				m_localCB.SvgfDenoiser = 0;
+				m_localCB.StadDenoiser = 1;
+			}
+		}
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_localCB.VoxelGridNearZ = zNear, m_localCB.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_localCB.DepthMappingExp = p; }
 		void SetGPUDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept

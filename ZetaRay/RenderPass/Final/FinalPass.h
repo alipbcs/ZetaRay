@@ -36,7 +36,7 @@ namespace ZetaRay::RenderPass
 			FINAL_LIGHTING,
 			INDIRECT_DIFFUSE_LI,
 			SVGF_SPATIAL_VAR,
-			SVGF_TEMPORAL_CACHE,
+			DENOISER_TEMPORAL_CACHE,
 			COUNT
 		};
 
@@ -96,12 +96,13 @@ namespace ZetaRay::RenderPass
 				DEPTH,
 				INDIRECT_DIFFUSE,
 				SVGF_SPATIAL_VAR,
-				SVGF_TEMPORAL_CACHE
+				SVGF_TEMPORAL_CACHE,
+				STAD_TEMPORAL_CACHE
 			};
 
 			inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normals",
 				"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse",
-				"SVGF_SpatialVariance", "SVGF_TemporalCache" };
+				"SVGF_SpatialVariance", "SVGF_TemporalCache", "STAD_TemporalCache"};
 		};
 
 		cbFinalPass m_cbLocal;
@@ -111,8 +112,9 @@ namespace ZetaRay::RenderPass
 
 		// parameter callbacks
 		void DoTonemappingCallback(const Support::ParamVariant& p) noexcept;
+		void VisualizeOcclusionCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeRenderOptionCallback(const Support::ParamVariant& p) noexcept;
-		void KeyValueCallback(const Support::ParamVariant& p) noexcept;
+		//void KeyValueCallback(const Support::ParamVariant& p) noexcept;
 
 		// shader hot-reload
 		void ReloadShaders() noexcept;

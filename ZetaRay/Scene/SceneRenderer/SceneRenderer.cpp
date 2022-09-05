@@ -9,6 +9,7 @@
 #include "../../Math/MatrixFuncs.h"
 
 using namespace ZetaRay::Scene;
+using namespace ZetaRay::Scene::Settings;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
@@ -103,11 +104,6 @@ void SceneRenderer::Init() noexcept
 
 	// render settings
 	{
-		ParamVariant enableTAA;
-		enableTAA.InitBool("Renderer", "Settings", "TAA", fastdelegate::MakeDelegate(this, &SceneRenderer::SetTAAEnablement),
-			false);
-		App::AddParam(enableTAA);
-
 		ParamVariant enableIndirectDiffuse;
 		enableIndirectDiffuse.InitBool("Renderer", "Settings", "RaytracedIndirectDiffuse",
 			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndirectDiffuseEnablement),
@@ -115,9 +111,9 @@ void SceneRenderer::Init() noexcept
 		App::AddParam(enableIndirectDiffuse);
 
 		ParamVariant enableDenoiser;
-		enableDenoiser.InitBool("Renderer", "Settings", "IndirectDiffuseDenoiser",
-			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiserEnablement),
-			m_data->m_settings.DenoiseIndirectDiffuse);
+		enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
+			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
+			Denoisers, ArraySize(Denoisers), (int)DENOISER::STAD);
 		App::AddParam(enableDenoiser);
 
 		ParamVariant enableInscattering;
@@ -127,8 +123,8 @@ void SceneRenderer::Init() noexcept
 		App::AddParam(enableInscattering);
 
 		ParamVariant p6;
-		p6.InitEnum("Renderer", "Settings", "Upscaling", fastdelegate::MakeDelegate(this, &SceneRenderer::SetUpscalingMethod),
-			UpscalingOptions, sizeof(UpscalingOptions) / sizeof(const char*), Upscaling::NATIVE);
+		p6.InitEnum("Renderer", "Settings", "Upscaling/AA", fastdelegate::MakeDelegate(this, &SceneRenderer::SetAA),
+			AAOptions, ArraySize(AAOptions), (int) AA::NATIVE);
 		App::AddParam(p6);
 	}
 
@@ -384,20 +380,23 @@ void SceneRenderer::OnWindowSizeChanged() noexcept
 	m_renderGraph.Reset();
 }
 
-void SceneRenderer::SetTAAEnablement(const ParamVariant& p) noexcept
-{
-	Check(!m_data->m_settings.Fsr2, "TAA & FSR2 can't be enabled at the same time.");
-	m_data->m_settings.TAA = p.GetBool();
-}
-
 void SceneRenderer::SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept
 {
 	m_data->m_settings.RTIndirectDiffuse = p.GetBool();
 }
 
-void SceneRenderer::SetIndierctDiffuseDenoiserEnablement(const ParamVariant& p) noexcept
+void SceneRenderer::SetIndierctDiffuseDenoiser(const ParamVariant& p) noexcept
 {
-	m_data->m_settings.DenoiseIndirectDiffuse = m_data->m_settings.RTIndirectDiffuse && p.GetBool();
+	const int e = p.GetEnum().m_curr;
+	Assert(e < (int)DENOISER::COUNT, "invalid enum value");
+	const DENOISER u = (DENOISER) e;
+
+	if (u == DENOISER::NONE)
+		m_data->m_settings.IndirectDiffuseDenoiser = DENOISER::NONE;
+	else if (u == DENOISER::SVGF)
+		m_data->m_settings.IndirectDiffuseDenoiser = m_data->m_settings.RTIndirectDiffuse ? DENOISER::SVGF : DENOISER::NONE;
+	else if (u == DENOISER::STAD)
+		m_data->m_settings.IndirectDiffuseDenoiser = m_data->m_settings.RTIndirectDiffuse ? DENOISER::STAD : DENOISER::NONE;
 }
 
 void SceneRenderer::SetInscatteringEnablement(const ParamVariant& p) noexcept
@@ -405,37 +404,55 @@ void SceneRenderer::SetInscatteringEnablement(const ParamVariant& p) noexcept
 	m_data->m_settings.Inscattering = p.GetBool();
 }
 
-void SceneRenderer::SetUpscalingMethod(const ParamVariant& p) noexcept
+void SceneRenderer::SetAA(const ParamVariant& p) noexcept
 {
-	int u = p.GetEnum().m_curr;
+	const int e = p.GetEnum().m_curr;
+	Assert(e < (int)AA::COUNT, "invalid enum value");
+	const AA u = (AA)e;
 
-	if (u == Upscaling::POINT)
+	if (u == AA::NATIVE)
 	{
 		// following order is important
-		m_data->m_settings.Fsr2 = false;
+		m_data->m_settings.AntiAliasing = AA::NATIVE;
 
 		if (m_data->m_postProcessorData.Fsr2Pass.IsInitialized())
 			m_data->m_postProcessorData.Fsr2Pass.Reset();
 
-		App::SetUpscalingEnablement(true);
-	}
-	else if (u == Upscaling::FSR2)
-	{
-		Check(!m_data->m_settings.TAA, "TAA & FSR2 can't be enabled at the same time.");
+		if (m_data->m_postProcessorData.TaaPass.IsInitialized())
+			m_data->m_postProcessorData.TaaPass.Reset();
 
-		// following order is important
-		App::SetUpscalingEnablement(true);
-		m_data->m_settings.Fsr2 = true;
+		App::SetUpscalingEnablement(false);
 	}
-	else if (u == Upscaling::NATIVE)
+	else if (u == AA::POINT)
 	{
 		// following order is important
-		m_data->m_settings.Fsr2 = false;
+		m_data->m_settings.AntiAliasing = AA::POINT;
 
+		if (m_data->m_postProcessorData.Fsr2Pass.IsInitialized())
+			m_data->m_postProcessorData.Fsr2Pass.Reset();
+
+		if (m_data->m_postProcessorData.TaaPass.IsInitialized())
+			m_data->m_postProcessorData.TaaPass.Reset();
+
+		App::SetUpscalingEnablement(true);
+	}
+	else if (u == AA::FSR2)
+	{
+		// following order is important
+		if (m_data->m_postProcessorData.TaaPass.IsInitialized())
+			m_data->m_postProcessorData.TaaPass.Reset();
+
+		App::SetUpscalingEnablement(true);
+		m_data->m_settings.AntiAliasing = AA::FSR2;
+	}
+	else if (u == AA::NATIVE_TAA)
+	{
+		// following order is important
 		if (m_data->m_postProcessorData.Fsr2Pass.IsInitialized())
 			m_data->m_postProcessorData.Fsr2Pass.Reset();
 
 		App::SetUpscalingEnablement(false);
+		m_data->m_settings.AntiAliasing = AA::NATIVE_TAA;
 	}
 }
 

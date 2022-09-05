@@ -26,7 +26,8 @@ struct cbCompositing
 	// Texture3D<half4>
 	uint_ InscatteringDescHeapIdx;
 
-	uint_ UseDenoised;
+	uint_ SvgfDenoiser;
+	uint_ StadDenoiser;
 
 	uint_ AccumulateInscattering;
 	float DepthMappingExp;

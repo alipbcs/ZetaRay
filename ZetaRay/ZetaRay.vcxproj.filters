@@ -86,6 +86,9 @@
     <Filter Include="RenderPass\FSR2">
       <UniqueIdentifier>{4ca95847-9537-4dbc-9c1f-53122882b965}</UniqueIdentifier>
     </Filter>
+    <Filter Include="RenderPass\STAD">
+      <UniqueIdentifier>{81db6f38-cf2d-4ad0-a657-5d91f88f158d}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="Core\CommandList.cpp">
@@ -264,6 +267,9 @@
     </ClCompile>
     <ClCompile Include="Math\BVH.cpp">
       <Filter>Math</Filter>
+    </ClCompile>
+    <ClCompile Include="RenderPass\STAD\STAD.cpp">
+      <Filter>RenderPass\STAD</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -528,6 +534,12 @@
     <ClInclude Include="Math\BVH.h">
       <Filter>Math</Filter>
     </ClInclude>
+    <ClInclude Include="RenderPass\STAD\STAD.h">
+      <Filter>RenderPass\STAD</Filter>
+    </ClInclude>
+    <ClInclude Include="RenderPass\STAD\STAD_Common.h">
+      <Filter>RenderPass\STAD</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <None Include="RenderPass\Common\BRDF.hlsli">
@@ -542,10 +554,7 @@
     <None Include="RenderPass\Common\RT.hlsli">
       <Filter>RenderPass\Common</Filter>
     </None>
-    <None Include="RenderPass\Common\Sampler.hlsli">
-      <Filter>RenderPass\Common</Filter>
-    </None>
-    <None Include="RenderPass\Common\SamplingTransformations.hlsli">
+    <None Include="RenderPass\Common\Sampling.hlsli">
       <Filter>RenderPass\Common</Filter>
     </None>
     <None Include="RenderPass\Common\LightSourceFuncs.hlsli">
@@ -612,6 +621,12 @@
     </CustomBuild>
     <CustomBuild Include="RenderPass\GBuffer\GBufferPass.hlsl">
       <Filter>RenderPass\GBuffer</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\STAD\STAD_TemporalFilter.hlsl">
+      <Filter>RenderPass\STAD</Filter>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\STAD\STAD_AdaptiveSpatialFilter.hlsl">
+      <Filter>RenderPass\STAD</Filter>
     </CustomBuild>
   </ItemGroup>
   <ItemGroup>

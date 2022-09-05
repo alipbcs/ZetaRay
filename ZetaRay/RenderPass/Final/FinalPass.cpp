@@ -74,12 +74,13 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	m_cbLocal.DisplayIndirectDiffuse = false;
 	m_cbLocal.DisplaySvgfSpatialVariance = false;
 	m_cbLocal.DisplaySvgfTemporalCache = false;
+	m_cbLocal.DisplayStadTemporalCache = false;
 	m_cbLocal.DoTonemapping = true;
 
-	ParamVariant p6;
-	p6.InitEnum("Renderer", "Final", "Display", fastdelegate::MakeDelegate(this, &FinalPass::ChangeRenderOptionCallback),
+	ParamVariant p1;
+	p1.InitEnum("Renderer", "Final", "Display", fastdelegate::MakeDelegate(this, &FinalPass::ChangeRenderOptionCallback),
 		DefaultParamVals::RenderOptions, sizeof(DefaultParamVals::RenderOptions) / sizeof(const char*), 0);
-	App::AddParam(p6);
+	App::AddParam(p1);
 
 	/*
 	ParamVariant p0;
@@ -95,6 +96,11 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	p5.InitBool("Renderer", "Settings", "Tonemapping", fastdelegate::MakeDelegate(this, &FinalPass::DoTonemappingCallback),
 		m_cbLocal.DoTonemapping);
 	App::AddParam(p5);
+
+	ParamVariant p6;
+	p6.InitBool("Renderer", "Settings", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &FinalPass::VisualizeOcclusionCallback),
+		m_cbLocal.DoTonemapping);
+	App::AddParam(p6);
 
 	m_cachedPsoDesc = psoDesc;
 	App::AddShaderReloadHandler("Final", fastdelegate::MakeDelegate(this, &FinalPass::ReloadShaders));
@@ -129,7 +135,7 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	m_cbLocal.InputDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING];
 	m_cbLocal.IndirectDiffuseLiDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI];
 	m_cbLocal.SVGFSpatialVarDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::SVGF_SPATIAL_VAR];
-	m_cbLocal.SVGFTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::SVGF_TEMPORAL_CACHE];
+	m_cbLocal.DenoiserTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE];
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
 
@@ -149,6 +155,11 @@ void FinalPass::DoTonemappingCallback(const ParamVariant& p) noexcept
 	m_cbLocal.DoTonemapping = p.GetBool();
 }
 
+void FinalPass::VisualizeOcclusionCallback(const ParamVariant& p) noexcept
+{
+	m_cbLocal.VisualizeOcclusion = p.GetBool();
+}
+
 void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 {
 	int curr = p.GetEnum().m_curr;
@@ -161,6 +172,7 @@ void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 	m_cbLocal.DisplayIndirectDiffuse = false;
 	m_cbLocal.DisplaySvgfSpatialVariance = false;
 	m_cbLocal.DisplaySvgfTemporalCache = false;
+	m_cbLocal.DisplayStadTemporalCache = false;
 
 	if (curr == DefaultParamVals::BASE_COLOR)
 		m_cbLocal.DisplayBaseColor = true;
@@ -178,6 +190,8 @@ void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 		m_cbLocal.DisplaySvgfSpatialVariance = true;
 	else if (curr == DefaultParamVals::SVGF_TEMPORAL_CACHE)
 		m_cbLocal.DisplaySvgfTemporalCache = true;
+	else if (curr == DefaultParamVals::STAD_TEMPORAL_CACHE)
+		m_cbLocal.DisplayStadTemporalCache = true;
 }
 
 //void FinalPass::KeyValueCallback(const ParamVariant& p) noexcept

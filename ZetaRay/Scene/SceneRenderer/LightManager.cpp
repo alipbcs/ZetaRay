@@ -12,6 +12,7 @@ using namespace ZetaRay::Scene;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Scene::Settings;
 
 void LightManager::Init(const RenderSettings& settings, LightManagerData& data) noexcept
 {
@@ -41,7 +42,7 @@ void LightManager::Init(const RenderSettings& settings, LightManagerData& data) 
 		data.SunLightPass.Init(psoDesc);
 	}
 
-	data.CompositPass.Init();
+	data.CompositingPass.Init();
 
 	// sky dome
 	{
@@ -119,7 +120,7 @@ void LightManager::Shutdown(LightManagerData& data) noexcept
 	//data.EnvMapDescTable.Reset();
 	//data.HdrLightAccumUAV.Reset();
 	data.HdrLightAccumTex.Reset();
-	data.CompositPass.Reset();
+	data.CompositingPass.Reset();
 	data.SunLightPass.Reset();
 	data.SkyDomePass.Reset();
 	data.SkyPass.Reset();
@@ -249,35 +250,33 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
-	data.CompositPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
+	data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
 		data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
 
 	if (settings.Inscattering && tlas.IsInitialized())
 	{
-		data.CompositPass.SetInscatteringEnablement(true);
+		data.CompositingPass.SetInscatteringEnablement(true);
 
 		const float p = data.SkyPass.GetVoxelGridMappingExp();
 		float zNear;
 		float zFar;
 		data.SkyPass.GetVoxelGridDepth(zNear, zFar);
 
-		data.CompositPass.SetVoxelGridMappingExp(p);
-		data.CompositPass.SetVoxelGridDepth(zNear, zFar);
-		data.CompositPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING, 
+		data.CompositingPass.SetVoxelGridMappingExp(p);
+		data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
+		data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
 			data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
 	}
 	else
-		data.CompositPass.SetInscatteringEnablement(false);
+		data.CompositingPass.SetInscatteringEnablement(false);
 
-	if (settings.DenoiseIndirectDiffuse)
+	data.CompositingPass.SetIndirectDiffusDenoiser(settings.IndirectDiffuseDenoiser);
+	
+	if (settings.IndirectDiffuseDenoiser != DENOISER::NONE)
 	{
-		data.CompositPass.SetIndirectDiffuseEnablement(true);
-
-		data.CompositPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,
+		data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
 	}
-	else
-		data.CompositPass.SetIndirectDiffuseEnablement(false);
 }
 
 void LightManager::Register(const RenderSettings& settings, const RayTracerData& rayTracerData, 
@@ -291,7 +290,7 @@ void LightManager::Register(const RenderSettings& settings, const RayTracerData&
 	{
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyPass,
 			&Sky::Render);
-		data.SkyPassHandle = renderGraph.RegisterRenderPass("Sky",
+		data.SkyHandle = renderGraph.RegisterRenderPass("Sky",
 			RENDER_NODE_TYPE::ASYNC_COMPUTE, dlg);
 
 		if (settings.Inscattering)
@@ -309,7 +308,7 @@ void LightManager::Register(const RenderSettings& settings, const RayTracerData&
 	{
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SunLightPass,
 			&SunLight::Render);
-		data.SunLightPassHandle = renderGraph.RegisterRenderPass("SunLight",
+		data.SunLightHandle = renderGraph.RegisterRenderPass("SunLight",
 			RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
@@ -318,14 +317,14 @@ void LightManager::Register(const RenderSettings& settings, const RayTracerData&
 	{
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyDomePass,
 			&SkyDome::Render);
-		data.SkyDomePassHandle = renderGraph.RegisterRenderPass("SkyDome",
+		data.SkyDomeHandle = renderGraph.RegisterRenderPass("SkyDome",
 			RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
 	// compositing
-	fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.CompositPass,
+	fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.CompositingPass,
 		&Compositing::Render);
-	data.CompositPassHandle = renderGraph.RegisterRenderPass("Compositing",
+	data.CompositingHandle = renderGraph.RegisterRenderPass("Compositing",
 		RENDER_NODE_TYPE::COMPUTE, dlg);
 
 	// when more than one RenderPass writes to one resource, it's unclear which one should run first.
@@ -343,15 +342,15 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	if (settings.Inscattering && tlas.IsInitialized())
 	{
 		// RT-AS
-		renderGraph.AddInput(lightManagerData.SkyPassHandle,
+		renderGraph.AddInput(lightManagerData.SkyHandle,
 			const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-		renderGraph.AddOutput(lightManagerData.SkyPassHandle,
+		renderGraph.AddOutput(lightManagerData.SkyHandle,
 			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		renderGraph.AddOutput(lightManagerData.SkyPassHandle,
+		renderGraph.AddOutput(lightManagerData.SkyHandle,
 			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
@@ -360,18 +359,18 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	if (settings.SunLighting && tlas.IsInitialized())
 	{
 		// RT-AS
-		renderGraph.AddInput(lightManagerData.SunLightPassHandle,
+		renderGraph.AddInput(lightManagerData.SunLightHandle,
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 		// make sure it runs post gbuffer
-		renderGraph.AddInput(lightManagerData.SunLightPassHandle,
+		renderGraph.AddInput(lightManagerData.SunLightHandle,
 			gbuffData.BaseColor[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// other gbuffers are implied
 
-		renderGraph.AddOutput(lightManagerData.SunLightPassHandle,
+		renderGraph.AddOutput(lightManagerData.SunLightHandle,
 			lightManagerData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
@@ -380,19 +379,19 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	// make sure it runs post gbuffer
 	if (tlas.IsInitialized())
 	{
-		renderGraph.AddInput(lightManagerData.SkyDomePassHandle,
+		renderGraph.AddInput(lightManagerData.SkyDomeHandle,
 			gbuffData.BaseColor[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightManagerData.SkyDomePassHandle,
+		renderGraph.AddInput(lightManagerData.SkyDomeHandle,
 			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddOutput(lightManagerData.SkyDomePassHandle,
+		renderGraph.AddOutput(lightManagerData.SkyDomeHandle,
 			gbuffData.DepthBuffer[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-		renderGraph.AddOutput(lightManagerData.SkyDomePassHandle,
+		renderGraph.AddOutput(lightManagerData.SkyDomeHandle,
 			lightManagerData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
@@ -403,34 +402,40 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 		// sky
 		if (settings.Inscattering)
 		{
-			renderGraph.AddInput(lightManagerData.CompositPassHandle,
+			renderGraph.AddInput(lightManagerData.CompositingHandle,
 				lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 
-		if (settings.DenoiseIndirectDiffuse)
+		if (settings.IndirectDiffuseDenoiser == DENOISER::SVGF)
 		{
 			const SVGF::SHADER_OUT_RES temporalCacheIdx = outIdx == 0 ?
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_B :
 				SVGF::SHADER_OUT_RES::TEMPORAL_CACHE_COL_LUM_A;
 
-			renderGraph.AddInput(lightManagerData.CompositPassHandle,
-				rayTracerData.SVGF_Pass.GetOutput(temporalCacheIdx).GetPathID(),
+			renderGraph.AddInput(lightManagerData.CompositingHandle,
+				rayTracerData.SvgfPass.GetOutput(temporalCacheIdx).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
+		else if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		{
+			renderGraph.AddInput(lightManagerData.CompositingHandle,
+				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}
 
-	renderGraph.AddInput(lightManagerData.CompositPassHandle,
+	renderGraph.AddInput(lightManagerData.CompositingHandle,
 		lightManagerData.HdrLightAccumTex.GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	renderGraph.AddOutput(lightManagerData.CompositPassHandle,
+	renderGraph.AddOutput(lightManagerData.CompositingHandle,
 		lightManagerData.HdrLightAccumTex.GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
 	// writable to avoid a resource ransition
-	renderGraph.AddOutput(lightManagerData.CompositPassHandle, RenderGraph::DUMMY_RES::RES_2,
+	renderGraph.AddOutput(lightManagerData.CompositingHandle, RenderGraph::DUMMY_RES::RES_2,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	/*

@@ -55,11 +55,11 @@ namespace ZetaRay::Scene
 	private:
 		void UpdateFrameConstants() noexcept;
 		void RayOffset(const Support::ParamVariant& p) noexcept;
-		void SetTAAEnablement(const Support::ParamVariant& p) noexcept;
+		void SetAA(const Support::ParamVariant& p) noexcept;
 		void SetIndirectDiffuseEnablement(const Support::ParamVariant& p) noexcept;
-		void SetIndierctDiffuseDenoiserEnablement(const Support::ParamVariant& p) noexcept;
+		void SetIndierctDiffuseDenoiser(const Support::ParamVariant& p) noexcept;
 		void SetInscatteringEnablement(const Support::ParamVariant& p) noexcept;
-		void SetUpscalingMethod(const Support::ParamVariant& p) noexcept;
+		//void SetUpscalingMethod(const Support::ParamVariant& p) noexcept;
 		void ModifySunDir(const Support::ParamVariant& p) noexcept;
 		void ModifySunLux(const Support::ParamVariant& p) noexcept;
 		void ModifySunAngularRadius(const Support::ParamVariant& p) noexcept;
@@ -87,15 +87,25 @@ namespace ZetaRay::Scene
 			static constexpr float PLANET_RADIUS = 6360.0f;				// km
 			static constexpr float RAY_T_OFFSET = 5e-3;
 		};
+	};
+}
 
-		enum Upscaling
-		{
-			POINT,
-			FSR2,
-			NATIVE,
-			COUNT
-		};
+namespace ZetaRay::Scene::Settings
+{
+	enum class AA
+	{
+		NATIVE,
+		NATIVE_TAA,
+		POINT,
+		FSR2,
+		COUNT
+	};
 
-		inline static const char* UpscalingOptions[] = { "Point", "FSR 2.0 (Quality)", "Native" };
+	enum class DENOISER
+	{
+		NONE,
+		SVGF,
+		STAD,
+		COUNT
 	};
 }

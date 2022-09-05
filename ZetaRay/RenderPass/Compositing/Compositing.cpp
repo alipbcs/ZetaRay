@@ -55,7 +55,8 @@ void Compositing::Init() noexcept
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
 
-	m_localCB.UseDenoised = false;
+	m_localCB.SvgfDenoiser = 0;
+	m_localCB.StadDenoiser = 0;
 	m_localCB.AccumulateInscattering = false;
 
 	App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadShader));
@@ -67,13 +68,12 @@ void Compositing::Reset() noexcept
 	{
 		App::RemoveShaderReloadHandler("Compositing");
 		s_rpObjs.Clear();
-	}
-
-	m_pso = nullptr;
 
 #ifdef _DEBUG
-	memset(&m_localCB, 0, sizeof(m_localCB));
+		memset(&m_localCB, 0, sizeof(m_localCB));
+		m_pso = nullptr;
 #endif // _DEBUG
+	}
 }
 
 void Compositing::Render(CommandList& cmdList) noexcept

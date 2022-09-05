@@ -17,11 +17,13 @@ struct cbFinalPass
 	uint_ DisplayIndirectDiffuse;
 	uint_ DisplaySvgfSpatialVariance;
 	uint_ DisplaySvgfTemporalCache;
+	uint_ DisplayStadTemporalCache;
 	uint_ DoTonemapping;
+	uint_ VisualizeOcclusion;
 
 	uint_ IndirectDiffuseLiDescHeapIdx;
 	uint_ SVGFSpatialVarDescHeapIdx;
-	uint_ SVGFTemporalCacheDescHeapIdx;
+	uint_ DenoiserTemporalCacheDescHeapIdx;
 };
 
 #endif // FINAL_PASS_H

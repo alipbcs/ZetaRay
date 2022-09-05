@@ -295,6 +295,7 @@
     <ClCompile Include="RenderPass\RenderPass.cpp" />
     <ClCompile Include="RenderPass\Sky\Sky.cpp" />
     <ClCompile Include="RenderPass\Sky\SkyDome.cpp" />
+    <ClCompile Include="RenderPass\STAD\STAD.cpp" />
     <ClCompile Include="RenderPass\Sun\SunLight.cpp" />
     <ClCompile Include="RenderPass\SVGF\SVGF.cpp" />
     <ClCompile Include="RenderPass\TAA\TAA.cpp" />
@@ -374,6 +375,8 @@
     <ClInclude Include="RenderPass\Sky\Sky.h" />
     <ClInclude Include="RenderPass\Sky\SkyDome.h" />
     <ClInclude Include="RenderPass\Sky\Sky_Common.h" />
+    <ClInclude Include="RenderPass\STAD\STAD.h" />
+    <ClInclude Include="RenderPass\STAD\STAD_Common.h" />
     <ClInclude Include="RenderPass\Sun\SunLight.h" />
     <ClInclude Include="RenderPass\SVGF\SVGF.h" />
     <ClInclude Include="RenderPass\SVGF\SVGF_Common.h" />
@@ -410,8 +413,7 @@
     <None Include="RenderPass\Common\GBuffers.hlsli" />
     <None Include="RenderPass\Common\LightSourceFuncs.hlsli" />
     <None Include="RenderPass\Common\RT.hlsli" />
-    <None Include="RenderPass\Common\Sampler.hlsli" />
-    <None Include="RenderPass\Common\SamplingTransformations.hlsli" />
+    <None Include="RenderPass\Common\Sampling.hlsli" />
     <None Include="RenderPass\Common\SH.hlsli" />
     <None Include="RenderPass\Common\StaticTextureSamplers.hlsli" />
     <None Include="RenderPass\Common\VolumetricLighting.hlsli" />
@@ -513,7 +515,7 @@
   <ItemGroup>
     <CustomBuild Include="RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl">
       <FileType>Document</FileType>
-      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl main cs </Command>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl main cs</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)/Assets/CompiledShaders/Debug/%(Filename)_cs.cso;</Outputs>
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\IndirectDiffuse\IndirectDiffuse.hlsl main cs --release</Command>
@@ -617,6 +619,26 @@
       <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
       <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\GBuffer\GBufferPass.hlsl mainVS,mainPS vs,ps --release</Command>
       <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_vs.cso;;$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_ps.cso;</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
+    </CustomBuild>
+  </ItemGroup>
+  <ItemGroup>
+    <CustomBuild Include="RenderPass\STAD\STAD_AdaptiveSpatialFilter.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\STAD\STAD_AdaptiveSpatialFilter.hlsl main cs</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)/Assets/CompiledShaders/Debug/%(Filename)_cs.cso;</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\STAD\STAD_AdaptiveSpatialFilter.hlsl main cs --release</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_cs.cso;</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
+    </CustomBuild>
+    <CustomBuild Include="RenderPass\STAD\STAD_TemporalFilter.hlsl">
+      <FileType>Document</FileType>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Debug ..\Tools\dxc\dxc.exe RenderPass\STAD\STAD_TemporalFilter.hlsl main cs</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">$(SolutionDir)/Assets/CompiledShaders/Debug/%(Filename)_cs.cso;</Outputs>
+      <Message Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
+      <Command Condition="'$(Configuration)|$(Platform)'=='Release|x64'">python $(SolutionDir)/Tools/compile_with_dxc.py ..\Assets\CompiledShaders\Release ..\Tools\dxc\dxc.exe RenderPass\STAD\STAD_TemporalFilter.hlsl main cs --release</Command>
+      <Outputs Condition="'$(Configuration)|$(Platform)'=='Release|x64'">$(SolutionDir)/Assets/CompiledShaders/Release/%(Filename)_cs.cso;</Outputs>
       <Message Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Compiling HLSL source file: %(Filename).hlsl...</Message>
     </CustomBuild>
   </ItemGroup>
