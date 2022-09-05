@@ -74,7 +74,7 @@ void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const ch
 {
 	InitCommon(group, subgroup, name, dlg);
 
-	Assert(pitch >= 0 && pitch <= Math::TWO_PI, "pitch must be in [0, 2 * PI]");
+	Assert(pitch >= 0 && pitch <= Math::PI, "pitch must be in [0, +PI]");
 	Assert(yaw >= 0 && yaw <= Math::TWO_PI, "yaw must be in [0, 2 * PI]");
 	m_type = PARAM_TYPE::PT_unit_dir;
 	m_unitDir.Init(pitch, yaw);

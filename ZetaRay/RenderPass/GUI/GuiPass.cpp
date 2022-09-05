@@ -79,14 +79,10 @@ namespace
 				ImGui::Text("%s", param.GetName());
 				bool changed = false;
 
-				if (ImGui::SliderFloat("pitch", reinterpret_cast<float*>(&pitch), 0.0f, TWO_PI, "%.4f"))
-				{
+				if (ImGui::SliderFloat("pitch", reinterpret_cast<float*>(&pitch), 0, PI, "%.4f"))
 					changed = true;
-				}
 				if (ImGui::SliderFloat("yaw", reinterpret_cast<float*>(&yaw), 0.0f, TWO_PI, "%.4f"))
-				{
 					changed = true;
-				}
 
 				if(changed)
 					param.SetUnitDir(pitch, yaw);
@@ -603,6 +599,7 @@ void GuiPass::RenderRenderGraphWindow() noexcept
 	ImGui::SetWindowPos(ImVec2(x, 0.0f), ImGuiCond_FirstUseEver);
 	ImGui::SetWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
 
+	//if(!ImGui::IsWindowCollapsed())
 	App::GetScene().DebugDrawRenderGraph();
 
 	ImGui::End();

@@ -29,8 +29,9 @@ void Math::SphericalFromCartesian(const float3& w, float& theta, float& phi) noe
 	// x = sin(theta) * cos(phi)
 	// y = cos(theta)
 	// z = sin(theta) * sin(phi)
-	theta = acosf(w.y);					// [0, PI]
-	phi = atan2f(w.z, w.x) + Math::PI;	// [0, 2 * PI]
+	theta = acosf(w.y);							// [0, PI]
+	phi = atan2f(w.z, w.x);				
+	phi = phi < 0.0f ? phi + Math::PI : phi;	// [0, 2 * PI]
 }
 
 float3 Math::SphericalToCartesian(float theta, float phi) noexcept

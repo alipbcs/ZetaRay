@@ -126,17 +126,10 @@ void SceneRenderer::Init() noexcept
 			m_data->m_settings.Inscattering);
 		App::AddParam(enableInscattering);
 
-		//ParamVariant enableFSR2;
-		//enableFSR2.InitBool("Renderer", "Settings", "FSR2",
-		//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetFsr2Enablement),
-		//	m_data->m_settings.Fsr2);
-		//App::AddParam(enableFSR2);
-
 		ParamVariant p6;
 		p6.InitEnum("Renderer", "Settings", "Upscaling", fastdelegate::MakeDelegate(this, &SceneRenderer::SetUpscalingMethod),
 			UpscalingOptions, sizeof(UpscalingOptions) / sizeof(const char*), Upscaling::NATIVE);
 		App::AddParam(p6);
-
 	}
 
 	ParamVariant rayOffset;
