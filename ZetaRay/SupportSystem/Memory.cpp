@@ -1,4 +1,4 @@
-#include "MemoryPool.h"
+#include "Memory.h"
 #include "../Utility/Error.h"
 #include "../Math/Common.h"
 #include <intrin.h>
@@ -6,6 +6,42 @@
 #include <string.h>
 
 using namespace ZetaRay::Support;
+
+//--------------------------------------------------------------------------------------
+// MemoryArena
+//--------------------------------------------------------------------------------------
+
+MemoryArena::MemoryArena(size_t s) noexcept
+	: m_size(s),
+	m_offset(0)
+{
+	m_mem = malloc(s);
+}
+
+MemoryArena::~MemoryArena() noexcept
+{
+	if (m_mem)
+		free(m_mem);
+}
+
+void* MemoryArena::AllocateAligned(size_t size, const char* name, int alignment) noexcept
+{
+	m_offset = Math::AlignUp(m_offset, alignment);
+	
+	if (m_offset + size < m_size)
+	{
+		uintptr_t ret = reinterpret_cast<uintptr_t>(m_mem) + m_offset;
+		m_offset += size;
+		return reinterpret_cast<void*>(ret);
+	}
+
+	Assert(false, "Insufficient memory");
+	return nullptr;
+}
+
+void MemoryArena::FreeAligned(void* pMem, size_t size, const char* name, int alignment) noexcept
+{
+}
 
 //--------------------------------------------------------------------------------------
 // MemoryPool
@@ -51,41 +87,6 @@ void MemoryPool::Clear() noexcept
 	memset(m_numMemoryBlocks, 0, sizeof(size_t) * POOL_COUNT);
 }
 
-void MemoryPool::BeginFrame() noexcept
-{
-	//for (auto [k, v] : m_debugMap)
-	//	m_debugMap[k].Frame = 0;
-	frameAllocs = 0;
-	frameDeAllocs = 0;
-}
-
-void MemoryPool::EndFrame() noexcept
-{
-	/*
-	int fsum = 0;
-	int tsum = 0;
-
-	for (auto [k, v] : m_debugMap)
-	{
-		m_debugMap[k].Total += v.Frame;
-		printf("thread %d, frame alloc: %d, total alloc: %d\n", k, v.Frame, v.Total);
-		fsum += v.Frame;
-		tsum += v.Total;
-	}
-
-	printf("\t\nframe sum: %d, total sum: %d\n", fsum, tsum);
-	printf("\n*****************\n\n");
-	*/
-	total += (frameAllocs + frameDeAllocs);
-
-	printf("\n------------------------\n");
-	printf("\nalloc: %d, free: %d, frame sum: %d, total: %d kb\n", frameAllocs, frameDeAllocs, frameAllocs + frameDeAllocs, total / 1024);
-	printf("\n------------------------\n\n");
-
-	frameAllocs = 0;
-	frameDeAllocs = 0;
-}
-
 size_t MemoryPool::GetPoolIndexFromSize(size_t x) noexcept
 {
 	size_t s = Math::max(MIN_ALLOC_SIZE, Math::NextPow2(x));
@@ -104,8 +105,6 @@ void* MemoryPool::Allocate(size_t size) noexcept
 	// Which memory pool does it live in?
 	size_t poolIndex = GetPoolIndexFromSize(size);
 	size_t chunkSize = GetChunkSizeFromPoolIndex(poolIndex);
-
-	frameAllocs += (int)size;
 
 	// if the pool for requested size is empty or has become full, add a new memory block consisting of 
 	// chunks of size "chunkSize"
@@ -196,8 +195,6 @@ void MemoryPool::Free(void* pMem, size_t size) noexcept
 			free(pMem);
 			return;
 		}
-
-		frameDeAllocs -= (int)size;
 
 		size_t poolIndex = GetPoolIndexFromSize(size);
 

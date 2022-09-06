@@ -212,12 +212,12 @@ void LightManager::SetEnvMap(LightManagerData& data, const Filesystem::Path& pat
 	*/
 }
 
-void LightManager::AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
-{
+//void LightManager::AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
+//{
 //	data.EmissiveUpdateBatch.emplace_back(LightManagerData::EmissiveTriUpdateInstance{ 
 //		.InstanceID = instanceID,
 //		.Lumen = ZetaMove(lumen) });
-}
+//}
 
 void LightManager::Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
 	const RayTracerData& rayTracerData, LightManagerData& data) noexcept

@@ -14,6 +14,6 @@ namespace ZetaRay::Math
 
 	// Generates an Alias Table for the given probability distribution function
 	// Ref: https://www.keithschwarz.com/darts-dice-coins/
-	void BuildAliasTableUnnormalized(Util::Vector<float, 32>&& probs, Util::Vector<AliasTableEntry>& ret) noexcept;
+	void BuildAliasTableUnnormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret) noexcept;
 	void BuildAliasTableNormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret) noexcept;
 }

@@ -172,7 +172,7 @@
     <ClCompile Include="RenderPass\IndirectDiffuse\IndirectDiffuse.cpp">
       <Filter>RenderPass\IndirectDiffuse</Filter>
     </ClCompile>
-    <ClCompile Include="SupportSystem\MemoryPool.cpp">
+    <ClCompile Include="SupportSystem\Memory.cpp">
       <Filter>SupportSystem</Filter>
     </ClCompile>
     <ClCompile Include="SupportSystem\ThreadPool.cpp">
@@ -402,7 +402,7 @@
     <ClInclude Include="SupportSystem\Param.h">
       <Filter>SupportSystem</Filter>
     </ClInclude>
-    <ClInclude Include="SupportSystem\MemoryPool.h">
+    <ClInclude Include="SupportSystem\Memory.h">
       <Filter>SupportSystem</Filter>
     </ClInclude>
     <ClInclude Include="RenderPass\Common\RtCommon.h">

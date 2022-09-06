@@ -179,6 +179,7 @@
       <ExceptionHandling>false</ExceptionHandling>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <InlineFunctionExpansion>OnlyExplicitInline</InlineFunctionExpansion>
+      <DisableLanguageExtensions>false</DisableLanguageExtensions>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -306,7 +307,7 @@
     <ClCompile Include="Scene\SceneRenderer\PostProcessor.cpp" />
     <ClCompile Include="Scene\SceneRenderer\RayTracer.cpp" />
     <ClCompile Include="Scene\SceneRenderer\SceneRenderer.cpp" />
-    <ClCompile Include="SupportSystem\MemoryPool.cpp" />
+    <ClCompile Include="SupportSystem\Memory.cpp" />
     <ClCompile Include="SupportSystem\Param.cpp" />
     <ClCompile Include="SupportSystem\Task.cpp" />
     <ClCompile Include="SupportSystem\ThreadPool.cpp" />
@@ -385,7 +386,7 @@
     <ClInclude Include="Scene\Assets.h" />
     <ClInclude Include="Scene\SceneRenderer\SceneRenderer.h" />
     <ClInclude Include="Scene\SceneRenderer\SceneRendererImpl.h" />
-    <ClInclude Include="SupportSystem\MemoryPool.h" />
+    <ClInclude Include="SupportSystem\Memory.h" />
     <ClInclude Include="SupportSystem\Param.h" />
     <ClInclude Include="SupportSystem\Stat.h" />
     <ClInclude Include="SupportSystem\Task.h" />

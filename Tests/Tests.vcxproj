@@ -121,7 +121,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ZetaRay.lib;d3d12.lib;dxgi.lib;dxguid.lib;WinPixEventRuntime\WinPixEventRuntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ZetaRay.lib;d3d12.lib;dxgi.lib;dxguid.lib;WinPixEventRuntime\WinPixEventRuntime.lib;FSR2\Lib\Debug\ffx_fsr2_api_x64d.lib;FSR2\Lib\Debug\ffx_fsr2_api_dx12_x64d.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -142,7 +142,7 @@
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>ZetaRay.lib;d3d12.lib;dxgi.lib;dxguid.lib;WinPixEventRuntime\WinPixEventRuntime.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>ZetaRay.lib;d3d12.lib;dxgi.lib;dxguid.lib;WinPixEventRuntime\WinPixEventRuntime.lib;FSR2\Lib\Release\ffx_fsr2_api_x64.lib;FSR2\Lib\Release\ffx_fsr2_api_dx12_x64.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>

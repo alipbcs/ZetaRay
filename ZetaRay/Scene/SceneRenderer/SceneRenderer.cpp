@@ -287,10 +287,10 @@ void SceneRenderer::Shutdown() noexcept
 	m_renderGraph.Shutdown();
 }
 
-void SceneRenderer::AddEmissiveInstance(uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
-{
-	LightManager::AddEmissiveTriangle(m_data->m_lightManagerData, instanceID, ZetaMove(lumen));
-}
+//void SceneRenderer::AddEmissiveInstance(uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
+//{
+//	LightManager::AddEmissiveTriangle(m_data->m_lightManagerData, instanceID, ZetaMove(lumen));
+//}
 
 void SceneRenderer::SetEnvLightSource(const Filesystem::Path& pathToEnvLight, const Filesystem::Path& pathToPatches) noexcept
 {

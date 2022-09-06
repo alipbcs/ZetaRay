@@ -234,7 +234,7 @@ namespace ZetaRay::Scene::LightManager
 	void Shutdown(LightManagerData& data) noexcept;
 
 	void SetEnvMap(LightManagerData& data, const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
-	void AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
+	//void AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
 	void Register(const RenderSettings& settings, const RayTracerData& rayTracerData, LightManagerData& data, Core::RenderGraph& renderGraph) noexcept;
 	void Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, const RayTracerData& rayTracerData, 
 		LightManagerData& lightManagerData) noexcept;

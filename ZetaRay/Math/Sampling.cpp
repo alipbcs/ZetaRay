@@ -178,7 +178,7 @@ float3 Math::GetUniformSampleHemisphere(float2 u) noexcept
 	return float3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
 }
 
-void Math::BuildAliasTableUnnormalized(Vector<float, 32>&& probs, Vector<AliasTableEntry>& ret) noexcept
+void Math::BuildAliasTableUnnormalized(Vector<float>&& probs, Vector<AliasTableEntry>& ret) noexcept
 {
 	Normalize(probs.data(), probs.size());
 	BuildAliasTable(probs.data(), probs.size(), ret);

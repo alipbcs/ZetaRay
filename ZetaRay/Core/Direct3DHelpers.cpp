@@ -772,7 +772,7 @@ HRESULT Direct3DHelper::GetSurfaceInfo(size_t width,
 }
 
 void Direct3DHelper::LoadDDSFromFile(const char* path,
-    Vector<D3D12_SUBRESOURCE_DATA, alignof(D3D12_SUBRESOURCE_DATA)>& subresources,
+    Vector<D3D12_SUBRESOURCE_DATA>& subresources,
     DXGI_FORMAT& format, 
     std::unique_ptr<uint8_t[]>& ddsData,
     uint32_t& width, 

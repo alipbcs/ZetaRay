@@ -43,7 +43,7 @@ namespace ZetaRay::Scene
 		void Shutdown() noexcept;
 
 		//void AddAnalyticalLightSource(LightSourceType t) noexcept;
-		void AddEmissiveInstance(uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
+		//void AddEmissiveInstance(uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
 		void SetEnvLightSource(const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
 		void OnWindowSizeChanged() noexcept;
 

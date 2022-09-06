@@ -1,9 +1,11 @@
 #include <Math/Sampling.h>
-#include <Win32/App.h>
+#include <Utility/SmallVector.h>
 #include <Utility/RNG.h>
 #include <doctest-2.4.8/doctest.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 uint32_t SampleAliasTable(Vector<AliasTableEntry>& aliasTable, RNG& rng, float& pdf)
@@ -33,7 +35,7 @@ TEST_SUITE("AliasTable")
 	TEST_CASE("Normalize")
 	{
 		float vals[] = { 1.0f, 22.0f, 4.0f, 8.0f, 3.5f, 10.0f };
-		SmallVector<float, 6, 32> vec;
+		SmallVector<float, 6> vec;
 		vec.append_range(vals, vals + sizeof(vals) / sizeof(float));
 
 		SmallVector<AliasTableEntry> ret;

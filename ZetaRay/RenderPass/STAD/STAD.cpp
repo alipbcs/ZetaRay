@@ -116,6 +116,7 @@ void STAD::Reset() noexcept
 		App::RemoveParam("Renderer", "STAD", "BilinearMaxPlaneDist");
 		App::RemoveParam("Renderer", "STAD", "BilinearNormalScale");
 		App::RemoveParam("Renderer", "STAD", "BilinearNormalExp");
+		App::RemoveParam("Renderer", "STAD", "EdgeStoppingMaxPlaneDist");
 		App::RemoveParam("Renderer", "STAD", "EdgeStoppingNormalExp");
 		App::RemoveParam("Renderer", "STAD", "SpatialFilter");
 		App::RemoveParam("Renderer", "STAD", "#SpatialFilterPasses");
@@ -127,8 +128,9 @@ void STAD::Reset() noexcept
 
 #ifdef _DEBUG
 		memset(m_inputGpuHeapIndices, 0, (int)SHADER_IN_RES::COUNT * sizeof(uint32_t));
-		memset(m_psos, 0, (int)SHADERS::COUNT * sizeof(ID3D12PipelineState*));
 #endif // _DEBUG
+
+		memset(m_psos, 0, (int)SHADERS::COUNT * sizeof(ID3D12PipelineState*));
 
 		m_descTable.Reset();
 		m_temporalCache[0].Reset();
@@ -333,7 +335,7 @@ void STAD::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &STAD::BilinearMaxPlaneDistCallback),
 		DefaultParamVals::BilinearMaxPlaneDist,		// val	
 		1e-2f,										// min
-		1.0f,										// max
+		10.0f,										// max
 		1e-2f);										// step
 	App::AddParam(bilinearMaxPlaneDist);
 
@@ -369,7 +371,7 @@ void STAD::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &STAD::EdgeStoppingMaxPlaneDistCallback),
 		DefaultParamVals::EdgeStoppingMaxPlaneDist,	// val	
 		1e-1f,										// min
-		4.0f,										// max
+		50.0f,										// max
 		1e-1f);										// step
 	App::AddParam(edgeStoppingPlaneDist);
 
@@ -387,7 +389,7 @@ void STAD::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &STAD::FilterRadiusBaseCallback),
 		DefaultParamVals::FilterRadiusBase,			// val	
 		1e-3f,										// min
-		1e-1f,										// max
+		10.0f,										// max
 		1e-3f);										// step
 	App::AddParam(baseRadius);
 

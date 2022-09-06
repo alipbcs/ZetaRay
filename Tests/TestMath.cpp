@@ -8,6 +8,7 @@
 #include <DirectXCollision.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 TEST_CASE("AABBvsAABB")

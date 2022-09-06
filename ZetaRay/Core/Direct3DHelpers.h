@@ -6,9 +6,14 @@
 #include "Device.h"
 #include <memory>
 
+namespace ZetaRay::App
+{
+    struct PoolAllocator;
+}
+
 namespace ZetaRay::Util
 {
-    template<typename T, int Alignment>
+    template<typename T, typename Allocator, size_t Alignment>
     class Vector;
 }
 
@@ -446,7 +451,7 @@ namespace ZetaRay::Core::Direct3DHelper
     }
 
     void LoadDDSFromFile(const char* path,
-        Util::Vector<D3D12_SUBRESOURCE_DATA, alignof(D3D12_SUBRESOURCE_DATA)>& subresources,
+        Util::Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator, alignof(D3D12_SUBRESOURCE_DATA)>& subresources,
         DXGI_FORMAT& format,
         std::unique_ptr<uint8_t[]>& ddsData,
         uint32_t& width,

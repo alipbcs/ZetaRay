@@ -2,6 +2,7 @@
 
 #include "../Math/Common.h"
 #include "../Win32/App.h"
+//#include "../SupportSystem/Memory.h"
 #include "Error.h"
 #include <utility>	// std::swap
 
@@ -10,13 +11,15 @@ namespace ZetaRay::Util
 	//--------------------------------------------------------------------------------------
 	// Vector
 	// 
-	// Vector cannot be directly constructed; it provides a common interface for SmallVector
-	// for code that needs to deal with them without having to know the inline storage size N.
+	// Vector cannot be directly constructed; it only provides a common interface for SmallVector.
+	// As a result, usage doesn't require knowing the inline storage size N.
 	//--------------------------------------------------------------------------------------
 
-	template<typename T, int Alignment = alignof(std::max_align_t)>
+	template<typename T, typename Allocator = App::PoolAllocator, size_t Alignment = alignof(T)>
 	class Vector
 	{
+		static_assert(Support::AllocType<Allocator>, "Provided Allocator type doesn't meet the requirements for AllocType.");
+		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be a copy-constructible type.");
 		static constexpr size_t MIN_CAPACITY = Math::max(64 / sizeof(T), 4llu);
 
 	public:
@@ -27,7 +30,7 @@ namespace ZetaRay::Util
 
 		bool has_inline_storage() const noexcept
 		{
-			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Alignment>), alignof(T));
+			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator, Alignment>), alignof(T));
 			return reinterpret_cast<uintptr_t>(m_beg) == reinterpret_cast<uintptr_t>(this) + inlineStorageOffset;
 		}
 
@@ -64,9 +67,7 @@ namespace ZetaRay::Util
 			T* smallerBeg = otherIsLarger ? m_beg : other.m_beg;
 
 			for (size_t i = 0; i < minSize; i++)
-			{
 				std::swap(*(m_beg + i), *(other.m_beg + i));
-			}
 
 			if constexpr (std::is_trivially_copyable_v<T>)
 			{
@@ -75,16 +76,12 @@ namespace ZetaRay::Util
 			else if constexpr (std::is_move_constructible_v<T>)
 			{
 				for (size_t i = minSize; i < maxSize; i++)
-				{
 					new (smallerBeg + i) T(ZetaMove(*(largerBeg + i)));
-				}
 			}
 			else if constexpr (std::is_copy_constructible_v<T>)
 			{
 				for (size_t i = minSize; i < maxSize; i++)
-				{
 					new (smallerBeg + i) T(*(largerBeg + i));
-				}
 			}
 
 			m_end = m_beg + oldOtherSize;
@@ -178,7 +175,7 @@ namespace ZetaRay::Util
 				return;
 
 			// allocate memory to accomodate the new size
-			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, Alignment);
+			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, Alignment);
 
 			const size_t oldSize = size();
 
@@ -224,15 +221,13 @@ namespace ZetaRay::Util
 				if constexpr (!std::is_trivially_destructible_v<T>)
 				{
 					for (T* curr = m_beg; curr < m_end; curr++)
-					{
 						curr->~T();
-					}
 				}
 			}
 
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
-				App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 			// adjust the pointers
 			m_beg = reinterpret_cast<T*>(mem);
@@ -280,9 +275,7 @@ namespace ZetaRay::Util
 			Assert(size() > 0, "attempting to pop from an empty Vector");
 
 			if constexpr (!std::is_trivially_destructible_v<T>)
-			{
 				(m_end - 1)->~T();
-			}
 
 			m_end--;
 		}
@@ -407,9 +400,7 @@ namespace ZetaRay::Util
 				T* curr = m_beg;
 
 				while (curr != m_end)
-				{
 					curr++->~T();
-				}
 			}
 
 			m_end = m_beg;
@@ -424,7 +415,7 @@ namespace ZetaRay::Util
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
 			{
-				App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 				m_beg = nullptr;
 				m_end = nullptr;
@@ -433,13 +424,16 @@ namespace ZetaRay::Util
 		}
 
 	protected:
-		Vector() noexcept = default;
+		Vector(const Allocator& a) noexcept
+			: m_allocator(a)
+		{}
 
-		explicit Vector(uint32_t N) noexcept
+		explicit Vector(uint32_t N, const Allocator& a) noexcept
+			: m_allocator(a)
 		{
 			static_assert(std::is_default_constructible_v<T>);
 
-			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Alignment>), alignof(T));
+			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator, Alignment>), alignof(T));
 			m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
 			m_end = m_beg;
 			m_last = m_beg + N;
@@ -462,6 +456,8 @@ namespace ZetaRay::Util
 			if (this == &other)
 				return *this;
 
+			m_allocator = other.m_allocator;
+
 			const size_t currSize = size();
 			const size_t currCapacity = capacity();
 			const size_t newSize = other.size();
@@ -476,10 +472,10 @@ namespace ZetaRay::Util
 			{
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 
 				// allocate memory to accomodate new size
-				void* mem = App::AllocateFromMemoryPool(newSize * sizeof(T), nullptr, Alignment);
+				void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), nullptr, Alignment);
 
 				// adjust the pointers
 				m_beg = reinterpret_cast<T*>(mem);
@@ -519,6 +515,8 @@ namespace ZetaRay::Util
 
 			if (this == &other)
 				return *this;
+
+			m_allocator = other.m_allocator;
 
 			free();
 
@@ -654,7 +652,7 @@ namespace ZetaRay::Util
 
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					App::FreeMemoryPool(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
 			}
 
 			// adjust the pointers
@@ -663,9 +661,13 @@ namespace ZetaRay::Util
 			m_last = m_beg + n;
 		}
 
+		const Allocator& GetAllocator() { return m_allocator; }
+
 		T* m_beg = nullptr;		// pointer to the begining of memory-block
 		T* m_end = nullptr;		// pointer to element to insert at next (one past the last inserted element)
 		T* m_last = nullptr;	// pointer to the end of memory-block
+
+		Allocator m_allocator;
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -697,58 +699,58 @@ namespace ZetaRay::Util
 			(64 - Math::AlignUp(sizeof(void*) * 3, alignofT)) / sizeofT));
 	}
 
-	template<typename T, uint32_t N = GetExcessSize(sizeof(T), alignof(T)), int Alignment = alignof(std::max_align_t)>
-	class SmallVector : public Vector<T, Alignment>
+	template<typename T, uint32_t N = GetExcessSize(sizeof(T), alignof(T)), Support::AllocType Allocator = App::PoolAllocator, size_t Alignment = alignof(T)>
+	class SmallVector : public Vector<T, Allocator, Alignment>
 	{
 	public:
-		SmallVector() noexcept
-			: Vector<T, Alignment>(N)
+		SmallVector(Allocator a = Allocator()) noexcept
+			: Vector<T, Allocator, Alignment>(N, a)
 		{}
 
 		SmallVector(const SmallVector& other) noexcept
-			: Vector<T, Alignment>(N)
+			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
 		{
-			Vector<T, Alignment>::operator=(other);
+			Vector<T, Allocator, Alignment>::operator=(other);
 		}
 
-		SmallVector(const Vector<T, Alignment>& other) noexcept
-			: Vector<T, Alignment>(N)
+		SmallVector(const Vector<T, Allocator, Alignment>& other) noexcept
+			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
 		{
-			Vector<T, Alignment>::operator=(other);
+			Vector<T, Allocator, Alignment>::operator=(other);
 		}
 
 		SmallVector& operator=(const SmallVector& other) noexcept
 		{
-			Vector<T, Alignment>::operator=(other);
+			Vector<T, Allocator, Alignment>::operator=(other);
 			return *this;
 		}
 
-		SmallVector& operator=(const Vector<T, Alignment>& other) noexcept
+		SmallVector& operator=(const Vector<T, Allocator, Alignment>& other) noexcept
 		{
-			Vector<T, Alignment>::operator=(other);
+			Vector<T, Allocator, Alignment>::operator=(other);
 			return *this;
 		}
 
 		SmallVector(SmallVector&& other) noexcept
-			: Vector<T, Alignment>(N)
+			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
 		{
-			Vector<T, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
 		}
 
-		SmallVector(Vector<T, Alignment>&& other) noexcept
+		SmallVector(Vector<T, Allocator, Alignment>&& other) noexcept
 		{
-			Vector<T, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
 		}
 
 		SmallVector& operator=(SmallVector&& other) noexcept
 		{
-			Vector<T, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
 			return *this;
 		}
 
-		SmallVector& operator=(Vector<T, Alignment>&& other) noexcept
+		SmallVector& operator=(Vector<T, Allocator, Alignment>&& other) noexcept
 		{
-			Vector<T, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
 			return *this;
 		}
 

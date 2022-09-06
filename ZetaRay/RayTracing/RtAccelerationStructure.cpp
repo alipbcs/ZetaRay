@@ -520,13 +520,13 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 	}
 	// assuming rebuild was issued in frame F, issue a compaction command in frame F + 1.
 	// In this way, we're guranteed that previous Build and Compaction size queries are finished
-	else if(m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - 1)
+	else if(m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - 3)
 	{
 		m_staticBLAS.DoCompaction(cmdList);
 		App::GetRenderer().GetGpuMemory().ReleaseDefaultHeapBuffer(ZetaMove(m_staticBLAS.m_scratchBuffer));
 	}
 	// compaction command was submitted in the last frame
-	else if (m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - 2)
+	else if (m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - 4)
 	{
 		m_staticBLAS.CompactionCompletedCallback();
 	}

@@ -102,7 +102,7 @@ namespace ZetaRay::Core
 		static constexpr uint16_t INVALID_NODE_HANDLE = -1;
 		static constexpr int MAX_NUM_RENDER_PASSES = 32;
 		static constexpr int MAX_NUM_RESOURCES = 64;
-		static constexpr int MAX_NUM_PRODUCERS = 4;
+		static constexpr int MAX_NUM_PRODUCERS = 5;
 
 		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
 		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
