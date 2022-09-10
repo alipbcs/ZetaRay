@@ -3,8 +3,8 @@
 #include "CommandList.h"
 #include "SharedShaderResources.h"
 #include "Direct3DHelpers.h"
-#include "../SupportSystem/Task.h"
-#include "../SupportSystem/Param.h"
+#include "../Support/Task.h"
+#include "../Support/Param.h"
 #include "../Win32/App.h"
 #include "../Win32/Timer.h"
 

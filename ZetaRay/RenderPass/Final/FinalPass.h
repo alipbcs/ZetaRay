@@ -2,7 +2,7 @@
 
 #include "../RenderPass.h"
 #include "../../Core/RootSignature.h"
-#include "../../SupportSystem/Param.h"
+#include "../../Support/Param.h"
 #include "FinalPass_Common.h"
 
 namespace ZetaRay::Core

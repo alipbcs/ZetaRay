@@ -109,6 +109,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out 
 {
 	// protect against self-intersection
 	float3 adjustedOrigin = pos + 1e-1f * geometricNormal;
+	//float3 adjustedOrigin = pos + 1.0f * geometricNormal;
 //	float3 adjustedOrigin = OffsetRayRTG(pos, geometricNormal);
 //	const float3 adjustedOrigin = OffsetRayOrigin(pos, geometricNormal, wi);
 

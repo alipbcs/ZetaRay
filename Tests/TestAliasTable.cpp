@@ -70,9 +70,7 @@ TEST_SUITE("AliasTable")
 		}
 
 		for (uint32_t i = 0; i < n; i++)
-		{
 			vals[i] /= sum;
-		}
 
 		// valis is moved below, make a copy
 		SmallVector<float> valsCopy = vals;
@@ -114,9 +112,7 @@ TEST_SUITE("AliasTable")
 		}
 
 		for (uint32_t i = 0; i < n; i++)
-		{
 			vals[i] /= sum;
-		}
 
 		SmallVector<float> valsCopy = vals;
 

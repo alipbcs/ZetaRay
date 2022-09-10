@@ -1,0 +1,6 @@
+set(ZETA_RP_SUN_DIR "${ZETA_RENDERPASS_DIR}/Sun")
+set(ZETA_RP_SUN_SRC
+    "${ZETA_RP_SUN_DIR}/Sun.cpp"
+    "${ZETA_RP_SUN_DIR}/Sun.h"
+    "${ZETA_RP_SUN_DIR}/Sun.hlsl")
+set(ZETA_RP_SUN_SRC ${ZETA_RP_SUN_SRC} PARENT_SCOPE)

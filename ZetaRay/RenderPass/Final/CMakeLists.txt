@@ -1,0 +1,8 @@
+set(ZETA_RP_FINAL_DIR ${ZETA_RENDERPASS_DIR}/Final)
+set(ZETA_RP_FINAL_SRC
+    ${ZETA_RP_FINAL_DIR}/FinalPass.cpp
+    ${ZETA_RP_FINAL_DIR}/FinalPass.h
+    ${ZETA_RP_FINAL_DIR}/FinalPass.hlsl
+    ${ZETA_RP_FINAL_DIR}/FinalPass_Common.h)
+
+set(ZETA_RP_FINAL_SRC ${ZETA_RP_FINAL_SRC} PARENT_SCOPE)

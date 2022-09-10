@@ -1,8 +1,8 @@
 #pragma once
 
 //#include "../Core/ZetaRay.h"
-#include "../SupportSystem/Memory.h"
-#include <FastDelegate/FastDelegate.h>
+#include "../Support/Memory.h"
+#include "FastDelegate/FastDelegate.h"
 
 namespace ZetaRay::Support
 {

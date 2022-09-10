@@ -5,7 +5,7 @@
 #include "../../Win32/Log.h"
 #include "../../Core/Direct3DHelpers.h"
 #include "../../Core/SharedShaderResources.h"
-#include "../../SupportSystem/Task.h"
+#include "../../Support/Task.h"
 #include "../../Math/MatrixFuncs.h"
 
 using namespace ZetaRay::Scene;

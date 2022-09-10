@@ -1,0 +1,8 @@
+set(ZETA_RP_STAD_DIR "${ZETA_RENDERPASS_DIR}/STAD")
+set(ZETA_RP_STAD_SRC
+    "${ZETA_RP_STAD_DIR}/STAD.cpp"
+    "${ZETA_RP_STAD_DIR}/STAD.h"
+    "${ZETA_RP_STAD_DIR}/STAD_TemporalFilter.hlsl"
+    "${ZETA_RP_STAD_DIR}/STAD_AdaptiveSpatialFilter.hlsl"
+    "${ZETA_RP_STAD_DIR}/STAD_Common.h")
+set(ZETA_RP_STAD_SRC ${ZETA_RP_STAD_SRC} PARENT_SCOPE)

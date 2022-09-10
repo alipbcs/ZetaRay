@@ -1,0 +1,7 @@
+set(ZETA_RP_GUI_DIR ${ZETA_RENDERPASS_DIR}/GUI)
+set(ZETA_RP_GUI_SRC
+    ${ZETA_RP_GUI_DIR}/GuiPass.cpp
+    ${ZETA_RP_GUI_DIR}/GuiPass.h
+    ${ZETA_RP_GUI_DIR}/ImGui.hlsl
+    ${ZETA_RP_GUI_DIR}/GuiPass_Common.h)
+set(ZETA_RP_GUI_SRC ${ZETA_RP_GUI_SRC} PARENT_SCOPE)

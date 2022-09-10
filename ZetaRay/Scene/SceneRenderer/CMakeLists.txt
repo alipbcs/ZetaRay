@@ -1,0 +1,11 @@
+set(ZETA_SCENERENDERER_DIR "${ZETA_SCENE_DIR}/SceneRenderer")
+set(ZETA_SCENERENDERER_SRC
+    "${ZETA_SCENERENDERER_DIR}/GBufferRenderer.cpp"
+    "${ZETA_SCENERENDERER_DIR}/LightManager.cpp"
+    "${ZETA_SCENERENDERER_DIR}/PostProcessor.cpp"
+    "${ZETA_SCENERENDERER_DIR}/RayTracer.cpp"
+    "${ZETA_SCENERENDERER_DIR}/SceneRenderer.cpp"
+    "${ZETA_SCENERENDERER_DIR}/SceneRenderer.h"
+    "${ZETA_SCENERENDERER_DIR}/SceneRendererImpl.h")
+    
+set(ZETA_SCENERENDERER_SRC ${ZETA_SCENERENDERER_SRC} PARENT_SCOPE)

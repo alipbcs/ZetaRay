@@ -1,0 +1,8 @@
+set(ZETA_RP_LUM_REDUCTION_DIR ${ZETA_RENDERPASS_DIR}/LuminanceReduction)
+set(ZETA_RP_LUM_REDUCTION_SRC
+    ${ZETA_RP_LUM_REDUCTION_DIR}/LuminanceReduction.cpp
+    ${ZETA_RP_LUM_REDUCTION_DIR}/LuminanceReduction.h
+    ${ZETA_RP_LUM_REDUCTION_DIR}/ReductionFirst.hlsl
+    ${ZETA_RP_LUM_REDUCTION_DIR}/ReductionSecond.hlsl
+    ${ZETA_RP_LUM_REDUCTION_DIR}/Reduction_Common.h)
+set(ZETA_RP_LUM_REDUCTION_SRC ${ZETA_RP_LUM_REDUCTION_SRC} PARENT_SCOPE)

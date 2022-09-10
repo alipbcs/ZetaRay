@@ -4,7 +4,7 @@
 #include "../../Core/RootSignature.h"
 #include "../../Core/GpuMemory.h"
 #include "../../Core/DescriptorHeap.h"
-#include "../../SupportSystem/Param.h"
+#include "../../Support/Param.h"
 #include "TAA_Common.h"
 
 namespace ZetaRay::Core

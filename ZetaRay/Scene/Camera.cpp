@@ -4,7 +4,7 @@
 #include "../Core/Renderer.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Sampling.h"
-#include "../SupportSystem/Param.h"
+#include "../Support/Param.h"
 
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Support;

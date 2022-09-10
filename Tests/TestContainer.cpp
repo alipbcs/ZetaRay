@@ -43,9 +43,7 @@ TEST_SUITE("SmallVector")
 		SmallVector<int, 0, ArenaAllocator> vec2(aa);
 
 		for (int i = 0; i < 4; i++)
-		{
 			vec1.push_back(i);
-		}
 
 		vec2 = ZetaMove(vec1);
 		CHECK(vec2.has_inline_storage() == false);
@@ -57,9 +55,7 @@ TEST_SUITE("SmallVector")
 		CHECK(vec2.size() == 4);
 
 		for (int i = 0; i < 4; i++)
-		{
 			CHECK(vec2[i] == i);
-		}
 	}
 
 	TEST_CASE("Move-constructor-HeapInline")
@@ -71,9 +67,7 @@ TEST_SUITE("SmallVector")
 		SmallVector<int, 10, ArenaAllocator> vec2(aa);
 
 		for (int i = 0; i < 4; i++)
-		{
 			vec1.push_back(i);
-		}
 
 		vec2 = ZetaMove(vec1);
 		CHECK(vec2.has_inline_storage() == true);
@@ -82,9 +76,7 @@ TEST_SUITE("SmallVector")
 		CHECK(vec2.size() == 4);
 
 		for (int i = 0; i < 4; i++)
-		{
 			CHECK(vec2[i] == i);
-		}
 	}
 
 	TEST_CASE("Move-constructor-InlineInline")
@@ -96,9 +88,7 @@ TEST_SUITE("SmallVector")
 		SmallVector<int, 10, ArenaAllocator> vec2(aa);
 
 		for (int i = 0; i < 5; i++)
-		{
 			vec1.push_back(i);
-		}
 
 		CHECK(vec1.has_inline_storage() == true);
 		vec2 = ZetaMove(vec1);
@@ -121,9 +111,7 @@ TEST_SUITE("SmallVector")
 		SmallVector<int, 0, ArenaAllocator> vec1(aa);
 
 		for (int i = 0; i < 4; i++)
-		{
 			vec1.push_back(i);
-		}
 
 		SmallVector<int, 0, ArenaAllocator> vec2(aa);
 		vec2 = vec1;
@@ -148,17 +136,13 @@ TEST_SUITE("SmallVector")
 		SmallVector<int, 10, ArenaAllocator> vec2(aa);
 
 		for (int i = 0; i < 10; i++)
-		{
 			vec2.push_back(i);
-		}
 
 		vec1.swap(vec2);
 		CHECK(vec1.size() == 10);
 		CHECK(vec2.size() == 0);
 
 		for (int i = 0; i < 10; i++)
-		{
 			CHECK(vec1[i] == i);
-		}
 	}
 };

@@ -1,16 +1,15 @@
 #include "App.h"
 #include "../Utility/SynchronizedView.h"
 #include "Timer.h"
-#include "../SupportSystem/Memory.h"
-#include "../SupportSystem/Param.h"
-#include "../SupportSystem/Stat.h"
+#include "../Support/Param.h"
+#include "../Support/Stat.h"
 #include "../Utility/HashTable.h"
 #include "../Utility/Span.h"
 #include "../Core/Renderer.h"
 #include "../Core/CommandQueue.h"			// just for std::unique_ptr<>
 #include "../Core/SharedShaderResources.h"	// just for std::unique_ptr<>
 #include "../Scene/SceneCore.h"
-#include "../SupportSystem/ThreadPool.h"
+#include "../Support/ThreadPool.h"
 #include "../Utility/RNG.h"
 #include "../../Assets/Fonts/SegoeUI.h"
 #include <atomic>
@@ -50,15 +49,15 @@ namespace
 		static const int INITIAL_WINDOW_HEIGHT = 864;
 #if defined(_DEBUG)
 		inline static const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Debug";
-		inline static const char* COMPILED_SHADER_DIR = "Assets\\CompiledShaders\\Debug";
+		inline static const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Debug";
 #else
 		inline static const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Release";
-		inline static const char* COMPILED_SHADER_DIR = "Assets\\CompiledShaders\\Release";
+		inline static const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Release";
 #endif // _DEBUG
 
 		inline static const char* ASSET_DIR = "Assets";
 		inline static const char* TOOLS_DIR = "Tools";
-		inline static const char* DXC_PATH = "Tools\\dxc\\dxc.exe";
+		inline static const char* DXC_PATH = "Tools\\dxc\\bin\\x64\\dxc.exe";
 		inline static const char* RENDER_PASS_DIR = "ZetaRay\\RenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
@@ -78,10 +77,10 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
-//		float m_cameraMoveSpeed = 0.1f;
-//		float m_cameraZoomSpeed = 0.005f;
-		float m_cameraMoveSpeed = 1.1f;
-		float m_cameraZoomSpeed = 1.005f;
+		float m_cameraMoveSpeed = 0.1f;
+		float m_cameraZoomSpeed = 0.005f;
+		//float m_cameraMoveSpeed = 1.1f;
+		//float m_cameraZoomSpeed = 1.005f;
 
 		Timer m_timer;
 		Renderer m_renderer;
@@ -230,6 +229,9 @@ namespace ZetaRay::AppImpl
 		ImGuiIO& io = ImGui::GetIO();
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
 		io.Fonts->AddFontFromMemoryCompressedBase85TTF(SegoeUI_compressed_data_base85, 17.0f);
+
+		// TODO remove hard-coded path
+		io.IniFilename = "temp//imgui.ini";
 	}
 
 	void UpdateStats() noexcept
@@ -1183,24 +1185,18 @@ namespace ZetaRay
 	{
 		bool success = false;
 		while (!success)
-		{
 			success = g_pApp->m_mainThreadPool.TryFlush();
-		}
 	}
 	
 	void App::FlushAllThreadPools() noexcept
 	{
 		bool success = false;
 		while (!success)
-		{
 			success = g_pApp->m_mainThreadPool.TryFlush();
-		}
 
 		success = false;
 		while (!success)
-		{
 			success = g_pApp->m_backgroundThreadPool.TryFlush();
-		}
 	}
 
 	Renderer& App::GetRenderer() noexcept { return g_pApp->m_renderer; }
@@ -1222,13 +1218,9 @@ namespace ZetaRay
 		const float oldScaleFactor = g_pApp->m_upscaleFactor;
 
 		if (e)
-		{
 			g_pApp->m_upscaleFactor = 1.5f;
-		}
 		else
-		{
 			g_pApp->m_upscaleFactor = 1.0f;
-		}
 
 		if (oldScaleFactor == g_pApp->m_upscaleFactor)
 			return;

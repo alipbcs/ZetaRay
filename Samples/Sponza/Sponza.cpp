@@ -34,7 +34,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     FILE* fp = _fdopen(hConsole, "w");
     freopen_s(&fp, "CONOUT$", "w", stdout);
 
-    SetCurrentDirectoryA("../../");
+    SetCurrentDirectoryA("../");
 
     App::Init();
 
@@ -43,10 +43,9 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     // load a gltf model
     const char* p = "sponza_v9\\sponza_v9.gltf";
-    //const char* p = "warehouse\\warehouse.gltf";
     //const char* p = "bistro\\bistro_v3.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
-    Model::glTF2::Load(p);
+    Model::glTF2::Load(p, true);
 
     timer.End();
     App::FlushMainThreadPool();
