@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
-    <Type Name="ZetaRay::Vector&lt;*&gt;">
+    <Type Name="ZetaRay::Util::Vector&lt;*&gt;">
         <DisplayString>{{ size={m_end - m_beg} }}</DisplayString>
         <Expand>
             <Item Name="[size]" ExcludeView="simple">m_end - m_beg</Item>
@@ -11,7 +11,7 @@
             </ArrayItems>
         </Expand>
     </Type>
-    <Type Name="ZetaRay::SmallVector&lt;*&gt;">
+    <Type Name="ZetaRay::Util::SmallVector&lt;*&gt;">
         <DisplayString>{{ size={m_end - m_beg} }}</DisplayString>
         <Expand>
             <Item Name="[size]" ExcludeView="simple">m_end - m_beg</Item>
@@ -22,7 +22,7 @@
             </ArrayItems>
         </Expand>
     </Type>
-    <Type Name="ZetaRay::HashTable&lt;*&gt;">
+    <Type Name="ZetaRay::Util::HashTable&lt;*&gt;">
         <DisplayString>{{ capacity={m_end - m_beg} }}</DisplayString>
         <Expand>
             <Item Name="[capacity]" ExcludeView="simple">m_end - m_beg</Item>
@@ -33,7 +33,7 @@
             </ArrayItems>
         </Expand>
     </Type>
-    <Type Name="ZetaRay::Span&lt;*&gt;">
+    <Type Name="ZetaRay::Util::Span&lt;*&gt;">
         <DisplayString>{{ size={m_size} }}</DisplayString>
         <Expand>
             <Item Name="[size]" ExcludeView="simple">m_size</Item>
@@ -41,14 +41,6 @@
                 <Size>m_size</Size>
                 <ValuePointer>m_ptr</ValuePointer>
             </ArrayItems>
-        </Expand>
-    </Type>
-
-    <Type Name="ZetaRay::Win32::Filesystem::Path">
-        <DisplayString>{m_path.m_beg}, [size={m_path.m_end - m_path.m_beg}]</DisplayString>
-        <StringView>m_path.m_beg</StringView>
-        <Expand>
-            <Item Name="[size]" ExcludeView="simple">m_path.m_end - m_path.m_beg</Item>
         </Expand>
     </Type>
     

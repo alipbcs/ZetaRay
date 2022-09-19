@@ -35,7 +35,7 @@ set(ZETA_IMGUI_SRC "${ZETA_IMGUI_DIR}/imgui.cpp"
 # natvis
 set(ZETA_NATVIS_SRC "${CMAKE_SOURCE_DIR}/natvis/Container.natvis"
 	"${CMAKE_SOURCE_DIR}/natvis/imgui.natvis"
-	"${CMAKE_SOURCE_DIR}/natvis/imgui.natvis")
+	"${CMAKE_SOURCE_DIR}/natvis/Win32.natvis")
 
 if(MSVC)
 	source_group(TREE "${ZETA_RENDERER_DIR}" FILES ${ZETA_RENDERER_SRC})
@@ -44,7 +44,7 @@ if(MSVC)
 endif()
 
 # build renderer as a static library
-add_library(ZetaRay STATIC ${ZETA_RENDERER_SRC} ${ZETA_IMGUI_SRC})
+add_library(ZetaRay STATIC ${ZETA_RENDERER_SRC} ${ZETA_IMGUI_SRC} ${ZETA_NATVIS_SRC})
 add_dependencies(ZetaRay CompileShaders)
 target_include_directories(ZetaRay AFTER PUBLIC "${ZETA_EXTERNAL_DIR}")
 set_target_properties(ZetaRay PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")

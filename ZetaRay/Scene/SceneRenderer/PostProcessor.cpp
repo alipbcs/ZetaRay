@@ -21,8 +21,8 @@ void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postDa
 		postData.LumReductionPass.Init();
 	}
 
+	// Final Pass
 	{
-		// Final Pass
 		DXGI_FORMAT rtvFormats[1] = { RendererConstants::BACK_BUFFER_FORMAT };
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 			1,
@@ -301,7 +301,6 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 		// FSR2
 		else if (settings.AntiAliasing == AA::FSR2)
 		{
-			// FSR2
 			renderGraph.AddInput(postData.Fsr2Handle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -328,7 +327,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// Final
-			renderGraph.AddInput(postData.Fsr2Handle,
+			renderGraph.AddInput(postData.FinalHandle,
 				upscaled.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
@@ -367,7 +366,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			renderGraph.AddInput(postData.FinalHandle,
-				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),
+				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}

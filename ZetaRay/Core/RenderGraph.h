@@ -22,7 +22,7 @@ namespace ZetaRay::Core
 			: Val(u)
 		{}
 
-		bool IsValid() { return Val != -1; }
+		inline bool IsValid() { return Val != -1; }
 
 		int Val = -1;
 	};
@@ -173,7 +173,6 @@ namespace ZetaRay::Core
 		// make sure this doesn't get reset between frames as some states carry over to the
 		// next frame. Producers should be reset though
 		Util::SmallVector<ResourceMetadata> m_frameResources;
-		//int m_currFrameIdx = 0;
 		int m_prevFramesNumResources = 0;
 
 		std::atomic_int32_t m_currResIdx = 0;
@@ -207,6 +206,7 @@ namespace ZetaRay::Core
 				CompletionFence = -1;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				TaskH = -1;
+				OutputMask = 0;
 				memset(Name, 0, MAX_NAME_LENGTH);
 			}
 
@@ -223,6 +223,7 @@ namespace ZetaRay::Core
 				CompletionFence = -1;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				TaskH = -1;
+				OutputMask = 0;
 
 				int n = std::min((int)strlen(name), MAX_NAME_LENGTH - 1);
 				memcpy(Name, name, n);
@@ -240,6 +241,7 @@ namespace ZetaRay::Core
 			Util::SmallVector<Dependency, 1> Outputs;
 			Util::SmallVector<D3D12_RESOURCE_BARRIER> Barriers;
 
+			uint32_t OutputMask = 0;
 			int Indegree = 0;
 			int BatchIdx = -1;
 
@@ -254,8 +256,6 @@ namespace ZetaRay::Core
 
 		static_assert(std::is_move_constructible_v<RenderNode>);
 		static_assert(std::is_swappable_v<RenderNode>);
-
-		static constexpr int q = sizeof(RenderNode);
 
 		RenderNode m_renderNodes[MAX_NUM_RENDER_PASSES];
 

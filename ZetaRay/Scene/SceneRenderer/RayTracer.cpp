@@ -74,7 +74,7 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
 		// temporal cache changes every frame due to ping-ponging
-		const Texture& temporalCache = data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_POST_OUT);
+		const Texture& temporalCache = data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT);
 		CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
 	}
 }
@@ -129,8 +129,8 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 				data.StadHandle = renderGraph.RegisterRenderPass("STAD", RENDER_NODE_TYPE::COMPUTE, dlg);
 
 				// Direct3D api doesn't accept const pointers
-				Texture& temporalCacheIn = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_IN));
-				Texture& temporalCacheOut = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT));
+				Texture& temporalCacheIn = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN));
+				Texture& temporalCacheOut = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT));
 				renderGraph.RegisterResource(temporalCacheIn.GetResource(), temporalCacheIn.GetPathID());
 				renderGraph.RegisterResource(temporalCacheOut.GetResource(), temporalCacheOut.GetPathID());
 			}
@@ -203,11 +203,15 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddInput(data.StadHandle,
-					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_IN).GetPathID(),
+					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN).GetPathID(),
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddOutput(data.StadHandle,
-					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),
+					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT).GetPathID(),
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+				renderGraph.AddOutput(data.StadHandle,
+					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 			}
 		}

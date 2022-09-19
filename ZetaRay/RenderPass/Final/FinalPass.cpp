@@ -74,6 +74,7 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	m_cbLocal.DisplayIndirectDiffuse = false;
 	m_cbLocal.DisplayStadTemporalCache = false;
 	m_cbLocal.DoTonemapping = true;
+	m_cbLocal.VisualizeOcclusion = false;
 
 	ParamVariant p1;
 	p1.InitEnum("Renderer", "Final", "Display", fastdelegate::MakeDelegate(this, &FinalPass::ChangeRenderOptionCallback),
@@ -97,7 +98,7 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 
 	ParamVariant p6;
 	p6.InitBool("Renderer", "Settings", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &FinalPass::VisualizeOcclusionCallback),
-		m_cbLocal.DoTonemapping);
+		false);
 	App::AddParam(p6);
 
 	m_cachedPsoDesc = psoDesc;

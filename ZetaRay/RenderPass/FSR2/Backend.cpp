@@ -95,8 +95,6 @@ namespace
 		PipelineStateLibrary m_psoLib;
 	};
 
-	//static constexpr int fdg = sizeof(PipelineStateLibrary);
-
 	FSR2_Data* g_fsr2Data = nullptr;
 
 	inline D3D12_RESOURCE_STATES GetD3D12State(FfxResourceStates fsrState) noexcept
@@ -258,7 +256,12 @@ namespace
 				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), i);
 		}
 
-		if (g_fsr2Data->m_resData[job.target.internalIndex].State != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
+		if (job.target.internalIndex == FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT)
+		{
+			Assert(g_fsr2Data->m_resData[job.target.internalIndex].State == D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				"upscaled color should always be in UAV state");
+		}
+		else if (g_fsr2Data->m_resData[job.target.internalIndex].State != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		{
 			auto barrier = Direct3DHelper::TransitionBarrier(t.GetResource(), g_fsr2Data->m_resData[job.target.internalIndex].State,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

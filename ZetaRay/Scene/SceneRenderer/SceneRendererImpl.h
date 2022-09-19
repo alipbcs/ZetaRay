@@ -31,7 +31,7 @@ using Data = ZetaRay::Scene::SceneRenderer::PrivateData;
 namespace ZetaRay::Scene
 {
 	inline static const char* Denoisers[] = { "None", "STAD" };
-	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "FSR 2.0 (Quality)" };
+	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "AMD FSR 2.0 (Quality)" };
 
 	struct alignas(64) RenderSettings
 	{

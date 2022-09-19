@@ -233,9 +233,7 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 			data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
 	}
 	else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
-	{
 		data.SkyPass.SetInscatteringEnablement(false);
-	}
 
 	const int currOutIdx = App::GetRenderer().CurrOutIdx();
 
@@ -410,7 +408,7 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			renderGraph.AddInput(lightManagerData.CompositingHandle,
-				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT).GetPathID(),
+				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}
@@ -424,7 +422,7 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
-	// writable to avoid a resource ransition
+	// writable to avoid a resource transition
 	renderGraph.AddOutput(lightManagerData.CompositingHandle, RenderGraph::DUMMY_RES::RES_2,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 

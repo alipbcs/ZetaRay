@@ -78,7 +78,7 @@ namespace ZetaRay::RenderPass
 			static constexpr int NUM_VOXELS_X = 192;
 			static constexpr int NUM_VOXELS_Y = int(NUM_VOXELS_X / 1.77f);
 			static constexpr float DEPTH_MAP_EXP = 2.0f;
-			static constexpr float VOXEL_GRID_NEAR_Z = 0.05f;
+			static constexpr float VOXEL_GRID_NEAR_Z = 0.5f;
 			static constexpr float VOXEL_GRID_FAR_Z = 30.0f;
 		};
 
