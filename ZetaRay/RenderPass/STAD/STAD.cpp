@@ -100,7 +100,6 @@ void STAD::Init() noexcept
 	m_cbSpatialFilter.MaxPlaneDist = DefaultParamVals::EdgeStoppingMaxPlaneDist;
 	m_cbSpatialFilter.NormalExp = DefaultParamVals::EdgeStoppingNormalExp;
 	m_cbSpatialFilter.FilterRadiusBase = DefaultParamVals::FilterRadiusBase;
-	m_cbSpatialFilter.FilterRadiusScale = DefaultParamVals::FilterRadiusScale;
 
 	App::AddShaderReloadHandler("STAD_TemporalPass", fastdelegate::MakeDelegate(this, &STAD::ReloadTemporalPass));
 	App::AddShaderReloadHandler("STAD_SpatialFilter", fastdelegate::MakeDelegate(this, &STAD::ReloadSpatialFilter));
@@ -158,23 +157,24 @@ void STAD::Render(CommandList& cmdList) noexcept
 	const int h = renderer.GetRenderHeight();
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-	uint32_t prevTemporalCacheSRV = m_currTemporalCacheOutIdx == 0 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV : 
-		(uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
-	uint32_t nextTemporalCacheUAV = m_currTemporalCacheOutIdx == 0 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV : 
-		(uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
+	int temporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
+		(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
+	int temporalCacheUAV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
+		(int)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
 
-	const int firstOut = m_currTemporalCacheOutIdx;
+	const int temporalOut = m_currTemporalCacheOutIdx;
+	const int temporalIn = (m_currTemporalCacheOutIdx + 1) & 0x1;
 
 	// temporal pass
 	{
-		Assert(m_inputGpuHeapIndices[(uint32_t)SHADER_IN_RES::INDIRECT_LI] != 0, "Input descriptor heap idx hasn't been set.");
+		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI] != 0, "Input descriptor heap idx hasn't been set.");
 
-		computeCmdList.PIXBeginEvent("STAD_TemporalFilter");
+		computeCmdList.PIXBeginEvent("STAD_TemporalPass");
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::TEMPORAL_PASS]);
 
-		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(uint32_t)SHADER_IN_RES::INDIRECT_LI];
-		m_cbTemporalFilter.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheSRV);
-		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheUAV);
+		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI];
+		m_cbTemporalFilter.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
+		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
 		m_cbTemporalFilter.IsTemporalCacheValid = m_isTemporalCacheValid;
 
 		m_rootSig.SetRootConstants(0, sizeof(cbSTADTemporalFilter) / sizeof(DWORD), &m_cbTemporalFilter);
@@ -219,9 +219,9 @@ void STAD::Render(CommandList& cmdList) noexcept
 
 			computeCmdList.TransitionResource(barriers, ArraySize(barriers));
 
-			uint32_t prevTemporalCacheSRV = m_currTemporalCacheOutIdx == 0 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
+			uint32_t prevTemporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
 				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
-			uint32_t nextTemporalCacheUAV = m_currTemporalCacheOutIdx == 0 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
+			uint32_t nextTemporalCacheUAV = m_currTemporalCacheOutIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
 				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
 
 			m_cbSpatialFilter.TemporalCacheInDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheSRV);
@@ -241,17 +241,15 @@ void STAD::Render(CommandList& cmdList) noexcept
 	}
 
 	// restore the initial state
-	if (firstOut != m_currTemporalCacheOutIdx)
+	if (temporalOut != m_currTemporalCacheOutIdx)
 	{
-		D3D12_RESOURCE_BARRIER barriers[2];
-		barriers[0] = Direct3DHelper::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].GetResource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-		barriers[1] = Direct3DHelper::TransitionBarrier(m_temporalCache[(m_currTemporalCacheOutIdx + 1) & 0x1].GetResource(),
+		// render graph is only aware of the input states. Restore the initial state to avoid
+		// render graph and actial state going out of sync
+		D3D12_RESOURCE_BARRIER barrier = Direct3DHelper::TransitionBarrier(m_temporalCache[(m_currTemporalCacheOutIdx + 1) & 0x1].GetResource(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		computeCmdList.TransitionResource(barriers, ArraySize(barriers));
+		computeCmdList.TransitionResource(&barrier, 1);
 	}
 
 	// for next frame

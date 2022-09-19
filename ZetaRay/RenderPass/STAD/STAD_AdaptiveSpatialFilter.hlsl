@@ -49,10 +49,8 @@ float NormalWeight(float3 input, float3 sample, float scale)
 {
 	float cosTheta = dot(input, sample);
 	float angle = ArcCos(cosTheta);
-	// angles becomes narrower as more samples are accumulated
-	scale = saturate(scale * 16.0f);
-	//scale = 1.0f;
-	float tolerance = 0.0174532f + 0.7853981f * scale; // == [1.0, 46.0] degrees 
+	// tolerance angle becomes narrower as more samples are accumulated
+	float tolerance = 0.08726646 + 0.7853981f * scale; // == [5.0, 46.0] degrees 
 	float weight = pow(saturate((tolerance - angle) / tolerance), g_local.NormalExp);
 	
 	return weight;
@@ -74,21 +72,25 @@ float2 GetWorldPosUVFromSurfaceLocalCoord(in float3 pos, in float3 normal, in fl
 	return posNDC.xy * 0.5f + 0.5f;
 }
 
-float3 Filter(int2 DTid, float3 integratedColor, float3 normal, float linearDepth, float oneSubAccSpeed)
+float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, float tspp)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
+
+	// 1 / 32 <= x <= 1
+	const float oneSubAccSpeed = (g_local.MaxTspp - tspp + 1.0f) / (float) g_local.MaxTspp;
+	
+	// 1 / 32 <= x <= 1
+	const float accSpeed = tspp / (float) g_local.MaxTspp;
 
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 uv = (DTid + 0.5f) / renderDim;
 	const float3 pos = WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 
 	// as tspp goes up, radius becomes smaller and vice versa
-	//const float kernelRadius = g_local.FilterRadiusBase + g_local.FilterRadiusScale * oneSubAccSpeed;
+	//const float radiusScale = sqrt(oneSubAccSpeed);
 	const float kernelRadius = g_local.FilterRadiusBase * g_local.FilterRadiusScale;
-	//const float edgeStoppingScale = oneSubAccSpeed * (float) g_local.CurrPass / g_local.NumPasses;
-	const float edgeStoppingScale = oneSubAccSpeed;
 	
 	const float sampleIdx = g_frame.FrameNum & 31;
 	const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
@@ -98,8 +100,8 @@ float3 Filter(int2 DTid, float3 integratedColor, float3 normal, float linearDept
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
 
-	float3 weightedColor = integratedColor;
-	float weightSum = 1.0f;
+	float3 weightedColor = 0.0.xxx;
+	float weightSum = 0.0f;
 	
 	[unroll]
 	for (int i = 0; i < 8; i++)
@@ -115,17 +117,19 @@ float3 Filter(int2 DTid, float3 integratedColor, float3 normal, float linearDept
 		// map from that local space to world space, then project and compute the corresponding UV
 		float3 samplePosW;
 		float2 samplePosUV = GetWorldPosUVFromSurfaceLocalCoord(pos, normal, rotatedXZ, samplePosW);
-		int2 samplePosSS = (int2) round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
+		//int2 samplePosSS = (int2) round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
 				
-		if (IsInRange(samplePosSS, renderDim))
+		if (IsInRange(samplePosUV, 1.0f.xx))
 		{
 			float sampleDepth = g_currDepth.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
 			sampleDepth = ComputeLinearDepthReverseZ(sampleDepth, g_frame.CameraNear);
-			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, pos, edgeStoppingScale);
+			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
 					
 			float2 encodedNormal = g_currNormal.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
 			const float3 sampleNormal = DecodeUnitNormalFromHalf2(encodedNormal);
-			const float w_n = NormalWeight(normal, sampleNormal, edgeStoppingScale);
+			//const float normalToleranceScale = saturate(oneSubAccSpeed * 16.0f);
+			const float normalToleranceScale = 1.0f;
+			const float w_n = NormalWeight(normal, sampleNormal, normalToleranceScale);
 					
 			const float3 sampleColor = g_inTemporalCache.SampleLevel(g_samPointClamp, samplePosUV, 0.0f).rgb;
 			//const float3 sampleColor = (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y) ? 0.0.xxx : float3(0.1f, 0.0f, 0.0f);
@@ -136,8 +140,11 @@ float3 Filter(int2 DTid, float3 integratedColor, float3 normal, float linearDept
 		}
 	}
 	
-	//float3 filtered = weightSum > 1e-6 ? weightedColor / weightSum : 0.0.xxx;
-	float3 filtered = weightedColor / weightSum;
+	float3 filtered = weightSum > 1e-3 ? weightedColor / weightSum : 0.0.xxx;
+	float s = weightSum > 1e-3 ? accSpeed : 0.0f;
+	
+	s = min(s, 0.8f);
+	filtered = lerp(filtered, centerColor, s);
 	
 	return filtered;
 }
@@ -193,8 +200,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	// integrated data
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
 	float4 integratedVals = g_inTemporalCache[swizzledDTid];
-	// 1 / 32 <= x <= 1
-	const float oneSubAccSpeed = (g_local.MaxTspp - integratedVals.w + 1.0f) / (float) g_local.MaxTspp;
 	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -204,8 +209,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float linearDepth = ComputeLinearDepthReverseZ(g_currDepth[swizzledDTid], g_frame.CameraNear);
 
-	float3 filtered = Filter(swizzledDTid, integratedVals.xyz, normal, linearDepth, oneSubAccSpeed);
+	float3 filtered = Filter(swizzledDTid, integratedVals.xyz, normal, linearDepth, integratedVals.w);
 	RWTexture2D<float4> g_outTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheOutDescHeapIdx];
 	g_outTemporalCache[swizzledDTid] = float4(filtered, integratedVals.w);
-	//g_temporalCache[swizzledDTid].xyz = normal;
 }

@@ -83,6 +83,7 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / screenDim;
 		
+	/*
 	// previous frame's normals
 	GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 
@@ -96,12 +97,13 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	prevNormals[1] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
 	prevNormals[2] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
 	prevNormals[3] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+		
+	const float4 normalWeights = ComputeNormalConsistency(prevNormals, currNormal);
+	*/
 	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 currNormal = DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
-	
-	const float4 normalWeights = ComputeNormalConsistency(prevNormals, currNormal);
 
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -133,7 +135,8 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
 	
-	float4 weights = geoWeights * normalWeights * bilinearWeights * isInBounds;
+	//float4 weights = geoWeights * normalWeights * bilinearWeights * isInBounds;
+	float4 weights = geoWeights * bilinearWeights * isInBounds;
 	const float weightSum = dot(1.0f, weights);
 
 	if (1e-6f < weightSum)

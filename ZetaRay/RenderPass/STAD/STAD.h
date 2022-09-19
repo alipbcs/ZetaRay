@@ -28,9 +28,9 @@ namespace ZetaRay::RenderPass
 
 		enum class SHADER_OUT_RES
 		{
-			TEMPORAL_CACHE_PRE_IN,
-			TEMPORAL_CACHE_PRE_OUT,
-			TEMPORAL_CACHE_POST_OUT,
+			TEMPORAL_CACHE_IN,
+			TEMPORAL_CACHE_OUT,
+			SPATIAL_FILTER_OUT,
 			COUNT
 		};
 
@@ -51,14 +51,14 @@ namespace ZetaRay::RenderPass
 		{
 			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
 
-			if (i == SHADER_OUT_RES::TEMPORAL_CACHE_PRE_IN)
+			if (i == SHADER_OUT_RES::TEMPORAL_CACHE_IN)
 				return m_temporalCache[(m_currTemporalCacheOutIdx + 1) & 0x1];
-			else if(i == SHADER_OUT_RES::TEMPORAL_CACHE_PRE_OUT)
+			else if(i == SHADER_OUT_RES::TEMPORAL_CACHE_OUT)
 				return m_temporalCache[m_currTemporalCacheOutIdx];
 
 			int outIdx = m_currTemporalCacheOutIdx;
 
-			// each round of sptial filtering swaps input & output
+			// each round of spatial filtering swaps input & output
 			if (m_doSpatialFilter)
 			{
 				for (int i = 0; i < m_numSpatialFilterPasses; i++)
@@ -114,9 +114,8 @@ namespace ZetaRay::RenderPass
 			static constexpr float BilinearNormalScale = 1.4f;
 			static constexpr float BilinearNormalExp = 16.0f;
 			static constexpr float EdgeStoppingMaxPlaneDist = 3.0f;
-			static constexpr float EdgeStoppingNormalExp = 8.0f;
-			static constexpr float FilterRadiusBase = 5e-2f;
-			static constexpr float FilterRadiusScale = 1.0f;
+			static constexpr float EdgeStoppingNormalExp = 2.0f;
+			static constexpr float FilterRadiusBase = 0.1f;
 		};
 
 		// all the shaders use the same root signature
