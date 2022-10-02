@@ -22,13 +22,13 @@ StructuredBuffer<uint> g_rankingTile : register(t2, space0);
 float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos)
 {
 	float3 prevPos[4];
-	prevPos[0] = WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+	prevPos[0] = Common::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[1] = WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+	prevPos[1] = Common::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[2] = WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+	prevPos[2] = Common::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[3] = WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+	prevPos[3] = Common::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
@@ -103,18 +103,18 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 currNormal = DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
+	const float3 currNormal = Common::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
 
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	prevDepths = ComputeLinearDepthReverseZ(prevDepths, g_frame.CameraNear);
+	prevDepths = Common::ComputeLinearDepthReverseZ(prevDepths, g_frame.CameraNear);
 
 	// current frame's depth
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float currLinearDepth = ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
+	const float currLinearDepth = Common::ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
 
-	const float3 currPos = WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+	const float3 currPos = Common::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	float2 prevUVs[4];
@@ -125,10 +125,10 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos);
 	
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(IsInRange(topLeft, screenDim),
-									 IsInRange(topLeft + float2(1, 0), screenDim),
-									 IsInRange(topLeft + float2(0, 1), screenDim),
-									 IsInRange(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Common::IsInRange(topLeft, screenDim),
+									 Common::IsInRange(topLeft + float2(1, 0), screenDim),
+									 Common::IsInRange(topLeft + float2(0, 1), screenDim),
+									 Common::IsInRange(topLeft + float2(1, 1), screenDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -197,7 +197,7 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float3 color)
 [numthreads(STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	if (!IsInRange(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Common::IsInRange(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	uint tspp = 0;

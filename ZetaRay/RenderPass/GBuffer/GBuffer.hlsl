@@ -56,7 +56,7 @@ GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalli
 	
 	psout.BaseColor = baseColor;
 	psout.EmissiveCurv = half4(emissive, surfaceSpreadAngle);
-	psout.Normal.xy = EncodeUnitNormalAsHalf2(sn);
+	psout.Normal.xy = Common::EncodeUnitNormalAsHalf2(sn);
 	//psout.Normal.zw = EncodeUnitNormalAsHalf2(gn);
 	psout.MetallicRoughness = half2(metallic, roughness);
 	psout.MotionVec = motionVec;
@@ -146,7 +146,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 		float2 bumpNormal = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 		//float3 bumpNormal = g_normalMap.Sample(g_samAnisotropicWrap, psin.TexUV);
 
-		shadingNormal = TangentSpaceNormalToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
+		shadingNormal = Common::TangentSpaceNormalToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
 	}
 	
 	if (mat.MetallicRoughnessTexture != -1)
@@ -175,8 +175,8 @@ GBUFFER_OUT mainPS(VSOut psin)
 	currUnjitteredPosNDC -= g_frame.CurrCameraJitter;
 
 	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
-	float2 prevPosTS = UVFromNDC(prevUnjitteredPosNDC);
-	float2 currPosTS = UVFromNDC(currUnjitteredPosNDC);
+	float2 prevPosTS = Common::UVFromNDC(prevUnjitteredPosNDC);
+	float2 currPosTS = Common::UVFromNDC(currUnjitteredPosNDC);
 	float2 motionVecTS = currPosTS - prevPosTS;
 
 	// eq. (31) in Ray Tracing Gems 1, ch. 20

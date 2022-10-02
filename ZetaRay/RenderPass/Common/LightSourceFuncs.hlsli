@@ -312,7 +312,7 @@ float3 SampleLeEmissiveTri(in EmissiveTriangle light, in float3 posW, in float2 
 	v2W += light.Translation;
 		
 	// sample the light surface in world space
-	float3 barryCoords = UniformSampleTriangle(u);
+	float3 barryCoords = Sampling::UniformSampleTriangle(u);
 	float3 sampledLightSurfacePos = barryCoords.x * v0W + barryCoords.y * v1W + barryCoords.z * v2W;
 		
 	// store barrycentric coords, position can be reconstructed from it
@@ -441,7 +441,7 @@ float2 SampleEnvMapPatch(in EnvMapPatch patch, in float2 u, in uint texW, in uin
 	float phi = lerp(patch.Phi1, patch.Phi1 + dPhi, u.x);
 
 	float cosTheta = patch.CosTheta1 - u.y * (patch.CosTheta1 - patch.CosTheta2);
-	float theta = ArcCos(cosTheta);
+	float theta = Common::ArcCos(cosTheta);
 
 	float2 uv;
 	uv.x = phi * ONE_DIV_TWO_PI * texW;

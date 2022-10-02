@@ -63,7 +63,7 @@ float3 MissShading(float3 rayDir)
 	// y = cos(theta)
 	// z = sin(theta) * sin(phi)
 	float3 w = normalize(rayDir);
-	float theta = ArcCos(w.y); // [0, PI]
+	float theta = Common::ArcCos(w.y); // [0, PI]
 	theta *= ONE_DIV_PI;
 	float phi = atan2(w.z, w.x); // [0, PI]
 	phi += PI;
@@ -153,7 +153,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in float3 geometricNormal, out 
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = EncodeUnitNormalAsHalf2(normal);
+		surface.ShadingNormal = Common::EncodeUnitNormalAsHalf2(normal);
 		surface.MatID = (uint16_t) packedMeshData & 0xff;
 		surface.T = (half) rayQuery.CommittedRayT();
 
@@ -231,7 +231,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, in half2 encodedGeomet
 
 	float3 newOrigin = g_sortedOrigin[Gidx];
 	float3 newDir = g_sortedDir[Gidx];
-	float3 newGeometricNormal = DecodeUnitNormalFromHalf2(g_sortedGeoNormals[Gidx]);
+	float3 newGeometricNormal = Common::DecodeUnitNormalFromHalf2(g_sortedGeoNormals[Gidx]);
 
 #else	
 	float3 newOrigin = origin;
@@ -257,7 +257,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, in half2 encodedGeomet
 
 float3 DirectLighting(HitSurface hitInfo)
 {
-	float3 normal = DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
+	float3 normal = Common::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
 
 	// geometric normal is unavailable
 	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
@@ -287,7 +287,7 @@ float3 DirectLighting(HitSurface hitInfo)
 
 	// assume the surface is Lambertian
 	half3 diffuseReflectance = baseColor * (1.0h - metalness);
-	float3 brdf = LambertianBRDF(diffuseReflectance, ndotWi);
+	float3 brdf = BRDF::LambertianBRDF(diffuseReflectance, ndotWi);
 
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -296,8 +296,8 @@ float3 DirectLighting(HitSurface hitInfo)
 	float3 posW = hitInfo.Pos;
 	posW.y += g_frame.PlanetRadius;
 	
-	float t = IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
-	float3 tr = EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
+	float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
+	float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
 	float3 L_i = brdf * tr * g_frame.SunIlluminance;
@@ -317,10 +317,10 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 	// reconstruct position from depth buffer
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float linearDepth = g_depth[DTid];
-	linearDepth = ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
+	linearDepth = Common::ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
 
 	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = WorldPosFromScreenSpacePos(DTid,
+	const float3 posW = Common::WorldPosFromScreenSpacePos(DTid,
 		textureDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -330,7 +330,7 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	half2 packedNormals = g_normal[DTid];
-	float3 shadingNormal = DecodeUnitNormalFromHalf2(packedNormals.xy);
+	float3 shadingNormal = Common::DecodeUnitNormalFromHalf2(packedNormals.xy);
 	half2 encodedGeometricNormal = packedNormals.xy;
 	
 	// sample the cosine-weighted hemisphere above surfact pos
@@ -339,12 +339,12 @@ float3 ComputeIndirectLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrac
 	{
 		const uint sampleIdx = g_frame.FrameNum & 31;
 		//const uint sampleIdx = 0;
-		const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 0);
-		const float u1 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 1);
 
-		wi = SampleLambertianBrdf(shadingNormal, float2(u0, u1));
+		wi = BRDF::SampleLambertianBrdf(shadingNormal, float2(u0, u1));
 	}
 	
 	// trace a ray along wi to find a possible surface point

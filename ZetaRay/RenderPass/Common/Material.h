@@ -37,7 +37,7 @@ namespace ZetaRay
             Packed = 0;
         }
 
-        void SetGpuBufferIndex(uint_ idx)
+        void SetGpuBufferIndex(uint32_t idx)
         {
             Assert(idx < 1'000'000, "At most 1'000'000 different materials are supported.");
             Packed |= idx;
@@ -53,7 +53,7 @@ namespace ZetaRay
             Packed |= (uint32_t)(isTwoSided) << 30;
         }
 
-        uint_ GpuBufferIndex() const
+        uint32_t GpuBufferIndex() const
         {
             return Packed & 0x0fffffff;
         }
@@ -66,14 +66,14 @@ namespace ZetaRay
         float RoughnessFactor;
         float NormalScale;
         float AlphaCuttoff;
-        uint_ BaseColorTexture;
-        uint_ NormalTexture;
-        uint_ MetallicRoughnessTexture;
-        uint_ EmissiveTexture;
+        uint32_t BaseColorTexture;
+        uint32_t NormalTexture;
+        uint32_t MetallicRoughnessTexture;
+        uint32_t EmissiveTexture;
 
         // last 4 bits encode alpha and two-sided
         // first 28 bits encode material buffer index
-        uint_ Packed;
+        uint32_t Packed;
     };
 #ifdef __cplusplus
 }

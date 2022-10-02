@@ -9,9 +9,9 @@
 // if the result is zero.
 namespace RT_AS_SUBGROUP
 {
-	static const uint_ EMISSIVE = 0x1;
-	static const uint_ NON_EMISSIVE = 0x2;
-	static const uint_ ALL = EMISSIVE | NON_EMISSIVE;
+	static const uint32_t EMISSIVE = 0x1;
+	static const uint32_t NON_EMISSIVE = 0x2;
+	static const uint32_t ALL = EMISSIVE | NON_EMISSIVE;
 }
 
 #endif

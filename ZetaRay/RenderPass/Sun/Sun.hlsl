@@ -95,10 +95,10 @@ float4 mainPS(VSOut psin) : SV_Target
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float linearDepth = g_depth[psin.PosSS.xy];
-	linearDepth = ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
+	linearDepth = Common::ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
 	
 	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	float3 posW = WorldPosFromScreenSpacePos(psin.PosSS.xy, 
+	float3 posW = Common::WorldPosFromScreenSpacePos(psin.PosSS.xy,
 		textureDim, 
 		linearDepth, 
 		g_frame.TanHalfFOV, 
@@ -142,13 +142,14 @@ float4 mainPS(VSOut psin) : SV_Target
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 	const half2 mr = g_metallicRoughness[psin.PosSS.xy];
 	
-	const float3 shadingNormal = DecodeUnitNormalFromHalf2(encodedNormals.xy);
+	const float3 shadingNormal = Common::DecodeUnitNormalFromHalf2(encodedNormals.xy);
 
-	SurfaceInteraction surface = ComputePartialSurfaceInteraction(shadingNormal,
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(shadingNormal,
 		mr.y, mr.x, wo, baseColor.rgb);
 	
-	CompleteSurfaceInteraction(-g_frame.SunDir, surface);
-	float3 f = ComputeSurfaceBRDF(surface);
+	surface.InitComplete(-g_frame.SunDir);
+	
+	float3 f = BRDF::ComputeSurfaceBRDF(surface);
 
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -156,8 +157,8 @@ float4 mainPS(VSOut psin) : SV_Target
 
 	posW.y += g_frame.PlanetRadius;
 	
-	float t = IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
-	float3 tr = EstimateTransmittance(g_frame.PlanetRadius, posW , -g_frame.SunDir, t, 
+	float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
+	float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
 	float3 L_i = (tr * f) * g_frame.SunIlluminance;

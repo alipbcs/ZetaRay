@@ -28,32 +28,32 @@ namespace ZetaRay
 		float PixelSpreadAngle;
 		float TanHalfFOV;
 
-		uint_ RenderWidth;
-		uint_ RenderHeight;
-		uint_ DisplayWidth;
-		uint_ DisplayHeight;
+		uint32_t RenderWidth;
+		uint32_t RenderHeight;
+		uint32_t DisplayWidth;
+		uint32_t DisplayHeight;
 
 		float2_ CurrCameraJitter;
 		float2_ PrevCameraJitter;
 		//
 		// GBuffer
 		//
-		uint_ CurrGBufferDescHeapOffset;
-		uint_ PrevGBufferDescHeapOffset;
+		uint32_t CurrGBufferDescHeapOffset;
+		uint32_t PrevGBufferDescHeapOffset;
 		float MipBias;
-		uint_ pad1;
+		uint32_t pad1;
 		//
 		// Material
 		//
-		uint_ BaseColorMapsDescHeapOffset;
-		uint_ NormalMapsDescHeapOffset;
-		uint_ EmissiveMapsDescHeapOffset;
-		uint_ MetalnessRoughnessMapsDescHeapOffset;
+		uint32_t BaseColorMapsDescHeapOffset;
+		uint32_t NormalMapsDescHeapOffset;
+		uint32_t EmissiveMapsDescHeapOffset;
+		uint32_t MetalnessRoughnessMapsDescHeapOffset;
 		//
 		// SkyDome
 		// 
-		uint_ FrameNum;
-		uint_ EnvMapDescHeapOffset;
+		uint32_t FrameNum;
+		uint32_t EnvMapDescHeapOffset;
 		float WorldRadius;
 		float RayOffset;
 		//

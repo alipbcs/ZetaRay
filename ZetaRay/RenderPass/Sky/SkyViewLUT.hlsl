@@ -58,7 +58,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	float3 rayOrigin = float3(0.0f, g_frame.PlanetRadius + 0.2f, 0.0f);
 
 	// in-scattered lighting
-	float3 Ls = EstimateLs(g_frame.PlanetRadius, rayOrigin, w, g_frame.SunDir, g_frame.AtmosphereAltitude, g_frame.g,
+	float3 Ls = Volumetric::EstimateLs(g_frame.PlanetRadius, rayOrigin, w, g_frame.SunDir, g_frame.AtmosphereAltitude, g_frame.g,
 			sigma_s_rayleigh, g_frame.MieSigmaS, sigma_t_mie, sigma_t_ozone, 32);
 	Ls *= g_frame.SunIlluminance;
 	

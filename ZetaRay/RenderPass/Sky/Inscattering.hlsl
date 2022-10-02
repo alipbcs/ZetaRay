@@ -72,11 +72,11 @@ void ComputeVoxelData(in float3 pos, in float3 sigma_t_rayleigh, in float sigma_
 	in float3 sigma_t_ozone, out float3 LoTranmittance, out float3 density)
 {
 	pos.y += g_frame.PlanetRadius;
-	const float altitude = ComputeAltitude(pos, g_frame.PlanetRadius);
-	density = ComputeDensity(altitude);
+	const float altitude = Volumetric::ComputeAltitude(pos, g_frame.PlanetRadius);
+	density = Volumetric::ComputeDensity(altitude);
 		
-	const float posToAtmosphereDist = IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
-	LoTranmittance = EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, posToAtmosphereDist,
+	const float posToAtmosphereDist = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
+	LoTranmittance = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, posToAtmosphereDist,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 		
 	pos.y -= g_frame.PlanetRadius;
@@ -104,8 +104,8 @@ void Integrate(in float3 rayDir, in float ds, in float3 sigma_s_rayleigh, in flo
 
 	// following are constant due to the nature of directional light sources
 	const float cosTheta = dot(g_frame.SunDir, -rayDir);
-	const float phaseRayleigh = RayleighPhaseFunction(cosTheta);
-	const float phaseMie = SchlickPhaseFunction(cosTheta, g_frame.g);
+	const float phaseRayleigh = Volumetric::RayleighPhaseFunction(cosTheta);
+	const float phaseMie = Volumetric::SchlickPhaseFunction(cosTheta, g_frame.g);
 	
 	Ls = LsRayleigh * sigma_s_rayleigh * phaseRayleigh + LsMie * sigma_s_mie * phaseMie;
 }

@@ -22,7 +22,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
 	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!IsInRange(DTid.xy, textureDim))
+	if (!Common::IsInRange(DTid.xy, textureDim))
 		return;
 
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
@@ -74,7 +74,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		if (linearDepth > 1e-4f)
 		{
 			float2 posTS = (DTid.xy + 0.5f) / textureDim;
-			linearDepth = ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
+			linearDepth = Common::ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
 			float p = pow(max(linearDepth - g_local.VoxelGridNearZ, 0.0f) / (g_local.VoxelGridFarZ - g_local.VoxelGridNearZ), 1.0f / g_local.DepthMappingExp);
 		
 			//float p = linearDepth / g_local.VoxelGridDepth;

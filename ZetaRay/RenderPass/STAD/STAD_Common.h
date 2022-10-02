@@ -13,7 +13,7 @@
 
 struct cbSTADTemporalFilter
 {
-	uint_ MaxTspp;
+	uint32_t MaxTspp;
 	float MaxPlaneDist;
 	float BilinearNormalScale;
 	float BilinearNormalExp;
@@ -28,37 +28,37 @@ struct cbSTADTemporalFilter
 	// for doing so is that shading involves texture details that make denoising more difficult. Therfore,
 	// shading is performed after denoising (here shading is just multiplication by Lambert's BRDF)
 	// Texture2D<half4>
-	uint_ IndirectLiRayTDescHeapIdx;
+	uint32_t IndirectLiRayTDescHeapIdx;
 
 	// previous temporal cache
 	// Texture2D<half4>: (color, tspp)
-	uint_ PrevTemporalCacheDescHeapIdx;
+	uint32_t PrevTemporalCacheDescHeapIdx;
 
 	// current temporal cache
 	// RWTexture2D<half4>: (color, tspp)
-	uint_ CurrTemporalCacheDescHeapIdx;
+	uint32_t CurrTemporalCacheDescHeapIdx;
 
-	uint_ IsTemporalCacheValid;
+	uint32_t IsTemporalCacheValid;
 };
 
 struct cbSTADSpatialFilter
 {
-	uint_ MaxTspp;
+	uint32_t MaxTspp;
 	float FilterRadiusBase;
 	float FilterRadiusScale;
 	float NormalExp;
 	float MaxPlaneDist;
 
-	uint_ CurrPass;
-	uint_ NumPasses;
+	uint32_t CurrPass;
+	uint32_t NumPasses;
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
 	uint16_t TileWidth;		// must be a power of 2
 	uint16_t Log2TileWidth;
 	uint16_t NumGroupsInTile;  // == TileWidth * DispatchDimY
 
-	uint_ TemporalCacheInDescHeapIdx;
-	uint_ TemporalCacheOutDescHeapIdx;
+	uint32_t TemporalCacheInDescHeapIdx;
+	uint32_t TemporalCacheOutDescHeapIdx;
 };
 
 #ifndef __cplusplus

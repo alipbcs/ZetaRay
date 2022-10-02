@@ -10,11 +10,11 @@
 struct cbTAA
 {
 	float BlendWeight;
-	uint_ InputDescHeapIdx;
-	uint_ PrevOutputDescHeapIdx;
-	uint_ CurrOutputDescHeapIdx;
-	uint_ TemporalIsValid;
-	uint_ CatmullRomFiltering;
+	uint32_t InputDescHeapIdx;
+	uint32_t PrevOutputDescHeapIdx;
+	uint32_t CurrOutputDescHeapIdx;
+	uint32_t TemporalIsValid;
+	uint32_t CatmullRomFiltering;
 };
 
 #endif

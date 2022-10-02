@@ -111,7 +111,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		float exposure = ComputeAutoExposureFromAverage(avgLum);
 //		float linearExposure = (g_local.KeyValue / avgLum);
 		float3 exposedColor = color * exposure;
-		float3 toneMapped = LinearTosRGB(ACESFitted(exposedColor) * 1.8f);
+		float3 toneMapped = Common::LinearTosRGB(ACESFitted(exposedColor) * 1.8f);
 		//float3 toneMapped = AMDTonemapper(exposedColor);
 //		float3 toneMapped = ToneMapFilmicALU(exposedColor);
 		color = toneMapped;
@@ -127,7 +127,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	{
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		half2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
-		color = DecodeUnitNormalFromHalf2(encodedNormal.xy);
+		color = Common::DecodeUnitNormalFromHalf2(encodedNormal.xy);
 		color = abs(color);	
 	}
 	else if (g_local.DisplayBaseColor)

@@ -361,7 +361,6 @@ namespace
 	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, tinygltf::Model& model, 
 		size_t offset, size_t size) noexcept
 	{
-		//int idx = 0;
 		SceneCore& scene = App::GetScene();
 
 		auto getAlphaMode = [](const std::string& s) noexcept
@@ -369,20 +368,16 @@ namespace
 			auto ret = Material::ALPHA_MODE::OPAQUE;
 
 			if (strcmp(s.data(), "MASK") == 0)
-			{
 				ret =  Material::ALPHA_MODE::MASK;
-			}
 			else if (strcmp(s.data(), "BLEND") == 0)
-			{
 				ret =  Material::ALPHA_MODE::BLEND;
-			}
 
 			return ret;
 		};
 
 		for (size_t m = offset; m != offset + size; m++) 
 		{
-			auto& mat = model.materials[m];
+			const auto& mat = model.materials[m];
 			Asset::MaterialDesc desc;
 			desc.Index = (uint32_t)m;
 
@@ -522,8 +517,6 @@ namespace
 
 			//vM = mul(vM, vRhsToLhs);
 			M = store(vM);
-
-			//const uint64_t id = g_pApp->GetStringID(node.name);
 
 			instances.emplace_back(IntemediateInstance{
 						.LocalTransform = float4x3(M),
@@ -696,9 +689,7 @@ void Model::glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexc
 
 	size_t numMeshes = 0;
 	for (const auto& mesh : model.meshes)
-	{
 		numMeshes += mesh.primitives.size();
-	}
 
 	scene.ReserveScene(sceneID, numMeshes, model.materials.size(), model.nodes.size());
 

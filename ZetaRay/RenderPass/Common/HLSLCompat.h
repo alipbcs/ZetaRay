@@ -5,8 +5,9 @@
 	#include <cstdint>
 	#include "../../Math/Matrix.h"
 	
-	#define uint_ uint32_t
 	#define half_ uint16_t
+	#define half2_ uint32_t
+	#define half4_ ZetaRay::Math::float2
 	#define float2_ ZetaRay::Math::float2
 	#define float3_ ZetaRay::Math::float3
 	#define float4_ ZetaRay::Math::float4
@@ -14,8 +15,9 @@
 	#define float3x4_ ZetaRay::Math::float3x4
 	#define float4x4_ ZetaRay::Math::float4x4a
 #else
-	#define uint_ uint
 	#define half_ half
+	#define half2_ half2
+	#define half4_ half4
 	#define float2_ float2
 	#define float3_ float3
 	#define float4_ float4

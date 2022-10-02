@@ -9,7 +9,7 @@
 
 struct cbIndirectDiffuse
 {
-	uint_ OutputDescHeapIdx;
+	uint32_t OutputDescHeapIdx;
 	uint16_t InputWidth;
 	uint16_t InputHeight;
 	uint16_t DispatchDimX;

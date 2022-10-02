@@ -13,11 +13,11 @@
 
 struct cbSky
 {
-	uint_ LutWidth;
-	uint_ LutHeight;
+	uint32_t LutWidth;
+	uint32_t LutHeight;
 
-	uint_ NumVoxelsX;
-	uint_ NumVoxelsY;
+	uint32_t NumVoxelsX;
+	uint32_t NumVoxelsY;
 
 	float DepthMappingExp;
 	float VoxelGridNearZ;
@@ -29,8 +29,8 @@ struct cbSky
 
 	// RWTexture3D<half4>
 	// RWTexture2D<float4>
-	uint_ LutDescHeapIdx;
-	uint_ VoxelGridDescHeapIdx;
+	uint32_t LutDescHeapIdx;
+	uint32_t VoxelGridDescHeapIdx;
 };
 
 #endif

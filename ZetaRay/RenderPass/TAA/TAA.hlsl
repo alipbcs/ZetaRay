@@ -56,8 +56,8 @@ float3 ClipAABB(float3 aabbMin, float3 aabbMax, float3 histSample)
 [numthreads(TAA_THREAD_GROUP_SIZE_X, TAA_THREAD_GROUP_SIZE_Y, TAA_THREAD_GROUP_SIZE_Z)]
 void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 {
-	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!IsInRange(DTid.xy, renderDim))
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	if (!Common::IsInRange(DTid.xy, renderDim))
 		return;
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -117,7 +117,7 @@ void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 	}
 	
 	reconstructed /= weightSum;
-	float currLum = LuminanceFromLinearRGB(reconstructed);
+	float currLum = Common::LuminanceFromLinearRGB(reconstructed);
 	
 	// sample history using motion vector
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
@@ -139,13 +139,13 @@ void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 	
 	float3 prevSample;
 	if (g_local.CatmullRomFiltering)
-		prevSample = SampleTextureCatmullRom_5Tap(g_prevColor, g_samLinearClamp, prevUV, renderDim);
+		prevSample = Common::SampleTextureCatmullRom_5Tap(g_prevColor, g_samLinearClamp, prevUV, renderDim);
 	else
 		prevSample = g_prevColor.SampleLevel(g_samLinearClamp, prevUV, 0).xyz;
 
 	// helps with reducing fireflies
 	// Ref: https://graphicrants.blogspot.com/2013/12/tone-mapping.html
-	float tonemapWeight = rcp(1.0f + LuminanceFromLinearRGB(prevSample));
+	float tonemapWeight = rcp(1.0f + Common::LuminanceFromLinearRGB(prevSample));
 	prevSample *= tonemapWeight;
 
 	// clip history sample towards neighborhood AABB's center

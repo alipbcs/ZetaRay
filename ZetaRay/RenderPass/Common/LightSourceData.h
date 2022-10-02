@@ -7,7 +7,7 @@
 namespace ZetaRay
 {
 #endif
-    enum class LightSourceType : uint_
+    enum class LightSourceType : uint32_t
     {
         DIRECTIONAL = 0,
         POINT,
@@ -64,9 +64,9 @@ namespace ZetaRay
 
     struct EmissiveTriangle
     {
-        uint_ DescHeapIdx;
-        uint_ PrimitiveIdx;
-        uint_ EmissiveMapIdx;
+        uint32_t DescHeapIdx;
+        uint32_t PrimitiveIdx;
+        uint32_t EmissiveMapIdx;
         float Lumen;
 
         // Scaling transformation S multiplied by rotation transformation R
@@ -86,7 +86,7 @@ namespace ZetaRay
 #endif
 
         float P;
-        uint_ Alias;
+        uint32_t Alias;
         float OriginalProb;
 
         float pad;
@@ -96,7 +96,7 @@ namespace ZetaRay
     struct EnvLightDesc
     {
         float Pdf;
-        uint_ NumPatches;
+        uint32_t NumPatches;
         float dPhi;
         //const float dPhi = TWO_PI / NUM_PATCHES_U;
 

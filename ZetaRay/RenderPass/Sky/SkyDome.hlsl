@@ -69,7 +69,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	if (dot(-w, g_frame.SunDir) >= g_frame.SunCosAngularRadius)
 	{
 		float t;
-		bool intersectedPlanet = IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, w, t);
+		bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, w, t);
 		
 		if (!intersectedPlanet)
 		{
@@ -87,7 +87,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		phi += PI;
 		const float u = phi * ONE_DIV_TWO_PI;
 
-		const float theta = ArcCos(w.y); // [0, PI]
+		const float theta = Common::ArcCos(w.y); // [0, PI]
 		float v = theta * ONE_DIV_PI;
 		
 #if NON_LINEAR_LATITUDE == 1				

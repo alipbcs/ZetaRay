@@ -16,8 +16,8 @@ function(CompileHLSL HLSL_PATH ALL_INCLUDES RET)
 
 		add_custom_command(
 			OUTPUT ${CSO_PATH_DBG} ${CSO_PATH_RLS}
-			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_DBG} ${HLSL_PATH}
-			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_RLS} ${HLSL_PATH}
+			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -HV 2021 -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_DBG} ${HLSL_PATH}
+			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -HV 2021 -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_RLS} ${HLSL_PATH}
 			DEPENDS ${ALL_INCLUDES} "${HLSL_PATH}"
 			COMMENT "Compiling HLSL source file ${FILE_NAME_WO_EXT}.hlsl..."
 			VERBATIM)
@@ -34,10 +34,10 @@ function(CompileHLSL HLSL_PATH ALL_INCLUDES RET)
 		
 		add_custom_command(
 			OUTPUT ${CSO_PATH_VS_DBG} ${CSO_PATH_PS_DBG} ${CSO_PATH_VS_RLS} ${CSO_PATH_PS_RLS}
-			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -WX -T vs_6_6 -E mainVS -Fo ${CSO_PATH_VS_DBG} ${HLSL_PATH}
-			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -WX -T ps_6_6 -E mainPS -Fo ${CSO_PATH_PS_DBG} ${HLSL_PATH}
-			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -WX -T vs_6_6 -E mainVS -Fo ${CSO_PATH_VS_RLS} ${HLSL_PATH}
-			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -WX -T ps_6_6 -E mainPS -Fo ${CSO_PATH_PS_RLS} ${HLSL_PATH}
+			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -HV 2021 -WX -T vs_6_6 -E mainVS -Fo ${CSO_PATH_VS_DBG} ${HLSL_PATH}
+			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -HV 2021 -WX -T ps_6_6 -E mainPS -Fo ${CSO_PATH_PS_DBG} ${HLSL_PATH}
+			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -HV 2021 -WX -T vs_6_6 -E mainVS -Fo ${CSO_PATH_VS_RLS} ${HLSL_PATH}
+			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -HV 2021 -WX -T ps_6_6 -E mainPS -Fo ${CSO_PATH_PS_RLS} ${HLSL_PATH}
 			DEPENDS ${ALL_INCLUDES} "${HLSL_PATH}"
 			COMMENT "Compiling HLSL source file ${FILE_NAME_WO_EXT}.hlsl..."
 			VERBATIM)		

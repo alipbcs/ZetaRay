@@ -48,7 +48,7 @@ float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, flo
 float NormalWeight(float3 input, float3 sample, float scale)
 {
 	float cosTheta = dot(input, sample);
-	float angle = ArcCos(cosTheta);
+	float angle = Common::ArcCos(cosTheta);
 	// tolerance angle becomes narrower as more samples are accumulated
 	float tolerance = 0.08726646 + 0.7853981f * scale; // == [5.0, 46.0] degrees 
 	float weight = pow(saturate((tolerance - angle) / tolerance), g_local.NormalExp);
@@ -62,8 +62,8 @@ float2 GetWorldPosUVFromSurfaceLocalCoord(in float3 pos, in float3 normal, in fl
 	float3 posLocal = float3(xz.x, 0.0f, xz.y);
 	
 	// build rotation quaternion that maps y = (0, 1, 0) to surface normal
-	float4 q = QuaternionFromY(normal);
-	samplePosW = pos + RotateVector(posLocal, q);
+	float4 q = Common::QuaternionFromY(normal);
+	samplePosW = pos + Common::RotateVector(posLocal, q);
 	
 	float4 posNDC = mul(float4(samplePosW, 1.0f), g_frame.CurrViewProj);
 	posNDC.xy /= posNDC.w;
@@ -86,14 +86,14 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 uv = (DTid + 0.5f) / renderDim;
-	const float3 pos = WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+	const float3 pos = Common::WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 
 	// as tspp goes up, radius becomes smaller and vice versa
 	//const float radiusScale = sqrt(oneSubAccSpeed);
 	const float kernelRadius = g_local.FilterRadiusBase * g_local.FilterRadiusScale;
 	
 	const float sampleIdx = g_frame.FrameNum & 31;
-	const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+	const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 2);
 
 	const float theta = u0 * TWO_PI;
@@ -119,14 +119,14 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 		float2 samplePosUV = GetWorldPosUVFromSurfaceLocalCoord(pos, normal, rotatedXZ, samplePosW);
 		//int2 samplePosSS = (int2) round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
 				
-		if (IsInRange(samplePosUV, 1.0f.xx))
+		if (Common::IsInRange(samplePosUV, 1.0f.xx))
 		{
 			float sampleDepth = g_currDepth.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
-			sampleDepth = ComputeLinearDepthReverseZ(sampleDepth, g_frame.CameraNear);
+			sampleDepth = Common::ComputeLinearDepthReverseZ(sampleDepth, g_frame.CameraNear);
 			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
 					
 			float2 encodedNormal = g_currNormal.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
-			const float3 sampleNormal = DecodeUnitNormalFromHalf2(encodedNormal);
+			const float3 sampleNormal = Common::DecodeUnitNormalFromHalf2(encodedNormal);
 			//const float normalToleranceScale = saturate(oneSubAccSpeed * 16.0f);
 			const float normalToleranceScale = 1.0f;
 			const float w_n = NormalWeight(normal, sampleNormal, normalToleranceScale);
@@ -186,7 +186,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const uint16_t2 swizzledDTid = (uint16_t2) DTid.xy;
 #endif
 
-	if (!IsInRange(swizzledDTid, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Common::IsInRange(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -203,11 +203,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = DecodeUnitNormalFromHalf2(g_currNormal[swizzledDTid].xy);
+	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_currNormal[swizzledDTid].xy);
 		
 	// current frame's depth
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float linearDepth = ComputeLinearDepthReverseZ(g_currDepth[swizzledDTid], g_frame.CameraNear);
+	const float linearDepth = Common::ComputeLinearDepthReverseZ(g_currDepth[swizzledDTid], g_frame.CameraNear);
 
 	float3 filtered = Filter(swizzledDTid, integratedVals.xyz, normal, linearDepth, integratedVals.w);
 	RWTexture2D<float4> g_outTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheOutDescHeapIdx];
