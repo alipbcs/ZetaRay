@@ -208,7 +208,7 @@ void ZetaRay::Util::ReportError(const char* title, const char* msg) noexcept
 void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* call) noexcept
 {
     char msg[256];
-    stbsp_snprintf(msg, 256, "%s: %d\Predicate: %s\nError code: %d", file, line, call, GetLastError());
+    stbsp_snprintf(msg, 256, "%s: %d\nPredicate: %s\nError code: %d", file, line, call, GetLastError());
 
 #ifdef _DEBUG
     char buff[BUFF_SIZE];

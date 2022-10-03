@@ -595,7 +595,7 @@ void GuiPass::RenderRenderGraphWindow() noexcept
 	const float h = (float)App::GetRenderer().GetDisplayHeight();
 
 	ImGui::SetNextWindowBgAlpha(0.8f);
-	ImGui::Begin("Render Graph", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
+	ImGui::Begin("Render Graph (Use RMB for panning)", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::SetWindowPos(ImVec2(x, 0.0f), ImGuiCond_FirstUseEver);
 	ImGui::SetWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
 
