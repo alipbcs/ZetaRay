@@ -750,7 +750,7 @@ namespace ZetaRay::AppImpl
 			instance,
 			nullptr);
 
-		AssertWin32(g_pApp->m_hwnd);
+		CheckWin32(g_pApp->m_hwnd);
 
 		SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 		SetProcessDPIAware();
@@ -841,7 +841,7 @@ namespace ZetaRay
 	void App::Init() noexcept
 	{
 		HINSTANCE instance = GetModuleHandleA(nullptr);
-		AssertWin32(instance);
+		CheckWin32(instance);
 
 		g_pApp = new AppData;
 

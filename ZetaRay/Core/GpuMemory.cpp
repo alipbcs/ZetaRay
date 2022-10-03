@@ -604,7 +604,7 @@ namespace ZetaRay::Core::Internal
 		{
 			CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 			m_event = CreateEventA(nullptr, false, false, "");
-			AssertWin32(m_event);
+			CheckWin32(m_event);
 		}
 		~ResourceUploadBatch() noexcept = default;
 
@@ -1132,9 +1132,9 @@ void Texture::DestructWithGuard() noexcept
 		App::GetRenderer().SignalDirectQueue(fenceDirect.Get(), 1);
 
 		HANDLE handleCompute = CreateEventA(nullptr, false, false, "");
-		AssertWin32(handleCompute);
+		CheckWin32(handleCompute);
 		HANDLE handleDirect = CreateEventA(nullptr, false, false, "");
-		AssertWin32(handleDirect);
+		CheckWin32(handleDirect);
 
 		CheckHR(fenceCompute->SetEventOnCompletion(1, handleCompute));
 		CheckHR(fenceDirect->SetEventOnCompletion(1, handleDirect));

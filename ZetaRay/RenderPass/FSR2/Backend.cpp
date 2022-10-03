@@ -530,9 +530,9 @@ void FSR2_Internal::Shutdown() noexcept
 				App::GetRenderer().SignalDirectQueue(fenceDirect.Get(), 1);
 
 				HANDLE handleCompute = CreateEventA(nullptr, false, false, "");
-				AssertWin32(handleCompute);
+				CheckWin32(handleCompute);
 				HANDLE handleDirect = CreateEventA(nullptr, false, false, "");
-				AssertWin32(handleDirect);
+				CheckWin32(handleDirect);
 
 				CheckHR(fenceCompute->SetEventOnCompletion(1, handleCompute));
 				CheckHR(fenceDirect->SetEventOnCompletion(1, handleDirect));

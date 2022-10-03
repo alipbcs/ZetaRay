@@ -29,14 +29,14 @@ namespace ZetaRay::Win32
 		void Start() noexcept
 		{
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 			m_start = currCount.QuadPart;
 		}
 
 		void Resume() noexcept
 		{
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 			m_last = currCount.QuadPart;
 
 			if (m_paused)
@@ -54,7 +54,7 @@ namespace ZetaRay::Win32
 				return;
 
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 			m_pauseCount = currCount.QuadPart;
 
 			m_framesInLastSecond = 0;
@@ -68,7 +68,7 @@ namespace ZetaRay::Win32
 				return;
 
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 
 			m_elapsedCounts = currCount.QuadPart - m_last;
 			m_numCountsInLastSecond += m_elapsedCounts;
@@ -150,14 +150,14 @@ namespace ZetaRay::Win32
 		void Start() noexcept
 		{
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 			m_start = currCount.QuadPart;
 		}
 
 		void End() noexcept
 		{
 			LARGE_INTEGER currCount;
-			AssertWin32(QueryPerformanceCounter(&currCount));
+			CheckWin32(QueryPerformanceCounter(&currCount));
 			m_end = currCount.QuadPart;
 		}
 

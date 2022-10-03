@@ -217,7 +217,7 @@ size_t Filesystem::GetFileSize(const char* filePath) noexcept
     }
 
     LARGE_INTEGER s;
-    AssertWin32(GetFileSizeEx(h, &s));
+    CheckWin32(GetFileSizeEx(h, &s));
 
     CloseHandle(h);
 

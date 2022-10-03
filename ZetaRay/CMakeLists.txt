@@ -102,5 +102,5 @@ add_dependencies(FSR2_DX12 CopyFSR2Libs)
 # link against all external libraries
 # 
 set(ZETA_LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib FSR2_API FSR2_DX12)
-target_link_libraries(ZetaRay debug ${ZETA_LIBS})
+target_link_libraries(ZetaRay debug ${ZETA_LIBS} dbghelp)
 target_link_libraries(ZetaRay optimized ${ZETA_LIBS})

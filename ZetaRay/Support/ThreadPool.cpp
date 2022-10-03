@@ -72,7 +72,7 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 		wchar_t buff[32];
 		//swprintf(buff, L"ZetaWorker_%d", i);
 		swprintf(buff, L"%ls_%d", threadNamePrefix, i);
-		AssertWin32(SetThreadDescription(m_threadPool[i].native_handle(), buff));
+		CheckWin32(SetThreadDescription(m_threadPool[i].native_handle(), buff));
 
 		bool success = false;
 		if (p == THREAD_PRIORITY::NORMAL)
@@ -81,7 +81,7 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 		}
 		else if (p == THREAD_PRIORITY::BACKGROUND)
 		{
-			AssertWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_LOWEST));
+			CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_LOWEST));
 		}
 	}
 }

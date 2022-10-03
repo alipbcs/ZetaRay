@@ -530,7 +530,7 @@ namespace
             FILE_ATTRIBUTE_NORMAL,
             nullptr);
 
-        AssertWin32(hFile != INVALID_HANDLE_VALUE);
+        CheckWin32(hFile != INVALID_HANDLE_VALUE);
 
         if (hFile == INVALID_HANDLE_VALUE)
         {

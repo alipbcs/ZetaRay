@@ -138,7 +138,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		PROCESS_INFORMATION pi;
 		STARTUPINFO si{};
 		si.cb = sizeof(si);
-		AssertWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi));
+		CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi));
 
 		// TODO this by itself is not enoguh to gurantee PSO is not deleted while GPU is still referenceing 
 		// it. But since the calling thread blocks until PSO is compiled and processing for next frame won't 
@@ -194,7 +194,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 #endif // _DEBUG
 
 			siVS.cb = sizeof(siVS);
-			AssertWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siVS, &piVS));
+			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siVS, &piVS));
 		}
 
 		// PS
@@ -206,7 +206,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 #endif // _DEBUG
 
 			siPS.cb = sizeof(siPS);
-			AssertWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siPS, &piPS));
+			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siPS, &piPS));
 		}
 
 		HANDLE pis[] = { piVS.hProcess, piPS.hProcess };

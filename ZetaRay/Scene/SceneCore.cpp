@@ -158,7 +158,7 @@ void SceneCore::Shutdown() noexcept
 	if (fence->GetCompletedValue() < m_nextFenceVal)
 	{
 		HANDLE handle = CreateEvent(nullptr, false, false, "");
-		AssertWin32(handle);
+		CheckWin32(handle);
 
 		CheckHR(fence->SetEventOnCompletion(1, handle));
 		WaitForSingleObject(handle, INFINITE);

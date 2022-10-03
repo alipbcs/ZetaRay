@@ -42,7 +42,7 @@ void RpObjects::Clear() noexcept
 		if (m_fence->GetCompletedValue() < 1)
 		{
 			HANDLE handle = CreateEventA(nullptr, false, false, "");
-			AssertWin32(handle);
+			CheckWin32(handle);
 			CheckHR(m_fence->SetEventOnCompletion(1, handle));
 
 			WaitForSingleObject(handle, INFINITE);

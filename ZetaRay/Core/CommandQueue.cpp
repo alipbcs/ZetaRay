@@ -27,7 +27,7 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type, const char* name) noexc
 	CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
 	m_event = CreateEventA(nullptr, false, false, "CommandQueue");
-	AssertWin32(m_event);
+	CheckWin32(m_event);
 }
 
 CommandQueue::~CommandQueue() noexcept

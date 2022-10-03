@@ -602,14 +602,14 @@ namespace
 			OPEN_EXISTING,
 			FILE_ATTRIBUTE_NORMAL, nullptr);
 
-		AssertWin32(h);
+		CheckWin32(h);
 
 		LARGE_INTEGER s;
-		AssertWin32(GetFileSizeEx(h, &s));
+		CheckWin32(GetFileSizeEx(h, &s));
 
 		uint8_t* buff = (uint8_t*)_aligned_malloc(s.QuadPart, 32);
 		DWORD numRead;
-		AssertWin32(ReadFile(h, buff, (DWORD)s.QuadPart, &numRead, nullptr));
+		CheckWin32(ReadFile(h, buff, (DWORD)s.QuadPart, &numRead, nullptr));
 		Check(numRead == (DWORD)s.QuadPart, "ReadFile() read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
 
 		CloseHandle(h);

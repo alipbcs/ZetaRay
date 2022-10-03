@@ -30,7 +30,7 @@ void Renderer::Init(HWND hwnd, int renderWidth, int renderHeight, int displayWid
 
 	CheckHR(m_deviceObjs.m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 	m_event = CreateEventA(nullptr, false, false, "CommandQueue");
-	AssertWin32(m_event);
+	CheckWin32(m_event);
 
 	m_renderWidth = renderWidth;
 	m_renderHeight = renderHeight;

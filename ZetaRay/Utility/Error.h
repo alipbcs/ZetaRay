@@ -43,12 +43,21 @@ namespace ZetaRay::Util
 #define Assert(expr, formatStr, ...) ((void)0)
 #endif
 
-#define AssertWin32(expr)                                           \
+#ifdef _DEBUG
+#define CheckWin32(expr)                                            \
     if(!(expr))                                                     \
     {                                                               \
         ZetaRay::Util::ReportErrorWin32(__FILE__, __LINE__, #expr); \
         ZetaRay::Util::DebugBreak();                                \
     }
+#else
+#define CheckWin32(expr)                                            \
+    if(!(expr))                                                     \
+    {                                                               \
+        ZetaRay::Util::ReportErrorWin32(__FILE__, __LINE__, #expr); \
+        ZetaRay::Util::Exit();                                      \
+    }
+#endif
 
 #ifdef _DEBUG   
 #ifndef Check
@@ -71,7 +80,7 @@ namespace ZetaRay::Util
         int n = stbsp_snprintf(buff, 256, "%s: %d\n", __FILE__, __LINE__);                   \
         stbsp_snprintf(buff + n, 256 - n, formatStr, __VA_ARGS__);                           \
         ZetaRay::Util::ReportError("Fatal Error", buff);                                     \
-        ZetaRay::Util::DebugBreak();                                                         \
+        ZetaRay::Util::Exit();                                                               \
     }
 #endif
 #endif
