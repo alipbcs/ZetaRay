@@ -121,6 +121,8 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 	RNG rng = RNG::Init(DTid, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
 	const float u0 = rng.RandUniform();
 
+
+
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
