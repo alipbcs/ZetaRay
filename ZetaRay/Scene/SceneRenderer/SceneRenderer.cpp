@@ -317,7 +317,9 @@ void SceneRenderer::UpdateFrameConstants() noexcept
 	data->m_frameConstants.RenderHeight = App::GetRenderer().GetRenderHeight();
 	data->m_frameConstants.DisplayWidth = App::GetRenderer().GetDisplayWidth();
 	data->m_frameConstants.DisplayHeight = App::GetRenderer().GetDisplayHeight();
-	data->m_frameConstants.MipBias = log2f((float)data->m_frameConstants.RenderWidth / data->m_frameConstants.DisplayWidth) - 1.0f;
+	data->m_frameConstants.MipBias = App::GetUpscalingFactor() != 1.0f ?
+		log2f((float)data->m_frameConstants.RenderWidth / data->m_frameConstants.DisplayWidth) - 1.0f : 
+		0.0f;
 
 	data->m_frameConstants.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
 	data->m_frameConstants.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
