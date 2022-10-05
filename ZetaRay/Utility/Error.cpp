@@ -1,8 +1,10 @@
 #include "Error.h"
 #include "Span.h"
 #include "../Win32/Win32.h"
+#include "../Support/Memory.h"
 
 using namespace ZetaRay::Util;
+using namespace ZetaRay::Support;
 
 // Ref: https://gist.github.com/rioki/85ca8295d51a5e0b7c56e5005b0ba8b4
 //
@@ -71,7 +73,7 @@ namespace dbg
         std::string file;
     };
 
-    SmallVector<StackFrame> stack_trace()
+    void stack_trace(Vector<StackFrame, ArenaAllocator>& frames)
     {
         DWORD machine = IMAGE_FILE_MACHINE_AMD64;
         HANDLE process = GetCurrentProcess();
@@ -80,7 +82,7 @@ namespace dbg
         if (SymInitialize(process, NULL, TRUE) == FALSE)
         {
             DBG_TRACE(__FUNCTION__ ": Failed to call SymInitialize.");
-            return SmallVector<StackFrame>();
+            return;
         }
 
         SymSetOptions(SYMOPT_LOAD_LINES);
@@ -99,7 +101,6 @@ namespace dbg
 
         bool first = true;
 
-        SmallVector<StackFrame> frames;
         while (StackWalk(machine, process, thread, &frame, &context, NULL, SymFunctionTableAccess, SymGetModuleBase, NULL))
         {
             StackFrame f = {};
@@ -154,8 +155,6 @@ namespace dbg
         }
 
         SymCleanup(process);
-
-        return frames;
     }
 
     void fail(Span<char> buff, const char* msg)
@@ -165,7 +164,11 @@ namespace dbg
         if (bytesLeft <= 0)
             return;
 
-        SmallVector<StackFrame> stack = stack_trace();
+        MemoryArena ma(1024 * 8);
+        ArenaAllocator aa(ma);
+
+        SmallVector<StackFrame, 0, ArenaAllocator> stack(aa);
+        stack_trace(stack);
 
         curr += stbsp_snprintf(buff.data() + curr, (int)bytesLeft, "Callstack: \n");
         bytesLeft = BUFF_SIZE - curr;

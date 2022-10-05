@@ -18,8 +18,8 @@ namespace ZetaRay::Support
 		MemoryArena(size_t s) noexcept;
 		~MemoryArena() noexcept;
 
-		MemoryArena(MemoryArena&&) = delete;
-		MemoryArena& operator=(MemoryArena&&) = delete;
+		MemoryArena(MemoryArena&&) noexcept;
+		MemoryArena& operator=(MemoryArena&&) noexcept;
 
 		void* AllocateAligned(size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept;
 		void FreeAligned(void* pMem, size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept;

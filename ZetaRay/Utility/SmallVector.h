@@ -452,7 +452,9 @@ namespace ZetaRay::Util
 
 		Vector& operator=(const Vector& other) noexcept
 		{
-			static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-assigned.");
+			static_assert(std::is_copy_assignable_v<T>, "T cannot be copy-assigned.");
+			static_assert(std::is_copy_assignable_v<Allocator>, "Allocator cannot be copy-assigned.");
+
 			if (this == &other)
 				return *this;
 
@@ -510,13 +512,15 @@ namespace ZetaRay::Util
 
 		Vector& operator=(Vector&& other) noexcept
 		{
-			static_assert(std::is_trivially_copyable_v<T> || std::is_move_constructible_v<T> || std::is_copy_constructible_v<T>,
+			static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
 				"T cannot be move-assigned.");
+			static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
+				"Allocator cannot be move-assigned.");
 
 			if (this == &other)
 				return *this;
 
-			m_allocator = other.m_allocator;
+			m_allocator = ZetaForward(other.m_allocator);
 
 			free();
 
@@ -703,7 +707,7 @@ namespace ZetaRay::Util
 	class SmallVector : public Vector<T, Allocator, Alignment>
 	{
 	public:
-		SmallVector(Allocator a = Allocator()) noexcept
+		SmallVector(const Allocator& a = Allocator()) noexcept
 			: Vector<T, Allocator, Alignment>(N, a)
 		{}
 

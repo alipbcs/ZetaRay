@@ -24,6 +24,31 @@ MemoryArena::~MemoryArena() noexcept
 		free(m_mem);
 }
 
+MemoryArena::MemoryArena(MemoryArena&& rhs) noexcept
+{
+	m_mem = rhs.m_mem;
+	m_size = rhs.m_size;
+	m_offset = rhs.m_offset;
+
+	rhs.m_mem = nullptr;
+	rhs.m_size = 0;
+	rhs.m_offset = 0;
+}
+
+MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
+{
+	// TODO: insert return statement here
+	m_mem = rhs.m_mem;
+	m_size = rhs.m_size;
+	m_offset = rhs.m_offset;
+
+	rhs.m_mem = nullptr;
+	rhs.m_size = 0;
+	rhs.m_offset = 0;
+
+	return *this;
+}
+
 void* MemoryArena::AllocateAligned(size_t size, const char* name, int alignment) noexcept
 {
 	m_offset = Math::AlignUp(m_offset, alignment);
