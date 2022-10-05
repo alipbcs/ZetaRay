@@ -117,8 +117,8 @@ namespace ZetaRay::Math
 		return _mm_dp_ps(_mm_sub_ps(vTemp0, vTemp1), vefd, 0xff);
 	}
 
-	// Returns inverse of transformation matrix of following form:
-	// M = S * R * T
+	// Given transformation matrix of the following form, returns its inverse,
+	// M = S * R * T,
 	// where S is a scaling, R is a rotation and T is a translation transformation
 	__forceinline v_float4x4 __vectorcall inverseSRT(const v_float4x4 M) noexcept
 	{

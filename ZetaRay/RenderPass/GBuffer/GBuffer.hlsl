@@ -77,14 +77,20 @@ VSOut mainVS(VSIn vsin)
 
 	float4 prevPosH = float4(mul(g_instance.PrevWorld, float4(vsin.PosL, 1.0f)), 1.0f);
 	prevPosH = mul(prevPosH, g_frame.PrevViewProj);
+		
+	// W (4x3)
+	// W^T (3x4) = g_instance.CurrWorld
+	// (W^-1)^T = (W^T)^-1   (assuming W is invertible)
+	// (W^T)^-1 = (g_instance.CurrWorld)^-1
+	float3x3 worldInvT = Common::Inverse(((float3x3) g_instance.CurrWorld));
 	
 	vsout.PosW = posW;
 	vsout.PosSS = posH;
 	vsout.PosH = posH;
 	vsout.PosHPrev = prevPosH;
-	vsout.NormalW = mul(vsin.NormalL, (float3x3) g_instance.CurrWorldInvT);
+	vsout.NormalW = mul(vsin.NormalL, worldInvT);
 	vsout.TexUV = vsin.TexUV;
-	vsout.TangentW = mul(vsin.TangentU, (float3x3) g_instance.CurrWorld);
+	vsout.TangentW = mul((float3x3) g_instance.CurrWorld, vsin.TangentU);
 	vsout.MatID = g_instance.MatID;
 	
 	return vsout;

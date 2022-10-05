@@ -483,17 +483,11 @@ namespace ZetaRay::AppImpl
 
 		int button = 0;
 		if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
-		{
 			button = 0;
-		}
 		else if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK)
-		{
 			button = 1;
-		}
 		else if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK)
-		{
 			button = 2;
-		}
 
 		if (!ImGui::IsAnyMouseDown() && GetCapture() == NULL)
 			SetCapture(g_pApp->m_hwnd);
@@ -525,17 +519,11 @@ namespace ZetaRay::AppImpl
 
 		int button = 0;
 		if (message == WM_LBUTTONUP)
-		{
 			button = 0;
-		}
 		else if (message == WM_RBUTTONUP)
-		{
 			button = 1;
-		}
 		else if (message == WM_MBUTTONUP)
-		{
 			button = 2;
-		}
 
 		io.MouseDown[button] = false;
 
@@ -819,9 +807,7 @@ namespace ZetaRay
 		for (int i = 0; i < g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
 		{
 			if (g_pApp->m_threadIDs[i] == std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id()))
-			{
 				return i;
-			}
 		}
 
 		return -1;
@@ -1203,7 +1189,7 @@ namespace ZetaRay
 	SceneCore& App::GetScene() noexcept { return g_pApp->m_scene; }
 	int App::GetNumThreads() noexcept { return g_pApp->m_processorCoreCount; }
 	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }
-	float  App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }
+	float App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }
 	bool App::IsFullScreen() noexcept { return g_pApp->m_isFullScreen; }
 	const Win32::Timer& App::GetTimer() noexcept { return g_pApp->m_timer; }
 	const char* App::GetPSOCacheDir() noexcept { return AppData::PSO_CACHE_DIR; }

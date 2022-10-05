@@ -230,6 +230,29 @@ namespace Common
 		return pos.x >= 0 && pos.x < dim.x && pos.y >= 0 && pos.y < dim.y;
 	}
 
+	float3x3 Inverse(float3x3 M)
+	{
+		// for 3x3 matrix M = [u, v, w] where u,v,w are columns vectors, M^(-1) is given by
+		//		M^(-1) = [a b c]^T
+		//
+		// where 
+		//		a = (v * w) / u.(v * w)
+		//		b = (w * u) / u.(v * w)
+		//		c = (u * v) / u.(v * w)		
+		const float3 u = float3(M._11, M._21, M._31);
+		const float3 v = float3(M._12, M._22, M._32);
+		const float3 w = float3(M._13, M._23, M._33);
+
+		const float3 vCrossW = cross(v, w);
+		const float det = dot(u, vCrossW);
+		
+		const float3 a = vCrossW / det;
+		const float3 b = cross(w, u) / det;
+		const float3 c = cross(u, v) / det;
+
+		return float3x3(a, b, c);
+	}
+	
 	float3 SphericalToCartesian(float r, float cosTheta, float phi)
 	{
 		float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
@@ -453,7 +476,7 @@ namespace Common
 	// ddxy is partial derivative of linear depth with respect to left/right and up/down pixels
 	float2 SurfaceDimForPixel(float z, float2 ddxy, float pixelSpreadAngle)
 	{
-	// small angle approximation (tan(a) ~ a)
+		// small angle approximation (tan(a) ~ a)
 		float width = pixelSpreadAngle * z;
 	
 		return float2(ddxy.x * ddxy.x + width * width, ddxy.y * ddxy.y + width * width);

@@ -86,28 +86,16 @@ void GBufferPass::Reset() noexcept
 void GBufferPass::SetInstances(Vector<InstanceData>&& instances) noexcept
 {
 	auto& gpuMem = App::GetRenderer().GetGpuMemory();
-	const size_t instanceSize = Math::AlignUp(sizeof(DrawCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	constexpr size_t instanceSize = Math::AlignUp(sizeof(DrawCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 	m_perDrawCB = gpuMem.GetUploadHeapBuffer(instanceSize * instances.size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	{
 		DrawCB cb;
-		v_float4x4 vM;
-		v_float4x4 vMInvT;
 
 		for (int i = 0; i < instances.size(); i++)
 		{
 			cb.CurrWorld = float3x4(instances[i].CurrToWorld);
-
-			vM = load(instances[i].CurrToWorld);
-			vM = inverseSRT(vM);
-			cb.CurrWorldInvT = store(vM);
-
 			cb.PrevWorld = float3x4(instances[i].PrevToWorld);
-
-			vMInvT = load(instances[i].PrevToWorld);
-			vMInvT = inverseSRT(vMInvT);
-			cb.CurrWorldInvT = store(vMInvT);
-
 			cb.MatID = instances[i].IdxInMatBuff;
 
 			m_perDrawCB.Copy(i * instanceSize, sizeof(DrawCB), &cb);
