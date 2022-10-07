@@ -167,19 +167,17 @@ void Renderer::Shutdown() noexcept
 		m_deviceObjs.m_dxgiSwapChain->SetFullscreenState(false, nullptr);
 	}
 
+	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+		m_backBuffers[i].Reset();
+
 	m_backbuffDescTable.Reset();
 	m_depthBuffDescTable.Reset();
 	m_cbvSrvUavDescHeapGpu.Shutdown();
 	m_cbvSrvUavDescHeapCpu.Shutdown();
 	m_dsvDescHeap.Shutdown();
 	m_rtvDescHeap.Shutdown();
-	m_gpuMemory.Shutdown();
 	m_gpuTimer.Shutdown();
-
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
-	{
-		m_backBuffers[i].Reset();
-	}
+	m_gpuMemory.Shutdown();
 
 	FlushAllCommandQueues();
 

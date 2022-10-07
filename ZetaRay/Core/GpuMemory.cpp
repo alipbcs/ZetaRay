@@ -408,9 +408,7 @@ namespace ZetaRay::Core::Internal
 				Task t("Shrinking memroy for UploadHeap", TASK_PRIORITY::BACKGRUND, [this]()
 				{
 					for (auto& i : m_pools)
-					{
 						i.Shrink();
-					}
 				});
 
 				// submit
@@ -912,9 +910,7 @@ UploadHeapBuffer& UploadHeapBuffer::operator=(UploadHeapBuffer&& rhs) noexcept
 void UploadHeapBuffer::Reset() noexcept
 {
 	if (Resource)
-	{
 		App::GetRenderer().GetGpuMemory().ReleaseUploadHeapBuffer(*this);
-	}
 
 	PageHandle.Reset();
 	GpuAddress = 0;
@@ -1077,16 +1073,13 @@ void Texture::Reset(bool guardDestruction) noexcept
 	if (m_resource)
 	{
 		if (guardDestruction)
-		{
-			DestructWithGuard();
-		}
+			App::GetRenderer().GetGpuMemory().ReleaseTexture(ZetaMove(*this));
 		else
-		{
 			m_resource.Reset();
-		}
 	}
 
 	m_pathID = -1;
+	m_resource = nullptr;
 }
 
 void Texture::GetAllocationInfo(size_t* size, size_t* alignment) noexcept
@@ -1108,48 +1101,6 @@ void Texture::GetAllocationInfo(size_t* size, size_t* alignment) noexcept
 		*alignment = info.Alignment;
 }
 
-void Texture::DestructWithGuard() noexcept
-{
-	char buff[256] = { '\0' };
-	UINT n = sizeof(buff);
-	m_resource->GetPrivateData(WKPDID_D3DDebugObjectName, &n, buff);
-
-	StackStr(tname, m, "DestructWithGuard for %s", buff);
-
-	Task t(tname, TASK_PRIORITY::BACKGRUND, [res = ZetaMove(m_resource)]()
-	{
-		ComPtr<ID3D12Fence> fenceDirect;
-		ComPtr<ID3D12Fence> fenceCompute;
-
-		auto* device = App::GetRenderer().GetDevice();
-		CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fenceDirect.GetAddressOf())));
-		CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(fenceCompute.GetAddressOf())));
-
-		SET_D3D_OBJ_NAME(fenceDirect, "ResourceUploadBatch_Dir");
-		SET_D3D_OBJ_NAME(fenceCompute, "ResourceUploadBatch_Compute");
-
-		App::GetRenderer().SignalComputeQueue(fenceCompute.Get(), 1);
-		App::GetRenderer().SignalDirectQueue(fenceDirect.Get(), 1);
-
-		HANDLE handleCompute = CreateEventA(nullptr, false, false, "");
-		CheckWin32(handleCompute);
-		HANDLE handleDirect = CreateEventA(nullptr, false, false, "");
-		CheckWin32(handleDirect);
-
-		CheckHR(fenceCompute->SetEventOnCompletion(1, handleCompute));
-		CheckHR(fenceDirect->SetEventOnCompletion(1, handleDirect));
-
-		HANDLE handles[] = { handleCompute, handleDirect };
-
-		WaitForMultipleObjects(2, handles, true, INFINITE);
-		CloseHandle(handleDirect);
-		CloseHandle(handleCompute);
-	});
-
-	// submit
-	App::SubmitBackground(ZetaMove(t));
-}
-
 //--------------------------------------------------------------------------------------
 // GpuMemory
 //--------------------------------------------------------------------------------------
@@ -1164,57 +1115,137 @@ GpuMemory::~GpuMemory() noexcept
 
 void GpuMemory::Init() noexcept
 {
-	auto threadIDs = App::GetMainThreadIDs();
+	auto* device = App::GetRenderer().GetDevice();
 
-	for (int i = 0; i < threadIDs.size(); i++)
+	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fenceDirect.GetAddressOf())));
+	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fenceCompute.GetAddressOf())));
+
+	SET_D3D_OBJ_NAME(m_fenceDirect.Get(), "GpuMemory_Dir");
+	SET_D3D_OBJ_NAME(m_fenceCompute.Get(), "GpuMemory_Compute");
+
+	int i = 0;
+
 	{
-		m_threadIDs[i] = threadIDs[i];
+		auto mainThreadIDs = App::GetMainThreadIDs();
 
-		m_threadMemAllocators[i].UploadHeap.reset(new(std::nothrow) UploadHeapManager());
-		m_threadMemAllocators[i].DefaultHeap.reset(new(std::nothrow) DefaultHeapManager);
-		m_threadMemAllocators[i].ResUploader.reset(new(std::nothrow) ResourceUploadBatch);
+		for (; i < mainThreadIDs.size(); i++)
+		{
+			m_threadIDs[i] = mainThreadIDs[i];
+
+			m_threadContext[i].UploadHeap.reset(new(std::nothrow) UploadHeapManager);
+			m_threadContext[i].DefaultHeap.reset(new(std::nothrow) DefaultHeapManager);
+			m_threadContext[i].ResUploader.reset(new(std::nothrow) ResourceUploadBatch);
+		}
+	}
+
+	{
+		auto backgroundThreadIDs = App::GetBackgroundThreadIDs();
+		const size_t numMainThreads = i;
+
+		for (i = 0; i < backgroundThreadIDs.size(); i++)
+			m_threadIDs[numMainThreads + i] = backgroundThreadIDs[i];
 	}
 }
 
 void GpuMemory::BeginFrame() noexcept
 {
-	const int numThreads = App::GetNumThreads();
+	const int numThreads = App::GetNumMainThreads();
+
 	for (int i = 0; i < numThreads; i++)
-	{
-		m_threadMemAllocators[i].ResUploader->Begin();
-	}
+		m_threadContext[i].ResUploader->Begin();
 }
 
 void GpuMemory::SubmitResourceCopies() noexcept
 {
-	const int numThreads = App::GetNumThreads();
+	const int numThreads = App::GetNumMainThreads();
+
 	for (int i = 0; i < numThreads; i++)
-	{
-		m_threadMemAllocators[i].ResUploader->End();
-	}
+		m_threadContext[i].ResUploader->End();
 }
 
 void GpuMemory::Recycle() noexcept
 {
-	const int numThreads = App::GetNumThreads();
-	for (int i = 0; i < numThreads; i++)
+	CheckHR(m_fenceDirect->Signal(m_nextFenceVal));
+	CheckHR(m_fenceCompute->Signal(m_nextFenceVal));
+
+	const uint64_t completedFenceValDir = m_fenceDirect->GetCompletedValue();
+	const uint64_t completedFenceValCompute = m_fenceCompute->GetCompletedValue();
+
+	const int numMainThreads = App::GetNumMainThreads();
+	const int numBackgroundThreads = App::GetNumBackgroundThreads();
+	
+	SmallVector<PendingTexture> textures;
+	size_t n = 0;
+
+	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
+		n += m_threadContext[i].ToReleaseTextures.size();
+
+	textures.resize(n);		// n = 0 is ok
+
+	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
 	{
-		m_threadMemAllocators[i].UploadHeap->Recycle();
-		m_threadMemAllocators[i].DefaultHeap->Recycle();		// TODO move to a background task
-		m_threadMemAllocators[i].UploadHeap->GarbageCollect();	// lanches a background task to no block the main loop
+		if (i < numMainThreads)
+		{
+			m_threadContext[i].UploadHeap->Recycle();
+			m_threadContext[i].DefaultHeap->Recycle();		// TODO move to a background task
+			m_threadContext[i].UploadHeap->GarbageCollect();	// lanches a background task to not block the main worker threads
+		}
+
+		for (auto it = m_threadContext[i].ToReleaseTextures.begin(); it != m_threadContext[i].ToReleaseTextures.end();)
+		{
+			if (it->ReleaseFence <= completedFenceValDir && it->ReleaseFence <= completedFenceValCompute)
+			{
+				textures.emplace_back(ZetaMove(*it));
+				it = m_threadContext[i].ToReleaseTextures.erase(*it);
+			}
+			else
+				it++;
+		}
 	}
+
+	if (!textures.empty())
+	{
+		Task t("Freeing textures", TASK_PRIORITY::BACKGRUND, [this, textures = ZetaMove(textures)]()
+			{
+				Assert(textures.size() > 0, "input texture vec is empty");
+				// resources in textures are freed now
+			});
+
+		// submit
+		App::SubmitBackground(ZetaMove(t));
+	}
+
+	m_nextFenceVal++;
 }
 
 void GpuMemory::Shutdown() noexcept
 {
-	auto threadIDs = App::GetMainThreadIDs();
+	CheckHR(m_fenceDirect->Signal(m_nextFenceVal));
+	CheckHR(m_fenceCompute->Signal(m_nextFenceVal));
 
-	for (int i = 0; i < threadIDs.size(); i++)
+	HANDLE h1 = CreateEventA(nullptr, false, false, "");
+	HANDLE h2 = CreateEventA(nullptr, false, false, "");
+
+	CheckHR(m_fenceDirect->SetEventOnCompletion(m_nextFenceVal, h1));
+	CheckHR(m_fenceCompute->SetEventOnCompletion(m_nextFenceVal, h2));
+
+	HANDLE handles[] = { h1, h2 };
+
+	WaitForMultipleObjects(ArraySize(handles), handles, true, INFINITE);
+
+	auto mainThreadIDs = App::GetMainThreadIDs();
+
+	for (int i = 0; i < mainThreadIDs.size(); i++)
 	{
-		m_threadMemAllocators[i].ResUploader.reset();
-		m_threadMemAllocators[i].DefaultHeap.reset();
-		m_threadMemAllocators[i].UploadHeap.reset();
+		m_threadContext[i].ResUploader.reset();
+		m_threadContext[i].DefaultHeap.reset();
+		m_threadContext[i].UploadHeap.reset();
 	}
+
+	auto allThreadIDs = App::GetAllThreadIDs();
+
+	for (int i = 0; i < allThreadIDs.size(); i++)
+		m_threadContext[i].ToReleaseTextures.free();
 }
 
 UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(size_t sizeInBytes, size_t alignment) noexcept
@@ -1223,13 +1254,13 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(size_t sizeInBytes, size_t align
 	//const size_t alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 	const size_t alignedSize = (sizeInBytes + alignment - 1) & ~(alignment - 1);
 
-	return m_threadMemAllocators[idx].UploadHeap->GetBuffer(idx, sizeInBytes, alignment);
+	return m_threadContext[idx].UploadHeap->GetBuffer(idx, sizeInBytes, alignment);
 }
 
 void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buff) noexcept
 {
-	// This might not be the original 
-	m_threadMemAllocators[buff.PageHandle.ThreadIdx].UploadHeap->ReleaseBuffer(buff.PageHandle.PoolIdx, buff.Resource);
+	// might not be the original UploadHeap
+	m_threadContext[buff.PageHandle.ThreadIdx].UploadHeap->ReleaseBuffer(buff.PageHandle.PoolIdx, buff.Resource);
 }
 
 ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(size_t sizeInBytes) noexcept
@@ -1251,7 +1282,7 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, size_t size,
 	D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero) noexcept
 {
 	const int idx = GetIndexForThread();
-	return m_threadMemAllocators[idx].DefaultHeap->GetBuffer(name, size, initState, allowUAV, initToZero);
+	return m_threadContext[idx].DefaultHeap->GetBuffer(name, size, initState, allowUAV, initToZero);
 }
 
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_t sizeInBytes,
@@ -1260,10 +1291,14 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_
 	const int idx = GetIndexForThread();
 
 	// Note: setting the state to D3D12_RESOURCE_STATE_COPY_DEST leads to a Warning
-	auto buff = m_threadMemAllocators[idx].DefaultHeap->GetBuffer(name, sizeInBytes,
-		D3D12_RESOURCE_STATE_COMMON, allowUAV, false);
+	auto buff = m_threadContext[idx].DefaultHeap->GetBuffer(name, 
+		sizeInBytes,
+		D3D12_RESOURCE_STATE_COMMON, 
+		allowUAV, 
+		false);
+
 	auto desc = buff.GetDesc();
-	m_threadMemAllocators[idx].ResUploader->UploadBuffer(idx, *m_threadMemAllocators[idx].UploadHeap,
+	m_threadContext[idx].ResUploader->UploadBuffer(idx, *m_threadContext[idx].UploadHeap,
 		buff.GetResource(), data, sizeInBytes, postCopyState);
 
 	return buff;
@@ -1272,43 +1307,18 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_
 void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept
 {
 	const int idx = GetIndexForThread();
-	m_threadMemAllocators[idx].DefaultHeap->ReleaseBuffer(ZetaMove(buff.m_resource));
+	m_threadContext[idx].DefaultHeap->ReleaseBuffer(ZetaMove(buff.m_resource));
 }
 
-/*
-Texture GpuMemory::GetTexture1D(const char* name, uint64_t width, DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState, 
-	uint8_t flags, uint16_t mipLevels) noexcept
+void GpuMemory::ReleaseTexture(Texture&& t) noexcept
 {
-	Assert(width < D3D12_REQ_TEXTURE1D_U_DIMENSION, "Invalid width");
-	Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
-	Assert(!(flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL), "1D Texure can't be used as Depth Stencil");
-	Assert(!(flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET), "1D Texure can't be used as Render Target");
+	const int idx = GetIndexForThread();
 
-	D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
-
-	if ((flags & TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
-		heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
-	
-	D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
-
-	if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-		f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
-
-	D3D12_HEAP_PROPERTIES defaultHeap = Direct3DHelper::DefaultHeapProp();
-	D3D12_RESOURCE_DESC desc = Direct3DHelper::Tex1D(format, width, 1, mipLevels, f);
-
-	ComPtr<ID3D12Resource> texture;
-	auto* device = App::GetRenderer().GetDevice();
-	CheckHR(device->CreateCommittedResource(&defaultHeap,
-		heapFlags,
-		&desc,
-		initialState,
-		nullptr,
-		IID_PPV_ARGS(texture.GetAddressOf())));
-
-	return Texture(name, ZetaMove(texture));
+	m_threadContext[idx].ToReleaseTextures.emplace_back(PendingTexture{
+			.Res = ZetaMove(t.m_resource),
+			.ReleaseFence = m_nextFenceVal
+		});
 }
-*/
 
 Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
 	D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal) noexcept
@@ -1442,7 +1452,7 @@ Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
 
 	const int idx = GetIndexForThread();
 
-	m_threadMemAllocators[idx].ResUploader->UploadTexture(idx, *m_threadMemAllocators[idx].UploadHeap,
+	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
 		tex.GetResource(),
 		0,
 		subresources.begin(),
@@ -1466,7 +1476,7 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 	Texture t = GetTexture2D(name, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, flags);
 	const int idx = GetIndexForThread();
 
-	m_threadMemAllocators[idx].ResUploader->UploadTexture(idx, *m_threadMemAllocators[idx].UploadHeap,
+	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
 		t.GetResource(),
 		pixels,
 		postCopyState);
@@ -1481,9 +1491,7 @@ int GpuMemory::GetIndexForThread() noexcept
 	for (int i = 0; i < MAX_NUM_THREADS; i++)
 	{
 		if (m_threadIDs[i] == tid)
-		{
 			return i;
-		}
 	}
 
 	Check(false, "Should be unreachable.");

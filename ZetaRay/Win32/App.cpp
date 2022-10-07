@@ -1187,7 +1187,8 @@ namespace ZetaRay
 
 	Renderer& App::GetRenderer() noexcept { return g_pApp->m_renderer; }
 	SceneCore& App::GetScene() noexcept { return g_pApp->m_scene; }
-	int App::GetNumThreads() noexcept { return g_pApp->m_processorCoreCount; }
+	int App::GetNumMainThreads() noexcept { return g_pApp->m_processorCoreCount; }
+	int App::GetNumBackgroundThreads() noexcept { return AppData::NUM_BACKGROUND_THREADS; }
 	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }
 	float App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }
 	bool App::IsFullScreen() noexcept { return g_pApp->m_isFullScreen; }
@@ -1233,24 +1234,29 @@ namespace ZetaRay
 		return Span(g_pApp->m_threadIDs, g_pApp->m_processorCoreCount);
 	}
 
+	Span<uint32_t> App::GetBackgroundThreadIDs() noexcept
+	{
+		return Span(g_pApp->m_threadIDs + g_pApp->m_processorCoreCount, AppData::NUM_BACKGROUND_THREADS);
+	}
+
 	Span<uint32_t> App::GetAllThreadIDs() noexcept
 	{
 		return Span(g_pApp->m_threadIDs, g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(std::max_align_t)>> App::GetParams() noexcept
+	RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(ParamVariant)>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(std::max_align_t)>>(g_pApp->m_params, g_pApp->m_paramLock);
+		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(ParamVariant)>>(g_pApp->m_params, g_pApp->m_paramLock);
 	}
 
-	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(std::max_align_t)>> App::GetShaderReloadHandlers() noexcept
+	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(ShaderReloadHandler)>> App::GetShaderReloadHandlers() noexcept
 	{
-		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(std::max_align_t)>>(g_pApp->m_shaderReloadHandlers, g_pApp->m_shaderReloadLock);
+		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(ShaderReloadHandler)>>(g_pApp->m_shaderReloadHandlers, g_pApp->m_shaderReloadLock);
 	}
 
-	RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(std::max_align_t)>> App::GetStats() noexcept
+	RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(Stat)>> App::GetStats() noexcept
 	{
-		return RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(std::max_align_t)>>(g_pApp->m_frameStats, g_pApp->m_statsLock);
+		return RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(Stat)>>(g_pApp->m_frameStats, g_pApp->m_statsLock);
 	}
 
 	void App::AddParam(ParamVariant& p) noexcept

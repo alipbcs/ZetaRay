@@ -2,6 +2,7 @@
 
 #include "Device.h"
 #include "../Utility/Error.h"
+#include "../Utility/SmallVector.h"
 #include <memory>
 
 namespace ZetaRay::Core
@@ -134,6 +135,8 @@ namespace ZetaRay::Core
 
 	struct Texture
 	{
+		friend class GpuMemory;
+
 		Texture() noexcept = default;
 		Texture(const char* p, ComPtr<ID3D12Resource>&& r) noexcept;
 		~Texture() noexcept;
@@ -151,8 +154,6 @@ namespace ZetaRay::Core
 		inline uint64_t GetPathID() const { return m_pathID; }
 
 	private:
-		void DestructWithGuard() noexcept;
-
 		uint64_t m_pathID = -1;
 		ComPtr<ID3D12Resource> m_resource;
 	};
@@ -193,6 +194,7 @@ namespace ZetaRay::Core
 			bool allowUAV, 
 			void* data) noexcept;
 		void ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept;
+		void ReleaseTexture(Texture&& t) noexcept;
 
 		//Texture GetTexture1D(const char* n, uint64_t width, DXGI_FORMAT format,
 		//	D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
@@ -221,14 +223,26 @@ namespace ZetaRay::Core
 			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
 			D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
 
-		struct ThreadGpuMemAllocator
+		struct PendingTexture
+		{
+			ComPtr<ID3D12Resource> Res;
+			uint64_t ReleaseFence;
+		};
+
+		struct ThreadContext
 		{
 			std::unique_ptr<Internal::UploadHeapManager> UploadHeap;
 			std::unique_ptr<Internal::DefaultHeapManager> DefaultHeap;
 			std::unique_ptr<Internal::ResourceUploadBatch> ResUploader;
+
+			Util::SmallVector<PendingTexture> ToReleaseTextures;
 		};
 
-		ThreadGpuMemAllocator m_threadMemAllocators[MAX_NUM_THREADS];
+		ThreadContext m_threadContext[MAX_NUM_THREADS];
 		uint32_t m_threadIDs[MAX_NUM_THREADS];
+
+		ComPtr<ID3D12Fence> m_fenceDirect;
+		ComPtr<ID3D12Fence> m_fenceCompute;
+		uint64_t m_nextFenceVal = 1;	// no need to be atomic
 	};
 }

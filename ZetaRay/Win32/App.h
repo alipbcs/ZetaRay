@@ -87,7 +87,8 @@ namespace ZetaRay::App
 	//HWND GetHWND() noexcept;
 	Core::Renderer& GetRenderer() noexcept;
 	Scene::SceneCore& GetScene() noexcept;
-	int GetNumThreads() noexcept;
+	int GetNumMainThreads() noexcept;
+	int GetNumBackgroundThreads() noexcept;
 	uint32_t GetDPI() noexcept;
 	float GetUpscalingFactor() noexcept;
 	void SetUpscalingEnablement(bool e) noexcept;
@@ -95,6 +96,7 @@ namespace ZetaRay::App
 	const Win32::Timer& GetTimer() noexcept;
 
 	Util::Span<uint32_t> GetMainThreadIDs() noexcept;
+	Util::Span<uint32_t> GetBackgroundThreadIDs() noexcept;
 	Util::Span<uint32_t> GetAllThreadIDs() noexcept;
 
 	void AddParam(Support::ParamVariant& p) noexcept;

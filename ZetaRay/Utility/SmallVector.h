@@ -2,7 +2,6 @@
 
 #include "../Math/Common.h"
 #include "../Win32/App.h"
-//#include "../SupportSystem/Memory.h"
 #include "Error.h"
 #include <utility>	// std::swap
 
@@ -590,7 +589,7 @@ namespace ZetaRay::Util
 		{
 			if (n == 0)
 			{
-				Assert(false, "invalid arg");
+				//Assert(false, "invalid arg");
 				return;
 			}
 
