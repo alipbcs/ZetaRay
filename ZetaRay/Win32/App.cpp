@@ -27,7 +27,7 @@ namespace
 	struct FrameTime
 	{
 		static constexpr int HIST_LEN = 60;
-		double FrameTimeHist[HIST_LEN] = { 0.0 };
+		float FrameTimeHist[HIST_LEN] = { 0.0 };
 		int NextFramHistIdx = 0;
 	};	
 }
@@ -238,16 +238,16 @@ namespace ZetaRay::AppImpl
 	{
 		g_pApp->m_frameStats.clear();
 
-		const double frameTimeMs = g_pApp->m_timer.GetElapsedTime() * 1000.0;
+		const float frameTimeMs = (float)(g_pApp->m_timer.GetElapsedTime() * 1000.0);
 		
 		auto& frameStats = g_pApp->m_frameTime;
 		frameStats.NextFramHistIdx = (frameStats.NextFramHistIdx < 59) ? frameStats.NextFramHistIdx + 1 : frameStats.NextFramHistIdx;
 		Assert(frameStats.NextFramHistIdx >= 0 && frameStats.NextFramHistIdx < 60, "bug");
 
 		// shift left
-		double temp[FrameTime::HIST_LEN];
-		memcpy(temp, frameStats.FrameTimeHist + 1, sizeof(double) * (FrameTime::HIST_LEN - 1));
-		memcpy(frameStats.FrameTimeHist, temp, sizeof(double) * (FrameTime::HIST_LEN - 1));
+		float temp[FrameTime::HIST_LEN];
+		memcpy(temp, frameStats.FrameTimeHist + 1, sizeof(float) * (FrameTime::HIST_LEN - 1));
+		memcpy(frameStats.FrameTimeHist, temp, sizeof(float) * (FrameTime::HIST_LEN - 1));
 		frameStats.FrameTimeHist[frameStats.NextFramHistIdx] = frameTimeMs;
 
 		// compute moving average
@@ -1005,9 +1005,7 @@ namespace ZetaRay
 				// make sure all updates are finished before moving to rendering
 				success = false;
 				while (!success)
-				{
 					success = g_pApp->m_mainThreadPool.TryFlush();
-				}
 
 				TaskSet renderTS;
 
@@ -1378,7 +1376,7 @@ namespace ZetaRay
 		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
 	}
 
-	Span<double> App::GetFrameTimeHistory() noexcept
+	Span<float> App::GetFrameTimeHistory() noexcept
 	{
 		auto& frameStats = g_pApp->m_frameTime;
 		return frameStats.FrameTimeHist;

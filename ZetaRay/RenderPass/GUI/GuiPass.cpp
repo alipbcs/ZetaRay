@@ -46,9 +46,7 @@ namespace
 					flags |= ImGuiSliderFlags_Logarithmic;
 
 				if(ImGui::SliderFloat(param.GetName(), &v, fp.m_min, fp.m_max, "%.5f", flags))
-				{
 					param.SetFloat(v);
-				}
 			}
 			else if (param.GetType() == PARAM_TYPE::PT_int)
 			{
@@ -56,9 +54,7 @@ namespace
 				int v = ip.m_val;
 
 				if (ImGui::SliderInt(param.GetName(), &v, ip.m_min, ip.m_max))
-				{
 					param.SetInt(v);
-				}
 			}
 			else if (param.GetType() == PARAM_TYPE::PT_float3)
 			{
@@ -66,9 +62,7 @@ namespace
 				float3 v = fp.m_val;
 
 				if (ImGui::SliderFloat3(param.GetName(), reinterpret_cast<float*>(&v), fp.m_min, fp.m_max, "%.4f"))
-				{
 					param.SetFloat3(v);
-				}
 			}
 			else if (param.GetType() == PARAM_TYPE::PT_unit_dir)
 			{
@@ -93,18 +87,14 @@ namespace
 				float3 v = fp.m_val;
 
 				if (ImGui::ColorEdit3(param.GetName(), reinterpret_cast<float*>(&v)))
-				{
 					param.SetColor(v);
-				}
 			}
 			else if (param.GetType() == PARAM_TYPE::PT_bool)
 			{
 				bool v = param.GetBool();
 
 				if (ImGui::Checkbox(param.GetName(), &v))
-				{
 					param.SetBool(v);
-				}
 			}
 		}
 	}
@@ -554,18 +544,20 @@ void GuiPass::RenderProfilerWindow() noexcept
 	if (ImGui::CollapsingHeader("GPU Timings"), ImGuiTreeNodeFlags_DefaultOpen)
 	{
 		auto frameTimeHist = App::GetFrameTimeHistory();
-		double xs[128];
-		Assert(frameTimeHist.size() < ArraySize(xs), "xs is too small.");
+		//double xs[128];
+		//Assert(frameTimeHist.size() < ArraySize(xs), "xs is too small.");
 
-		for (int i = 0; i < frameTimeHist.size(); i++)
-		{
-			xs[i] = i;
-		}
+		//for (int i = 0; i < frameTimeHist.size(); i++)
+		//	xs[i] = i;
+
+		float max = -1.0f;
+		for (auto f : frameTimeHist)
+			max = std::max(max, f);
 
 		if (ImPlot::BeginPlot("Frame Time (ms)", ImVec2(w * 0.9f, 150.0f), ImPlotFlags_NoLegend))
 		{
 			//ImPlot::SetupAxes("", "", 0, ImPlotAxisFlags_AutoFit);
-			ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, 20.0, ImGuiCond_Always);
+			ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max + 1.0, ImGuiCond_Always);
 			//ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
 			ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.1f, 0.35f, 0.95f, 1.0f));
 

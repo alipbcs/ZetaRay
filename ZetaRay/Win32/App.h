@@ -113,7 +113,7 @@ namespace ZetaRay::App
 	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
 	Util::RWSynchronizedView<Util::Vector<Support::Stat, PoolAllocator, alignof(std::max_align_t)>> GetStats() noexcept;
-	Util::Span<double> GetFrameTimeHistory() noexcept;
+	Util::Span<float> GetFrameTimeHistory() noexcept;
 
 	const char* GetPSOCacheDir() noexcept;
 	const char* GetCompileShadersDir() noexcept;
