@@ -1242,19 +1242,19 @@ namespace ZetaRay
 		return Span(g_pApp->m_threadIDs, g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(ParamVariant)>> App::GetParams() noexcept
+	RWSynchronizedView<Vector<ParamVariant, PoolAllocator>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator, alignof(ParamVariant)>>(g_pApp->m_params, g_pApp->m_paramLock);
+		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator>>(g_pApp->m_params, g_pApp->m_paramLock);
 	}
 
-	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(ShaderReloadHandler)>> App::GetShaderReloadHandlers() noexcept
+	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>> App::GetShaderReloadHandlers() noexcept
 	{
-		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator, alignof(ShaderReloadHandler)>>(g_pApp->m_shaderReloadHandlers, g_pApp->m_shaderReloadLock);
+		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>>(g_pApp->m_shaderReloadHandlers, g_pApp->m_shaderReloadLock);
 	}
 
-	RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(Stat)>> App::GetStats() noexcept
+	RWSynchronizedView<Vector<Stat, PoolAllocator>> App::GetStats() noexcept
 	{
-		return RWSynchronizedView<Vector<Stat, PoolAllocator, alignof(Stat)>>(g_pApp->m_frameStats, g_pApp->m_statsLock);
+		return RWSynchronizedView<Vector<Stat, PoolAllocator>>(g_pApp->m_frameStats, g_pApp->m_statsLock);
 	}
 
 	void App::AddParam(ParamVariant& p) noexcept

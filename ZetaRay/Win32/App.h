@@ -19,7 +19,7 @@ namespace ZetaRay::App
 
 namespace ZetaRay::Util
 {
-	template<typename T, typename Allocator, size_t Alignment>
+	template<typename T, typename Allocator>
 	class Vector;
 
 	template<typename T>
@@ -101,18 +101,18 @@ namespace ZetaRay::App
 
 	void AddParam(Support::ParamVariant& p) noexcept;
 	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, PoolAllocator, alignof(std::max_align_t)>> GetParams() noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, PoolAllocator>> GetParams() noexcept;
 
 	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
 	void RemoveShaderReloadHandler(const char* name) noexcept;
-	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, PoolAllocator, alignof(std::max_align_t)>> GetShaderReloadHandlers() noexcept;
+	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, PoolAllocator>> GetShaderReloadHandlers() noexcept;
 
 	void AddFrameStat(const char* group, const char* name, int i) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
 	void AddFrameStat(const char* group, const char* name, float f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::Stat, PoolAllocator, alignof(std::max_align_t)>> GetStats() noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::Stat, PoolAllocator>> GetStats() noexcept;
 	Util::Span<float> GetFrameTimeHistory() noexcept;
 
 	const char* GetPSOCacheDir() noexcept;

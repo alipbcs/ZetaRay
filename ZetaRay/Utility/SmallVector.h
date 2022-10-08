@@ -14,7 +14,7 @@ namespace ZetaRay::Util
 	// As a result, usage doesn't require knowing the inline storage size N.
 	//--------------------------------------------------------------------------------------
 
-	template<typename T, typename Allocator = App::PoolAllocator, size_t Alignment = alignof(T)>
+	template<typename T, typename Allocator = App::PoolAllocator>
 	class Vector
 	{
 		static_assert(Support::AllocType<Allocator>, "Provided Allocator type doesn't meet the requirements for AllocType.");
@@ -29,7 +29,7 @@ namespace ZetaRay::Util
 
 		bool has_inline_storage() const noexcept
 		{
-			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator, Alignment>), alignof(T));
+			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
 			return reinterpret_cast<uintptr_t>(m_beg) == reinterpret_cast<uintptr_t>(this) + inlineStorageOffset;
 		}
 
@@ -174,7 +174,7 @@ namespace ZetaRay::Util
 				return;
 
 			// allocate memory to accomodate the new size
-			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, Alignment);
+			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
 
 			const size_t oldSize = size();
 
@@ -226,7 +226,7 @@ namespace ZetaRay::Util
 
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
-				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
 
 			// adjust the pointers
 			m_beg = reinterpret_cast<T*>(mem);
@@ -414,7 +414,7 @@ namespace ZetaRay::Util
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
 			{
-				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
 
 				m_beg = nullptr;
 				m_end = nullptr;
@@ -432,7 +432,7 @@ namespace ZetaRay::Util
 		{
 			static_assert(std::is_default_constructible_v<T>);
 
-			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator, Alignment>), alignof(T));
+			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
 			m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
 			m_end = m_beg;
 			m_last = m_beg + N;
@@ -473,10 +473,10 @@ namespace ZetaRay::Util
 			{
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
 
 				// allocate memory to accomodate new size
-				void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), nullptr, Alignment);
+				void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), nullptr, alignof(T));
 
 				// adjust the pointers
 				m_beg = reinterpret_cast<T*>(mem);
@@ -602,7 +602,7 @@ namespace ZetaRay::Util
 			}
 
 			// allocate memory to accomodate new size
-			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, Alignment);
+			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, alignof(T));
 
 			const size_t oldSize = size();
 
@@ -655,7 +655,7 @@ namespace ZetaRay::Util
 
 				// free the previously allocated memory
 				if (!has_inline_storage())
-					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, Alignment);
+					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
 			}
 
 			// adjust the pointers
@@ -702,58 +702,58 @@ namespace ZetaRay::Util
 			(64 - Math::AlignUp(sizeof(void*) * 3, alignofT)) / sizeofT));
 	}
 
-	template<typename T, uint32_t N = GetExcessSize(sizeof(T), alignof(T)), Support::AllocType Allocator = App::PoolAllocator, size_t Alignment = alignof(T)>
-	class SmallVector : public Vector<T, Allocator, Alignment>
+	template<typename T, uint32_t N = GetExcessSize(sizeof(T), alignof(T)), Support::AllocType Allocator = App::PoolAllocator>
+	class SmallVector : public Vector<T, Allocator>
 	{
 	public:
 		SmallVector(const Allocator& a = Allocator()) noexcept
-			: Vector<T, Allocator, Alignment>(N, a)
+			: Vector<T, Allocator>(N, a)
 		{}
 
 		SmallVector(const SmallVector& other) noexcept
-			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
+			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
-			Vector<T, Allocator, Alignment>::operator=(other);
+			Vector<T, Allocator>::operator=(other);
 		}
 
-		SmallVector(const Vector<T, Allocator, Alignment>& other) noexcept
-			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
+		SmallVector(const Vector<T, Allocator>& other) noexcept
+			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
-			Vector<T, Allocator, Alignment>::operator=(other);
+			Vector<T, Allocator>::operator=(other);
 		}
 
 		SmallVector& operator=(const SmallVector& other) noexcept
 		{
-			Vector<T, Allocator, Alignment>::operator=(other);
+			Vector<T, Allocator>::operator=(other);
 			return *this;
 		}
 
-		SmallVector& operator=(const Vector<T, Allocator, Alignment>& other) noexcept
+		SmallVector& operator=(const Vector<T, Allocator>& other) noexcept
 		{
-			Vector<T, Allocator, Alignment>::operator=(other);
+			Vector<T, Allocator>::operator=(other);
 			return *this;
 		}
 
 		SmallVector(SmallVector&& other) noexcept
-			: Vector<T, Allocator, Alignment>(N, this->GetAllocator())
+			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
-			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator>::operator=(ZetaMove(other));
 		}
 
-		SmallVector(Vector<T, Allocator, Alignment>&& other) noexcept
+		SmallVector(Vector<T, Allocator>&& other) noexcept
 		{
-			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator>::operator=(ZetaMove(other));
 		}
 
 		SmallVector& operator=(SmallVector&& other) noexcept
 		{
-			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator>::operator=(ZetaMove(other));
 			return *this;
 		}
 
-		SmallVector& operator=(Vector<T, Allocator, Alignment>&& other) noexcept
+		SmallVector& operator=(Vector<T, Allocator>&& other) noexcept
 		{
-			Vector<T, Allocator, Alignment>::operator=(ZetaMove(other));
+			Vector<T, Allocator>::operator=(ZetaMove(other));
 			return *this;
 		}
 
