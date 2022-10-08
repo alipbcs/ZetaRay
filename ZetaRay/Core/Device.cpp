@@ -80,12 +80,14 @@ void DeviceObjects::CreateDevice() noexcept
 	infoQueue->AddStorageFilterEntries(&filter);
 
 	infoQueue->Release();
+
+	//CheckHR(device->SetStablePowerState(true));
 #endif // _DEBUG
 
 	// check Hardware-accelerated RT support
 	D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature;
 	CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature, sizeof(feature)));
-	Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, "RaytracingTier 1.1 is not supported");
+	Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, "Raytracing Tier 1.1 is not supported");
 
 	// check shader model 6.6 support
 	D3D12_FEATURE_DATA_SHADER_MODEL sm;

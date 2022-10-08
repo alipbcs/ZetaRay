@@ -15,17 +15,17 @@ void ParamVariant::InitCommon(const char* group, const char* subgroup, const cha
 	m_dlg = dlg;
 
 	size_t lenGroup = Math::min((int)strlen(group), (MAX_GROUP_LEN - 1));
-	Assert(lenGroup >= 1, "zero-lenth string");
+	Assert(lenGroup >= 1, "zero-length string");
 	memcpy(m_group, group, lenGroup);
 	m_group[lenGroup] = '\0';
 
 	size_t lenSubgroup = Math::min((int)strlen(subgroup), (MAX_SUBGROUP_LEN - 1));
-	Assert(lenSubgroup >= 1, "zero-lenth string");
+	Assert(lenSubgroup >= 1, "zero-length string");
 	memcpy(m_subgroup, subgroup, lenSubgroup);
 	m_subgroup[lenSubgroup] = '\0';
 
 	size_t lenName = Math::min((int)strlen(name), (MAX_NAME_LEN - 1));
-	Assert(lenName >= 1, "zero-lenth string");
+	Assert(lenName >= 1, "zero-length string");
 	memcpy(m_name, name, lenName);
 	m_name[lenName] = '\0';
 

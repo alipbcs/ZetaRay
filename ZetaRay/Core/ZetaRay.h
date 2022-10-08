@@ -20,5 +20,5 @@
 
 #define MAX_NUM_THREADS 16
 
-#define ArraySize(x) sizeof(x) / sizeof(x[0])
+#define ZetaArrayLen(x) sizeof(x) / sizeof(x[0])
 

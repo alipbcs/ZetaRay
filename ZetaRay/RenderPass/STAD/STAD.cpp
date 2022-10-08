@@ -217,7 +217,7 @@ void STAD::Render(CommandList& cmdList) noexcept
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			computeCmdList.TransitionResource(barriers, ArraySize(barriers));
+			computeCmdList.TransitionResource(barriers, ZetaArrayLen(barriers));
 
 			uint32_t prevTemporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
 				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV;

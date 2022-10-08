@@ -130,9 +130,9 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 	{
 		// dxc.exe -T cs_6_6 -Fo <shader>_cs.csp -E main ...
 #ifdef _DEBUG
-		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #endif // _DEBUG
 
 		PROCESS_INFORMATION pi;
@@ -188,9 +188,9 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		// VS
 		{
 #ifdef _DEBUG
-			StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+			StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-			StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+			StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021%s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #endif // _DEBUG
 
 			siVS.cb = sizeof(siVS);
@@ -200,9 +200,9 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		// PS
 		{
 #ifdef _DEBUG
-			StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+			StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-			StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+			StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #endif // _DEBUG
 
 			siPS.cb = sizeof(siPS);
@@ -210,7 +210,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		}
 
 		HANDLE pis[] = { piVS.hProcess, piPS.hProcess };
-		WaitForMultipleObjects(ArraySize(pis), pis, true, INFINITE);
+		WaitForMultipleObjects(ZetaArrayLen(pis), pis, true, INFINITE);
 
 		m_compileInProgress.store(false, std::memory_order_release);
 

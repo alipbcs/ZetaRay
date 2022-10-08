@@ -29,7 +29,19 @@ namespace
 		static constexpr int HIST_LEN = 60;
 		float FrameTimeHist[HIST_LEN] = { 0.0 };
 		int NextFramHistIdx = 0;
-	};	
+	};
+
+	struct ParamUpdate
+	{
+		enum OP_TYPE
+		{
+			ADD,
+			REMOVE
+		};
+
+		ZetaRay::Support::ParamVariant P;
+		OP_TYPE Op;
+	};
 }
 
 using namespace ZetaRay::Win32;
@@ -100,6 +112,8 @@ namespace
 		uint32_t m_threadIDs[MAX_NUM_THREADS];
 
 		SmallVector<ParamVariant> m_params;
+		SmallVector<ParamUpdate, 32> m_paramsUpdates;
+
 		SmallVector<ShaderReloadHandler> m_shaderReloadHandlers;
 		SmallVector<Stat> m_frameStats;
 		FrameTime m_frameTime;
@@ -107,6 +121,7 @@ namespace
 		//std::shared_mutex m_stdOutMtx;
 		SRWLOCK m_stdOutLock = SRWLOCK_INIT;
 		SRWLOCK m_paramLock = SRWLOCK_INIT;
+		SRWLOCK m_paramUpdateLock = SRWLOCK_INIT;
 		SRWLOCK m_shaderReloadLock = SRWLOCK_INIT;
 		SRWLOCK m_statsLock = SRWLOCK_INIT;
 
@@ -239,7 +254,7 @@ namespace ZetaRay::AppImpl
 		g_pApp->m_frameStats.clear();
 
 		const float frameTimeMs = (float)(g_pApp->m_timer.GetElapsedTime() * 1000.0);
-		
+
 		auto& frameStats = g_pApp->m_frameTime;
 		frameStats.NextFramHistIdx = (frameStats.NextFramHistIdx < 59) ? frameStats.NextFramHistIdx + 1 : frameStats.NextFramHistIdx;
 		Assert(frameStats.NextFramHistIdx >= 0 && frameStats.NextFramHistIdx < 60, "bug");
@@ -325,7 +340,7 @@ namespace ZetaRay::AppImpl
 			const float renderHeight = g_pApp->m_displayHeight / g_pApp->m_upscaleFactor;
 
 			// following order is important
-			g_pApp->m_renderer.OnWindowSizeChanged(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight, 
+			g_pApp->m_renderer.OnWindowSizeChanged(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight,
 				g_pApp->m_displayWidth, g_pApp->m_displayHeight);
 			g_pApp->m_scene.OnWindowSizeChanged();
 
@@ -686,7 +701,7 @@ namespace ZetaRay::AppImpl
 			AppImpl::OnMouseWheel(message, wParam, lParam);
 			return 0;
 
-		// TODO test
+			// TODO test
 		case WM_DPICHANGED:
 		{
 			g_pApp->m_dpi = HIWORD(wParam);
@@ -798,6 +813,43 @@ namespace ZetaRay::AppImpl
 	{
 		g_pApp->m_cameraZoomSpeed = p.GetFloat().m_val;
 	}
+
+	void ApplyParamUpdates() noexcept
+	{
+		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
+
+		for (auto& p : g_pApp->m_paramsUpdates)
+		{
+			if (p.Op == ParamUpdate::OP_TYPE::ADD)
+			{
+				g_pApp->m_params.push_back(p.P);
+			}
+			else if (p.Op == ParamUpdate::OP_TYPE::REMOVE)
+			{
+				size_t i = 0;
+				bool found = false;
+				while (i < g_pApp->m_params.size())
+				{
+					if (g_pApp->m_params[i].GetID() == p.P.GetID())
+					{
+						found = true;
+						break;
+					}
+
+					i++;
+				}
+
+				Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
+				g_pApp->m_params.erase(i);
+			}
+		}
+
+		g_pApp->m_paramsUpdates.clear();
+
+		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
+		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+	}
 }
 
 namespace ZetaRay
@@ -812,7 +864,7 @@ namespace ZetaRay
 
 		return -1;
 	}
-	
+
 	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
 		: Dlg(dlg)
 	{
@@ -840,14 +892,14 @@ namespace ZetaRay
 		const int totalNumThreads = g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
 
 		// initialize thread pools
-		g_pApp->m_mainThreadPool.Init(g_pApp->m_processorCoreCount - 1, 
+		g_pApp->m_mainThreadPool.Init(g_pApp->m_processorCoreCount - 1,
 			totalNumThreads,
-			L"ZetaWorker", 
+			L"ZetaWorker",
 			THREAD_PRIORITY::NORMAL);
 
 		g_pApp->m_backgroundThreadPool.Init(AppData::NUM_BACKGROUND_THREADS,
 			totalNumThreads,
-			L"ZetaBackgroundWorker", 
+			L"ZetaBackgroundWorker",
 			THREAD_PRIORITY::BACKGROUND);
 
 		// main thread
@@ -875,8 +927,8 @@ namespace ZetaRay
 			g_pApp->m_threadContexts[mainThreadIDs.size() + i + 1].Rng = RNG(g_pApp->m_threadIDs[mainThreadIDs.size() + 1 + i]);
 		}
 
-//		g_pApp->m_mainThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size()));
-//		g_pApp->m_backgroundThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
+		//		g_pApp->m_mainThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size()));
+		//		g_pApp->m_backgroundThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
 
 		g_pApp->m_mainThreadPool.Start();
 		g_pApp->m_backgroundThreadPool.Start();
@@ -961,7 +1013,7 @@ namespace ZetaRay
 
 				// help out while there are unfinished tasks from the previous frame
 				bool success = g_pApp->m_mainThreadPool.TryFlush();
-				
+
 				// don't block the message-handling thread
 				if (!success)
 					continue;
@@ -975,6 +1027,17 @@ namespace ZetaRay
 
 				// update
 				{
+					TaskSet appTS;
+
+					auto ha0 = appTS.EmplaceTask("AppUpdates", []()
+						{
+							AppImpl::ApplyParamUpdates();
+						});
+
+					appTS.Sort();
+					appTS.Finalize();
+					Submit(ZetaMove(appTS));
+
 					TaskSet sceneTS;
 					TaskSet sceneRendererTS;
 					AppImpl::Update(sceneTS, sceneRendererTS);
@@ -991,7 +1054,7 @@ namespace ZetaRay
 					sceneRendererTS.Sort();
 
 					// sceneRendererTS has to run after sceneTS. this may seem sequential but
-					// each task can spawn more tasks
+					// each taskset is spawning many tasks (which potentially can run in parallel)
 					sceneTS.ConnectTo(sceneRendererTS);
 
 					sceneTS.Finalize();
@@ -1071,13 +1134,13 @@ namespace ZetaRay
 			poolIdx = poolIdx + 1 < g_pApp->m_processorCoreCount ? poolIdx + 1 : 0;
 		}
 
-		return mem;	
+		return mem;
 	}
 
 	void App::FreeMemoryPool(void* pMem, size_t size, const char* str, uint32_t alignment) noexcept
 	{
 		//free(pMem);
-	
+
 		int idx = GetThreadIdx();
 		Assert(idx != -1, "thread idx was not found");
 		int poolIdx = g_pApp->m_threadContexts[idx].Rng.GetUniformUintBounded(g_pApp->m_processorCoreCount);
@@ -1171,7 +1234,7 @@ namespace ZetaRay
 		while (!success)
 			success = g_pApp->m_mainThreadPool.TryFlush();
 	}
-	
+
 	void App::FlushAllThreadPools() noexcept
 	{
 		bool success = false;
@@ -1259,56 +1322,28 @@ namespace ZetaRay
 
 	void App::AddParam(ParamVariant& p) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
-		g_pApp->m_params.push_back(p);
-		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
+		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+
+		g_pApp->m_paramsUpdates.push_back(ParamUpdate{
+			.P = p,
+			.Op = ParamUpdate::ADD });
+
+		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
 	}
 
 	void App::RemoveParam(const char* group, const char* subgroup, const char* name) noexcept
 	{
-		Assert(group, "group can't be null");
-		Assert(subgroup, "subgroup can't be null");
-		Assert(name, "name can't be null");
+		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
 
-		constexpr int BUFF_SIZE = ParamVariant::MAX_GROUP_LEN + ParamVariant::MAX_SUBGROUP_LEN + ParamVariant::MAX_NAME_LEN;
-		char concatBuff[BUFF_SIZE];
-		size_t ptr = 0;
+		// create a dummy ParamVariant (never exposed to outside)
+		ParamVariant dummy;
+		dummy.InitBool(group, subgroup, name, fastdelegate::FastDelegate1<const ParamVariant&>(), false);
 
-		size_t p = strlen(group);
-		Assert(p > 0 && p < BUFF_SIZE, "buffer overflow");
-		memcpy(concatBuff, group, p);
-		ptr += p;
+		g_pApp->m_paramsUpdates.push_back(ParamUpdate{
+			.P = dummy,
+			.Op = ParamUpdate::REMOVE });
 
-		p = strlen(subgroup);
-		Assert(p > 0 && ptr + p < BUFF_SIZE, "buffer overflow");
-		memcpy(concatBuff + ptr, subgroup, p);
-		ptr += p;
-
-		p = strlen(name);
-		Assert(p > 0 && ptr + p < BUFF_SIZE, "buffer overflow");
-		memcpy(concatBuff + ptr, name, p);
-
-		uint64_t id = XXH3_64bits(concatBuff, ptr + p);
-
-		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
-
-		size_t i = 0;
-		bool found = false;
-		while (i < g_pApp->m_params.size())
-		{
-			if (g_pApp->m_params[i].GetID() == id)
-			{
-				found = true;
-				break;
-			}
-
-			i++;
-		}
-
-		Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", group, subgroup, name);
-		g_pApp->m_params.erase(i);
-
-		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
+		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
 	}
 
 	void App::AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
@@ -1360,15 +1395,15 @@ namespace ZetaRay
 		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
 		g_pApp->m_frameStats.emplace_back(group, name, f);
 		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
-	}	
-	
+	}
+
 	void App::AddFrameStat(const char* group, const char* name, uint64_t u) noexcept
 	{
 		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
 		g_pApp->m_frameStats.emplace_back(group, name, u);
 		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
-	}	
-	
+	}
+
 	void App::AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept
 	{
 		AcquireSRWLockExclusive(&g_pApp->m_statsLock);

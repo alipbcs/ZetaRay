@@ -64,7 +64,7 @@ namespace
 			FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT 
 		};
 
-		static constexpr uint32_t NUM_APP_CONTROLLED_RESOURCES = ArraySize(APP_CONTROLLED_RES_IDS);
+		static constexpr uint32_t NUM_APP_CONTROLLED_RESOURCES = ZetaArrayLen(APP_CONTROLLED_RES_IDS);
 
 		static constexpr int MAX_BARRIERS = 16;
 		static constexpr int MAX_SAMPLERS = 2;

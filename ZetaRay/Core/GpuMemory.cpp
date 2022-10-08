@@ -1205,9 +1205,9 @@ void GpuMemory::Recycle() noexcept
 
 	if (!textures.empty())
 	{
-		Task t("Freeing textures", TASK_PRIORITY::BACKGRUND, [this, textures = ZetaMove(textures)]()
+		Task t("Freeing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
 			{
-				Assert(textures.size() > 0, "input texture vec is empty");
+				Assert(Textures.size() > 0, "input texture vec is empty");
 				// resources in textures are freed now
 			});
 
@@ -1231,7 +1231,7 @@ void GpuMemory::Shutdown() noexcept
 
 	HANDLE handles[] = { h1, h2 };
 
-	WaitForMultipleObjects(ArraySize(handles), handles, true, INFINITE);
+	WaitForMultipleObjects(ZetaArrayLen(handles), handles, true, INFINITE);
 
 	auto mainThreadIDs = App::GetMainThreadIDs();
 
