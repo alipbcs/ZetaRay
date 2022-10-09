@@ -1,11 +1,11 @@
-set(ZETA_SCENERENDERER_DIR "${ZETA_SCENE_DIR}/SceneRenderer")
-set(ZETA_SCENERENDERER_SRC
-    "${ZETA_SCENERENDERER_DIR}/GBufferRenderer.cpp"
-    "${ZETA_SCENERENDERER_DIR}/LightManager.cpp"
-    "${ZETA_SCENERENDERER_DIR}/PostProcessor.cpp"
-    "${ZETA_SCENERENDERER_DIR}/RayTracer.cpp"
-    "${ZETA_SCENERENDERER_DIR}/SceneRenderer.cpp"
-    "${ZETA_SCENERENDERER_DIR}/SceneRenderer.h"
-    "${ZETA_SCENERENDERER_DIR}/SceneRendererImpl.h")
+set(SCENERENDERER_DIR "${SCENE_DIR}/SceneRenderer")
+set(SCENERENDERER_SRC
+    "${SCENERENDERER_DIR}/GBufferRenderer.cpp"
+    "${SCENERENDERER_DIR}/LightManager.cpp"
+    "${SCENERENDERER_DIR}/PostProcessor.cpp"
+    "${SCENERENDERER_DIR}/RayTracer.cpp"
+    "${SCENERENDERER_DIR}/SceneRenderer.cpp"
+    "${SCENERENDERER_DIR}/SceneRenderer.h"
+    "${SCENERENDERER_DIR}/SceneRendererImpl.h")
     
-set(ZETA_SCENERENDERER_SRC ${ZETA_SCENERENDERER_SRC} PARENT_SCOPE)
+set(SCENERENDERER_SRC ${SCENERENDERER_SRC} PARENT_SCOPE)

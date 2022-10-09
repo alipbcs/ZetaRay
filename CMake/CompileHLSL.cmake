@@ -1,4 +1,4 @@
-function(CompileHLSL HLSL_PATH ALL_INCLUDES RET)
+function(CompileHLSL HLSL_PATH COMMON_INCLUDES RET)
 	# figure out if shader is a compute shader or a vs-ps shader
 	get_filename_component(FILE_NAME_WO_EXT ${HLSL_PATH} NAME_WLE)
 	set(RE_CS "\\[numthreads.*\\][ \t\r\n]*void[ \t\r\n]+([a-zA-Z][A-Za-z0-9_]*)")
@@ -6,13 +6,18 @@ function(CompileHLSL HLSL_PATH ALL_INCLUDES RET)
 	string(REGEX MATCH ${RE_CS} MATCH ${DATA})
 
 	# dxc compiler
-	find_program(DXC dxc PATHS "${ZETA_DXC_BIN_DIR}" REQUIRED NO_DEFAULT_PATH)
+	find_program(DXC dxc PATHS "${DXC_BIN_DIR}" REQUIRED NO_DEFAULT_PATH)
 
+	get_filename_component(CURR_DIR ${HLSL_PATH} DIRECTORY)
+	file(GLOB_RECURSE DEPS_HLSLI "${CURR_DIR}/*.hlsli")
+	file(GLOB_RECURSE DEPS_COMMON "${CURR_DIR}/*_Common.h")
+	set(ALL_INCLUDES ${COMMON_INCLUDES} ${DEPS_HLSLI} ${DEPS_COMMON})
+	
 	# compute shader
 	if(${CMAKE_MATCH_COUNT} GREATER 0)
 		set(MAIN_FUNC ${CMAKE_MATCH_1})
-		set(CSO_PATH_DBG "${ZETA_CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_cs.cso")
-		set(CSO_PATH_RLS "${ZETA_CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_cs.cso")
+		set(CSO_PATH_DBG "${CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_cs.cso")
+		set(CSO_PATH_RLS "${CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_cs.cso")
 
 		add_custom_command(
 			OUTPUT ${CSO_PATH_DBG} ${CSO_PATH_RLS}
@@ -26,11 +31,11 @@ function(CompileHLSL HLSL_PATH ALL_INCLUDES RET)
 	# VS-PS
 	else()
 		# vertex shader
-		set(CSO_PATH_VS_DBG ${ZETA_CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_vs.cso)
-		set(CSO_PATH_VS_RLS ${ZETA_CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_vs.cso)
+		set(CSO_PATH_VS_DBG ${CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_vs.cso)
+		set(CSO_PATH_VS_RLS ${CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_vs.cso)
 		# pixel shader
-		set(CSO_PATH_PS_DBG ${ZETA_CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_ps.cso)
-		set(CSO_PATH_PS_RLS ${ZETA_CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_ps.cso)
+		set(CSO_PATH_PS_DBG ${CSO_DIR_DEBUG}/${FILE_NAME_WO_EXT}_ps.cso)
+		set(CSO_PATH_PS_RLS ${CSO_DIR_RELEASE}/${FILE_NAME_WO_EXT}_ps.cso)
 		
 		add_custom_command(
 			OUTPUT ${CSO_PATH_VS_DBG} ${CSO_PATH_PS_DBG} ${CSO_PATH_VS_RLS} ${CSO_PATH_PS_RLS}

@@ -119,7 +119,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 		float2 samplePosUV = GetWorldPosUVFromSurfaceLocalCoord(pos, normal, rotatedXZ, samplePosW);
 		//int2 samplePosSS = (int2) round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
 				
-		if (Common::IsInRange(samplePosUV, 1.0f.xx))
+		if (Common::IsWithinBounds(samplePosUV, 1.0f.xx))
 		{
 			float sampleDepth = g_currDepth.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
 			sampleDepth = Common::ComputeLinearDepthReverseZ(sampleDepth, g_frame.CameraNear);
@@ -186,7 +186,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const uint16_t2 swizzledDTid = (uint16_t2) DTid.xy;
 #endif
 
-	if (!Common::IsInRange(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Common::IsWithinBounds(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

@@ -1,12 +1,12 @@
-set(ZETA_SUPPORT_DIR "${ZETA_RENDERER_DIR}/Support")
-set(ZETA_SUPPORT_SRC
-    "${ZETA_SUPPORT_DIR}/Memory.cpp"
-    "${ZETA_SUPPORT_DIR}/Memory.h"
-    "${ZETA_SUPPORT_DIR}/Param.cpp"
-    "${ZETA_SUPPORT_DIR}/Param.h"
-    "${ZETA_SUPPORT_DIR}/Stat.h"
-    "${ZETA_SUPPORT_DIR}/Task.cpp"
-    "${ZETA_SUPPORT_DIR}/Task.h"
-    "${ZETA_SUPPORT_DIR}/ThreadPool.cpp"
-    "${ZETA_SUPPORT_DIR}/ThreadPool.h")
-set(ZETA_SUPPORT_SRC ${ZETA_SUPPORT_SRC} PARENT_SCOPE)
+set(SUPPORT_DIR "${RENDERER_DIR}/Support")
+set(SUPPORT_SRC
+    "${SUPPORT_DIR}/Memory.cpp"
+    "${SUPPORT_DIR}/Memory.h"
+    "${SUPPORT_DIR}/Param.cpp"
+    "${SUPPORT_DIR}/Param.h"
+    "${SUPPORT_DIR}/Stat.h"
+    "${SUPPORT_DIR}/Task.cpp"
+    "${SUPPORT_DIR}/Task.h"
+    "${SUPPORT_DIR}/ThreadPool.cpp"
+    "${SUPPORT_DIR}/ThreadPool.h")
+set(SUPPORT_SRC ${SUPPORT_SRC} PARENT_SCOPE)

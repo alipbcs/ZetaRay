@@ -1,7 +1,7 @@
-set(ZETA_RT_DIR "${ZETA_RENDERER_DIR}/RayTracing")
-set(ZETA_RT_SRC
-    "${ZETA_RT_DIR}/RtAccelerationStructure.cpp"
-    "${ZETA_RT_DIR}/RtAccelerationStructure.h"
-    "${ZETA_RT_DIR}/Sampler.cpp"
-    "${ZETA_RT_DIR}/Sampler.h")
-set(ZETA_RT_SRC ${ZETA_RT_SRC} PARENT_SCOPE)
+set(RT_DIR "${RENDERER_DIR}/RayTracing")
+set(RT_SRC
+    "${RT_DIR}/RtAccelerationStructure.cpp"
+    "${RT_DIR}/RtAccelerationStructure.h"
+    "${RT_DIR}/Sampler.cpp"
+    "${RT_DIR}/Sampler.h")
+set(RT_SRC ${RT_SRC} PARENT_SCOPE)

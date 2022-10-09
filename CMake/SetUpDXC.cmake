@@ -1,12 +1,12 @@
 function(SetupDXC DXC_BIN_DIR)
-    set(DXC_DIR "${ZETA_TOOLS_DIR}/dxc")
+    set(DXC_DIR "${TOOLS_DIR}/dxc")
     file(GLOB_RECURSE DXC_BIN_PATH "${DXC_DIR}/*dxc.exe")
 
-    # if(NOT EXISTS "${ZETA_DXC_BIN_DIR}")
+    # if(NOT EXISTS "${DXC_BIN_DIR}")
     if(DXC_BIN_PATH STREQUAL "")
         set(URL "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.7.2207/dxc_2022_07_18.zip")
         message(STATUS "Downloading DXC from ${URL}...")
-        set(ARCHIVE_PATH "${ZETA_TOOLS_DIR}/dxc.zip")
+        set(ARCHIVE_PATH "${TOOLS_DIR}/dxc.zip")
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 60)
         
         file(ARCHIVE_EXTRACT INPUT "${ARCHIVE_PATH}" DESTINATION "${DXC_DIR}")

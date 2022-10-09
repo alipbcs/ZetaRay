@@ -125,10 +125,10 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos);
 	
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(Common::IsInRange(topLeft, screenDim),
-									 Common::IsInRange(topLeft + float2(1, 0), screenDim),
-									 Common::IsInRange(topLeft + float2(0, 1), screenDim),
-									 Common::IsInRange(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Common::IsWithinBounds(topLeft, screenDim),
+									 Common::IsWithinBounds(topLeft + float2(1, 0), screenDim),
+									 Common::IsWithinBounds(topLeft + float2(0, 1), screenDim),
+									 Common::IsWithinBounds(topLeft + float2(1, 1), screenDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -197,7 +197,7 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float3 color)
 [numthreads(STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	if (!Common::IsInRange(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Common::IsWithinBounds(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	uint tspp = 0;

@@ -56,12 +56,12 @@ endif()
 # 
 # common paths
 # 
-set(ZETA_EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/External")
-set(ZETA_TOOLS_DIR "${CMAKE_SOURCE_DIR}/Tools")
-set(ZETA_RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRay")
-set(ZETA_ASSET_DIR "${CMAKE_SOURCE_DIR}/Assets")
-set(ZETA_CSO_DIR_DEBUG "${ZETA_ASSET_DIR}/CSO/Debug")
-set(ZETA_CSO_DIR_RELEASE "${ZETA_ASSET_DIR}/CSO/Release")
+set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/External")
+set(TOOLS_DIR "${CMAKE_SOURCE_DIR}/Tools")
+set(RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRay")
+set(ASSET_DIR "${CMAKE_SOURCE_DIR}/Assets")
+set(CSO_DIR_DEBUG "${ASSET_DIR}/CSO/Debug")
+set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
 
 # 
 # setup DXC

@@ -1,12 +1,12 @@
-set(ZETA_WIN32_DIR "${ZETA_RENDERER_DIR}/Win32")
-set(ZETA_WIN32_SRC
-    "${ZETA_WIN32_DIR}/App.cpp"
-    "${ZETA_WIN32_DIR}/App.h"
-    "${ZETA_WIN32_DIR}/Filesystem.cpp"
-    "${ZETA_WIN32_DIR}/Filesystem.h"
-    "${ZETA_WIN32_DIR}/Log.h"
-    "${ZETA_WIN32_DIR}/Timer.h"
-    "${ZETA_WIN32_DIR}/Win32.h"
-    "${ZETA_WIN32_DIR}/Win32Common.cpp"
-    "${ZETA_WIN32_DIR}/Win32Common.h")
-set(ZETA_WIN32_SRC ${ZETA_WIN32_SRC} PARENT_SCOPE)
+set(WIN32_DIR "${RENDERER_DIR}/Win32")
+set(WIN32_SRC
+    "${WIN32_DIR}/App.cpp"
+    "${WIN32_DIR}/App.h"
+    "${WIN32_DIR}/Filesystem.cpp"
+    "${WIN32_DIR}/Filesystem.h"
+    "${WIN32_DIR}/Log.h"
+    "${WIN32_DIR}/Timer.h"
+    "${WIN32_DIR}/Win32.h"
+    "${WIN32_DIR}/Win32Common.cpp"
+    "${WIN32_DIR}/Win32Common.h")
+set(WIN32_SRC ${WIN32_SRC} PARENT_SCOPE)

@@ -1,7 +1,7 @@
-set(ZETA_MODEL_DIR "${ZETA_RENDERER_DIR}/Model")
-set(ZETA_MODEL_SRC
-    "${ZETA_MODEL_DIR}/glTF2.cpp"
-    "${ZETA_MODEL_DIR}/glTF2.h"
-    "${ZETA_MODEL_DIR}/Mesh.cpp"
-    "${ZETA_MODEL_DIR}/Mesh.h")
-set(ZETA_MODEL_SRC ${ZETA_MODEL_SRC} PARENT_SCOPE)
+set(MODEL_DIR "${RENDERER_DIR}/Model")
+set(MODEL_SRC
+    "${MODEL_DIR}/glTF2.cpp"
+    "${MODEL_DIR}/glTF2.h"
+    "${MODEL_DIR}/Mesh.cpp"
+    "${MODEL_DIR}/Mesh.h")
+set(MODEL_SRC ${MODEL_SRC} PARENT_SCOPE)
