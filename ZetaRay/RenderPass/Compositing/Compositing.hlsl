@@ -1,11 +1,13 @@
 #include "Compositing_Common.h"
 #include "../Common/Common.hlsli"
+#include "../Common/BRDF.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Material.h"
 #include "../Common/Sampling.hlsli"
 #include "../Common/RT.hlsli"
+#include "../IndirectDiffuse/Reservoir.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -21,60 +23,77 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 [numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
-	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsInRange(DTid.xy, textureDim))
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	if (!Common::IsWithinBounds(DTid.xy, renderDim))
 		return;
 
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
 	float3 color = g_hdrLightAccum[DTid.xy].rgb;
 	
-	// Radiance reflected back to eye (w_o) due to one-bounce indirect lighting (L_ind) is:
-	//		L_ind = int_w L_i (p, w_i) * n.w_i * BRDF(p, w_i, w_o) dw
-	//		where,
-	//			P is the surface point
-	//			L_i is radiance that's been scattered once before reaching P having started from some light source
-	//
-	// MC_estimate(L_ind) = L_ind * n.w_i * BRDF(P, w_i, w_o) / Pdf(w_i)
-	// 
-	// Assuming a Lambertian surface, cosine-weighted hemisphere sampling can be used to draw sample 
-	// directions w_i. For this distribution, PDF(w_i) = n.w_i / Pi 
-	//
-	// Plugging in above and since Lambertian BRDF is diffuseReflectance / Pi, we have:
-	// MC_estimate(L_ind) = L_ind * diffuseReflectance / PI * n.w_i / Pdf(w_i)
-	//					  = L_ind * diffuseReflectance
+	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	const float depth = g_depth[DTid.xy];
 
-	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::BASE_COLOR];
-	float4 baseColor = g_baseColor[DTid.xy];
-
-	if (baseColor.w < MIN_ALPHA_CUTOFF)
+	if(depth == 0.0)
 	{
 		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
 		return;
 	}
+			
+	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+		
+	const float3 posW = Common::WorldPosFromScreenSpace(DTid.xy,
+		uint2(g_frame.RenderWidth, g_frame.RenderHeight),
+		linearDepth,
+		g_frame.TanHalfFOV,
+		g_frame.AspectRatio,
+		g_frame.CurrViewInv);
+	
+	Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
+				g_local.InputReservoir_B_DescHeapIdx);
+
+	const float3 wo = normalize(g_frame.CameraPos - posW);
+	const float3 wi = normalize(r.SamplePos - posW);
+	
+	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::BASE_COLOR];
+	float3 baseColor = g_baseColor[DTid.xy].rgb;
+
+	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
+
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const half2 mr = g_metallicRoughness[DTid.xy];
+	
+	float3 diffuseReflectance = baseColor * (1.0f - mr.x);
+	
+	// TODO account for Fresnel during denoising
+	/*
+		float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
+		float3 wh = normalize(wi + wo);
+		float whdotwo = saturate(dot(wh, wo)); // == hdotwi
+		float3 F = BRDF::FresnelSchlick(F0, whdotwo);
+		float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
+	*/
+
+	float3 f = diffuseReflectance * ONE_DIV_PI;
+	float3 integratedLiXndotwi = r.Li * r.GetW();
 	
 	if (g_local.StadDenoiser)
 	{
-		// (hopefully) denoised L_ind
-		Texture2D<float4> g_denoisedLind = ResourceDescriptorHeap[g_local.DenoisedLindDescHeapIdx];
-		float3 L_i = g_denoisedLind[DTid.xy].xyz;
-
-		// TODO account for Fresnel
-		const float3 diffuseReflectance = baseColor.rgb;
-		float3 L_o = L_i * diffuseReflectance;
-		
-		color += L_o;
+		Texture2D<half4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
+		half3 integratedVals = g_temporalCache[DTid.xy].rgb;
+		integratedLiXndotwi = integratedVals;
 	}
+	
+	color += integratedLiXndotwi * f;
+	//color = f * 10;
 	
 	if (g_local.AccumulateInscattering)
 	{
-		GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-		float linearDepth = g_depth[DTid.xy];
-
 		if (linearDepth > 1e-4f)
 		{
-			float2 posTS = (DTid.xy + 0.5f) / textureDim;
-			linearDepth = Common::ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
+			float2 posTS = (DTid.xy + 0.5f) / renderDim;
 			float p = pow(max(linearDepth - g_local.VoxelGridNearZ, 0.0f) / (g_local.VoxelGridFarZ - g_local.VoxelGridNearZ), 1.0f / g_local.DepthMappingExp);
 		
 			//float p = linearDepth / g_local.VoxelGridDepth;

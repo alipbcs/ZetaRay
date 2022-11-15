@@ -9,12 +9,12 @@
 
 #ifdef _DEBUG
 #define StackStr(buffName, lenName, formatStr, ...)                         \
-    char buffName[256];                                                     \
-    int lenName = stbsp_snprintf(buffName, 256, formatStr, __VA_ARGS__);    
+    char buffName[512];                                                     \
+    int lenName = stbsp_snprintf(buffName, 512, formatStr, __VA_ARGS__);    
 #else
 #define StackStr(buffName, lenName, formatStr, ...)                         \
-    char buffName[256];                                                     \
-    int lenName = stbsp_snprintf(buffName, 256, formatStr, __VA_ARGS__);    
+    char buffName[512];                                                     \
+    int lenName = stbsp_snprintf(buffName, 512, formatStr, __VA_ARGS__);    
 #endif
 
 //--------------------------------------------------------------------------------------

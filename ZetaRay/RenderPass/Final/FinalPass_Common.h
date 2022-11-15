@@ -9,19 +9,25 @@ struct cbFinalPass
 	uint32_t InputDescHeapIdx;
 	//float KeyValue;
 
-	uint32_t DisplayDepth;
-	uint32_t DisplayNormals;
-	uint32_t DisplayBaseColor;
-	uint32_t DisplayMetalnessRoughness;
-	uint32_t DisplayMotionVec;
-	uint32_t DisplayIndirectDiffuse;
-	uint32_t DisplayStadTemporalCache;
-	uint32_t DoTonemapping;
-	uint32_t VisualizeOcclusion;
+	uint16_t DisplayDepth;
+	uint16_t DisplayNormal;
+	uint16_t DisplayBaseColor;
+	uint16_t DisplayMetalnessRoughness;
+	uint16_t DisplayStadTemporalCache;
+	uint16_t DisplayReSTIR_GI_TemporalReservoir;
+	uint16_t DisplayReSTIR_GI_SpatialReservoir;
+	uint16_t DoTonemapping;
+	uint16_t VisualizeOcclusion;
 
 	uint32_t IndirectDiffuseLiDescHeapIdx;
 	uint32_t SVGFSpatialVarDescHeapIdx;
 	uint32_t DenoiserTemporalCacheDescHeapIdx;
+	uint32_t TemporalReservoir_A_DescHeapIdx;
+	uint32_t TemporalReservoir_B_DescHeapIdx;
+	uint32_t TemporalReservoir_C_DescHeapIdx;
+	uint32_t SpatialReservoir_A_DescHeapIdx;
+	uint32_t SpatialReservoir_B_DescHeapIdx;
+	uint32_t SpatialReservoir_C_DescHeapIdx;
 };
 
 #endif // FINAL_PASS_H

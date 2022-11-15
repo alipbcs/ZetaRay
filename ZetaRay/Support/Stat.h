@@ -2,7 +2,6 @@
 
 #include "../Utility/Error.h"
 #include "../Math/Common.h"
-#include <xxHash-0.8.0/xxhash.h>
 
 namespace ZetaRay::Support
 {

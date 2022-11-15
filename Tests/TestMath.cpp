@@ -3,7 +3,7 @@
 #include <Math/Quaternion.h>
 #include <Math/MatrixFuncs.h>
 #include <Utility/RNG.h>
-#include <doctest-2.4.8/doctest.h>
+#include <doctest-2.4.9/doctest.h>
 #include <DirectXMath.h>
 #include <DirectXCollision.h>
 

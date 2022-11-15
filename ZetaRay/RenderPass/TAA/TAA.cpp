@@ -86,7 +86,6 @@ void TAA::Reset() noexcept
 		s_rpObjs.Clear();
 		App::RemoveParam("Renderer", "TAA", "BlendWeight");
 		App::RemoveParam("Renderer", "TAA", "CatmullRomFiltering");
-
 		App::RemoveShaderReloadHandler("TAA");
 
 	#ifdef _DEBUG

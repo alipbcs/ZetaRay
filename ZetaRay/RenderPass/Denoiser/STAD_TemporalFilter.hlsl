@@ -3,7 +3,9 @@
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
+#include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
+#include "../IndirectDiffuse/Reservoir.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -23,13 +25,13 @@ float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 
 {
 	float3 prevPos[4];
 	prevPos[0] = Common::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+		g_frame.PrevViewInv);
 	prevPos[1] = Common::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+		g_frame.PrevViewInv);
 	prevPos[2] = Common::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+		g_frame.PrevViewInv);
 	prevPos[3] = Common::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+		g_frame.PrevViewInv);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
@@ -57,12 +59,11 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
+void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal, in float2 currUV, inout uint tspp, out float3 color)
 {
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
 	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 currUV = (DTid.xy + 0.5f) / screenDim;
 
 	// compute pixel position corresponding to current pixel in previous frame (in texture space)
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
@@ -101,21 +102,10 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	const float4 normalWeights = ComputeNormalConsistency(prevNormals, currNormal);
 	*/
 	
-	// current frame's normals
-	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 currNormal = Common::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
-
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 	prevDepths = Common::ComputeLinearDepthReverseZ(prevDepths, g_frame.CameraNear);
-
-	// current frame's depth
-	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float currLinearDepth = Common::ComputeLinearDepthReverseZ(g_currDepth[DTid.xy], g_frame.CameraNear);
-
-	const float3 currPos = Common::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -174,19 +164,28 @@ void SampleTemporalCache(in uint3 DTid, inout uint tspp, out float3 color)
 	}
 }
 
-void Integrate(in uint3 DTid, inout uint tspp, inout float3 color)
+void Integrate(in uint2 DTid, in float3 pos, in float3 normal, inout uint tspp, inout float3 color)
 {
-	Texture2D<float4> g_indirectLiRayT = ResourceDescriptorHeap[g_local.IndirectLiRayTDescHeapIdx];
-	const float3 noisySignal = g_indirectLiRayT[DTid.xy].rgb;
+	Reservoir r = PartialReadInputReservoir(DTid, g_local.InputReservoir_A_DescHeapIdx,
+				g_local.InputReservoir_B_DescHeapIdx);
+
+	const float3 wi = normalize(r.SamplePos - pos);
 	
-	// use linear weights as opposed to exponential weights (used in the paper), which
-	// comparatively give higher weight to initial samples (useful for right after disocclusion)
-	const float accumulationSpeed = 1.0f / (1.0f + tspp);
-	
+	const float3 noisySignal = r.Li * r.GetW() * saturate(dot(wi, normal));
+	//const float3 noisySignal = r.R.Li * r.GetW();
+		
 	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
 	tspp = min(tspp + 1, g_local.MaxTspp);
+	// TODO improve, temporal lag is still noticeable
+	float tsppAdjustment = saturate(r.M / MAX_TEMPORAL_M);
+	tsppAdjustment *= tsppAdjustment;
+	tspp = max(1, round(half(tspp) * tsppAdjustment));
+	
+	// use linear weights rather than exponential weights, which comparatively give a higher weight 
+	// to initial samples right after disocclusion
+	const float accumulationSpeed = 1.0f / (1.0f + tspp);
 
-	// color
+	// accumulate
 	color = lerp(color, noisySignal, accumulationSpeed);
 }
 
@@ -197,26 +196,37 @@ void Integrate(in uint3 DTid, inout uint tspp, inout float3 color)
 [numthreads(STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	if (!Common::IsWithinBounds(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	if (!Common::IsWithinBounds(DTid.xy, renderDim))
 		return;
 	
 	uint tspp = 0;
 	float3 color = 0.0f.xxx;
 
-	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::BASE_COLOR];
-	const float isSurfaceMarker = g_baseColor[DTid.xy].w;
+	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	const float depth = g_currDepth[DTid.xy];
 
-	// skip if this pixel belongs to sky
-	if (isSurfaceMarker < MIN_ALPHA_CUTOFF)
+	// skip sky pixels
+	if (depth == 0.0)
 		return;
+
+	// current frame's normals
+	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+	const float3 currNormal = Common::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
+
+	// current frame's depth
+	const float currLinearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
+
+	const float3 currPos = Common::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
+		g_frame.CurrViewInv);
 	
 	// sample temporal cache using a bilinear tap with custom weights
 	if (g_local.IsTemporalCacheValid)
-		SampleTemporalCache(DTid, tspp, color);
+		SampleTemporalCache(DTid.xy, currPos, currNormal, currUV, tspp, color);
 
 	// integrate history and current frame
-	Integrate(DTid, tspp, color);
+	Integrate(DTid.xy, currPos, currNormal, tspp, color);
 
 	RWTexture2D<float4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
 	g_nextTemporalCache[DTid.xy].xyzw = float4(color, tspp);

@@ -214,14 +214,13 @@ namespace BRDF
 		return surfaceInteraction.diffuseReflectance;
 	}
 
-	float3 SampleLambertianBrdf(float3 shadingNormal, float2 u)
+	float3 SampleLambertianBrdf(in float3 shadingNormal, in float2 u, out float pdf)
 	{
 		// build rotation quaternion that maps shading normal to y = (0, 1, 0)
 	//	float3 snCrossY = float3(shadingNormal.z, 0.0f, -shadingNormal.x);
 	//	float4 q = float4(snCrossY, 1.0f + dot(shadingNormal, float3(0.0f, 1.0f, 0.0f)));
 		float4 q = Common::QuaternionFromY(shadingNormal);
 	
-		float pdf;
 		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
 		// transform wh from local space to world space
@@ -229,15 +228,7 @@ namespace BRDF
 	
 		return wiWorld;
 	}
-
-	/*
-	// w.r.t. solid angle
-	float LambertianBrdfPdf(float3 wi)
-	{
-		// wi.z = cos(theta)
-		return wi.z * ONE_DIV_PI;
-	}
-	*/
+	
 	//--------------------------------------------------------------------------------------
 	// Specular Microfacet Model
 	//--------------------------------------------------------------------------------------
@@ -246,8 +237,7 @@ namespace BRDF
 	{
 		float NDF = GGX(surfaceInteraction.ndotwh, surfaceInteraction.alphaSq);
 		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surfaceInteraction.alphaSq,
-		surfaceInteraction.ndotwi,
-		surfaceInteraction.ndotwo);
+			surfaceInteraction.ndotwi, surfaceInteraction.ndotwo);
 
 		return surfaceInteraction.F * NDF * G2Div4NdotLNdotV * surfaceInteraction.ndotwi;
 	}
@@ -294,7 +284,7 @@ namespace BRDF
 	// specifies that G1 is a function of wi and wh, but Smith G1 is computed w.r.t. ndotwo. As
 	// explained in page 68, "masking function depends only on the variable a = 1 / alpha * tan(theta_0), 
 	// where tan(theta_0) is the slope of the outgoing direction."
-	// theta_0 is depicted in figure 3. as angle between surface normal (0, 0, 1) and outgoing direction (view)
+	// theta_0 is depicted in figure 3, as the angle between surface normal (0, 0, 1) and outgoing direction (view)
 	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surfaceInteraction)
 	{
 		float NDF = GGX(surfaceInteraction.ndotwh, max(0.00001f, surfaceInteraction.alphaSq));
@@ -352,8 +342,7 @@ namespace BRDF
 			return float3(0.0f, 0.0f, 0.0f);
 	
 		float3 specularBrdf = SpecularBRDFGGXSmith(surfaceInteration);
-		float3 diffuseBrdf = (float3(1.0f, 1.0f, 1.0f) - surfaceInteration.F) *
-		LambertianBRDF(surfaceInteration.diffuseReflectance, surfaceInteration.ndotwi);
+		float3 diffuseBrdf = (1.0f.xxx - surfaceInteration.F) * LambertianBRDF(surfaceInteration.diffuseReflectance, surfaceInteration.ndotwi);
 
 		return diffuseBrdf + specularBrdf;
 	}

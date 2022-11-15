@@ -77,7 +77,7 @@ void SunLight::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;;
 
-	s_rpObjs.Init("SunLight", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	s_rpObjs.Init("Sun", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
 
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, 
@@ -87,14 +87,14 @@ void SunLight::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 		COMPILED_PS[0]);
 
 	m_cachedPsoDesc = psoDesc;
-	App::AddShaderReloadHandler("SunLight", fastdelegate::MakeDelegate(this, &SunLight::ReloadShaders));
+	App::AddShaderReloadHandler("Sun", fastdelegate::MakeDelegate(this, &SunLight::ReloadShaders));
 }
 
 void SunLight::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		App::RemoveShaderReloadHandler("SunLight");
+		App::RemoveShaderReloadHandler("Sun");
 		s_rpObjs.Clear();
 	}
 }
@@ -104,7 +104,7 @@ void SunLight::Render(CommandList& cmdList) noexcept
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
-	directCmdList.PIXBeginEvent("SunLight");
+	directCmdList.PIXBeginEvent("Sun");
 
 	D3D12_VIEWPORT viewports[1] = { App::GetRenderer().GetRenderViewport() };
 	D3D12_RECT scissors[1] = { App::GetRenderer().GetRenderScissor() };

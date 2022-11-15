@@ -1,6 +1,6 @@
 #include "Param.h"
 #include "../Utility/Error.h"
-#include <xxHash-0.8.0/xxhash.h>
+#include <xxHash-0.8.1/xxhash.h>
 #include <string.h>
 
 using namespace ZetaRay::Support;

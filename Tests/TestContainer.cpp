@@ -1,6 +1,6 @@
 #include <Utility/SmallVector.h>
 #include <Win32/App.h>
-#include <doctest-2.4.8/doctest.h>
+#include <doctest-2.4.9/doctest.h>
 
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;

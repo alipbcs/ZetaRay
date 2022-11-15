@@ -6,8 +6,9 @@
 	#include "../../Math/Matrix.h"
 	
 	#define half_ uint16_t
-	#define half2_ uint32_t
-	#define half4_ ZetaRay::Math::float2
+	#define half2(x) uint16_t x[2]
+	#define half3(x) uint16_t x[3]
+	#define half4(x) uint16_t x[4]
 	#define float2_ ZetaRay::Math::float2
 	#define float3_ ZetaRay::Math::float3
 	#define float4_ ZetaRay::Math::float4
@@ -17,6 +18,7 @@
 #else
 	#define half_ half
 	#define half2_ half2
+	#define half3_ half3
 	#define half4_ half4
 	#define float2_ float2
 	#define float3_ float3

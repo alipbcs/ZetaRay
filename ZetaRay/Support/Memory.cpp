@@ -37,7 +37,6 @@ MemoryArena::MemoryArena(MemoryArena&& rhs) noexcept
 
 MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
 {
-	// TODO: insert return statement here
 	m_mem = rhs.m_mem;
 	m_size = rhs.m_size;
 	m_offset = rhs.m_offset;

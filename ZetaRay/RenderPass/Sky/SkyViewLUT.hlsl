@@ -27,8 +27,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	
 	// reverse the direction to uv conversion in sky dome
 	float phi = ((float) DTid.x / (float) g_local.LutWidth);
+//	phi -= 0.5f;
 	phi *= TWO_PI;
+//	phi = phi < 0.0f ? phi + PI : phi;
 	phi -= PI;
+//	phi = 
 	
 	float v = ((float) DTid.y / (float) g_local.LutHeight);
 

@@ -49,7 +49,7 @@ StructuredBuffer<Material> g_materials : register(t0, space0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metallic, half roughness,
+GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, half roughness,
 	half2 motionVec, half surfaceSpreadAngle)
 {
 	GBUFFER_OUT psout;
@@ -57,8 +57,7 @@ GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalli
 	psout.BaseColor = baseColor;
 	psout.EmissiveCurv = half4(emissive, surfaceSpreadAngle);
 	psout.Normal.xy = Common::EncodeUnitNormalAsHalf2(sn);
-	//psout.Normal.zw = EncodeUnitNormalAsHalf2(gn);
-	psout.MetallicRoughness = half2(metallic, roughness);
+	psout.MetallicRoughness = half2(metalness, roughness);
 	psout.MotionVec = motionVec;
 
 	return psout;
@@ -123,7 +122,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 	half4 baseColor = half4(mat.BaseColorFactor);
 	half3 emissiveColor = half3(mat.EmissiveFactor);
 	float3 shadingNormal = psin.NormalW * mat.NormalScale;
-	half metallic = half(mat.MetallicFactor);
+	half metalness = half(mat.MetallicFactor);
 	half roughness = half(mat.RoughnessFactor);
 
 	// minimum Alpha Cutoff is set to MIN_ALPHA_CUTOFF (== 0.01f)
@@ -140,7 +139,8 @@ GBUFFER_OUT mainPS(VSOut psin)
 		baseColor *= baseColorSample;
 		baseColor.w = 1.0h;
 	}
-	else if (dot(mat.BaseColorFactor, 1) == 0)
+	// [hack]
+	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
 	{
 		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 100.0f));
 		baseColor.w = 1.0h;
@@ -159,11 +159,11 @@ GBUFFER_OUT mainPS(VSOut psin)
 	{
 		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture;
 		
-		// green channel contains roughness values and blue channel contains metalness values
+		// green & blue channels contain roughness and metalness respectively
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
 		half2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).bg;
 
-		metallic *= mr.x;
+		metalness *= mr.x;
 		roughness *= mr.y;
 	}
 
@@ -195,7 +195,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 	GBUFFER_OUT psout = PackGBuffer(baseColor,
 									emissiveColor,
 									shadingNormal,
-									metallic,
+									metalness,
 	                                roughness,
 	                                half2(motionVecTS),
 									half(phi));

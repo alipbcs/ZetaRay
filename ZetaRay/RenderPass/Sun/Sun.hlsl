@@ -6,6 +6,7 @@
 #include "../Common/RT.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
+#define RAY_OFFSET_VIEW_DIST_START 30.0
 #define USE_SOFT_SHADOWS 0
 
 //--------------------------------------------------------------------------------------
@@ -17,7 +18,6 @@ RaytracingAccelerationStructure g_sceneBVH : register(t0, space0);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t1, space0);
 StructuredBuffer<uint> g_scramblingTile : register(t2, space0);
 StructuredBuffer<uint> g_rankingTile : register(t3, space0);
-//StructuredBuffer<AnalyticalLightSource> g_analyticalLights : register(t1, space0);
 
 //--------------------------------------------------------------------------------------
 // Helper structs
@@ -33,23 +33,17 @@ struct VSOut
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
+bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
 {
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 			 RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			 RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 	
-	if (dot(normal, wi) < 0)
-		wi *= -1.0f;
+	//float3 adjustedRayOrigin = OffsetRayRTG(pos, normal);
 	
-//	float3 adjustedRayOrigin = pos;
-//	float3 adjustedRayOrigin = OffsetRayRTG(pos, geometricNormal);
-	float3 adjustedRayOrigin = pos + normal * 5e-3f;
-	//float3 adjustedRayOrigin = pos + normal * 1.0f;
-//	float3 adjustedRayOrigin = posW + geometricNormal * g_frame.RayOffset;
+	float offsetScale = viewZ / RAY_OFFSET_VIEW_DIST_START;
+	float3 adjustedRayOrigin = pos + normal * 1e-2f * (1 + offsetScale * 2);
 
-//	const float3 adjustedRayOrigin = OffsetRayOrigin(pos, geometricNormal, wi);
-	
 	RayDesc ray;
 	ray.Origin = adjustedRayOrigin;
 	ray.TMin = g_frame.RayOffset;
@@ -85,64 +79,57 @@ VSOut mainVS(uint vertexID : SV_VertexID)
 
 float4 mainPS(VSOut psin) : SV_Target
 {
-	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::BASE_COLOR];
-	half4 baseColor = g_baseColor[psin.PosSS.xy];
-
-	// not on the scene surface
-	const float EPS = 0.0001f;
-	clip(baseColor.w - MIN_ALPHA_CUTOFF - EPS);
-
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	float linearDepth = g_depth[psin.PosSS.xy];
-	linearDepth = Common::ComputeLinearDepthReverseZ(linearDepth, g_frame.CameraNear);
+	const float depth = g_depth[psin.PosSS.xy];
+	// skip sky pixels
+	clip(depth - 1e-6f);
+	
+	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
 	
 	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	float3 posW = Common::WorldPosFromScreenSpacePos(psin.PosSS.xy,
+	float3 posW = Common::WorldPosFromScreenSpace(psin.PosSS.xy,
 		textureDim, 
 		linearDepth, 
 		g_frame.TanHalfFOV, 
 		g_frame.AspectRatio, 
-		g_frame.CurrViewInv, 
-		g_frame.CurrCameraJitter);
+		g_frame.CurrViewInv);
 	float3 wo = normalize(g_frame.CameraPos - posW);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	half2 encodedNormals = g_normal[psin.PosSS.xy];
-	//float3 geometricNormal = normalize(DecodeUnitNormalFromHalf2(encodedNormals.zw));
 
 	float3 wi = -g_frame.SunDir;
 	float pdf = 1.0f;
 	
 #if USE_SOFT_SHADOWS
 	const uint sampleIdx = g_frame.FrameNum & 31;
-	const float u0 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			psin.PosSS.x, psin.PosSS.y, sampleIdx, 0);
-	const float u1 = samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			psin.PosSS.x, psin.PosSS.y, sampleIdx, 1);
+	const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			psin.PosSS.x, psin.PosSS.y, sampleIdx, 2);
+	const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			psin.PosSS.x, psin.PosSS.y, sampleIdx, 3);
 
-	float3 wiLocal = UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
-	
-	// build rotation quaternion for transforming from sun dir to y = (0, 1, 0)
-	float3 snCrossY = float3(-wi.z, 0.0f, wi.x);
-	float4 q = float4(snCrossY, 1.0f + dot(wi, float3(0.0f, 1.0f, 0.0f)));
-	// transform wiLocal from local space to world space
-	float4 qReverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
-	wi = RotateVector(wiLocal, qReverse);
+	float3 wiLocal = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
+	float4 q = Common::QuaternionFromY(wi);
+	// transform from local space to world space
+	wi = Common::RotateVector(wiLocal, q);
 #endif	
 	
 	const float3 T = ddx(posW);
 	const float3 B = ddy(posW);
 	const float3 geometricNormal = normalize(cross(T, B));
 	
-	if (!EvaluateVisibility(posW.xyz, wi, geometricNormal))
-		return float4(0.0f, 0.0f, 0.0f, 0.0f);
+	if (!EvaluateVisibility(posW.xyz, wi, geometricNormal, linearDepth))
+		return 0.0.xxxx;
 
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 	const half2 mr = g_metallicRoughness[psin.PosSS.xy];
 	
 	const float3 shadingNormal = Common::DecodeUnitNormalFromHalf2(encodedNormals.xy);
+
+	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::BASE_COLOR];
+	half4 baseColor = g_baseColor[psin.PosSS.xy];
 
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(shadingNormal,
 		mr.y, mr.x, wo, baseColor.rgb);

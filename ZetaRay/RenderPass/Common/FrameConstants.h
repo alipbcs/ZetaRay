@@ -23,10 +23,10 @@ namespace ZetaRay
 		float3_ CameraPos;
 		float CameraNear;
 
-		float CameraFar;
 		float AspectRatio;
 		float PixelSpreadAngle;
 		float TanHalfFOV;
+		float PlanetRadius;
 
 		uint32_t RenderWidth;
 		uint32_t RenderHeight;
@@ -76,9 +76,6 @@ namespace ZetaRay
 		float MieSigmaA;
 		float AtmosphereAltitude;
 		float g;
-
-		float PlanetRadius;
-		float3_ pad3;
 	};
 
 #ifdef __cplusplus

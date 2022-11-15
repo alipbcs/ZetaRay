@@ -319,6 +319,8 @@ namespace ZetaRay::Core::Direct3DHelper
 
     void CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
         UINT stride, UINT numElements) noexcept;
+    void CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        UINT stride, UINT numElements) noexcept;
     void CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
         float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0) noexcept;
     void CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,

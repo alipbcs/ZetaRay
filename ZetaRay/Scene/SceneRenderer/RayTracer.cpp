@@ -27,8 +27,8 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data) noexce
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	if(data.IndirectDiffusePass.IsInitialized())
-		data.IndirectDiffusePass.OnWindowResized();
+	if(data.ReSTIR_GIPass.IsInitialized())
+		data.ReSTIR_GIPass.OnWindowResized();
 	if(data.StadPass.IsInitialized())
 		data.StadPass.OnWindowResized();
 }
@@ -38,21 +38,16 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 	data.DescTableAll.Reset();
 	data.RtAS.Clear();
 	data.RtSampler.Clear();
-	data.IndirectDiffusePass.Reset();
+	data.ReSTIR_GIPass.Reset();
 	data.StadPass.Reset();
 }
 
 void RayTracer::UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept
 {
 	if (!settings.RTIndirectDiffuse)
-		data.IndirectDiffusePass.Reset();
-	else if (settings.RTIndirectDiffuse && !data.IndirectDiffusePass.IsInitialized())
-	{
-		data.IndirectDiffusePass.Init();
-
-		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI);
-		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
-	}
+		data.ReSTIR_GIPass.Reset();
+	else if (settings.RTIndirectDiffuse && !data.ReSTIR_GIPass.IsInitialized())
+		data.ReSTIR_GIPass.Init();
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::NONE)
 		data.StadPass.Reset();
@@ -67,15 +62,25 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 {
 	if (settings.RTIndirectDiffuse)
 	{
-		const Texture& indirectDiffuseLiTex = data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI);
-		CreateTexture2DSRV(indirectDiffuseLiTex, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::INDIRECT_LI));
+		auto func = [&data](ReSTIR_GI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
+		{
+			const Texture& t = data.ReSTIR_GIPass.GetOutput(r);
+			CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
+		};
+
+		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A);
+		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_B);
+		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_C);
+		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A);
+		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B);
+		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_C);
 	}
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
 		// temporal cache changes every frame due to ping-ponging
 		const Texture& temporalCache = data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT);
-		CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
+		CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
 }
 
@@ -88,8 +93,10 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
-		data.StadPass.SetDescriptor(STAD::SHADER_IN_RES::INDIRECT_LI,
-			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::INDIRECT_LI));
+		data.StadPass.SetDescriptor(STAD::SHADER_IN_RES::RESTIR_GI_RESERVOIR_A,
+			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
+		data.StadPass.SetDescriptor(STAD::SHADER_IN_RES::RESTIR_GI_RESERVOIR_B,
+			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
 	}
 
 	// TODO doesn't need to be called each frame
@@ -113,14 +120,32 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 		// IndirectDiffuse
 		if (settings.RTIndirectDiffuse)
 		{
-			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.IndirectDiffusePass,
-				&IndirectDiffuse::Render);
-			data.IndirectDiffuseHandle = renderGraph.RegisterRenderPass("IndirectDiffuse",
-				RENDER_NODE_TYPE::COMPUTE, dlg);
+			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.ReSTIR_GIPass,
+				&ReSTIR_GI::Render);
+			data.ReSTIR_GIHandle = renderGraph.RegisterRenderPass("ReSTIR_GI", RENDER_NODE_TYPE::COMPUTE, dlg);
 
-			// Direct3D api functions don't accept const pointers
-			Texture& outLo = const_cast<Texture&>(data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI));
-			renderGraph.RegisterResource(outLo.GetResource(), outLo.GetPathID());
+			auto registerOutputs = [&data, &renderGraph](ReSTIR_GI::SHADER_OUT_RES r)
+			{
+				// Direct3D api doesn't accept const pointers
+				Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetOutput(r));
+				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+			};
+
+			auto registerInputs = [&data, &renderGraph](ReSTIR_GI::SHADER_IN_RES r)
+			{
+				Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetInput(r));
+				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+			};
+
+			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A);
+			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B);
+			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B);
+			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C);
 
 			// STAD
 			if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
@@ -154,29 +179,64 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 		if (settings.RTIndirectDiffuse)
 		{
 			// RT-AS
-			renderGraph.AddInput(data.IndirectDiffuseHandle,
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
 				data.RtAS.GetTLAS().GetPathID(),
 				D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 			// Current GBuffers
-			renderGraph.AddInput(data.IndirectDiffuseHandle,
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
 				gbuffData.Normal[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.IndirectDiffuseHandle,
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
 				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.IndirectDiffuseHandle,
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
 				gbuffData.EmissiveColor.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.IndirectDiffuseHandle,
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddOutput(data.IndirectDiffuseHandle,
-				data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
+			// prev. temporal reservoirs
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			// current temporal reservoirs
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			// current spatial reservoirs
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// STAD
@@ -199,7 +259,15 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddInput(data.StadHandle,
-					data.IndirectDiffusePass.GetOutput(IndirectDiffuse::SHADER_OUT_RES::INDIRECT_LI).GetPathID(),
+					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+				renderGraph.AddInput(data.StadHandle,
+					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+				renderGraph.AddInput(data.StadHandle,
+					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
 					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 				renderGraph.AddInput(data.StadHandle,

@@ -68,25 +68,24 @@ namespace Common
 		return uv;
 	}
 
-	float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv,
-		float2 jitter)
+	float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv)
 	{
 		const float2 posNDC = NDCFromUV(uv);
-		const float xView = posNDC.x * tanHalfFOV * aspectRatio - jitter.x;
-		const float yView = posNDC.y * tanHalfFOV - jitter.y;
+		const float xView = posNDC.x * tanHalfFOV * aspectRatio;
+		const float yView = posNDC.y * tanHalfFOV;
 		float3 posW = float3(xView, yView, 1.0f) * linearDepth;
 		posW = mul(viewInv, float4(posW, 1.0f));
 	
 		return posW;
 	}
 
-	float3 WorldPosFromScreenSpacePos(float2 posSS, float2 screenDim, float linearDepth, float tanHalfFOV,
-		float aspectRatio, float3x4 viewInv, float2 jitter)
+	float3 WorldPosFromScreenSpace(float2 posSS, float2 screenDim, float linearDepth, float tanHalfFOV,
+		float aspectRatio, float3x4 viewInv)
 	{
 		const float2 uv = UVFromScreenSpace(posSS, screenDim);
 		const float2 posNDC = NDCFromUV(uv);
-		const float xView = posNDC.x * tanHalfFOV * aspectRatio - jitter.x;
-		const float yView = posNDC.y * tanHalfFOV - jitter.y;
+		const float xView = posNDC.x * tanHalfFOV * aspectRatio;
+		const float yView = posNDC.y * tanHalfFOV;
 		float3 posW = float3(xView, yView, 1.0f) * linearDepth;
 		posW = mul(viewInv, float4(posW, 1.0f));
 	
@@ -225,14 +224,25 @@ namespace Common
 	}
 
 	template<typename T>
-	bool IsInRange(T pos, T dim)
+	bool IsWithinBounds(T pos, T dim)
 	{
 		return pos.x >= 0 && pos.x < dim.x && pos.y >= 0 && pos.y < dim.y;
 	}
 
+	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
+	// input in [-1, 1] and output in [0, PI]
+	float ArcCos(float x)
+	{
+		float xAbs = abs(x);
+		float res = ((-0.0206453f * xAbs + 0.0764532f) * xAbs + -0.21271f) * xAbs + 1.57075f;
+		res *= sqrt(1.0f - xAbs);
+
+		return (x >= 0) ? res : PI - res;
+	}
+	
 	float3x3 Inverse(float3x3 M)
 	{
-		// for 3x3 matrix M = [u, v, w] where u,v,w are columns vectors, M^(-1) is given by
+		// Given 3x3 matrix M = [u, v, w] where u,v,w are column vectors, M^(-1) is given by
 		//		M^(-1) = [a b c]^T
 		//
 		// where 
@@ -262,6 +272,20 @@ namespace Common
 		return float3(r * sinTheta * cosPhi, r * cosTheta, r * sinTheta * sinPhi);
 	}
 
+	float2 SphericalFromCartesian(float3 w)
+	{
+		float2 thetaPhi;
+		
+		// x = sin(theta) * cos(phi)
+		// y = cos(theta)
+		// z = sin(theta) * sin(phi)
+		thetaPhi.x = ArcCos(w.y); // [-PI, +PI]
+		thetaPhi.y = atan2(w.z, w.x);
+		thetaPhi.y = thetaPhi.y < 0.0f ? thetaPhi.y + PI : thetaPhi.y; // [0, 2 * PI]
+		
+		return thetaPhi;
+	}
+	
 	float3 TangentSpaceNormalToWorldSpace(float2 bumpNormal2, float3 tangentW, float3 normalW, float scale)
 	{
 	    // graham-schmidt normalization
@@ -404,33 +428,6 @@ namespace Common
 					2.0f * real * cross(imaginary, u);
 
 		return rotated;
-	}
-
-	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
-	// input in [-1, 1] and output in [0, PI]
-	float ArcCos(float x)
-	{
-		float xAbs = abs(x);
-		float res = ((-0.0206453f * xAbs + 0.0764532f) * xAbs + -0.21271f) * xAbs + 1.57075f;
-		res *= sqrt(1.0f - xAbs);
-
-		return (x >= 0) ? res : PI - res;
-	}
-
-	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
-	// input [-infinity, infinity] and output [-PI/2, PI/2]
-	float ArcTan(float x)
-	{
-		float xAbs = abs(x);
-		float t0 = (xAbs < 1.0f) ? xAbs : 1.0f / xAbs;
-		float t1 = t0 * t0;
-		float poly = 0.0872929f;
-		poly = -0.301895f + poly * t1;
-		poly = 1.0f + poly * t1;
-		poly = poly * t0;
-		poly = (xAbs < 1.0f) ? poly : PI_DIV_2 - poly;
-
-		return (x < 0.0f) ? -poly : poly;
 	}
 
 	// dPdx(y) can be estimated with ddx(y)(PosW)

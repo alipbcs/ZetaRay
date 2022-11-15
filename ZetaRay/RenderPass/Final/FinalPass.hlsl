@@ -4,6 +4,7 @@
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
+#include "../IndirectDiffuse/Reservoir.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -99,7 +100,7 @@ VSOut mainVS(uint vertexID : SV_VertexID)
 
 float4 mainPS(VSOut psin) : SV_Target
 {
-	const float2 uv = (psin.PosSS.xy + 0.5f) / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
+	const float2 uv = psin.PosSS.xy / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
 	
 	Texture2D<half4> g_in = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	float3 color = g_in.SampleLevel(g_samPointClamp, uv, 0).xyz;
@@ -112,7 +113,6 @@ float4 mainPS(VSOut psin) : SV_Target
 //		float linearExposure = (g_local.KeyValue / avgLum);
 		float3 exposedColor = color * exposure;
 		float3 toneMapped = Common::LinearTosRGB(ACESFitted(exposedColor) * 1.8f);
-		//float3 toneMapped = AMDTonemapper(exposedColor);
 //		float3 toneMapped = ToneMapFilmicALU(exposedColor);
 		color = toneMapped;
 	}
@@ -123,7 +123,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		float z = g_depth.SampleLevel(g_samPointClamp, uv, 0);
 		color = z;
 	}
-	else if (g_local.DisplayNormals)
+	else if (g_local.DisplayNormal)
 	{
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		half2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
@@ -143,27 +143,36 @@ float4 mainPS(VSOut psin) : SV_Target
 		half2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
 		color = float3(0.0f, mr);
 	}
-	else if (g_local.DisplayMotionVec)
-	{
-		GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-			GBUFFER_OFFSET::MOTION_VECTOR];
-		float2 mv = g_motionVector.SampleLevel(g_samPointClamp, uv, 0);
-		color = float3(abs(mv), 0.0f);
-	}
-	else if (g_local.DisplayIndirectDiffuse)
-	{
-		Texture2D<float4> g_indirectLi = ResourceDescriptorHeap[g_local.IndirectDiffuseLiDescHeapIdx];
-		color = g_indirectLi[psin.PosSS.xy].xyz;
-	}
 	else if (g_local.DisplayStadTemporalCache)
 	{
 		Texture2D<float4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
 		
 		float4 integratedVals = g_temporalCache.SampleLevel(g_samPointClamp, uv, 0.0f);
 		color = integratedVals.rgb;
+		color /= (color + 1.0);
 		
 		if (g_local.VisualizeOcclusion)
-			color.r += 1.0 - integratedVals.w / 32.0f;
+			color = color * 0.1 + float3(1.0 - integratedVals.w / 32.0f, 0, 0);
+	}
+	else if (g_local.DisplayReSTIR_GI_TemporalReservoir)
+	{
+		Reservoir r = PartialReadInputReservoir(int2(psin.PosSS.xy), g_local.TemporalReservoir_A_DescHeapIdx,
+				g_local.TemporalReservoir_B_DescHeapIdx);
+
+		color = r.Li * r.GetW() * ONE_DIV_PI;
+			
+		if (g_local.VisualizeOcclusion)
+			color = color * 0.1 + float3(r.M <= 1, 0, 0);
+	}
+	else if (g_local.DisplayReSTIR_GI_SpatialReservoir)
+	{
+		Reservoir r = PartialReadInputReservoir(int2(psin.PosSS.xy), g_local.SpatialReservoir_A_DescHeapIdx,
+				g_local.SpatialReservoir_B_DescHeapIdx);
+
+		color = r.Li * r.GetW() * ONE_DIV_PI;
+		
+		if(g_local.VisualizeOcclusion)
+			color = color * 0.1 + float3(r.M == 1, 0, 0);
 	}
 	
 	return float4(color, 1.0f);

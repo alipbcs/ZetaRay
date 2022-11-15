@@ -2,7 +2,7 @@
 #include "dds.h"
 #include "../Win32/App.h"
 #include "Renderer.h"
-#include <xxHash-0.8.0/xxhash.h>
+#include <xxHash-0.8.1/xxhash.h>
 #include <memory>
 
 using namespace ZetaRay;
@@ -1101,6 +1101,22 @@ void Direct3DHelper::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DE
 
     auto* device = App::GetRenderer().GetDevice();
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
+}
+
+void Direct3DHelper::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    UINT stride, UINT numElements) noexcept
+{
+    auto* res = const_cast<DefaultHeapBuffer&>(buff).GetResource();
+    Assert(res, "Buffer hasn't been initialized.");
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Format = DXGI_FORMAT_UNKNOWN;
+    uavDesc.Buffer.NumElements = numElements;
+    uavDesc.Buffer.StructureByteStride = stride;
+
+    auto* device = App::GetRenderer().GetDevice();
+    device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
 void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,

@@ -7,7 +7,7 @@
 #include "../Win32/Timer.h"
 #include "../Win32/Log.h"
 #include <algorithm>
-#include <xxHash-0.8.0/xxhash.h>
+#include <xxHash-0.8.1/xxhash.h>
 #include <imgui/imnodes.h>
 
 #ifdef _DEBUG
@@ -341,7 +341,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 	BuildTaskGraph(ts);
 
 #ifdef _DEBUG
-//	Log();
+	//Log();
 #endif // _DEBUG
 }
 

@@ -69,27 +69,17 @@ void FinalPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	m_cbLocal.DisplayBaseColor = false;
 	m_cbLocal.DisplayDepth = false;
 	m_cbLocal.DisplayMetalnessRoughness = false;
-	m_cbLocal.DisplayNormals = false;
-	m_cbLocal.DisplayMotionVec = false;
-	m_cbLocal.DisplayIndirectDiffuse = false;
+	m_cbLocal.DisplayNormal = false;
 	m_cbLocal.DisplayStadTemporalCache = false;
+	m_cbLocal.DisplayReSTIR_GI_TemporalReservoir = false;
+	m_cbLocal.DisplayReSTIR_GI_SpatialReservoir = false;
 	m_cbLocal.DoTonemapping = true;
 	m_cbLocal.VisualizeOcclusion = false;
 
 	ParamVariant p1;
 	p1.InitEnum("Renderer", "Final", "Display", fastdelegate::MakeDelegate(this, &FinalPass::ChangeRenderOptionCallback),
-		DefaultParamVals::RenderOptions, sizeof(DefaultParamVals::RenderOptions) / sizeof(const char*), 0);
+		Params::RenderOptions, ZetaArrayLen(Params::RenderOptions), 0);
 	App::AddParam(p1);
-
-	/*
-	ParamVariant p0;
-	p0.InitFloat("Renderer", "Final", "KeyValue", fastdelegate::MakeDelegate(this, &FinalPass::KeyValueCallback),
-		DefaultParamVals::KeyValue,		// val	
-		0.0f,							// min
-		0.5f,							// max
-		0.01f);							// step
-	App::AddParam(p0);
-	*/
 
 	ParamVariant p5;
 	p5.InitBool("Renderer", "Settings", "Tonemapping", fastdelegate::MakeDelegate(this, &FinalPass::DoTonemappingCallback),
@@ -132,8 +122,13 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 
 	Assert(m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING] > 0, "Gpu Desc Idx hasn't been set.");
 	m_cbLocal.InputDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING];
-	m_cbLocal.IndirectDiffuseLiDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::INDIRECT_DIFFUSE_LI];
 	m_cbLocal.DenoiserTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE];
+	m_cbLocal.TemporalReservoir_A_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_A];
+	m_cbLocal.TemporalReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_B];
+	m_cbLocal.TemporalReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_C];
+	m_cbLocal.SpatialReservoir_A_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_A];
+	m_cbLocal.SpatialReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B];
+	m_cbLocal.SpatialReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C];
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
 
@@ -165,31 +160,26 @@ void FinalPass::ChangeRenderOptionCallback(const ParamVariant& p) noexcept
 	m_cbLocal.DisplayBaseColor = false;
 	m_cbLocal.DisplayDepth = false;
 	m_cbLocal.DisplayMetalnessRoughness = false;
-	m_cbLocal.DisplayNormals = false;
-	m_cbLocal.DisplayMotionVec = false;
-	m_cbLocal.DisplayIndirectDiffuse = false;
+	m_cbLocal.DisplayNormal = false;
 	m_cbLocal.DisplayStadTemporalCache = false;
+	m_cbLocal.DisplayReSTIR_GI_TemporalReservoir = false;
+	m_cbLocal.DisplayReSTIR_GI_SpatialReservoir = false;
 
-	if (curr == DefaultParamVals::BASE_COLOR)
+	if (curr == Params::BASE_COLOR)
 		m_cbLocal.DisplayBaseColor = true;
-	else if (curr == DefaultParamVals::NORMALS)
-		m_cbLocal.DisplayNormals = true;
-	else if (curr == DefaultParamVals::METALNESS_ROUGHNESS)
+	else if (curr == Params::NORMAL)
+		m_cbLocal.DisplayNormal = true;
+	else if (curr == Params::METALNESS_ROUGHNESS)
 		m_cbLocal.DisplayMetalnessRoughness = true;
-	else if (curr == DefaultParamVals::DEPTH)
+	else if (curr == Params::DEPTH)
 		m_cbLocal.DisplayDepth = true;
-	else if (curr == DefaultParamVals::MOTION_VECTOR)
-		m_cbLocal.DisplayMotionVec = true;
-	else if (curr == DefaultParamVals::INDIRECT_DIFFUSE)
-		m_cbLocal.DisplayIndirectDiffuse = true;
-	else if (curr == DefaultParamVals::STAD_TEMPORAL_CACHE)
+	else if (curr == Params::STAD_TEMPORAL_CACHE)
 		m_cbLocal.DisplayStadTemporalCache = true;
+	else if(curr == Params::ReSTIR_GI_TEMPORAL_RESERVOIR)
+		m_cbLocal.DisplayReSTIR_GI_TemporalReservoir = true;
+	else if (curr == Params::ReSTIR_GI_SPATIAL_RESERVOIR)
+		m_cbLocal.DisplayReSTIR_GI_SpatialReservoir = true;
 }
-
-//void FinalPass::KeyValueCallback(const ParamVariant& p) noexcept
-//{
-//	m_cbLocal.KeyValue = p.GetFloat().m_val;
-//}
 
 void FinalPass::ReloadShaders() noexcept
 {

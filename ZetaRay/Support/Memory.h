@@ -15,7 +15,7 @@ namespace ZetaRay::Support
 	class MemoryArena
 	{
 	public:
-		MemoryArena(size_t s) noexcept;
+		explicit MemoryArena(size_t s) noexcept;
 		~MemoryArena() noexcept;
 
 		MemoryArena(MemoryArena&&) noexcept;

@@ -164,7 +164,7 @@ namespace dbg
         if (bytesLeft <= 0)
             return;
 
-        MemoryArena ma(1024 * 8);
+        MemoryArena ma(1024 * 16);
         ArenaAllocator aa(ma);
 
         SmallVector<StackFrame, 0, ArenaAllocator> stack(aa);

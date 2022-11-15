@@ -1,6 +1,5 @@
 #pragma once
 
-//#include "../Core/ZetaRay.h"
 #include "../Support/Memory.h"
 #include "FastDelegate/FastDelegate.h"
 

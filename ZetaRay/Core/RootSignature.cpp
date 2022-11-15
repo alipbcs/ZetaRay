@@ -5,7 +5,7 @@
 #include "CommandList.h"
 #include "GpuMemory.h"
 #include "SharedShaderResources.h"
-#include <xxHash-0.8.0/xxhash.h>
+#include <xxHash-0.8.1/xxhash.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;

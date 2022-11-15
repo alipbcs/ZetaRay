@@ -308,9 +308,6 @@ namespace
 						}
 					}
 				}
-				//Check((texIt != prim.attributes.end() || texIt->second != -1),
-				//	"TEXCOORD_0 was not found in the vertex attributes.");
-				Check(texIt != prim.attributes.end(), "TEXCOORD_0 was not found in the vertex attributes.");
 
 				// populate the vertex attributes
 				subset.Vertices.resize(model.accessors[posIt->second].count);
@@ -324,7 +321,8 @@ namespace
 				ProcessNormals(model, normalit->second, subset.Vertices);
 
 				// TEXCOORD_0
-				ProcessTexCoords(model, texIt->second, subset.Vertices);
+				if(texIt != prim.attributes.end())
+					ProcessTexCoords(model, texIt->second, subset.Vertices);
 
 				// index buffer
 				ProcessIndices(model, prim.indices, subset.Indices);
@@ -332,7 +330,7 @@ namespace
 				// TANGENT
 				auto tangentIt = prim.attributes.find("TANGENT");
 
-				// if vertex tangent's aren't present, compute them. Make sure to computation happens after 
+				// if vertex tangent's aren't present, compute them. Make sure the computation happens after 
 				// vertex & index processing
 				if (tangentIt != prim.attributes.end())
 					ProcessTangents(model, tangentIt->second, subset.Vertices);
@@ -459,7 +457,7 @@ namespace
 	}
 
 	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId, 
-		Vector<IntemediateInstance>& instances, bool zUpToYupConversion) noexcept
+		Vector<IntemediateInstance>& instances, bool blenderToYupConversion) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -493,7 +491,8 @@ namespace
 					vS = scale((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
 
 				if (!node.translation.empty())
-					vT = translate(float4a((float)node.translation[0], (float)node.translation[1],
+					vT = translate(float4a((float)node.translation[0], 
+						(float)node.translation[1],
 						(float)-node.translation[2], 0.0f));
 
 				if (!node.rotation.empty())
@@ -503,14 +502,18 @@ namespace
 
 					__m128 vQ = _mm_load_ps(reinterpret_cast<float*>(&q));
 					vR = rotationMatrixFromQuat(vQ);
-
-					if (zUpToYupConversion)
-					{
-						v_float4x4 vRotAboutX = rotateX(Math::PI_DIV_2);
-						vR = mul(vR, vRotAboutX);
-					}
 				}
 
+				if (blenderToYupConversion)
+				{
+					//v_float4x4 vRotAboutX = rotateX(Math::PI_DIV_2);
+					v_float4x4 vRotAboutX = rotateX(Math::PI);
+					vR = mul(vR, vRotAboutX);
+				}
+
+				//v_float4x4 vRotAboutX = rotateX(Math::PI_DIV_2);
+				//vR = mul(vR, vRotAboutX);
+				//vR = mul(vR, vRhsToLhs);
 				vM = mul(vS, vR);
 				vM = mul(vM, vT);
 			}
@@ -534,16 +537,16 @@ namespace
 		for (int c : node.children)
 		{
 			const tinygltf::Node& node = model.nodes[c];
-			ProcessNodeSubtree(node, sceneID, model, currInstanceID, instances, zUpToYupConversion);
+			ProcessNodeSubtree(node, sceneID, model, currInstanceID, instances, blenderToYupConversion);
 		}
 	}
 
-	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance>& instances, bool zUpToYupConversion) noexcept
+	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance>& instances, bool blenderToYupConversion) noexcept
 	{
 		for (int i : model.scenes[model.defaultScene].nodes)
 		{
 			const tinygltf::Node& node = model.nodes[i];
-			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances, zUpToYupConversion);
+			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances, blenderToYupConversion);
 		}
 	}
 
@@ -557,6 +560,8 @@ namespace
 
 			for (auto& meshPrim : model.meshes[meshIdx].primitives)
 			{
+				Check(meshPrim.material != -1, "Mesh doesn't have any materials assigned to it.");
+
 				uint8_t rtInsMask = model.materials[meshPrim.material].emissiveTexture.index != -1 ? 
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
@@ -668,7 +673,7 @@ namespace
 	*/
 }
 
-void Model::glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexcept
+void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 {
 	tinygltf::TinyGLTF loader;
 	tinygltf::Model model;
@@ -770,7 +775,7 @@ void Model::glTF2::Load(const char* modelRelPath, bool zUpToYupConversion) noexc
 	waitObj.Wait();
 
 	timer.Start();
-	ProcessNodes(model, sceneID, instances, zUpToYupConversion);
+	ProcessNodes(model, sceneID, instances, blenderToYupConversion);
 	ProcessInstances(sceneID, instances, model);
 	timer.End();
 

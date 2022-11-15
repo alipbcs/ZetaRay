@@ -5,9 +5,9 @@
 //#ifdef _DEBUG
 #define LOG(formatStr, ...)					\
 {											\
-	App::LockStdOut();					\
+	ZetaRay::App::LockStdOut();				\
 	printf(formatStr, __VA_ARGS__);			\
-	App::UnlockStdOut();					\
+	ZetaRay::App::UnlockStdOut();			\
 }
 //#else
 //#define LOG(formatStr, ...)		((void)0)

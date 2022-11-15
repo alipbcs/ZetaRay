@@ -57,7 +57,7 @@ void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	SmallVector<VertexPosNormalTexTangent> vertices;
 	SmallVector<INDEX_TYPE> indices;
 //	float worldRadius = App::GetScene().GetWorldAABB().Extents.length();
-	float worldRadius = 6360000.0f;
+	float worldRadius = 6360.0f;
 
 	PrimitiveMesh::ComputeSphere(vertices, indices, worldRadius * 2.0f, 8);
 
@@ -130,7 +130,7 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 
 void SkyDome::ReloadShaders() noexcept
 {
-	s_rpObjs.m_psoLib.Reload(0, "Final\\FinalPass_ps.hlsl", false);
+	s_rpObjs.m_psoLib.Reload(0, "Sky\\SkyDome.hlsl", false);
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0,
 		m_cachedPsoDesc,
 		s_rpObjs.m_rootSig.Get(),

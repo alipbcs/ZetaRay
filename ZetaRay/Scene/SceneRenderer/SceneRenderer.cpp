@@ -47,8 +47,10 @@ void SceneRenderer::Init() noexcept
 	data->m_frameConstants.RayOffset = 3e-2f;
 
 	data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
+	//data->m_frameConstants.SunDir = float3(0.6169695854187012, -0.6370740532875061, -0.4620445668697357);
 	data->m_frameConstants.SunDir.normalize();
-	data->m_frameConstants.SunIlluminance = 150.0f;
+	data->m_frameConstants.SunIlluminance = 50.0f;
+	//data->m_frameConstants.SunIlluminance = 187.0f;
 	// sun angular diamter ~ 0.545 degrees 
 	// 0.5 degrees == 0.0087266 radians 
 	// cos(0.0087266 / 2)
@@ -113,7 +115,7 @@ void SceneRenderer::Init() noexcept
 		ParamVariant enableDenoiser;
 		enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
 			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
-			Denoisers, ArraySize(Denoisers), (int)DENOISER::STAD);
+			Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::NONE);
 		App::AddParam(enableDenoiser);
 
 		ParamVariant enableInscattering;
@@ -124,7 +126,7 @@ void SceneRenderer::Init() noexcept
 
 		ParamVariant p6;
 		p6.InitEnum("Renderer", "Settings", "Upscaling/AA", fastdelegate::MakeDelegate(this, &SceneRenderer::SetAA),
-			AAOptions, ArraySize(AAOptions), (int) AA::NATIVE);
+			AAOptions, ZetaArrayLen(AAOptions), (int) AA::NATIVE);
 		App::AddParam(p6);
 	}
 

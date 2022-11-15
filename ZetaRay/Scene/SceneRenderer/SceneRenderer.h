@@ -85,7 +85,7 @@ namespace ZetaRay::Scene
 			static constexpr float g = 0.8f;
 			static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;		// km
 			static constexpr float PLANET_RADIUS = 6360.0f;				// km
-			static constexpr float RAY_T_OFFSET = 5e-3;
+			static constexpr float RAY_T_OFFSET = 2e-4;
 		};
 	};
 }

@@ -20,6 +20,8 @@ namespace ZetaRay::RenderPass
 			HDR_LIGHT_ACCUM,
 			DENOISED_L_IND,
 			INSCATTERING,
+			RESERVOIR_A,
+			RESERVOIR_B,
 			COUNT
 		};
 
@@ -36,7 +38,7 @@ namespace ZetaRay::RenderPass
 		}
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_localCB.VoxelGridNearZ = zNear, m_localCB.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_localCB.DepthMappingExp = p; }
-		void SetGPUDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept
+		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept
 		{
 			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 
@@ -46,10 +48,16 @@ namespace ZetaRay::RenderPass
 				m_localCB.HDRLightAccumDescHeapIdx = descHeapIdx;
 				break;
 			case SHADER_IN_GPU_DESC::DENOISED_L_IND:
-				m_localCB.DenoisedLindDescHeapIdx = descHeapIdx;
+				m_localCB.DenoiserTemporalCacheDescHeapIdx = descHeapIdx;
 				break;
 			case SHADER_IN_GPU_DESC::INSCATTERING:
 				m_localCB.InscatteringDescHeapIdx = descHeapIdx;
+				break;			
+			case SHADER_IN_GPU_DESC::RESERVOIR_A:
+				m_localCB.InputReservoir_A_DescHeapIdx = descHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::RESERVOIR_B:
+				m_localCB.InputReservoir_B_DescHeapIdx = descHeapIdx;
 				break;
 			default:
 				break;

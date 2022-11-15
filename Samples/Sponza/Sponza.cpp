@@ -28,11 +28,13 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     UNREFERENCED_PARAMETER(hPrevInstance);
     UNREFERENCED_PARAMETER(lpCmdLine);
 
+#ifdef _DEBUG
     AllocConsole();
     HANDLE stdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
     int hConsole = _open_osfhandle(reinterpret_cast<intptr_t>(stdHandle), _O_TEXT);
     FILE* fp = _fdopen(hConsole, "w");
     freopen_s(&fp, "CONOUT$", "w", stdout);
+#endif // _DEBUG
 
     SetCurrentDirectoryA("../");
 
@@ -41,11 +43,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Win32::DeltaTimer timer;
     timer.Start();
 
-    // load a gltf model
+    // load gltf model
     const char* p = "sponza_v9\\sponza_v9.gltf";
-    //const char* p = "bistro\\bistro_v3.gltf";
+    //const char* p = "CornellBox_v2\\cornell9.gltf";
+    //const char* p = "bistro_v6\\bistro_v6.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
-    Model::glTF2::Load(p, true);
+    Model::glTF2::Load(p, false);
 
     timer.End();
     App::FlushMainThreadPool();

@@ -82,14 +82,15 @@ struct RNG
 
 namespace Sampling
 {
+	// Returns samples about the (0, 1, 0) axis
 	float3 UniformSampleHemisphere(in float2 u, out float pdf)
 	{
 		const float phi = TWO_PI * u.y;
 		const float sinTheta = sqrt(1.0f - u.x * u.x);
 	
 		const float x = cos(phi) * sinTheta;
-		const float y = sin(phi) * sinTheta;
-		const float z = u.x;
+		const float y = u.x;
+		const float z = sin(phi) * sinTheta;
 	
 		// w.r.t. solid angle
 		pdf = ONE_DIV_TWO_PI;
@@ -97,13 +98,14 @@ namespace Sampling
 		return float3(x, y, z);
 	}
 
+	// Returns samples about the (0, 1, 0) axis
 	float3 SampleCosineWeightedHemisphere(in float2 u, out float pdf)
 	{
 		const float phi = TWO_PI * u.y;
 		const float sinTheta = sqrt(u.x);
 
 		const float x = cos(phi) * sinTheta;
-		const float y = sqrt(1.0f - u.x); // equal to cos(theta)
+		const float y = sqrt(1.0f - u.x); // == cos(theta)
 		const float z = sin(phi) * sinTheta;
 	
 		// w.r.t. solid angle

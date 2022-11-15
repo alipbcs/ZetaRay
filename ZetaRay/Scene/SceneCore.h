@@ -7,7 +7,7 @@
 #include "../Math/Matrix.h"
 #include "AssetManager.h"
 #include "SceneRenderer/SceneRenderer.h"
-#include <xxHash-0.8.0/xxhash.h>
+#include <xxHash-0.8.1/xxhash.h>
 
 namespace ZetaRay::Model
 {

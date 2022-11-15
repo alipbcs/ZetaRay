@@ -81,7 +81,7 @@ void DeviceObjects::CreateDevice() noexcept
 
 	infoQueue->Release();
 
-	//CheckHR(device->SetStablePowerState(true));
+	CheckHR(device->SetStablePowerState(true));
 #endif // _DEBUG
 
 	// check Hardware-accelerated RT support

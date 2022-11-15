@@ -34,8 +34,13 @@ namespace ZetaRay::RenderPass
 		enum class SHADER_IN_GPU_DESC
 		{
 			FINAL_LIGHTING,
-			INDIRECT_DIFFUSE_LI,
 			DENOISER_TEMPORAL_CACHE,
+			ReSTIR_GI_TEMPORAL_RESERVOIR_A,
+			ReSTIR_GI_TEMPORAL_RESERVOIR_B,
+			ReSTIR_GI_TEMPORAL_RESERVOIR_C,
+			ReSTIR_GI_SPATIAL_RESERVOIR_A,
+			ReSTIR_GI_SPATIAL_RESERVOIR_B,
+			ReSTIR_GI_SPATIAL_RESERVOIR_C,
 			COUNT
 		};
 
@@ -81,24 +86,26 @@ namespace ZetaRay::RenderPass
 		uint32_t m_gpuDescs[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
 		D3D12_GPU_VIRTUAL_ADDRESS m_buffers[(int)SHADER_IN_BUFFER_DESC::COUNT] = { 0 };
 
-		struct DefaultParamVals
+		struct Params
 		{
-			static constexpr float KeyValue = 0.1150f;
-
 			enum Options
 			{
 				DEFAULT,
 				BASE_COLOR,
-				NORMALS,
+				NORMAL,
 				METALNESS_ROUGHNESS,
-				MOTION_VECTOR,
 				DEPTH,
-				INDIRECT_DIFFUSE,
-				STAD_TEMPORAL_CACHE
+				STAD_TEMPORAL_CACHE,
+				ReSTIR_GI_TEMPORAL_RESERVOIR,
+				ReSTIR_GI_SPATIAL_RESERVOIR,
+				COUNT
 			};
 
-			inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normals",
-				"MetalnessRoughness", "MotionVector", "Depth", "IndirectDiffuse", "STAD_TemporalCache"};
+			inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normal",
+				"MetalnessRoughness", "Depth", "STAD_TemporalCache", "ReSTIR_GI_TemporalReservoir", 
+				"ReSTIR_GI_SpatialReservoir"};
+
+			static_assert(Options::COUNT == ZetaArrayLen(RenderOptions), "enum <-> strings mismatch.");
 		};
 
 		cbFinalPass m_cbLocal;
@@ -110,9 +117,7 @@ namespace ZetaRay::RenderPass
 		void DoTonemappingCallback(const Support::ParamVariant& p) noexcept;
 		void VisualizeOcclusionCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeRenderOptionCallback(const Support::ParamVariant& p) noexcept;
-		//void KeyValueCallback(const Support::ParamVariant& p) noexcept;
 
-		// shader hot-reload
 		void ReloadShaders() noexcept;
 	};
 }

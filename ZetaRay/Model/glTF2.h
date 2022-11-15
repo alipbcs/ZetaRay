@@ -4,5 +4,5 @@
 
 namespace ZetaRay::Model::glTF2
 {
-	void Load(const char* modelRelPath, bool zUpToYupConversion = false) noexcept;
+	void Load(const char* modelRelPath, bool blenderToYupConversion = false) noexcept;
 }

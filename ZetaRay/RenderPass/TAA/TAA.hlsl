@@ -57,19 +57,18 @@ float3 ClipAABB(float3 aabbMin, float3 aabbMax, float3 histSample)
 void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsInRange(DTid.xy, renderDim))
+	if (!Common::IsWithinBounds(DTid.xy, renderDim))
 		return;
 	
-	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::BASE_COLOR];
-	const float isSurfaceMarker = g_baseColor[DTid.xy].w;
+	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	const float depth = g_depth[DTid.xy];
 
 	RWTexture2D<half4> g_antiAliased = ResourceDescriptorHeap[g_local.CurrOutputDescHeapIdx];	
 	Texture2D<half4> g_currSignal = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	
 	half3 currColor = g_currSignal[DTid.xy].rgb;
 		
-	if (!g_local.TemporalIsValid || isSurfaceMarker < MIN_ALPHA_CUTOFF)
+	if (!g_local.TemporalIsValid || depth == 0.0)
 	{
 		g_antiAliased[DTid.xy] = half4(currColor, 1.0h);
 		return;
@@ -81,9 +80,6 @@ void main( uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID )
 	int2 closestDepthAddress;
 	float3 firstMoment = float3(0.0f, 0.0f, 0.0f);
 	float3 secondMoment = float3(0.0f, 0.0f, 0.0f);
-	
-	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	float currDepth = g_depth[DTid.xy];
 
 	// compute neighborhood's AABB
 	[loop]

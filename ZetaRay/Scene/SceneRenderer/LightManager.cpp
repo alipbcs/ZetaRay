@@ -248,8 +248,14 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
-	data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
+	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
 		data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
+
+	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_A,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
+
+	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_B,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
 
 	if (settings.Inscattering && tlas.IsInitialized())
 	{
@@ -262,7 +268,7 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 
 		data.CompositingPass.SetVoxelGridMappingExp(p);
 		data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
-		data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
 			data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
 	}
 	else
@@ -272,8 +278,8 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 	
 	if (settings.IndirectDiffuseDenoiser != DENOISER::NONE)
 	{
-		data.CompositingPass.SetGPUDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_CACHE));
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,
+			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
 }
 
@@ -416,6 +422,17 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	renderGraph.AddInput(lightManagerData.CompositingHandle,
 		lightManagerData.HdrLightAccumTex.GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+	if (settings.RTIndirectDiffuse && const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
+	{
+		renderGraph.AddInput(lightManagerData.CompositingHandle,
+			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(lightManagerData.CompositingHandle,
+			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+	}
 
 	renderGraph.AddOutput(lightManagerData.CompositingHandle,
 		lightManagerData.HdrLightAccumTex.GetPathID(),

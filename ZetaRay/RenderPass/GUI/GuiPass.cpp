@@ -9,8 +9,8 @@
 #include "../../Win32/App.h"
 #include "../../Win32/Timer.h"
 #include "../../Utility/SynchronizedView.h"
-#include <imgui/imgui.h>
-#include <imgui/implot.h>
+#include <ImGui/imgui.h>
+#include <ImGui/implot.h>
 #include <algorithm>
 
 using namespace ZetaRay::Core;

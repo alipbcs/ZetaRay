@@ -17,11 +17,8 @@ struct cbCompositing
 	uint32_t HDRLightAccumDescHeapIdx;
 
 	// current frame's integrated values
-	// Texture2D<uint3>: (tspp | color.r >> 16, color.g | color.b >> 16, lum | lum^2 >> 16)
-	uint32_t DenoisedLindDescHeapIdx;
-
-	// Texture2D<half4>
-//	uint_ IndirectLiRayTDescHeapIdx;
+	// Texture2D<half4>: (tspp | color.r >> 16, color.g | color.b >> 16, lum | lum^2 >> 16)
+	uint32_t DenoiserTemporalCacheDescHeapIdx;
 
 	// Texture3D<half4>
 	uint32_t InscatteringDescHeapIdx;
@@ -32,6 +29,9 @@ struct cbCompositing
 	float DepthMappingExp;
 	float VoxelGridNearZ;
 	float VoxelGridFarZ;
+
+	uint32_t InputReservoir_A_DescHeapIdx;
+	uint32_t InputReservoir_B_DescHeapIdx;
 };
 
 #endif // COMPOSITING_H

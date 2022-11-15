@@ -6,7 +6,7 @@
 #include "../../Math/Common.h"
 #include "../../Math/Sampling.h"
 #include "../../RenderPass/Common/FrameConstants.h"
-#include "../../RenderPass/IndirectDiffuse/IndirectDiffuse.h"
+#include "../../RenderPass/IndirectDiffuse/ReSTIR_GI.h"
 #include "../../RenderPass/Clear/Clear.h"
 #include "../../RenderPass/GBuffer/GBuffer.h"
 #include "../../RenderPass/Sun/Sun.h"
@@ -17,7 +17,7 @@
 #include "../../RenderPass/Final/FinalPass.h"
 #include "../../RenderPass/GUI/GuiPass.h"
 #include "../../RenderPass/Sky/Sky.h"
-#include "../../RenderPass/STAD/STAD.h"
+#include "../../RenderPass/Denoiser/STAD.h"
 #include "../../RayTracing/RtAccelerationStructure.h"
 #include "../../RayTracing/Sampler.h"
 #include "../../RenderPass/FSR2/FSR2.h"
@@ -31,14 +31,16 @@ using Data = ZetaRay::Scene::SceneRenderer::PrivateData;
 namespace ZetaRay::Scene
 {
 	inline static const char* Denoisers[] = { "None", "STAD" };
+	static_assert((int)Settings::DENOISER::COUNT == ZetaArrayLen(Denoisers), "enum <-> strings mismatch.");
 	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "AMD FSR 2.0 (Quality)" };
+	static_assert((int)Settings::AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> strings mismatch.");
 
 	struct alignas(64) RenderSettings
 	{
 		bool SunLighting = true;
 		bool Inscattering = false;
 		bool RTIndirectDiffuse = true;
-		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::STAD;
+		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::NONE;
 		Settings::AA AntiAliasing = Settings::AA::NATIVE;
 	};
 
@@ -174,8 +176,8 @@ namespace ZetaRay::Scene
 		// Render Passes
 		Core::RenderNodeHandle RtASBuildHandle;
 
-		RenderPass::IndirectDiffuse IndirectDiffusePass;
-		Core::RenderNodeHandle IndirectDiffuseHandle;
+		RenderPass::ReSTIR_GI ReSTIR_GIPass;
+		Core::RenderNodeHandle ReSTIR_GIHandle;
 
 		RenderPass::STAD StadPass;
 		Core::RenderNodeHandle StadHandle;
@@ -183,8 +185,13 @@ namespace ZetaRay::Scene
 		// Descriptors
 		enum DESC_TABLE
 		{
-			TEMPORAL_CACHE,
-			INDIRECT_LI,
+			STAD_TEMPORAL_CACHE,
+			TEMPORAL_RESERVOIR_A,
+			TEMPORAL_RESERVOIR_B,
+			TEMPORAL_RESERVOIR_C,
+			SPATIAL_RESERVOIR_A,
+			SPATIAL_RESERVOIR_B,
+			SPATIAL_RESERVOIR_C,
 			COUNT
 		};
 
@@ -201,8 +208,6 @@ namespace ZetaRay::Scene
 		PostProcessData m_postProcessorData;
 		RayTracerData m_raytracerData;
 	};
-
-	static constexpr int q = sizeof(SceneRenderer::PrivateData);
 }
 
 //--------------------------------------------------------------------------------------

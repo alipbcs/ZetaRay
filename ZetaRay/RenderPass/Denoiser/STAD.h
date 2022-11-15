@@ -22,7 +22,8 @@ namespace ZetaRay::RenderPass
 	{
 		enum class SHADER_IN_RES
 		{
-			INDIRECT_LI,
+			RESTIR_GI_RESERVOIR_A,
+			RESTIR_GI_RESERVOIR_B,
 			COUNT
 		};
 
@@ -84,7 +85,7 @@ namespace ZetaRay::RenderPass
 
 		enum class DESC_TABLE
 		{
-			INDIRECT_LI_SRV,
+			RESERVOIR_SRV,
 			TEMPORAL_CACHE_A_SRV,
 			TEMPORAL_CACHE_A_UAV,
 			TEMPORAL_CACHE_B_SRV,

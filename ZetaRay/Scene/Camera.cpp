@@ -132,8 +132,12 @@ void Camera::UpdateProj() noexcept
 void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
 {
 	m_jitteringEnabled = p.GetBool();
+
 	m_proj.m[2].x = 0.0f;
 	m_proj.m[2].y = 0.0f;
+
+	m_currJitter = float2(0.0f, 0.0f);
+	m_currProjOffset = float2(0.0f, 0.0f);
 }
 
 void Camera::OnWindowSizeChanged() noexcept

@@ -167,12 +167,13 @@ void STAD::Render(CommandList& cmdList) noexcept
 
 	// temporal pass
 	{
-		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI] != 0, "Input descriptor heap idx hasn't been set.");
+		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_A] != 0, "Input descriptor heap idx hasn't been set.");
 
 		computeCmdList.PIXBeginEvent("STAD_TemporalPass");
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::TEMPORAL_PASS]);
 
-		m_cbTemporalFilter.IndirectLiRayTDescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::INDIRECT_LI];
+		m_cbTemporalFilter.InputReservoir_A_DescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_A];
+		m_cbTemporalFilter.InputReservoir_B_DescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_B];
 		m_cbTemporalFilter.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
 		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
 		m_cbTemporalFilter.IsTemporalCacheValid = m_isTemporalCacheValid;
@@ -198,12 +199,8 @@ void STAD::Render(CommandList& cmdList) noexcept
 
 		m_cbSpatialFilter.DispatchDimX = dispatchDimX;
 		m_cbSpatialFilter.DispatchDimY = dispatchDimY;
-		m_cbSpatialFilter.TileWidth = 16;
-		m_cbSpatialFilter.Log2TileWidth = 4;
-		m_cbSpatialFilter.NumGroupsInTile = m_cbSpatialFilter.TileWidth * m_cbSpatialFilter.DispatchDimY;
+		m_cbSpatialFilter.NumGroupsInTile = STAD_SPATIAL_TILE_WIDTH * m_cbSpatialFilter.DispatchDimY;
 		m_cbSpatialFilter.NumPasses = m_numSpatialFilterPasses;
-
-		Assert((1 << m_cbSpatialFilter.Log2TileWidth) == m_cbSpatialFilter.TileWidth, "these must be equal");
 
 		for (int i = 0; i < m_numSpatialFilterPasses; i++)
 		{
@@ -243,8 +240,8 @@ void STAD::Render(CommandList& cmdList) noexcept
 	// restore the initial state
 	if (temporalOut != m_currTemporalCacheOutIdx)
 	{
-		// render graph is only aware of the input states. Restore the initial state to avoid
-		// render graph and actial state going out of sync
+		// [hack] render graph is unaware of renderpass-internal transitions. Restore the initial state to avoid
+		// render graph and actual state getting out of sync
 		D3D12_RESOURCE_BARRIER barrier = Direct3DHelper::TransitionBarrier(m_temporalCache[(m_currTemporalCacheOutIdx + 1) & 0x1].GetResource(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -378,7 +375,7 @@ void STAD::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &STAD::NumSpatialFilterPassesCallback),
 		DefaultParamVals::NumSpatialPasses,			// val	
 		1,											// min
-		5,											// max
+		3,											// max
 		1);											// step
 	App::AddParam(numSpatialFilterPasses);
 
@@ -455,7 +452,7 @@ void STAD::ReloadTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "STAD\\STAD_TemporalFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_TemporalFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -463,6 +460,6 @@ void STAD::ReloadSpatialFilter() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_FILTER;
 
-	s_rpObjs.m_psoLib.Reload(i, "STAD\\STAD_AdaptiveSpatialFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_AdaptiveSpatialFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

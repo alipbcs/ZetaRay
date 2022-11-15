@@ -224,7 +224,7 @@ void Renderer::OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight,
 void Renderer::BeginFrame() noexcept
 {
 	// blocks until eariliest queued present is completed
-	WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 50);
+	WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 16);
 
 	if (App::GetTimer().GetTotalFrameCount() > 0)
 		m_gpuMemory.BeginFrame();
