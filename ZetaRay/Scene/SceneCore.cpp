@@ -57,14 +57,6 @@ SceneCore::SceneCore() noexcept
 
 void SceneCore::Init() noexcept
 {
-	//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
-//	Math::DegreeToRadians(85.0f), 0.1f, 10000.0f, true);
-	m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
-		Math::DegreeToRadians(85.0f), 0.1f, 10000.0f, true);
-	//m_camera.Init(float3(-1127.61f, 348.67f, 66.25f), App::GetRenderer().GetAspectRatio(), 
-	//	Math::DegreeToRadians(85.0f), 10.0f, 10000.0f, true);
-	//m_camera.Init(float3(0.61f, 3.67f, 0.25f), App::GetRenderer().GetAspectRatio(), Math::DegreeToRadians(85.0f), 0.1f);
-
 	// level-0 is just a (dummy) root
 	m_sceneGraph.resize(2);
 	m_sceneGraph[0].m_toWorlds.resize(1);
@@ -117,9 +109,8 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			m_frameInstances.clear();
 			m_frameInstances.reserve(m_IDtoTreePos.size());
 
-			m_camera.Update();
-
-			m_bvh.DoFrustumCulling(m_camera.GetCameraFrustumViewSpace(), m_camera.GetViewInv(), m_frameInstances);
+			const Camera& camera = App::GetCamera();
+			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
 
 			//App::AddFrameStat("Scene", "#Instances", m_IDtoTreePos.size());
 			//App::AddFrameStat("Scene", "#FrustumCulled", m_IDtoTreePos.size() - m_frameInstances.size());

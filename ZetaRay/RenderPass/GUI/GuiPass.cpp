@@ -599,7 +599,7 @@ void GuiPass::RenderRenderGraphWindow() noexcept
 
 void GuiPass::CameraTab() noexcept
 {
-	Camera& camera = App::GetScene().GetCamera();
+	const Camera& camera = App::GetCamera();
 	float3 camPos = camera.GetPos();
 	float3 viewBasisX = camera.GetBasisX();
 	float3 viewBasisY = camera.GetBasisY();

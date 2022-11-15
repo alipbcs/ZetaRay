@@ -89,7 +89,7 @@ namespace ZetaRay::Support
 	struct TaskSet
 	{
 		//static constexpr int MAX_NUM_TASKS = sizeof(uint64_t) * 8;
-		static constexpr int MAX_NUM_TASKS = 20;
+		static constexpr int MAX_NUM_TASKS = 18;
 		using TaskHandle = int;
 
 		TaskSet() noexcept = default;

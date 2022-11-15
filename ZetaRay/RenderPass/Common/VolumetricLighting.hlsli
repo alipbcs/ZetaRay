@@ -129,7 +129,7 @@ namespace Volumetric
 	// is piecewise constant. Next, Riemann sum is used to estimate the integral
 	// of sigma_t along the given ray
 	float3 EstimateTransmittance(float planetRadius, float3 rayOrigin, float3 rayDir, float t,
-	float3 sigma_t_rayleigh, float sigma_t_mie, float3 sigma_t_ozone, int numSteps)
+		float3 sigma_t_rayleigh, float sigma_t_mie, float3 sigma_t_ozone, int numSteps)
 	{
 		if (t <= 1e-5f)
 			return 1.0.xxx;

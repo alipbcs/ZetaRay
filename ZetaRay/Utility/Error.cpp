@@ -35,25 +35,27 @@ using namespace ZetaRay::Support;
 
 #include <dbghelp.h>
 #include <string>
+#include "../Win32/Log.h"
 
 #define DBG_TRACE(MSG, ...)  dbg::trace(MSG, __VA_ARGS__)
 
 #define BUFF_SIZE 2048
+#define MAX_NUM_STACK_FRAMES 16llu
 
 namespace dbg
 {
-    void trace(const char* msg, ...)
-    {
-        char buff[1024];
+    //void trace(const char* msg, ...)
+    //{
+    //    char buff[1024];
 
-        va_list args;
-        va_start(args, msg);
-        vsnprintf(buff, 1024, msg, args);
+    //    va_list args;
+    //    va_start(args, msg);
+    //    vsnprintf(buff, 1024, msg, args);
 
-        OutputDebugStringA(buff);
+    //    OutputDebugStringA(buff);
 
-        va_end(args);
-    }
+    //    va_end(args);
+    //}
 
     std::string basename(const std::string& file)
     {
@@ -81,13 +83,13 @@ namespace dbg
 
         if (SymInitialize(process, NULL, TRUE) == FALSE)
         {
-            DBG_TRACE(__FUNCTION__ ": Failed to call SymInitialize.");
+            LOG(__FUNCTION__ ": Failed to call SymInitialize.");
             return;
         }
 
         SymSetOptions(SYMOPT_LOAD_LINES);
 
-        CONTEXT    context = {};
+        CONTEXT context = {};
         context.ContextFlags = CONTEXT_FULL;
         RtlCaptureContext(&context);
 
@@ -128,7 +130,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                DBG_TRACE(__FUNCTION__ ": Failed to resolve address 0x%X: %u\n", frame.AddrPC.Offset, error);
+                LOG(__FUNCTION__ ": Failed to resolve address 0x%llX: %u\n", frame.AddrPC.Offset, error);
                 f.name = "Unknown Function";
             }
 
@@ -144,7 +146,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                DBG_TRACE(__FUNCTION__ ": Failed to resolve line for 0x%X: %u\n", frame.AddrPC.Offset, error);
+                LOG(__FUNCTION__ ": Failed to resolve line for 0x%llX: %u\n", frame.AddrPC.Offset, error);
                 f.line = 0;
             }
 
@@ -152,6 +154,9 @@ namespace dbg
                 frames.push_back(f);
 
             first = false;
+
+            if (frames.size() >= MAX_NUM_STACK_FRAMES)
+                break;
         }
 
         SymCleanup(process);
@@ -175,7 +180,7 @@ namespace dbg
         if (bytesLeft <= 0)
             return;
 
-        for (auto i = 0; i < stack.size(); i++)
+        for (auto i = 0; i < std::min(stack.size(), MAX_NUM_STACK_FRAMES); i++)
         {
             if (stack[i].name.starts_with("dbg::fail"))
                 continue;

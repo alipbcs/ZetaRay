@@ -22,6 +22,14 @@
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>
 
+using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Support;
+using namespace ZetaRay::Util;
+using namespace ZetaRay::Scene;
+using namespace ZetaRay::Math;
+
 namespace
 {
 	struct FrameTime
@@ -43,13 +51,6 @@ namespace
 		OP_TYPE Op;
 	};
 }
-
-using namespace ZetaRay::Win32;
-using namespace ZetaRay::App;
-using namespace ZetaRay::Core;
-using namespace ZetaRay::Support;
-using namespace ZetaRay::Util;
-using namespace ZetaRay::Scene;
 
 namespace
 {
@@ -82,6 +83,7 @@ namespace
 		bool m_isActive = true;
 		int m_lastMousePosX = 0;
 		int m_lastMousePosY = 0;
+		int m_inMouseWheelMove = 0;
 		bool m_inSizeMove = false;
 		bool m_minimized = false;
 		bool m_isFullScreen = false;
@@ -89,16 +91,14 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
-		float m_cameraMoveSpeed = 0.1f;
-		float m_cameraZoomSpeed = 0.005f;
-		//float m_cameraMoveSpeed = 1.1f;
-		//float m_cameraZoomSpeed = 1.005f;
+		float m_cameraAcceleration = 15.0f;
 
 		Timer m_timer;
 		Renderer m_renderer;
 		ThreadPool m_mainThreadPool;
 		ThreadPool m_backgroundThreadPool;
 		SceneCore m_scene;
+		Camera m_camera;
 
 		struct alignas(64) ThreadContext
 		{
@@ -135,6 +135,8 @@ namespace
 		std::atomic_int32_t m_currTaskSignalIdx = 0;
 
 		bool m_isInitialized = false;
+
+		Motion m_frameMotion;
 	};
 
 	static AppData* g_pApp = nullptr;
@@ -303,6 +305,27 @@ namespace ZetaRay::AppImpl
 		ImGuiUpdateMouse();
 		ImGui::NewFrame();
 
+		g_pApp->m_frameMotion.dt = (float)g_pApp->m_timer.GetElapsedTime();
+
+		// 'W'
+		if (g_pApp->m_inMouseWheelMove || GetAsyncKeyState(0x57) & (1 << 16))
+			g_pApp->m_frameMotion.Acceleration.z = 1;
+		// 'A'
+		if (GetAsyncKeyState(0x41) & (1 << 16))
+			g_pApp->m_frameMotion.Acceleration.x = -1;
+		// 'S'
+		if (GetAsyncKeyState(0x53) & (1 << 16))
+			g_pApp->m_frameMotion.Acceleration.z = -1;
+		// 'D'
+		if (GetAsyncKeyState(0x44) & (1 << 16))
+			g_pApp->m_frameMotion.Acceleration.x = 1;
+
+		g_pApp->m_frameMotion.Acceleration.normalize(); 
+		g_pApp->m_frameMotion.Acceleration *= g_pApp->m_inMouseWheelMove ? g_pApp->m_cameraAcceleration * 20 * g_pApp->m_inMouseWheelMove : g_pApp->m_cameraAcceleration;
+		g_pApp->m_inMouseWheelMove = 0;
+
+		g_pApp->m_camera.Update(g_pApp->m_frameMotion);
+
 		g_pApp->m_scene.Update(g_pApp->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
 	}
 
@@ -433,48 +456,31 @@ namespace ZetaRay::AppImpl
 
 		if (!io.WantCaptureKeyboard)
 		{
+			/*
 			switch (vkKey)
 			{
 				//A
 			case 0x41:
-				g_pApp->m_scene.GetCamera().MoveX(-g_pApp->m_cameraMoveSpeed);
+				//g_pApp->m_frameMotion.Acceleration.x = -g_pApp->m_cameraAcceleration;
 				return;
 
 				//D
 			case 0x44:
-				g_pApp->m_scene.GetCamera().MoveX(g_pApp->m_cameraMoveSpeed);
+				//g_pApp->m_frameMotion.Acceleration.x = g_pApp->m_cameraAcceleration;
 				return;
 
 				//W
 			case 0x57:
-				g_pApp->m_scene.GetCamera().MoveZ(g_pApp->m_cameraMoveSpeed);
+				//printf("%llu, OnKeyboard(), repeat count: %lld\n", g_pApp->m_timer.GetTotalFrameCount(), lParam & 0xffff);
+				//g_pApp->m_frameMotion.Acceleration.z = g_pApp->m_cameraAcceleration;
 				return;
 
 				//S
 			case 0x53:
-				g_pApp->m_scene.GetCamera().MoveZ(-g_pApp->m_cameraMoveSpeed);
-				return;
-
-				//Q
-			case 0x51:
-				g_pApp->m_scene.GetCamera().RotateY(-1.0f);
-				return;
-
-				//E
-			case 0x45:
-				g_pApp->m_scene.GetCamera().RotateY(1.0f);
-				return;
-
-				//Z
-			case 0x5A:
-				g_pApp->m_scene.GetCamera().RotateX(1.0f);
-				return;
-
-				//C
-			case 0x43:
-				g_pApp->m_scene.GetCamera().RotateX(-1.0f);
+				//g_pApp->m_frameMotion.Acceleration.z = -g_pApp->m_cameraAcceleration;
 				return;
 			}
+			*/
 
 			// ALT+ENTER:
 			/*
@@ -578,8 +584,11 @@ namespace ZetaRay::AppImpl
 				int x = GET_X_LPARAM(lParam);
 				int y = GET_Y_LPARAM(lParam);
 
-				g_pApp->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_pApp->m_lastMousePosX)));
-				g_pApp->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_pApp->m_lastMousePosY)));
+				//g_pApp->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_pApp->m_lastMousePosX)));
+				//g_pApp->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_pApp->m_lastMousePosY)));
+
+				g_pApp->m_frameMotion.RotationDegreesY = Math::DegreeToRadians((float)(x - g_pApp->m_lastMousePosX));
+				g_pApp->m_frameMotion.RotationDegreesX = Math::DegreeToRadians((float)(y - g_pApp->m_lastMousePosY));
 
 				g_pApp->m_lastMousePosX = x;
 				g_pApp->m_lastMousePosY = y;
@@ -600,7 +609,11 @@ namespace ZetaRay::AppImpl
 		if (!io.WantCaptureMouse)
 		{
 			short zDelta = GET_WHEEL_DELTA_WPARAM(btnState);
-			g_pApp->m_scene.GetCamera().MoveZ(g_pApp->m_cameraZoomSpeed * (float)zDelta);
+
+			if (zDelta > 0)
+				g_pApp->m_inMouseWheelMove = 1;
+			else
+				g_pApp->m_inMouseWheelMove = -1;
 		}
 	}
 
@@ -624,6 +637,43 @@ namespace ZetaRay::AppImpl
 
 		delete g_pApp;
 		g_pApp = nullptr;
+	}
+
+	void ApplyParamUpdates() noexcept
+	{
+		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
+
+		for (auto& p : g_pApp->m_paramsUpdates)
+		{
+			if (p.Op == ParamUpdate::OP_TYPE::ADD)
+			{
+				g_pApp->m_params.push_back(p.P);
+			}
+			else if (p.Op == ParamUpdate::OP_TYPE::REMOVE)
+			{
+				size_t i = 0;
+				bool found = false;
+				while (i < g_pApp->m_params.size())
+				{
+					if (g_pApp->m_params[i].GetID() == p.P.GetID())
+					{
+						found = true;
+						break;
+					}
+
+					i++;
+				}
+
+				Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
+				g_pApp->m_params.erase(i);
+			}
+		}
+
+		g_pApp->m_paramsUpdates.clear();
+
+		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
+		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
 	}
 
 	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
@@ -804,53 +854,10 @@ namespace ZetaRay::AppImpl
 		free(buffer);
 	}
 
-	void SetMoveSpeed(const ParamVariant& p) noexcept
+	void SetCameraAcceleration(const ParamVariant& p) noexcept
 	{
-		g_pApp->m_cameraMoveSpeed = p.GetFloat().m_val;
-	}
-
-	void SetZoomSpeed(const ParamVariant& p) noexcept
-	{
-		g_pApp->m_cameraZoomSpeed = p.GetFloat().m_val;
-	}
-
-	void ApplyParamUpdates() noexcept
-	{
-		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
-		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
-
-		for (auto& p : g_pApp->m_paramsUpdates)
-		{
-			if (p.Op == ParamUpdate::OP_TYPE::ADD)
-			{
-				g_pApp->m_params.push_back(p.P);
-			}
-			else if (p.Op == ParamUpdate::OP_TYPE::REMOVE)
-			{
-				size_t i = 0;
-				bool found = false;
-				while (i < g_pApp->m_params.size())
-				{
-					if (g_pApp->m_params[i].GetID() == p.P.GetID())
-					{
-						found = true;
-						break;
-					}
-
-					i++;
-				}
-
-				Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
-				g_pApp->m_params.erase(i);
-			}
-		}
-
-		g_pApp->m_paramsUpdates.clear();
-
-		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
-		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
-	}
-}
+		g_pApp->m_cameraAcceleration = p.GetFloat().m_val;
+	}}
 
 namespace ZetaRay
 {
@@ -944,35 +951,35 @@ namespace ZetaRay
 		const float renderWidth = g_pApp->m_displayWidth / g_pApp->m_upscaleFactor;
 		const float renderHeight = g_pApp->m_displayHeight / g_pApp->m_upscaleFactor;
 
-		// initialize the renderer
+		// initialize renderer
 		g_pApp->m_renderer.Init(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight, g_pApp->m_displayWidth, g_pApp->m_displayHeight);
 
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2((float)g_pApp->m_displayWidth, (float)g_pApp->m_displayHeight);
 
+		// initialize camera
+		g_pApp->m_frameMotion.Reset();
+
+		//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
+		//	Math::DegreeToRadians(85.0f), 0.1f, true);
+		g_pApp->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.1f, true);
+		//m_camera.Init(float3(-1127.61f, 348.67f, 66.25f), App::GetRenderer().GetAspectRatio(), 
+		//	Math::DegreeToRadians(85.0f), 10.0f, true);
+		//m_camera.Init(float3(0.61f, 3.67f, 0.25f), App::GetRenderer().GetAspectRatio(), Math::DegreeToRadians(85.0f), 0.1f);
+
 		// scene can now be initialized
 		g_pApp->m_scene.Init();
 
-		ParamVariant p0;
-		p0.InitFloat("Scene", "Camera", "MoveSpeedMult", fastdelegate::FastDelegate1<const ParamVariant&>(&AppImpl::SetMoveSpeed),
-			g_pApp->m_cameraMoveSpeed,
-			0.01f,
-			50.0f,
-			0.1f);
-		g_pApp->m_params.push_back(p0);
+		ParamVariant acc;
+		acc.InitFloat("Scene", "Camera", "Acceleration", fastdelegate::FastDelegate1(&AppImpl::SetCameraAcceleration),
+			g_pApp->m_cameraAcceleration,
+			0.1f,
+			100.0f,
+			1.0f);
+		App::AddParam(acc);
 
-		ParamVariant p1;
-		p1.InitFloat("Scene", "Camera", "ZoomSpeedMult", fastdelegate::FastDelegate1<const ParamVariant&>(&AppImpl::SetZoomSpeed),
-			g_pApp->m_cameraZoomSpeed,
-			0.0001f,
-			10.00f,
-			0.001f);
-		g_pApp->m_params.push_back(p1);
-
-		//ParamVariant p2;
-		//p2.InitBool("Renderer", "Settings", "Upscaling", fastdelegate::FastDelegate1<const ParamVariant&>(&AppImpl::SetUpscalingEnablement),
-		//	g_pApp->m_upscaleFactor > 1.0f + 1e-3f);
-		//g_pApp->m_params.push_back(p2);
+		g_pApp->m_isInitialized = true;
 	}
 
 	void App::InitSimple() noexcept
@@ -998,11 +1005,13 @@ namespace ZetaRay
 
 		while (msg.message != WM_QUIT)
 		{
+			// process messages
 			if (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
 			{
 				TranslateMessage(&msg);
 				DispatchMessageA(&msg);
 			}
+			// game loop
 			else
 			{
 				if (!g_pApp->m_isActive)
@@ -1070,39 +1079,40 @@ namespace ZetaRay
 				while (!success)
 					success = g_pApp->m_mainThreadPool.TryFlush();
 
-				TaskSet renderTS;
+				g_pApp->m_frameMotion.Reset();
 
 				// render
 				{
+					TaskSet renderTS;
+					TaskSet endFrameTS;
+
 					g_pApp->m_scene.Render(renderTS);
 					renderTS.Sort();
+
+					// end-frame
+					{
+						g_pApp->m_renderer.EndFrame(endFrameTS);
+
+						auto h0 = endFrameTS.EmplaceTask("Scene::Recycle", []()
+							{
+								g_pApp->m_scene.Recycle();
+							});
+
+						endFrameTS.Sort();
+						renderTS.ConnectTo(endFrameTS);
+
+						renderTS.Finalize();
+						endFrameTS.Finalize();
+					}
+
+					Submit(ZetaMove(renderTS));
+					Submit(ZetaMove(endFrameTS));
 				}
-
-				TaskSet endFrameTS;
-
-				// end-frame
-				{
-					g_pApp->m_renderer.EndFrame(endFrameTS);
-
-					auto h0 = endFrameTS.EmplaceTask("Scene::Recycle", []()
-						{
-							g_pApp->m_scene.Recycle();
-						});
-
-					endFrameTS.Sort();
-					renderTS.ConnectTo(endFrameTS);
-
-					renderTS.Finalize();
-					endFrameTS.Finalize();
-				}
-
-				Submit(ZetaMove(renderTS));
-				Submit(ZetaMove(endFrameTS));
 
 				g_pApp->m_mainThreadPool.PumpUntilEmpty();
 			}
 		}
-
+		
 		return (int)msg.wParam;
 	}
 
@@ -1248,6 +1258,7 @@ namespace ZetaRay
 
 	Renderer& App::GetRenderer() noexcept { return g_pApp->m_renderer; }
 	SceneCore& App::GetScene() noexcept { return g_pApp->m_scene; }
+	const Camera& App::GetCamera() noexcept { return g_pApp->m_camera; }
 	int App::GetNumMainThreads() noexcept { return g_pApp->m_processorCoreCount; }
 	int App::GetNumBackgroundThreads() noexcept { return AppData::NUM_BACKGROUND_THREADS; }
 	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }

@@ -44,6 +44,7 @@ namespace ZetaRay::Core
 namespace ZetaRay::Scene
 {
 	class SceneCore;
+	class Camera;
 }
 
 namespace ZetaRay::App
@@ -86,6 +87,7 @@ namespace ZetaRay::App
 	//HWND GetHWND() noexcept;
 	Core::Renderer& GetRenderer() noexcept;
 	Scene::SceneCore& GetScene() noexcept;
+	const Scene::Camera& GetCamera() noexcept;
 	int GetNumMainThreads() noexcept;
 	int GetNumBackgroundThreads() noexcept;
 	uint32_t GetDPI() noexcept;

@@ -12,6 +12,11 @@ namespace ZetaRay::Math
 	{
 		constexpr float2() noexcept = default;
 
+		constexpr explicit float2(float x) noexcept
+			: x(x),
+			y(x)
+		{}
+
 		constexpr float2(float x, float y) noexcept
 			: x(x),
 			y(y)
@@ -62,16 +67,16 @@ namespace ZetaRay::Math
 	{
 		constexpr float3() noexcept = default;
 
+		constexpr explicit float3(float x) noexcept
+			: x(x),
+			y(x),
+			z(x)
+		{}
+
 		constexpr float3(float x, float y, float z) noexcept
 			: x(x),
 			y(y),
 			z(z)
-		{}
-
-		constexpr float3(float x) noexcept
-			: x(x),
-			y(x),
-			z(x)
 		{}
 
 		constexpr float3(const float2& xy, float z = 0.0f) noexcept
@@ -152,18 +157,18 @@ namespace ZetaRay::Math
 	{
 		float4() noexcept = default;
 
+		constexpr explicit float4(float x) noexcept
+			: x(x),
+			y(x),
+			z(x),
+			w(x)
+		{}
+
 		constexpr float4(float x, float y, float z, float w) noexcept
 			: x(x),
 			y(y),
 			z(z),
 			w(w)
-		{}
-
-		constexpr float4(float x) noexcept
-			: x(x),
-			y(x),
-			z(x),
-			w(x)
 		{}
 
 		constexpr float4(const float3& xyz, float w = 0.0f) noexcept
@@ -252,6 +257,13 @@ namespace ZetaRay::Math
 	struct alignas(16) float4a
 	{
 		float4a() noexcept = default;
+
+		constexpr explicit float4a(float x) noexcept
+			: x(x),
+			y(x),
+			z(x),
+			w(x)
+		{}
 
 		constexpr float4a(float x, float y, float z, float w) noexcept
 			: x(x),

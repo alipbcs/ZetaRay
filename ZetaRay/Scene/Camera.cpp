@@ -59,20 +59,20 @@ namespace
 // Camera
 //--------------------------------------------------------------------------------------
 
-void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, float farZ, bool jitter) noexcept
+void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter) noexcept
 {
 	m_posW = float4a(posw, 1.0f);
 	m_FOV = fov;
 	m_nearZ = nearZ;
-	m_farZ = RendererConstants::USE_REVERSE_Z ? FLT_MAX : farZ;
+	m_farZ = FLT_MAX;
 	m_aspectRatio = aspectRatio;
-	m_viewFrustum = ViewFrustum(fov, aspectRatio, nearZ, farZ);
+	m_viewFrustum = ViewFrustum(fov, aspectRatio, nearZ, m_farZ);
 	m_jitteringEnabled = jitter;
 
 	m_pixelSampleAreaWidth = 1.0f / App::GetRenderer().GetRenderWidth();
 	m_pixelSampleAreaHeight = 1.0f / App::GetRenderer().GetRenderHeight();
 
-	// Eq. (30) in Ray Tracing Gems chapter 20
+	// "Ray Tracing Gems", ch. 20, eq. (30)
 	m_pixelSpreadAngle = atanf(2 * tanf(0.5f * m_FOV) / App::GetRenderer().GetRenderHeight());
 	float4a focus(0.0f, 0.0f, 0.0f, 0.0f);
 
@@ -100,11 +100,47 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, float 
 		m_jitteringEnabled);
 	App::AddParam(jitterCamera);
 
+	ParamVariant fovParam;
+	fovParam.InitFloat("Scene", "Camera", "FOV", fastdelegate::MakeDelegate(this, &Camera::SetFOV),
+		Math::RadiansToDegrees(m_FOV), 45, 90, 1);
+	App::AddParam(fovParam);
+
+	ParamVariant coeff;
+	coeff.InitFloat("Scene", "Camera", "FrictionCoeff", fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
+		m_frictionCoeff, 1, 16, 1);
+	App::AddParam(coeff);
+
 	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
-void Camera::Update() noexcept
+void Camera::Update(const Motion& m) noexcept
 {
+	if (m.RotationDegreesY != 0.0)
+		RotateY(m.RotationDegreesY);
+	if (m.RotationDegreesX != 0.0)
+		RotateX(m.RotationDegreesX);
+
+	const __m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
+	const __m128 vBasisZ = _mm_load_ps(reinterpret_cast<float*>(&m_basisZ));
+	const __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
+	__m128 vInitialVelocity = _mm_load_ps(reinterpret_cast<float*>(&m_initialVelocity));
+
+	__m128 vAcc = _mm_mul_ps(vBasisX, _mm_set1_ps(m.Acceleration.x));
+	vAcc = _mm_fmadd_ps(vBasisZ, _mm_set1_ps(m.Acceleration.z), vAcc);	
+	vAcc = _mm_fmadd_ps(_mm_set1_ps(-m_frictionCoeff), vInitialVelocity, vAcc);
+
+	const __m128 vDt = _mm_set1_ps(m.dt);
+	const __m128 vVelocity = _mm_fmadd_ps(vAcc, vDt, vInitialVelocity);
+	const __m128 vDt2Over2 = _mm_mul_ps(_mm_mul_ps(vDt, vDt), _mm_set1_ps(0.5));
+	__m128 vVdt = _mm_mul_ps(vInitialVelocity, vDt);
+	__m128 vNewEye = _mm_fmadd_ps(vAcc, vDt2Over2, vVdt);
+	vNewEye = _mm_add_ps(vNewEye, vEye);
+	vInitialVelocity = vVelocity;
+
+	setCamPos(vNewEye, m_view, m_viewInv);
+	m_posW = store(vNewEye);
+	m_initialVelocity = store(vInitialVelocity);
+
 	if (m_jitteringEnabled)
 	{
 		const uint64_t frame = App::GetTimer().GetTotalFrameCount();
@@ -129,17 +165,6 @@ void Camera::UpdateProj() noexcept
 	m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
 }
 
-void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
-{
-	m_jitteringEnabled = p.GetBool();
-
-	m_proj.m[2].x = 0.0f;
-	m_proj.m[2].y = 0.0f;
-
-	m_currJitter = float2(0.0f, 0.0f);
-	m_currProjOffset = float2(0.0f, 0.0f);
-}
-
 void Camera::OnWindowSizeChanged() noexcept
 {
 	const int renderWidth = App::GetRenderer().GetRenderWidth();
@@ -157,18 +182,7 @@ void Camera::OnWindowSizeChanged() noexcept
 	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
-void Camera::MoveX(float dt) noexcept
-{
-	const __m128 vDt = _mm_set1_ps(dt);
-	const __m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
-	__m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
-
-	vEye = _mm_fmadd_ps(vDt, vBasisX, vEye);
-	setCamPos(vEye, m_view, m_viewInv);
-
-	m_posW = store(vEye);
-}
-
+/*
 void Camera::MoveY(float dt) noexcept
 {
 	const __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&m_upW));
@@ -179,18 +193,7 @@ void Camera::MoveY(float dt) noexcept
 
 	m_posW = store(vEye);
 }
-
-void Camera::MoveZ(float dt) noexcept
-{
-	const __m128 vDt = _mm_set1_ps(dt);
-	const __m128 vBasisZ = _mm_load_ps(reinterpret_cast<float*>(&m_basisZ));
-	__m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
-
-	vEye = _mm_fmadd_ps(vDt, vBasisZ, vEye);
-	setCamPos(vEye, m_view, m_viewInv);
-
-	m_posW = store(vEye);
-}
+*/
 
 void Camera::RotateX(float dt) noexcept
 {
@@ -242,10 +245,24 @@ void Camera::RotateY(float dt) noexcept
 	m_basisZ = store(vBasisZ);
 }
 
-void Camera::SetPos(float3 posW) noexcept
+void Camera::SetFOV(const ParamVariant& p) noexcept
 {
-	m_posW = float4a(posW, 1.0f);
-	__m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
+	m_FOV = Math::DegreeToRadians(p.GetFloat().m_val);
+	UpdateProj();
+}
 
-	setCamPos(vEye, m_view, m_viewInv);
+void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
+{
+	m_jitteringEnabled = p.GetBool();
+
+	m_proj.m[2].x = 0.0f;
+	m_proj.m[2].y = 0.0f;
+
+	m_currJitter = float2(0.0f, 0.0f);
+	m_currProjOffset = float2(0.0f, 0.0f);
+}
+
+void Camera::SetFrictionCoeff(const Support::ParamVariant& p) noexcept
+{
+	m_frictionCoeff = p.GetFloat().m_val;
 }

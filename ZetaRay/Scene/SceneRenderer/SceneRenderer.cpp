@@ -34,7 +34,7 @@ void SceneRenderer::Init() noexcept
 	m_renderGraph.Reset();
 	auto* data = m_data.get();
 
-	Camera& cam = App::GetScene().GetCamera();
+	const Camera& cam = App::GetCamera();
 	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
 	v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
 	v_float4x4 vVP = mul(vCurrV, vP);
@@ -115,7 +115,7 @@ void SceneRenderer::Init() noexcept
 		ParamVariant enableDenoiser;
 		enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
 			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
-			Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::NONE);
+			Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::STAD);
 		App::AddParam(enableDenoiser);
 
 		ParamVariant enableInscattering;
@@ -332,7 +332,7 @@ void SceneRenderer::UpdateFrameConstants() noexcept
 	data->m_frameConstants.WorldRadius = App::GetScene().GetWorldAABB().Extents.length();
 
 	// camera
-	Camera& cam = App::GetScene().GetCamera();
+	const Camera& cam = App::GetCamera();
 	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
 	v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
 	v_float4x4 vVP = mul(vCurrV, vP);

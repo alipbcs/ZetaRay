@@ -74,7 +74,6 @@ namespace ZetaRay::Scene
 		void Update(double dt, Support::TaskSet& sceneTS, Support::TaskSet& sceneRendererTS) noexcept;
 		void Render(Support::TaskSet& ts) noexcept { m_sceneRenderer.Render(ts); };
 
-		Camera& GetCamera() { return m_camera; }
 		Math::AABB GetWorldAABB() noexcept;
 
 		// needs to be called prior to loading a scene
@@ -182,7 +181,6 @@ namespace ZetaRay::Scene
 		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut>& animVec) noexcept;
 		void UpdateLocalTransforms(Util::Vector<AnimationUpdateOut>&& animVec) noexcept;
 
-		Camera m_camera;
 		bool m_isPaused = false;
 
 		//

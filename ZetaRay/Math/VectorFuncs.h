@@ -35,20 +35,28 @@ namespace ZetaRay::Math
 		return _mm_xor_ps(vMinusZero, v);
 	}
 
-	__forceinline __m128 __vectorcall cross(const __m128 u, const __m128 v) noexcept
+	// Returns v1 + t * (v2 - v1)
+	__forceinline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t) noexcept
 	{
-		__m128 vTmp0 = _mm_shuffle_ps(u, u, 0x9);	// yzx
-		__m128 vTmp1 = _mm_shuffle_ps(v, v, 0x12);	// zxy
+		__m128 vT = _mm_broadcast_ss(&t);
+		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
 
-		__m128 uCrossv = _mm_mul_ps(vTmp0, vTmp1);
+		return vInterpolated;
+	}
 
-		vTmp0 = _mm_shuffle_ps(u, u, 0x12);	// zxy
-		vTmp1 = _mm_shuffle_ps(v, v, 0x9);	// yzx
+	__forceinline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT) noexcept
+	{
+		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
 
-		uCrossv = _mm_sub_ps(uCrossv, _mm_mul_ps(vTmp0, vTmp1));
+		return vInterpolated;
+	}
 
-		// zero out the last element
-		return _mm_blend_ps(uCrossv, _mm_setzero_ps(), 0x8);
+	__forceinline __m128 __vectorcall length(const __m128 v) noexcept
+	{
+		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
+		__m128 vNorm = _mm_sqrt_ps(vNorm2);
+
+		return vNorm;
 	}
 
 	__forceinline __m128 __vectorcall normalize(const __m128 v) noexcept
@@ -67,22 +75,29 @@ namespace ZetaRay::Math
 		return vN;
 	}
 
-	__forceinline bool __vectorcall equal(const __m128 vec1, const __m128 vec2) noexcept
+	__forceinline bool __vectorcall equal(const __m128 v1, const __m128 v2) noexcept
 	{
 		const __m128 vEps = _mm_set1_ps(FLT_EPSILON);
-		__m128 vRes = _mm_cmpgt_ps(vEps, abs(_mm_sub_ps(vec1, vec2)));
+		__m128 vRes = _mm_cmpgt_ps(vEps, abs(_mm_sub_ps(v1, v2)));
 		int r = _mm_movemask_ps(vRes);
 
 		return r == 0;
 	}
 
-	// Returns vec1 + t * (vec2 - vec1)
-	__forceinline __m128 __vectorcall lerp(const __m128 vec1, const __m128 vec2, float t) noexcept
+	__forceinline __m128 __vectorcall cross(const __m128 v1, const __m128 v2) noexcept
 	{
-		__m128 vT = _mm_broadcast_ss(&t);
-		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(vec2, vec1), vec1);
+		__m128 vTmp0 = _mm_shuffle_ps(v1, v1, 0x9);		// yzx
+		__m128 vTmp1 = _mm_shuffle_ps(v2, v2, 0x12);	// zxy
 
-		return vInterpolated;
+		__m128 uCrossv = _mm_mul_ps(vTmp0, vTmp1);
+
+		vTmp0 = _mm_shuffle_ps(v1, v1, 0x12);	// zxy
+		vTmp1 = _mm_shuffle_ps(v2, v2, 0x9);	// yzx
+
+		uCrossv = _mm_sub_ps(uCrossv, _mm_mul_ps(vTmp0, vTmp1));
+
+		// zero out the last element
+		return _mm_blend_ps(uCrossv, _mm_setzero_ps(), 0x8);
 	}
 
 	// Following function is ported from DirectXMath (under MIT License).

@@ -629,7 +629,7 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 	g_fsr2Data->m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_INPUT_DEPTH].State = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
 	g_fsr2Data->m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_INPUT_MOTION_VECTORS].State = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE;
 
-	const auto& camera = App::GetScene().GetCamera();
+	const auto& camera = App::GetCamera();
 
 	FfxFsr2DispatchDescription params;
 	params.commandList = nullptr;

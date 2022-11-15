@@ -40,7 +40,7 @@ namespace ZetaRay::Scene
 		bool SunLighting = true;
 		bool Inscattering = false;
 		bool RTIndirectDiffuse = true;
-		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::NONE;
+		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::STAD;
 		Settings::AA AntiAliasing = Settings::AA::NATIVE;
 	};
 

@@ -10,30 +10,36 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::Scene
 {
+	struct Motion
+	{
+		void Reset() noexcept
+		{
+			dt = 0.0f;
+			Acceleration = Math::float3(0.0f);
+			RotationDegreesX = 0.0f;
+			RotationDegreesY = 0.0f;
+		}
+
+		float dt;
+		Math::float3 Acceleration;
+		float RotationDegreesX;
+		float RotationDegreesY;
+	};
+
 	class Camera
 	{
 	public:
 		Camera() noexcept = default;
 		~Camera() noexcept = default;
 
-		void Init(Math::float3 posw, float aspectRatio, float fov, float nearZ = 0.1f, float farZ = 1000.0f, bool jitter = false) noexcept;
+		void Init(Math::float3 posw, float aspectRatio, float fov, float nearZ = 0.1f, bool jitter = false) noexcept;
+		void Update(const Motion& m) noexcept;
+		void OnWindowSizeChanged() noexcept;
 
 		const Math::float4x4a& GetCurrView() const noexcept { return m_view; }
 		const Math::float4x4a& GetViewInv() const noexcept { return m_viewInv; }
 		const Math::float4x4a& GetCurrProj() const noexcept { return m_proj; }
-
-		void OnWindowSizeChanged() noexcept;
-		void Update() noexcept;
-
-		void MoveX(float dt) noexcept;
-		void MoveY(float dt) noexcept;
-		void MoveZ(float dt) noexcept;
-		void RotateX(float dt) noexcept;
-		void RotateY(float dt) noexcept;
-
-		void SetPos(Math::float3 pos) noexcept;
 		const Math::float3 GetPos() const { return Math::float3(m_posW.x, m_posW.y, m_posW.z); }
-
 		float GetAspectRatio() const { return m_aspectRatio; }
 		float GetFOV() const { return m_FOV; }
 		float GetNearZ() const { return m_nearZ; }
@@ -48,13 +54,20 @@ namespace ZetaRay::Scene
 
 	private:
 		void UpdateProj() noexcept;
+		void SetFOV(const Support::ParamVariant& p) noexcept;
 		void SetJitteringEnabled(const Support::ParamVariant& p) noexcept;
+		void SetFrictionCoeff(const Support::ParamVariant& p) noexcept;
+
+		void RotateX(float dt) noexcept;
+		void RotateY(float dt) noexcept;
 
 		Math::float4x4a m_view;
 		Math::float4x4a m_viewInv;
 		Math::float4x4a m_proj;
 
 		Math::float4a m_posW;
+		Math::float4a m_initialVelocity = Math::float4a(0.0f);
+
 		Math::float4a m_upW = Math::float4a(0.0f, 1.0f, 0.0f, 0.0f);
 
 		Math::float4a m_basisX;
@@ -97,5 +110,6 @@ namespace ZetaRay::Scene
 		float m_pixelSampleAreaHeight;
 		int m_jitterPhaseCount;
 		bool m_jitteringEnabled = false;
+		float m_frictionCoeff = 9.0f;
 	};
 }
