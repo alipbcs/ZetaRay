@@ -66,7 +66,7 @@ set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
 # 
 # setup DXC
 # 
-SetupDXC(ZETA_DXC_BIN_DIR)
+SetupDXC(DXC_BIN_DIR)
 
 add_subdirectory(ZetaRay)
 add_subdirectory(Samples)

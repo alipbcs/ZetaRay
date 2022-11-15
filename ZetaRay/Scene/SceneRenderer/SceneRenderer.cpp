@@ -339,7 +339,6 @@ void SceneRenderer::UpdateFrameConstants() noexcept
 
 	data->m_frameConstants.CameraPos = cam.GetPos();
 	data->m_frameConstants.CameraNear = cam.GetNearZ();
-	data->m_frameConstants.CameraFar = cam.GetFarZ();
 	data->m_frameConstants.AspectRatio = cam.GetAspectRatio();
 	data->m_frameConstants.PixelSpreadAngle = cam.GetPixelSpreadAngle();
 	data->m_frameConstants.TanHalfFOV = tanf(0.5f * cam.GetFOV());
