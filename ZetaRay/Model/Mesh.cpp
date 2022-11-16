@@ -20,9 +20,6 @@ TriangleMesh::TriangleMesh(Vector<VertexPosNormalTexTangent>&& vertices,
 	Vector<INDEX_TYPE>&& indices, uint64_t matID) noexcept
 	: m_materialID(matID)
 {
-	//m_vertices.swap(vertices);
-	//m_indices.swap(indices);
-
 	Assert(vertices.size() > 0 && vertices.size() < INT_MAX, "Invalid number of vertices.");
 	Assert(indices.size() > 0, "Indices was empty.");
 	Assert(sizeof(VertexPosNormalTexTangent) - (offsetof(VertexPosNormalTexTangent, Position) + sizeof(float3)) >= sizeof(float), "");
@@ -64,9 +61,6 @@ TriangleMesh::TriangleMesh(Vector<VertexPosNormalTexTangent>&& vertices,
 	srvDesc.Buffer.StructureByteStride = sizeof(INDEX_TYPE);
 
 	device->CreateShaderResourceView(m_indexBuffer.GetResource(), &srvDesc, m_descTable.CPUHandle(1));
-
-	//m_vertices.free();
-	//m_indices.free();
 }
 
 TriangleMesh::TriangleMesh(TriangleMesh&& rhs) noexcept
@@ -78,8 +72,6 @@ TriangleMesh::TriangleMesh(TriangleMesh&& rhs) noexcept
 	m_numVertices(rhs.m_numVertices),
 	m_numIndices(rhs.m_numIndices)
 {
-	//m_vertices.swap(rhs.m_vertices);
-	//m_indices.swap(rhs.m_indices);
 }
 
 TriangleMesh& TriangleMesh::operator=(TriangleMesh&& rhs) noexcept
@@ -89,8 +81,6 @@ TriangleMesh& TriangleMesh::operator=(TriangleMesh&& rhs) noexcept
 	m_indexBuffer = ZetaMove(rhs.m_indexBuffer);
 	m_numVertices = rhs.m_numVertices;
 	m_numIndices = rhs.m_numIndices;
-	//m_vertices.swap(rhs.m_vertices);
-	//m_indices.swap(rhs.m_indices);
 	m_AABB = rhs.m_AABB;
 	m_materialID = rhs.m_materialID;
 

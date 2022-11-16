@@ -14,7 +14,6 @@ struct cbTAA
 	uint32_t PrevOutputDescHeapIdx;
 	uint32_t CurrOutputDescHeapIdx;
 	uint32_t TemporalIsValid;
-	uint32_t CatmullRomFiltering;
 };
 
 #endif

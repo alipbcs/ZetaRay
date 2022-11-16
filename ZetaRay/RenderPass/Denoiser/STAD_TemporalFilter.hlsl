@@ -115,10 +115,10 @@ void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal,
 	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos);
 	
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(Common::IsWithinBounds(topLeft, screenDim),
-									 Common::IsWithinBounds(topLeft + float2(1, 0), screenDim),
-									 Common::IsWithinBounds(topLeft + float2(0, 1), screenDim),
-									 Common::IsWithinBounds(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Common::IsWithinBoundsExc(topLeft, screenDim),
+									 Common::IsWithinBoundsExc(topLeft + float2(1, 0), screenDim),
+									 Common::IsWithinBoundsExc(topLeft + float2(0, 1), screenDim),
+									 Common::IsWithinBoundsExc(topLeft + float2(1, 1), screenDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -197,7 +197,7 @@ void Integrate(in uint2 DTid, in float3 pos, in float3 normal, inout uint tspp, 
 void main(uint3 DTid : SV_DispatchThreadID)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsWithinBounds(DTid.xy, renderDim))
+	if (!Common::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 	
 	uint tspp = 0;

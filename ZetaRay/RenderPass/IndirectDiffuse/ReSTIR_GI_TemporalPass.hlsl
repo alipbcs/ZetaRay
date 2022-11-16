@@ -363,7 +363,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
-	if (!Common::IsWithinBounds(prevUV, 1.0f.xx))
+	if (!Common::IsWithinBoundsInc(prevUV, 1.0f.xx))
 		return;
 
 	// retrieve the 2x2 neighborhood reservoirs around reprojected pixel
@@ -418,7 +418,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	{
 		uint2 prevPixel = uint2(topLeft) + offsets[i];
 
-		if (!Common::IsWithinBounds(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
+		if (!Common::IsWithinBoundsExc(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
 			continue;
 		
 		Reservoir prevReservoir = ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, 

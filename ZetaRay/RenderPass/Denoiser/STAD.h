@@ -132,7 +132,7 @@ namespace ZetaRay::RenderPass
 		Core::DescriptorTable m_descTable;
 		bool m_isTemporalCacheValid = false;
 		int m_numSpatialFilterPasses = DefaultParamVals::NumSpatialPasses;
-		bool m_doSpatialFilter = false;
+		bool m_doSpatialFilter = true;
 
 		// constant buffers
 		cbSTADTemporalFilter m_cbTemporalFilter;

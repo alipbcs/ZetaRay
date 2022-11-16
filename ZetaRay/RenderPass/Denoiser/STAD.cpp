@@ -144,6 +144,7 @@ void STAD::Reset() noexcept
 void STAD::OnWindowResized() noexcept
 {
 	CreateResources();
+	m_cbTemporalFilter.IsTemporalCacheValid = false;
 }
 
 void STAD::Render(CommandList& cmdList) noexcept

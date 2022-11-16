@@ -5,6 +5,8 @@
 #include "../Core/Device.h"
 #include "../Win32/Log.h"
 
+#define LOG_TASK_TIMINGS 0
+
 using namespace ZetaRay::Support;
 
 namespace
@@ -76,13 +78,9 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 
 		bool success = false;
 		if (p == THREAD_PRIORITY::NORMAL)
-		{
 			success = SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_NORMAL);
-		}
 		else if (p == THREAD_PRIORITY::BACKGROUND)
-		{
 			CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_LOWEST));
-		}
 	}
 }
 
@@ -92,9 +90,7 @@ void ThreadPool::Start() noexcept
 	Assert(threadIDs.size() == m_totalNumThreads, "these must match");
 
 	for (int i = 0; i < threadIDs.size(); i++)
-	{
 		m_appThreadIds[i] = threadIDs[i];
-	}
 
 	m_start.store(true, std::memory_order_release);
 }
@@ -167,13 +163,16 @@ void ThreadPool::PumpUntilEmpty() noexcept
 			// block if this task depends on other unfinished tasks
 			App::WaitForAdjacentHeadNodes(taskHandle);
 
-			//LOG("_Thread %u started \t%s...\n", tid, task.GetName());
-
+#if LOG_TASK_TIMINGS
+			LOG("_Thread %u started \t%s...\n", tid, task.GetName());
+#endif
 			timer.Start();
 			task.DoTask();
 			timer.End();
 
-			//LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
+#if LOG_TASK_TIMINGS
+			LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
+#endif
 		
 			// signal dependant tasks that this task is finished
 			auto adjacencies = task.GetAdjacencies();
@@ -232,13 +231,16 @@ void ThreadPool::WorkerThread() noexcept
 		if(task.GetPriority() != TASK_PRIORITY::BACKGRUND)
 			App::WaitForAdjacentHeadNodes(taskHandle);
 
-		//LOG("Thread %u started \t%s...\n", tid, task.GetName());
-		
+#if LOG_TASK_TIMINGS
+		LOG("Thread %u started \t%s...\n", tid, task.GetName());
+#endif		
 		timer.Start();
 		task.DoTask();
 		timer.End();
 
-		//LOG("Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
+#if LOG_TASK_TIMINGS
+		LOG("Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
+#endif		
 
 		// signal dependant tasks that this task has finished
 		if (task.GetPriority() != TASK_PRIORITY::BACKGRUND)

@@ -349,7 +349,7 @@ Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
-	if (!Common::IsWithinBounds(prevUV, 1.0f.xx))
+	if (!Common::IsWithinBoundsInc(prevUV, 1.0f.xx))
 	{
 		Reservoir r = Reservoir::Init();
 		return r;
@@ -415,8 +415,14 @@ void Validate(in Sample s, in float3 posW, inout Reservoir r, inout RNG rng)
 		r.SampleNormal = s.Normal;
 		r.Li = s.Lo;
 		r.M = 1;
+		
+		// following should be the correct thing to do, but for some reason casuses artifacts
+		// TODO investigate
+	#if 0		
 		r.w_sum = risWeight;
-		//r.w_sum = 0;
+	#else
+		r.w_sum = 0;
+	#endif
 	}
 }
 

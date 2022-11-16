@@ -24,7 +24,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsWithinBounds(DTid.xy, renderDim))
+	if (!Common::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];

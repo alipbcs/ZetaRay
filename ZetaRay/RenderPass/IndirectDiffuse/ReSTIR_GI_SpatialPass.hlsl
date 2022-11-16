@@ -100,7 +100,7 @@ void DoSpatialResampling(in uint16_t2 DTid, in float3 posW, in float3 normal, in
 		if (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
 			continue;
 		
-		if (Common::IsWithinBounds(samplePosSS, renderDim))
+		if (Common::IsWithinBoundsExc(samplePosSS, renderDim))
 		{
 			const float sampleDepth = Common::ComputeLinearDepthReverseZ(g_currDepth[samplePosSS], g_frame.CameraNear);
 			float3 samplePosW = Common::WorldPosFromScreenSpace(samplePosSS, renderDim,
@@ -171,7 +171,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
 #endif
 
-	if (!Common::IsWithinBounds(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Common::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	// reconstruct position from depth buffer

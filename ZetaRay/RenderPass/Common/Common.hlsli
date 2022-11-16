@@ -223,10 +223,18 @@ namespace Common
 		return linearRGB;
 	}
 
+	// Returns whether pos is in [0, dim)
 	template<typename T>
-	bool IsWithinBounds(T pos, T dim)
+	bool IsWithinBoundsExc(T pos, T dim)
 	{
 		return pos.x >= 0 && pos.x < dim.x && pos.y >= 0 && pos.y < dim.y;
+	}
+
+	// Returns whether pos is in [0, dim]
+	template<typename T>
+	bool IsWithinBoundsInc(T pos, T dim)
+	{
+		return pos.x >= 0 && pos.x <= dim.x && pos.y >= 0 && pos.y <= dim.y;
 	}
 
 	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
@@ -481,7 +489,8 @@ namespace Common
 
 	// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
 	// Ref: https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
-	float3 SampleTextureCatmullRom_5Tap(in Texture2D<float4> tex, in SamplerState linearSampler, in float2 uv, in float2 texSize)
+	template<typename T>
+	float3 SampleTextureCatmullRom_5Tap(in Texture2D<T> tex, in SamplerState linearSampler, in float2 uv, in float2 texSize)
 	{
 		// We're going to sample a a 4x4 grid of texels surrounding the target UV coordinate. We'll do this by rounding
 		// down the sample location to get the exact center of our "starting" texel. The starting texel will be at

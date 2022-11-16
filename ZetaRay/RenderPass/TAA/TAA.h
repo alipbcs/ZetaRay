@@ -93,14 +93,11 @@ namespace ZetaRay::RenderPass
 		struct DefaultParamVals
 		{
 			static constexpr float BlendWeight = 0.35f;
-			static constexpr bool CatmullRomFiltering = false;
 		};
 
 		// parameter callbacks
 		void BlendWeightCallback(const Support::ParamVariant& p) noexcept;
-		void FilterTypeCallback(const Support::ParamVariant& p) noexcept;
 
-		// shader reload
-		void ReloadShaders() noexcept;
+		void ReloadShader() noexcept;
 	};
 }

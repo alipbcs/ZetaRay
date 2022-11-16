@@ -887,6 +887,9 @@ namespace ZetaRay
 	{
 		HINSTANCE instance = GetModuleHandleA(nullptr);
 		CheckWin32(instance);
+		
+		// set locale to C
+		setlocale(LC_ALL, "C");
 
 		g_pApp = new AppData;
 

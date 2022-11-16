@@ -59,24 +59,18 @@ void TAA::Init() noexcept
 	CreateResources();
 
 	m_localCB.BlendWeight = DefaultParamVals::BlendWeight;
-	m_localCB.CatmullRomFiltering = DefaultParamVals::CatmullRomFiltering;
 
 	ParamVariant blendWeight;
 	blendWeight.InitFloat("Renderer", "TAA", "BlendWeight", fastdelegate::MakeDelegate(this, &TAA::BlendWeightCallback),
 		DefaultParamVals::BlendWeight,			// val	
-		0.0f,									// min
+		0.1f,									// min
 		1.0f,									// max
 		0.1f);									// step
 	App::AddParam(blendWeight);
 
-	ParamVariant filterType;
-	filterType.InitBool("Renderer", "TAA", "CatmullRomFiltering", fastdelegate::MakeDelegate(this, &TAA::FilterTypeCallback),
-		DefaultParamVals::CatmullRomFiltering);
-	App::AddParam(filterType);
-
 	m_isTemporalTexValid = false;
 
-	App::AddShaderReloadHandler("TAA", fastdelegate::MakeDelegate(this, &TAA::ReloadShaders));
+	App::AddShaderReloadHandler("TAA", fastdelegate::MakeDelegate(this, &TAA::ReloadShader));
 }
 
 void TAA::Reset() noexcept
@@ -85,7 +79,6 @@ void TAA::Reset() noexcept
 	{
 		s_rpObjs.Clear();
 		App::RemoveParam("Renderer", "TAA", "BlendWeight");
-		App::RemoveParam("Renderer", "TAA", "CatmullRomFiltering");
 		App::RemoveShaderReloadHandler("TAA");
 
 	#ifdef _DEBUG
@@ -185,11 +178,8 @@ void TAA::BlendWeightCallback(const ParamVariant& p) noexcept
 	m_localCB.BlendWeight = p.GetFloat().m_val;
 }
 
-void TAA::FilterTypeCallback(const ParamVariant& p) noexcept
+void TAA::ReloadShader() noexcept
 {
-	m_localCB.CatmullRomFiltering = p.GetBool();
-}
-
-void TAA::ReloadShaders() noexcept
-{
+	s_rpObjs.m_psoLib.Reload(0, "TAA\\TAA.hlsl", true);
+	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
 }
