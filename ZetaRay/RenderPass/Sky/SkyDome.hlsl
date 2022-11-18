@@ -1,7 +1,6 @@
 #include "../Common/Common.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/LightSourceFuncs.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
 #define USE_ENVIRONMENT_MAP 1
@@ -88,7 +87,7 @@ float4 mainPS(VSOut psin) : SV_Target
 //		const float theta = Common::ArcCos(w.y); // [0, PI]
 //		float2 thetaPhi = float2(theta, phi);
 		
-		float2 thetaPhi = Common::SphericalFromCartesian(w);
+		float2 thetaPhi = Math::SphericalFromCartesian(w);
 		thetaPhi.y = phi;
 		
 		const float u = thetaPhi.y * ONE_DIV_TWO_PI;

@@ -30,7 +30,7 @@
 #ifndef BRDF_H
 #define BRDF_H
 
-#include "Common.hlsli"
+#include "Math.hlsli"
 #include "Sampling.hlsli"
 
 namespace BRDF
@@ -219,12 +219,12 @@ namespace BRDF
 		// build rotation quaternion that maps shading normal to y = (0, 1, 0)
 	//	float3 snCrossY = float3(shadingNormal.z, 0.0f, -shadingNormal.x);
 	//	float4 q = float4(snCrossY, 1.0f + dot(shadingNormal, float3(0.0f, 1.0f, 0.0f)));
-		float4 q = Common::QuaternionFromY(shadingNormal);
+		float4 q = Math::Transform::QuaternionFromY(shadingNormal);
 	
 		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
 		// transform wh from local space to world space
-		float3 wiWorld = Common::RotateVector(wiLocal, q);
+		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
 	
 		return wiWorld;
 	}
@@ -301,13 +301,13 @@ namespace BRDF
 		// build rotation quaternion for transforming shading normal to z = (0, 0, 1)
 		float3 snCrossZ = float3(surfaceInteraction.shadingNormal.y, -surfaceInteraction.shadingNormal.x, 0.0f);
 		float4 q = float4(snCrossZ, 1.0f + dot(surfaceInteraction.shadingNormal, float3(0.0f, 0.0f, 1.0f)));
-		float3 woLocal = Common::RotateVector(surfaceInteraction.wo, q);
+		float3 woLocal = Math::Transform::RotateVector(surfaceInteraction.wo, q);
 	
 		float3 whLocal = SampleGGXVNDF(woLocal, surfaceInteraction.alpha, surfaceInteraction.alpha, u);
 
 		// transform wh from local space to world space
 		float4 qReverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
-		float3 whWorld = Common::RotateVector(whLocal, qReverse);
+		float3 whWorld = Math::Transform::RotateVector(whLocal, qReverse);
 		float3 wi = reflect(-surfaceInteraction.wo, whWorld);
 	
 		return wi;
@@ -335,8 +335,8 @@ namespace BRDF
 		// shading normal (which could be bump mapped) might not reflect the correct
 		// orientation of surface and therefore geometric normal should be used
 
-	//	if (!surfaceInteration.wiAndwoInSameHemisphere)
-	//		return float3(0.0f, 0.0f, 0.0f);
+		//	if (!surfaceInteration.wiAndwoInSameHemisphere)
+		//		return float3(0.0f, 0.0f, 0.0f);
 	
 		if (surfaceInteration.ndotwi <= 0.0f || surfaceInteration.ndotwo <= 0.0f)
 			return float3(0.0f, 0.0f, 0.0f);

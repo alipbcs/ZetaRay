@@ -1,5 +1,4 @@
 #include "STAD_Common.h"
-#include "../Common/Common.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
@@ -24,13 +23,13 @@ StructuredBuffer<uint> g_rankingTile : register(t2, space0);
 float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos)
 {
 	float3 prevPos[4];
-	prevPos[0] = Common::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv);
-	prevPos[1] = Common::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv);
-	prevPos[2] = Common::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv);
-	prevPos[3] = Common::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.PrevViewInv);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
@@ -105,7 +104,7 @@ void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal,
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	prevDepths = Common::ComputeLinearDepthReverseZ(prevDepths, g_frame.CameraNear);
+	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -115,10 +114,10 @@ void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal,
 	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos);
 	
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(Common::IsWithinBoundsExc(topLeft, screenDim),
-									 Common::IsWithinBoundsExc(topLeft + float2(1, 0), screenDim),
-									 Common::IsWithinBoundsExc(topLeft + float2(0, 1), screenDim),
-									 Common::IsWithinBoundsExc(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Math::IsWithinBoundsExc(topLeft, screenDim),
+									 Math::IsWithinBoundsExc(topLeft + float2(1, 0), screenDim),
+									 Math::IsWithinBoundsExc(topLeft + float2(0, 1), screenDim),
+									 Math::IsWithinBoundsExc(topLeft + float2(1, 1), screenDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -197,7 +196,7 @@ void Integrate(in uint2 DTid, in float3 pos, in float3 normal, inout uint tspp, 
 void main(uint3 DTid : SV_DispatchThreadID)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 	
 	uint tspp = 0;
@@ -212,13 +211,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 currNormal = Common::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
+	const float3 currNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
 
 	// current frame's depth
-	const float currLinearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
 
-	const float3 currPos = Common::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.CurrViewInv);
 	
 	// sample temporal cache using a bilinear tap with custom weights

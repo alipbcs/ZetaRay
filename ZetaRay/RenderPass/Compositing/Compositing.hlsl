@@ -1,5 +1,4 @@
 #include "Compositing_Common.h"
-#include "../Common/Common.hlsli"
 #include "../Common/BRDF.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
@@ -24,7 +23,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
@@ -39,9 +38,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		return;
 	}
 			
-	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 		
-	const float3 posW = Common::WorldPosFromScreenSpace(DTid.xy,
+	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
 		uint2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -59,7 +58,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	float3 baseColor = g_baseColor[DTid.xy].rgb;
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
+	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
 
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];

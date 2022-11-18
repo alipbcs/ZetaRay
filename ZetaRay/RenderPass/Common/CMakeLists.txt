@@ -1,6 +1,7 @@
 set(RP_COMMON_DIR ${RENDERPASS_DIR}/Common)
 set(RP_COMMON_SRC
     ${RP_COMMON_DIR}/BRDF.hlsli
+    ${RP_COMMON_DIR}/Math.hlsli
     ${RP_COMMON_DIR}/Common.hlsli
     ${RP_COMMON_DIR}/FrameConstants.h
     ${RP_COMMON_DIR}/GBuffers.hlsli

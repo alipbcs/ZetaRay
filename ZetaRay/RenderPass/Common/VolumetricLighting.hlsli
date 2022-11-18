@@ -6,7 +6,7 @@
 // 2. A Scalable and Production Ready Sky and Atmosphere Rendering Technique, EGSR 2020
 // 3. https://github.com/Fewes/MinimalAtmosphere
 
-#include "Common.hlsli"
+#include "Math.hlsli"
 
 //--------------------------------------------------------------------------------------
 // {Absorption, scattering, extinction} coefficients

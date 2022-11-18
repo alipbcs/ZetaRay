@@ -1,4 +1,5 @@
 #include "Reservoir.hlsli"
+#include "../Common/Common.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
 #include "../Common/GBuffers.hlsli"
@@ -61,7 +62,7 @@ half3 MissShading(float3 wo)
 {
 	Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
-	float2 thetaPhi = Common::SphericalFromCartesian(wo);
+	float2 thetaPhi = Math::SphericalFromCartesian(wo);
 
 	float2 uv = float2(thetaPhi.y * ONE_DIV_TWO_PI, thetaPhi.x * ONE_DIV_PI);
 	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
@@ -139,7 +140,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = Common::EncodeUnitNormalAsHalf2(normal);
+		surface.ShadingNormal = Math::Encoding::EncodeUnitNormalAsHalf2(normal);
 		surface.MatID = (uint16_t) (packedMeshData & 0xffff);
 		surface.T = (half) rayQuery.CommittedRayT();
 
@@ -239,7 +240,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
-	float3 normal = Common::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
+	float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
 
 	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
 		return 0.0.xxx;
@@ -333,7 +334,7 @@ Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in fl
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
 		//ret.Normal = INVALID_SAMPLE_NORMAL;
-		ret.Normal = Common::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
+		ret.Normal = Math::Encoding::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
 		ret.RayT = (half) t;
 	}
 	
@@ -363,7 +364,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
-	if (!Common::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 		return;
 
 	// retrieve the 2x2 neighborhood reservoirs around reprojected pixel
@@ -376,7 +377,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	prevDepths = Common::ComputeLinearDepthReverseZ(prevDepths, g_frame.CameraNear);
+	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
 
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -389,7 +390,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	[unroll]
 	for (int j = 0; j < 4; j++)
 	{
-		prevPos[j] = Common::WorldPosFromUV(prevUVs[j], prevDepths[j], g_frame.TanHalfFOV, g_frame.AspectRatio,
+		prevPos[j] = Math::Transform::WorldPosFromUV(prevUVs[j], prevDepths[j], g_frame.TanHalfFOV, g_frame.AspectRatio,
 			g_frame.PrevViewInv);
 	}
 	
@@ -418,7 +419,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	{
 		uint2 prevPixel = uint2(topLeft) + offsets[i];
 
-		if (!Common::IsWithinBoundsExc(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
+		if (!Math::IsWithinBoundsExc(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
 			continue;
 		
 		Reservoir prevReservoir = ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, 
@@ -447,7 +448,7 @@ Reservoir DoTemporalResampling(in uint2 DTid, in float3 posW, in float3 normal, 
 	sourcePdf = ONE_DIV_PI;
 #endif		
 
-	const float lum = Common::LuminanceFromLinearRGB(s.Lo);
+	const float lum = Math::Color::LuminanceFromLinearRGB(s.Lo);
 	const float risWeight = lum / max(1e-4f, sourcePdf);
 	
 	r.Update(risWeight, s, rng);
@@ -514,10 +515,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const bool shouldThisLaneTrace = isWithinScreenBounds && (depth != 0);
 	
 	// reconstruct position from depth buffer
-	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Common::WorldPosFromScreenSpace(swizzledDTid,
+	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -525,7 +526,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
 
 	// sample the cosine-weighted hemisphere above pos
 	float3 wi = INVALID_RAY_DIR;
@@ -544,9 +545,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		wi = BRDF::SampleLambertianBrdf(normal, float2(u0, u1), pdf);
 #else
 		wi = Sampling::UniformSampleHemisphere(float2(u0, u1), pdf);
-		float4 q = Common::QuaternionFromY(normal);
+		float4 q = Math::Transform::QuaternionFromY(normal);
 		// transform from local space to world space
-		wi = Common::RotateVector(wi, q);
+		wi = Math::Transform::RotateVector(wi, q);
 #endif
 	}
 	

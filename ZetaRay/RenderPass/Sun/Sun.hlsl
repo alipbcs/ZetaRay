@@ -1,5 +1,4 @@
 #include "../Common/FrameConstants.h"
-#include "../Common/LightSourceFuncs.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/BRDF.hlsli"
@@ -84,10 +83,10 @@ float4 mainPS(VSOut psin) : SV_Target
 	// skip sky pixels
 	clip(depth - 1e-6f);
 	
-	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	
 	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	float3 posW = Common::WorldPosFromScreenSpace(psin.PosSS.xy,
+	float3 posW = Math::Transform::WorldPosFromScreenSpace(psin.PosSS.xy,
 		textureDim, 
 		linearDepth, 
 		g_frame.TanHalfFOV, 
@@ -109,9 +108,9 @@ float4 mainPS(VSOut psin) : SV_Target
 			psin.PosSS.x, psin.PosSS.y, sampleIdx, 3);
 
 	float3 wiLocal = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
-	float4 q = Common::QuaternionFromY(wi);
+	float4 q = Math::Transform::QuaternionFromY(wi);
 	// transform from local space to world space
-	wi = Common::RotateVector(wiLocal, q);
+	wi = Math::Transform::RotateVector(wiLocal, q);
 #endif	
 	
 	const float3 T = ddx(posW);
@@ -125,7 +124,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 	const half2 mr = g_metallicRoughness[psin.PosSS.xy];
 	
-	const float3 shadingNormal = Common::DecodeUnitNormalFromHalf2(encodedNormals.xy);
+	const float3 shadingNormal = Math::Encoding::DecodeUnitNormalFromHalf2(encodedNormals.xy);
 
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];

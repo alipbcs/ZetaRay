@@ -63,7 +63,7 @@ struct Reservoir
 #if INCLUDE_COSINE_TERM_IN_TARGET
 		return this.w_sum / max(1e-6, this.M * Common::LuminanceFromLinearRGB(this.Li) * this.CosTheta);
 #else
-		return this.w_sum / max(1e-6, this.M * Common::LuminanceFromLinearRGB(this.Li));
+		return this.w_sum / max(1e-6, this.M * Math::Color::LuminanceFromLinearRGB(this.Li));
 #endif		
 	}
 	
@@ -91,9 +91,9 @@ struct Reservoir
 		
 #if INCLUDE_COSINE_TERM_IN_TARGET
 		float cosTheta = saturate(dot(wi, normal));
-		float p_q = Common::LuminanceFromLinearRGB(r.Li) * cosTheta;
+		float p_q = Math::Color::LuminanceFromLinearRGB(r.Li) * cosTheta;
 #else
-		float p_q = Common::LuminanceFromLinearRGB(r.Li);
+		float p_q = Math::Color::LuminanceFromLinearRGB(r.Li);
 #endif
 		float p_q_corrected = p_q / jacobianDet;
 		float w = p_q_corrected * r.GetW() * weightedM;
@@ -115,7 +115,7 @@ float JacobianDeterminant(float3 x1_q, float3 x2_q, float3 wi, float3 secondToFi
 {
 	const float3 secondToFirst_q = x1_q - x2_q;
 
-	const float3 normalAtSecondVertex = Common::DecodeUnitNormalFromHalf2(neighborReservoir.SampleNormal);
+	const float3 normalAtSecondVertex = Math::Encoding::DecodeUnitNormalFromHalf2(neighborReservoir.SampleNormal);
 	const float cosPhi2_r = saturate(dot(wi, normalAtSecondVertex));
 	const float cosPhi2_q = saturate(dot(normalize(secondToFirst_q), normalAtSecondVertex));
 

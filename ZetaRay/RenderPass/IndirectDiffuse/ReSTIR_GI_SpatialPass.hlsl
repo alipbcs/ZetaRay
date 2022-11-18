@@ -1,5 +1,5 @@
 #include "Reservoir.hlsli"
-#include "../Common/Common.hlsli"
+#include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
@@ -57,7 +57,7 @@ float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, flo
 float NormalWeight(float3 input, float3 sample, float scale)
 {
 	float cosTheta = dot(input, sample);
-	float angle = Common::ArcCos(cosTheta);
+	float angle = Math::ArcCos(cosTheta);
 	// tolerance angle becomes narrower as more samples are accumulated
 	float tolerance = 0.08726646 + 0.27925268 * scale; // == [5.0, 16.0] degrees 
 	float weight = pow(saturate((tolerance - angle) / tolerance), g_local.NormalExp);
@@ -100,17 +100,17 @@ void DoSpatialResampling(in uint16_t2 DTid, in float3 posW, in float3 normal, in
 		if (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
 			continue;
 		
-		if (Common::IsWithinBoundsExc(samplePosSS, renderDim))
+		if (Math::IsWithinBoundsExc(samplePosSS, renderDim))
 		{
-			const float sampleDepth = Common::ComputeLinearDepthReverseZ(g_currDepth[samplePosSS], g_frame.CameraNear);
-			float3 samplePosW = Common::WorldPosFromScreenSpace(samplePosSS, renderDim,
+			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
+			float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS, renderDim,
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.CurrViewInv);
 			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, posW, biasToleranceScale);
 					
-			const float3 sampleNormal = Common::DecodeUnitNormalFromHalf2(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[samplePosSS]);
 			const float w_n = NormalWeight(normal, sampleNormal, biasToleranceScale);
 
 			const float weight = w_z * w_n;
@@ -171,7 +171,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
 #endif
 
-	if (!Common::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (!Math::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
 	// reconstruct position from depth buffer
@@ -182,10 +182,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	if (depth == 0.0)
 		return;
 
-	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Common::WorldPosFromScreenSpace(swizzledDTid,
+	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -193,7 +193,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
 	
 	Reservoir r = ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);

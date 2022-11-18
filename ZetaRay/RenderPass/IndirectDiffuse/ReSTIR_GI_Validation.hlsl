@@ -1,4 +1,5 @@
 #include "Reservoir.hlsli"
+#include "../Common/Common.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
 #include "../Common/GBuffers.hlsli"
@@ -62,7 +63,7 @@ half3 MissShading(float3 wo)
 {
 	Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
-	float2 thetaPhi = Common::SphericalFromCartesian(wo);
+	float2 thetaPhi = Math::SphericalFromCartesian(wo);
 
 	float2 uv = float2(thetaPhi.y * ONE_DIV_TWO_PI, thetaPhi.x * ONE_DIV_PI);
 	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
@@ -140,7 +141,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = Common::EncodeUnitNormalAsHalf2(normal);
+		surface.ShadingNormal = Math::Encoding::EncodeUnitNormalAsHalf2(normal);
 		surface.MatID = (uint16_t) (packedMeshData & 0xffff);
 		surface.T = (half) rayQuery.CommittedRayT();
 
@@ -240,7 +241,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
-	float3 normal = Common::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
+	float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
 
 	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
 		return 0.0.xxx;
@@ -332,7 +333,7 @@ Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in fl
 		temp.y += g_frame.PlanetRadius;
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
-		ret.Normal = Common::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
+		ret.Normal = Math::Encoding::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
 		ret.RayT = (half) t;
 	}
 	
@@ -349,16 +350,16 @@ Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
-	if (!Common::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 	{
 		Reservoir r = Reservoir::Init();
 		return r;
 	}
 
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float prevDepth = Common::ComputeLinearDepthReverseZ(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
+	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
 	
-	const float3 prevPos = Common::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
+	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
 			g_frame.PrevViewInv);
 	
 	const float planeDist = dot(currNormal, prevPos - currPos);
@@ -386,8 +387,8 @@ void Validate(in Sample s, in float3 posW, inout Reservoir r, inout RNG rng)
 	const float currHitDistSq = s.RayT * s.RayT;
 	const float relativeRayTChange = abs(currHitDistSq - reservoirHitDistSq) / max(currHitDistSq, g_frame.RayOffset);
 	
-	const float sl = Common::LuminanceFromLinearRGB(s.Lo);
-	const float rl = Common::LuminanceFromLinearRGB(r.Li);
+	const float sl = Math::Color::LuminanceFromLinearRGB(s.Lo);
+	const float rl = Math::Color::LuminanceFromLinearRGB(r.Li);
 	const float relativeRadianceChange = abs(sl - rl) / max(sl, 1e-4);
 	
 	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
@@ -482,10 +483,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	bool reservoirValid = isWithinScreenBounds && (depth != 0);
 	
 	// reconstruct position
-	const float linearDepth = Common::ComputeLinearDepthReverseZ(depth, g_frame.CameraNear);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Common::WorldPosFromScreenSpace(swizzledDTid,
+	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -493,7 +494,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Common::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
 
 	Reservoir r = SampleTemporalReservoir(swizzledDTid, posW, normal);
 	

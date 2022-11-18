@@ -1,4 +1,5 @@
 #include "../Common/Common.hlsli"
+#include "../Common/Math.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/Material.h"
@@ -56,7 +57,7 @@ GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalne
 	
 	psout.BaseColor = baseColor;
 	psout.EmissiveCurv = half4(emissive, surfaceSpreadAngle);
-	psout.Normal.xy = Common::EncodeUnitNormalAsHalf2(sn);
+	psout.Normal.xy = Math::Encoding::EncodeUnitNormalAsHalf2(sn);
 	psout.MetallicRoughness = half2(metalness, roughness);
 	psout.MotionVec = motionVec;
 
@@ -81,7 +82,7 @@ VSOut mainVS(VSIn vsin)
 	// W^T (3x4) = g_instance.CurrWorld
 	// (W^-1)^T = (W^T)^-1   (assuming W is invertible)
 	// (W^T)^-1 = (g_instance.CurrWorld)^-1
-	float3x3 worldInvT = Common::Inverse(((float3x3) g_instance.CurrWorld));
+	float3x3 worldInvT = Math::Inverse(((float3x3) g_instance.CurrWorld));
 	
 	vsout.PosW = posW;
 	vsout.PosSS = posH;
@@ -125,10 +126,6 @@ GBUFFER_OUT mainPS(VSOut psin)
 	half metalness = half(mat.MetallicFactor);
 	half roughness = half(mat.RoughnessFactor);
 
-	// minimum Alpha Cutoff is set to MIN_ALPHA_CUTOFF (== 0.01f)
-	// so mat.BaseColorTexture.w < MIN_ALPHA_CUTOFF means this pixel does
-	// not correspond to any surface on the scene
-
 	if (mat.BaseColorTexture != -1)
 	{
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture];
@@ -152,7 +149,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 		float2 bumpNormal = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 		//float3 bumpNormal = g_normalMap.Sample(g_samAnisotropicWrap, psin.TexUV);
 
-		shadingNormal = Common::TangentSpaceNormalToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
+		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
 	}
 	
 	if (mat.MetallicRoughnessTexture != -1)
@@ -181,8 +178,8 @@ GBUFFER_OUT mainPS(VSOut psin)
 	currUnjitteredPosNDC -= g_frame.CurrCameraJitter;
 
 	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
-	float2 prevPosTS = Common::UVFromNDC(prevUnjitteredPosNDC);
-	float2 currPosTS = Common::UVFromNDC(currUnjitteredPosNDC);
+	float2 prevPosTS = Math::Transform::UVFromNDC(prevUnjitteredPosNDC);
+	float2 currPosTS = Math::Transform::UVFromNDC(currUnjitteredPosNDC);
 	float2 motionVecTS = currPosTS - prevPosTS;
 
 	// eq. (31) in Ray Tracing Gems 1, ch. 20
@@ -200,7 +197,6 @@ GBUFFER_OUT mainPS(VSOut psin)
 	                                half2(motionVecTS),
 									half(phi));
 
-	
 //	psout.Normal = float4(psin.NormalW * mat.NormalScale, psout.Albedo.a - mat.AlphaCuttoff);
 //	psout.Normal = float3(0.5f * psin.NormalW * mat.NormalScale + 0.5f);
 			

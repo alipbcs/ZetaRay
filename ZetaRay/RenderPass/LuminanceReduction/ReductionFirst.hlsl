@@ -1,5 +1,5 @@
 #include "Reduction_Common.h"
-#include "../Common/Common.hlsli"
+#include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
 
 //--------------------------------------------------------------------------------------
@@ -32,7 +32,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
 	if (isInBounds)
 	{
 		const float3 val = g_input[DTid.xy].rgb;
-		const float lum = max(Common::LuminanceFromLinearRGB(val), 1e-5f);
+		const float lum = max(Math::Color::LuminanceFromLinearRGB(val), 1e-5f);
 		logLum = log(lum);
 	}
 
