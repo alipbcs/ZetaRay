@@ -475,7 +475,7 @@ void SceneCore::AddEnvLightSource(const Filesystem::Path& p) noexcept
 	pathToPatches.ToParent();
 	pathToPatches.Append(name);
 
-	m_sceneRenderer.SetEnvLightSource(pathToEnvMap, pathToPatches);
+	//m_sceneRenderer.SetEnvLightSource(pathToEnvMap, pathToPatches);
 }
 
 float4x3 SceneCore::GetToWorld(uint64_t id) noexcept

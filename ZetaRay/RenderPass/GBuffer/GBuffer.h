@@ -95,16 +95,6 @@ namespace ZetaRay::RenderPass
 		D3D12_CPU_DESCRIPTOR_HANDLE m_descriptors[SHADER_IN_DESC::COUNT] = { 0 };
 		ID3D12PipelineState* m_pso = nullptr;
 
-		inline static const char* OUTPUTS[(int)GBufferPass::SHADER_OUT::COUNT] =
-		{
-			"GBufferPass/BASE_COLOR",
-			"GBufferPass/NORMAL",
-			"GBufferPass/METALLIC_ROUGHNESS",
-			"GBufferPass/MOTION_VECTOR",
-			"GBufferPass/EMISSIVE_COLOR",
-			"GBufferPass/DEPTH"
-		};
-
 		// TODO: instead of fixed path, get the assets directory from the app
 		inline static const char* COMPILED_VS[] = { "GBuffer_vs.cso" };
 		inline static const char* COMPILED_PS[] = { "GBuffer_ps.cso" };

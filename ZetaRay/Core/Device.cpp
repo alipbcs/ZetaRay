@@ -1,6 +1,7 @@
 #include "../Utility/Error.h"
 #include "Device.h"
 #include "Constants.h"
+#include "../Win32/Win32Common.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -44,9 +45,7 @@ void DeviceObjects::InitializeAdapter() noexcept
 	DXGI_ADAPTER_DESC2 desc;
 	CheckHR(m_dxgiAdapter->GetDesc2(&desc));
 
-	int size = WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, nullptr, 0, nullptr, nullptr);
-	Assert(size < sizeof(m_deviceName), "buffer overflow");
-	WideCharToMultiByte(CP_UTF8, 0, desc.Description, -1, m_deviceName, size, nullptr, nullptr);
+	Win32::WideToCharStr(desc.Description, m_deviceName);
 }
 
 void DeviceObjects::CreateDevice() noexcept

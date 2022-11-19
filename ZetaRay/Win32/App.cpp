@@ -307,23 +307,26 @@ namespace ZetaRay::AppImpl
 
 		g_pApp->m_frameMotion.dt = (float)g_pApp->m_timer.GetElapsedTime();
 
+		float scale = g_pApp->m_inMouseWheelMove ? g_pApp->m_inMouseWheelMove * 20 : 1.0f;
+		scale = g_pApp->m_frameMotion.Acceleration.z != 0 || g_pApp->m_frameMotion.Acceleration.x != 0 ?
+			fabsf(scale) : scale;
+
 		// 'W'
-		if (g_pApp->m_inMouseWheelMove || GetAsyncKeyState(0x57) & (1 << 16))
+		if (g_pApp->m_inMouseWheelMove || (GetAsyncKeyState(0x57) & (1 << 16)))
 			g_pApp->m_frameMotion.Acceleration.z = 1;
 		// 'A'
 		if (GetAsyncKeyState(0x41) & (1 << 16))
 			g_pApp->m_frameMotion.Acceleration.x = -1;
 		// 'S'
-		if (GetAsyncKeyState(0x53) & (1 << 16))
+		if (!g_pApp->m_inMouseWheelMove && (GetAsyncKeyState(0x53) & (1 << 16)))
 			g_pApp->m_frameMotion.Acceleration.z = -1;
 		// 'D'
 		if (GetAsyncKeyState(0x44) & (1 << 16))
 			g_pApp->m_frameMotion.Acceleration.x = 1;
 
 		g_pApp->m_frameMotion.Acceleration.normalize(); 
-		g_pApp->m_frameMotion.Acceleration *= g_pApp->m_inMouseWheelMove ? g_pApp->m_cameraAcceleration * 20 * g_pApp->m_inMouseWheelMove : g_pApp->m_cameraAcceleration;
+		g_pApp->m_frameMotion.Acceleration *= g_pApp->m_cameraAcceleration * scale;
 		g_pApp->m_inMouseWheelMove = 0;
-
 		g_pApp->m_camera.Update(g_pApp->m_frameMotion);
 
 		g_pApp->m_scene.Update(g_pApp->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);

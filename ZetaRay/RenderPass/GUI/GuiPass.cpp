@@ -42,7 +42,7 @@ namespace
 				float v = fp.m_val;
 
 				auto flags = (int)ImGuiSliderFlags_NoInput;
-				if ((fp.m_max - fp.m_min) / fp.m_min >= 1000.0f)
+				if ((fp.m_max - fp.m_min) / std::max(fp.m_min, 1e-6f) >= 1000.0f)
 					flags |= ImGuiSliderFlags_Logarithmic;
 
 				if(ImGui::SliderFloat(param.GetName(), &v, fp.m_min, fp.m_max, "%.5f", flags))

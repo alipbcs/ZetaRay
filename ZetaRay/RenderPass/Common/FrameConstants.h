@@ -47,8 +47,8 @@ namespace ZetaRay
 		//
 		uint32_t BaseColorMapsDescHeapOffset;
 		uint32_t NormalMapsDescHeapOffset;
-		uint32_t EmissiveMapsDescHeapOffset;
 		uint32_t MetalnessRoughnessMapsDescHeapOffset;
+		uint32_t EmissiveMapsDescHeapOffset;
 		//
 		// SkyDome
 		// 

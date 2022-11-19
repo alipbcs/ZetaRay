@@ -35,7 +35,7 @@ struct GBUFFER_OUT
 	half2 Normal : SV_Target1;
 	half2 MetallicRoughness : SV_Target2;
 	half2 MotionVec : SV_Target3;
-	half4 EmissiveCurv : SV_Target4;
+	half4 Emissive : SV_Target4;
 };
 
 //--------------------------------------------------------------------------------------
@@ -51,15 +51,16 @@ StructuredBuffer<Material> g_materials : register(t0, space0);
 //--------------------------------------------------------------------------------------
 
 GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, half roughness,
-	half2 motionVec, half surfaceSpreadAngle)
+	half2 motionVec)
 {
 	GBUFFER_OUT psout;
 	
 	psout.BaseColor = baseColor;
-	psout.EmissiveCurv = half4(emissive, surfaceSpreadAngle);
+	psout.Emissive = half4(emissive, 1);
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormalAsHalf2(sn);
 	psout.MetallicRoughness = half2(metalness, roughness);
 	psout.MotionVec = motionVec;
+	//psout.Curvature = surfaceSpreadAngle;
 
 	return psout;
 }
@@ -183,7 +184,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 	float2 motionVecTS = currPosTS - prevPosTS;
 
 	// eq. (31) in Ray Tracing Gems 1, ch. 20
-	float phi = length(ddx(shadingNormal) + ddy(shadingNormal));
+	//float phi = length(ddx(shadingNormal) + ddy(shadingNormal));
 	
 //	float3 T = ddx(psin.PosW);
 //	float3 B = ddy(psin.PosW);
@@ -194,8 +195,7 @@ GBUFFER_OUT mainPS(VSOut psin)
 									shadingNormal,
 									metalness,
 	                                roughness,
-	                                half2(motionVecTS),
-									half(phi));
+	                                half2(motionVecTS));
 
 //	psout.Normal = float4(psin.NormalW * mat.NormalScale, psout.Albedo.a - mat.AlphaCuttoff);
 //	psout.Normal = float3(0.5f * psin.NormalW * mat.NormalScale + 0.5f);

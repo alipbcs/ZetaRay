@@ -24,7 +24,7 @@ void LightManager::Init(const RenderSettings& settings, LightManagerData& data) 
 
 	DXGI_FORMAT rtvFormats[1] = { LightManagerData::HDR_LIGHT_ACCUM_FORMAT };
 	
-	// sun light
+	// sun
 	{
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 			1,
@@ -112,13 +112,8 @@ void LightManager::Shutdown(LightManagerData& data) noexcept
 	data.EmissiveAliasTable.Reset();
 	data.EmissiveTrianglesBuff.Reset();
 	data.EmissiveTriangles.free();
-	//data.EnvLightTex.Reset();
-	//data.EnvMapAliasTableBuffer.Reset();
-	//data.EnvMapPatchBuffer.Reset();
 	data.HdrLightAccumRTV.Reset();
 	data.GpuDescTable.Reset();
-	//data.EnvMapDescTable.Reset();
-	//data.HdrLightAccumUAV.Reset();
 	data.HdrLightAccumTex.Reset();
 	data.CompositingPass.Reset();
 	data.SunLightPass.Reset();
@@ -126,105 +121,9 @@ void LightManager::Shutdown(LightManagerData& data) noexcept
 	data.SkyPass.Reset();
 }
 
-void LightManager::SetEnvMap(LightManagerData& data, const Filesystem::Path& pathToEnvLight, 
-	const Filesystem::Path& pathToPatches) noexcept
-{
-	/*
-	auto& renderer = App::GetRenderer();
-	auto& gpuMem = renderer.GetGpuMemory();
-
-	// load the texture
-	data.EnvLightTex = renderer.GetGpuMemory().GetTextureFromDisk(pathToEnvLight.Get());
-
-	// create the descriptor
-	CreateTexture2DSRV(data.EnvLightTex, data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::ENV_MAP_SRV));
-
-	//
-	// read in the patch info
-	//
-	SmallVector<float> patchProbs;
-
-	{
-		SmallVector<uint8_t> patcheFile;
-		Filesystem::LoadFromFile(pathToPatches.Get(), patcheFile);
-
-		// header
-		const char header[] = "EnvMapPatches";
-		Check(patcheFile.size() > sizeof(header), "Invalid patch file.");
-		Check(strcmp(header, (char*)patcheFile.data()) == 0, "Invalid header");
-
-		uint8_t* ptr = patcheFile.data() + sizeof(header) + 1;
-
-		// patch metadata
-		memcpy(&data.EnvLightDesc.NumPatches, ptr, sizeof(int));
-		ptr += sizeof(int);
-
-		memcpy(&data.EnvLightDesc.Pdf, ptr, sizeof(float));
-		ptr += sizeof(float);
-
-		memcpy(&data.EnvLightDesc.dPhi, ptr, sizeof(float));
-		ptr += sizeof(float);
-
-		Check(data.EnvLightDesc.NumPatches < LightManagerData::MAX_NUM_ENV_LIGHT_PATCHES,
-			"Number of patches exceeded maximum allowed.");
-
-		// patch array
-		EnvMapPatch patches[LightManagerData::MAX_NUM_ENV_LIGHT_PATCHES];
-		memcpy(patches, ptr, data.EnvLightDesc.NumPatches * sizeof(EnvMapPatch));
-		patchProbs.resize(data.EnvLightDesc.NumPatches);
-
-		for (uint32_t i = 0; i < data.EnvLightDesc.NumPatches; i++)
-		{
-			patchProbs[i] = patches[i].Prob;
-		}
-
-#ifdef _DEBUG
-		float cdf = 0.0f;
-
-		for (uint32_t i = 0; i < data.EnvLightDesc.NumPatches; i++)
-		{
-			cdf += patches[i].Prob;
-		}
-
-		Assert(fabs(1.0f - cdf) < 1e-6f, "Invalid probability distribution function.");
-#endif // _DEBUG
-
-		// copy the patch data to a GPU buffer
-		data.EnvMapPatchBuffer = gpuMem.GetDefaultHeapBufferAndInit(SceneRenderer::ENV_LIGHT_PATCH_BUFFER,
-			sizeof(EnvMapPatch) * data.EnvLightDesc.NumPatches,
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, false, patches);
-	}
-
-	// alias table
-	{
-		//Vector<AliasTableEntry> aliasTable;
-		//Math::BuildAliasTableNormalized(ZetaMove(patchProbs), aliasTable);
-
-		//data.EnvMapAliasTableBuffer = gpuMem.GetDefaultHeapBufferAndInit(SceneRenderer::ENV_MAP_ALIAS_TABLE,
-		//	sizeof(float) * data.EnvLightDesc.NumPatches,
-		//	D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE, false, aliasTable.begin());
-	}
-
-	auto& r = App::GetRenderer().GetSharedShaderResources();
-
-	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::ENV_LIGHT_PATCH_BUFFER, data.EnvMapPatchBuffer);
-	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::ENV_MAP_ALIAS_TABLE, data.EnvMapAliasTableBuffer);
-	*/
-}
-
-//void LightManager::AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
-//{
-//	data.EmissiveUpdateBatch.emplace_back(LightManagerData::EmissiveTriUpdateInstance{ 
-//		.InstanceID = instanceID,
-//		.Lumen = ZetaMove(lumen) });
-//}
-
 void LightManager::Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
 	const RayTracerData& rayTracerData, LightManagerData& data) noexcept
 {
-	//UpdateEmissiveTriangleBuffers(lightManagerData);
-	//UpdateAnalyticalLightBuffers(data);
-
 	if (settings.Inscattering && !data.SkyPass.IsInscatteringEnabled())
 	{
 		data.SkyPass.SetInscatteringEnablement(true);
@@ -442,158 +341,6 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	// writable to avoid a resource transition
 	renderGraph.AddOutput(lightManagerData.CompositingHandle, RenderGraph::DUMMY_RES::RES_2,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-	/*
-	else
-	{
-		renderGraph.AddInput(lightManagerData.CompositPassHandle,
-			rayTracerData.IndirectDiffusePass.GetOutput(IndirectDiffuse::COLOR).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-	}
-	*/
-}
-/*
-void LightManager::UpdateAnalyticalLightBuffers(LightManagerData& data) noexcept
-{
-	auto& renderer = App::GetRenderer();
-	Scene& scene = App::GetScene();
-
-	if (data.AnalyticalLightBufferIsStale)
-	{
-		size_t numLights = data.AnalyticalLightSources.size();
-		Assert(numLights > 0, "0 light sources");
-
-		data.AnalyticalLightBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(
-			SceneRenderer::ANALYTICAL_LIGHTS_BUFFER_NAME,
-			sizeof(AnalyticalLightSource) * numLights,
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-			false,
-			data.AnalyticalLightSources.begin());
-
-		//Vector<float, 32> probs;
-		//probs.resize(lights.size());
-
-		//for (int i = 0; i < lights.size(); i++)
-		//{
-		//	probs[i] = lights[i].LuminousPower;
-		//}
-
-		//Vector<AliasTableEntry> aliasTable;
-		//Math::BuildAliasTableUnnormalized(ZetaMove(probs), aliasTable);
-
-		//data.AnalyticalAliasTableBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(
-		//	SceneRenderer::ANALYTICAL_LIGHTS_ALIAS_TABLE_BUFFER_NAME,
-		//	sizeof(AliasTableEntry) * aliasTable.size(),
-		//	D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-		//	false,
-		//	aliasTable.begin());
-
-		auto& r = App::GetRenderer().GetSharedShaderResources();
-		r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::ANALYTICAL_LIGHTS_BUFFER_NAME, data.AnalyticalLightBuff);
-		//r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::ANALYTICAL_LIGHTS_ALIAS_TABLE_BUFFER_NAME, data.AnalyticalAliasTableBuff);
-
-		data.AnalyticalLightBufferIsStale = false;
-	}
-}
-*/
-
-// Updates the GPU Buffer that contains all the emissive triangles
-void LightManager::UpdateEmissiveTriangleBuffers(LightManagerData& data) noexcept
-{
-	/*
-	if (data.EmissiveUpdateBatch.empty())
-		return;
-	
-	auto& renderer = App::GetRenderer();
-	Scene& scene = App::GetScene();
-
-	int addedNumTriangles = 0;
-
-	for (auto& e : data.EmissiveUpdateBatch)
-	{
-		addedNumTriangles += (int)e.Lumen.size();
-	}
-
-	const size_t oldNumEmissives = data.EmissiveTriangles.size();
-	const size_t newNumEmissives = addedNumTriangles + data.EmissiveTriangles.size();
-	data.EmissiveTriangles.resize(newNumEmissives);
-
-	size_t currTri = data.EmissiveTriangles.size();
-
-	// for every emissive mesh
-	for (auto& e : data.EmissiveUpdateBatch)
-	{
-		uint64_t meshID = scene.GetMeshIDForInstance(e.InstanceID);
-		MeshData d = scene.GetMeshData(meshID);
-		Material mat = scene.GetMaterial(d.MatID);
-
-		Assert(e.Lumen.size() == (int)(d.NumIndices / 3), "Mimatch between #triangles and corresponding triangle emissive powers");
-
-		// for every triangle of this mesh
-		for (int i = 0; i < e.Lumen.size(); i++)
-		{
-			data.EmissiveTriangles[currTri].DescHeapIdx = d.DescHeapIdx;
-			data.EmissiveTriangles[currTri].PrimitiveIdx = i;
-			data.EmissiveTriangles[currTri].EmissiveMapIdx = mat.EmissiveTexture;
-			data.EmissiveTriangles[currTri].Lumen = e.Lumen[i];
-
-			currTri++;
-		}
-	}
-
-	currTri = oldNumEmissives;
-
-	// for every emissive mesh
-	for (auto& e : data.EmissiveUpdateBatch)
-	{
-		float4x3 W = scene.GetToWorld(e.InstanceID);
-		uint32_t currDescHeapIdx = data.EmissiveTriangles[currTri].DescHeapIdx;
-
-		// for every triangle of that mesh
-		while (data.EmissiveTriangles[currTri].DescHeapIdx == currDescHeapIdx)
-		{
-			data.EmissiveTriangles[currTri].SR = (float3x3)W;
-			data.EmissiveTriangles[currTri].Translation = W.m[3];
-
-			currTri++;
-		}
-	}
-
-	// releases the old buffer (with proper fence)
-	data.EmissiveTrianglesBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(
-		SceneRenderer::EMISSIVE_TRIANGLES_BUFFER_NAME,
-		sizeof(EmissiveTriangle) * newNumEmissives,
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-		false,
-		data.EmissiveTriangles.begin());
-
-	data.EmissiveUpdateBatch.clear();
-	//updates.shrink_to_fit();
-
-	SmallVector<float, GetExcessSize(sizeof(float), alignof(float)), 32> probs;
-	probs.resize(data.EmissiveTriangles.size());
-
-	for (int i = 0; i < data.EmissiveTriangles.size(); i++)
-	{
-		probs[i] = data.EmissiveTriangles[i].Lumen;
-	}
-
-	SmallVector<AliasTableEntry> aliasTable;
-	Math::BuildAliasTableUnnormalized(ZetaMove(probs), aliasTable);
-
-	data.EmissiveAliasTable = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(
-		SceneRenderer::EMISSIVE_TRIANGLES_ALIAS_TABLE_BUFFER_NAME,
-		sizeof(AliasTableEntry) * aliasTable.size(),
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-		false,
-		aliasTable.begin());
-
-	// register the shared resources
-	auto& r = App::GetRenderer().GetSharedShaderResources();
-	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::EMISSIVE_TRIANGLES_BUFFER_NAME, data.EmissiveTrianglesBuff);
-	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::EMISSIVE_TRIANGLES_ALIAS_TABLE_BUFFER_NAME, data.EmissiveAliasTable);
-
-	*/
 }
 
 

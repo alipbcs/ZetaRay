@@ -289,32 +289,12 @@ void SceneRenderer::Shutdown() noexcept
 	m_renderGraph.Shutdown();
 }
 
-//void SceneRenderer::AddEmissiveInstance(uint64_t instanceID, Vector<float, 32>&& lumen) noexcept
-//{
-//	LightManager::AddEmissiveTriangle(m_data->m_lightManagerData, instanceID, ZetaMove(lumen));
-//}
-
-void SceneRenderer::SetEnvLightSource(const Filesystem::Path& pathToEnvLight, const Filesystem::Path& pathToPatches) noexcept
-{
-	LightManager::SetEnvMap(m_data->m_lightManagerData, pathToEnvLight, pathToPatches);
-
-	// fill the frame constants with the desc. heap idx
-	m_data->m_frameConstants.EnvMapDescHeapOffset = m_data->m_lightManagerData.GpuDescTable.GPUDesciptorHeapIndex(
-		LightManagerData::DESC_TABLE::ENV_MAP_SRV);
-}
-
 void SceneRenderer::UpdateFrameConstants() noexcept
 {
 	auto* data = m_data.get();
 
 	const int currIdx = App::GetTimer().GetTotalFrameCount() & 0x1;
-	//data->m_frameConstants.FrameNum = g_i++;
-	//g_i++;
 	data->m_frameConstants.FrameNum = (uint32_t)App::GetTimer().GetTotalFrameCount();
-	//data->m_frameConstants.FrameNum = g_i++;
-
-	//LOG("Frame: %u, g_i: %u\n", (uint32_t)App::GetTimer().GetTotalFrameCount(), g_i);
-
 	data->m_frameConstants.RenderWidth = App::GetRenderer().GetRenderWidth();
 	data->m_frameConstants.RenderHeight = App::GetRenderer().GetRenderHeight();
 	data->m_frameConstants.DisplayWidth = App::GetRenderer().GetDisplayWidth();

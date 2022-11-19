@@ -16,7 +16,7 @@ namespace ZetaRay::RenderPass
 			RTV,
 			DEPTH_BUFFER,
 			BASE_COLOR,
-			NORMAL_CURV,
+			NORMAL,
 			METALNESS_ROUGHNESS,
 			MOTION_VECTOR,
 			EMISSIVE_COLOR,

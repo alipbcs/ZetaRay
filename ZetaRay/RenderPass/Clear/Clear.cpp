@@ -20,8 +20,8 @@ void ClearPass::Clear(CommandList& cmdList) noexcept
 		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::BASE_COLOR],
 			0.0f, 0.0f, 0.0f, 0.0f);
 
-	if (m_descriptors[SHADER_IN_DESC::NORMAL_CURV].ptr)
-		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::NORMAL_CURV],
+	if (m_descriptors[SHADER_IN_DESC::NORMAL].ptr)
+		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::NORMAL],
 			0.0f, 0.0f, 0.0f, 0.0f);
 
 	if (m_descriptors[SHADER_IN_DESC::METALNESS_ROUGHNESS].ptr)

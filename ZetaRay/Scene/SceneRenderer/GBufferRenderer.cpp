@@ -37,8 +37,8 @@ void GBufferRenderer::Init(const RenderSettings& settings, GBufferRendererData& 
 		rtvFormats,
 		RendererConstants::DEPTH_BUFFER_FORMAT);
 
-	if(RendererConstants::USE_REVERSE_Z)
-		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+	// reverse z
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
 
 	data.RenderPasses[0].Init(ZetaMove(psoDesc));
 }
@@ -127,7 +127,7 @@ void GBufferRenderer::CreateGBuffers(GBufferRendererData& data) noexcept
 		}
 	}
 
-	// metallic-roughness
+	// metalness-roughness
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
@@ -237,7 +237,6 @@ void GBufferRenderer::CreateGBuffers(GBufferRendererData& data) noexcept
 		D3D12_CLEAR_VALUE clearValueDepth = {};
 		clearValueDepth.Format = RendererConstants::DEPTH_BUFFER_FORMAT;
 		clearValueDepth.DepthStencil.Depth = RendererConstants::USE_REVERSE_Z ? 0.0f : 1.0f;
-		;
 		clearValueDepth.DepthStencil.Stencil = 0;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC desc{};
@@ -393,7 +392,7 @@ void GBufferRenderer::Update(GBufferRendererData& gbuffData, const LightManagerD
 	// clear the gbuffers
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::BASE_COLOR,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferRendererData::GBUFFER_BASE_COLOR));
-	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::NORMAL_CURV,
+	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::NORMAL,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferRendererData::GBUFFER_NORMAL_CURV));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::METALNESS_ROUGHNESS,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferRendererData::GBUFFER_METALNESS_ROUGHNESS));

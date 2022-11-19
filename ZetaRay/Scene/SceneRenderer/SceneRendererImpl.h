@@ -79,7 +79,7 @@ namespace ZetaRay::Scene
 		Core::DescriptorTable RTVDescTable[2];
 		Core::DescriptorTable DSVDescTable[2];
 
-		static constexpr int MAX_NUM_RENDER_PASSES = 3;
+		static constexpr int MAX_NUM_RENDER_PASSES = 2;
 		int NumRenderPasses = 1;
 
 		RenderPass::GBufferPass RenderPasses[MAX_NUM_RENDER_PASSES];

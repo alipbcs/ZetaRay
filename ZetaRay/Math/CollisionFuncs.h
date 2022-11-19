@@ -392,7 +392,7 @@ namespace ZetaRay::Math
 	{
 		// In general, planes need to be transformed with the inverse-tranpose of a given transformation M
 		// (due to the normal vector). For view-to-world transformation, we know that it only consists
-		// of rotation and translations, therefore:
+		// of rotations and translations, therefore:
 		//		M = R * T
 		//		M = ((R * T)^-1)^T
 		//		M = (T^-1 * R^-1)^T

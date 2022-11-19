@@ -42,13 +42,9 @@ namespace ZetaRay::Scene
 		void Render(Support::TaskSet& ts) noexcept;
 		void Shutdown() noexcept;
 
-		//void AddAnalyticalLightSource(LightSourceType t) noexcept;
-		//void AddEmissiveInstance(uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
-		void SetEnvLightSource(const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
 		void OnWindowSizeChanged() noexcept;
 
 		void DebugDrawRenderGraph() noexcept { m_renderGraph.DebugDrawGraph(); }
-		//RenderGraph& GetRenderGraph() { return m_renderGraph; }
 
 		struct PrivateData;
 
@@ -59,7 +55,6 @@ namespace ZetaRay::Scene
 		void SetIndirectDiffuseEnablement(const Support::ParamVariant& p) noexcept;
 		void SetIndierctDiffuseDenoiser(const Support::ParamVariant& p) noexcept;
 		void SetInscatteringEnablement(const Support::ParamVariant& p) noexcept;
-		//void SetUpscalingMethod(const Support::ParamVariant& p) noexcept;
 		void ModifySunDir(const Support::ParamVariant& p) noexcept;
 		void ModifySunLux(const Support::ParamVariant& p) noexcept;
 		void ModifySunAngularRadius(const Support::ParamVariant& p) noexcept;

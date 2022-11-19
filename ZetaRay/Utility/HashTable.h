@@ -7,10 +7,10 @@ namespace ZetaRay::Util
 {
 	// Open-set addressing with linear probing
 	// 
-	//  - Assumes keys are already hashed; key itself is not stored, only its hash. Consequently,
-	//	  collisions on keys could lead to wrong results. Due to uint64_t hash keys and assuming
-	//    uniform distribution, chances of such collision should be low.
-	//  - Iterators (pointers) are NOT stable; pointer to an earlier found Value might not be valid
+	//  - Assumes keys are already hashed; key itself is not stored, only its hash (uint64_t). Consequently,
+	//	  collisions on keys could lead to wrong results. By using a decent hash function, chances of 
+	//    such collisions should be low.
+	//  - Iterators (pointers) are NOT stable; pointer to an entry found earlier might not be valid
 	//	  anymore due to subsequent insertions and possible resize.
 	//  - Not thread-safe
 	template<typename T>
