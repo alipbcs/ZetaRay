@@ -6,12 +6,24 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Util;
 
-void Win32::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
+int Win32::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
 {
 	int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
 	Assert(str.size() > size, "buffer overflow");
 
 	WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, str.data(), size, nullptr, nullptr);
+
+    return size;
+}
+
+int Win32::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
+{
+    int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
+    Assert(wideStr.size() > size, "buffer overflow");
+
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, wideStr.data(), size);
+
+    return size;
 }
 
 uint8_t Win32::CheckSIMDSupport(uint8_t query) noexcept

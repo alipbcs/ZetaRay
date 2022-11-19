@@ -13,6 +13,7 @@
 
 #pragma warning(disable : 4996) // _CRT_SECURE_NO_WARNINGS
 #pragma warning(disable : 4101) // unreferenced local variable
+#pragma warning(disable : 4190) // for FSR2
 
 // "Move" was defined in OCIdl.h! 
 #define ZetaMove(x) static_cast<std::remove_reference_t<decltype(x)>&&>(x)

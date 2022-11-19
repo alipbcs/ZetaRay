@@ -25,10 +25,10 @@ namespace ZetaRay::RenderPass::FSR2_Internal
 	const Core::Texture& GetUpscaledOutput() noexcept;
 	void Dispatch(Core::CommandList& cmdList, const DispatchParams& params) noexcept;
 
-	FfxErrorCode Fsr2CreateDeviceFunc(FfxFsr2Interface* backendInterface, FfxDevice outDevice);
+	FfxErrorCode Fsr2CreateBackendContext(FfxFsr2Interface* backendInterface, FfxDevice device);
+	FfxErrorCode Fsr2DestroyBackendContext(FfxFsr2Interface* backendInterface);
 	FfxErrorCode Fsr2GetDeviceCapabilities(FfxFsr2Interface* backendInterface,
 		FfxDeviceCapabilities* outDeviceCapabilities, FfxDevice device);
-	FfxErrorCode Fsr2DestroyDevice(FfxFsr2Interface* backendInterface, FfxDevice device);
 	FfxErrorCode Fsr2CreateResource(FfxFsr2Interface* backendInterface,
 		const FfxCreateResourceDescription* resDesc, FfxResourceInternal* outResource);
 	FfxErrorCode Fsr2RegisterResource(FfxFsr2Interface* backendInterface, const FfxResource* inResource,
@@ -39,6 +39,6 @@ namespace ZetaRay::RenderPass::FSR2_Internal
 	FfxErrorCode Fsr2CreatePipeline(FfxFsr2Interface* backendInterface, FfxFsr2Pass pass,
 		const FfxPipelineDescription* psoDesc, FfxPipelineState* outPipeline);
 	FfxErrorCode Fsr2DestroyPipeline(FfxFsr2Interface* backendInterface, FfxPipelineState* pipeline);
-	FfxErrorCode Fsr2ScheduleRenderJob(FfxFsr2Interface* backendInterface, const FfxRenderJobDescription* job);
-	FfxErrorCode Fsr2ExecuteRenderJobs(FfxFsr2Interface* backendInterface, FfxCommandList commandList);
+	FfxErrorCode Fsr2ScheduleGpuJob(FfxFsr2Interface* backendInterface, const FfxGpuJobDescription* job);
+	FfxErrorCode Fsr2ExecuteGpuJobs(FfxFsr2Interface* backendInterface, FfxCommandList commandList);
 }

@@ -97,7 +97,7 @@ namespace
 
 	FSR2_Data* g_fsr2Data = nullptr;
 
-	inline D3D12_RESOURCE_STATES GetD3D12State(FfxResourceStates fsrState) noexcept
+	D3D12_RESOURCE_STATES GetD3D12State(FfxResourceStates fsrState) noexcept
 	{
 		switch (fsrState)
 		{
@@ -114,49 +114,6 @@ namespace
 		default:
 			Assert(false, "Unknown state");
 			return D3D12_RESOURCE_STATE_COMMON;
-		}
-	}
-
-	inline DXGI_FORMAT GetDXGIFormat(FfxSurfaceFormat fmt) noexcept
-	{
-		switch (fmt)
-		{
-		case FFX_SURFACE_FORMAT_UNKNOWN:
-			return DXGI_FORMAT_UNKNOWN;
-		case FFX_SURFACE_FORMAT_R32G32B32A32_TYPELESS:
-			return DXGI_FORMAT_R32G32B32A32_TYPELESS;
-		case FFX_SURFACE_FORMAT_R32G32B32A32_FLOAT:
-			return DXGI_FORMAT_R32G32B32A32_FLOAT;
-		case FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT:
-			return DXGI_FORMAT_R16G16B16A16_FLOAT;
-		case FFX_SURFACE_FORMAT_R32G32_FLOAT:
-			return DXGI_FORMAT_R32G32_FLOAT;
-		case FFX_SURFACE_FORMAT_R32_UINT:
-			return DXGI_FORMAT_R32_UINT;
-		case FFX_SURFACE_FORMAT_R8G8B8A8_TYPELESS:
-			return DXGI_FORMAT_R8G8B8A8_TYPELESS;
-		case FFX_SURFACE_FORMAT_R8G8B8A8_UNORM:
-			return DXGI_FORMAT_R8G8B8A8_UNORM;
-		case FFX_SURFACE_FORMAT_R11G11B10_FLOAT:
-			return DXGI_FORMAT_R11G11B10_FLOAT;
-		case FFX_SURFACE_FORMAT_R16G16_FLOAT:
-			return DXGI_FORMAT_R16G16_FLOAT;
-		case FFX_SURFACE_FORMAT_R16G16_UINT:
-			return DXGI_FORMAT_R16G16_UINT;
-		case FFX_SURFACE_FORMAT_R16_FLOAT:
-			return DXGI_FORMAT_R16_FLOAT;
-		case FFX_SURFACE_FORMAT_R16_UINT:
-			return DXGI_FORMAT_R16_UINT;
-		case FFX_SURFACE_FORMAT_R16_UNORM:
-			return DXGI_FORMAT_R16_UNORM;
-		case FFX_SURFACE_FORMAT_R16_SNORM:
-			return DXGI_FORMAT_R16_SNORM;
-		case FFX_SURFACE_FORMAT_R8_UNORM:
-			return DXGI_FORMAT_R8_UNORM;
-		case FFX_SURFACE_FORMAT_R32_FLOAT:
-			return DXGI_FORMAT_R32_FLOAT;
-		default:
-			return DXGI_FORMAT_UNKNOWN;
 		}
 	}
 
@@ -194,6 +151,51 @@ namespace
 			return "The operation failed because there was not enough memory.";
 
 		return "Unknown error.";
+	}
+
+	DXGI_FORMAT ToDXGIFormat(FfxSurfaceFormat surfaceFormat)
+	{
+		switch (surfaceFormat)
+		{
+		case(FFX_SURFACE_FORMAT_R32G32B32A32_TYPELESS):
+			return DXGI_FORMAT_R32G32B32A32_TYPELESS;
+		case(FFX_SURFACE_FORMAT_R32G32B32A32_FLOAT):
+			return DXGI_FORMAT_R32G32B32A32_FLOAT;
+		case(FFX_SURFACE_FORMAT_R16G16B16A16_FLOAT):
+			return DXGI_FORMAT_R16G16B16A16_FLOAT;
+		case(FFX_SURFACE_FORMAT_R16G16B16A16_UNORM):
+			return DXGI_FORMAT_R16G16B16A16_UNORM;
+		case(FFX_SURFACE_FORMAT_R32G32_FLOAT):
+			return DXGI_FORMAT_R32G32_FLOAT;
+		case(FFX_SURFACE_FORMAT_R32_UINT):
+			return DXGI_FORMAT_R32_UINT;
+		case(FFX_SURFACE_FORMAT_R8G8B8A8_TYPELESS):
+			return DXGI_FORMAT_R8G8B8A8_TYPELESS;
+		case(FFX_SURFACE_FORMAT_R8G8B8A8_UNORM):
+			return DXGI_FORMAT_R8G8B8A8_UNORM;
+		case(FFX_SURFACE_FORMAT_R11G11B10_FLOAT):
+			return DXGI_FORMAT_R11G11B10_FLOAT;
+		case(FFX_SURFACE_FORMAT_R16G16_FLOAT):
+			return DXGI_FORMAT_R16G16_FLOAT;
+		case(FFX_SURFACE_FORMAT_R16G16_UINT):
+			return DXGI_FORMAT_R16G16_UINT;
+		case(FFX_SURFACE_FORMAT_R16_FLOAT):
+			return DXGI_FORMAT_R16_FLOAT;
+		case(FFX_SURFACE_FORMAT_R16_UINT):
+			return DXGI_FORMAT_R16_UINT;
+		case(FFX_SURFACE_FORMAT_R16_UNORM):
+			return DXGI_FORMAT_R16_UNORM;
+		case(FFX_SURFACE_FORMAT_R16_SNORM):
+			return DXGI_FORMAT_R16_SNORM;
+		case(FFX_SURFACE_FORMAT_R8_UNORM):
+			return DXGI_FORMAT_R8_UNORM;
+		case(FFX_SURFACE_FORMAT_R8G8_UNORM):
+			return DXGI_FORMAT_R8G8_UNORM;
+		case(FFX_SURFACE_FORMAT_R32_FLOAT):
+			return DXGI_FORMAT_R32_FLOAT;
+		default:
+			return DXGI_FORMAT_UNKNOWN;
+		}
 	}
 
 	int FindPSO(ID3D12PipelineState* key) noexcept
@@ -445,18 +447,18 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 		g_fsr2Data = new FSR2_Data;
 
 	FfxFsr2Interface fsr2Interface;
-	fsr2Interface.fpCreateDevice = FSR2_Internal::Fsr2CreateDeviceFunc;
-	fsr2Interface.fpCreatePipeline = FSR2_Internal::Fsr2CreatePipeline;
-	fsr2Interface.fpCreateResource = FSR2_Internal::Fsr2CreateResource;
-	fsr2Interface.fpDestroyDevice = FSR2_Internal::Fsr2DestroyDevice;
-	fsr2Interface.fpDestroyPipeline = FSR2_Internal::Fsr2DestroyPipeline;
-	fsr2Interface.fpDestroyResource = FSR2_Internal::Fsr2DestroyResource;
-	fsr2Interface.fpExecuteRenderJobs = FSR2_Internal::Fsr2ExecuteRenderJobs;
+	fsr2Interface.fpCreateBackendContext = FSR2_Internal::Fsr2CreateBackendContext;
 	fsr2Interface.fpGetDeviceCapabilities = FSR2_Internal::Fsr2GetDeviceCapabilities;
-	fsr2Interface.fpGetResourceDescription = FSR2_Internal::Fsr2GetResourceDescription;
+	fsr2Interface.fpDestroyBackendContext = FSR2_Internal::Fsr2DestroyBackendContext;
+	fsr2Interface.fpCreateResource = FSR2_Internal::Fsr2CreateResource;
 	fsr2Interface.fpRegisterResource = FSR2_Internal::Fsr2RegisterResource;
-	fsr2Interface.fpScheduleRenderJob = FSR2_Internal::Fsr2ScheduleRenderJob;
 	fsr2Interface.fpUnregisterResources = FSR2_Internal::Fsr2UnregisterResources;
+	fsr2Interface.fpGetResourceDescription = FSR2_Internal::Fsr2GetResourceDescription;
+	fsr2Interface.fpDestroyResource = FSR2_Internal::Fsr2DestroyResource;
+	fsr2Interface.fpCreatePipeline = FSR2_Internal::Fsr2CreatePipeline;
+	fsr2Interface.fpDestroyPipeline = FSR2_Internal::Fsr2DestroyPipeline;
+	fsr2Interface.fpScheduleGpuJob = FSR2_Internal::Fsr2ScheduleGpuJob;
+	fsr2Interface.fpExecuteGpuJobs = FSR2_Internal::Fsr2ExecuteGpuJobs;
 	fsr2Interface.scratchBuffer = nullptr;
 	fsr2Interface.scratchBufferSize = 0;
 	
@@ -631,7 +633,7 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 
 	const auto& camera = App::GetCamera();
 
-	FfxFsr2DispatchDescription params;
+	FfxFsr2DispatchDescription params{};
 	params.commandList = nullptr;
 	params.color.resource = appParams.Color;
 	params.color.state = FFX_RESOURCE_STATE_COMPUTE_READ;
@@ -651,6 +653,7 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 	params.jitterOffset.x = camera.GetCurrJitter().x;
 	params.jitterOffset.y = camera.GetCurrJitter().y;
 	params.cameraNear = camera.GetNearZ();
+	params.cameraFar = 0.0f;
 	params.cameraFovAngleVertical = camera.GetFOV();
 	params.motionVectorScale.x = -(float)App::GetRenderer().GetRenderWidth();
 	params.motionVectorScale.y = -(float)App::GetRenderer().GetRenderHeight();
@@ -661,7 +664,6 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 	params.preExposure = 1.0f;
 	params.renderSize.width = App::GetRenderer().GetRenderWidth();
 	params.renderSize.height = App::GetRenderer().GetRenderHeight();
-	params.cameraFar = 0.0f;
 
 	g_fsr2Data->m_reset = false;
 
@@ -680,7 +682,12 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 	}
 }
 
-FfxErrorCode FSR2_Internal::Fsr2CreateDeviceFunc(FfxFsr2Interface* backendInterface, FfxDevice outDevice)
+FfxErrorCode FSR2_Internal::Fsr2CreateBackendContext(FfxFsr2Interface* backendInterface, FfxDevice device)
+{
+	return FFX_OK;
+}
+
+FfxErrorCode FSR2_Internal::Fsr2DestroyBackendContext(FfxFsr2Interface* backendInterface)
 {
 	return FFX_OK;
 }
@@ -702,11 +709,6 @@ FfxErrorCode FSR2_Internal::Fsr2GetDeviceCapabilities(FfxFsr2Interface* backendI
 	outDeviceCapabilities->waveLaneCountMin = options1.WaveLaneCountMin;
 	outDeviceCapabilities->waveLaneCountMax = options1.WaveLaneCountMax;
 
-	return FFX_OK;
-}
-
-FfxErrorCode FSR2_Internal::Fsr2DestroyDevice(FfxFsr2Interface* backendInterface, FfxDevice device)
-{
 	return FFX_OK;
 }
 
@@ -745,7 +747,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		uint8_t textureFlags = 0;
 		textureFlags = allowUAV ? textureFlags | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS : textureFlags;
 		textureFlags = allowRT ? textureFlags | TEXTURE_FLAGS::ALLOW_RENDER_TARGET : textureFlags;
-		const DXGI_FORMAT fmt = GetDXGIFormat(resDesc->resourceDescription.format);
+		//const DXGI_FORMAT fmt = GetDXGIFormat(resDesc->resourceDescription.format);
 
 		if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
 		{
@@ -762,6 +764,9 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		}
 		else if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_TEXTURE2D)
 		{
+			const DXGI_FORMAT fmt = ToDXGIFormat(resDesc->resourceDescription.format);
+			Assert(fmt != DXGI_FORMAT_UNKNOWN, "Invalid Texture2D format.");
+
 			if (resDesc->initData)
 			{
 				g_fsr2Data->m_textures[resDesc->id] = gpuMem.GetTexture2DAndInit(resName, resDesc->resourceDescription.width,
@@ -786,7 +791,9 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		}
 		else if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_TEXTURE3D)
 		{
+			const DXGI_FORMAT fmt = ToDXGIFormat(resDesc->resourceDescription.format);
 			Assert(!resDesc->initData, "Initializing Texture3D from CPU side is not supported.");
+			Assert(fmt != DXGI_FORMAT_UNKNOWN, "Invalid Texture2D format.");
 
 			g_fsr2Data->m_textures[resDesc->id] = gpuMem.GetTexture3D(resName,
 				resDesc->resourceDescription.width,
@@ -934,12 +941,11 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	flags |= (FSR2_Data::FLAGS & FFX_FSR2_ENABLE_MOTION_VECTORS_JITTER_CANCELLATION) ? FSR2_SHADER_PERMUTATION_JITTER_MOTION_VECTORS : 0;
 	flags |= (FSR2_Data::FLAGS & FFX_FSR2_ENABLE_DEPTH_INVERTED) ? FSR2_SHADER_PERMUTATION_DEPTH_INVERTED : 0;
 	//flags |= (pass == FFX_FSR2_PASS_ACCUMULATE_SHARPEN) ? FSR2_SHADER_PERMUTATION_ENABLE_SHARPENING : 0;
-	flags |= FSR2_SHADER_PERMUTATION_LANCZOS_LUT;
+	flags |= FSR2_SHADER_PERMUTATION_USE_LANCZOS_TYPE;
 	flags |= FSR2_SHADER_PERMUTATION_ALLOW_FP16;
 
 	// load shader blob
-	Fsr2ShaderBlobDX12 shaderBlob = { };
-	CheckFSR(fsr2GetPermutationBlobByIndex(pass, flags, &shaderBlob));
+	Fsr2ShaderBlobDX12 shaderBlob = fsr2GetPermutationBlobByIndex(pass, flags);
 	Assert(shaderBlob.data && shaderBlob.size > 0, "Retrieving FSR2 shader failed.");
 
 	// static samplers
@@ -1067,8 +1073,11 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	for (uint32_t srvIndex = 0; srvIndex < outPipeline->srvCount; ++srvIndex)
 	{
 		outPipeline->srvResourceBindings[srvIndex].slotIndex = shaderBlob.boundSRVResources[srvIndex];
-		memcpy(outPipeline->srvResourceBindings[srvIndex].name, shaderBlob.boundSRVResourceNames[srvIndex],
-			strlen(shaderBlob.boundSRVResourceNames[srvIndex]));
+
+		wchar_t buff[128];
+		Win32::CharToWideStr(shaderBlob.boundSRVResourceNames[srvIndex], buff);
+
+		wcscpy_s(outPipeline->srvResourceBindings[srvIndex].name, buff);
 
 		maxSrvSlot = std::max(maxSrvSlot, (int)shaderBlob.boundSRVResources[srvIndex]);
 	}
@@ -1081,8 +1090,11 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	for (uint32_t uavIndex = 0; uavIndex < outPipeline->uavCount; ++uavIndex)
 	{
 		outPipeline->uavResourceBindings[uavIndex].slotIndex = shaderBlob.boundUAVResources[uavIndex];
-		memcpy(outPipeline->uavResourceBindings[uavIndex].name, shaderBlob.boundUAVResourceNames[uavIndex], 
-			strlen(shaderBlob.boundUAVResourceNames[uavIndex]));
+
+		wchar_t buff[128];
+		Win32::CharToWideStr(shaderBlob.boundUAVResourceNames[uavIndex], buff);
+
+		wcscpy_s(outPipeline->uavResourceBindings[uavIndex].name, buff);
 
 		maxUavSlot = std::max(maxUavSlot, (int)shaderBlob.boundUAVResources[uavIndex]);
 	}
@@ -1093,8 +1105,11 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	for (uint32_t cbIndex = 0; cbIndex < outPipeline->constCount; ++cbIndex)
 	{
 		outPipeline->cbResourceBindings[cbIndex].slotIndex = shaderBlob.boundCBVResources[cbIndex];
-		memcpy(outPipeline->cbResourceBindings[cbIndex].name, shaderBlob.boundCBVResourceNames[cbIndex], 
-			strlen(shaderBlob.boundCBVResourceNames[cbIndex]));
+
+		wchar_t buff[128];
+		Win32::CharToWideStr(shaderBlob.boundCBVResourceNames[cbIndex], buff);
+
+		wcscpy_s(outPipeline->cbResourceBindings[cbIndex].name, buff);
 	}
 
 	// check if the PSO already exists in the PSO lib
@@ -1116,15 +1131,15 @@ FfxErrorCode FSR2_Internal::Fsr2DestroyPipeline(FfxFsr2Interface* backendInterfa
 	return FFX_OK;
 }
 
-FfxErrorCode FSR2_Internal::Fsr2ScheduleRenderJob(FfxFsr2Interface* backendInterface,
-	const FfxRenderJobDescription* job)
+FfxErrorCode FSR2_Internal::Fsr2ScheduleGpuJob(FfxFsr2Interface* backendInterface,
+	const FfxGpuJobDescription* job)
 {
 	switch (job->jobType)
 	{
-	case FFX_RENDER_JOB_CLEAR_FLOAT:
+	case FFX_GPU_JOB_CLEAR_FLOAT:
 		RecordClearJob(job->clearJobDescriptor);
 		break;
-	case FFX_RENDER_JOB_COMPUTE:
+	case FFX_GPU_JOB_COMPUTE:
 		RecordComputeJob(job->computeJobDescriptor);
 		break;
 	default:
@@ -1135,7 +1150,7 @@ FfxErrorCode FSR2_Internal::Fsr2ScheduleRenderJob(FfxFsr2Interface* backendInter
 	return FFX_OK;
 }
 
-FfxErrorCode FSR2_Internal::Fsr2ExecuteRenderJobs(FfxFsr2Interface* backendInterface, FfxCommandList commandList)
+FfxErrorCode FSR2_Internal::Fsr2ExecuteGpuJobs(FfxFsr2Interface* backendInterface, FfxCommandList commandList)
 {
 	return FFX_OK;
 }
