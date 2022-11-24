@@ -14,6 +14,7 @@
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
 #define COSINE_WEIGHTED_SAMPLING 0
+#define USE_RAY_CONES 0
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -39,6 +40,9 @@ struct HitSurface
 	half2 ShadingNormal;
 	uint16_t MatID;
 	half T;
+#if USE_RAY_CONES
+	half Lambda;
+#endif
 };
 
 #if RAY_BINNING
@@ -46,6 +50,10 @@ groupshared uint g_binOffset[NUM_BINS];
 groupshared uint g_binIndex[NUM_BINS];
 groupshared float3 g_sortedOrigin[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
 groupshared float3 g_sortedDir[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
+#endif
+
+#if USE_RAY_CONES
+groupshared RT::RayCone g_sortedRayCones[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
 #endif
 
 //--------------------------------------------------------------------------------------
@@ -98,7 +106,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
+bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out HitSurface surface)
 {
 	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
@@ -144,13 +152,21 @@ bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
 		surface.MatID = (uint16_t) (packedMeshData & 0xffff);
 		surface.T = (half) rayQuery.CommittedRayT();
 
+#if USE_RAY_CONES		
+		float ndotwo = saturate(dot(normal, -wi));
+		
+		rayCone.Update(rayQuery.CommittedRayT(), 0);
+		float lambda = rayCone.ComputeLambda(V0.PosL, V1.PosL, V2.PosL, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
+		surface.Lambda = half(lambda);
+#endif	
+		
 		return true;
 	}
 
 	return false;
 }
 
-bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo, 
+bool Trace(in uint Gidx, in float3 origin, in float3 dir, in RT::RayCone rayCone, out HitSurface hitInfo,
 	out bool isRayValid, out uint16_t sortedIdx)
 {
 #if RAY_BINNING
@@ -211,12 +227,24 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 	const uint idx = g_binOffset[laneBin] + idxInBin;
 	g_sortedOrigin[idx] = origin;
 	g_sortedDir[idx].xyz = dir;
+
+#if USE_RAY_CONES
+	g_sortedRayCones[idx] = rayCone;
+#endif
+
 	sortedIdx = (uint16_t) idx;
 
 	GroupMemoryBarrierWithGroupSync();
 
 	float3 newOrigin = g_sortedOrigin[Gidx];
 	float3 newDir = g_sortedDir[Gidx].xyz;
+	
+#if USE_RAY_CONES
+	RT::RayCone newRayCone = g_sortedRayCones[Gidx];
+#else
+	RT::RayCone newRayCone = rayCone;
+#endif
+	
 #else	
 	float3 newOrigin = origin;
 	float3 newDir = dir;
@@ -233,7 +261,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 	}
 
 	isRayValid = true;
-	bool hit = FindClosestHit(newOrigin, newDir, hitInfo);
+	bool hit = FindClosestHit(newOrigin, newDir, newRayCone, hitInfo);
 
 	return hit;
 }
@@ -247,22 +275,40 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 	Material mat = g_materials[hitInfo.MatID];
 
+	float mipOffset = g_frame.MipBias;
+	//float mipOffset = 0;
+		
 	half3 baseColor = (half3) mat.BaseColorFactor.rgb;
 	if (mat.BaseColorTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
-		baseColor *= g_baseCol.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).rgb;
+		
+#if USE_RAY_CONES
+		uint w;
+		uint h;
+		g_baseCol.GetDimensions(w, h);
+		mipOffset += RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif	
+		
+		baseColor *= g_baseCol.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).rgb;
 	}
 
 	half metalness = (half) mat.MetallicFactor;
 	if (mat.MetallicRoughnessTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
-
 		// green & blue channels contain roughness & metalness values respectively
-		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).b;
+		METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
+
+#if 0	
+		uint w;
+		uint h;
+		g_metalnessRoughnessMap.GetDimensions(w, h);
+		mipOffset = RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif	
+
+		metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).b;
 	}
 
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
@@ -287,17 +333,24 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 	if (mat.EmissiveTexture != -1)
 	{
-		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);
-		
+		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);	
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-		L_e *= g_emissiveMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).rgb;
+		
+#if 0	
+		uint w;
+		uint h;
+		g_emissiveMap.GetDimensions(w, h);
+		mipOffset = RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif
+		
+		L_e *= g_emissiveMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).rgb;
 	}
 
 	return L_o + L_e;
 }
 
 Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in float3 posW, in float3 normal,
-	in float3 wi, out uint16_t sortedIdx)
+	in float3 wi, in RT::RayCone rayCone, out uint16_t sortedIdx)
 {
 	Sample ret;
 	
@@ -306,7 +359,7 @@ Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in fl
 	HitSurface hitInfo;
 	float3 adjustedOrigin = posW + 5e-3f * normal;		// protect against self-intersection
 
-	bool hit = Trace(Gidx, adjustedOrigin, wi, hitInfo, isRayValid, sortedIdx);
+	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isRayValid, sortedIdx);
 
 	// what's the outgoing radiance from the closest hit point towards wo
 	ret.Lo = 0.0.xxx;
@@ -465,6 +518,7 @@ Reservoir DoTemporalResampling(in uint2 DTid, in float3 posW, in float3 normal, 
 
 static const uint16_t2 GroupDim = uint16_t2(RGI_TEMPORAL_THREAD_GROUP_SIZE_X, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y);
 
+[WaveSize(32)]
 [numthreads(RGI_TEMPORAL_THREAD_GROUP_SIZE_X, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y, RGI_TEMPORAL_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
@@ -527,7 +581,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
-
+	
 	// sample the cosine-weighted hemisphere above pos
 	float3 wi = INVALID_RAY_DIR;
 	float pdf;
@@ -551,8 +605,25 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 #endif
 	}
 	
+#if USE_RAY_CONES
+	// approximate curvature
+	const int laneIdx = WaveGetLaneIndex();
+	const int neighborX = laneIdx & 0x1 ? max(0, laneIdx - 1) : laneIdx + 1;
+	const int neighborY = laneIdx >= 16 ? max(0, laneIdx - 16) : laneIdx + 16;
+	
+	const float3 dNormaldx = laneIdx & 0x1 ? normal - WaveReadLaneAt(normal, neighborX) : WaveReadLaneAt(normal, neighborX) - normal;
+	const float3 dNormaldy = laneIdx >= 16 ? normal - WaveReadLaneAt(normal, neighborY) : WaveReadLaneAt(normal, neighborY) - normal;
+	
+	// eq. (31) in Ray Tracing Gems 1, ch. 20
+	const float phi = length(dNormaldx + dNormaldy);
+
+	RT::RayCone rayCone = RT::RayCone::Init(g_frame.PixelSpreadAngle, phi, linearDepth);
+#else
+	RT::RayCone rayCone = RT::RayCone::Init(g_frame.PixelSpreadAngle, 0, linearDepth);
+#endif	
+	
 	uint16_t sortedIdx;
-	Sample s = ComputeLi(swizzledDTid, Gidx, shouldThisLaneTrace, posW, normal, wi, sortedIdx);
+	Sample s = ComputeLi(swizzledDTid, Gidx, shouldThisLaneTrace, posW, normal, wi, rayCone, sortedIdx);
 	
 #if RAY_BINNING
 	g_sortedOrigin[Gidx] = PackNormalLiRayT(s.Normal, s.Lo, s.RayT);
