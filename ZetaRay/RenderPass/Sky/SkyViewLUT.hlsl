@@ -38,7 +38,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	// rate used for generating this LUT (128 for latitude) can't capture those features, which leads 
 	// to arifacts. To compensate, apply a non-linear transformations that maps more texels to be  
 	// around the horizon. The reverse mapping has to be applied when this LUT is sampled back.
-	// Ref: Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique"
+	// Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 	float s = v >= 0.5f ? 1.0f : -1.0f;
 	float a = v - 0.5f;
 	float theta = a * a * TWO_PI * s + PI_DIV_2;

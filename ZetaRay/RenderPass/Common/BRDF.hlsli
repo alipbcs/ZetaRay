@@ -1,31 +1,30 @@
-//	Refs:
-//	1. "Physically Based Rendering" 3rd Ed.
-//	2. "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs"
-//	3. "Microfacet Models for Refraction through Rough Surfaces"
-//	4. "Sampling the GGX Distribution of Visible Normals"
-//	5. "Crash Course in BRDF Implementation"
+// Refs:
+// 1. M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2016.
+// 2. E. Heitz, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs," Journal of Computer Graphics Techniques, 2014.
+// 3. Walter et al., "Microfacet Models for Refraction through Rough Surfaces," in EGSR'07, 2007.
+// 4. J. Boksansky, "Crash Course in BRDF Implementation," 2021. [Online]. Available: https://boksajak.github.io/blog/BRDF.
 //
-//	In microfacet models, a macrosurface BRDF is designed to match
-//	the aggregate behavior of visible micorsurfaces that constitute that macrosurface.
+// In microfacet models, a macrosurface BRDF is designed to match
+// the aggregate behavior of visible micorsurfaces that constitute that macrosurface.
 //
-//	Microsurfaces can be statistically described by a normal distribution function (NDF),
-//	a shadowing-masking function (G) and a microsurface BRDF that describes how 
-//	each microsurface scatters light. Commonly, a perfect specular (mirror) BRDF is 
-//	assumed for microsurfaces. Furthermore, product of NDF and G gives visible area of 
-//	each microsurface.
+// Microsurfaces can be statistically described by a normal distribution function (NDF),
+// a shadowing-masking function (G) and a microsurface BRDF that describes how 
+// each microsurface scatters light. Commonly, a perfect specular (mirror) BRDF is 
+// assumed for microsurfaces. Furthermore, product of NDF and G gives visible area of 
+// each microsurface.
 //
-//	Therefore, macrosurface BRDF is the integral of contributions of scatterd lights
-//	from individual visible microsurfaces where each microsurface scatters light 
-//	according to its microsurface BRDF (assumed to be perfect mirror). 	
+// Therefore, macrosurface BRDF is the integral of contributions of scatterd lights
+// from individual visible microsurfaces where each microsurface scatters light 
+// according to its microsurface BRDF (assumed to be perfect mirror). 	
 //
-//	Solving above gives the macrosruface BRDF as:
+// Solving above gives the macrosruface BRDF as:
 //		f(p, wi, wo) = (F(wo, h) * NDF(h) * G(wi, wo, h)) / (4 * |n.wi| * |n.wo|)
 //
 //		where h is the half vector: h = normalize(wi + wo)
 //
-//	Finally, a choice for NDF and G functions needs to be made (G is dependant on chosen NDF).
-//	Here GGX normal distribution with height-correlated Smith shadowing-masking function
-//	is used.
+// Finally, a choice for NDF and G functions needs to be made (G is dependant on chosen NDF).
+// Here GGX normal distribution with height-correlated Smith shadowing-masking function
+// is used.
 
 #ifndef BRDF_H
 #define BRDF_H
@@ -37,8 +36,9 @@ namespace BRDF
 {
 	//--------------------------------------------------------------------------------------
 	// Fresnel
+	//--------------------------------------------------------------------------------------
 	// Note: original Schlick's approximation:
-	// R(theta) = R0 + (1 - R0)(1 - cos(theta))^5
+	//		R(theta) = R0 + (1 - R0)(1 - cos(theta))^5
 	// Gives reflectivity for a given wavlength (a scalar) given the following assumptions:
 	//	1. Surface is dielectric
 	//	2. eta1 (incoming material) < eta2 (outgoing material) (from less dense to denser)
@@ -83,7 +83,7 @@ namespace BRDF
 		return 2.0f / (sqrt((alphaSq * (1.0f - cosTheta2) / cosTheta2) + 1.0f) + 1.0f);
 	}
 
-	// Ref: "Moving Frostbite to Physically Based Rendering"
+	// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 	// G2 is shadowing-masking function
 	// (4.0 * ndotl * ndotv) is moved from BRDF to G2 since it can be simplified
 	// G2			= 1 / (1 + SmithG1ForGGX(theta = v) + SmithG1ForGGX(theta = l))
@@ -96,7 +96,7 @@ namespace BRDF
 		return 0.5f / (GGXLambdaV + GGXLambdaL);
 	}
 
-	// Ref: "Implementing a Simple Anisotropic Rough Diffuse Material with Stochastic Evaluation" eq. (9)
+	// Ref: E. Heitz and J. Dupuy, "Implementing a Simple Anisotropic Rough Diffuse Material with Stochastic Evaluation," 2015.
 	float SmithHeightCorrelatedG2OverG1(float alphaSq, float ndotwi, float ndotwo)
 	{
 		float G1wi = SmithG1ForGGX(alphaSq, ndotwi);
@@ -242,7 +242,7 @@ namespace BRDF
 		return surfaceInteraction.F * NDF * G2Div4NdotLNdotV * surfaceInteraction.ndotwi;
 	}
 
-	// Ref: Sampling the GGX Distribution of Visible Normals
+	// Ref: E. Heitz, "Sampling the GGX Distribution of VisibleNormals," Journal of Computer Graphics Techniques, 2018.
 	// Samples half vector in a coordinates system where z is aligned with shading normal
 	// Input wo: view direction
 	// Input alpha_x, alpha_y: roughness parameters

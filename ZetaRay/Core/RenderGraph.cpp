@@ -1,3 +1,6 @@
+// Some of the ideas in this implementation were Inspired by following: 
+// https://levelup.gitconnected.com/organizing-gpu-work-with-directed-acyclic-graphs-f3fd5f2c2af3
+
 #include "RenderGraph.h"
 #include "Renderer.h"
 #include "Direct3DHelpers.h"

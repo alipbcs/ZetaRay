@@ -14,7 +14,7 @@
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
 #define TOLERABLE_RELATIVE_RADIANCE_CHANGE 0.2
-#define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.15
+#define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.35
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -159,7 +159,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 	// ray-binning: find the number of directions that fall into each bin
 	//
 
-	// Ref: Cigolle et al, Survey of Efficient Representations for Independent Unit Vectors, JCGT, 2014
+	// Ref: Cigolle et al, "Survey of Efficient Representations for Independent Unit Vectors," Journal of Computer Graphics Techniques, 2014.
 	float2 proj = dir.xz / (abs(dir.x) + abs(dir.y) + abs(dir.z));
 	proj = (dir.y <= 0.0f) ? ((1.0f - abs(proj.yx)) * SignNotZero(proj)) : proj;
 
@@ -382,14 +382,18 @@ Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
 
 void Validate(in Sample s, in float3 posW, inout Reservoir r, inout RNG rng)
 {
+	// TODO not sure what's the best way to do this -- there are either 
+	// false positives or false negatives
 	const float3 d = r.SamplePos - posW;
-	const float reservoirHitDistSq = dot(d, d);
-	const float currHitDistSq = s.RayT * s.RayT;
-	const float relativeRayTChange = abs(currHitDistSq - reservoirHitDistSq) / max(currHitDistSq, g_frame.RayOffset);
+	const float reservoirHitDist = sqrt(dot(d, d));
+	const float currHitDist = s.RayT;
+	float dt2 = abs(currHitDist - reservoirHitDist);
+	dt2 *= dt2;
+	const float relativeRayTChange = saturate(dt2 / max(currHitDist, g_frame.RayOffset));
 	
 	const float sl = Math::Color::LuminanceFromLinearRGB(s.Lo);
 	const float rl = Math::Color::LuminanceFromLinearRGB(r.Li);
-	const float relativeRadianceChange = abs(sl - rl) / max(sl, 1e-4);
+	const float relativeRadianceChange = sl == 0.0 ? saturate(abs(sl - rl)) : saturate(abs(sl - rl) / max(sl, 1e-4));
 	
 	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
 	{

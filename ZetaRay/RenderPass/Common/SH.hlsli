@@ -24,7 +24,7 @@ static const float LAMBDA_LxCOS_THETA_SH[11] =
 
 //--------------------------------------------------------------------------------------
 // Basis Functions in Cartesian Form
-// Ref: "Stupid Spherical Harmonics (SH) Tricks", Appendix A2
+// Ref: P. Sloan, "Stupid Spherical Harmonics (SH) Tricks," 2008.
 //--------------------------------------------------------------------------------------
 
 //

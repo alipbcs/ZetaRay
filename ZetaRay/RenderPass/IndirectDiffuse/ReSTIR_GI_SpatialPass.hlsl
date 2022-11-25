@@ -6,6 +6,12 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
+// following two have a noticeable impact on both quality and performance -- lower
+// values can lead to low-frequency noise but is more cache friendly, whereas
+// higher values lead to cache thrashing but get rid of the noise
+#define SAMPLE_RADIUS_1ST 28
+#define SAMPLE_RADIUS_2ND 16
+
 static const float2 k_halton[16] =
 {
 	float2(0.0, -0.33333333333333337),
@@ -72,15 +78,18 @@ void DoSpatialResampling(in uint16_t2 DTid, in float3 posW, in float3 normal, in
 
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
-	const float searchRadius = g_local.IsFirstPass ? lerp(32, 3, mScale) : 3;
-	float biasToleranceScale = 1.0 - mScale * 0.5;
+	const float searchRadius = g_local.IsFirstPass ? SAMPLE_RADIUS_1ST : SAMPLE_RADIUS_2ND;
+
+	//float biasToleranceScale = 1.0 - mScale * 0.5;
+	float biasToleranceScale = max(1.0 - mScale * mScale, 0.5);
 	biasToleranceScale = g_local.IsFirstPass ? biasToleranceScale : biasToleranceScale * 2.0f;
 	
 	const float u0 = rng.RandUniform();
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
-	const int numIterations = g_local.IsFirstPass ? 8 : 4;
+	// number of samples impacts both quality and performance
+	const int numIterations = g_local.IsFirstPass ? 8 : 6;
 	const float3 x1_r = posW;	// q -> reused path, r -> current pixel's path
 
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -90,16 +99,22 @@ void DoSpatialResampling(in uint16_t2 DTid, in float3 posW, in float3 normal, in
 	{
 		// rotate sample sequence
 		float2 sampleLocalXZ = k_halton[baseOffset + i];
-		sampleLocalXZ *= searchRadius;
 		float2 rotatedXZ;
 		rotatedXZ.x = dot(sampleLocalXZ, float2(cosTheta, -sinTheta));
 		rotatedXZ.y = dot(sampleLocalXZ, float2(sinTheta, cosTheta));
-		
-		int2 samplePosSS = DTid + rotatedXZ * searchRadius;
-		
-		if (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
-			continue;
-		
+		float2 relativeSamplePos = rotatedXZ * searchRadius;
+		const float2 relSamplePosAbs = abs(relativeSamplePos);
+			
+		// make sure sampled pixel isn't pixel itself
+		if (relSamplePosAbs.x <= 0.5f && relSamplePosAbs.y <= 0.5f)
+		{
+			relativeSamplePos = relSamplePosAbs.x > relSamplePosAbs.y ?
+				float2(sign(relativeSamplePos.x) * (0.5f + 1e-5f), relativeSamplePos.y) :
+				float2(relativeSamplePos.x, sign(relativeSamplePos.y) * (0.5f + 1e-5f));
+		}
+
+		const int2 samplePosSS = round(float2(DTid) + relativeSamplePos);
+	
 		if (Math::IsWithinBoundsExc(samplePosSS, renderDim))
 		{
 			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);

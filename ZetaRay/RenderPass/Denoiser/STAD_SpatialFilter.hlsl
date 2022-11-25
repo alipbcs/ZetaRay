@@ -7,8 +7,11 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 0
+#define WORLD_SPACE_SAMPLING 0
+#define MIN_SAMPLE_RADIUS 3
+#define MAX_SAMPLE_RADIUS 32
 
-// Ref: Christensen et al, "Progressive multi-jittered sample sequences"
+// Ref: Christensen et al, "Progressive multi-jittered sample sequences," Computer Graphics Forum, 2018.
 static const float2 k_pmjbn[] =
 {
 	float2(0.1638801546617692, 0.2880264570633905),
@@ -21,7 +24,7 @@ static const float2 k_pmjbn[] =
 	float2(-0.46900909265281177, 0.49429306245906046)
 };
 
-// for sample (x, y) where -0.5 <= x, y <= 0.5, sqrt(x^2 + y^2) gives distance from (0, 0)
+// precomputed distance from (0, 0) for each sample point above
 static const float k_sampleDist[] =
 {
 	0.3313848896079218,
@@ -60,24 +63,30 @@ StructuredBuffer<uint> g_rankingTile : register(t2, space0);
 // Edge-stopping functions and other helpers
 //--------------------------------------------------------------------------------------
 
-float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float scale)
+float EdgeStoppingGeometry(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float scale)
 {
 	float planeDist = dot(currNormal, samplePos - currPos);
 	
 	// lower the tolerance as more samples are accumulated
-	float tolerance = g_local.MaxPlaneDist * scale;
-	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-4f));
+	//float tolerance = g_local.MaxPlaneDist * scale;
+	float tolerance = g_local.MaxPlaneDist;
+	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-6f));
 	
 	return weight;
 }
 
-float NormalWeight(float3 input, float3 sample, float scale)
+float EdgeStoppingNormal(float3 input, float3 sample, float scale)
 {
 	float cosTheta = dot(input, sample);
-	float angle = Math::ArcCos(cosTheta);
+	
+#if 0
+	float angle = Math::ArcCos(abs(cosTheta));
 	// tolerance angle becomes narrower as more samples are accumulated
-	float tolerance = 0.08726646 + 0.7853981f * scale; // == [5.0, 46.0] degrees 
+	float tolerance = 0.08726646 + 0.7853981f * scale; // == [5.0, 46.0] degrees
 	float weight = pow(saturate((tolerance - angle) / tolerance), g_local.NormalExp);
+#else	
+	float weight = pow(saturate(cosTheta), g_local.NormalExp);
+#endif
 	
 	return weight;
 }
@@ -102,7 +111,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
+	Texture2D<half4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
 
 	// 1 / 32 <= x <= 1
 	const float oneSubAccSpeed = (g_local.MaxTspp - tspp + 1.0f) / (float) g_local.MaxTspp;
@@ -116,7 +125,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 
 	// as tspp goes up, radius becomes smaller and vice versa
 	//const float radiusScale = sqrt(oneSubAccSpeed);
-	const float kernelRadius = g_local.FilterRadiusBase * g_local.FilterRadiusScale;
+	//const float kernelRadius = g_local.FilterRadiusBase * g_local.FilterRadiusScale;
 	
 	RNG rng = RNG::Init(DTid, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
 	const float u0 = rng.RandUniform();
@@ -133,28 +142,31 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 	{
 		// rotate
 		float2 sampleLocalXZ = k_pmjbn[i];
-		sampleLocalXZ *= kernelRadius;
 		float2 rotatedXZ;
 		rotatedXZ.x = dot(sampleLocalXZ, float2(cosTheta, -sinTheta));
 		rotatedXZ.y = dot(sampleLocalXZ, float2(sinTheta, cosTheta));
-		
+
+#if WORLD_SPACE_SAMPLING		
+		sampleLocalXZ *= g_local.FilterRadiusBase;
+
 		// local coord. system XYZ where Y points in the surface normal direction.
 		// map from that to world space, then project and compute the corresponding UV
 		float3 samplePosW;
 		float2 samplePosUV = GetWorldPosUVFromSurfaceLocalCoord(pos, normal, rotatedXZ, samplePosW);
-		//int2 samplePosSS = (int2) round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
-				
+		//float2 samplePosSS = round(samplePosUV * float2(g_frame.RenderWidth, g_frame.RenderHeight));
+		//samplePosSS = round(samplePosSS - 0.5f);
+		
 		if (Math::IsWithinBoundsInc(samplePosUV, 1.0f.xx))
 		{
 			float sampleDepth = g_currDepth.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
 			sampleDepth = Math::Transform::LinearDepthFromNDC(sampleDepth, g_frame.CameraNear);
-			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
+			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
 					
 			float2 encodedNormal = g_currNormal.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(encodedNormal);
 			//const float normalToleranceScale = saturate(oneSubAccSpeed * 16.0f);
 			const float normalToleranceScale = 1.0f;
-			const float w_n = NormalWeight(normal, sampleNormal, normalToleranceScale);
+			const float w_n = EdgeStoppingNormal(normal, sampleNormal, normalToleranceScale);
 					
 			const float3 sampleColor = g_inTemporalCache.SampleLevel(g_samPointClamp, samplePosUV, 0.0f).rgb;
 			//const float3 sampleColor = (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y) ? 0.0.xxx : float3(0.1f, 0.0f, 0.0f);
@@ -163,12 +175,54 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 			weightedColor += weight * sampleColor;
 			weightSum += weight;
 		}
+#else
+		const float filterRadiusScale = smoothstep(1.0 / 32.0, 1.0, accSpeed);
+		const float filterRadius = lerp(MAX_SAMPLE_RADIUS, MIN_SAMPLE_RADIUS, filterRadiusScale) * g_local.FilterRadiusScale;
+		float2 relativeSamplePos = rotatedXZ * filterRadius;
+		const float2 relSamplePosAbs = abs(relativeSamplePos);
+		
+		// make sure sampled pixel isn't pixel itself
+		if (relSamplePosAbs.x <= 0.5f && relSamplePosAbs.y <= 0.5f)
+		{
+			relativeSamplePos = relSamplePosAbs.x > relSamplePosAbs.y ?
+				float2(sign(relativeSamplePos.x) * (0.5f + 1e-5f), relativeSamplePos.y) :
+				float2(relativeSamplePos.x, sign(relativeSamplePos.y) * (0.5f + 1e-5f));
+		}
+	
+		const int2 samplePosSS = round((float2) DTid + relativeSamplePos);
+
+		if (Math::IsWithinBoundsExc(samplePosSS, (int2) renderDim))
+		{
+			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
+			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS, renderDim,
+				sampleDepth,
+				g_frame.TanHalfFOV,
+				g_frame.AspectRatio,
+				g_frame.CurrViewInv);
+			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
+					
+			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[samplePosSS]);
+			const float normalToleranceScale = 1.0f;
+			const float w_n = EdgeStoppingNormal(normal, sampleNormal, normalToleranceScale);
+					
+			const float3 sampleColor = g_inTemporalCache[samplePosSS].rgb;
+
+			const float weight = w_z * w_n * k_gaussian[i];
+			weightedColor += weight * sampleColor;
+			weightSum += weight;
+		}
+#endif
 	}
 	
 	float3 filtered = weightSum > 1e-3 ? weightedColor / weightSum : 0.0.xxx;
 	float s = weightSum > 1e-3 ? accSpeed : 0.0f;
 	
-	s = min(s, 0.8f);
+#if WORLD_SPACE_SAMPLING
+	s = min(s, 0.75f);
+#else
+	s = min(s, 0.01f);
+#endif
+	
 	filtered = lerp(filtered, centerColor, s);
 	
 	return filtered;
@@ -221,11 +275,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	if (depth == 0.0)
 		return;
 
-	// integrated data
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
 	float4 integratedVals = g_inTemporalCache[swizzledDTid];
 	
-	// current frame's normals
+	// current frame's normal
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[swizzledDTid].xy);
 		

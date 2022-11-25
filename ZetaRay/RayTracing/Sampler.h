@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../Core/ZetaRay.h"
 #include "../Core/GpuMemory.h"
 
 namespace ZetaRay::RT
@@ -12,7 +11,7 @@ namespace ZetaRay::RT
 		inline static const char* SCRAMBLING_TILE = "ScramblingTile";
 		inline static const char* RANKING_TILE = "RankingTile";
 
-		// Ref: "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space", Heitz et al.
+		// Ref: Heitz et al., "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
 		void InitLowDiscrepancyBlueNoise() noexcept;
 		void Clear() noexcept;
 

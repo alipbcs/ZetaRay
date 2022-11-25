@@ -174,7 +174,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, in RT::RayCone rayCone
 	// ray-binning: find the number of directions that fall into each bin
 	//
 
-	// Ref: Cigolle et al, Survey of Efficient Representations for Independent Unit Vectors, JCGT, 2014
+	// Ref: Cigolle et al, "Survey of Efficient Representations for Independent Unit Vectors," Journal of Computer Graphics Techniques, 2014.
 	float2 proj = dir.xz / (abs(dir.x) + abs(dir.y) + abs(dir.z));
 	proj = (dir.y <= 0.0f) ? ((1.0f - abs(proj.yx)) * SignNotZero(proj)) : proj;
 

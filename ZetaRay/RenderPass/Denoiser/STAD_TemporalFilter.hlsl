@@ -175,10 +175,15 @@ void Integrate(in uint2 DTid, in float3 pos, in float3 normal, inout uint tspp, 
 		
 	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
 	tspp = min(tspp + 1, g_local.MaxTspp);
+	
+	// TODO come up with a better way to incorporate reservoir data into denoiser -- the following
+	// approach prevents convergence for more complicated geometry
+#if 0
 	// TODO improve, temporal lag is still noticeable
 	float tsppAdjustment = saturate(r.M / MAX_TEMPORAL_M);
 	tsppAdjustment *= tsppAdjustment;
-	tspp = max(1, round(half(tspp) * tsppAdjustment));
+	//tspp = max(1, round(half(tspp) * tsppAdjustment));
+#endif
 	
 	// use linear weights rather than exponential weights, which comparatively give a higher weight 
 	// to initial samples right after disocclusion

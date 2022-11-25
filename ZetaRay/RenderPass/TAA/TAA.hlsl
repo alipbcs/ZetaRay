@@ -1,4 +1,11 @@
+// Refs:
+// 1. L. Yang, S. Liu, and M. Salvi, "A Survey of Temporal Antialiasing Techniques," Computer Graphics Forum, 2020.
+// 2. https://github.com/TheRealMJP/MSAAFilter
+// 3. https://alextardif.com/TAA.html
+// 4. https://www.elopezr.com/temporal-aa-and-the-quest-for-the-holy-trail/
+
 #include "TAA_Common.h"
+#include "../Common/Math.hlsli"
 #include "../Common/Common.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
@@ -18,7 +25,7 @@ ConstantBuffer<cbTAA> g_local : register(b1);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-// Ref: "Physically Based Rendering" 3rd Ed. Chapter 7
+// Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
 float Mitchell1D(in float x, in float B, in float C)
 {
 	x = abs(2.0f * x);
@@ -37,8 +44,7 @@ float Mitchell1D(in float x, in float B, in float C)
 	}
 }
 
-// Ref: "Temporal Reprojection Anti-Aliasing in INSIDE"
-// https://github.com/playdeadgames/temporal
+// Ref: https://github.com/playdeadgames/temporal
 float3 ClipAABB(float3 aabbMin, float3 aabbMax, float3 histSample)
 {
 	float3 center = 0.5f * (aabbMax + aabbMin);
@@ -63,7 +69,7 @@ float3 ClipAABB(float3 aabbMin, float3 aabbMax, float3 histSample)
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Common::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 	
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -102,16 +108,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 				continue;
 			
 			int2 neighborAddrr = DTid.xy + int2(i, j);
-			if (!Common::IsWithinBoundsExc(neighborAddrr, int2(g_frame.RenderWidth, g_frame.RenderHeight)))
+			if (!Math::IsWithinBoundsExc(neighborAddrr, int2(g_frame.RenderWidth, g_frame.RenderHeight)))
 				continue;
 			
 			float3 neighborColor = max(g_currSignal[neighborAddrr].rgb, 0.0.xxx);
 			
-			// Pixel subsamples are jittered every frame; it's been recommended to reconstruct current 
-			// pixel value from the 3x3 neighborhood for better stability (i.e. assumes 3x3 neighborhood are subpixel values).
-			// Ref: "High-Quality Temporal Supersampling"
 			float weight = Mitchell1D(i, 0.33f, 0.33f) * Mitchell1D(j, 0.33f, 0.33f);
-			weight *= 1.0 / (1.0 + Common::LuminanceFromLinearRGB(neighborColor));
+			weight *= 1.0 / (1.0 + Math::Color::LuminanceFromLinearRGB(neighborColor));
 			
 			reconstructed += neighborColor * weight;
 			weightSum += weight;
@@ -121,7 +124,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 			
 			// motion vector signal might be aliased -- prefilter it by selecting the motion vector
 			// of the neighborhood pixel that is closest to the camera.
-			// Ref: "Filmic SMAA Sharp Morphological and Temporal Antialiasing"
 		#if DEPTH_DILATION
 			float neighborDepth = g_depth[neighborAddrr];
 			if (neighborDepth > closestDepth)
@@ -151,7 +153,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float2 prevUV = currUV - motionVec;
 	
 	// no history sample was available
-	if (!Common::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 	{
 		g_antiAliased[DTid.xy] = half4(reconstructed, 0.0h);
 		return;
@@ -176,15 +178,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float3 clippedHistory = ClipAABB(mean - std, mean + std, history);
 	
 	// inverse-luminance filtering
-	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Common::LuminanceFromLinearRGB(reconstructed)));
-	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Common::LuminanceFromLinearRGB(clippedHistory)));
+	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(reconstructed)));
+	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(clippedHistory)));
 	
 //	float3 result = (currWeight * reconstructed + (1.0f - g_local.BlendWeight) * clippedPrevSample) / max(currWeight + prevWeight, 1e-4);
 	float3 result = (currWeight * reconstructed + histWeight * clippedHistory) / (currWeight + histWeight);
 //	float3 result = g_local.BlendWeight * reconstructed + (1.0f - g_local.BlendWeight) * clippedPrevSample;
 	
-	// TODO on rare occasions, result can be NaN. Figure out what's causing it
-	// temporay solution in the meantime -- NaN propagation is avoided at least
+	// TODO on rare occasions, result can be NaN. figure out what's causing it
+	// temporay solution in the meantime; NaN propagation is avoided at least
 	result = isnan(result.x) ? reconstructed : result;
 	
 	g_antiAliased[DTid.xy] = half4(result, 1);

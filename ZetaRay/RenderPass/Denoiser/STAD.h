@@ -114,9 +114,9 @@ namespace ZetaRay::RenderPass
 			static constexpr float BilinearMaxPlaneDist = 0.1f;
 			static constexpr float BilinearNormalScale = 1.4f;
 			static constexpr float BilinearNormalExp = 16.0f;
-			static constexpr float EdgeStoppingMaxPlaneDist = 3.0f;
+			static constexpr float EdgeStoppingMaxPlaneDist = 0.2f;
 			static constexpr float EdgeStoppingNormalExp = 2.0f;
-			static constexpr float FilterRadiusBase = 0.1f;
+			static constexpr float FilterRadiusBase = 0.05f;
 		};
 
 		// all the shaders use the same root signature
@@ -141,9 +141,9 @@ namespace ZetaRay::RenderPass
 		// parameter callbacks
 		void MaxTSPPCallback(const Support::ParamVariant& p) noexcept;
 		void BilinearMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
+		//void BilinearNormalScaleCallback(const Support::ParamVariant& p) noexcept;
+		//void BilinearNormalExpCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
-		void BilinearNormalScaleCallback(const Support::ParamVariant& p) noexcept;
-		void BilinearNormalExpCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingNormalExpCallback(const Support::ParamVariant& p) noexcept;
 		void NumSpatialFilterPassesCallback(const Support::ParamVariant& p) noexcept;
 		void SpatialFilterCallback(const Support::ParamVariant& p) noexcept;
@@ -153,7 +153,7 @@ namespace ZetaRay::RenderPass
 		inline static const char* COMPILED_CS[(int)SHADERS::COUNT] =
 		{
 			"STAD_TemporalFilter_cs.cso",
-			"STAD_AdaptiveSpatialFilter_cs.cso"
+			"STAD_SpatialFilter_cs.cso"
 		};
 	};
 }

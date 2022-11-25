@@ -191,7 +191,7 @@ void STAD::Render(CommandList& cmdList) noexcept
 
 	if (m_doSpatialFilter)
 	{
-		computeCmdList.PIXBeginEvent("STAD_AdaptiveSpatialFilter");
+		computeCmdList.PIXBeginEvent("STAD_SpatialFilter");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_FILTER]);
 
@@ -335,30 +335,30 @@ void STAD::InitParams() noexcept
 		1e-2f);										// step
 	App::AddParam(bilinearMaxPlaneDist);
 
-	ParamVariant bilinearNormalScale;
-	bilinearNormalScale.InitFloat("Renderer", "STAD", "BilinearNormalScale",
-		fastdelegate::MakeDelegate(this, &STAD::BilinearNormalScaleCallback),
-		DefaultParamVals::BilinearNormalScale,		// val	
-		1.0f,										// min
-		5.0f,										// max
-		0.1f);										// step
-	App::AddParam(bilinearNormalScale);
+	//ParamVariant bilinearNormalScale;
+	//bilinearNormalScale.InitFloat("Renderer", "STAD", "BilinearNormalScale",
+	//	fastdelegate::MakeDelegate(this, &STAD::BilinearNormalScaleCallback),
+	//	DefaultParamVals::BilinearNormalScale,		// val	
+	//	1.0f,										// min
+	//	5.0f,										// max
+	//	0.1f);										// step
+	//App::AddParam(bilinearNormalScale);
 
-	ParamVariant bilinearNormalExp;
-	bilinearNormalExp.InitFloat("Renderer", "STAD", "BilinearNormalExp",
-		fastdelegate::MakeDelegate(this, &STAD::BilinearNormalExpCallback),
-		DefaultParamVals::BilinearNormalExp,		// val	
-		16.0f,										// min
-		128.0f,										// max
-		1.0f);										// step	
-	App::AddParam(bilinearNormalExp);
+	//ParamVariant bilinearNormalExp;
+	//bilinearNormalExp.InitFloat("Renderer", "STAD", "BilinearNormalExp",
+	//	fastdelegate::MakeDelegate(this, &STAD::BilinearNormalExpCallback),
+	//	DefaultParamVals::BilinearNormalExp,		// val	
+	//	16.0f,										// min
+	//	128.0f,										// max
+	//	1.0f);										// step	
+	//App::AddParam(bilinearNormalExp);
 
 	ParamVariant edgeStoppingNormalExp;
 	edgeStoppingNormalExp.InitFloat("Renderer", "STAD", "EdgeStoppingNormalExp",
 		fastdelegate::MakeDelegate(this, &STAD::EdgeStoppingNormalExpCallback),
 		DefaultParamVals::EdgeStoppingNormalExp,		// val	
 		1.0f,											// min
-		32.0f,											// max
+		8.0f,											// max
 		1.0f);											// step
 	App::AddParam(edgeStoppingNormalExp);
 
@@ -366,8 +366,8 @@ void STAD::InitParams() noexcept
 	edgeStoppingPlaneDist.InitFloat("Renderer", "STAD", "EdgeStoppingMaxPlaneDist",
 		fastdelegate::MakeDelegate(this, &STAD::EdgeStoppingMaxPlaneDistCallback),
 		DefaultParamVals::EdgeStoppingMaxPlaneDist,	// val	
-		1e-1f,										// min
-		50.0f,										// max
+		1e-2f,										// min
+		1.0f,										// max
 		1e-1f);										// step
 	App::AddParam(edgeStoppingPlaneDist);
 
@@ -385,7 +385,7 @@ void STAD::InitParams() noexcept
 		fastdelegate::MakeDelegate(this, &STAD::FilterRadiusBaseCallback),
 		DefaultParamVals::FilterRadiusBase,			// val	
 		1e-3f,										// min
-		10.0f,										// max
+		1.0f,										// max
 		1e-3f);										// step
 	App::AddParam(baseRadius);
 
@@ -409,19 +409,19 @@ void STAD::BilinearMaxPlaneDistCallback(const ParamVariant& p) noexcept
 	m_cbTemporalFilter.MaxPlaneDist = p.GetFloat().m_val;
 }
 
+//void STAD::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
+//{
+//	m_cbTemporalFilter.BilinearNormalScale = p.GetFloat().m_val;
+//}
+//
+//void STAD::BilinearNormalExpCallback(const ParamVariant& p) noexcept
+//{
+//	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
+//}
+
 void STAD::EdgeStoppingMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbSpatialFilter.MaxPlaneDist = p.GetFloat().m_val;
-}
-
-void STAD::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
-{
-	m_cbTemporalFilter.BilinearNormalScale = p.GetFloat().m_val;
-}
-
-void STAD::BilinearNormalExpCallback(const ParamVariant& p) noexcept
-{
-	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
 }
 
 void STAD::EdgeStoppingNormalExpCallback(const ParamVariant& p) noexcept
@@ -461,6 +461,6 @@ void STAD::ReloadSpatialFilter() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_FILTER;
 
-	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_AdaptiveSpatialFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_SpatialFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

@@ -446,7 +446,7 @@ namespace Math
 			return dot(half3(0.2126h, 0.7152h, 0.0722h), linearRGB);
 		}
 		
-		// Ref: "Moving Frostbite to Physically Based Rendering"
+		// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 		float3 LinearTosRGB(float3 color)
 		{
 			float3 sRGBLo = color * 12.92;
@@ -457,7 +457,7 @@ namespace Math
 			return sRGB;
 		}
 
-		// Ref: "Moving Frostbite to Physically Based Rendering"
+		// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 		float3 sRGBToLinear(float3 color)
 		{
 			float3 linearRGBLo = color / 12.92f;

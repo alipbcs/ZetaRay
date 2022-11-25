@@ -1,9 +1,9 @@
 #ifndef VOLUMETRIC_H
 #define VOLUMETRIC_H
 
-// References:
-// 1. Physically Based Rendering 2rd Ed.
-// 2. A Scalable and Production Ready Sky and Atmosphere Rendering Technique, EGSR 2020
+// Refs:
+// 1. M. Pharr and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2010.
+// 2. S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 // 3. https://github.com/Fewes/MinimalAtmosphere
 
 #include "Math.hlsli"
@@ -96,7 +96,7 @@ namespace Volumetric
 		return length(pos) - planetRadius;
 	}
 
-	// Ref: "Real-time Collision Detection", section 5.3.2
+	// Ref: C. Ericson, Real-time Collision Detection, Morgan Kaufmann, 2005.
 	float IntersectRayAtmosphere(float radius, float3 rayOrigin, float3 rayDir)
 	{
 		// center is assumed to be (0, 0, 0)

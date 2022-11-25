@@ -160,8 +160,8 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr float MaxPlaneDist = 0.5f;
-			static constexpr float NormalExp = 1.2f;
+			static constexpr float MaxPlaneDist = 0.35f;
+			static constexpr float NormalExp = 2.0f;
 			static constexpr int ValidationPeriod = 0;
 		};
 

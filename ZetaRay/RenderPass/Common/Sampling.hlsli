@@ -4,8 +4,6 @@
 #include "Math.hlsli"
 
 //--------------------------------------------------------------------------------------
-// RNG
-//
 // Refs: 
 // https://www.reedbeta.com/blog/quick-and-easy-gpu-random-numbers-in-d3d11/
 // https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
@@ -206,7 +204,7 @@ namespace Sampling
 	//--------------------------------------------------------------------------------------
 	// Blue noise sampler
 	//
-	// Ref: "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space"
+	// Ref: Heitz et al., "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
 	//--------------------------------------------------------------------------------------
 
 	// This is for 32 samples per-pixel

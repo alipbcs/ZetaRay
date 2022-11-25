@@ -41,7 +41,7 @@ namespace RT
 		return normalize(posV);
 	}
 
-	// Ref: "Ray Tracing Gems 1, Chapter 6"
+	// Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
 	// Geometric Normal points outward for rays exiting the surface, else should be flipped.
 	float3 OffsetRayRTG(in float3 p, in float3 geometricNormal)
 	{
@@ -62,7 +62,7 @@ namespace RT
 				  abs(p.z) < origin ? p.z + float_scale * geometricNormal.z : p_i.z);
 	}
 
-	// Ref: "Ray Tracing Gems - Chapter 20"
+	// Ref: T. Akenine-Moller et al., "Texture Level of Detail Strategies for Real-Time Ray Tracing", in Ray Tracing Gems 1, 2019.
 	// Usage (Starting from GBuffer (primary hit)):
 	//		1. surfaceSpreadAngle = GetSurfaceSpreadAngleFromGBuffer()
 	//		2. RayCone rc = Init()

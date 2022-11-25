@@ -72,7 +72,7 @@ namespace ZetaRay::Scene
 
 		struct Defaults
 		{		
-			// Ref: "A Scalable and Production Ready Sky and Atmosphere Rendering Technique", EGSR 2020
+			// Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 			inline static constexpr Math::float3 SIGMA_S_RAYLEIGH = Math::float3(5.802f, 13.558f, 33.1f) * 1e-3f;	// 1 / km
 			inline static constexpr float SIGMA_S_MIE = 3.996f * 1e-3f;		// Mie scattering is not wavelength-dependant
 			inline static constexpr float SIGMA_A_MIE = 4.4f * 1e-3f;

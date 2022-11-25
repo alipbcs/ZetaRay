@@ -126,7 +126,7 @@ void ReSTIR_GI::Init() noexcept
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI::MaxPlaneDistCallback),
 		DefaultParamVals::MaxPlaneDist,		// val	
 		1e-2f,								// min
-		10.0f,								// max
+		1.0f,								// max
 		1e-2f);								// step
 	App::AddParam(paramMaxPlaneDist);
 
@@ -135,7 +135,7 @@ void ReSTIR_GI::Init() noexcept
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI::NormalExpCallback),
 		DefaultParamVals::NormalExp,		// val	
 		1.0f,								// min
-		32.0f,								// max
+		8.0f,								// max
 		1.0f);								// step
 	App::AddParam(normalExp);
 
@@ -144,7 +144,7 @@ void ReSTIR_GI::Init() noexcept
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI::ValidationPeriodCallback),
 		DefaultParamVals::ValidationPeriod,		// val	
 		0,										// min
-		16,										// max
+		10,										// max
 		1);										// step
 	App::AddParam(validationT);
 

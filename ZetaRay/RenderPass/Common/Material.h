@@ -80,8 +80,7 @@ namespace ZetaRay
 #endif
 
 #ifdef __cplusplus
-// Ref: Understanding Structured Buffer Performance
-// https://developer.nvidia.com/content/understanding-structured-buffer-performance
+// Ref: https://developer.nvidia.com/content/understanding-structured-buffer-performance
 static_assert((sizeof(ZetaRay::Material)& (16 - 1)) == 0);
 #endif
 

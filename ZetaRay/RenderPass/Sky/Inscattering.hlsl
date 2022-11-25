@@ -1,7 +1,5 @@
-#include "../Common/Common.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/LightSourceFuncs.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 #include "../Common/RT.hlsli"
 #include "../Common/Sampling.hlsli"

@@ -367,7 +367,7 @@ namespace ZetaRay::Math
 		return insideTri && triBehindRay && (rayTriParralel & 0xf);
 	}
 
-	// Ref: Arvo, James. "Transforming axis-aligned bounding boxes", 1990
+	// Ref: J. Arvo, "Transforming axis-aligned bounding boxes," Graphics Gems, 1990.
 	__forceinline v_AABB __vectorcall transform(const v_float4x4 M, const v_AABB& aabb) noexcept
 	{
 		// transform the center
