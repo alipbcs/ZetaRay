@@ -120,6 +120,8 @@ void ReSTIR_GI::Init() noexcept
 	m_cbTemporal.DoTemporalResampling = true;
 	m_cbTemporal.PdfCorrection = m_cbSpatial.PdfCorrection = true;
 	m_cbSpatial.NormalExp = DefaultParamVals::NormalExp;
+	m_cbTemporal.FrameCounter = 0;
+	m_cbTemporal.CheckerboardTracing = false;
 
 	ParamVariant paramMaxPlaneDist;
 	paramMaxPlaneDist.InitFloat("Renderer", "ReSTIR_GI", "MaxPlaneDist",
@@ -160,8 +162,13 @@ void ReSTIR_GI::Init() noexcept
 
 	ParamVariant pdfCorrection;
 	pdfCorrection.InitBool("Renderer", "ReSTIR_GI", "PdfCorrection",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::PdfCorrectionCallback), true);
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
 	App::AddParam(pdfCorrection);
+
+	ParamVariant checkerboard;
+	checkerboard.InitBool("Renderer", "ReSTIR_GI", "CheckerboardTracing",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI::CheckerboardTracingCallback), m_cbTemporal.CheckerboardTracing);
+	App::AddParam(checkerboard);
 
 	App::AddShaderReloadHandler("ReSTIR_GI_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI::ReloadTemporalPass));
 	App::AddShaderReloadHandler("ReSTIR_GI_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI::ReloadSpatialPass));
@@ -225,7 +232,6 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		{
 			computeCmdList.PIXBeginEvent("ReSTIR_GI_Validation");
 			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::VALIDATION]);
-			m_sampleIdx = m_sampleIdx == 0 ? 31 : m_sampleIdx - 1;
 		}
 
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
@@ -235,6 +241,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		m_cbTemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
 		m_cbTemporal.NumGroupsInTile = RGI_TEMPORAL_TILE_WIDTH * m_cbTemporal.DispatchDimY;
 		m_cbTemporal.SampleIndex = m_sampleIdx;
+		m_cbTemporal.FrameCounter = m_internalCounter;
 
 		auto srvAIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV;
 		auto srvBIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV;
@@ -380,10 +387,17 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 	D3D12_RESOURCE_BARRIER outBarriers[] = { barrierA, barrierB, barrierC };
 	computeCmdList.TransitionResource(outBarriers, ZetaArrayLen(outBarriers));
 
+	if (!m_isTemporalReservoirValid)
+		m_isTemporalReservoirValid = !m_cbTemporal.CheckerboardTracing ? true : m_sampleIdx >= 2;
+
 	m_currTemporalReservoirIdx = 1 - m_currTemporalReservoirIdx;
-	m_isTemporalReservoirValid = true;
 	m_validationFrame = m_validationFrame < m_validationPeriod ? m_validationFrame + 1 : 0;
-	m_sampleIdx = (m_sampleIdx + 1) & 31;
+	m_internalCounter = isTraceFrame ? m_internalCounter + 1 : m_internalCounter;
+
+	// 1. don't advance the sample index if this frame was validation
+	// 2. if checkerboarding, advance the sample index every other tracing frame
+	if(isTraceFrame && (!m_cbTemporal.CheckerboardTracing || (m_internalCounter & 0x1)))
+		m_sampleIdx = (m_sampleIdx + 1) & 31;
 }
 
 void ReSTIR_GI::CreateOutputs() noexcept
@@ -464,6 +478,11 @@ void ReSTIR_GI::ValidationPeriodCallback(const Support::ParamVariant& p) noexcep
 void ReSTIR_GI::NormalExpCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbSpatial.NormalExp = p.GetFloat().m_val;
+}
+
+void ReSTIR_GI::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbTemporal.CheckerboardTracing = p.GetBool();
 }
 
 void ReSTIR_GI::ReloadTemporalPass() noexcept

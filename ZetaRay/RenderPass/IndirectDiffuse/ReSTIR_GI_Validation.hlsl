@@ -9,7 +9,7 @@
 #include "../Common/RT.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
-#define INVALID_RAY_DIR 0.0.xxx
+#define INVALID_RAY_DIR 32768.xxx
 #define NUM_BINS 8
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
@@ -227,7 +227,7 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo
 	// don't shade the surface position just yet, defer that to after denoising
 
 	// skip invalid rays
-	if (dot(newDir - INVALID_RAY_DIR, 1) == 0)
+	if (newDir.x == INVALID_RAY_DIR.x)
 	{
 		isRayValid = false;
 		return false;
@@ -297,8 +297,8 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in float3 posW, in float3 normal,
-	in float3 wi, out uint16_t sortedIdx)
+Sample ComputeLi(in uint2 DTid, in uint Gidx, in float3 posW, in float3 normal, in float3 wi, 
+	out uint16_t sortedIdx)
 {
 	Sample ret;
 	
@@ -511,7 +511,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 wi = needValidation ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
 	
 	uint16_t sortedIdx;
-	Sample s = ComputeLi(swizzledDTid, Gidx, needValidation, posW, normal, wi, sortedIdx);
+	Sample s = ComputeLi(swizzledDTid, Gidx, posW, normal, wi, sortedIdx);
 	
 #if RAY_BINNING
 	g_sortedOrigin[Gidx] = PackNormalLiRayT(s.Normal, s.Lo, s.RayT);

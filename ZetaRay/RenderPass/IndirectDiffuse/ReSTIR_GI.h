@@ -171,6 +171,7 @@ namespace ZetaRay::RenderPass
 		int m_validationPeriod = 0;
 		int m_validationFrame = 1;
 		int m_sampleIdx = 0;
+		uint32_t m_internalCounter = 0;
 
 		void DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept;
 		void DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept;
@@ -178,6 +179,7 @@ namespace ZetaRay::RenderPass
 		void MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
 		void ValidationPeriodCallback(const Support::ParamVariant& p) noexcept;
 		void NormalExpCallback(const Support::ParamVariant& p) noexcept;
+		void CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept;
 
 		enum class SHADERS
 		{

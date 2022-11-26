@@ -80,7 +80,7 @@ namespace ZetaRay::Math
 	{
 		// for NaN:
 		//  - sign bit could be 0 or 1
-		//  - all the exponent must be all ones and fraction must be non-zero
+		//  - all the exponent bits must be 1 and the fraction must be non-zero
 
 		// manual bit-cast
 		uint32_t temp;

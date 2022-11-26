@@ -35,10 +35,11 @@ struct cbTemporalPass
 	uint16_t DoTemporalResampling;
 	uint16_t PdfCorrection;
 
-	uint32_t SampleIndex;
-};
+	uint32_t FrameCounter;
 
-//static constexpr int q = sizeof(cbTemporalPass);
+	uint16_t SampleIndex;
+	uint16_t CheckerboardTracing;
+};
 
 struct cbSpatialPass
 {

@@ -9,7 +9,7 @@
 #include "../Common/RT.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
-#define INVALID_RAY_DIR 0.0.xxx
+#define INVALID_RAY_DIR 32768.xxx
 #define NUM_BINS 8
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
@@ -248,13 +248,14 @@ bool Trace(in uint Gidx, in float3 origin, in float3 dir, in RT::RayCone rayCone
 #else	
 	float3 newOrigin = origin;
 	float3 newDir = dir;
+	RT::RayCone newRayCone = rayCone;
 #endif	
 
 	// compute the incoming radiance from wi
 	// don't shade the surface position just yet, defer that to after denoising
 
 	// skip invalid rays
-	if (dot(newDir - INVALID_RAY_DIR, 1) == 0)
+	if (newDir.x == INVALID_RAY_DIR.x)
 	{
 		isRayValid = false;
 		return false;
@@ -349,17 +350,17 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in float3 posW, in float3 normal,
-	in float3 wi, in RT::RayCone rayCone, out uint16_t sortedIdx)
+Sample ComputeLi(in uint2 DTid, in uint Gidx, in float3 posW, in float3 normal, in float3 wi, 
+	in RT::RayCone rayCone, out uint16_t sortedIdx)
 {
 	Sample ret;
 	
 	// trace a ray along wi to find closest surface point
-	bool isRayValid;
+	bool isSortedRayValid;
 	HitSurface hitInfo;
 	float3 adjustedOrigin = posW + 5e-3f * normal;		// protect against self-intersection
 
-	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isRayValid, sortedIdx);
+	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isSortedRayValid, sortedIdx);
 
 	// what's the outgoing radiance from the closest hit point towards wo
 	ret.Lo = 0.0.xxx;
@@ -373,7 +374,7 @@ Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in fl
 		ret.Normal = hitInfo.ShadingNormal;
 		ret.RayT = hitInfo.T;
 	}
-	else if (isRayValid)
+	else if (isSortedRayValid)
 	{
 #if RAY_BINNING
 		float3 newDir = g_sortedDir[Gidx];
@@ -382,11 +383,10 @@ Sample ComputeLi(in uint2 DTid, in uint Gidx, in bool shouldThisLaneTrace, in fl
 #endif
 		ret.Lo = MissShading(newDir);
 		
-		float3 temp = posW;		// make a copy to avoid accumulating floating-point errors
+		float3 temp = posW;		// make a copy to avoid accumulating floating-point error
 		temp.y += g_frame.PlanetRadius;
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
-		//ret.Normal = INVALID_SAMPLE_NORMAL;
 		ret.Normal = Math::Encoding::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
 		ret.RayT = (half) t;
 	}
@@ -453,9 +453,10 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 									       offset.x * (1.0f - offset.y),
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
+	
 	float4 weights = geoWeights * bilinearWeights;
 	weights *= weights > 1e-4;
-	const float weightSum = dot(1, weights);
+	float weightSum = dot(1, weights);
 	
 	if(weightSum < 1e-4)
 		return;
@@ -477,7 +478,25 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 		
 		Reservoir prevReservoir = ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, 
 			g_local.PrevTemporalReservoir_B_DescHeapIdx, g_local.PrevTemporalReservoir_C_DescHeapIdx);
+
 		
+		// TODO following seems the logical thing to do, but for some it causes a strange 
+		// bug where surface illumination slowly pulsates between light and dark over time
+#if 0
+		if(prevReservoir.SampleNormal.x == INVALID_SAMPLE_NORMAL.x)
+		{
+			weights[i] = 0;
+			weightSum = dot(1, weights);
+			
+			if(weightSum <= 1e-4)
+				break;
+			
+			weights /= weightSum;
+			
+			continue;
+		}
+#endif		
+
 		float jacobianDet = 1.0f;
 		const float3 x1_q = prevPos[i];
 		const float3 x2_q = prevReservoir.SamplePos;
@@ -492,7 +511,7 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 }
 
 Reservoir DoTemporalResampling(in uint2 DTid, in float3 posW, in float3 normal, in float sourcePdf, 
-	Sample s, inout RNG rng)
+	Sample s, bool isSampleValid, inout RNG rng)
 {
 	Reservoir r = Reservoir::Init();
 
@@ -501,10 +520,13 @@ Reservoir DoTemporalResampling(in uint2 DTid, in float3 posW, in float3 normal, 
 	sourcePdf = ONE_DIV_PI;
 #endif		
 
-	const float lum = Math::Color::LuminanceFromLinearRGB(s.Lo);
-	const float risWeight = lum / max(1e-4f, sourcePdf);
+	if (isSampleValid)
+	{
+		const float lum = Math::Color::LuminanceFromLinearRGB(s.Lo);
+		const float risWeight = lum / max(1e-4f, sourcePdf);
 	
-	r.Update(risWeight, s, rng);
+		r.Update(risWeight, s, rng);
+	}
 	
 	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
 		SampleTemporalReservoirAndResample(DTid, posW, normal, r, rng);
@@ -551,7 +573,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// this lane should still participates in non-trace computations
 	const bool isWithinScreenBounds = swizzledDTid.x < g_frame.RenderWidth && swizzledDTid.y < g_frame.RenderHeight;
-
+	const bool traceThisFrame = g_local.CheckerboardTracing ?
+		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_local.FrameCounter & 0x1) :
+		true;
+	
 #if RAY_BINNING
 	if (Gidx < NUM_BINS)
 	{
@@ -566,7 +591,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float depth = g_depth[swizzledDTid];
 
 	// can't early exit due to ray binning
-	const bool shouldThisLaneTrace = isWithinScreenBounds && (depth != 0);
+	const bool isPixelValid = isWithinScreenBounds && (depth != 0);
 	
 	// reconstruct position from depth buffer
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
@@ -586,9 +611,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	float3 wi = INVALID_RAY_DIR;
 	float pdf;
 	
-	if (shouldThisLaneTrace)
+	if (isPixelValid && traceThisFrame)
 	{
-		//const uint sampleIdx = g_frame.FrameNum & 31;
 		//const uint sampleIdx = 0;
 		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 0);
@@ -623,28 +647,36 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 #endif	
 	
 	uint16_t sortedIdx;
-	Sample s = ComputeLi(swizzledDTid, Gidx, shouldThisLaneTrace, posW, normal, wi, rayCone, sortedIdx);
+	Sample retSample = ComputeLi(swizzledDTid, Gidx, posW, normal, wi, rayCone, sortedIdx);
 	
 #if RAY_BINNING
-	g_sortedOrigin[Gidx] = PackNormalLiRayT(s.Normal, s.Lo, s.RayT);
-	g_sortedDir[Gidx] = s.Pos;
+	g_sortedOrigin[Gidx] = PackNormalLiRayT(retSample.Normal, retSample.Lo, retSample.RayT);
+	g_sortedDir[Gidx] = retSample.Pos;
 	
 	GroupMemoryBarrierWithGroupSync();
 
 	// retrieve the non-sorted vals
-	UnpackNormalLiRayT(g_sortedOrigin[sortedIdx], s.Normal, s.Lo, s.RayT);
-	s.Pos = g_sortedDir[sortedIdx].xyz;
+	UnpackNormalLiRayT(g_sortedOrigin[sortedIdx], retSample.Normal, retSample.Lo, retSample.RayT);
+	retSample.Pos = g_sortedDir[sortedIdx].xyz;
 #endif	
 	
 	// resampling
-	if (shouldThisLaneTrace)
+	if (isPixelValid)
 	{
-		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
+		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
 						
 		//const float cosTheta = saturate(pdf * PI);
-		Reservoir r = DoTemporalResampling(swizzledDTid, posW, normal, pdf, s, rng);
+		Reservoir r = DoTemporalResampling(swizzledDTid, posW, normal, pdf, retSample, traceThisFrame, rng);
 		
-		WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx, 
+		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
+		// Need further investigation to figure out the cause. Following seems to mitigate
+		// the issue for now with no apparent artifacts
+#if RAY_BINNING
+		if (isnan(r.SamplePos.x) && !traceThisFrame)
+			r = Reservoir::Init();
+#endif	
+		
+		WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 	else if (isWithinScreenBounds)
