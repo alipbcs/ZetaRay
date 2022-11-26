@@ -108,6 +108,9 @@ namespace ZetaRay::App
 	void RemoveShaderReloadHandler(const char* name) noexcept;
 	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, App::PoolAllocator>> GetShaderReloadHandlers() noexcept;
 
+	// these could be implemented as a template function, but then the implementation has to be in the header,
+	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
+	// codebase, this will have a measurable impact on compile time
 	void AddFrameStat(const char* group, const char* name, int i) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
 	void AddFrameStat(const char* group, const char* name, float f) noexcept;
@@ -128,12 +131,12 @@ namespace ZetaRay::App
 
 	struct PoolAllocator
 	{
-		__forceinline void* AllocateAligned(size_t size, const char* name, int alignment) noexcept
+		__forceinline void* AllocateAligned(size_t size, const char* name, uint32_t alignment) noexcept
 		{
 			return App::AllocateFromMemoryPool(size, name, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, const char* name, int alignment) noexcept
+		__forceinline void FreeAligned(void* mem, size_t size, const char* name, uint32_t alignment) noexcept
 		{
 			App::FreeMemoryPool(mem, size, name, alignment);
 		}

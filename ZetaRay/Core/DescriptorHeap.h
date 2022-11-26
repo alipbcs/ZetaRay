@@ -23,14 +23,14 @@ namespace ZetaRay::Core
 		bool IsShaderVisible() const { return m_heap->GetDesc().Flags & D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE; }
 		void Shutdown() noexcept;
 
-		// Allocates a Descriptor Table with given number of desciptors or an empty one if there isn't 
+		// Allocates a DescriptorTable with given number of desciptors or an empty one if there isn't 
 		// enough free space in the heap
 		DescriptorTable Allocate(uint32_t count) noexcept;
 
-		// Marks the Descriptor Table as ready for reuse. it'll become available for allocation during the next Recycle call
+		// Marks the Descriptor Table as ready for reuse. it'll become available for reallocation during the next Recycle call
 		void Release(DescriptorTable&& descTable) noexcept;
 
-		// Previously freed Descriptor Tables whoose fence value has passed become available of resuse (not thread-safe)
+		// Previously freed Descriptor Tables whoose fence value has passed become available for resuse (not thread-safe)
 		void Recycle() noexcept;
 
 		uint32_t GetDescriptorSize() const { return m_descriptorSize; }
@@ -42,7 +42,6 @@ namespace ZetaRay::Core
 		uint32_t GetHeapSize() { return m_totalHeapSize; }
 
 	private:
-		//std::shared_mutex m_mutex;
 		SRWLOCK m_lock = SRWLOCK_INIT;
  
 		// TODO replace std::map & std::multimap with something more efficient
@@ -71,13 +70,8 @@ namespace ZetaRay::Core
 
 		ComPtr<ID3D12Fence> m_fence;
 
-		// D3D Descitptor Heap object
 		ComPtr<ID3D12DescriptorHeap> m_heap;
-
-		// CPU handle for heap start
 		D3D12_CPU_DESCRIPTOR_HANDLE m_baseCPUHandle;
-
-		// GPU handle for heap start (if GPU-visible)
 		D3D12_GPU_DESCRIPTOR_HANDLE m_baseGPUHandle;
 
 		uint32_t m_descriptorSize = 0;
@@ -86,7 +80,7 @@ namespace ZetaRay::Core
 	};
 	
 
-	// A contigous range of descriptors that are allocated from a certain DescriptorHeapPage
+	// A contiguous range of descriptors that are allocated from one DescriptorHeap
 	struct DescriptorTable
 	{
 		friend struct DescriptorHeap;
@@ -105,8 +99,7 @@ namespace ZetaRay::Core
 		DescriptorTable(DescriptorTable&& other) noexcept;
 
 		// NOTE: Potenital bug where rhs is not empty. In that scenario, destructor of rhs bypasses 
-		// m_page->Free(this). Use swap instead.
-		// m_cpuHandle = std::exchange(rhs.m_cpuHandle, CD3DX12_CPU_DESCRIPTOR_HANDLE(D3D12_DEFAULT));
+		// DescriptorTable::Free(). Use swap instead.
 		DescriptorTable& operator=(DescriptorTable&& other) noexcept;
 
 		void Reset() noexcept;
@@ -121,14 +114,12 @@ namespace ZetaRay::Core
 			std::swap(m_descHeap, other.m_descHeap);
 		}
 
-		// CPU handle for descriptor
 		inline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const noexcept
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out-of-bounds");
 			return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
 		}
 		
-		// GPU handle to descriptor (if corresponding DescriptorHeapPage is GPU-visible)
 		inline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const noexcept
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out-of-bounds");
@@ -136,10 +127,9 @@ namespace ZetaRay::Core
 			return D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGpuHandle.ptr + offset * m_descriptorSize };
 		}
 		
-		// Number of descriptors in this DescriptorPile
 		uint32_t GetNumDescriptors() const { return m_numDescriptors; };
 		
-		// Offset to beginning of this desc. table in the descriptor heap
+		// Offset to tje beginning of this desc. table in the GPU descriptor heap
 		inline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const noexcept
 		{
 			Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
@@ -154,15 +144,10 @@ namespace ZetaRay::Core
 		// DescriptorHeap from which this table was allocated
 		DescriptorHeap* m_descHeap = nullptr;
 		
-		// CPU handle to start of table
 		D3D12_CPU_DESCRIPTOR_HANDLE m_baseCpuHandle = { 0 };
-
-		// GPU handle to start of table (if GPU-visible)
 		D3D12_GPU_DESCRIPTOR_HANDLE m_baseGpuHandle = { 0 };
 
 		uint32_t m_numDescriptors = 0;
-		
-		// Size of each descriptor in this DescriptorPile
 		uint32_t m_descriptorSize = 0;
 	};
 }

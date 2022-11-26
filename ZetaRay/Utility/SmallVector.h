@@ -175,11 +175,11 @@ namespace ZetaRay::Util
 
 			// allocate memory to accomodate the new size
 			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
-
 			const size_t oldSize = size();
 
-			// copy over the old elements
-			if (oldSize > 0)
+			// copy over the old elements, also guard against overlap
+			// between source & dest regions
+			if (oldSize > 0 && m_beg != mem)
 			{
 				if constexpr (std::is_trivially_copyable_v<T>)
 				{
@@ -390,6 +390,32 @@ namespace ZetaRay::Util
 			pop_back();
 
 			return m_beg + pos;
+		}
+
+		void push_front(const T& val) noexcept
+		{
+			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+			static_assert(std::is_swappable_v<T>, "T is not swappable");
+
+			emplace_back(val);
+
+			const size_t n = size();
+
+			if (n > 1)
+				std::swap(*m_beg, *(m_beg + n));
+		}
+
+		void push_front(T&& val) noexcept
+		{
+			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+			static_assert(std::is_swappable_v<T>, "T is not swappable");
+
+			emplace_back(ZetaMove(val));
+
+			const size_t n = size();
+
+			if(n > 1)
+				std::swap(*m_beg, *(m_beg + n - 1));
 		}
 
 		void clear() noexcept
@@ -603,11 +629,11 @@ namespace ZetaRay::Util
 
 			// allocate memory to accomodate new size
 			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
-
 			const size_t oldSize = size();
 
-			// copy over the old elements
-			if (oldSize)
+			// copy over the old elements, also guard against overlap
+			// between source & dest regions
+			if (oldSize && m_beg != mem)
 			{
 				if constexpr (std::is_trivially_copyable_v<T>)
 				{

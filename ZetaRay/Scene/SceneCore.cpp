@@ -1,16 +1,17 @@
 #include "SceneCore.h"
-#include "../Core/Renderer.h"
 #include "../Win32/App.h"
+#include "../Win32/Win32.h"
 #include "../Model/Mesh.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Quaternion.h"
 #include "../RenderPass/Common/RtCommon.h"
-#include "../Win32/Filesystem.h"
 #include "../Support/Task.h"
+#include "../Core/Renderer.h"
 #include <algorithm>
 
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Scene::Internal;
+using namespace ZetaRay::Model;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
@@ -39,25 +40,11 @@ namespace
 // Scene
 //--------------------------------------------------------------------------------------
 
-SceneCore::SceneCore() noexcept
-	: k_matBuffID(XXH3_64bits(SceneRenderer::MATERIAL_BUFFER, strlen(SceneRenderer::MATERIAL_BUFFER))),
-	k_metallicRoughnessID(XXH3_64bits(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE, 
-		strlen(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE))),
-	k_baseColorID(XXH3_64bits(SceneRenderer::BASE_COLOR_DESCRIPTOR_TABLE, 
-		strlen(SceneRenderer::BASE_COLOR_DESCRIPTOR_TABLE))),
-	k_normalID(XXH3_64bits(SceneRenderer::NORMAL_DESCRIPTOR_TABLE, strlen(SceneRenderer::NORMAL_DESCRIPTOR_TABLE))),
-	k_emissiveID(XXH3_64bits(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE, strlen(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE))),
-	m_matBuffer(k_matBuffID),
-	m_baseColorDescTable(k_baseColorID),
-	m_normalsDescTable(k_normalID),
-	m_metalnessRoughnessDescTable(k_metallicRoughnessID),
-	m_emissiveDescTable(k_emissiveID)
-{
-}
-
 void SceneCore::Init() noexcept
 {
-	// level-0 is just a (dummy) root
+	CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
+
+	// level 0 is just a (dummy) root
 	m_sceneGraph.resize(2);
 	m_sceneGraph[0].m_toWorlds.resize(1);
 	m_sceneGraph[0].m_subtreeRanges.resize(1);
@@ -66,14 +53,16 @@ void SceneCore::Init() noexcept
 	v_float4x4 I = identity();
 	m_sceneGraph[0].m_toWorlds[0] = float4x3(store(I));
 
-	m_matBuffer.Init();
-	m_baseColorDescTable.Init();
-	m_normalsDescTable.Init();
-	m_metalnessRoughnessDescTable.Init();
-	m_emissiveDescTable.Init();
+	m_matBuffer.Init(XXH3_64bits(SceneRenderer::MATERIAL_BUFFER, strlen(SceneRenderer::MATERIAL_BUFFER)));
+	m_baseColorDescTable.Init(XXH3_64bits(SceneRenderer::BASE_COLOR_DESCRIPTOR_TABLE,
+		strlen(SceneRenderer::BASE_COLOR_DESCRIPTOR_TABLE)));
+	m_normalDescTable.Init(XXH3_64bits(SceneRenderer::NORMAL_DESCRIPTOR_TABLE, strlen(SceneRenderer::NORMAL_DESCRIPTOR_TABLE)));
+	m_metalnessRoughnessDescTable.Init(XXH3_64bits(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE,
+		strlen(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE)));
+	m_emissiveDescTable.Init(XXH3_64bits(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE, strlen(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE)));
 
-	auto* device = App::GetRenderer().GetDevice();
-	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
+	//auto* device = App::GetRenderer().GetDevice();
+	//CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
 	m_sceneRenderer.Init();
 }
@@ -91,11 +80,11 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 
 	TaskSet::TaskHandle h0 = sceneTS.EmplaceTask("Scene::Update", [this, dt]()
 		{
-			SmallVector<AnimationUpdateOut> animUpdates;
+			SmallVector<AnimationUpdateOut, App::PoolAllocator> animUpdates;
 			UpdateAnimations((float)dt, animUpdates);
-			UpdateLocalTransforms(ZetaMove(animUpdates));
+			UpdateLocalTransforms(animUpdates);
 
-			SmallVector<BVH::BVHUpdateInput> toUpdateInstances;
+			SmallVector<BVH::BVHUpdateInput, App::PoolAllocator> toUpdateInstances;
 			UpdateWorldTransformations(toUpdateInstances);
 
 			if (m_rebuildBVHFlag)
@@ -117,26 +106,34 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
 		});
 
+	if (m_staleStaticInstances)
+	{
+		sceneTS.EmplaceTask("Scene::RebuildMeshBuffers", [this]()
+			{
+				m_meshes.RebuildBuffers();
+			});
+	}
+
 	m_sceneRenderer.Update(sceneRendererTS);
 }
 
 void SceneCore::Recycle() noexcept
 {
-	if (m_baseColorDescTable.Pending.empty() &&
-		m_normalsDescTable.Pending.empty() &&
-		m_metalnessRoughnessDescTable.Pending.empty() &&
-		m_matBuffer.Pending.empty())
+	if (m_baseColorDescTable.m_pending.empty() &&
+		m_normalDescTable.m_pending.empty() &&
+		m_metalnessRoughnessDescTable.m_pending.empty() &&
+		m_emissiveDescTable.m_pending.empty() &&
+		m_matBuffer.m_pending.empty())
 		return;
 
 	App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal);
 
-	ID3D12Fence* fence = m_fence.Get();
-	m_baseColorDescTable.Recycle(fence);
-	m_normalsDescTable.Recycle(fence);
-	m_metalnessRoughnessDescTable.Recycle(fence);
-	m_matBuffer.Recycle(fence);
-
-	// guarding mesh destruction is handled by the DefaultHeapBuffer
+	uint64_t completedFenceVal = m_fence->GetCompletedValue();
+	m_baseColorDescTable.Recycle(completedFenceVal);
+	m_normalDescTable.Recycle(completedFenceVal);
+	m_metalnessRoughnessDescTable.Recycle(completedFenceVal);
+	m_emissiveDescTable.Recycle(completedFenceVal);
+	m_matBuffer.Recycle(completedFenceVal);
 
 	m_nextFenceVal++;
 }
@@ -159,10 +156,10 @@ void SceneCore::Shutdown() noexcept
 
 	m_matBuffer.Clear();
 	m_baseColorDescTable.Clear();
-	m_normalsDescTable.Clear();
+	m_normalDescTable.Clear();
 	m_metalnessRoughnessDescTable.Clear();
 	m_emissiveDescTable.Clear();
-	m_meshManager.Clear();
+	m_meshes.Clear();
 	m_bvh.Clear();
 
 	m_baseColTableOffsetToID.free();
@@ -197,21 +194,19 @@ void SceneCore::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats,
 	it.Instances.reserve(numNodes);
 }
 
-void SceneCore::AddMesh(uint64_t sceneID, Asset::MeshSubset&& mesh) noexcept
+void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexcept
 {
 	const uint64_t meshFromSceneID = MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
 	const uint64_t matFromSceneID = MaterialID(sceneID, mesh.MaterialIdx);
 
-	//std::unique_lock<std::shared_mutex> lock(m_meshMtx);
-
 	AcquireSRWLockExclusive(&m_meshLock);
 	// remember from which gltf scene this mesh came from
 	m_sceneMetadata[sceneID].Meshes.push_back(meshFromSceneID);
-	m_meshManager.Add(meshFromSceneID, ZetaMove(mesh.Vertices), ZetaMove(mesh.Indices), matFromSceneID);
+	m_meshes.Add(meshFromSceneID, mesh.Vertices, mesh.Indices, matFromSceneID);
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noexcept
+void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDesc) noexcept
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -220,7 +215,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 	mat.BaseColorFactor = matDesc.BaseColorFactor;
 	mat.EmissiveFactor = matDesc.EmissiveFactor;
 	mat.AlphaCuttoff = matDesc.AlphaCuttoff;
-	mat.MetallicFactor = matDesc.MetallicFactor;
+	mat.MetallicFactor = matDesc.MetalnessFactor;
 	mat.NormalScale = matDesc.NormalScale;
 	mat.RoughnessFactor = matDesc.RoughnessFactor;
 	mat.SetAlphaMode(matDesc.AlphaMode);
@@ -230,11 +225,8 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 	{
 		if (!p.IsEmpty())
 		{
-			//auto* str = const_cast<std::filesystem::path::value_type*>(p.c_str());
 			const uint64_t id = XXH3_64bits(p.Get(), strlen(p.Get()));
-
-			uint32_t descTableIdx = table.Add(p, id);
-			tableOffset = descTableIdx;
+			tableOffset = table.Add(p, id);
 
 			return id;
 		}
@@ -242,14 +234,13 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 		return -1;
 	};
 
-	//std::unique_lock<std::shared_mutex> lock(m_matMtx);
+	// TODO critical section is rather long, which can limit scalibility
 	AcquireSRWLockExclusive(&m_matLock);
 
-	// load the textures (if needed), create corresponding descriptors and add them
-	// to their descriptor tables
+	// load the texture from disk, create a srv descriptor for it and add it to the corresponding descriptor table
 	{
 		uint32_t tableOffset = -1;	// i.e. index in GPU descriptor table
-		uint64_t texID = addTex(matDesc.BaseColorTexPath, m_baseColorDescTable, tableOffset);
+		const uint64_t texID = addTex(matDesc.BaseColorTexPath, m_baseColorDescTable, tableOffset);
 		if (texID != -1)
 		{
 			m_baseColTableOffsetToID[tableOffset] = texID;
@@ -259,7 +250,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 
 	{
 		uint32_t tableOffset = -1;
-		uint64_t texID = addTex(matDesc.NormalTexPath, m_normalsDescTable, tableOffset);
+		const uint64_t texID = addTex(matDesc.NormalTexPath, m_normalDescTable, tableOffset);
 		if (texID != -1)
 		{
 			m_normalTableOffsetToID[tableOffset] = texID;
@@ -269,17 +260,17 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 
 	{
 		uint32_t tableOffset = -1;
-		uint64_t texID = addTex(matDesc.MetalnessRoughnessTexPath, m_metalnessRoughnessDescTable, tableOffset);
+		const uint64_t texID = addTex(matDesc.MetalnessRoughnessTexPath, m_metalnessRoughnessDescTable, tableOffset);
 		if (texID != -1)
 		{
 			m_metalnessRougnessrTableOffsetToID[tableOffset] = texID;
-			mat.MetallicRoughnessTexture = tableOffset;
+			mat.MetalnessRoughnessTexture = tableOffset;
 		}
 	}
 
 	{
 		uint32_t tableOffset = -1;
-		uint64_t texID = addTex(matDesc.EmissiveTexPath, m_emissiveDescTable, tableOffset);
+		const uint64_t texID = addTex(matDesc.EmissiveTexPath, m_emissiveDescTable, tableOffset);
 		if (texID != -1)
 		{
 			m_emissiveTableOffsetToID[tableOffset] = texID;
@@ -287,10 +278,10 @@ void SceneCore::AddMaterial(uint64_t sceneID, Asset::MaterialDesc&& matDesc) noe
 		}
 	}
 
-	// add it to the GPU buffer
+	// add it to the GPU material buffer, which offsets into descriptor tables above
 	m_matBuffer.Add(matFromSceneID, mat);
 
-	// remember from which gltf scene this material came from
+	// remember from which glTF scene this material came from
 	m_sceneMetadata[sceneID].MaterialIDs.push_back(matFromSceneID);
 
 	ReleaseSRWLockExclusive(&m_matLock);
@@ -302,7 +293,27 @@ SceneCore::TreePos* SceneCore::FindTreePosFromID(uint64_t id) noexcept
 	return treePos;
 }
 
-void SceneCore::AddInstance(uint64_t sceneID, Asset::InstanceDesc&& instance) noexcept
+uint32_t SceneCore::GetBaseColMapsDescHeapOffset() const
+{
+	return m_baseColorDescTable.m_descTable.GPUDesciptorHeapIndex();;
+}
+
+uint32_t SceneCore::GetNormalMapsDescHeapOffset() const
+{
+	return m_normalDescTable.m_descTable.GPUDesciptorHeapIndex();;
+}
+
+uint32_t SceneCore::GetMetalnessRougnessMapsDescHeapOffset() const
+{
+	return m_metalnessRoughnessDescTable.m_descTable.GPUDesciptorHeapIndex();;
+}
+
+uint32_t SceneCore::GetEmissiveMapsDescHeapOffset() const
+{
+	return m_emissiveDescTable.m_descTable.GPUDesciptorHeapIndex();;
+}
+
+void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instance) noexcept
 {
 	const uint64_t meshID = MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
 	const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
@@ -384,7 +395,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3
 
 	// append it to the end, then keep swapping it back until it's at insertIdx
 	auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-	(Vector<T>& vec, int insertIdx, Args&&... args) noexcept
+	(Vector<T, App::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
 	{
 		vec.emplace_back(T(ZetaForward(args)...));
 		for (int i = (int)vec.size() - 1; i != insertIdx; --i)
@@ -423,7 +434,7 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 {
 #ifdef _DEBUG
 	TreePos *p = FindTreePosFromID(id);
-	Assert(p, "instance with ID %llu was not found in the scene-graph.", id);
+	Assert(p, "instance with ID %llu was not found in the scene graph.", id);
 	Assert(GetRtFlags(m_sceneGraph[p->Level].m_rtFlags[p->Offset]).MeshMode != RT_MESH_MODE::STATIC, "Static instance can't be animated.");
 #endif // _DEBUG
 
@@ -438,11 +449,14 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 			});
 	}
 
+	// save the starting offset and number of keyframes
 	const uint32_t currOffset = (uint32_t)m_keyframes.size();
 	m_animationOffsets.emplace_back(currOffset, currOffset + (int)keyframes.size(), tOffset);
 
-	// insertion sort
+	// save the mapping from instance ID to starting offset in keyframe buffer
 	m_animOffsetToInstanceMap.emplace_back(id, currOffset);
+
+	// insertion sort
 	int currIdx = std::max(0, (int)m_animOffsetToInstanceMap.size() - 2);
 	while (currIdx >= 0 && id < m_animOffsetToInstanceMap[currIdx].Offset)
 	{
@@ -452,30 +466,6 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 
 	// append
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
-}
-
-void SceneCore::AddEnvLightSource(const Filesystem::Path& p) noexcept
-{
-	// HDRi
-	Filesystem::Path pathToEnvMap(App::GetAssetDir());
-	pathToEnvMap.Append(p.Get());
-
-	// patches
-	char name[64];
-	p.Stem(name);
-	const size_t nStem = strlen(name);
-	const char* envSuffix = "_patches.bin";
-	const size_t nSuffix = strlen(envSuffix);
-	Check(nStem + nSuffix + 1 < sizeof(name), "buffer is too small");
-
-	memcpy(name + strlen(name), envSuffix, nSuffix);
-	name[nStem + nSuffix] = '\0';
-
-	Filesystem::Path pathToPatches = pathToEnvMap;
-	pathToPatches.ToParent();
-	pathToPatches.Append(name);
-
-	//m_sceneRenderer.SetEnvLightSource(pathToEnvMap, pathToPatches);
 }
 
 float4x3 SceneCore::GetToWorld(uint64_t id) noexcept
@@ -523,7 +513,7 @@ uint64_t SceneCore::GetMeshIDForInstance(uint64_t id) noexcept
 
 void SceneCore::RebuildBVH() noexcept
 {
-	SmallVector<BVH::BVHInput> allInstances;
+	SmallVector<BVH::BVHInput, App::PoolAllocator> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
 
 	const int numLevels = (int)m_sceneGraph.size();
@@ -534,7 +524,7 @@ void SceneCore::RebuildBVH() noexcept
 		{
 			// find the Mesh of this instance
 			const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
-			v_AABB vBox(m_meshManager.GetMeshAABB(meshID));
+			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
 			v_float4x4 vM(m_sceneGraph[level].m_toWorlds[i]);
 
 			vBox = transform(vM, vBox);
@@ -546,7 +536,7 @@ void SceneCore::RebuildBVH() noexcept
 	m_bvh.Build(ZetaMove(allInstances));
 }
 
-void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdateInstances) noexcept
+void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::PoolAllocator>& toUpdateInstances) noexcept
 {
 	m_prevToWorlds.clear();
 	const int numLevels = (int)m_sceneGraph.size();
@@ -573,7 +563,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdate
 				{
 					const uint64_t meshID = m_sceneGraph[level + 1].m_meshIDs[j];
 
-					v_AABB vOldBox(m_meshManager.GetMeshAABB(meshID));
+					v_AABB vOldBox(m_meshes.GetMesh(meshID).m_AABB);
 					vOldBox = transform(prevW, vOldBox);
 					v_AABB vNewBox = transform(newW, vOldBox);
 
@@ -605,7 +595,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput>& toUpdate
 		});
 }
 
-void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut>& animVec) noexcept
+void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::PoolAllocator>& animVec) noexcept
 {
 	for (int i = 0; i < m_animationOffsets.size(); i++)
 	{
@@ -685,13 +675,14 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut>& animVec) n
 	}
 }
 
-void SceneCore::UpdateLocalTransforms(Vector<AnimationUpdateOut>&& animVec) noexcept
+void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec) noexcept
 {
 	for(auto& update : animVec)
 	{
 		uint64_t insID;
 
 		{
+			// binary search
 			int key = update.Offset;
 			int beg = 0;
 			int end = (int)m_animOffsetToInstanceMap.size();
@@ -719,31 +710,8 @@ void SceneCore::UpdateLocalTransforms(Vector<AnimationUpdateOut>&& animVec) noex
 		}
 
 		TreePos* t = FindTreePosFromID(insID);
-		Assert(t, "instance with ID %llu was not found in the scene-graph.", insID);
+		Assert(t, "instance with ID %llu was not found in the scene graph.", insID);
 
 		m_sceneGraph[t->Level].m_localTransforms[t->Offset] = update.M;
-	}
-}
-
-void SceneCore::RemoveFromLevel(int index, int level) noexcept
-{
-	// 1. Subtract one from parent's number of children
-	// 2. Shift base index of all the parent's right siblings left
-	// 3. Shift parent index of all the swapped models left
-
-	const int parentIdx = m_sceneGraph[level].m_parendIndices[index];
-	m_sceneGraph[level - 1].m_subtreeRanges[parentIdx].Count--;
-
-	m_sceneGraph[level].m_localTransforms.erase(index);
-	m_sceneGraph[level].m_toWorlds.erase(index);
-	m_sceneGraph[level].m_meshIDs.erase(index);
-	m_sceneGraph[level].m_subtreeRanges.erase(index);
-	m_sceneGraph[level].m_parendIndices.erase(index);
-
-	// shift base offset of all the parent's siblings to left
-	for (int siblingIdx = parentIdx + 1; siblingIdx != m_sceneGraph[level - 1].m_subtreeRanges.size(); ++siblingIdx)
-	{
-		auto& range = m_sceneGraph[level - 1].m_subtreeRanges[siblingIdx];
-		range.Base = std::max(0, range.Base - 1);
 	}
 }

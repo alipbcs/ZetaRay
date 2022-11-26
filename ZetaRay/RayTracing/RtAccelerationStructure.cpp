@@ -15,7 +15,7 @@ using namespace ZetaRay::RT;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Model;
 
 namespace
 {
@@ -65,6 +65,9 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	const int transfromMatSize = sizeof(float) * 12;
 	int currInstance = 0;
 
+	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
+	const auto sceneIBGpuVa = scene.GetMeshIB().GetGpuVA();
+
 	// following loop should exactly match the one in FillMeshTransformBufferForBuild()
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
@@ -77,19 +80,19 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 			if (flags.MeshMode == RT_MESH_MODE::STATIC)
 			{
 				const uint64_t meshID = currTreeLevel.m_meshIDs[i];
-				const auto mesh = scene.GetMeshData(meshID);
+				const auto mesh = scene.GetMesh(meshID);
 
 				mesheDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 				mesheDescs[currInstance].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
 				// elements are tightly packed as size of each element is a multiple of required alignment
 				mesheDescs[currInstance].Triangles.Transform3x4 = m_perMeshTransformForBuild.GetGpuVA() + currInstance * transfromMatSize;
-				mesheDescs[currInstance].Triangles.IndexFormat = MESH_INDEX_FORMAT;
+				mesheDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 				mesheDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-				mesheDescs[currInstance].Triangles.IndexCount = (uint32_t)mesh.NumIndices;
-				mesheDescs[currInstance].Triangles.VertexCount = (uint32_t)mesh.NumVertices;
-				mesheDescs[currInstance].Triangles.IndexBuffer = mesh.IB;
-				mesheDescs[currInstance].Triangles.VertexBuffer.StartAddress = mesh.VB;
-				mesheDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(VertexPosNormalTexTangent);
+				mesheDescs[currInstance].Triangles.IndexCount = mesh.m_numIndices;
+				mesheDescs[currInstance].Triangles.VertexCount = mesh.m_numVertices;
+				mesheDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
+				mesheDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
+				mesheDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
 
 				currInstance++;
 
@@ -254,18 +257,21 @@ void StaticBLAS::Clear() noexcept
 void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
-	auto mesh = scene.GetMeshData(m_meshID);
+	auto mesh = scene.GetMesh(m_meshID);
+
+	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
+	const auto sceneIBGpuVa = scene.GetMeshIB().GetGpuVA();
 
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
 	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = mesh.IB;
-	geoDesc.Triangles.IndexCount = mesh.NumIndices;
-	geoDesc.Triangles.IndexFormat = MESH_INDEX_FORMAT;
+	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
+	geoDesc.Triangles.IndexCount = mesh.m_numIndices;
+	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = mesh.VB;
-	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(VertexPosNormalTexTangent);
-	geoDesc.Triangles.VertexCount = mesh.NumVertices;
+	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
+	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
+	geoDesc.Triangles.VertexCount = mesh.m_numVertices;
 	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
@@ -307,18 +313,21 @@ void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 void DynamicBLAS::Update(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
-	auto mesh = scene.GetMeshData(m_meshID);
+	auto mesh = scene.GetMesh(m_meshID);
+
+	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
+	const auto sceneIBGpuVa = scene.GetMeshIB().GetGpuVA();
 
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
 	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = mesh.IB;
-	geoDesc.Triangles.IndexCount = mesh.NumIndices;
-	geoDesc.Triangles.IndexFormat = MESH_INDEX_FORMAT;
+	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
+	geoDesc.Triangles.IndexCount = mesh.m_numIndices;
+	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = mesh.VB;
-	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(VertexPosNormalTexTangent);
-	geoDesc.Triangles.VertexCount = mesh.NumVertices;
+	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
+	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
+	geoDesc.Triangles.VertexCount = mesh.m_numVertices;
 	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
@@ -513,7 +522,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 		m_staticBLASrebuiltFrame = (uint32_t)App::GetTimer().GetTotalFrameCount();
 
 		m_staticBLAS.Rebuild(cmdList);
-		uavBarriers.push_back(UAVBarrier(m_staticBLAS.m_blasBuffer.GetResource()));
+		uavBarriers.push_back(Direct3DHelper::UAVBarrier(m_staticBLAS.m_blasBuffer.GetResource()));
 
 		// no need, there's a transition barrier
 		//uavBarriers.push_back(Direct3DHelper::UAVBarrier(m_staticBLAS.m_postBuildInfo.GetResource()));
@@ -561,7 +570,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 					}
 					
 					m_dynamicBLASes[idx].Rebuild(cmdList);
-					uavBarriers.push_back(UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.GetResource()));
+					uavBarriers.push_back(Direct3DHelper::UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.GetResource()));
 				}
 				else if (flags.UpdateFlag)
 				{
@@ -569,7 +578,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 					Assert(idx != -1, "Instance was set for update, but was never inserted in the TLAS");
 
 					m_dynamicBLASes[idx].Update(cmdList);
-					uavBarriers.push_back(UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.GetResource()));
+					uavBarriers.push_back(Direct3DHelper::UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.GetResource()));
 				}
 			}
 		}
@@ -612,7 +621,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 {
 	SceneCore& scene = App::GetScene();
 	const size_t numInstances = scene.m_IDtoTreePos.size();
-	SmallVector<uint32_t, App::PoolAllocator> frameInstanceData;
+	SmallVector<RT::Instance, App::PoolAllocator> frameInstanceData;
 	frameInstanceData.resize(numInstances);
 
 	int currInstance = 0;
@@ -630,35 +639,38 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		// TLAS instance for Static BLAS has instance-ID of 0. 
 		// TLAS instance for Dynamic BLAS d where 0 <= d < D has Instance-ID of S + d
 		// With this setup, every instance can use GeometryIndex() + InstanceID() to index into the mesh instance buffer
-		// Each element = (Desc. Heap Idx For VB&IB << 16) | MaterialBufferIndex
 
 		// static meshes
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
-			auto meshData = scene.GetMeshData(currTreeLevel.m_meshIDs[i]);
-			auto mat = scene.GetMaterial(meshData.MatID);
+			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
+			const auto mat = scene.GetMaterial(mesh.m_materialID);
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode == RT_MESH_MODE::STATIC)
 			{
-				Assert(meshData.DescHeapIdx < (1 << 16), "Invalid descriptor heap index.");
-				Assert(mat.GpuBufferIndex() < (1 << 16), "Invalid material buffer index.");
-				uint32_t d = mat.GpuBufferIndex() | (meshData.DescHeapIdx << 16);
-				frameInstanceData[currInstance++] = d;
+				RT::Instance instance;
+				instance.MatID = mat.GpuBufferIndex();
+				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
+				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
+
+				frameInstanceData[currInstance++] = instance;
 			}
 		}
 
 		// dynamic meshes
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
-			auto meshData = scene.GetMeshData(currTreeLevel.m_meshIDs[i]);
-			auto mat = scene.GetMaterial(meshData.MatID);
+			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
+			const auto mat = scene.GetMaterial(mesh.m_materialID);
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode != RT_MESH_MODE::STATIC)
 			{
-				Assert(meshData.DescHeapIdx < (1 << 16), "Invalid descriptor heap index.");
-				Assert(mat.GpuBufferIndex() < (1 << 16), "Invalid material buffer index.");
-				uint32_t d = mat.GpuBufferIndex() | (meshData.DescHeapIdx >> 16);
-				frameInstanceData[currInstance++] = d;
+				RT::Instance instance;
+				instance.MatID = mat.GpuBufferIndex();
+				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
+				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
+
+				frameInstanceData[currInstance++] = instance;
 			}
 		}
 	}
@@ -670,7 +682,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 	// number of frames to wait until release must be greater than one.
 	size_t sizeInBytes = numInstances * sizeof(uint32_t);
 	// TODO ring buffer
-	m_framesMeshInstances = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(SceneRenderer::FRAME_MESH_INSTANCE_DATA,
+	m_framesMeshInstances = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(SceneRenderer::RT_FRAME_MESH_INSTANCES,
 		sizeInBytes,
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 		false,
@@ -678,7 +690,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 	// register the shared resources
 	auto& r = App::GetRenderer().GetSharedShaderResources();
-	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::FRAME_MESH_INSTANCE_DATA, m_framesMeshInstances);
+	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
 }
 
 int TLAS::FindDynamicBLAS(uint64_t key) noexcept

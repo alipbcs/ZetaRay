@@ -1,6 +1,7 @@
 #include <Math/Sampling.h>
 #include <Utility/SmallVector.h>
 #include <Utility/RNG.h>
+#include <Win32/App.h>
 #include <doctest-2.4.9/doctest.h>
 
 using namespace ZetaRay;
@@ -27,15 +28,15 @@ uint32_t SampleAliasTable(Vector<AliasTableEntry>& aliasTable, RNG& rng, float& 
 
 TEST_SUITE("AliasTable")
 {
-	TEST_CASE("Init")
-	{
-		App::InitSimple();
-	}
+	//TEST_CASE("Init")
+	//{
+	//	App::InitSimple();
+	//}
 
 	TEST_CASE("Normalize")
 	{
 		float vals[] = { 1.0f, 22.0f, 4.0f, 8.0f, 3.5f, 10.0f };
-		SmallVector<float, 6> vec;
+		SmallVector<float, Support::SystemAllocator, 6> vec;
 		vec.append_range(vals, vals + sizeof(vals) / sizeof(float));
 
 		SmallVector<AliasTableEntry> ret;

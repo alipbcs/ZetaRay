@@ -3,7 +3,7 @@
 #include "SceneRenderer.h"
 #include "../SceneCore.h"
 #include "../../Core/Renderer.h"
-#include "../../Math/Common.h"
+#include "../../Core/RenderGraph.h"
 #include "../../Math/Sampling.h"
 #include "../../RenderPass/Common/FrameConstants.h"
 #include "../../RenderPass/IndirectDiffuse/ReSTIR_GI.h"
@@ -22,13 +22,16 @@
 #include "../../RayTracing/Sampler.h"
 #include "../../RenderPass/FSR2/FSR2.h"
 
+// Note: with a functional-style API dependencies become more clear, which 
+// results in fewer data-race issues and simpler debugging
+
 //--------------------------------------------------------------------------------------
 // SceneRenderer::PrivateData
 //--------------------------------------------------------------------------------------
 
-using Data = ZetaRay::Scene::SceneRenderer::PrivateData;
+using Data = ZetaRay::Scene::Render::PrivateData;
 
-namespace ZetaRay::Scene
+namespace ZetaRay::Scene::Render
 {
 	inline static const char* Denoisers[] = { "None", "STAD" };
 	static_assert((int)Settings::DENOISER::COUNT == ZetaArrayLen(Denoisers), "enum <-> strings mismatch.");
@@ -44,12 +47,12 @@ namespace ZetaRay::Scene
 		Settings::AA AntiAliasing = Settings::AA::NATIVE;
 	};
 
-	struct alignas(64) GBufferRendererData
+	struct alignas(64) GBufferData
 	{
 		enum GBUFFER
 		{
 			GBUFFER_BASE_COLOR,
-			GBUFFER_NORMAL_CURV,
+			GBUFFER_NORMAL,
 			GBUFFER_METALNESS_ROUGHNESS,
 			GBUFFER_MOTION_VECTOR,
 			GBUFFER_EMISSIVE_COLOR,
@@ -79,17 +82,14 @@ namespace ZetaRay::Scene
 		Core::DescriptorTable RTVDescTable[2];
 		Core::DescriptorTable DSVDescTable[2];
 
-		static constexpr int MAX_NUM_RENDER_PASSES = 2;
-		int NumRenderPasses = 1;
-
-		RenderPass::GBufferPass RenderPasses[MAX_NUM_RENDER_PASSES];
-		Core::RenderNodeHandle Handles[MAX_NUM_RENDER_PASSES];
+		RenderPass::GBufferPass GBuffPass;
+		Core::RenderNodeHandle GBuffPassHandle;
 
 		RenderPass::ClearPass ClearPass;
 		Core::RenderNodeHandle ClearHandle;
 	};
 
-	struct alignas(64) LightManagerData
+	struct alignas(64) LightData
 	{
 		static const DXGI_FORMAT HDR_LIGHT_ACCUM_FORMAT = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		static const int MAX_NUM_ENV_LIGHT_PATCHES = 128;
@@ -198,64 +198,77 @@ namespace ZetaRay::Scene
 		Core::DescriptorTable DescTableAll;
 	};
 
-	struct SceneRenderer::PrivateData
+	struct PrivateData
 	{
+		Core::RenderGraph m_renderGraph;
+		Core::DefaultHeapBuffer m_frameConstantsBuff;
+
 		cbFrameConstants m_frameConstants;
 		RenderSettings m_settings;
 
-		GBufferRendererData m_gBuffData;
-		LightManagerData m_lightManagerData;
+		GBufferData m_gBuffData;
+		LightData m_lightData;
 		PostProcessData m_postProcessorData;
 		RayTracerData m_raytracerData;
 	};
 }
 
 //--------------------------------------------------------------------------------------
-// GBufferRenderer
+// Common
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay::Scene::GBufferRenderer
+namespace ZetaRay::Scene::Render::Common
 {
-	void Init(const RenderSettings& settings, GBufferRendererData& data) noexcept;
-	void CreateGBuffers(GBufferRendererData& data) noexcept;
-	void OnWindowSizeChanged(const RenderSettings& settings, GBufferRendererData& data) noexcept;
-	void Shutdown(GBufferRendererData& data) noexcept;
-
-	// Assigns meshes to GBufferRenderPass instances and prepares draw call arguments
-	void Update(GBufferRendererData& gbuffData, const LightManagerData& lightManagerData) noexcept;
-	void Register(GBufferRendererData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(GBufferRendererData& data, const LightManagerData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
+	void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHeapBuffer& frameConstsBuff, 
+		const GBufferData& gbuffData, const LightData& lightData) noexcept;
 }
 
 //--------------------------------------------------------------------------------------
-// LightManager
+// GBuffer
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay::Scene::LightManager
+namespace ZetaRay::Scene::Render::GBuffer
 {
-	void Init(const RenderSettings& settings, LightManagerData& data) noexcept;
-	void CreateHDRLightAccumTex(LightManagerData& data) noexcept;
-	void OnWindowSizeChanged(const RenderSettings& settings, LightManagerData& data) noexcept;
-	void Shutdown(LightManagerData& data) noexcept;
+	void Init(const RenderSettings& settings, GBufferData& data) noexcept;
+	void CreateGBuffers(GBufferData& data) noexcept;
+	void OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data) noexcept;
+	void Shutdown(GBufferData& data) noexcept;
 
-	void SetEnvMap(LightManagerData& data, const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
+	// Assigns meshes to GBufferRenderPass instances and prepares draw call arguments
+	void Update(GBufferData& gbuffData, const LightData& lightManagerData) noexcept;
+	void Register(GBufferData& data, Core::RenderGraph& renderGraph) noexcept;
+	void DeclareAdjacencies(GBufferData& data, const LightData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
+}
+
+//--------------------------------------------------------------------------------------
+// Light
+//--------------------------------------------------------------------------------------
+
+namespace ZetaRay::Scene::Render::Light
+{
+	void Init(const RenderSettings& settings, LightData& data) noexcept;
+	void CreateHDRLightAccumTex(LightData& data) noexcept;
+	void OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept;
+	void Shutdown(LightData& data) noexcept;
+
+	//void SetEnvMap(LightManagerData& data, const Win32::Filesystem::Path& pathToEnvLight, const Win32::Filesystem::Path& pathToPatches) noexcept;
 	//void AddEmissiveTriangle(LightManagerData& data, uint64_t instanceID, Util::Vector<float, 32>&& lumen) noexcept;
-	void Register(const RenderSettings& settings, const RayTracerData& rayTracerData, LightManagerData& data, Core::RenderGraph& renderGraph) noexcept;
-	void Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, const RayTracerData& rayTracerData, 
-		LightManagerData& lightManagerData) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, const RayTracerData& rayTracerData,
-		LightManagerData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
+	void Register(const RenderSettings& settings, const RayTracerData& rayTracerData, LightData& data, Core::RenderGraph& renderGraph) noexcept;
+	void Update(const RenderSettings& settings, const GBufferData& gbuffData, const RayTracerData& rayTracerData,
+		LightData& lightManagerData) noexcept;
+	void DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, const RayTracerData& rayTracerData,
+		LightData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
 
 	// Updates the GPU Buffer that contains all the emissive triangles
-//	void UpdateAnalyticalLightBuffers(LightManagerData& data) noexcept;
-	void UpdateEmissiveTriangleBuffers(LightManagerData& data) noexcept;
+	//void UpdateAnalyticalLightBuffers(LightManagerData& data) noexcept;
+	//void UpdateEmissiveTriangleBuffers(LightManagerData& data) noexcept;
 }
 
 //--------------------------------------------------------------------------------------
 // RayTracer
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay::Scene::RayTracer
+namespace ZetaRay::Scene::Render::RayTracer
 {
 	void Init(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept;
@@ -265,7 +278,7 @@ namespace ZetaRay::Scene::RayTracer
 	void UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Update(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, RayTracerData& rtData, 
+	void DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, RayTracerData& rtData,
 		Core::RenderGraph& renderGraph) noexcept;
 }
 
@@ -273,19 +286,18 @@ namespace ZetaRay::Scene::RayTracer
 // PostProcessor
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay::Scene::PostProcessor
+namespace ZetaRay::Scene::Render::PostProcessor
 {
-	void Init(const RenderSettings& settings, PostProcessData& postData, const LightManagerData& lightManagerData) noexcept;
+	void Init(const RenderSettings& settings, PostProcessData& postData, const LightData& lightData) noexcept;
 	void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data, 
-		const LightManagerData& lightManagerData) noexcept;
+		const LightData& lightData) noexcept;
 	void Shutdown(PostProcessData& data) noexcept;
 
-	void UpdateDescriptors(const RenderSettings& settings, const LightManagerData& lightManagerData, 
-		PostProcessData& postData) noexcept;	
+	void UpdateDescriptors(const RenderSettings& settings, PostProcessData& postData) noexcept;	
 	void UpdatePasses(const RenderSettings& settings, PostProcessData& postData) noexcept;
-	void Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, const LightManagerData& lightManagerData, 
+	void Update(const RenderSettings& settings, const GBufferData& gbuffData, const LightData& lightData,
 		const RayTracerData& rayTracerData, PostProcessData& data) noexcept;
 	void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, const LightManagerData& lightManagerData,
+	void DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, const LightData& lightData,
 		const RayTracerData& rayTracerData, PostProcessData& postData, Core::RenderGraph& renderGraph) noexcept;
 }

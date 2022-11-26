@@ -3,8 +3,6 @@
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Surface.h"
 #include "../Math/MatrixFuncs.h"
-#include "../Core/Renderer.h"
-#include "../Win32/App.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -13,85 +11,42 @@ using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------
-// Mesh
+// TriangleMesh
 //--------------------------------------------------------------------------------------
 
-TriangleMesh::TriangleMesh(Vector<VertexPosNormalTexTangent>&& vertices,
-	Vector<INDEX_TYPE>&& indices, uint64_t matID) noexcept
-	: m_materialID(matID)
+TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices, 
+	size_t vtxBuffStartOffset, 
+	size_t idxBuffStartOffset, 
+	uint32_t numIndices, 
+	uint64_t matID) noexcept
+	: m_numIndices(numIndices),
+	m_materialID(matID),
+	m_vtxBuffStartOffset(vtxBuffStartOffset),
+	m_idxBuffStartOffset(idxBuffStartOffset) 
 {
-	Assert(vertices.size() > 0 && vertices.size() < INT_MAX, "Invalid number of vertices.");
-	Assert(indices.size() > 0, "Indices was empty.");
-	Assert(sizeof(VertexPosNormalTexTangent) - (offsetof(VertexPosNormalTexTangent, Position) + sizeof(float3)) >= sizeof(float), "");
-	
-	m_numVertices = (uint32_t) vertices.size();
-	m_numIndices = (uint32_t)indices.size();
+	Assert(vertices.size() > 0 && vertices.size() < UINT_MAX, "Invalid number of vertices.");
+	Assert(numIndices > 0, "#indices must be greater than zero.");
+	//Assert(sizeof(VertexPosNormalTexTangent) - (offsetof(VertexPosNormalTexTangent, Position) + sizeof(float3)) >= sizeof(float), "");
 
-	v_AABB vBox = compueMeshAABB(vertices.begin(),
-		offsetof(VertexPosNormalTexTangent, Position),
-		sizeof(VertexPosNormalTexTangent),
-		(uint32_t)vertices.size());;
+	m_numVertices = (uint32_t)vertices.size();
 
+	v_AABB vBox = compueMeshAABB(vertices.data(), offsetof(Vertex, Position), sizeof(Vertex), m_numVertices);
 	m_AABB = store(vBox);
 
-	size_t sizeInBytes = sizeof(VertexPosNormalTexTangent) * vertices.size();
-	m_vertexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit("VertexBuffer", sizeInBytes,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false, vertices.begin());
+	//size_t sizeInBytes = sizeof(VertexPosNormalTexTangent) * vertices.size();
+	//m_vertexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit("VertexBuffer", sizeInBytes,
+	//	D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false, vertices.begin());
 
-	auto& renderer = App::GetRenderer();
-
-	sizeInBytes = sizeof(INDEX_TYPE) * indices.size();
-	m_indexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("IndexBuffer", sizeInBytes,
-		D3D12_RESOURCE_STATE_INDEX_BUFFER, false, indices.begin());
-
-	m_descTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(2);
-	auto* device = App::GetRenderer().GetDevice();
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_BUFFER;
-	srvDesc.Format = DXGI_FORMAT_UNKNOWN;
-	srvDesc.Buffer.FirstElement = 0;
-	srvDesc.Buffer.NumElements = static_cast<UINT>(vertices.size());
-	srvDesc.Buffer.StructureByteStride = sizeof(VertexPosNormalTexTangent);
-
-	device->CreateShaderResourceView(m_vertexBuffer.GetResource(), &srvDesc, m_descTable.CPUHandle(0));
-
-	srvDesc.Buffer.NumElements = static_cast<UINT>(indices.size());
-	srvDesc.Buffer.StructureByteStride = sizeof(INDEX_TYPE);
-
-	device->CreateShaderResourceView(m_indexBuffer.GetResource(), &srvDesc, m_descTable.CPUHandle(1));
-}
-
-TriangleMesh::TriangleMesh(TriangleMesh&& rhs) noexcept
-	: m_descTable(ZetaMove(rhs.m_descTable)),
-	m_vertexBuffer(ZetaMove(rhs.m_vertexBuffer)),
-	m_indexBuffer(ZetaMove(rhs.m_indexBuffer)),
-	m_AABB(rhs.m_AABB),
-	m_materialID(rhs.m_materialID),
-	m_numVertices(rhs.m_numVertices),
-	m_numIndices(rhs.m_numIndices)
-{
-}
-
-TriangleMesh& TriangleMesh::operator=(TriangleMesh&& rhs) noexcept
-{
-	m_descTable = ZetaMove(rhs.m_descTable);
-	m_vertexBuffer = ZetaMove(rhs.m_vertexBuffer);
-	m_indexBuffer = ZetaMove(rhs.m_indexBuffer);
-	m_numVertices = rhs.m_numVertices;
-	m_numIndices = rhs.m_numIndices;
-	m_AABB = rhs.m_AABB;
-	m_materialID = rhs.m_materialID;
-
-	return *this;
+	//sizeInBytes = sizeof(INDEX_TYPE) * indices.size();
+	//m_indexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("IndexBuffer", sizeInBytes,
+	//	D3D12_RESOURCE_STATE_INDEX_BUFFER, false, indices.begin());
 }
 
 //--------------------------------------------------------------------------------------
 // PrimitiveMesh
 //--------------------------------------------------------------------------------------
 
-void PrimitiveMesh::ComputeGrid(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float width, float depth, uint32_t m, uint32_t n) noexcept
 {
 	vertices.clear();
@@ -156,7 +111,7 @@ void PrimitiveMesh::ComputeGrid(Vector<VertexPosNormalTexTangent>& vertices, Vec
 	}
 }
 
-void PrimitiveMesh::ComputeSphere(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeSphere(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float diameter, size_t tessellation) noexcept
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
@@ -228,7 +183,7 @@ void PrimitiveMesh::ComputeSphere(Vector<VertexPosNormalTexTangent>& vertices, V
 	ComputeMeshTangentVectors(vertices, indices);
 }
 
-void PrimitiveMesh::ComputeCylinder(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeCylinder(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept
 {
 	vertices.clear();
@@ -380,7 +335,7 @@ void PrimitiveMesh::ComputeCylinder(Vector<VertexPosNormalTexTangent>& vertices,
 	}
 }
 
-void PrimitiveMesh::ComputeCone(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeCone(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float diameter, float height, size_t tessellation) noexcept
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
@@ -457,7 +412,7 @@ void PrimitiveMesh::ComputeCone(Vector<VertexPosNormalTexTangent>& vertices, Vec
 	ComputeMeshTangentVectors(vertices, indices);
 }
 
-void PrimitiveMesh::ComputeTorus(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeTorus(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float diameter, float thickness, size_t tessellation) noexcept
 {
 	vertices.clear();
@@ -708,7 +663,7 @@ namespace
 			p4 * (t * t);
 	}
 
-	void CreatePatchVertices(Vector<VertexPosNormalTexTangent>& vertices, float3 patch[16],
+	void CreatePatchVertices(Vector<Vertex, App::PoolAllocator>& vertices, float3 patch[16],
 		size_t tessellation, bool isMirrored) noexcept
 	{
 		for (size_t i = 0; i <= tessellation; i++)
@@ -789,7 +744,7 @@ namespace
 		}
 	}
 
-	void CreatePatchIndices(Vector<INDEX_TYPE>& indices, size_t vbase, size_t tessellation, bool isMirrored)
+	void CreatePatchIndices(Vector<INDEX_TYPE, App::PoolAllocator>& indices, size_t vbase, size_t tessellation, bool isMirrored)
 	{
 		size_t stride = tessellation + 1;
 
@@ -833,7 +788,7 @@ namespace
 	}
 
 	// Tessellates the specified bezier patch.
-	void TessellatePatch(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+	void TessellatePatch(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 		const TeapotPatch& patch, size_t tessellation, float3 scale, bool isMirrored)
 	{
 		// Look up the 16 control points for this patch.
@@ -853,7 +808,7 @@ namespace
 	}
 }
 
-void PrimitiveMesh::ComputeTeapot(Vector<VertexPosNormalTexTangent>& vertices, Vector<INDEX_TYPE>& indices,
+void PrimitiveMesh::ComputeTeapot(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
 	float size, size_t tessellation) noexcept
 {
 	vertices.clear();
@@ -884,4 +839,5 @@ void PrimitiveMesh::ComputeTeapot(Vector<VertexPosNormalTexTangent>& vertices, V
 		}
 	}
 }
+
 

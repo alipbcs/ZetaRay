@@ -14,4 +14,22 @@ namespace RT_AS_SUBGROUP
 	static const uint32_t ALL = EMISSIVE | NON_EMISSIVE;
 }
 
+#ifdef __cplusplus
+namespace ZetaRay
+{
+#endif
+	namespace RT
+	{
+		struct Instance
+		{
+			uint32_t BaseVtxOffset;
+			uint32_t BaseIdxOffset;
+			uint16_t MatID;
+			uint16_t pad;
+		};
+	}
+#ifdef __cplusplus
+}
+#endif
+
 #endif

@@ -153,9 +153,9 @@ GBUFFER_OUT mainPS(VSOut psin)
 		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
 	}
 	
-	if (mat.MetallicRoughnessTexture != -1)
+	if (mat.MetalnessRoughnessTexture != -1)
 	{
-		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture;
+		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture;
 		
 		// green & blue channels contain roughness and metalness respectively
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];

@@ -1,16 +1,11 @@
-#include "glTF2.h"
-#include "../Core/Vertex.h"
+#include "glTF.h"
+#include "glTFAsset.h"
 #include "../Math/MatrixFuncs.h"
 #include "../Math/Surface.h"
 #include "../Math/Quaternion.h"
-#include "../Scene/Assets.h"
 #include "../Scene/SceneCore.h"
-#include "Mesh.h"
 #include "../RenderPass/Common/RtCommon.h"
 #include "../Support/Task.h"
-#include "../Win32/Filesystem.h"
-#include "../Win32/Log.h"
-#include "../Win32/Timer.h"
 
 #define JSON_NOEXCEPTION
 #define JSON_NO_IO
@@ -33,7 +28,8 @@ using namespace ZetaRay::Math;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
-using namespace ZetaRay::Model::glTF2;
+using namespace ZetaRay::Model;
+//using namespace ZetaRay::Model::glTF;
 using namespace ZetaRay::Win32;
 
 //--------------------------------------------------------------------------------------
@@ -58,52 +54,7 @@ namespace
 		uint64_t ParentID;
 	};
 
-	/*
-	struct EmissiveMeshPower
-	{
-		EmissiveMeshPower(uint64_t sceneID, int meshIdx, int primIdx, int numTris)
-		{
-			ID = MeshID(sceneID, meshIdx, primIdx);
-			Lumens.resize(numTris);
-		}
-
-		uint64_t ID;
-		SmallVector<float, 2, 32> Lumens;
-	};
-
-	// Search the range [beg, end) for key "key"
-	int FindMeshPrim(const Vector<EmissiveMeshPower>& emissives, uint64_t key)
-	{
-		int beg = 0;
-		int end = (int)emissives.size();
-		int mid = (int)(emissives.size() >> 1);
-
-		if (beg == end)
-			return -1;
-
-		while (true)
-		{
-			if (end - beg <= 2)
-				break;
-
-			if (emissives[mid].ID < key)
-				beg = mid + 1;
-			else
-				end = mid + 1;
-
-			mid = beg + ((end - beg) >> 1);
-		}
-
-		if (emissives[beg].ID == key)
-			return beg;
-		else if (emissives[mid].ID == key)
-			return mid;
-
-		return -1;
-	}
-	*/
-
-	void ProcessPositions(const tinygltf::Model& model, int posIdx, Vector<VertexPosNormalTexTangent>& vertices) noexcept
+	void ProcessPositions(const tinygltf::Model& model, int posIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[posIdx];
 
@@ -117,18 +68,18 @@ namespace
 
 		// populate the vertex position attribute
 		const auto& buffer = model.buffers[bufferView.buffer];
-		float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
-			float3* curr = start + i;
+			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate systes with +Y as up
 			vertices[i].Position = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Vector<VertexPosNormalTexTangent>& vertices) noexcept
+	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[normalIdx];
 
@@ -141,18 +92,18 @@ namespace
 		Check(byteStride == sizeof(float3), "Invalid stride for NORMAL attribute.");
 
 		const auto& buffer = model.buffers[bufferView.buffer];
-		float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
-			float3* curr = start + i;
+			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate systes with +Y as up
 			vertices[i].Normal = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessTexCoords(const tinygltf::Model& model, int uv0Idx, Vector<VertexPosNormalTexTangent>& vertices) noexcept
+	void ProcessTexCoords(const tinygltf::Model& model, int uv0Idx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[uv0Idx];
 
@@ -166,16 +117,16 @@ namespace
 
 		// populate the vertex TexUV attribute
 		const auto& buffer = model.buffers[bufferView.buffer];
-		float2* start = (float2*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const float2* start = (float2*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
-			float2* curr = start + i;
+			const float2* curr = start + i;
 			vertices[i].TexUV = float2(curr->x, curr->y);
 		}
 	}
 
-	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Vector<VertexPosNormalTexTangent>& vertices) noexcept
+	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[tangentIdx];
 
@@ -187,26 +138,21 @@ namespace
 		const int byteStride = accessor.ByteStride(bufferView);
 
 		const auto& buffer = model.buffers[bufferView.buffer];
-		float4* start = (float4*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const float4* start = (float4*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
-			float4* curr = start + i;
+			const float4* curr = start + i;
 
 			// glTF uses a right-handed coordinate systes with +Y as up
 			vertices[i].Tangent = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessIndices(const tinygltf::Model& model, int indicesIdx, Vector<INDEX_TYPE>& indices) noexcept
+	void ProcessIndices(const tinygltf::Model& model, int indicesIdx, Vector<INDEX_TYPE, App::PoolAllocator>& indices) noexcept
 	{
 		const auto& accessor = model.accessors[indicesIdx];
-
 		Check(accessor.type == TINYGLTF_TYPE_SCALAR, "Invalid index type.");
-		//Check((accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_BYTE ||
-		//	accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_SHORT), 
-		//	"Index component type not supported.");
-		bool indexType32Bit = accessor.componentType == TINYGLTF_COMPONENT_TYPE_UNSIGNED_INT;
 
 		auto& bufferView = model.bufferViews[accessor.bufferView];
 		const int byteStride = accessor.ByteStride(bufferView);
@@ -216,9 +162,8 @@ namespace
 		indices.reserve(accessor.count);
 
 		// populate the mesh indices
-		uint8_t* start = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
-		uint8_t* curr = start;
-		Assert(accessor.count % 3 == 0, "invalid number of indices");
+		uint8_t* curr = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
+		Check(accessor.count % 3 == 0, "invalid number of indices");
 		const size_t numFaces = accessor.count / 3;
 
 		for (size_t face = 0; face < numFaces; face++)
@@ -233,10 +178,6 @@ namespace
 			curr += byteStride;
 			memcpy(&i2, curr, byteStride);
 			curr += byteStride;
-
-#if USE_16_BIT_INDICES
-			Assert(!indexType32Bit || (i0 < UINT16_MAX && i1 < UINT16_MAX && i2 < UINT16_MAX), "32-bit indices are not supported");
-#endif // INDEX_TYPE == uint16_t
 
 			// changing the handedness to left handed was not needed, why?
 
@@ -254,23 +195,23 @@ namespace
 
 		for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
 		{
-			Assert(meshIdx < model.meshes.size(), "bug");
+			Assert(meshIdx < model.meshes.size(), "out-of-bound access");
 			const auto& mesh = model.meshes[meshIdx];
 			int primIdx = 0;
 
 			// fill in the subsets
 			for (const auto& prim : mesh.primitives)
 			{
-				Asset::MeshSubset subset;
+				glTF::Asset::MeshSubset subset;
 				subset.MeshIdx = (int)meshIdx;
 				subset.MeshPrimIdx = primIdx;
 
-				Check(prim.indices != -1, "No Index buffer was set.");
+				Check(prim.indices != -1, "index buffer is required.");
 				Check(prim.mode == TINYGLTF_MODE_TRIANGLES, "Non-triangle meshes are not supported.");
 
 				auto posIt = prim.attributes.find("POSITION");
 
-				// workaround for weird bug when /fsanitize=address is used. For some
+				// workaround for weird bug when /fsanitize=address is used -- for some
 				// reason "POSITION" becomes "POSITIONsssss"
 				if (posIt == prim.attributes.end())
 				{
@@ -284,18 +225,14 @@ namespace
 					}
 				}
 				
-				//Check((posIit != prim.attributes.end() || posIit->second != -1),
-				//	"POSITION was not found in the vertex attributes.");
 				Check(posIt != prim.attributes.end(), "POSITION was not found in the vertex attributes.");
 
 				auto normalit = prim.attributes.find("NORMAL");
-				//Check((normalit != prim.attributes.end() || normalit->second != -1),
-				//	"NORMAL was not found in the vertex attributes.");
 				Check(normalit != prim.attributes.end(), "NORMAL was not found in the vertex attributes.");
 
 				auto texIt = prim.attributes.find("TEXCOORD_0");
 
-				// workaround for weird bug when /fsanitize=address is used. For some
+				// workaround for weird bug when /fsanitize=address is used -- for some
 				// reason "TEXCOORD_0" becomes "TEXCOORD_0sssss"
 				if (texIt == prim.attributes.end())
 				{
@@ -312,7 +249,7 @@ namespace
 				// populate the vertex attributes
 				subset.Vertices.resize(model.accessors[posIt->second].count);
 
-				uint64_t meshID = MeshID(sceneID, subset.MeshIdx, subset.MeshPrimIdx);
+				//const uint64_t meshID = MeshID(sceneID, subset.MeshIdx, subset.MeshPrimIdx);
 
 				// POSITION
 				ProcessPositions(model, posIt->second, subset.Vertices);
@@ -356,8 +293,8 @@ namespace
 		}
 	}
 
-	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, tinygltf::Model& model, 
-		size_t offset, size_t size) noexcept
+	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const tinygltf::Model& model, 
+		int offset, int size) noexcept
 	{
 		SceneCore& scene = App::GetScene();
 
@@ -373,23 +310,24 @@ namespace
 			return ret;
 		};
 
-		for (size_t m = offset; m != offset + size; m++) 
+		for (int m = offset; m != offset + size; m++)
 		{
 			const auto& mat = model.materials[m];
-			Asset::MaterialDesc desc;
-			desc.Index = (uint32_t)m;
-
+			
+			glTF::Asset::MaterialDesc desc;
+			desc.Index = m;
 			desc.AlphaMode = getAlphaMode(mat.alphaMode);
 			desc.AlphaCuttoff = max(MIN_ALPHA_CUTOFF, (float)mat.alphaCutoff);
 			desc.TwoSided = mat.doubleSided;
 
+			// base color map
 			{
-				int baseColIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
+				const int baseColIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
 				if (baseColIdx != -1)
 				{
-					int imgIdx = model.textures[baseColIdx].source;
-					Check(imgIdx != -1, "Invalid image-index");
-					std::string& texPath = model.images[imgIdx].uri;
+					const int imgIdx = model.textures[baseColIdx].source;
+					Check(imgIdx != -1, "Invalid texture index");
+					const std::string& texPath = model.images[imgIdx].uri;
 
 					desc.BaseColorTexPath = Filesystem::Path(App::GetAssetDir());
 					desc.BaseColorTexPath.Append(modelDir.Get());
@@ -401,13 +339,14 @@ namespace
 				desc.BaseColorFactor = float4((float)f[0], (float)f[1], (float)f[2], (float)f[3]);
 			}
 
+			// normal map
 			{
-				int normalTexIdx = mat.normalTexture.index;
+				const int normalTexIdx = mat.normalTexture.index;
 				if (normalTexIdx != -1)
 				{
-					int imgIdx = model.textures[normalTexIdx].source;
-					Check(imgIdx != -1, "Invalid image-index");
-					std::string& texPath = model.images[imgIdx].uri;
+					const int imgIdx = model.textures[normalTexIdx].source;
+					Check(imgIdx != -1, "Invalid texture index");
+					const std::string& texPath = model.images[imgIdx].uri;
 
 					desc.NormalTexPath = Filesystem::Path(App::GetAssetDir());
 					desc.NormalTexPath.Append(modelDir.Get());
@@ -417,30 +356,32 @@ namespace
 				desc.NormalScale = (float)mat.normalTexture.scale;
 			}
 
+			// metalness-roughness map
 			{
-				int metalicRoughnessIdx = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
-				if (metalicRoughnessIdx != -1)
+				const int metalnessRoughnessIdx = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
+				if (metalnessRoughnessIdx != -1)
 				{
-					int imgIdx = model.textures[metalicRoughnessIdx].source;
-					Check(imgIdx != -1, "Invalid image-index");
-					std::string& texPath = model.images[imgIdx].uri;
+					const int imgIdx = model.textures[metalnessRoughnessIdx].source;
+					Check(imgIdx != -1, "Invalid texture index");
+					const std::string& texPath = model.images[imgIdx].uri;
 
 					desc.MetalnessRoughnessTexPath = Filesystem::Path(App::GetAssetDir());
 					desc.MetalnessRoughnessTexPath.Append(modelDir.Get());
 					desc.MetalnessRoughnessTexPath.Append(texPath.data());
 				}
 
-				desc.MetallicFactor = (float)mat.pbrMetallicRoughness.metallicFactor;
+				desc.MetalnessFactor = (float)mat.pbrMetallicRoughness.metallicFactor;
 				desc.RoughnessFactor = (float)mat.pbrMetallicRoughness.roughnessFactor;
 			}
 
+			// emissive map
 			{
-				int emissiveIdx = mat.emissiveTexture.index;
+				const int emissiveIdx = mat.emissiveTexture.index;
 				if (emissiveIdx != -1)
 				{
-					int imgIdx = model.textures[emissiveIdx].source;
-					Check(imgIdx != -1, "Invalid image-index");
-					std::string& texPath = model.images[imgIdx].uri;
+					const int imgIdx = model.textures[emissiveIdx].source;
+					Check(imgIdx != -1, "Invalid texture index");
+					const std::string& texPath = model.images[imgIdx].uri;
 
 					desc.EmissiveTexPath = Filesystem::Path(App::GetAssetDir());
 					desc.EmissiveTexPath.Append(modelDir.Get());
@@ -448,7 +389,7 @@ namespace
 				}
 
 				auto& f = mat.emissiveFactor;
-				Assert(f.size() == 3, "Invalid emissiveFactor");
+				Check(f.size() == 3, "Invalid emissiveFactor");
 				desc.EmissiveFactor = float3((float)f[0], (float)f[1], (float)f[2]);
 			}
 				
@@ -457,7 +398,7 @@ namespace
 	}
 
 	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId, 
-		Vector<IntemediateInstance>& instances, bool blenderToYupConversion) noexcept
+		Vector<IntemediateInstance, App::PoolAllocator>& instances, bool blenderToYupConversion) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -541,7 +482,7 @@ namespace
 		}
 	}
 
-	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance>& instances, bool blenderToYupConversion) noexcept
+	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::PoolAllocator>& instances, bool blenderToYupConversion) noexcept
 	{
 		for (int i : model.scenes[model.defaultScene].nodes)
 		{
@@ -550,7 +491,7 @@ namespace
 		}
 	}
 
-	void ProcessInstances(uint64_t sceneID, const Vector<IntemediateInstance>& instances, const tinygltf::Model& model) noexcept
+	void ProcessInstances(uint64_t sceneID, const Vector<IntemediateInstance, App::PoolAllocator>& instances, const tinygltf::Model& model) noexcept
 	{
 		for (auto& instance : instances)
 		{
@@ -565,7 +506,7 @@ namespace
 				uint8_t rtInsMask = model.materials[meshPrim.material].emissiveTexture.index != -1 ? 
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
-				Asset::InstanceDesc desc{ 
+				glTF::Asset::InstanceDesc desc{ 
 					.LocalTransform = instance.LocalTransform, 
 					.MeshIdx = meshIdx,
 					.Name = instance.Name.data(),
@@ -592,88 +533,9 @@ namespace
 			}
 		}
 	}
-
-	/*
-	void ProcessEmissives(std::string_view path, uint64_t sceneID, Vector<EmissiveMeshPower>& emissives) noexcept
-	{
-		if(!Win32::Filesystem::Exists(path.data()))
-			return;
-
-		// load the file
-		HANDLE h = CreateFileA(path.data(),
-			GENERIC_READ,
-			FILE_SHARE_READ,
-			nullptr,
-			OPEN_EXISTING,
-			FILE_ATTRIBUTE_NORMAL, nullptr);
-
-		CheckWin32(h);
-
-		LARGE_INTEGER s;
-		CheckWin32(GetFileSizeEx(h, &s));
-
-		uint8_t* buff = (uint8_t*)_aligned_malloc(s.QuadPart, 32);
-		DWORD numRead;
-		CheckWin32(ReadFile(h, buff, (DWORD)s.QuadPart, &numRead, nullptr));
-		Check(numRead == (DWORD)s.QuadPart, "ReadFile() read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
-
-		CloseHandle(h);
-
-		// header
-		const char header[] = "glTF2Emissives;";
-		Check(strcmp((char*)buff, header) == 0, "Invalid header");
-
-		uint8_t* ptr = buff + sizeof(header) + 1;
-		int meshIdx;
-		int primIdx;
-		int numTriangles;
-
-		while ((uintptr_t)ptr - (uintptr_t)buff < (uintptr_t)s.QuadPart)
-		{
-			memcpy(&meshIdx, ptr, sizeof(int));
-			ptr += sizeof(int);
-
-			memcpy(&primIdx, ptr, sizeof(int));
-			ptr += sizeof(int);
-
-			memcpy(&numTriangles, ptr, sizeof(int));
-			ptr += sizeof(int);
-
-			Check(meshIdx >= 0, "Invalid meshidx");
-			Check(primIdx >= 0, "Invalid meshidx");
-			Check(numTriangles > 0, "Invalid numTriangles");
-
-			EmissiveMeshPower e(sceneID, meshIdx, primIdx, numTriangles);
-
-			const int numToProcSIMD = numTriangles - (numTriangles & (8 - 1));
-			ptr = reinterpret_cast<uint8_t*>(((uintptr_t)ptr + 31) & ~31);
-			Check(((uintptr_t)ptr & (32 - 1)) == 0, "must be 32-byte aligned.");
-
-			for (int i = 0; i < numToProcSIMD; i += 8)
-			{
-				__m256 V = _mm256_load_ps(reinterpret_cast<float*>(ptr));
-				_mm256_store_ps(&e.Lumens[i], V);
-
-				ptr += 32;
-			}
-
-			for (int i = numToProcSIMD; i < numTriangles; i++)
-			{
-				memcpy(&e.Lumens[i], ptr, sizeof(float));
-				ptr += sizeof(float);
-			}
-
-			Check(*ptr++ == ';', "Unexpected character.");
-
-			emissives.push_back(e);
-		}
-
-		_aligned_free(buff);
-	}
-	*/
 }
 
-void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
+void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 {
 	tinygltf::TinyGLTF loader;
 	tinygltf::Model model;
@@ -685,8 +547,8 @@ void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) n
 	std::string s(fullPath.Get());
 	const bool success = loader.LoadASCIIFromFile(&model, &error, &warning, s);
 
-	Check(warning.empty(), "Warning while loading glTF2 model from %s: %s.", s.c_str(), warning.c_str());
-	Check(error.empty(), "Error while loading glTF2 model from %s: %s.", s.c_str(), error.c_str());
+	Check(warning.empty(), "Warning while loading glTF2 model from path %s: %s.", s.c_str(), warning.c_str());
+	Check(error.empty(), "Error while loading glTF2 model from path %s: %s.", s.c_str(), error.c_str());
 	Check(model.defaultScene != -1, "invalid defaultScene value.");
 
 	const uint64_t sceneID = XXH3_64bits(s.c_str(), s.size());
@@ -698,17 +560,29 @@ void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) n
 
 	scene.ReserveScene(sceneID, numMeshes, model.materials.size(), model.nodes.size());
 
+	// how many meshes are processed by each worker
 	constexpr size_t MAX_NUM_MESH_WORKERS = 3;
-	constexpr size_t MIN_MESH_PER_WORKER = 20;
+	constexpr size_t MIN_MESHES_PER_WORKER = 20;
 	size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
 	size_t meshThreadSizes[MAX_NUM_MESH_WORKERS];
-	size_t meshNumThreads = SubdivideRangeWithMin(model.meshes.size(), MAX_NUM_MESH_WORKERS, meshThreadOffsets, meshThreadSizes, MIN_MESH_PER_WORKER);
 
+	const size_t meshNumThreads = SubdivideRangeWithMin(model.meshes.size(), 
+		MAX_NUM_MESH_WORKERS, 
+		meshThreadOffsets, 
+		meshThreadSizes, 
+		MIN_MESHES_PER_WORKER);
+
+	// how many materials are processed by each worker
 	constexpr size_t MAX_NUM_MAT_WORKERS = 3;
-	constexpr size_t MIN_MAT_PER_WORKER = 20;
+	constexpr size_t MIN_MATS_PER_WORKER = 20;
 	size_t matThreadOffsets[MAX_NUM_MAT_WORKERS];
 	size_t matThreadSizes[MAX_NUM_MAT_WORKERS];
-	size_t matNumThreads = SubdivideRangeWithMin(model.materials.size(), MAX_NUM_MAT_WORKERS, matThreadOffsets, matThreadSizes, MIN_MAT_PER_WORKER);
+
+	const size_t matNumThreads = SubdivideRangeWithMin(model.materials.size(), 
+		MAX_NUM_MAT_WORKERS, 
+		matThreadOffsets, 
+		matThreadSizes, 
+		MIN_MATS_PER_WORKER);
 
 	struct ThreadContext
 	{
@@ -745,8 +619,7 @@ void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) n
 				Filesystem::Path parent(modelRelPath);
 				parent.ToParent();
 
-				// TODO per-texture samplers
-				ProcessMaterials(tc.SceneID, parent, *tc.Model, tc.MatThreadOffsets[rangeIdx], tc.MatThreadSizes[rangeIdx]);
+				ProcessMaterials(tc.SceneID, parent, *tc.Model, (int)tc.MatThreadOffsets[rangeIdx], (int)tc.MatThreadSizes[rangeIdx]);
 			});
 	}
 
@@ -755,29 +628,12 @@ void Model::glTF2::Load(const char* modelRelPath, bool blenderToYupConversion) n
 	ts.Finalize(&waitObj);
 	App::Submit(ZetaMove(ts));
 
-	Win32::DeltaTimer timer;
-
-//	SmallVector<EmissiveMeshPower> emissives;
-//	Filesystem::Path emissivePowerPath = fullPath.ToParent().Append("LightSourcePower.bin");
-
-	/*
-	timer.Start();
-	ProcessEmissives(emissivePowerPath.Get(), sceneID, emissives);
-	if (!emissives.empty())
-		std::sort(emissives.begin(), emissives.end(), [](EmissiveMeshPower& lhs, EmissiveMeshPower& rhs) {return lhs.ID < rhs.ID; });
-	timer.End();
-	LOG("Thread %u finished \t%s in %u[us]\n", GetCurrentThreadId(), "ProcessEmissives()", (uint32_t)timer.DeltaMicro());
-	*/
-
-	SmallVector<IntemediateInstance> instances;
+	SmallVector<IntemediateInstance, App::PoolAllocator> instances;
 	instances.reserve(model.nodes.size());
 
+	// TODO is this necessary?
 	waitObj.Wait();
 
-	timer.Start();
 	ProcessNodes(model, sceneID, instances, blenderToYupConversion);
 	ProcessInstances(sceneID, instances, model);
-	timer.End();
-
-//	LOG("Thread %u finished \t%s in %u[us]\n", GetCurrentThreadId(), "ProcessInstances()", (uint32_t)timer.DeltaMicro());
 }

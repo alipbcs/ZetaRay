@@ -8,8 +8,7 @@ using namespace ZetaRay::Math;
 // Surfaces
 //--------------------------------------------------------------------------------------
 
-bool ZetaRay::Math::ComputeMeshTangentVectors(Span<VertexPosNormalTexTangent> vertices,
-	Span<INDEX_TYPE> indices, bool rhsIndices) noexcept
+bool ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<INDEX_TYPE> indices, bool rhsIndices) noexcept
 {
 	for (auto& v : vertices)
 		v.Tangent = float3(0.0f, 0.0f, 0.0f);

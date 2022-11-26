@@ -10,11 +10,75 @@
 
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Scene::Settings;
+using namespace ZetaRay::Scene::Render;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Win32;
+
+//--------------------------------------------------------------------------------------
+// Scene::Render::Common
+//--------------------------------------------------------------------------------------
+
+void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHeapBuffer& frameConstsBuff,
+	const GBufferData& gbuffData, const LightData& lightData) noexcept
+{
+	const int currIdx = App::GetTimer().GetTotalFrameCount() & 0x1;
+	frameConsts.FrameNum = (uint32_t)App::GetTimer().GetTotalFrameCount();
+	frameConsts.RenderWidth = App::GetRenderer().GetRenderWidth();
+	frameConsts.RenderHeight = App::GetRenderer().GetRenderHeight();
+	frameConsts.DisplayWidth = App::GetRenderer().GetDisplayWidth();
+	frameConsts.DisplayHeight = App::GetRenderer().GetDisplayHeight();
+	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
+		log2f((float)frameConsts.RenderWidth / frameConsts.DisplayWidth) - 1.0f :
+		0.0f;
+
+	frameConsts.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
+	frameConsts.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
+	frameConsts.MetalnessRoughnessMapsDescHeapOffset = App::GetScene().GetMetalnessRougnessMapsDescHeapOffset();
+	frameConsts.EmissiveMapsDescHeapOffset = App::GetScene().GetEmissiveMapsDescHeapOffset();
+
+	// Note: assumes BVH has been built
+	frameConsts.WorldRadius = App::GetScene().GetWorldAABB().Extents.length();
+
+	// camera
+	const Camera& cam = App::GetCamera();
+	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
+	v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
+	v_float4x4 vVP = mul(vCurrV, vP);
+
+	frameConsts.CameraPos = cam.GetPos();
+	frameConsts.CameraNear = cam.GetNearZ();
+	frameConsts.AspectRatio = cam.GetAspectRatio();
+	frameConsts.PixelSpreadAngle = cam.GetPixelSpreadAngle();
+	frameConsts.TanHalfFOV = tanf(0.5f * cam.GetFOV());
+	frameConsts.CurrProj = cam.GetCurrProj();
+	frameConsts.PrevView = frameConsts.CurrView;
+	frameConsts.CurrView = float3x4(cam.GetCurrView());
+	frameConsts.PrevViewProj = frameConsts.CurrViewProj;
+	frameConsts.CurrViewProj = store(vVP);
+	frameConsts.PrevViewInv = frameConsts.CurrViewInv;
+	frameConsts.CurrViewInv = float3x4(cam.GetViewInv());
+	frameConsts.PrevCameraJitter = frameConsts.CurrCameraJitter;
+	frameConsts.CurrCameraJitter = cam.GetProjOffset();
+
+	// frame gbuffer srv desc. table
+	frameConsts.CurrGBufferDescHeapOffset = gbuffData.SRVDescTable[currIdx].GPUDesciptorHeapIndex();
+	frameConsts.PrevGBufferDescHeapOffset = gbuffData.SRVDescTable[1 - currIdx].GPUDesciptorHeapIndex();
+
+	// env. map SRV
+	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::ENV_MAP_SRV);
+
+	frameConstsBuff = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(Scene::SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME,
+		Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT),
+		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+		false,
+		&frameConsts);
+
+	App::GetRenderer().GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(Scene::SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME,
+		frameConstsBuff);
+}
 
 //--------------------------------------------------------------------------------------
 // SceneRenderer
@@ -31,8 +95,8 @@ SceneRenderer::~SceneRenderer() noexcept
 
 void SceneRenderer::Init() noexcept
 {
-	m_renderGraph.Reset();
 	auto* data = m_data.get();
+	data->m_renderGraph.Reset();
 
 	const Camera& cam = App::GetCamera();
 	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
@@ -78,15 +142,15 @@ void SceneRenderer::Init() noexcept
 	data->m_frameConstants.MieSigmaS = Defaults::SIGMA_S_MIE;
 
 	TaskSet ts;
-	auto h0 = ts.EmplaceTask("GBufferRenderer_Init", [this]()
+	auto h0 = ts.EmplaceTask("GBuffer_Init", [this]()
 		{
 			auto* data = m_data.get();
-			GBufferRenderer::Init(data->m_settings, data->m_gBuffData);
+			GBuffer::Init(data->m_settings, data->m_gBuffData);
 		});
-	auto h1 = ts.EmplaceTask("LightManager_Init", [this]()
+	auto h1 = ts.EmplaceTask("Light_Init", [this]()
 		{
 			auto* data = m_data.get();
-			LightManager::Init(data->m_settings, data->m_lightManagerData);
+			Light::Init(data->m_settings, data->m_lightData);
 		});
 	auto h2 = ts.EmplaceTask("RayTracer_Init", [this]()
 		{
@@ -96,7 +160,7 @@ void SceneRenderer::Init() noexcept
 	auto h3 = ts.EmplaceTask("PostProcessor_Init", [this]()
 		{
 			auto* data = m_data.get();
-			PostProcessor::Init(data->m_settings, data->m_postProcessorData, data->m_lightManagerData);
+			PostProcessor::Init(data->m_settings, data->m_postProcessorData, data->m_lightData);
 		});
 
 	ts.AddOutgoingEdge(h1, h3);
@@ -230,124 +294,62 @@ void SceneRenderer::Update(TaskSet& ts) noexcept
 {
 	auto h0 = ts.EmplaceTask("SceneRenderer::Update_GBuffLight", [this]()
 		{
-
-			UpdateFrameConstants();
-
 			auto* data = m_data.get();
-			GBufferRenderer::Update(data->m_gBuffData, data->m_lightManagerData);
-			LightManager::Update(data->m_settings, data->m_gBuffData, data->m_raytracerData, data->m_lightManagerData);
+			GBuffer::Update(data->m_gBuffData, data->m_lightData);
+			Light::Update(data->m_settings, data->m_gBuffData, data->m_raytracerData, data->m_lightData);
+
+			Common::UpdateFrameConstants(data->m_frameConstants, data->m_frameConstantsBuff, data->m_gBuffData, data->m_lightData);
 		});
 
-	auto h1 = ts.EmplaceTask("SceneRenderer::Update_RtPost", [this]()
+	auto h1 = ts.EmplaceTask("SceneRenderer::Update_RT", [this]()
 		{
 			auto* data = m_data.get();
-
-			// following order is important
 			RayTracer::Update(data->m_settings, data->m_raytracerData);
-			PostProcessor::Update(data->m_settings, data->m_gBuffData, data->m_lightManagerData, 
-				data->m_raytracerData, data->m_postProcessorData);
 		});
 
-	auto h2 = ts.EmplaceTask("SceneRenderer::Update_Graph", [this]()
+	auto h2 = ts.EmplaceTask("SceneRenderer::Update_RT_Graph", [this]()
 		{
 			auto* data = m_data.get();
-			m_renderGraph.BeginFrame();
 
-			GBufferRenderer::Register(data->m_gBuffData, m_renderGraph);
-			LightManager::Register(data->m_settings, data->m_raytracerData, data->m_lightManagerData, m_renderGraph);
-			RayTracer::Register(data->m_settings, data->m_raytracerData, m_renderGraph);
-			PostProcessor::Register(data->m_settings, data->m_postProcessorData, m_renderGraph);
+			PostProcessor::Update(data->m_settings, data->m_gBuffData, data->m_lightData,
+				data->m_raytracerData, data->m_postProcessorData);
+		
+			data->m_renderGraph.BeginFrame();
 
-			m_renderGraph.MoveToPostRegister();
+			GBuffer::Register(data->m_gBuffData, data->m_renderGraph);
+			Light::Register(data->m_settings, data->m_raytracerData, data->m_lightData, data->m_renderGraph);
+			RayTracer::Register(data->m_settings, data->m_raytracerData, data->m_renderGraph);
+			PostProcessor::Register(data->m_settings, data->m_postProcessorData, data->m_renderGraph);
 
-			GBufferRenderer::DeclareAdjacencies(data->m_gBuffData, data->m_lightManagerData, m_renderGraph);
-			LightManager::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_raytracerData,
-				data->m_lightManagerData, m_renderGraph);
-			RayTracer::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_raytracerData, m_renderGraph);
-			PostProcessor::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_lightManagerData,
-				data->m_raytracerData, data->m_postProcessorData, m_renderGraph);
+			data->m_renderGraph.MoveToPostRegister();
+
+			GBuffer::DeclareAdjacencies(data->m_gBuffData, data->m_lightData, data->m_renderGraph);
+			Light::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_raytracerData,
+				data->m_lightData, data->m_renderGraph);
+			RayTracer::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_raytracerData, data->m_renderGraph);
+			PostProcessor::DeclareAdjacencies(data->m_settings, data->m_gBuffData, data->m_lightData,
+				data->m_raytracerData, data->m_postProcessorData, data->m_renderGraph);
 		});
 
 	// RenderGraph should update last
-	ts.AddOutgoingEdge(h0, h1);
+	ts.AddOutgoingEdge(h0, h2);
 	ts.AddOutgoingEdge(h1, h2);
 }
 
 void SceneRenderer::Render(TaskSet& ts) noexcept
 {
-	m_renderGraph.Build(ts);
+	m_data->m_renderGraph.Build(ts);
 }
 
 void SceneRenderer::Shutdown() noexcept
 {
-	GBufferRenderer::Shutdown(m_data->m_gBuffData);
-	LightManager::Shutdown(m_data->m_lightManagerData);
+	GBuffer::Shutdown(m_data->m_gBuffData);
+	Light::Shutdown(m_data->m_lightData);
 	RayTracer::Shutdown(m_data->m_raytracerData);
 	PostProcessor::Shutdown(m_data->m_postProcessorData);
 
-	m_frameConstantsBuff.Reset();
-	m_renderGraph.Shutdown();
-}
-
-void SceneRenderer::UpdateFrameConstants() noexcept
-{
-	auto* data = m_data.get();
-
-	const int currIdx = App::GetTimer().GetTotalFrameCount() & 0x1;
-	data->m_frameConstants.FrameNum = (uint32_t)App::GetTimer().GetTotalFrameCount();
-	data->m_frameConstants.RenderWidth = App::GetRenderer().GetRenderWidth();
-	data->m_frameConstants.RenderHeight = App::GetRenderer().GetRenderHeight();
-	data->m_frameConstants.DisplayWidth = App::GetRenderer().GetDisplayWidth();
-	data->m_frameConstants.DisplayHeight = App::GetRenderer().GetDisplayHeight();
-	data->m_frameConstants.MipBias = App::GetUpscalingFactor() != 1.0f ?
-		log2f((float)data->m_frameConstants.RenderWidth / data->m_frameConstants.DisplayWidth) - 1.0f : 
-		0.0f;
-
-	data->m_frameConstants.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
-	data->m_frameConstants.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
-	data->m_frameConstants.MetalnessRoughnessMapsDescHeapOffset = App::GetScene().GetMetallicRougnessMapsDescHeapOffset();
-	data->m_frameConstants.EmissiveMapsDescHeapOffset = App::GetScene().GetEmissiveMapsDescHeapOffset();
-
-	// Note: assumes BVH has been built
-	data->m_frameConstants.WorldRadius = App::GetScene().GetWorldAABB().Extents.length();
-
-	// camera
-	const Camera& cam = App::GetCamera();
-	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
-	v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
-	v_float4x4 vVP = mul(vCurrV, vP);
-
-	data->m_frameConstants.CameraPos = cam.GetPos();
-	data->m_frameConstants.CameraNear = cam.GetNearZ();
-	data->m_frameConstants.AspectRatio = cam.GetAspectRatio();
-	data->m_frameConstants.PixelSpreadAngle = cam.GetPixelSpreadAngle();
-	data->m_frameConstants.TanHalfFOV = tanf(0.5f * cam.GetFOV());
-	data->m_frameConstants.CurrProj = cam.GetCurrProj();
-	data->m_frameConstants.PrevView = data->m_frameConstants.CurrView;
-	data->m_frameConstants.CurrView = float3x4(cam.GetCurrView());
-	data->m_frameConstants.PrevViewProj = m_data->m_frameConstants.CurrViewProj;
-	data->m_frameConstants.CurrViewProj = store(vVP);
-	data->m_frameConstants.PrevViewInv = m_data->m_frameConstants.CurrViewInv;
-	data->m_frameConstants.CurrViewInv = float3x4(cam.GetViewInv());
-	data->m_frameConstants.PrevCameraJitter = data->m_frameConstants.CurrCameraJitter;
-	data->m_frameConstants.CurrCameraJitter = cam.GetProjOffset();
-
-	// frame gbuffer srv desc. table
-	data->m_frameConstants.CurrGBufferDescHeapOffset = m_data->m_gBuffData.SRVDescTable[currIdx].GPUDesciptorHeapIndex();
-	data->m_frameConstants.PrevGBufferDescHeapOffset = m_data->m_gBuffData.SRVDescTable[1 - currIdx].GPUDesciptorHeapIndex();
-
-	// env. map SRV
-	m_data->m_frameConstants.EnvMapDescHeapOffset = m_data->m_lightManagerData.GpuDescTable.GPUDesciptorHeapIndex(
-		LightManagerData::DESC_TABLE::ENV_MAP_SRV);
-
-	m_frameConstantsBuff = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(FRAME_CONSTANTS_BUFFER_NAME,
-		Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT), 
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-		false, 
-		&data->m_frameConstants);
-
-	App::GetRenderer().GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(FRAME_CONSTANTS_BUFFER_NAME, 
-		m_frameConstantsBuff);
+	m_data->m_frameConstantsBuff.Reset();
+	m_data->m_renderGraph.Shutdown();
 }
 
 void SceneRenderer::OnWindowSizeChanged() noexcept
@@ -355,12 +357,17 @@ void SceneRenderer::OnWindowSizeChanged() noexcept
 	auto* data = m_data.get();
 
 	// following order is important
-	GBufferRenderer::OnWindowSizeChanged(data->m_settings, data->m_gBuffData);
-	LightManager::OnWindowSizeChanged(data->m_settings, data->m_lightManagerData);
+	GBuffer::OnWindowSizeChanged(data->m_settings, data->m_gBuffData);
+	Light::OnWindowSizeChanged(data->m_settings, data->m_lightData);
 	RayTracer::OnWindowSizeChanged(data->m_settings, data->m_raytracerData);
-	PostProcessor::OnWindowSizeChanged(data->m_settings, data->m_postProcessorData, data->m_lightManagerData);
+	PostProcessor::OnWindowSizeChanged(data->m_settings, data->m_postProcessorData, data->m_lightData);
 
-	m_renderGraph.Reset();
+	m_data->m_renderGraph.Reset();
+}
+
+void SceneRenderer::DebugDrawRenderGraph() noexcept
+{
+	m_data->m_renderGraph.DebugDrawGraph();
 }
 
 void SceneRenderer::SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept

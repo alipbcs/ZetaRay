@@ -80,7 +80,23 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 		0,												// register-space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		SceneRenderer::FRAME_MESH_INSTANCE_DATA);
+		SceneRenderer::RT_FRAME_MESH_INSTANCES);
+	
+	// scene VB
+	m_rootSig.InitAsBufferSRV(8,						// root idx
+		7,												// register
+		0,												// register-space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
+		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+		SceneRenderer::SCENE_VERTEX_BUFFER);
+
+	// scene IB
+	m_rootSig.InitAsBufferSRV(9,						// root idx
+		8,												// register
+		0,												// register-space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
+		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+		SceneRenderer::SCENE_INDEX_BUFFER);
 }
 
 ReSTIR_GI::~ReSTIR_GI() noexcept

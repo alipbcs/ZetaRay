@@ -1300,12 +1300,14 @@ namespace ZetaRay
 
 	void App::LockStdOut() noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_stdOutLock);
+		if(g_pApp)
+			AcquireSRWLockExclusive(&g_pApp->m_stdOutLock);
 	}
 
 	void App::UnlockStdOut() noexcept
 	{
-		ReleaseSRWLockExclusive(&g_pApp->m_stdOutLock);
+		if(g_pApp)
+			ReleaseSRWLockExclusive(&g_pApp->m_stdOutLock);
 	}
 
 	Span<uint32_t> App::GetMainThreadIDs() noexcept

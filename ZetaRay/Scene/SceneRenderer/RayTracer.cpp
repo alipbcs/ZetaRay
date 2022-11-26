@@ -3,15 +3,13 @@
 #include "../../Win32/App.h"
 #include "../../Core/SharedShaderResources.h"
 
-using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Scene;
+using namespace ZetaRay::Scene::Render;
 using namespace ZetaRay::Scene::Settings;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::RT;
 using namespace ZetaRay::Core;
-using namespace ZetaRay::Core::Direct3DHelper;
 
 //--------------------------------------------------------------------------------------
 // RayTracer
@@ -65,7 +63,7 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 		auto func = [&data](ReSTIR_GI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
 		{
 			const Texture& t = data.ReSTIR_GIPass.GetOutput(r);
-			CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
+			Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
 		};
 
 		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A);
@@ -80,7 +78,7 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 	{
 		// temporal cache changes every frame due to ping-ponging
 		const Texture& temporalCache = data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT);
-		CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
+		Direct3DHelper::CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
 }
 
@@ -163,7 +161,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 	}
 }
 
-void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
+void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, 
 	RayTracerData& data, RenderGraph& renderGraph) noexcept
 {
 	const int outIdx = App::GetRenderer().CurrOutIdx();

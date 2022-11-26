@@ -18,7 +18,8 @@ namespace ZetaRay::Util
 			m_size(vec.size())
 		{}
 
-		Span(Vector<T>& vec) noexcept
+		template<typename Allocator = Support::SystemAllocator>
+		Span(Vector<T, Allocator>& vec) noexcept
 			: m_ptr(vec.data()),
 			m_size(vec.size())
 		{}

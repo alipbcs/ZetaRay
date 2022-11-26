@@ -7,6 +7,7 @@
 namespace ZetaRay
 {
 #endif
+    // TODO is this necessary?
     static const float MIN_ALPHA_CUTOFF = 0.01f;
 
     struct Material
@@ -31,7 +32,7 @@ namespace ZetaRay
             NormalScale = 1.0f;
             AlphaCuttoff = 0.5f;
             BaseColorTexture = -1;
-            MetallicRoughnessTexture = -1;
+            MetalnessRoughnessTexture = -1;
             NormalTexture = -1;
             EmissiveTexture = -1;
             Packed = 0;
@@ -68,7 +69,7 @@ namespace ZetaRay
         float AlphaCuttoff;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture;
-        uint32_t MetallicRoughnessTexture;
+        uint32_t MetalnessRoughnessTexture;
         uint32_t EmissiveTexture;
 
         // last 4 bits encode alpha and two-sided

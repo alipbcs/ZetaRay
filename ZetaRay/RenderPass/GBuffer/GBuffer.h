@@ -28,11 +28,10 @@ namespace ZetaRay::RenderPass
 			uint64_t InstanceID;
 			Math::float4x3 PrevToWorld;
 			Math::float4x3 CurrToWorld;
-			D3D12_GPU_VIRTUAL_ADDRESS VB;
-			D3D12_GPU_VIRTUAL_ADDRESS IB;
-			int VBSizeInBytes;
-			int IBSizeInBytes;
-			int IndexCount;
+			uint32_t VertexCount;
+			uint32_t IndexCount;
+			uint64_t VBStartOffsetInBytes;
+			uint64_t IBStartOffsetInBytes;
 			uint32_t IdxInMatBuff;
 		};
 
@@ -44,7 +43,7 @@ namespace ZetaRay::RenderPass
 
 		bool IsInitialized() { return m_pso != nullptr; }
 
-		void SetInstances(Util::Vector<InstanceData>&& instances) noexcept;
+		void SetInstances(Util::Span<InstanceData> instances) noexcept;
 		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
 		{
 			Assert(i < SHADER_IN_DESC::COUNT, "out-of-bound access.");
@@ -76,19 +75,18 @@ namespace ZetaRay::RenderPass
 		struct DrawCallArgs
 		{
 			uint64_t InstanceID;
-			D3D12_GPU_VIRTUAL_ADDRESS VB;
-			D3D12_GPU_VIRTUAL_ADDRESS IB;
-			uint32_t VBSizeInBytes;
-			uint32_t IBSizeInBytes;
+			uint64_t VBStartOffsetInBytes;
+			uint64_t IBStartOffsetInBytes;
+			uint32_t VertexCount;
 			uint32_t IndexCount;
 		};
 
 		Core::RootSignature m_rootSig;
 
-		// per-draw arguments for draw-call
-		Util::SmallVector<DrawCallArgs> m_perDrawCallArgs;
+		// per-draw arguments for the drawcalls
+		Util::SmallVector<DrawCallArgs, App::PoolAllocator> m_perDrawCallArgs;
 
-		// constant-buffer containing all the Per-draw data
+		// constant buffer containing all the Per-draw data
 		Core::UploadHeapBuffer m_perDrawCB;
 
 		// cache

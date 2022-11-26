@@ -75,7 +75,7 @@ namespace dbg
         std::string file;
     };
 
-    void stack_trace(Vector<StackFrame, StaticArenaAllocator>& frames)
+    void stack_trace(Vector<StackFrame, ArenaAllocator>& frames)
     {
         DWORD machine = IMAGE_FILE_MACHINE_AMD64;
         HANDLE process = GetCurrentProcess();
@@ -169,10 +169,10 @@ namespace dbg
         if (bytesLeft <= 0)
             return;
 
-        StaticMemoryArena ma(1024 * 16);
-        StaticArenaAllocator aa(ma);
+        MemoryArena ma(1024 * 8);
+        ArenaAllocator aa(ma);
 
-        SmallVector<StackFrame, StaticArenaAllocator> stack(aa);
+        SmallVector<StackFrame, ArenaAllocator> stack(aa);
         stack_trace(stack);
 
         curr += stbsp_snprintf(buff.data() + curr, (int)bytesLeft, "Callstack: \n");

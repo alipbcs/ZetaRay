@@ -1,8 +1,7 @@
 set(SCENE_DIR "${RENDERER_DIR}/Scene")
 set(SCENE_SRC
-    "${SCENE_DIR}/AssetManager.cpp"
-    "${SCENE_DIR}/AssetManager.h"
-    "${SCENE_DIR}/Assets.h"
+    "${SCENE_DIR}/Asset.cpp"
+    "${SCENE_DIR}/Asset.h"
     "${SCENE_DIR}/Camera.cpp"
     "${SCENE_DIR}/Camera.h"
     "${SCENE_DIR}/SceneCore.cpp"

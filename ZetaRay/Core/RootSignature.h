@@ -87,7 +87,7 @@ namespace ZetaRay::Core
 
 	private:
 		static constexpr int MAX_NUM_PARAMS = 10;
-		static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 8;
+		static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 9;
 		static constexpr int MAX_NUM_ROOT_CONSTANTS = 20;
 
 		const uint32_t m_numParams;

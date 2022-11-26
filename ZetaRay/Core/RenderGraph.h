@@ -2,7 +2,6 @@
 
 #include "GpuMemory.h"
 #include "../Utility/Span.h"
-#include "../Win32/App.h"
 #include <FastDelegate/FastDelegate.h>
 
 namespace ZetaRay::Support

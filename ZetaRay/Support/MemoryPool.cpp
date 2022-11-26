@@ -85,25 +85,28 @@ void* MemoryPool::Allocate(size_t size) noexcept
 
 void* MemoryPool::AllocateAligned(size_t size, int alignment) noexcept
 {
-	Assert(alignment <= 256, "Alignment > 256 is not supported.");
+	// Alignment > 256 is not supported
+	if(alignment > 256)
+		return _aligned_malloc(size, alignment);
+
 	if (alignment <= alignof(std::max_align_t))
 		return Allocate(size);
 
-	// take alignment into account. 
-	// Given alignment a, at most a - 1 additiona bytes are needed.
-	// e.g. size = 1, alignment = 64 --> 63 more bytes has to be allocated
-	// assuming memory for 1 bytes was allocated at an address that ended with 0x1.
+	// Given alignment a, at most a - 1 additional bytes are needed, e.g. size = 1, a = 64, 
+	// then 63 more bytes has to be allocated assuming original memory was allocated at an 
+	// address that ended with 0x1.
 	// 
-	// Difference between the aligned addrees need to be saved so it can be undone 
-	// when freeing the memory. Extrac alignment - 1 bytes provide the space to
-	// store that. One corner case happens when the address is already aligned, 
-	// which means there won't be any extra space between aligned and original address.
-	// To handle this case, allocate alignment more bytes and always shift the 
-	// orignal pointer to the next aligned addrees.
-	//
-	// Furthermore, in the worst case, only 1 byte can be used to store the difference,
-	// so alignemnts up to 256 are supported (0 is interpreted as 256).
-	const size_t maxNumBytes = size + alignment - 1 + 1;
+	// Difference between the aligned address and the original address needs to be saved 
+	// so it can be undone when freeing the memory. The extra alignment - 1 bytes provide 
+	// the space to store that. A few points:
+	// 
+	//  - One corner case happens when the address is already aligned, which means there won't 
+	// be any extra space between the aligned and original addresses. To handle this, allocate 
+	// alignment more bytes and always shift the original pointer to the next aligned address.
+	// 
+	// - In the worst case, only 1 byte can be used to store the difference, so alignments up to 
+	// 256 are supported (0 is interpreted as 256).
+	const size_t maxNumBytes = size + alignment - 1;
 
 	// Which memory pool does it live in?
 	size_t poolIndex = GetPoolIndexFromSize(maxNumBytes);
@@ -117,12 +120,11 @@ void* MemoryPool::AllocateAligned(size_t size, int alignment) noexcept
 		return _aligned_malloc(size, alignment);
 	}
 
-	// if the pool for requested size is empty or has become full, add a new memory block consisting of 
-	// chunks of size "chunkSize"
+	// if the pool for the requested size is empty or has become full, add a new memory block
 	if (!m_currHead[poolIndex])
 		Grow(poolIndex);
 
-	// get the pointer to first entry in the linked list
+	// get the pointer to the first entry in the linked list
 	void* head = m_currHead[poolIndex];
 	void* oldHead = head;
 	void* newHead = *reinterpret_cast<void**>(head);
@@ -183,7 +185,7 @@ void MemoryPool::FreeAligned(void* mem, size_t size, int alignment) noexcept
 		const size_t maxNumBytes = size + alignment - 1;
 
 		// this request was allocated with malloc
-		if (maxNumBytes > MAX_ALLOC_SIZE)
+		if (maxNumBytes > MAX_ALLOC_SIZE || alignment > 256)
 		{
 			_aligned_free(mem);
 			return;

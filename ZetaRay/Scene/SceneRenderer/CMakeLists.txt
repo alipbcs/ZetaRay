@@ -1,7 +1,7 @@
 set(SCENERENDERER_DIR "${SCENE_DIR}/SceneRenderer")
 set(SCENERENDERER_SRC
     "${SCENERENDERER_DIR}/GBufferRenderer.cpp"
-    "${SCENERENDERER_DIR}/LightManager.cpp"
+    "${SCENERENDERER_DIR}/Light.cpp"
     "${SCENERENDERER_DIR}/PostProcessor.cpp"
     "${SCENERENDERER_DIR}/RayTracer.cpp"
     "${SCENERENDERER_DIR}/SceneRenderer.cpp"

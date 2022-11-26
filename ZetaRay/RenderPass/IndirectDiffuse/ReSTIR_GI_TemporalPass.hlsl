@@ -27,7 +27,9 @@ StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<uint> g_frameMeshData : register(t6);
+StructuredBuffer<RT::Instance> g_frameMeshData : register(t6);
+StructuredBuffer<Vertex> g_sceneVertices : register(t7);
+StructuredBuffer<uint> g_sceneIndices : register(t8);
 
 //--------------------------------------------------------------------------------------
 // 
@@ -125,20 +127,21 @@ bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out Hit
 
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
-		const uint packedMeshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
-		const uint16_t meshDescHeapIdx = (uint16_t) (packedMeshData >> 16);
+		const RT::Instance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
+		//const uint16_t meshDescHeapIdx = (uint16_t) (packedMeshData >> 16);
 
-		StructuredBuffer<Vertex> VB = ResourceDescriptorHeap[meshDescHeapIdx];
-		StructuredBuffer<INDEX_TYPE> IB = ResourceDescriptorHeap[meshDescHeapIdx + 1];
+		//StructuredBuffer<Vertex> VB = ResourceDescriptorHeap[meshDescHeapIdx];
+		//StructuredBuffer<INDEX_TYPE> IB = ResourceDescriptorHeap[meshDescHeapIdx + 1];
 
-		INDEX_TYPE tri = (INDEX_TYPE) rayQuery.CandidatePrimitiveIndex() * 3;
-		INDEX_TYPE i0 = IB[tri];
-		INDEX_TYPE i1 = IB[tri + 1];
-		INDEX_TYPE i2 = IB[tri + 2];
+		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
+		tri += meshData.BaseIdxOffset;
+		uint i0 = g_sceneIndices[tri] + meshData.BaseVtxOffset;
+		uint i1 = g_sceneIndices[tri + 1] + meshData.BaseVtxOffset;
+		uint i2 = g_sceneIndices[tri + 2] + meshData.BaseVtxOffset;
 
-		Vertex V0 = VB[i0];
-		Vertex V1 = VB[i1];
-		Vertex V2 = VB[i2];
+		Vertex V0 = g_sceneVertices[i0];
+		Vertex V1 = g_sceneVertices[i1];
+		Vertex V2 = g_sceneVertices[i2];
 
 		const float2 barry = rayQuery.CommittedTriangleBarycentrics();
 		float2 uv = V0.TexUV + barry.x * (V1.TexUV - V0.TexUV) + barry.y * (V2.TexUV - V0.TexUV);
@@ -149,7 +152,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out Hit
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
 		surface.ShadingNormal = Math::Encoding::EncodeUnitNormalAsHalf2(normal);
-		surface.MatID = (uint16_t) (packedMeshData & 0xffff);
+		surface.MatID = meshData.MatID;
 		surface.T = (half) rayQuery.CommittedRayT();
 
 #if USE_RAY_CONES		
@@ -296,9 +299,9 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	}
 
 	half metalness = (half) mat.MetallicFactor;
-	if (mat.MetallicRoughnessTexture != -1)
+	if (mat.MetalnessRoughnessTexture != -1)
 	{
-		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
+		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
 		// green & blue channels contain roughness & metalness values respectively
 		METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
 

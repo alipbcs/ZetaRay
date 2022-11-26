@@ -1,5 +1,6 @@
 #include <Utility/SmallVector.h>
 #include <Win32/App.h>
+#include <Support/MemoryArena.h>
 #include <doctest-2.4.9/doctest.h>
 
 using namespace ZetaRay::Util;
@@ -17,10 +18,10 @@ TEST_SUITE("SmallVector")
 
 	TEST_CASE("Basic")
 	{
-		MemoryArena ma(128);
+		MemoryArena ma(32);
 		ArenaAllocator aa(ma);
 
-		SmallVector<int, 3, ArenaAllocator> vec1(aa);
+		SmallVector<int, ArenaAllocator, 3> vec1(aa);
 		CHECK(vec1.has_inline_storage() == true);
 
 		for (int i = 0; i < 3; i++)
@@ -36,11 +37,11 @@ TEST_SUITE("SmallVector")
 
 	TEST_CASE("Move-constructor-HeapHeap")
 	{
-		MemoryArena ma(128);
+		MemoryArena ma(8);
 		ArenaAllocator aa(ma);
 
-		SmallVector<int, 0, ArenaAllocator> vec1(aa);
-		SmallVector<int, 0, ArenaAllocator> vec2(aa);
+		SmallVector<int, ArenaAllocator> vec1(aa);
+		SmallVector<int, ArenaAllocator> vec2(aa);
 
 		for (int i = 0; i < 4; i++)
 			vec1.push_back(i);
@@ -60,11 +61,11 @@ TEST_SUITE("SmallVector")
 
 	TEST_CASE("Move-constructor-HeapInline")
 	{
-		MemoryArena ma(128);
+		MemoryArena ma(16);
 		ArenaAllocator aa(ma);
 
-		SmallVector<int, 0, ArenaAllocator> vec1(aa);
-		SmallVector<int, 10, ArenaAllocator> vec2(aa);
+		SmallVector<int, ArenaAllocator> vec1(aa);
+		SmallVector<int, ArenaAllocator, 10> vec2(aa);
 
 		for (int i = 0; i < 4; i++)
 			vec1.push_back(i);
@@ -81,11 +82,11 @@ TEST_SUITE("SmallVector")
 
 	TEST_CASE("Move-constructor-InlineInline")
 	{
-		MemoryArena ma(128);
+		MemoryArena ma(8);
 		ArenaAllocator aa(ma);
 	
-		SmallVector<int, 5, ArenaAllocator> vec1(aa);
-		SmallVector<int, 10, ArenaAllocator> vec2(aa);
+		SmallVector<int, ArenaAllocator, 5> vec1(aa);
+		SmallVector<int, ArenaAllocator, 10> vec2(aa);
 
 		for (int i = 0; i < 5; i++)
 			vec1.push_back(i);
@@ -108,12 +109,12 @@ TEST_SUITE("SmallVector")
 		MemoryArena ma(128);
 		ArenaAllocator aa(ma);
 
-		SmallVector<int, 0, ArenaAllocator> vec1(aa);
+		SmallVector<int, ArenaAllocator> vec1(aa);
 
 		for (int i = 0; i < 4; i++)
 			vec1.push_back(i);
 
-		SmallVector<int, 0, ArenaAllocator> vec2(aa);
+		SmallVector<int, ArenaAllocator> vec2(aa);
 		vec2 = vec1;
 		CHECK(vec2.has_inline_storage() == false);
 
@@ -132,8 +133,8 @@ TEST_SUITE("SmallVector")
 		MemoryArena ma(128);
 		ArenaAllocator aa(ma);
 
-		SmallVector<int, 0, ArenaAllocator> vec1(aa);
-		SmallVector<int, 10, ArenaAllocator> vec2(aa);
+		SmallVector<int, ArenaAllocator> vec1(aa);
+		SmallVector<int, ArenaAllocator, 10> vec2(aa);
 
 		for (int i = 0; i < 10; i++)
 			vec2.push_back(i);

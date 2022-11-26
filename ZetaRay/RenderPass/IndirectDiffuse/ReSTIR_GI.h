@@ -90,9 +90,9 @@ namespace ZetaRay::RenderPass
 
 	private:
 		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 6;
+		static constexpr int NUM_SRV = 8;
 		static constexpr int NUM_UAV = 0;
-		static constexpr int NUM_GLOBS = 7;
+		static constexpr int NUM_GLOBS = 9;
 		static constexpr int NUM_CONSTS = (int)std::max(sizeof(cbTemporalPass) / sizeof(DWORD), sizeof(cbSpatialPass) / sizeof(DWORD));
 
 		inline static RpObjects s_rpObjs;

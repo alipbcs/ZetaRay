@@ -4,25 +4,23 @@
 #include "../../Core/Direct3DHelpers.h"
 #include "../../Core/SharedShaderResources.h"
 
-using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Win32;
-using namespace ZetaRay::Scene;
+using namespace ZetaRay::Scene::Render;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
-using namespace ZetaRay::Core::Direct3DHelper;
 using namespace ZetaRay::Scene::Settings;
 
-void LightManager::Init(const RenderSettings& settings, LightManagerData& data) noexcept
+void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 {
 	auto& renderer = App::GetRenderer();
 	data.HdrLightAccumRTV = renderer.GetRtvDescriptorHeap().Allocate(1);
-	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(LightManagerData::DESC_TABLE::COUNT);
+	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(LightData::DESC_TABLE::COUNT);
 
 	CreateHDRLightAccumTex(data);
 
-	DXGI_FORMAT rtvFormats[1] = { LightManagerData::HDR_LIGHT_ACCUM_FORMAT };
+	DXGI_FORMAT rtvFormats[1] = { LightData::HDR_LIGHT_ACCUM_FORMAT };
 	
 	// sun
 	{
@@ -46,7 +44,18 @@ void LightManager::Init(const RenderSettings& settings, LightManagerData& data) 
 
 	// sky dome
 	{
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&VertexPosNormalTexTangent::InputLayout,
+		D3D12_INPUT_ELEMENT_DESC inputElements[] =
+		{
+			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+			{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+		};
+
+		D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements, 
+			.NumElements = ZetaArrayLen(inputElements) };
+
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 			1,
 			rtvFormats,
 			RendererConstants::DEPTH_BUFFER_FORMAT);
@@ -61,20 +70,20 @@ void LightManager::Init(const RenderSettings& settings, LightManagerData& data) 
 	}
 
 	// inscattering + sku-view lut
-	data.SkyPass.Init(LightManagerData::SKY_LUT_WIDTH, LightManagerData::SKY_LUT_HEIGHT, settings.Inscattering);
+	data.SkyPass.Init(LightData::SKY_LUT_WIDTH, LightData::SKY_LUT_HEIGHT, settings.Inscattering);
 
 	// descriptors
-	CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT), 
-		data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::ENV_MAP_SRV));
+	Direct3DHelper::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
+		data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::ENV_MAP_SRV));
 
 	if (settings.Inscattering)
 	{
-		CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
+		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
+			data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::INSCATTERING_SRV));
 	}
 }
 
-void LightManager::CreateHDRLightAccumTex(LightManagerData& data) noexcept
+void Light::CreateHDRLightAccumTex(LightData& data) noexcept
 {
 	auto& renderer = App::GetRenderer();
 	auto* device = renderer.GetDevice();
@@ -84,27 +93,27 @@ void LightManager::CreateHDRLightAccumTex(LightManagerData& data) noexcept
 
 	D3D12_CLEAR_VALUE clearValue = {};
 	memset(clearValue.Color, 0, sizeof(float) * 4);
-	clearValue.Format = LightManagerData::HDR_LIGHT_ACCUM_FORMAT;
+	clearValue.Format = LightData::HDR_LIGHT_ACCUM_FORMAT;
 
-	data.HdrLightAccumTex = ZetaMove(gpuMem.GetTexture2D("LightManager/HDRLightAccum",
+	data.HdrLightAccumTex = ZetaMove(gpuMem.GetTexture2D("Light/HDRLightAccum",
 		width, height,
-		LightManagerData::HDR_LIGHT_ACCUM_FORMAT,
+		LightData::HDR_LIGHT_ACCUM_FORMAT,
 		D3D12_RESOURCE_STATE_COMMON,
 		TEXTURE_FLAGS::ALLOW_RENDER_TARGET | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS, 1, &clearValue));
 
 	// RTV
-	CreateRTV(data.HdrLightAccumTex, data.HdrLightAccumRTV.CPUHandle(0));
+	Direct3DHelper::CreateRTV(data.HdrLightAccumTex, data.HdrLightAccumRTV.CPUHandle(0));
 
 	// UAV
-	CreateTexture2DUAV(data.HdrLightAccumTex, data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
+	Direct3DHelper::CreateTexture2DUAV(data.HdrLightAccumTex, data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
 }
 
-void LightManager::OnWindowSizeChanged(const RenderSettings& settings, LightManagerData& data) noexcept
+void Light::OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept
 {
-	CreateHDRLightAccumTex(data);
+	Light::CreateHDRLightAccumTex(data);
 }
 
-void LightManager::Shutdown(LightManagerData& data) noexcept
+void Light::Shutdown(LightData& data) noexcept
 {
 	//data.AnalyticalAliasTableBuff.Reset();
 	//data.AnalyticalLightBuff.Reset();
@@ -121,15 +130,15 @@ void LightManager::Shutdown(LightManagerData& data) noexcept
 	data.SkyPass.Reset();
 }
 
-void LightManager::Update(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
-	const RayTracerData& rayTracerData, LightManagerData& data) noexcept
+void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData, 
+	const RayTracerData& rayTracerData, LightData& data) noexcept
 {
 	if (settings.Inscattering && !data.SkyPass.IsInscatteringEnabled())
 	{
 		data.SkyPass.SetInscatteringEnablement(true);
 
-		CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
+		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
+			data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::INSCATTERING_SRV));
 	}
 	else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
 		data.SkyPass.SetInscatteringEnablement(false);
@@ -148,7 +157,7 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
 	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
-		data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
+		data.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
 
 	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_A,
 		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
@@ -168,7 +177,7 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 		data.CompositingPass.SetVoxelGridMappingExp(p);
 		data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
-			data.GpuDescTable.GPUDesciptorHeapIndex(LightManagerData::DESC_TABLE::INSCATTERING_SRV));
+			data.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::INSCATTERING_SRV));
 	}
 	else
 		data.CompositingPass.SetInscatteringEnablement(false);
@@ -180,8 +189,8 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 	}
 }
 
-void LightManager::Register(const RenderSettings& settings, const RayTracerData& rayTracerData, 
-	LightManagerData& data, RenderGraph& renderGraph) noexcept
+void Light::Register(const RenderSettings& settings, const RayTracerData& rayTracerData, 
+	LightData& data, RenderGraph& renderGraph) noexcept
 {
 	renderGraph.RegisterResource(data.HdrLightAccumTex.GetResource(), data.HdrLightAccumTex.GetPathID());
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
@@ -233,8 +242,8 @@ void LightManager::Register(const RenderSettings& settings, const RayTracerData&
 	renderGraph.RegisterResource(nullptr, RenderGraph::DUMMY_RES::RES_2);
 }
 
-void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBufferRendererData& gbuffData, 
-	const RayTracerData& rayTracerData, LightManagerData& lightManagerData, RenderGraph& renderGraph) noexcept
+void Light::DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, 
+	const RayTracerData& rayTracerData, LightData& lightData, RenderGraph& renderGraph) noexcept
 {
 	const int outIdx = App::GetRenderer().CurrOutIdx();
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
@@ -243,16 +252,16 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	if (settings.Inscattering && tlas.IsInitialized())
 	{
 		// RT-AS
-		renderGraph.AddInput(lightManagerData.SkyHandle,
+		renderGraph.AddInput(lightData.SkyHandle,
 			const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-		renderGraph.AddOutput(lightManagerData.SkyHandle,
-			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
+		renderGraph.AddOutput(lightData.SkyHandle,
+			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		renderGraph.AddOutput(lightManagerData.SkyHandle,
-			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
+		renderGraph.AddOutput(lightData.SkyHandle,
+			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
@@ -260,19 +269,19 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	if (settings.SunLighting && tlas.IsInitialized())
 	{
 		// RT-AS
-		renderGraph.AddInput(lightManagerData.SunLightHandle,
+		renderGraph.AddInput(lightData.SunLightHandle,
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 		// make sure it runs post gbuffer
-		renderGraph.AddInput(lightManagerData.SunLightHandle,
+		renderGraph.AddInput(lightData.SunLightHandle,
 			gbuffData.BaseColor[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// other gbuffers are implied
 
-		renderGraph.AddOutput(lightManagerData.SunLightHandle,
-			lightManagerData.HdrLightAccumTex.GetPathID(),
+		renderGraph.AddOutput(lightData.SunLightHandle,
+			lightData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
 
@@ -280,20 +289,20 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 	// make sure it runs post gbuffer
 	if (tlas.IsInitialized())
 	{
-		renderGraph.AddInput(lightManagerData.SkyDomeHandle,
+		renderGraph.AddInput(lightData.SkyDomeHandle,
 			gbuffData.BaseColor[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightManagerData.SkyDomeHandle,
-			lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
+		renderGraph.AddInput(lightData.SkyDomeHandle,
+			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddOutput(lightManagerData.SkyDomeHandle,
+		renderGraph.AddOutput(lightData.SkyDomeHandle,
 			gbuffData.DepthBuffer[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-		renderGraph.AddOutput(lightManagerData.SkyDomeHandle,
-			lightManagerData.HdrLightAccumTex.GetPathID(),
+		renderGraph.AddOutput(lightData.SkyDomeHandle,
+			lightData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
 
@@ -303,41 +312,39 @@ void LightManager::DeclareAdjacencies(const RenderSettings& settings, const GBuf
 		// sky
 		if (settings.Inscattering)
 		{
-			renderGraph.AddInput(lightManagerData.CompositingHandle,
-				lightManagerData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
+			renderGraph.AddInput(lightData.CompositingHandle,
+				lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
-			renderGraph.AddInput(lightManagerData.CompositingHandle,
+			renderGraph.AddInput(lightData.CompositingHandle,
 				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}
 
-	renderGraph.AddInput(lightManagerData.CompositingHandle,
-		lightManagerData.HdrLightAccumTex.GetPathID(),
+	renderGraph.AddInput(lightData.CompositingHandle, lightData.HdrLightAccumTex.GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	if (settings.RTIndirectDiffuse && const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
 	{
-		renderGraph.AddInput(lightManagerData.CompositingHandle,
+		renderGraph.AddInput(lightData.CompositingHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightManagerData.CompositingHandle,
+		renderGraph.AddInput(lightData.CompositingHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 	}
 
-	renderGraph.AddOutput(lightManagerData.CompositingHandle,
-		lightManagerData.HdrLightAccumTex.GetPathID(),
+	renderGraph.AddOutput(lightData.CompositingHandle, lightData.HdrLightAccumTex.GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
 	// writable to avoid a resource transition
-	renderGraph.AddOutput(lightManagerData.CompositingHandle, RenderGraph::DUMMY_RES::RES_2,
+	renderGraph.AddOutput(lightData.CompositingHandle, RenderGraph::DUMMY_RES::RES_2,
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 }
 

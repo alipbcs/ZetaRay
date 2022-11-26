@@ -31,13 +31,7 @@
 	#define index_type INDEX_TYPE
 #endif
 
-#define USE_16_BIT_INDICES 0
-
-#if USE_16_BIT_INDICES
-#define INDEX_TYPE uint16_t
-#else
 #define INDEX_TYPE uint32_t
-#endif
 
 #ifdef __cplusplus
 #define IN_PARAM(t) t&

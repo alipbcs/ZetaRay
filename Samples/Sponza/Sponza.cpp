@@ -5,7 +5,7 @@
 #include <Win32/Log.h>
 #include <Win32/Timer.h>
 #include <Scene/SceneCore.h>
-#include <Model/glTF2.h>
+#include <Model/glTF.h>
 #include <fcntl.h>
 #include <io.h>
 
@@ -48,7 +48,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     //const char* p = "CornellBox_v2\\cornell9.gltf";
     //const char* p = "bistro_v6\\bistro_v6.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
-    Model::glTF2::Load(p, false);
+    Model::glTF::Load(p, false);
 
     timer.End();
     App::FlushMainThreadPool();

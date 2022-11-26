@@ -4,70 +4,94 @@
 
 namespace ZetaRay::Support
 {
-	class StaticMemoryArena
+	class MemoryArena
 	{
 	public:
-		explicit StaticMemoryArena(size_t s) noexcept;
-		~StaticMemoryArena() noexcept;
+		explicit MemoryArena(uint32_t blockSize = 64 * 1024 * 1024) noexcept;
+		~MemoryArena() noexcept;
 
-		StaticMemoryArena(StaticMemoryArena&&) noexcept;
-		StaticMemoryArena& operator=(StaticMemoryArena&&) noexcept;
+		MemoryArena(MemoryArena&&) noexcept;
+		MemoryArena& operator=(MemoryArena&&) noexcept;
 
-		void* AllocateAligned(size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept {};
-		size_t TotalSize() const { return m_size; }
-
-	private:
-		void* m_mem;
-		size_t m_size;
-		size_t m_offset;
-	};
-
-	class DynamicMemoryArena
-	{
-	public:
-		explicit DynamicMemoryArena(size_t blockSize) noexcept;
-		~DynamicMemoryArena() noexcept;
-
-		DynamicMemoryArena(DynamicMemoryArena&&) noexcept;
-		DynamicMemoryArena& operator=(DynamicMemoryArena&&) noexcept;
-
-		void* AllocateAligned(size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, const char* name, int alignment = alignof(std::max_align_t)) noexcept {};
-		//size_t TotalSize() const { return m_size; }
+		void* AllocateAligned(size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept;
+		void FreeAligned(void* pMem, size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept {};
+		size_t TotalSize() const;
 
 	private:
-		//Util::SmallVector<uint8_t*, 8> m_blocks;
+		struct MemoryBlock
+		{
+			MemoryBlock() noexcept = default;
+			explicit MemoryBlock(uint32_t size) noexcept
+			{
+				Start = malloc(size);
+				Offset = 0;
+				Size = size;
+			}
+
+			MemoryBlock(MemoryBlock&& rhs) noexcept
+				: Start(rhs.Start),
+				Offset(rhs.Offset),
+				Size(rhs.Size)
+			{
+				rhs.Start = nullptr;
+				rhs.Offset = 0;
+				rhs.Size = 0;
+			}
+
+			MemoryBlock& operator=(MemoryBlock&& rhs) noexcept
+			{
+				Start = rhs.Start;
+				Offset = rhs.Offset;
+				Size = rhs.Size;
+
+				rhs.Start = nullptr;
+				rhs.Offset = 0;
+				rhs.Size = 0;
+
+				return *this;
+			}
+
+			void* Start;
+			uintptr_t Offset;
+			uint32_t Size;
+		};
+
+		const uint32_t m_blockSize;
+		Util::SmallVector<MemoryBlock, SystemAllocator, 8> m_blocks;
+
+#ifdef _DEBUG
+		uint32_t m_numAllocs = 0;
+#endif // _DEBUG
 	};
 
-	struct StaticArenaAllocator
+	struct ArenaAllocator
 	{
-		StaticArenaAllocator(StaticMemoryArena& ma) noexcept
+		ArenaAllocator(MemoryArena& ma) noexcept
 			: m_allocator(&ma)
 		{}
 
-		StaticArenaAllocator(const StaticArenaAllocator& other) noexcept
+		ArenaAllocator(const ArenaAllocator& other) noexcept
 			: m_allocator(other.m_allocator)
 		{
 		}
 
-		StaticArenaAllocator& operator=(const StaticArenaAllocator& other) noexcept
+		ArenaAllocator& operator=(const ArenaAllocator& other) noexcept
 		{
 			m_allocator = other.m_allocator;
 			return *this;
 		}
 
-		__forceinline void* AllocateAligned(size_t size, const char* name, int alignment) noexcept
+		__forceinline void* AllocateAligned(size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept
 		{
 			return m_allocator->AllocateAligned(size, name, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, const char* name, int alignment) noexcept
+		__forceinline void FreeAligned(void* mem, size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept
 		{
 			m_allocator->FreeAligned(mem, size, name, alignment);
 		}
 
 	private:
-		StaticMemoryArena* m_allocator;
+		MemoryArena* m_allocator;
 	};
 }

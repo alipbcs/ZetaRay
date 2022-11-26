@@ -1,12 +1,7 @@
 #pragma once
 
-#include "../../Core/RenderGraph.h"
-#include "../../RenderPass/Common/LightSourceData.h"
-
-namespace ZetaRay::Win32::Filesystem
-{
-	struct Path;
-}
+#include "../../Math/Vector.h"
+#include <memory>	// std::unique_ptr
 
 namespace ZetaRay::Support
 {
@@ -14,25 +9,30 @@ namespace ZetaRay::Support
 	struct ParamVariant;
 }
 
+namespace ZetaRay::Scene::Render
+{
+	struct PrivateData;
+}
+
 namespace ZetaRay::Scene
 {
 	class SceneRenderer
 	{
 	public:
-		inline static const char* MATERIAL_BUFFER = "AssetManager/MaterailBuffer";
-		inline static const char* BASE_COLOR_DESCRIPTOR_TABLE = "AssetManager/BaseColorDescTable";
-		inline static const char* METALNESS_ROUGHNESS_DESCRIPTOR_TABLE = "AssetManager/MRDescTable";
-		inline static const char* NORMAL_DESCRIPTOR_TABLE = "AssetManager/NormalDescTable";
-		inline static const char* EMISSIVE_DESCRIPTOR_TABLE = "AssetManager/EmissiveDescTable";
-		inline static const char* FRAME_CONSTANTS_BUFFER_NAME = "FrameConstants";
-//		inline static const char* ANALYTICAL_LIGHTS_BUFFER_NAME = "AnalyticalLightsBuffer";
-//		inline static const char* ANALYTICAL_LIGHTS_ALIAS_TABLE_BUFFER_NAME = "LightManager/AnalyticalLightsAliasTable";
-		inline static const char* EMISSIVE_TRIANGLES_BUFFER_NAME = "LightManager/EmissiveTrianglesBuffer";
-		inline static const char* EMISSIVE_TRIANGLES_ALIAS_TABLE_BUFFER_NAME = "LightManager/EmissiveTrianglesAliasTable";
-		inline static const char* ENV_LIGHT_PATCH_BUFFER = "LightManager/EnvLightPatches";
-		inline static const char* ENV_MAP_ALIAS_TABLE = "LightManager/EnvLightAliasTable";
-		inline static const char* RT_SCENE_BVH = "RayTracer/SceneBVH";		
-		inline static const char* FRAME_MESH_INSTANCE_DATA = "RayTracer/FrameMeshInstances";
+		inline static constexpr const char* MATERIAL_BUFFER = "MaterailBuffer";
+		inline static constexpr const char* BASE_COLOR_DESCRIPTOR_TABLE = "BaseColorDescTable";
+		inline static constexpr const char* NORMAL_DESCRIPTOR_TABLE = "NormalDescTable";
+		inline static constexpr const char* METALNESS_ROUGHNESS_DESCRIPTOR_TABLE = "MRDescTable";
+		inline static constexpr const char* EMISSIVE_DESCRIPTOR_TABLE = "EmissiveDescTable";
+		inline static constexpr const char* FRAME_CONSTANTS_BUFFER_NAME = "FrameConstants";
+		//inline static constexpr const char* ANALYTICAL_LIGHTS_BUFFER_NAME = "AnalyticalLightsBuffer";
+		//inline static constexpr const char* ANALYTICAL_LIGHTS_ALIAS_TABLE_BUFFER_NAME = "LightManager/AnalyticalLightsAliasTable";
+		//inline static constexpr const char* EMISSIVE_TRIANGLES_BUFFER_NAME = "LightManager/EmissiveTrianglesBuffer";
+		//inline static constexpr const char* EMISSIVE_TRIANGLES_ALIAS_TABLE_BUFFER_NAME = "LightManager/EmissiveTrianglesAliasTable";
+		inline static constexpr const char* RT_SCENE_BVH = "RayTracer/SceneBVH";
+		inline static constexpr const char* SCENE_VERTEX_BUFFER = "SceneVB";
+		inline static constexpr const char* SCENE_INDEX_BUFFER = "SceneIB";
+		inline static constexpr const char* RT_FRAME_MESH_INSTANCES = "RtFrameMeshInstances";
 
 		SceneRenderer() noexcept;
 		~SceneRenderer() noexcept;
@@ -43,13 +43,9 @@ namespace ZetaRay::Scene
 		void Shutdown() noexcept;
 
 		void OnWindowSizeChanged() noexcept;
-
-		void DebugDrawRenderGraph() noexcept { m_renderGraph.DebugDrawGraph(); }
-
-		struct PrivateData;
+		void DebugDrawRenderGraph() noexcept;	
 
 	private:
-		void UpdateFrameConstants() noexcept;
 		void RayOffset(const Support::ParamVariant& p) noexcept;
 		void SetAA(const Support::ParamVariant& p) noexcept;
 		void SetIndirectDiffuseEnablement(const Support::ParamVariant& p) noexcept;
@@ -66,9 +62,7 @@ namespace ZetaRay::Scene
 		void ModifyOzoneSigmaAScale(const Support::ParamVariant& p) noexcept;
 		void ModifygForPhaseHG(const Support::ParamVariant& p) noexcept;
 
-		std::unique_ptr<PrivateData> m_data;
-		Core::RenderGraph m_renderGraph;
-		Core::DefaultHeapBuffer m_frameConstantsBuff;
+		std::unique_ptr<Render::PrivateData> m_data;
 
 		struct Defaults
 		{		

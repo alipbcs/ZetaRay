@@ -1,10 +1,11 @@
 #include "GBuffer.h"
-#include "../../Scene/Assets.h"
 #include "../../Core/Renderer.h"
+#include "../../Core/Vertex.h"
 #include "../../Core/CommandList.h"
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Math/MatrixFuncs.h"
 #include "../../Win32/App.h"
+#include "../../Scene/SceneCore.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
@@ -83,7 +84,7 @@ void GBufferPass::Reset() noexcept
 #endif // _DEBUG
 }
 
-void GBufferPass::SetInstances(Vector<InstanceData>&& instances) noexcept
+void GBufferPass::SetInstances(Span<InstanceData> instances) noexcept
 {
 	auto& gpuMem = App::GetRenderer().GetGpuMemory();
 	constexpr size_t instanceSize = Math::AlignUp(sizeof(DrawCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
@@ -107,10 +108,9 @@ void GBufferPass::SetInstances(Vector<InstanceData>&& instances) noexcept
 
 		for (int i = 0; i < instances.size(); i++)
 		{
-			m_perDrawCallArgs[i].IB = instances[i].IB;
-			m_perDrawCallArgs[i].IBSizeInBytes = instances[i].IBSizeInBytes;
-			m_perDrawCallArgs[i].VB = instances[i].VB;
-			m_perDrawCallArgs[i].VBSizeInBytes = instances[i].VBSizeInBytes;
+			m_perDrawCallArgs[i].VBStartOffsetInBytes = instances[i].VBStartOffsetInBytes;
+			m_perDrawCallArgs[i].VertexCount = instances[i].VertexCount;
+			m_perDrawCallArgs[i].IBStartOffsetInBytes = instances[i].IBStartOffsetInBytes;
 			m_perDrawCallArgs[i].IndexCount = instances[i].IndexCount;
 			//m_perDrawCallArgs[i].MeshID = instances[i].MeshID;
 			m_perDrawCallArgs[i].InstanceID = instances[i].InstanceID;
@@ -160,11 +160,19 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 	directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 	D3D12_VERTEX_BUFFER_VIEW vbv;
-	vbv.StrideInBytes = sizeof(VertexPosNormalTexTangent);
+	vbv.StrideInBytes = sizeof(Vertex);
 	
 	D3D12_INDEX_BUFFER_VIEW ibv;
-	ibv.Format = MESH_INDEX_FORMAT;
+	ibv.Format = DXGI_FORMAT_R32_UINT;
 	int i = 0;
+
+	const Core::DefaultHeapBuffer& sceneVB = App::GetScene().GetMeshVB();
+	Assert(sceneVB.IsInitialized(), "VB hasn't been built yet.");
+	const auto vbGpuVa = sceneVB.GetGpuVA();
+
+	const Core::DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
+	Assert(sceneIB.IsInitialized(), "IB hasn't been built yet.");
+	const auto ibGpuVa = sceneIB.GetGpuVA();
 
 	for (auto& instance : m_perDrawCallArgs)
 	{
@@ -172,11 +180,11 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		stbsp_snprintf(buff, sizeof(buff), "Mesh_%llu", instance.InstanceID);
 		directCmdList.PIXBeginEvent(buff);
 
-		vbv.BufferLocation = instance.VB;
-		vbv.SizeInBytes = instance.VBSizeInBytes;
+		vbv.BufferLocation = vbGpuVa + instance.VBStartOffsetInBytes;
+		vbv.SizeInBytes = instance.VertexCount * sizeof(Vertex);
 
-		ibv.BufferLocation = instance.IB;
-		ibv.SizeInBytes = instance.IBSizeInBytes;
+		ibv.BufferLocation = ibGpuVa + instance.IBStartOffsetInBytes;
+		ibv.SizeInBytes = instance.IndexCount * sizeof(uint32_t);
 
 		directCmdList.IASetVertexAndIndexBuffers(vbv, ibv);
 

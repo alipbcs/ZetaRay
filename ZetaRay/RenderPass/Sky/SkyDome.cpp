@@ -54,14 +54,14 @@ void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 
 	// create the sphere mesh
-	SmallVector<VertexPosNormalTexTangent> vertices;
-	SmallVector<INDEX_TYPE> indices;
+	SmallVector<Vertex, App::PoolAllocator> vertices;
+	SmallVector<INDEX_TYPE, App::PoolAllocator> indices;
 //	float worldRadius = App::GetScene().GetWorldAABB().Extents.length();
 	float worldRadius = 6360.0f;
 
 	PrimitiveMesh::ComputeSphere(vertices, indices, worldRadius * 2.0f, 8);
 
-	size_t sizeInBytes = sizeof(VertexPosNormalTexTangent) * vertices.size();
+	size_t sizeInBytes = sizeof(Vertex) * vertices.size();
 	m_domeVertexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("DomeVertexBuffer", 
 		sizeInBytes,
 		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, 
@@ -77,10 +77,10 @@ void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 
 	m_vbv.BufferLocation = m_domeVertexBuffer.GetGpuVA();
 	m_vbv.SizeInBytes = (UINT)m_domeVertexBuffer.GetDesc().Width;
-	m_vbv.StrideInBytes = sizeof(VertexPosNormalTexTangent);
+	m_vbv.StrideInBytes = sizeof(Vertex);
 
 	m_ibv.BufferLocation = m_domeIndexBuffer.GetGpuVA();
-	m_ibv.Format = MESH_INDEX_FORMAT;
+	m_ibv.Format = DXGI_FORMAT_R32_UINT;
 	m_ibv.SizeInBytes = (UINT)m_domeIndexBuffer.GetDesc().Width;
 
 	m_cachedPsoDesc = psoDesc;

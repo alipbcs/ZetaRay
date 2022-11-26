@@ -38,7 +38,7 @@ namespace ZetaRay::Math
 		return (x != 0) && ((x & (x - 1)) == 0);
 	}
 
-	// Aligns to nearest biggest multiple of alignment that is smaller than size
+	// Aligns to nearest biggest multiple of alignment
 	inline constexpr size_t AlignDown(size_t size, size_t alignment) noexcept
 	{
 		if (alignment > 0)
@@ -51,17 +51,17 @@ namespace ZetaRay::Math
 		return size;
 	}
 
-	// Aligns to nearest smallest multiple of alignment that is bigger than size
-	inline constexpr size_t AlignUp(size_t size, size_t alignment) noexcept
+	// Aligns to nearest smallest multiple of alignment
+	inline constexpr size_t AlignUp(size_t x, size_t alignment) noexcept
 	{
 		if (alignment > 0)
 		{
 			//assert(((alignment - 1) & alignment) == 0);
 			size_t mask = alignment - 1;
-			return (size + mask) & ~mask;
+			return (x + mask) & ~mask;
 		}
 
-		return size;
+		return x;
 	}
 
 	template<typename T>
