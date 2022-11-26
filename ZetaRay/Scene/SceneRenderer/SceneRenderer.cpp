@@ -112,11 +112,11 @@ void SceneRenderer::Init() noexcept
 			m_data->m_settings.RTIndirectDiffuse);
 		App::AddParam(enableIndirectDiffuse);
 
-		ParamVariant enableDenoiser;
-		enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
-			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
-			Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::STAD);
-		App::AddParam(enableDenoiser);
+		//ParamVariant enableDenoiser;
+		//enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
+		//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
+		//	Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::STAD);
+		//App::AddParam(enableDenoiser);
 
 		ParamVariant enableInscattering;
 		enableInscattering.InitBool("Renderer", "Settings", "Inscattering",

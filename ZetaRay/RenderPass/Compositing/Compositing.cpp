@@ -9,6 +9,7 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
+using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
 // Compositing
@@ -55,8 +56,20 @@ void Compositing::Init() noexcept
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
 
-	m_localCB.StadDenoiser = 0;
 	m_localCB.AccumulateInscattering = false;
+	m_localCB.DisplayDirectLightingOnly = 0;
+	m_localCB.DisplayIndirectDiffuseOnly = false;
+	m_localCB.UseRawIndirectDiffuse = false;
+
+	ParamVariant p1;
+	p1.InitEnum("Renderer", "Settings", "Lighting", fastdelegate::MakeDelegate(this, &Compositing::ChangeLightingOptionCallback),
+		Params::RenderOptions, ZetaArrayLen(Params::RenderOptions), 0);
+	App::AddParam(p1);
+
+	ParamVariant p5;
+	p5.InitBool("Renderer", "Settings", "RawIndirectDiffuse", fastdelegate::MakeDelegate(this, &Compositing::UseRawIndirectDiffuseCallback),
+		m_localCB.UseRawIndirectDiffuse);
+	App::AddParam(p5);
 
 	App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadShader));
 }
@@ -87,8 +100,8 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	computeCmdList.SetPipelineState(m_pso);
 
 	Assert(m_localCB.HDRLightAccumDescHeapIdx > 0, "Gpu descriptor for HDR light accum texture hasn't been set");
-
-	//m_localCB.AccumulateInscattering = App::GetTimer().GetTotalFrameCount() > 1;
+	Assert(m_localCB.UseRawIndirectDiffuse || m_localCB.DenoiserTemporalCacheDescHeapIdx > 0, 
+		"Denoiser is on, while descriptor heap index for it hasn't been set");
 
 	if (m_localCB.AccumulateInscattering)
 	{
@@ -110,6 +123,30 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
 	computeCmdList.PIXEndEvent();
+}
+
+void Compositing::UseRawIndirectDiffuseCallback(const Support::ParamVariant& p) noexcept
+{
+	m_localCB.UseRawIndirectDiffuse = p.GetBool();
+}
+
+void Compositing::ChangeLightingOptionCallback(const Support::ParamVariant& p) noexcept
+{
+	if (p.GetEnum().m_curr == Params::Options::DIRECT)
+	{
+		m_localCB.DisplayDirectLightingOnly = 1;
+		m_localCB.DisplayIndirectDiffuseOnly = 0;
+	}
+	else if (p.GetEnum().m_curr == Params::Options::INDIRECT_DIFFUSE)
+	{
+		m_localCB.DisplayDirectLightingOnly = 0;
+		m_localCB.DisplayIndirectDiffuseOnly = 1;
+	}
+	else if (p.GetEnum().m_curr == Params::Options::ALL)
+	{
+		m_localCB.DisplayDirectLightingOnly = 0;
+		m_localCB.DisplayIndirectDiffuseOnly = 0;
+	}
 }
 
 void Compositing::ReloadShader() noexcept

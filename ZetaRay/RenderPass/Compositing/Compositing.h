@@ -4,7 +4,7 @@
 #include "../../Core/RootSignature.h"
 #include "../../Core/GpuMemory.h"
 #include "Compositing_Common.h"
-#include "../../Scene/SceneRenderer/SceneRenderer.h"
+#include "../../Support/Param.h"
 
 namespace ZetaRay::Core
 {
@@ -32,10 +32,6 @@ namespace ZetaRay::RenderPass
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
 		void Reset() noexcept;
 		void SetInscatteringEnablement(bool b) { m_localCB.AccumulateInscattering = b; }
-		void SetIndirectDiffusDenoiser(Scene::Settings::DENOISER d) 
-		{ 
-			m_localCB.StadDenoiser = (d == Scene::Settings::DENOISER::STAD);
-		}
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_localCB.VoxelGridNearZ = zNear, m_localCB.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_localCB.DepthMappingExp = p; }
 		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept
@@ -79,9 +75,24 @@ namespace ZetaRay::RenderPass
 		inline static const char* COMPILED_CS[] = { "Compositing_cs.cso" };
 
 		ID3D12PipelineState* m_pso = nullptr;
-		//uint32_t m_gpuDescriptors[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
-
 		cbCompositing m_localCB{};
+
+		struct Params
+		{
+			enum Options
+			{
+				ALL,
+				DIRECT,
+				INDIRECT_DIFFUSE,
+				COUNT
+			};
+
+			inline static const char* RenderOptions[] = { "Direct+Indirect", "Direct", "IndirectDiffuse" };
+			static_assert(Options::COUNT == ZetaArrayLen(RenderOptions), "enum <-> strings mismatch.");
+		};
+
+		void UseRawIndirectDiffuseCallback(const Support::ParamVariant& p) noexcept;
+		void ChangeLightingOptionCallback(const Support::ParamVariant& p) noexcept;
 
 		// shader reload
 		void ReloadShader() noexcept;

@@ -9,10 +9,6 @@
 
 struct cbCompositing
 {
-	// 
-	// Resources
-	//
-	
 	// Texture2D<float4>
 	uint32_t HDRLightAccumDescHeapIdx;
 
@@ -23,8 +19,6 @@ struct cbCompositing
 	// Texture3D<half4>
 	uint32_t InscatteringDescHeapIdx;
 
-	uint32_t StadDenoiser;
-
 	uint32_t AccumulateInscattering;
 	float DepthMappingExp;
 	float VoxelGridNearZ;
@@ -32,6 +26,11 @@ struct cbCompositing
 
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputReservoir_B_DescHeapIdx;
+
+	uint16_t DisplayDirectLightingOnly;
+	uint16_t DisplayIndirectDiffuseOnly;
+	uint16_t UseRawIndirectDiffuse;
+	uint16_t pad;
 };
 
 #endif // COMPOSITING_H

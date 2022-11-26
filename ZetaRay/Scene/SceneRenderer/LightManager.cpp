@@ -173,8 +173,6 @@ void LightManager::Update(const RenderSettings& settings, const GBufferRendererD
 	else
 		data.CompositingPass.SetInscatteringEnablement(false);
 
-	data.CompositingPass.SetIndirectDiffusDenoiser(settings.IndirectDiffuseDenoiser);
-	
 	if (settings.IndirectDiffuseDenoiser != DENOISER::NONE)
 	{
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,

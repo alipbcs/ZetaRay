@@ -29,6 +29,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
 	float3 color = g_hdrLightAccum[DTid.xy].rgb;
 	
+	if (g_local.DisplayDirectLightingOnly)
+	{
+		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
+		return;
+	}
+
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
@@ -37,7 +43,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
 		return;
 	}
-			
+				
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 		
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
@@ -78,14 +84,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	float3 f = diffuseReflectance * ONE_DIV_PI;
 	float3 integratedLiXndotwi = r.Li * r.GetW();
 	
-	if (g_local.StadDenoiser)
+	if (!g_local.UseRawIndirectDiffuse)
 	{
 		Texture2D<half4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
 		half3 integratedVals = g_temporalCache[DTid.xy].rgb;
 		integratedLiXndotwi = integratedVals;
 	}
 	
-	color += integratedLiXndotwi * f;
+	if (!g_local.DisplayIndirectDiffuseOnly)
+		color += integratedLiXndotwi * f;
+	else
+		color = integratedLiXndotwi * f;
+	
 	//color = f * 10;
 	
 	if (g_local.AccumulateInscattering)
