@@ -4,8 +4,8 @@
 #include "ReSTIR_GI_Common.h"
 #include "../Common/Sampling.hlsli"
 
-#define INVALID_SAMPLE_POS FLT_MAX.xxx
-#define INVALID_SAMPLE_NORMAL 0.xx
+#define INVALID_SAMPLE_POS 32768.xxx
+#define INVALID_SAMPLE_NORMAL 32768.xx
 #define INVALID_RAY_T -1
 #define INCLUDE_COSINE_TERM_IN_TARGET 0
 #define MAX_TEMPORAL_M 10
@@ -28,7 +28,6 @@ struct Reservoir
 		res.M = 0;
 		res.w_sum = 0.0f;
 		res.SamplePos = INVALID_SAMPLE_POS;
-		//res.SamplePos = 0.0.xxx;
 		res.SampleNormal = INVALID_SAMPLE_NORMAL;
 		res.Li = 0.0.xxx;
 		
@@ -54,7 +53,6 @@ struct Reservoir
 		s.Pos = this.SamplePos;
 		s.Normal = this.SampleNormal;
 		s.Lo = this.Li;
-
 		return s;
 	}
 	
@@ -68,11 +66,11 @@ struct Reservoir
 	}
 	
 	void Update(in float w, in Sample s, inout RNG rng)
-	{
+	{	
 		this.w_sum += w;
 		this.M += 1;
 		
-		if (rng.RandUniform() < (w / max(FLT_MIN, this.w_sum)))
+		if (rng.RandUniform() < (w / max(1e-6f, this.w_sum)))
 		{
 			this.SamplePos = s.Pos;
 			this.SampleNormal = s.Normal;
@@ -116,13 +114,14 @@ float JacobianDeterminant(float3 x1_q, float3 x2_q, float3 wi, float3 secondToFi
 	const float3 secondToFirst_q = x1_q - x2_q;
 
 	const float3 normalAtSecondVertex = Math::Encoding::DecodeUnitNormalFromHalf2(neighborReservoir.SampleNormal);
-	const float cosPhi2_r = saturate(dot(wi, normalAtSecondVertex));
-	const float cosPhi2_q = saturate(dot(normalize(secondToFirst_q), normalAtSecondVertex));
+	const float cosPhi2_r = saturate(abs(dot(-wi, normalAtSecondVertex)));
+	const float cosPhi2_q = saturate(abs(dot(normalize(secondToFirst_q), normalAtSecondVertex)));
 
 	float jacobianDet = dot(secondToFirst_q, secondToFirst_q) / max(dot(secondToFirst_r, secondToFirst_r), 1e-6);
-	jacobianDet *= abs(cosPhi2_r - cosPhi2_q) < 1e-6 ? 1.0 : cosPhi2_r / max(cosPhi2_q, 1e-6);
-	jacobianDet = max(jacobianDet, 0.95); // w_sum blows up otherwise
-
+	//jacobianDet *= abs(cosPhi2_r - cosPhi2_q) < 1e-6 ? 1.0 : cosPhi2_r / max(cosPhi2_q, 1e-6);
+	jacobianDet *= cosPhi2_r / max(cosPhi2_q, 1e-6);
+	jacobianDet = max(jacobianDet, 0.95f); // w_sum blows up otherwise
+	
 	return jacobianDet;
 }
 
@@ -181,7 +180,7 @@ Reservoir ReadInputReservoir(SamplerState s, float2 uv, uint inputAIdx, uint inp
 	return r;
 }
 
-// skips writing the reservoir normal as it might not be needed
+// skips writing the reservoir normal if it's not needed anymore to save some bandwidth
 Reservoir PartialReadInputReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx)
 {
 	Texture2D<float4> g_inReservoir_A = ResourceDescriptorHeap[inputAIdx];
@@ -220,7 +219,7 @@ void WriteOutputReservoir(uint2 DTid, Reservoir r, uint outputAIdx, uint outputB
 	g_outReservoir_C[DTid] = r.SampleNormal;
 }
 
-// skips writing the reservoir normal as it might not be needed
+// skips writing the reservoir normal if it's not needed anymore to save some bandwidth
 void PartialWriteOutputReservoir(uint2 DTid, Reservoir r, uint outputAIdx, uint outputBIdx)
 {
 	RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
