@@ -59,7 +59,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 
 	FillMeshTransformBufferForBuild();
 
-	SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC> mesheDescs;
+	SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::PoolAllocator> mesheDescs;
 	mesheDescs.resize(scene.m_numStaticInstances);
 
 	const int transfromMatSize = sizeof(float) * 12;
@@ -506,7 +506,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 	// the GPU. Having the transitions coalesced into a single point in the command buffer
 	// avoids redundant synchronization that would otherwise cause the GPU to frequently
 	// become idle."
-	SmallVector<D3D12_RESOURCE_BARRIER> uavBarriers;
+	SmallVector<D3D12_RESOURCE_BARRIER, App::PoolAllocator> uavBarriers;
 
 	if (scene.m_staleStaticInstances)
 	{
@@ -612,7 +612,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 {
 	SceneCore& scene = App::GetScene();
 	const size_t numInstances = scene.m_IDtoTreePos.size();
-	SmallVector<uint32_t> frameInstanceData;
+	SmallVector<uint32_t, App::PoolAllocator> frameInstanceData;
 	frameInstanceData.resize(numInstances);
 
 	int currInstance = 0;

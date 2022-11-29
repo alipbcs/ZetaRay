@@ -3,6 +3,7 @@
 #include "../Utility/Error.h"
 #include "../Utility/Span.h"
 #include "../Utility/Function.h"
+#include "../Win32/App.h"
 #include <atomic>
 
 namespace ZetaRay::Support
@@ -45,7 +46,7 @@ namespace ZetaRay::Support
 
 	private:
 		Util::Function m_dlg;
-		Util::SmallVector<int> m_adjacentTailNodes;
+		Util::SmallVector<int, App::PoolAllocator> m_adjacentTailNodes;
 		char m_name[MAX_NAME_LENGTH];
 		int m_signalHandle = -1;
 		int m_indegree = 0;

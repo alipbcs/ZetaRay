@@ -2,6 +2,7 @@
 
 #include "../Utility/SmallVector.h"
 #include "Device.h"
+#include "../Win32/App.h"
 #include <map>
 
 namespace ZetaRay::Core
@@ -66,7 +67,7 @@ namespace ZetaRay::Core
 			uint32_t Count;
 		};
 
-		Util::SmallVector<PendingDescTable> m_pending;
+		Util::SmallVector<PendingDescTable, App::PoolAllocator> m_pending;
 
 		ComPtr<ID3D12Fence> m_fence;
 

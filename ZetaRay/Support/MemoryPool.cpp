@@ -1,4 +1,4 @@
-#include "Memory.h"
+#include "MemoryPool.h"
 #include "../Utility/Error.h"
 #include "../Math/Common.h"
 #include <intrin.h>
@@ -6,66 +6,6 @@
 #include <string.h>
 
 using namespace ZetaRay::Support;
-
-//--------------------------------------------------------------------------------------
-// MemoryArena
-//--------------------------------------------------------------------------------------
-
-MemoryArena::MemoryArena(size_t s) noexcept
-	: m_size(s),
-	m_offset(0)
-{
-	m_mem = malloc(s);
-}
-
-MemoryArena::~MemoryArena() noexcept
-{
-	if (m_mem)
-		free(m_mem);
-}
-
-MemoryArena::MemoryArena(MemoryArena&& rhs) noexcept
-{
-	m_mem = rhs.m_mem;
-	m_size = rhs.m_size;
-	m_offset = rhs.m_offset;
-
-	rhs.m_mem = nullptr;
-	rhs.m_size = 0;
-	rhs.m_offset = 0;
-}
-
-MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
-{
-	m_mem = rhs.m_mem;
-	m_size = rhs.m_size;
-	m_offset = rhs.m_offset;
-
-	rhs.m_mem = nullptr;
-	rhs.m_size = 0;
-	rhs.m_offset = 0;
-
-	return *this;
-}
-
-void* MemoryArena::AllocateAligned(size_t size, const char* name, int alignment) noexcept
-{
-	m_offset = Math::AlignUp(m_offset, alignment);
-	
-	if (m_offset + size < m_size)
-	{
-		uintptr_t ret = reinterpret_cast<uintptr_t>(m_mem) + m_offset;
-		m_offset += size;
-		return reinterpret_cast<void*>(ret);
-	}
-
-	Assert(false, "Insufficient memory");
-	return nullptr;
-}
-
-void MemoryArena::FreeAligned(void* pMem, size_t size, const char* name, int alignment) noexcept
-{
-}
 
 //--------------------------------------------------------------------------------------
 // MemoryPool
@@ -125,7 +65,7 @@ void* MemoryPool::Allocate(size_t size) noexcept
 	// use malloc for requests bigger than block size
 	if (size > MAX_ALLOC_SIZE)
 		return malloc(size);
-	
+
 	// Which memory pool does it live in?
 	size_t poolIndex = GetPoolIndexFromSize(size);
 	size_t chunkSize = GetChunkSizeFromPoolIndex(poolIndex);
@@ -298,7 +238,7 @@ void MemoryPool::Grow(size_t poolIndex) noexcept
 
 	// array of pointers to heads of memory blocks for this pool size. size has changed so we need the destroy the old one
 	// and allocate a new one. moreover all the head pointers have to be copied over to this new array
-	void** newMemoryBlockArray = (void**)malloc((m_numMemoryBlocks[poolIndex] + 1) * sizeof(void*));	
+	void** newMemoryBlockArray = (void**)malloc((m_numMemoryBlocks[poolIndex] + 1) * sizeof(void*));
 	Assert(newMemoryBlockArray, "malloc() failed.");
 
 	void* newBlock = AllocateNewBlock(chunkSize);
@@ -307,7 +247,7 @@ void MemoryPool::Grow(size_t poolIndex) noexcept
 	if (m_numMemoryBlocks[poolIndex])
 	{
 		memcpy(newMemoryBlockArray, m_pools[poolIndex], sizeof(void*) * m_numMemoryBlocks[poolIndex]);
-	
+
 		// free the old array
 		Assert(m_pools[poolIndex], "this shouldn't be NULL");
 		free(m_pools[poolIndex]);

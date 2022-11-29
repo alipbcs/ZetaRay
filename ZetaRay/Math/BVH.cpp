@@ -41,7 +41,7 @@ void BVH::Node::InitAsLeaf(int base, int count, int parent) noexcept
 	Parent = parent;
 }
 
-void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput>& models, int base, int count, 
+void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::PoolAllocator>& models, int base, int count,
 	int right, int parent) noexcept
 {
 	Assert(count, "Invalid args");
@@ -67,7 +67,7 @@ void BVH::Clear() noexcept
 	m_instances.free();
 }
 
-void BVH::Build(Vector<BVHInput>&& instances) noexcept
+void BVH::Build(Vector<BVHInput, App::PoolAllocator>&& instances) noexcept
 {
 	if (instances.size() == 0)
 		return;
@@ -346,7 +346,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 	return currNodeIdx;
 }
 
-void BVH::Update(Vector<BVHUpdateInput>&& instances) noexcept
+void BVH::Update(Vector<BVHUpdateInput, App::PoolAllocator>&& instances) noexcept
 {
 	for (auto& [oldBox, newBox, id] : instances)
 	{
@@ -411,7 +411,7 @@ void BVH::Remove(uint64_t ID, const Math::AABB& AABB) noexcept
 
 void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 	const Math::float4x4a& viewToWorld, 
-	Vector<uint64_t>& visibleModelIDs)
+	Vector<uint64_t, App::PoolAllocator>& visibleModelIDs)
 {
 	// transform the view-frustum from the view-space into the world-space
 	v_float4x4 vM(const_cast<float4x4a&>(viewToWorld));

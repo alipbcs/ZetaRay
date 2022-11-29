@@ -12,8 +12,8 @@ namespace ZetaRay::Util
 			m_size(n)
 		{}
 
-		template<uint32_t N>
-		Span(SmallVector<T, N>& vec) noexcept
+		template<typename Allocator = Support::SystemAllocator, uint32_t N>
+		Span(SmallVector<T, Allocator, N>& vec) noexcept
 			: m_ptr(vec.data()),
 			m_size(vec.size())
 		{}

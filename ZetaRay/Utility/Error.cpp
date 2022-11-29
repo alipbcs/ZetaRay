@@ -1,7 +1,7 @@
 #include "Error.h"
 #include "Span.h"
 #include "../Win32/Win32.h"
-#include "../Support/Memory.h"
+#include "../Support/MemoryArena.h"
 
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
@@ -75,7 +75,7 @@ namespace dbg
         std::string file;
     };
 
-    void stack_trace(Vector<StackFrame, ArenaAllocator>& frames)
+    void stack_trace(Vector<StackFrame, StaticArenaAllocator>& frames)
     {
         DWORD machine = IMAGE_FILE_MACHINE_AMD64;
         HANDLE process = GetCurrentProcess();
@@ -169,10 +169,10 @@ namespace dbg
         if (bytesLeft <= 0)
             return;
 
-        MemoryArena ma(1024 * 16);
-        ArenaAllocator aa(ma);
+        StaticMemoryArena ma(1024 * 16);
+        StaticArenaAllocator aa(ma);
 
-        SmallVector<StackFrame, 0, ArenaAllocator> stack(aa);
+        SmallVector<StackFrame, StaticArenaAllocator> stack(aa);
         stack_trace(stack);
 
         curr += stbsp_snprintf(buff.data() + curr, (int)bytesLeft, "Callstack: \n");

@@ -1,10 +1,11 @@
 #pragma once
 
 #include "../Utility/Span.h"
+#include "App.h"
 
 namespace ZetaRay::Win32::Filesystem
 {
-    void LoadFromFile(const char* filePath, Util::Vector<uint8_t>& fileData) noexcept;
+    void LoadFromFile(const char* filePath, Util::Vector<uint8_t, App::PoolAllocator>& fileData) noexcept;
     void WriteToFile(const char* filePath, uint8_t* data, uint32_t sizeInBytes) noexcept;
     void RemoveFile(const char* filePath) noexcept;
     bool Exists(const char* filePath) noexcept;
@@ -24,6 +25,6 @@ namespace ZetaRay::Win32::Filesystem
 
     private:
         static constexpr size_t DEFAULT_PATH_LENGTH = 256;
-        Util::SmallVector<char, DEFAULT_PATH_LENGTH> m_path;
+        Util::SmallVector<char, App::PoolAllocator, DEFAULT_PATH_LENGTH> m_path;
     };
 }

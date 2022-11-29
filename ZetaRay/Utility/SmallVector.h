@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Math/Common.h"
-#include "../Win32/App.h"
+#include "../Support/Memory.h"
 #include "Error.h"
 #include <utility>	// std::swap
 
@@ -14,7 +14,7 @@ namespace ZetaRay::Util
 	// As a result, usage doesn't require knowing the inline storage size N.
 	//--------------------------------------------------------------------------------------
 
-	template<typename T, typename Allocator = App::PoolAllocator>
+	template<typename T, typename Allocator = Support::SystemAllocator>
 	class Vector
 	{
 		static_assert(Support::AllocType<Allocator>, "Provided Allocator type doesn't meet the requirements for AllocType.");
@@ -602,7 +602,7 @@ namespace ZetaRay::Util
 			}
 
 			// allocate memory to accomodate new size
-			void* mem = App::AllocateFromMemoryPool(n * sizeof(T), nullptr, alignof(T));
+			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
 
 			const size_t oldSize = size();
 
@@ -702,7 +702,7 @@ namespace ZetaRay::Util
 			(64 - Math::AlignUp(sizeof(void*) * 3, alignofT)) / sizeofT));
 	}
 
-	template<typename T, uint32_t N = GetExcessSize(sizeof(T), alignof(T)), Support::AllocType Allocator = App::PoolAllocator>
+	template<typename T, Support::AllocType Allocator = Support::SystemAllocator, uint32_t N = GetExcessSize(sizeof(T), alignof(T))>
 	class SmallVector : public Vector<T, Allocator>
 	{
 	public:

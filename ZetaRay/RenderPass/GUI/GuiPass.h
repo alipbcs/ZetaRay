@@ -72,7 +72,7 @@ namespace ZetaRay::RenderPass
 		Core::DescriptorTable m_fontTexSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };
 
-		Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
+		Util::SmallVector<Core::GpuTimer::Timing, App::PoolAllocator> m_cachedTimings;
 		int m_cachedNumQueries = 0;
 
 		int m_currShader = -1;

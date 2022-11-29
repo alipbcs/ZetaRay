@@ -13,6 +13,7 @@
 #include <ImGui/implot.h>
 #include <algorithm>
 
+using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core::Direct3DHelper;
@@ -23,7 +24,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Vector<ParamVariant>& params, size_t offset, size_t count) noexcept
+	void AddParamRange(Vector<ParamVariant, App::PoolAllocator>& params, size_t offset, size_t count) noexcept
 	{
 		for (size_t p = offset; p < offset + count; p++)
 		{

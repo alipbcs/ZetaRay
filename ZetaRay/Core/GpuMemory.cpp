@@ -315,10 +315,10 @@ namespace ZetaRay::Core::Internal
 			return m_inUsePages[i];
 		}
 
-		SmallVector<LinearAllocatorPage> m_pendingFencePages;		// Pages that are pending fence becoming signalled by the GPU
-		SmallVector<LinearAllocatorPage> m_inUsePages;				// Pages with reference count > 1
-		SmallVector<LinearAllocatorPage> m_reuseReadyPages;			// Pages that are unused and can be freed or otherwise reused
-		SmallVector<LinearAllocatorPage> m_toGarbackCollectPages;	// Pages that are unused and can be freed or otherwise reused
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_pendingFencePages;		// Pages that are pending fence becoming signalled by the GPU
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_inUsePages;				// Pages with reference count > 1
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_reuseReadyPages;			// Pages that are unused and can be freed or otherwise reused
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_toGarbackCollectPages;	// Pages that are unused and can be freed or otherwise reused
 		size_t m_pageSize = -1;
 		SRWLOCK m_inUseLock = SRWLOCK_INIT;
 		SRWLOCK m_gcLock = SRWLOCK_INIT;
@@ -582,7 +582,7 @@ namespace ZetaRay::Core::Internal
 			uint64_t FenceValWhenReleased;
 		};
 
-		SmallVector<ResourceAndMetadata> m_resourcePool;
+		SmallVector<ResourceAndMetadata, App::PoolAllocator> m_resourcePool;
 
 		// fence
 		uint64_t m_currFenceVal = 1;
@@ -849,7 +849,7 @@ namespace ZetaRay::Core::Internal
 
 	private:
 		// scratch resources need to stay alive while GPU is using them
-		SmallVector<UploadHeapBuffer> m_scratchResources;
+		SmallVector<UploadHeapBuffer, App::PoolAllocator> m_scratchResources;
 		GraphicsCmdList* m_directCmdList = nullptr;
 		ComPtr<ID3D12Fence> m_fence;
 		HANDLE m_event;
@@ -1174,7 +1174,7 @@ void GpuMemory::Recycle() noexcept
 	const int numMainThreads = App::GetNumMainThreads();
 	const int numBackgroundThreads = App::GetNumBackgroundThreads();
 	
-	SmallVector<PendingTexture> textures;
+	SmallVector<PendingTexture, App::PoolAllocator> textures;
 	size_t n = 0;
 
 	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
@@ -1436,7 +1436,7 @@ Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t hei
 
 Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
 {
-	SmallVector<D3D12_SUBRESOURCE_DATA> subresources;
+	SmallVector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator, 10> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
 	uint32_t width;
 	uint32_t height;

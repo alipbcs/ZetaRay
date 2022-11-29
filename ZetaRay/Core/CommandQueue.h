@@ -2,6 +2,7 @@
 
 #include "../Core/Device.h"
 #include "../Utility/SmallVector.h"
+#include "../Win32/App.h"
 #include <shared_mutex>
 #include <concurrentqueue-1.0.3/concurrentqueue.h>
 
@@ -64,7 +65,7 @@ namespace ZetaRay::Core
 			uint64_t FenceToWaitFor;
 		};
 
-		Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
+		Util::SmallVector<ReleasedCmdAlloc, App::PoolAllocator> m_cmdAllocPool;
 
 		// Source: https://github.com/cameron314/concurrentqueue
 		struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits

@@ -60,8 +60,8 @@ namespace ZetaRay::Core
 		Win32::Filesystem::Path m_psoLibPath1;
 		ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
 
-		Util::SmallVector<Entry> m_compiledPSOs;
-		Util::SmallVector<uint8_t> m_cachedBlob;
+		Util::SmallVector<Entry, App::PoolAllocator, 2> m_compiledPSOs;
+		Util::SmallVector<uint8_t, App::PoolAllocator> m_cachedBlob;
 		//std::atomic_bool m_vecLock;
 		SRWLOCK m_vecLock = SRWLOCK_INIT;			
 		

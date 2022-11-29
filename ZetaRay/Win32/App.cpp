@@ -1,4 +1,5 @@
 #include "App.h"
+#include "../Support/MemoryPool.h"
 #include "../Utility/SynchronizedView.h"
 #include "Timer.h"
 #include "../Support/Param.h"
@@ -111,11 +112,11 @@ namespace
 		//std::thread::id m_threadIDs[MAX_NUM_THREADS];
 		uint32_t m_threadIDs[MAX_NUM_THREADS];
 
-		SmallVector<ParamVariant> m_params;
-		SmallVector<ParamUpdate, 32> m_paramsUpdates;
+		SmallVector<ParamVariant, PoolAllocator> m_params;
+		SmallVector<ParamUpdate, PoolAllocator, 32> m_paramsUpdates;
 
-		SmallVector<ShaderReloadHandler> m_shaderReloadHandlers;
-		SmallVector<Stat> m_frameStats;
+		SmallVector<ShaderReloadHandler, PoolAllocator> m_shaderReloadHandlers;
+		SmallVector<Stat, PoolAllocator> m_frameStats;
 		FrameTime m_frameTime;
 
 		//std::shared_mutex m_stdOutMtx;

@@ -4,6 +4,7 @@
 #pragma once
 
 #include "Device.h"
+#include "../Win32/App.h"
 #include <memory>
 
 namespace ZetaRay::App

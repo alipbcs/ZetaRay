@@ -3,6 +3,7 @@
 #include "Device.h"
 #include "../Utility/Error.h"
 #include "../Utility/SmallVector.h"
+#include "../Win32/App.h"
 #include <memory>
 
 namespace ZetaRay::Core
@@ -235,7 +236,7 @@ namespace ZetaRay::Core
 			std::unique_ptr<Internal::DefaultHeapManager> DefaultHeap;
 			std::unique_ptr<Internal::ResourceUploadBatch> ResUploader;
 
-			Util::SmallVector<PendingTexture> ToReleaseTextures;
+			Util::SmallVector<PendingTexture, App::PoolAllocator> ToReleaseTextures;
 		};
 
 		ThreadContext m_threadContext[MAX_NUM_THREADS];

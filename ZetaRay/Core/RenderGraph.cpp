@@ -277,7 +277,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 		m_renderNodes[i].Indegree = (int)m_renderNodes[i].Inputs.size();
 
 	// adjacent tail nodes
-	SmallVector<RenderNodeHandle> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
+	SmallVector<RenderNodeHandle, App::PoolAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
 
 	// add the graph edges. For each input of node N, add an edge from 
 	// that input's producer node (previously populated by AddOutput) to N
@@ -442,7 +442,7 @@ void RenderGraph::BuildTaskGraph(TaskSet& ts) noexcept
 	}
 }
 
-void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
+void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::PoolAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	RenderNodeHandle sorted[MAX_NUM_RENDER_PASSES];

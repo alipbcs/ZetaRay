@@ -35,7 +35,7 @@ namespace ZetaRay::Core
 		void Init() noexcept;
 		void Shutdown() noexcept;
 
-		Util::Vector<Timing>& GetFrameTimings(int* numQueries = nullptr) noexcept
+		Util::Vector<Timing, App::PoolAllocator>& GetFrameTimings(int* numQueries = nullptr) noexcept
 		{
 			int prevFrameIdx = m_currFrameIdx - 1 >= 0 ? m_currFrameIdx - 1 : RendererConstants::NUM_BACK_BUFFERS - 1;
 			if (numQueries)
@@ -62,7 +62,7 @@ namespace ZetaRay::Core
 		ComPtr<ID3D12QueryHeap> m_queryHeap;
 		ReadbackHeapBuffer m_readbackBuff;
 
-		Util::SmallVector<Timing> m_timings[RendererConstants::NUM_BACK_BUFFERS];
+		Util::SmallVector<Timing, App::PoolAllocator> m_timings[RendererConstants::NUM_BACK_BUFFERS];
 		std::atomic<int32_t> m_queryCount[RendererConstants::NUM_BACK_BUFFERS] = { 0 };
 
 		UINT64 m_directQueueFreq;

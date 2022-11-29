@@ -2,7 +2,13 @@
 
 #include "GpuMemory.h"
 #include "../Utility/Span.h"
+#include "../Win32/App.h"
 #include <FastDelegate/FastDelegate.h>
+
+namespace ZetaRay::Support
+{
+	struct TaskSet;
+}
 
 namespace ZetaRay::Core
 {
@@ -106,7 +112,7 @@ namespace ZetaRay::Core
 
 		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
 		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
-		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
+		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::PoolAllocator>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
 		void InsertResourceBarriers(Util::Span<RenderNodeHandle> mapping) noexcept;
 
 #ifdef _DEBUG
@@ -172,7 +178,7 @@ namespace ZetaRay::Core
 
 		// make sure this doesn't get reset between frames as some states carry over to the
 		// next frame. Producers should be reset though
-		Util::SmallVector<ResourceMetadata> m_frameResources;
+		Util::SmallVector<ResourceMetadata, App::PoolAllocator> m_frameResources;
 		int m_prevFramesNumResources = 0;
 
 		std::atomic_int32_t m_currResIdx = 0;
@@ -237,9 +243,9 @@ namespace ZetaRay::Core
 			static constexpr int MAX_NAME_LENGTH = 16;
 			char Name[MAX_NAME_LENGTH];
 
-			Util::SmallVector<Dependency, 2> Inputs;
-			Util::SmallVector<Dependency, 1> Outputs;
-			Util::SmallVector<D3D12_RESOURCE_BARRIER> Barriers;
+			Util::SmallVector<Dependency, App::PoolAllocator, 2> Inputs;
+			Util::SmallVector<Dependency, App::PoolAllocator, 1> Outputs;
+			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::PoolAllocator> Barriers;
 
 			uint32_t OutputMask = 0;
 			int Indegree = 0;
