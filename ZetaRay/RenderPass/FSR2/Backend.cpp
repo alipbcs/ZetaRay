@@ -45,6 +45,52 @@ namespace
 		FfxFsr2Pass Pass;
 	};
 
+	struct DllWrapper
+	{
+		using fp_Fsr2ContextCreate = FfxErrorCode(*)(FfxFsr2Context* context, const FfxFsr2ContextDescription* contextDescription);
+		using fp_Fsr2ContextDestroy = FfxErrorCode(*)(FfxFsr2Context* context);
+		using fp_Fsr2ContextDispatch = FfxErrorCode (*)(FfxFsr2Context* context, const FfxFsr2DispatchDescription* dispatchDescription);
+		using fp_Fsr2GetPermBlobByIdx = Fsr2ShaderBlobDX12 (*)(FfxFsr2Pass passId, uint32_t permutationOptions);
+
+		void Load() noexcept
+		{
+			m_fsrLib = LoadLibraryExA("ffx_fsr2_api_x64", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+			CheckWin32(m_fsrLib);
+			m_fsrDxLib = LoadLibraryExA("ffx_fsr2_api_dx12_x64", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+			CheckWin32(m_fsrDxLib);
+
+			FpCreate = reinterpret_cast<fp_Fsr2ContextCreate>(GetProcAddress(m_fsrLib, "ffxFsr2ContextCreate"));
+			CheckWin32(FpCreate);
+			FpDestroy = reinterpret_cast<fp_Fsr2ContextDestroy>(GetProcAddress(m_fsrLib, "ffxFsr2ContextDestroy"));
+			CheckWin32(FpDestroy);
+			FpDispatch = reinterpret_cast<fp_Fsr2ContextDispatch>(GetProcAddress(m_fsrLib, "ffxFsr2ContextDispatch"));
+			CheckWin32(FpDispatch);
+			FpGetShaderPermutation = reinterpret_cast<fp_Fsr2GetPermBlobByIdx>(GetProcAddress(m_fsrDxLib, "fsr2GetPermutationBlobByIndex"));
+			CheckWin32(FpGetShaderPermutation);
+		}
+
+		void Free() noexcept
+		{
+			if(m_fsrLib)
+				FreeLibrary(m_fsrLib);
+			if(m_fsrDxLib)
+				FreeLibrary(m_fsrDxLib);
+
+			FpCreate = nullptr;
+			FpDestroy = nullptr;
+			FpDispatch = nullptr;
+			FpGetShaderPermutation = nullptr;
+		}
+
+		HMODULE m_fsrLib;
+		HMODULE m_fsrDxLib;
+
+		fp_Fsr2ContextCreate FpCreate = nullptr;
+		fp_Fsr2ContextDestroy FpDestroy = nullptr;
+		fp_Fsr2ContextDispatch FpDispatch = nullptr;
+		fp_Fsr2GetPermBlobByIdx FpGetShaderPermutation = nullptr;
+	};
+
 	//
 	// Data
 	//
@@ -93,6 +139,8 @@ namespace
 		ID3D12Resource* m_motionVec = nullptr;
 
 		PipelineStateLibrary m_psoLib;
+
+		DllWrapper m_dll;
 	};
 
 	FSR2_Data* g_fsr2Data = nullptr;
@@ -478,7 +526,8 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 	// initialize the PSO library (must be called before ffxFsr2ContextCreate)
 	g_fsr2Data->m_psoLib.Init("FSR2");
 
-	CheckFSR(ffxFsr2ContextCreate(&g_fsr2Data->m_ctx, &ctxDesc));
+	g_fsr2Data->m_dll.Load();
+	CheckFSR(g_fsr2Data->m_dll.FpCreate(&g_fsr2Data->m_ctx, &ctxDesc));
 
 	// upscaled output texture
 	Assert(!g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].IsInitialized(), "Output is app-controlled");
@@ -504,7 +553,9 @@ void FSR2_Internal::Shutdown() noexcept
 {
 	if (g_fsr2Data)
 	{
-		CheckFSR(ffxFsr2ContextDestroy(&g_fsr2Data->m_ctx));
+		//CheckFSR(ffxFsr2ContextDestroy(&g_fsr2Data->m_ctx));
+		CheckFSR(g_fsr2Data->m_dll.FpDestroy(&g_fsr2Data->m_ctx));
+		g_fsr2Data->m_dll.Free();
 
 		/*
 		for (int i = 0; i < FFX_FSR2_RESOURCE_IDENTIFIER_COUNT; i++)
@@ -667,7 +718,8 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 
 	g_fsr2Data->m_reset = false;
 
-	CheckFSR(ffxFsr2ContextDispatch(&g_fsr2Data->m_ctx, &params));
+	//CheckFSR(ffxFsr2ContextDispatch(&g_fsr2Data->m_ctx, &params));
+	CheckFSR(g_fsr2Data->m_dll.FpDispatch(&g_fsr2Data->m_ctx, &params));
 
 	g_fsr2Data->m_cmdList = nullptr;
 
@@ -945,7 +997,8 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	flags |= FSR2_SHADER_PERMUTATION_ALLOW_FP16;
 
 	// load shader blob
-	Fsr2ShaderBlobDX12 shaderBlob = fsr2GetPermutationBlobByIndex(pass, flags);
+	//Fsr2ShaderBlobDX12 shaderBlob = fsr2GetPermutationBlobByIndex(pass, flags);
+	Fsr2ShaderBlobDX12 shaderBlob = g_fsr2Data->m_dll.FpGetShaderPermutation(pass, flags);
 	Assert(shaderBlob.data && shaderBlob.size > 0, "Retrieving FSR2 shader failed.");
 
 	// static samplers
