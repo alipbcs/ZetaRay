@@ -2,7 +2,7 @@
 
 #include "../Core/Vertex.h"
 #include "../Math/Matrix.h"
-#include "../Win32/Filesystem.h"
+#include "../App/Filesystem.h"
 #include "../RenderPass/Common/Material.h"
 #include "../Model/Mesh.h"
 
@@ -49,16 +49,16 @@ namespace ZetaRay::Model::glTF::Asset
 
 		// RGB specify the base color of the material (sRGB). fourth component(A) represents the linear
 		// alpha coverage of the material
-		Win32::Filesystem::Path BaseColorTexPath;
+		App::Filesystem::Path BaseColorTexPath;
 
 		// The metallic - roughness texture.The metalness values are sampled from the B channel.The roughness values are sampled
 		// from the G channel.These values are linear
-		Win32::Filesystem::Path MetalnessRoughnessTexPath;
+		App::Filesystem::Path MetalnessRoughnessTexPath;
 
 		// A tangent space normal map.The texture contains RGB components in linear space. Each texel represents the 
 		// XYZ components of a normal vector in tangent space. Red & Green map to [-1 to 1], Blue to Z[1 / 255 to 1]
-		Win32::Filesystem::Path NormalTexPath;
-		Win32::Filesystem::Path EmissiveTexPath;
+		App::Filesystem::Path NormalTexPath;
+		App::Filesystem::Path EmissiveTexPath;
 
 		// Linear. fourth component (A) is the alpha coverage of the material (interpreted by the alphaMode property). 
 		// These values are linear. multiplied baseColorTexture (if present)

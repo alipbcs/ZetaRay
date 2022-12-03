@@ -3,7 +3,7 @@
 #include "../Utility/Span.h"
 #include "App.h"
 
-namespace ZetaRay::Win32::Filesystem
+namespace ZetaRay::App::Filesystem
 {
     void LoadFromFile(const char* filePath, Util::Vector<uint8_t, App::PoolAllocator>& fileData) noexcept;
     void WriteToFile(const char* filePath, uint8_t* data, uint32_t sizeInBytes) noexcept;

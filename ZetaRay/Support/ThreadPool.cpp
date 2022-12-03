@@ -1,13 +1,13 @@
 #include "ThreadPool.h"
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
+#include "../App/Timer.h"
 #include "Task.h"
 #include "../Core/Device.h"
-#include "../Win32/Log.h"
+#include "../App/Log.h"
 
 #define LOG_TASK_TIMINGS 0
 
 using namespace ZetaRay::Support;
+using namespace ZetaRay::App;
 
 namespace
 {
@@ -148,7 +148,7 @@ void ThreadPool::PumpUntilEmpty() noexcept
 	Assert(idx != -1, "Thread ID was not found");
 
 	const uint32_t tid = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
-	Win32::DeltaTimer timer;
+	DeltaTimer timer;
 	Task task;
 
 	// "try_dequeue()" returning false doesn't guarantee that queue is empty
@@ -211,7 +211,7 @@ void ThreadPool::WorkerThread() noexcept
 	const int idx = FindThreadIdx(m_appThreadIds, m_totalNumThreads);
 	Assert(idx != -1, "Thread ID was not found");
 
-	Win32::DeltaTimer timer;
+	DeltaTimer timer;
 
 	while (true)
 	{

@@ -1,9 +1,8 @@
 #include "Backend.h"
 #include "../../Core/Renderer.h"
 #include "../../Core/CommandList.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Win32Common.h"
-#include "../../Win32/Timer.h"
+#include "../../App/Common.h"
+#include "../../App/Timer.h"
 #include "../../Scene/SceneCore.h"
 #include "../../Support/Task.h"
 #include <algorithm>
@@ -17,7 +16,7 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 namespace
 {
@@ -791,7 +790,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 	else
 	{
 		char resName[64];
-		Win32::WideToCharStr(resDesc->name, resName);
+		Common::WideToCharStr(resDesc->name, resName);
 
 		const bool allowUAV = resDesc->usage & FFX_RESOURCE_USAGE_UAV;
 		const bool allowRT = resDesc->usage & FFX_RESOURCE_USAGE_RENDERTARGET;
@@ -1128,7 +1127,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 		outPipeline->srvResourceBindings[srvIndex].slotIndex = shaderBlob.boundSRVResources[srvIndex];
 
 		wchar_t buff[128];
-		Win32::CharToWideStr(shaderBlob.boundSRVResourceNames[srvIndex], buff);
+		Common::CharToWideStr(shaderBlob.boundSRVResourceNames[srvIndex], buff);
 
 		wcscpy_s(outPipeline->srvResourceBindings[srvIndex].name, buff);
 
@@ -1145,7 +1144,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 		outPipeline->uavResourceBindings[uavIndex].slotIndex = shaderBlob.boundUAVResources[uavIndex];
 
 		wchar_t buff[128];
-		Win32::CharToWideStr(shaderBlob.boundUAVResourceNames[uavIndex], buff);
+		Common::CharToWideStr(shaderBlob.boundUAVResourceNames[uavIndex], buff);
 
 		wcscpy_s(outPipeline->uavResourceBindings[uavIndex].name, buff);
 
@@ -1160,7 +1159,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 		outPipeline->cbResourceBindings[cbIndex].slotIndex = shaderBlob.boundCBVResources[cbIndex];
 
 		wchar_t buff[128];
-		Win32::CharToWideStr(shaderBlob.boundCBVResourceNames[cbIndex], buff);
+		Common::CharToWideStr(shaderBlob.boundCBVResourceNames[cbIndex], buff);
 
 		wcscpy_s(outPipeline->cbResourceBindings[cbIndex].name, buff);
 	}

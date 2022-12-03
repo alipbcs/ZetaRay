@@ -3,7 +3,6 @@
 #include "../../Core/CommandList.h"
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Model/Mesh.h"
-#include "../../Win32/App.h"
 
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core;

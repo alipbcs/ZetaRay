@@ -1,6 +1,5 @@
 #include "RtAccelerationStructure.h"
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
+#include "../App/Timer.h"
 #include "../Core/Renderer.h"
 #include "../Core/CommandList.h"
 #include "../Scene/SceneCore.h"

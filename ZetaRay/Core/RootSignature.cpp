@@ -1,6 +1,5 @@
 #include "RootSignature.h"
 #include "../Utility/Error.h"
-#include "../Win32/App.h"
 #include "Renderer.h"
 #include "CommandList.h"
 #include "GpuMemory.h"

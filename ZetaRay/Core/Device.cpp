@@ -1,10 +1,11 @@
 #include "../Utility/Error.h"
 #include "Device.h"
 #include "Constants.h"
-#include "../Win32/Win32Common.h"
+#include "../App/Common.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::App;
 
 // PIX crashes when debug layer is enabled
 #define ENABLE_DEBUG_LAYER
@@ -45,7 +46,7 @@ void DeviceObjects::InitializeAdapter() noexcept
 	DXGI_ADAPTER_DESC2 desc;
 	CheckHR(m_dxgiAdapter->GetDesc2(&desc));
 
-	Win32::WideToCharStr(desc.Description, m_deviceName);
+	Common::WideToCharStr(desc.Description, m_deviceName);
 }
 
 void DeviceObjects::CreateDevice() noexcept

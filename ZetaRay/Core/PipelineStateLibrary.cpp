@@ -1,13 +1,11 @@
 #include "PipelineStateLibrary.h"
-#include "../Win32/App.h"
-#include "../Win32/Filesystem.h"
 #include "Renderer.h"
-#include "../Win32/Log.h"
+#include "../App/Log.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 //--------------------------------------------------------------------------------------
 // PipelineStateLibrary

@@ -1,7 +1,6 @@
 #include "GpuTimer.h"
 #include "Renderer.h"
 #include "../Utility/Error.h"
-#include "../Win32/App.h"
 #include "CommandList.h"
 
 using namespace ZetaRay;

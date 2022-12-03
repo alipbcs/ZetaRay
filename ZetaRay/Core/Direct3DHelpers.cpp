@@ -1,6 +1,5 @@
 #include "Direct3DHelpers.h"
 #include "dds.h"
-#include "../Win32/App.h"
 #include "Renderer.h"
 #include <xxHash-0.8.1/xxhash.h>
 #include <memory>

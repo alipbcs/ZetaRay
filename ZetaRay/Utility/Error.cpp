@@ -35,7 +35,7 @@ using namespace ZetaRay::Support;
 
 #include <dbghelp.h>
 #include <string>
-#include "../Win32/Log.h"
+#include "../App/Log.h"
 
 #define DBG_TRACE(MSG, ...)  dbg::trace(MSG, __VA_ARGS__)
 

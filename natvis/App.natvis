@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <AutoVisualizer xmlns="http://schemas.microsoft.com/vstudio/debugger/natvis/2010">
 
-    <Type Name="ZetaRay::Win32::Filesystem::Path">
+    <Type Name="ZetaRay::App::Filesystem::Path">
         <DisplayString>{m_path.m_beg}, [size={m_path.m_end - m_path.m_beg}]</DisplayString>
         <StringView>m_path.m_beg</StringView>
         <Expand>

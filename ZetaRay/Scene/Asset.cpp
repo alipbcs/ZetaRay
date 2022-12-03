@@ -4,12 +4,12 @@
 #include "../Core/Renderer.h"
 #include "../Core/GpuMemory.h"
 #include "../Core/SharedShaderResources.h"
-#include "../Win32/Filesystem.h"
+#include "../App/Filesystem.h"
 #include "SceneRenderer/SceneRenderer.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Scene::Internal;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
 
 //--------------------------------------------------------------------------------------

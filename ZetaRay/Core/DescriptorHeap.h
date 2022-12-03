@@ -2,7 +2,7 @@
 
 #include "../Utility/SmallVector.h"
 #include "Device.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include <map>
 
 namespace ZetaRay::Core
@@ -30,7 +30,7 @@ namespace ZetaRay::Core
 		// Marks the Descriptor Table as ready for reuse. it'll become available for reallocation during the next Recycle call
 		void Release(DescriptorTable&& descTable) noexcept;
 
-		// Previously freed Descriptor Tables whoose fence value has passed become available for resuse (not thread-safe)
+		// Previously free'd Descriptor Tables whoose fence value has passed become available for resuse (not thread-safe)
 		void Recycle() noexcept;
 
 		uint32_t GetDescriptorSize() const { return m_descriptorSize; }

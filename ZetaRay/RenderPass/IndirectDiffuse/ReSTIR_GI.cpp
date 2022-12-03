@@ -3,7 +3,6 @@
 #include "../../Core/CommandList.h"
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../RayTracing/Sampler.h"
-#include "../../Win32/App.h"
 #include "../../Support/Param.h"
 
 using namespace ZetaRay::Core;

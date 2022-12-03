@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Math/Common.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 
 namespace ZetaRay::Util
 {

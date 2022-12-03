@@ -1,5 +1,4 @@
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
+#include "../App/Timer.h"
 #include "../Math/Common.h"
 #include "Renderer.h"
 #include "CommandList.h"
@@ -317,8 +316,8 @@ namespace ZetaRay::Core::Internal
 
 		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_pendingFencePages;		// Pages that are pending fence becoming signalled by the GPU
 		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_inUsePages;				// Pages with reference count > 1
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_reuseReadyPages;			// Pages that are unused and can be freed or otherwise reused
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_toGarbackCollectPages;	// Pages that are unused and can be freed or otherwise reused
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_reuseReadyPages;			// Pages that are unused and can be free'd or otherwise reused
+		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_toGarbackCollectPages;	// Pages that are unused and can be free'd or otherwise reused
 		size_t m_pageSize = -1;
 		SRWLOCK m_inUseLock = SRWLOCK_INIT;
 		SRWLOCK m_gcLock = SRWLOCK_INIT;
@@ -838,7 +837,7 @@ namespace ZetaRay::Core::Internal
 						WaitForSingleObject(m_event, INFINITE);
 					}
 
-					// resources in m_scratchResources are freed now
+					// resources in m_scratchResources are free'd now
 				});
 				Assert(m_scratchResources.empty(), "");
 
@@ -1212,7 +1211,7 @@ void GpuMemory::Recycle() noexcept
 		Task t("Freeing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
 			{
 				Assert(Textures.size() > 0, "input texture vec is empty");
-				// resources in textures are freed now
+				// resources in textures are free'd now
 			});
 
 		// submit

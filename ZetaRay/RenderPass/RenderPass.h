@@ -26,7 +26,6 @@ namespace ZetaRay::RenderPass
 		// the objects used by this renderpass
 		ComPtr<ID3D12Fence> m_fence;
 
-		std::atomic_int32_t m_refCount = 0;
-		std::atomic_bool m_initFlag = false;
+		int m_refCount = 0;
 	};
 }

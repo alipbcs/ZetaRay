@@ -1,6 +1,6 @@
 #include "Task.h"
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
+#include "../App/Timer.h"
+#include <intrin.h>
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
@@ -89,10 +89,10 @@ void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept
 	TaskMetadata& ta = m_taskMetadata[a];
 	TaskMetadata& tb = m_taskMetadata[b];
 
-	bool prev1 = _bittestandset((LONG*)&ta.SuccessorMask, b);
+	bool prev1 = _bittestandset((long*)&ta.SuccessorMask, b);
 	Assert(!prev1, "Reduntant call. Edge had already beed added.");
 
-	bool prev2 = _bittestandset((LONG*)&tb.PredecessorMask, a);
+	bool prev2 = _bittestandset((long*)&tb.PredecessorMask, a);
 	Assert(!prev2, "Reduntant call. Edge had already beed added.");
 
 	m_tasks[a].m_adjacentTailNodes.push_back(m_tasks[b].m_signalHandle);
@@ -178,7 +178,7 @@ void TaskSet::Finalize(WaitObject* waitObj) noexcept
 		uint64_t mask = m_leafMask;
 		notifyTask.m_indegree += __popcnt16((uint16_t)mask);
 
-		DWORD idx;
+		unsigned long idx;
 		while (_BitScanForward64(&idx, mask))
 		{
 			Assert(idx < m_currSize, "Bug");
@@ -218,13 +218,13 @@ void TaskSet::TopologicalSort() noexcept
 	}
 
 	// find all the nodes with indegree == 0
-	DWORD zeroIndegreeIdx;
+	unsigned long zeroIndegreeIdx;
 	while (_BitScanForward64(&zeroIndegreeIdx, currMask))
 	{
 		Assert(zeroIndegreeIdx < m_currSize, "Invalid index.");
 		TaskMetadata& t = m_taskMetadata[zeroIndegreeIdx];
 		uint64_t tails = t.SuccessorMask;
-		DWORD tailIdx;
+		unsigned long tailIdx;
 
 		// for every tail-adjacent node
 		while (_BitScanForward64(&tailIdx, tails))
@@ -278,14 +278,14 @@ void TaskSet::ConnectTo(TaskSet& other) noexcept
 	uint64_t tailMask = other.m_rootMask;
 
 	// connect every leaf of this TaskSet to every root of "other"
-	DWORD headIdx;
+	unsigned long headIdx;
 	while (_BitScanForward64(&headIdx, headMask))
 	{
 		Assert(headIdx < m_currSize, "Bug");
 		Assert(m_tasks[headIdx].m_adjacentTailNodes.empty(), "Leaf task should not have tail nodes.");
 		m_tasks[headIdx].m_adjacentTailNodes.reserve(__popcnt16(other.m_rootMask));
 
-		DWORD tailIdx;
+		unsigned long tailIdx;
 		while (_BitScanForward64(&tailIdx, tailMask))
 		{
 			Assert(tailIdx < other.m_currSize, "Index out of bound.");
@@ -307,7 +307,7 @@ void TaskSet::ConnectTo(Task& other) noexcept
 
 	uint64_t mask = m_leafMask;
 
-	DWORD idx;
+	unsigned long idx;
 	while (_BitScanForward64(&idx, mask))
 	{
 		Assert(idx < m_currSize, "Bug");
@@ -325,7 +325,7 @@ void TaskSet::ConnectFrom(Task& other) noexcept
 
 	uint64_t mask = m_rootMask;
 
-	DWORD idx;
+	unsigned long idx;
 	while (_BitScanForward64(&idx, mask))
 	{
 		Assert(idx < m_currSize, "Invalid index.");

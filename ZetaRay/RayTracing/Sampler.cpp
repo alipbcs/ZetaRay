@@ -1,15 +1,14 @@
 #include "Sampler.h"
 #include "../Core/Renderer.h"
 #include "../Core/SharedShaderResources.h"
-#include "../Win32/App.h"
-#include "../Win32/Filesystem.h"
+#include "../App/Filesystem.h"
 #include "../Support/Task.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::RT;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 void Sampler::InitLowDiscrepancyBlueNoise() noexcept
 {

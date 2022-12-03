@@ -6,7 +6,7 @@
 #include "../Core/DescriptorHeap.h"
 #include "../Core/GpuMemory.h"
 
-namespace ZetaRay::Win32::Filesystem
+namespace ZetaRay::App::Filesystem
 {
 	struct Path;
 }
@@ -31,7 +31,7 @@ namespace ZetaRay::Scene::Internal
 
 		// Returns offset of the given texture in the desc. table. The texture is then loaded from
 		// the disk. "id" is hash of the texture path
-		uint32_t Add(const Win32::Filesystem::Path& p, uint64_t id) noexcept;
+		uint32_t Add(const App::Filesystem::Path& p, uint64_t id) noexcept;
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		void Clear() noexcept;

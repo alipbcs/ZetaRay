@@ -1,6 +1,5 @@
 #include "Camera.h"
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
+#include "../App/Timer.h"
 #include "../Core/Renderer.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Sampling.h"

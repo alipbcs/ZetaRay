@@ -3,7 +3,7 @@
 #include "Device.h"
 #include "../Utility/Error.h"
 #include "../Utility/SmallVector.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include <memory>
 
 namespace ZetaRay::Core

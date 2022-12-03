@@ -2,11 +2,7 @@
 #include "Backend.h"
 #include "../../Core/Renderer.h"
 #include "../../Core/CommandList.h"
-#include "../../Scene/SceneRenderer/SceneRenderer.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Timer.h"
-#include "../../Win32/Win32Common.h"
-#include "../../Win32/Log.h"
+#include "../../App/App.h"
 
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core;
@@ -47,7 +43,7 @@ void FSR2Pass::OnWindowResized() noexcept
 
 	FSR2_Internal::Init(UPSCALED_RES_FORMAT, w, h);
 
-	LOG("FSR2Pass::OnWindowResized()");
+	//LOG("FSR2Pass::OnWindowResized()");
 }
 
 void FSR2Pass::Reset() noexcept

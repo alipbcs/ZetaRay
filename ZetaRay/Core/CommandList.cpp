@@ -1,5 +1,5 @@
 #include "CommandList.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include "Renderer.h"
 
 using namespace ZetaRay::Core;

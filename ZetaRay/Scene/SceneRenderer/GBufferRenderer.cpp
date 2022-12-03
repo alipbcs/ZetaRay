@@ -1,7 +1,7 @@
 #include "SceneRendererImpl.h"
 #include "../../Core/Direct3DHelpers.h"
 #include "../../Core/CommandList.h"
-#include "../../Win32/App.h"
+#include "../../App/App.h"
 
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Model;

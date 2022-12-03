@@ -4,7 +4,6 @@
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Scene/SceneCore.h"
 #include "../../Model/Mesh.h"
-#include "../../Win32/App.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;

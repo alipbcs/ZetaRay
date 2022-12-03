@@ -1,8 +1,7 @@
 #include "SceneRendererImpl.h"
 #include "../SceneCore.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Timer.h"
-#include "../../Win32/Log.h"
+#include "../../App/Timer.h"
+#include "../../App/Log.h"
 #include "../../Core/Direct3DHelpers.h"
 #include "../../Core/SharedShaderResources.h"
 #include "../../Support/Task.h"
@@ -15,7 +14,7 @@ using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 //--------------------------------------------------------------------------------------
 // Scene::Render::Common

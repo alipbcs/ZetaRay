@@ -1,7 +1,5 @@
 #include "DescriptorHeap.h"
-#include "../Win32/App.h"
-#include "../Win32/Timer.h"
-#include "../Win32/Log.h"
+#include "../App/Timer.h"
 #include "Renderer.h"
 #include "../Utility/Error.h"
 
@@ -317,7 +315,7 @@ void DescriptorHeap::Recycle() noexcept
 		m_freeDescCount += numDescs;
 		currPending = m_pending.erase(*currPending);
 
-//		g_pApp->GetLogger().LogToConsole(to_string("DescriptorTable with size: %u was freed", numDescs));
+//		g_pApp->GetLogger().LogToConsole(to_string("DescriptorTable with size: %u was free'd", numDescs));
 	}
 }
 

@@ -4,7 +4,7 @@
 #pragma once
 
 #include "Device.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include <memory>
 
 namespace ZetaRay::App
@@ -153,8 +153,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return tex2DDesc;
     }
 
-    inline D3D12_RESOURCE_BARRIER TransitionBarrier(
-        ID3D12Resource* res,
+    inline D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* res,
         D3D12_RESOURCE_STATES before,
         D3D12_RESOURCE_STATES after,
         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
@@ -195,8 +194,7 @@ namespace ZetaRay::Core::Direct3DHelper
         size_t* outNumRows) noexcept;
 
     // Returns required size of a buffer to be used for data upload
-    inline UINT64 GetRequiredIntermediateSize(ID3D12Resource* pDestinationResource,
-        UINT FirstSubresource,
+    inline UINT64 GetRequiredIntermediateSize(ID3D12Resource* pDestinationResource, UINT FirstSubresource,
         UINT NumSubresources) noexcept
     {
         auto Desc = pDestinationResource->GetDesc();

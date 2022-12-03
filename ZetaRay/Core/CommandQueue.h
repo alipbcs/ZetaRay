@@ -2,7 +2,7 @@
 
 #include "../Core/Device.h"
 #include "../Utility/SmallVector.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include <shared_mutex>
 #include <concurrentqueue-1.0.3/concurrentqueue.h>
 

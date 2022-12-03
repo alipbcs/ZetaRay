@@ -8,7 +8,7 @@
 
 #include "../Utility/SmallVector.h"
 #include "../Math/CollisionTypes.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 
 namespace ZetaRay::Math
 {

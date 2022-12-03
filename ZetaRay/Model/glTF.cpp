@@ -29,8 +29,7 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Model;
-//using namespace ZetaRay::Model::glTF;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 //--------------------------------------------------------------------------------------
 // gltfModel

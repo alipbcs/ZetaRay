@@ -31,7 +31,7 @@ namespace ZetaRay::Util
 	struct Span;
 }
 
-namespace ZetaRay::Win32
+namespace ZetaRay::App
 {
 	struct Timer;
 }
@@ -94,7 +94,7 @@ namespace ZetaRay::App
 	float GetUpscalingFactor() noexcept;
 	void SetUpscalingEnablement(bool e) noexcept;
 	bool IsFullScreen() noexcept;
-	const Win32::Timer& GetTimer() noexcept;
+	const App::Timer& GetTimer() noexcept;
 
 	Util::Span<uint32_t> GetMainThreadIDs() noexcept;
 	Util::Span<uint32_t> GetBackgroundThreadIDs() noexcept;

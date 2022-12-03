@@ -1,7 +1,7 @@
-#include "App.h"
+#include "../App/App.h"
 #include "../Support/MemoryPool.h"
 #include "../Utility/SynchronizedView.h"
-#include "Timer.h"
+#include "../App/Timer.h"
 #include "../Support/Param.h"
 #include "../Support/Stat.h"
 #include "../Utility/HashTable.h"
@@ -23,7 +23,6 @@
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>
 
-using namespace ZetaRay::Win32;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
@@ -1258,7 +1257,7 @@ namespace ZetaRay
 	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }
 	float App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }
 	bool App::IsFullScreen() noexcept { return g_pApp->m_isFullScreen; }
-	const Win32::Timer& App::GetTimer() noexcept { return g_pApp->m_timer; }
+	const App::Timer& App::GetTimer() noexcept { return g_pApp->m_timer; }
 	const char* App::GetPSOCacheDir() noexcept { return AppData::PSO_CACHE_DIR; }
 	const char* App::GetCompileShadersDir() noexcept { return AppData::COMPILED_SHADER_DIR; }
 	const char* App::GetAssetDir() noexcept { return AppData::ASSET_DIR; }

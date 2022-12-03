@@ -2,8 +2,8 @@
 // Main.cpp
 //
 
-#include <Win32/Log.h>
-#include <Win32/Timer.h>
+#include <App/Log.h>
+#include <App/Timer.h>
 #include <Scene/SceneCore.h>
 #include <Model/glTF.h>
 #include <fcntl.h>
@@ -40,7 +40,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     App::Init();
 
-    Win32::DeltaTimer timer;
+    App::DeltaTimer timer;
     timer.Start();
 
     // load gltf model

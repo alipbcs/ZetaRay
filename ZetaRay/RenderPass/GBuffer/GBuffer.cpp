@@ -4,7 +4,6 @@
 #include "../../Core/CommandList.h"
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Math/MatrixFuncs.h"
-#include "../../Win32/App.h"
 #include "../../Scene/SceneCore.h"
 
 using namespace ZetaRay::Core;

@@ -2,7 +2,7 @@
 
 #include "../Core/Device.h"
 #include "../Utility/SmallVector.h"
-#include "../Win32/Filesystem.h"
+#include "../App/Filesystem.h"
 #include <atomic>
 
 namespace ZetaRay::Core
@@ -57,7 +57,7 @@ namespace ZetaRay::Core
 		void ResetPsoLib(bool forceReset = false) noexcept;
 
 		//char m_psoLibPath[MAX_PATH] = { '\0' };			// <Assets>/PSOCache/<name>.cache	
-		Win32::Filesystem::Path m_psoLibPath1;
+		App::Filesystem::Path m_psoLibPath1;
 		ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
 
 		Util::SmallVector<Entry, App::PoolAllocator, 2> m_compiledPSOs;

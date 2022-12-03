@@ -3,7 +3,7 @@
 #include "../Math/CollisionTypes.h"
 #include "../Core/Vertex.h"
 #include "../RenderPass/Common/HLSLCompat.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 
 namespace ZetaRay::Model
 {

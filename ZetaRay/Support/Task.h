@@ -3,7 +3,7 @@
 #include "../Utility/Error.h"
 #include "../Utility/Span.h"
 #include "../Utility/Function.h"
-#include "../Win32/App.h"
+#include "../App/App.h"
 #include <atomic>
 
 namespace ZetaRay::Support

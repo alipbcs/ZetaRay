@@ -1,6 +1,6 @@
 #include "SceneRendererImpl.h"
 #include "../../Core/CommandList.h"
-#include "../../Win32/App.h"
+#include "../../App/App.h"
 #include "../../Core/SharedShaderResources.h"
 
 using namespace ZetaRay::Math;

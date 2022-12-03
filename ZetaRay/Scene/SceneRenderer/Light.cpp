@@ -1,12 +1,11 @@
 #include "SceneRendererImpl.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Timer.h"
+#include "../../App/App.h"
+#include "../../App/Timer.h"
 #include "../../Core/Direct3DHelpers.h"
 #include "../../Core/SharedShaderResources.h"
 
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Win32;
 using namespace ZetaRay::Scene::Render;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;

@@ -7,8 +7,8 @@
 #include "../Math/Common.h"
 #include "CommandList.h"
 #include "../Support/Task.h"
-#include "../Win32/Timer.h"
-#include "../Win32/Log.h"
+#include "../App/Timer.h"
+#include "../App/Log.h"
 #include <algorithm>
 #include <xxHash-0.8.1/xxhash.h>
 #include <imgui/imnodes.h>

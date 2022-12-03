@@ -6,8 +6,7 @@
 #include "../../Support/Param.h"
 #include "../../Support/Stat.h"
 #include "../../Scene/SceneCore.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Timer.h"
+#include "../../App/Timer.h"
 #include "../../Utility/SynchronizedView.h"
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>

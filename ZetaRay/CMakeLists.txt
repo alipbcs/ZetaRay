@@ -1,5 +1,6 @@
 include("${CMAKE_INCLUDE_DIR}/Copy.cmake")
 
+add_subdirectory(App)
 add_subdirectory(Core)
 add_subdirectory(Math)
 add_subdirectory(Model)
@@ -11,6 +12,7 @@ add_subdirectory(Utility)
 add_subdirectory(Win32)
 
 set(RENDERER_SRC
+	${APP_SRC}
 	${CORE_SRC}
 	${MATH_SRC}
 	${MODEL_SRC}
@@ -35,7 +37,7 @@ set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
 # natvis
 set(NATVIS_SRC "${CMAKE_SOURCE_DIR}/natvis/Container.natvis"
 	"${CMAKE_SOURCE_DIR}/natvis/imgui.natvis"
-	"${CMAKE_SOURCE_DIR}/natvis/Win32.natvis")
+	"${CMAKE_SOURCE_DIR}/natvis/App.natvis")
 
 if(MSVC)
 	source_group(TREE "${RENDERER_DIR}" FILES ${RENDERER_SRC})

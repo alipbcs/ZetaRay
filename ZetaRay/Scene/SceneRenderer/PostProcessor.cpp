@@ -1,7 +1,6 @@
 #include "SceneRendererImpl.h"
-#include "../../Win32/App.h"
-#include "../../Win32/Timer.h"
-#include "../../Win32/Log.h"
+#include "../../App/App.h"
+#include "../../App/Timer.h"
 #include "../../Core/Direct3DHelpers.h"
 #include "../../RayTracing/RtAccelerationStructure.h"
 

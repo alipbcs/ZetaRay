@@ -1,6 +1,4 @@
 #include "SceneCore.h"
-#include "../Win32/App.h"
-#include "../Win32/Win32.h"
 #include "../Model/Mesh.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Quaternion.h"
@@ -15,7 +13,7 @@ using namespace ZetaRay::Model;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
-using namespace ZetaRay::Win32;
+using namespace ZetaRay::App;
 
 namespace
 {

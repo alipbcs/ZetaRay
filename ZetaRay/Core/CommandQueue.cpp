@@ -1,10 +1,8 @@
 #include "CommandQueue.h"
-#include "../Win32/App.h"
 #include "Renderer.h"
 #include "CommandList.h"
 
 using namespace ZetaRay;
-using namespace ZetaRay::Win32;
 using namespace ZetaRay::Core;
 
 //--------------------------------------------------------------------------------------
