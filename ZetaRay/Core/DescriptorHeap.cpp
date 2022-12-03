@@ -113,7 +113,7 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
 
 void DescriptorHeap::Shutdown() noexcept
 {
-	m_pending.free();
+	m_pending.free_memory();
 }
 
 DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept

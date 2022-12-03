@@ -222,7 +222,7 @@ void GuiPass::Reset() noexcept
 		m_imguiFrameBuffs[i].VertexBuffer.Reset();
 	}
 
-	m_cachedTimings.free();
+	m_cachedTimings.free_memory();
 }
 
 void GuiPass::UpdateBuffers() noexcept

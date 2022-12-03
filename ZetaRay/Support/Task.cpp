@@ -23,7 +23,8 @@ Task::Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 
 Task::Task(Task&& other) noexcept
 {
-	m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
+	//m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
+	m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
 	other.m_adjacentTailNodes.clear();
 
 	m_dlg = ZetaMove(other.m_dlg);
@@ -41,7 +42,8 @@ Task::Task(Task&& other) noexcept
 
 Task& Task::operator=(Task&& other) noexcept
 {
-	m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
+	//m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
+	m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
 	other.m_adjacentTailNodes.clear();
 
 	m_dlg = ZetaMove(other.m_dlg);

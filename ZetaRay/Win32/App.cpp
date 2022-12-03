@@ -104,13 +104,12 @@ namespace
 		struct alignas(64) ThreadContext
 		{
 			MemoryPool MemPool;
-			SRWLOCK Lock;
-			RNG Rng;
 		};
 
 		ThreadContext m_threadContexts[MAX_NUM_THREADS];
 		//std::thread::id m_threadIDs[MAX_NUM_THREADS];
 		uint32_t m_threadIDs[MAX_NUM_THREADS];
+		RNG m_rng;
 
 		SmallVector<ParamVariant, PoolAllocator> m_params;
 		SmallVector<ParamUpdate, PoolAllocator, 32> m_paramsUpdates;
@@ -119,13 +118,12 @@ namespace
 		SmallVector<Stat, PoolAllocator> m_frameStats;
 		FrameTime m_frameTime;
 
-		//std::shared_mutex m_stdOutMtx;
 		SRWLOCK m_stdOutLock = SRWLOCK_INIT;
 		SRWLOCK m_paramLock = SRWLOCK_INIT;
 		SRWLOCK m_paramUpdateLock = SRWLOCK_INIT;
 		SRWLOCK m_shaderReloadLock = SRWLOCK_INIT;
 		SRWLOCK m_statsLock = SRWLOCK_INIT;
-
+		
 		struct alignas(64) TaskSignal
 		{
 			std::atomic_int32_t Indegree;
@@ -865,7 +863,7 @@ namespace ZetaRay::AppImpl
 
 namespace ZetaRay
 {
-	inline int GetThreadIdx() noexcept
+	__forceinline int GetThreadIdx() noexcept
 	{
 		for (int i = 0; i < g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
 		{
@@ -874,6 +872,16 @@ namespace ZetaRay
 		}
 
 		return -1;
+	}
+
+	void RejoinBackgroundMemPoolsToMain() noexcept
+	{
+		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
+		{
+			int sourceThreadIdx = g_pApp->m_processorCoreCount + i;
+			int destThreadIdx = g_pApp->m_rng.GetUniformUintBounded(g_pApp->m_processorCoreCount);
+			g_pApp->m_threadContexts[sourceThreadIdx].MemPool.MoveTo(g_pApp->m_threadContexts[destThreadIdx].MemPool);
+		}
 	}
 
 	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
@@ -919,27 +927,27 @@ namespace ZetaRay
 		// main thread
 		g_pApp->m_threadContexts[0].MemPool.Init();
 		g_pApp->m_threadIDs[0] = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
-		g_pApp->m_threadContexts[0].Lock = SRWLOCK_INIT;
-		g_pApp->m_threadContexts[0].Rng = RNG(g_pApp->m_threadIDs[0]);
 
 		// initialize memory pools
 		// this has to happen after thread pool has been created
 		auto mainThreadIDs = g_pApp->m_mainThreadPool.ThreadIDs();
+
 		for (int i = 0; i < mainThreadIDs.size(); i++)
 		{
 			g_pApp->m_threadIDs[i + 1] = std::bit_cast<uint32_t, std::thread::id>(mainThreadIDs[i]);
 			g_pApp->m_threadContexts[i + 1].MemPool.Init();
-			g_pApp->m_threadContexts[i + 1].Lock = SRWLOCK_INIT;
-			g_pApp->m_threadContexts[i + 1].Rng = RNG(g_pApp->m_threadIDs[i + 1]);
 		}
 
-		// background threads don't have a dedicated memory pool
 		auto backgroundThreadIDs = g_pApp->m_backgroundThreadPool.ThreadIDs();
+
 		for (int i = 0; i < backgroundThreadIDs.size(); i++)
 		{
 			g_pApp->m_threadIDs[mainThreadIDs.size() + 1 + i] = std::bit_cast<uint32_t, std::thread::id>(backgroundThreadIDs[i]);
-			g_pApp->m_threadContexts[mainThreadIDs.size() + i + 1].Rng = RNG(g_pApp->m_threadIDs[mainThreadIDs.size() + 1 + i]);
+			g_pApp->m_threadContexts[mainThreadIDs.size() + 1 + i].MemPool.Init();
 		}
+
+		uint64_t seed = std::bit_cast<uint64_t, void*>(g_pApp);
+		g_pApp->m_rng = RNG(seed);
 
 		//		g_pApp->m_mainThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size()));
 		//		g_pApp->m_backgroundThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
@@ -1001,8 +1009,8 @@ namespace ZetaRay
 
 			g_pApp->m_threadContexts[0].MemPool.Init();
 			g_pApp->m_threadIDs[0] = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
-			g_pApp->m_threadContexts[0].Lock = SRWLOCK_INIT;
-			g_pApp->m_threadContexts[0].Rng = RNG(g_pApp->m_threadIDs[0]);
+			//g_pApp->m_threadContexts[0].Lock = SRWLOCK_INIT;
+			//g_pApp->m_threadContexts[0].Rng = RNG(g_pApp->m_threadIDs[0]);
 		}
 	}
 
@@ -1034,6 +1042,9 @@ namespace ZetaRay
 				if (!success)
 					continue;
 
+				if (g_pApp->m_backgroundThreadPool.IsEmpty())
+					RejoinBackgroundMemPoolsToMain();
+
 				// begin frame
 				g_pApp->m_renderer.BeginFrame();
 				g_pApp->m_timer.Tick();
@@ -1041,11 +1052,11 @@ namespace ZetaRay
 				// at this point, we know all the (CPU) tasks from the previous frame are done
 				g_pApp->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
 
-				// update
+				// update app
 				{
 					TaskSet appTS;
 
-					auto ha0 = appTS.EmplaceTask("AppUpdates", []()
+					appTS.EmplaceTask("AppUpdates", []()
 						{
 							AppImpl::ApplyParamUpdates();
 						});
@@ -1053,7 +1064,10 @@ namespace ZetaRay
 					appTS.Sort();
 					appTS.Finalize();
 					Submit(ZetaMove(appTS));
+				}
 
+				// update scene
+				{
 					TaskSet sceneTS;
 					TaskSet sceneRendererTS;
 					AppImpl::Update(sceneTS, sceneRendererTS);
@@ -1100,7 +1114,7 @@ namespace ZetaRay
 					{
 						g_pApp->m_renderer.EndFrame(endFrameTS);
 
-						auto h0 = endFrameTS.EmplaceTask("Scene::Recycle", []()
+						endFrameTS.EmplaceTask("Scene::Recycle", []()
 							{
 								g_pApp->m_scene.Recycle();
 							});
@@ -1129,51 +1143,24 @@ namespace ZetaRay
 		PostQuitMessage(0);
 	}
 
-	void* App::AllocateFromMemoryPool(size_t size, const char* str, uint32_t alignment) noexcept
+	void* App::AllocateFromMemoryPool(size_t size, size_t alignment) noexcept
 	{
 		//return malloc(size);
 
-		int idx = GetThreadIdx();
+		const int idx = GetThreadIdx();
 		Assert(idx != -1, "thread idx was not found");
-		int poolIdx = g_pApp->m_threadContexts[idx].Rng.GetUniformUintBounded(g_pApp->m_processorCoreCount);
-		void* mem;
-
-		while (true)
-		{
-			if (TryAcquireSRWLockExclusive(&g_pApp->m_threadContexts[poolIdx].Lock))
-			{
-				mem = g_pApp->m_threadContexts[poolIdx].MemPool.AllocateAligned(size, alignment);
-				ReleaseSRWLockExclusive(&g_pApp->m_threadContexts[poolIdx].Lock);
-
-				break;
-			}
-
-			poolIdx = poolIdx + 1 < g_pApp->m_processorCoreCount ? poolIdx + 1 : 0;
-		}
+		void* mem = g_pApp->m_threadContexts[idx].MemPool.AllocateAligned(size, alignment);
 
 		return mem;
 	}
 
-	void App::FreeMemoryPool(void* pMem, size_t size, const char* str, uint32_t alignment) noexcept
+	void App::FreeMemoryPool(void* mem, size_t size, size_t alignment) noexcept
 	{
 		//free(pMem);
 
-		int idx = GetThreadIdx();
+		const int idx = GetThreadIdx();
 		Assert(idx != -1, "thread idx was not found");
-		int poolIdx = g_pApp->m_threadContexts[idx].Rng.GetUniformUintBounded(g_pApp->m_processorCoreCount);
-
-		while (true)
-		{
-			if (TryAcquireSRWLockExclusive(&g_pApp->m_threadContexts[poolIdx].Lock))
-			{
-				g_pApp->m_threadContexts[poolIdx].MemPool.FreeAligned(pMem, size, alignment);
-				ReleaseSRWLockExclusive(&g_pApp->m_threadContexts[poolIdx].Lock);
-
-				return;
-			}
-
-			poolIdx = poolIdx + 1 < g_pApp->m_processorCoreCount ? poolIdx + 1 : 0;
-		}
+		g_pApp->m_threadContexts[idx].MemPool.FreeAligned(mem, size, alignment);
 	}
 
 	int App::RegisterTask() noexcept

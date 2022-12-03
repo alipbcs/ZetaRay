@@ -38,6 +38,12 @@ namespace ZetaRay::Support
 		// Wait until are tasks are "finished" (!= empty queue)
 		bool TryFlush() noexcept;
 
+		inline bool IsEmpty() noexcept
+		{
+			const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
+			return isEmpty;
+		}
+
 		int ThreadPoolSize() const { return m_threadPoolSize; }
 		Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
 

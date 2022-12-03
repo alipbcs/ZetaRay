@@ -13,7 +13,7 @@ namespace
 		// 1. compute sum of values (S)
 		// 2. normalize
 
-		// find the biggest multiple of 8 that is smaller than N
+		// find the largest multiple of 8 that is smaller than N
 		size_t numToSumSIMD = n - (n & (8 - 1));
 		float sum = 0.0f;
 
@@ -199,7 +199,7 @@ std::vector<AliasTableEntry> Math::BuildAliasTableNormalized(float* probs, int n
 	//	"Alias Table with number of elements larger than max possible uint32_t is not supported.",
 	//	SEVERITY::FATAL);
 
-	// find the biggest multiple of 8 that is smaller than N
+	// find the largest multiple of 8 that is smaller than N
 	int numToSumSIMD = n - (n & (8 - 1));
 	for (int i = 0; i < numToSumSIMD; i++)
 	{

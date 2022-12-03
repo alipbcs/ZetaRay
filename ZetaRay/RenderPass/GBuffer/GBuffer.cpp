@@ -74,7 +74,7 @@ void GBufferPass::Reset() noexcept
 	if (m_pso)
 		s_rpObjs.Clear();
 
-	m_perDrawCallArgs.free();
+	m_perDrawCallArgs.free_memory();
 	m_perDrawCB.Reset();
 	m_pso = nullptr;
 	//m_rootSig.Reset();

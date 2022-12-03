@@ -66,8 +66,8 @@ namespace ZetaRay::App
 	int Run() noexcept;
 	void Abort() noexcept;
 
-	void* AllocateFromMemoryPool(size_t size, const char* n = nullptr, uint32_t alignment = alignof(std::max_align_t)) noexcept;
-	void FreeMemoryPool(void* pMem, size_t size, const char* n = nullptr, uint32_t alignment = alignof(std::max_align_t)) noexcept;
+	void* AllocateFromMemoryPool(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+	void FreeMemoryPool(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 
 	// thread-safe
 	int RegisterTask() noexcept;
@@ -131,14 +131,14 @@ namespace ZetaRay::App
 
 	struct PoolAllocator
 	{
-		__forceinline void* AllocateAligned(size_t size, const char* name, uint32_t alignment) noexcept
+		__forceinline void* AllocateAligned(size_t size, size_t alignment) noexcept
 		{
-			return App::AllocateFromMemoryPool(size, name, alignment);
+			return App::AllocateFromMemoryPool(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, const char* name, uint32_t alignment) noexcept
+		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
 		{
-			App::FreeMemoryPool(mem, size, name, alignment);
+			App::FreeMemoryPool(mem, size, alignment);
 		}
 	};
 }

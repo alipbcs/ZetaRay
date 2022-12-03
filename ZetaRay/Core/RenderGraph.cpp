@@ -75,13 +75,13 @@ namespace
 
 void RenderGraph::Shutdown() noexcept
 {
-	m_frameResources.free();
+	m_frameResources.free_memory();
 
 	for (int i = 0; i < MAX_NUM_RENDER_PASSES; i++)
 	{
-		m_renderNodes[i].Inputs.free();
-		m_renderNodes[i].Outputs.free();
-		m_renderNodes[i].Barriers.free();
+		m_renderNodes[i].Inputs.free_memory();
+		m_renderNodes[i].Outputs.free_memory();
+		m_renderNodes[i].Barriers.free_memory();
 	}
 }
 
@@ -602,7 +602,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			//					|		 		  |
 			//		Queue2: 	4 -----> 5 -----> 6
 
-			// find the biggest producer batch-index (case a)
+			// find the largest producer batch index (case a)
 			const int numProducers = m_frameResources[inputFrameResIdx].CurrProdIdx.load(std::memory_order_relaxed);
 			//Assert(m_frameResources[inputFrameResIdx].Res == nullptr || 
 			//	numProducers > 0, "No producer for resource %llu", m_frameResources[inputFrameResIdx].ID);

@@ -17,14 +17,14 @@ namespace ZetaRay::Util
 	template<typename T, typename Allocator = Support::SystemAllocator>
 	class Vector
 	{
-		static_assert(Support::AllocType<Allocator>, "Provided Allocator type doesn't meet the requirements for AllocType.");
-		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be a copy-constructible type.");
+		static_assert(Support::AllocType<Allocator>, "Allocator doesn't meet the requirements for AllocType.");
+		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be copy-constructible.");
 		static constexpr size_t MIN_CAPACITY = Math::max(64 / sizeof(T), 4llu);
 
 	public:
 		~Vector() noexcept
 		{
-			free();
+			free_memory();
 		}
 
 		bool has_inline_storage() const noexcept
@@ -57,10 +57,10 @@ namespace ZetaRay::Util
 			const size_t maxSize = std::max(oldSize, oldOtherSize);
 
 			if(!other.empty())
-				reserve(oldOtherSize);
+				reserve(oldOtherSize);		// doesn't allocate if inline storage happens to be large enough
 	
 			if(!empty())
-				other.reserve(oldSize);
+				other.reserve(oldSize);		// doesn't allocate if inline storage happens to be large enough
 
 			T* largerBeg = otherIsLarger ? other.m_beg : m_beg;
 			T* smallerBeg = otherIsLarger ? m_beg : other.m_beg;
@@ -68,6 +68,7 @@ namespace ZetaRay::Util
 			for (size_t i = 0; i < minSize; i++)
 				std::swap(*(m_beg + i), *(other.m_beg + i));
 
+			// copy over the remaining elements to the smaller Vector
 			if constexpr (std::is_trivially_copyable_v<T>)
 			{
 				memcpy(smallerBeg + minSize, largerBeg + minSize, sizeof(T) * (maxSize - minSize));
@@ -163,70 +164,13 @@ namespace ZetaRay::Util
 
 		void reserve(size_t n) noexcept
 		{
-			if (n == 0)
-			{
-				Assert(false, "invalid arg");
-				return;
-			}
-
 			const size_t currCapacity = capacity();
+			const size_t oldSize = size();
+
 			if (n <= currCapacity)
 				return;
 
-			// allocate memory to accomodate the new size
-			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
-			const size_t oldSize = size();
-
-			// copy over the old elements, also guard against overlap
-			// between source & dest regions
-			if (oldSize > 0 && m_beg != mem)
-			{
-				if constexpr (std::is_trivially_copyable_v<T>)
-				{
-					memcpy(mem, m_beg, sizeof(T) * oldSize);
-				}
-				else if constexpr (std::is_move_constructible_v<T>)
-				{
-					T* source = m_beg;
-					T* target = reinterpret_cast<T*>(mem);
-					const T* end = target + oldSize;
-
-					while (target != end)
-					{
-						new (target) T(ZetaMove(*source));
-
-						source++;
-						target++;
-					}
-				}
-				else if constexpr (std::is_copy_constructible_v<T>)
-				{
-					T* source = m_beg;
-					T* target = reinterpret_cast<T*>(mem);
-					const T* end = target + oldSize;
-
-					while (target != end)
-					{
-						new (target) T(*source);
-
-						source++;
-						target++;
-					}
-				}
-				else
-					Assert(false, "calling reserve() for a non-copyable and non-movable type T when Vector is non-empty is invalid.");
-
-				// destruct old elements
-				if constexpr (!std::is_trivially_destructible_v<T>)
-				{
-					for (T* curr = m_beg; curr < m_end; curr++)
-						curr->~T();
-				}
-			}
-
-			// free the previously allocated memory
-			if (currCapacity && !has_inline_storage())
-				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
+			void* mem = relocate(n);
 
 			// adjust the pointers
 			m_beg = reinterpret_cast<T*>(mem);
@@ -236,8 +180,22 @@ namespace ZetaRay::Util
 
 		void resize(size_t n) noexcept
 		{
+			const size_t currCapacity = capacity();
 			const size_t oldSize = size();
-			resize_common(n);
+
+			// just adjust the "end" pointer
+			if (n <= currCapacity)
+			{
+				m_end = m_beg + n;
+				return;
+			}
+
+			void* mem = relocate(n);
+
+			// adjust the pointers
+			m_beg = reinterpret_cast<T*>(mem);
+			m_end = m_beg + n;
+			m_last = m_beg + n;
 
 			// default construct the newly added elements
 			if constexpr (!std::is_trivially_default_constructible_v<T>)
@@ -254,17 +212,22 @@ namespace ZetaRay::Util
 
 		void resize(size_t n, const T& val) noexcept
 		{
-			static_assert(std::is_copy_constructible_v<T>, "T cannot be copy constructed.");
+			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T cannot be copy or move constructed.");
 
 			const size_t oldSize = size();
-			resize_common(n);
+			void* mem = relocate(n);
+
+			// adjust the pointers
+			m_beg = reinterpret_cast<T*>(mem);
+			m_end = m_beg + n;
+			m_last = m_beg + n;
 
 			T* curr = m_beg + oldSize;
 
-			// copy-construct the new elements
+			// copy/move construct the new elements
 			while (curr != m_end)
 			{
-				new (curr) T(val);
+				new (curr) T(ZetaForward(val));
 				curr++;
 			}
 		}
@@ -313,8 +276,15 @@ namespace ZetaRay::Util
 
 			const size_t num = end - beg;
 			const size_t oldSize = size();
+			const size_t currCapacity = capacity();
 
-			resize(oldSize + num);
+			if (currCapacity < oldSize + num)
+			{
+				size_t newCapacity = oldSize + num;
+				newCapacity = Math::max(MIN_CAPACITY, newCapacity + (newCapacity >> 1));
+
+				reserve(newCapacity);
+			}
 
 			if constexpr (std::is_trivially_constructible_v<T>)
 			{
@@ -348,6 +318,8 @@ namespace ZetaRay::Util
 			}
 			else
 				Assert(false, "calling reserve() for a non-copyable and non-movable T when Vector is non-empty is invalid.");
+
+			m_end += num;
 		}
 
 		// Erases an element by swapping it with the last element. Returns a pointer to the next element.
@@ -402,7 +374,7 @@ namespace ZetaRay::Util
 			const size_t n = size();
 
 			if (n > 1)
-				std::swap(*m_beg, *(m_beg + n));
+				std::swap(*m_beg, *(m_beg + n - 1));
 		}
 
 		void push_front(T&& val) noexcept
@@ -414,7 +386,7 @@ namespace ZetaRay::Util
 
 			const size_t n = size();
 
-			if(n > 1)
+			if (n > 1)
 				std::swap(*m_beg, *(m_beg + n - 1));
 		}
 
@@ -431,7 +403,7 @@ namespace ZetaRay::Util
 			m_end = m_beg;
 		}
 
-		void free() noexcept
+		void free_memory() noexcept
 		{
 			clear();
 
@@ -440,7 +412,7 @@ namespace ZetaRay::Util
 			// free the previously allocated memory
 			if (currCapacity && !has_inline_storage())
 			{
-				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
 
 				m_beg = nullptr;
 				m_end = nullptr;
@@ -453,10 +425,10 @@ namespace ZetaRay::Util
 			: m_allocator(a)
 		{}
 
-		explicit Vector(uint32_t N, const Allocator& a) noexcept
+		Vector(size_t N, const Allocator& a) noexcept
 			: m_allocator(a)
 		{
-			static_assert(std::is_default_constructible_v<T>);
+			static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
 
 			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
 			m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
@@ -498,18 +470,18 @@ namespace ZetaRay::Util
 			if (currCapacity < newSize)
 			{
 				// free the previously allocated memory
-				if (!has_inline_storage())
-					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
+				if (currCapacity > 0 && !has_inline_storage())
+					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
 
 				// allocate memory to accomodate new size
-				void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), nullptr, alignof(T));
+				void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), alignof(T));
 
 				// adjust the pointers
 				m_beg = reinterpret_cast<T*>(mem);
 				m_last = m_beg + newSize;
 			}
 
-			// regardless of previous if
+			// regardless of whether memory was allocated
 			m_end = m_beg + newSize;
 
 			// just copy the memory
@@ -538,23 +510,23 @@ namespace ZetaRay::Util
 		Vector& operator=(Vector&& other) noexcept
 		{
 			static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
-				"T cannot be move-assigned.");
+				"T cannot be copy or move assigned.");
 			static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
-				"Allocator cannot be move-assigned.");
+				"Allocator cannot be copy or move assigned.");
 
 			if (this == &other)
 				return *this;
 
 			m_allocator = ZetaForward(other.m_allocator);
 
-			free();
+			// previously allocated memory is not needed anymore and can be released
+			free_memory();
 
 			// just switch pointers when:
 			// 1. both Vectors are using the heap
-			// 2. MovedFrom is using the heap AND MovedTo Vector is empty and its inline-storage isn't big enough
-			if (((empty() && capacity() < other.size()) || !has_inline_storage()) && !other.has_inline_storage())
+			// 2. MovedFrom is using the heap AND MovedTo's inline storage isn't large enough
+			if (((capacity() < other.size()) || !has_inline_storage()) && !other.has_inline_storage())
 			{
-				// pointers for "other" become NULL
 				m_beg = other.m_beg;
 				m_end = other.m_end;
 				m_last = other.m_last;
@@ -565,7 +537,7 @@ namespace ZetaRay::Util
 			}
 			else if(!other.empty())
 			{
-				// doesn't necessarily allocate memory if inline storage happens to be big enough
+				// doesn't allocate if inline storage happens to be large enough
 				reserve(other.size());
 
 				if constexpr (std::is_trivially_copyable_v<T>)
@@ -611,33 +583,19 @@ namespace ZetaRay::Util
 			return *this;
 		}
 
-		void resize_common(size_t n) noexcept
+		void* relocate(size_t n) noexcept
 		{
-			if (n == 0)
-			{
-				//Assert(false, "invalid arg");
-				return;
-			}
-
-			const size_t currCapacity = capacity();
-			// just adjust the "end" pointer
-			if (currCapacity >= n)
-			{
-				m_end = m_beg + n;
-				return;
-			}
-
-			// allocate memory to accomodate new size
-			void* mem = m_allocator.AllocateAligned(n * sizeof(T), nullptr, alignof(T));
+			// allocate memory to accomodate the new size
+			void* mem = m_allocator.AllocateAligned(n * sizeof(T), alignof(T));
 			const size_t oldSize = size();
 
-			// copy over the old elements, also guard against overlap
-			// between source & dest regions
-			if (oldSize && m_beg != mem)
+			// copy over the old elements
+			if (oldSize > 0)
 			{
 				if constexpr (std::is_trivially_copyable_v<T>)
 				{
-					memcpy(mem, m_beg, oldSize * sizeof(T));
+					// TODO overlap leads to undefined behavior
+					memcpy(mem, m_beg, sizeof(T) * oldSize);
 				}
 				else if constexpr (std::is_move_constructible_v<T>)
 				{
@@ -647,7 +605,7 @@ namespace ZetaRay::Util
 
 					while (target != end)
 					{
-						target = new (target) T(ZetaMove(*source));
+						new (target) T(ZetaMove(*source));
 
 						source++;
 						target++;
@@ -661,33 +619,30 @@ namespace ZetaRay::Util
 
 					while (target != end)
 					{
-						target = new (target) T(*source);
+						new (target) T(*source);
 
 						source++;
 						target++;
 					}
 				}
 				else
-					Assert(false, "calling resize() for a non-copyable and non-movable T when Vector is non-empty is invalid.");
+					Assert(false, "calling reserve() for a non-copyable and non-movable type T when Vector is non-empty is invalid.");
 
 				// destruct old elements
 				if constexpr (!std::is_trivially_destructible_v<T>)
 				{
-					for (T* curr = m_beg + n; curr < m_end; curr++)
-					{
+					for (T* curr = m_beg; curr < m_end; curr++)
 						curr->~T();
-					}
 				}
-
-				// free the previously allocated memory
-				if (!has_inline_storage())
-					m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), nullptr, alignof(T));
 			}
 
-			// adjust the pointers
-			m_beg = reinterpret_cast<T*>(mem);
-			m_end = m_beg + n;
-			m_last = m_beg + n;
+			// free the previously allocated memory
+			const size_t currCapacity = capacity();
+
+			if (currCapacity && !has_inline_storage())
+				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
+
+			return mem;
 		}
 
 		const Allocator& GetAllocator() { return m_allocator; }

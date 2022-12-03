@@ -37,10 +37,12 @@ namespace ZetaRay::Support
 		void Init() noexcept;
 		void Clear() noexcept;
 
-		void* AllocateAligned(size_t size, int alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, int alignment = alignof(std::max_align_t)) noexcept;
+		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 
 		size_t TotalSize() const;
+
+		void MoveTo(MemoryPool& mp) noexcept;
 
 	private:
 		void* Allocate(size_t size) noexcept;
@@ -66,11 +68,11 @@ namespace ZetaRay::Support
 		// adds a new memory block
 		void Grow(size_t poolIndex) noexcept;
 
-		static constexpr size_t MAX_ALLOC_SIZE = 4096;				// allocation sizes up to 512 bytes supported	
+		static constexpr size_t BLOCK_SIZE = 4096;					
+		static constexpr size_t MAX_ALLOC_SIZE = BLOCK_SIZE;		// allocation up to 4 kb supported	
 		static constexpr size_t POOL_COUNT = 10;					// number of pools == log_2 (4096) - log_2 (8) + 1
 		static constexpr size_t INDEX_SHIFT = 3;					// first block starts at 8 bytes (log_2(sizeof(void *))
-		static constexpr size_t MIN_ALLOC_SIZE = 1 << INDEX_SHIFT;	// allocation sizes up to 512 bytes supported	
-		static constexpr size_t BLOCK_SIZE = 4096;					// number of chunks in each memory block
+		static constexpr size_t MIN_ALLOC_SIZE = 1 << INDEX_SHIFT;		
 
 		// holds the pointer to head of memory blocks allocated for each pool size
 		void** m_pools[POOL_COUNT] = { nullptr };

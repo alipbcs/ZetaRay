@@ -6,7 +6,7 @@ using namespace ZetaRay::Support;
 // MemoryArena
 //--------------------------------------------------------------------------------------
 
-MemoryArena::MemoryArena(uint32_t blockSize) noexcept
+MemoryArena::MemoryArena(size_t blockSize) noexcept
 	: m_blockSize(blockSize)
 {
 }
@@ -32,7 +32,7 @@ MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
 	Check(m_blockSize == rhs.m_blockSize, "these MemoryArenas are incompatible.");
 
 	m_blocks.swap(rhs.m_blocks);
-	rhs.m_blocks.free();
+	rhs.m_blocks.free_memory();
 
 #ifdef _DEBUG
 	m_numAllocs = rhs.m_numAllocs;
@@ -42,7 +42,7 @@ MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
 	return *this;
 }
 
-void* MemoryArena::AllocateAligned(size_t size, const char* name, uint32_t alignment) noexcept
+void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
 {
 	for (auto& block : m_blocks)
 	{
@@ -62,9 +62,9 @@ void* MemoryArena::AllocateAligned(size_t size, const char* name, uint32_t align
 		}
 	}
 
-	uint32_t blockSize = std::max(m_blockSize, (uint32_t)size);
+	size_t blockSize = std::max(m_blockSize, size);
 
-	// memory allocs are 16-byte aligned by default; for bigger alignments, at
+	// memory allocs are 16-byte aligned by default; for larger alignments, at
 	// most alignment - 1 bytes are required
 	if (alignment > 16)
 		blockSize = (blockSize + alignment - 1) & ~(alignment - 1);

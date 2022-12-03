@@ -80,8 +80,8 @@ void PipelineStateLibrary::ClearAndFlushToDisk() noexcept
 	for (auto e : m_compiledPSOs)
 		e.PSO->Release();
 
-	m_compiledPSOs.free();
-	m_cachedBlob.free();
+	m_compiledPSOs.free_memory();
+	m_cachedBlob.free_memory();
 }
 
 void PipelineStateLibrary::DeletePsoLibFile() noexcept
@@ -89,7 +89,7 @@ void PipelineStateLibrary::DeletePsoLibFile() noexcept
 	if (m_foundOnDisk)
 	{
 		Filesystem::RemoveFile(m_psoLibPath1.Get());
-		m_cachedBlob.free();
+		m_cachedBlob.free_memory();
 		m_foundOnDisk = false;
 	}
 

@@ -137,15 +137,7 @@ namespace ZetaRay::Scene::Internal
 		const Core::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
 		const Core::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
 
-		inline void Clear() noexcept
-		{
-			m_meshes.clear();
-			m_vertexBuffer.Reset();
-			m_indexBuffer.Reset();
-
-			m_vertices.free();
-			m_indices.free();
-		}
+		void Clear() noexcept;
 
 	private:
 		Util::HashTable<Model::TriangleMesh> m_meshes;

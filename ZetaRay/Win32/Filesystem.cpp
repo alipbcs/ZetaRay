@@ -19,7 +19,7 @@ Filesystem::Path::Path(const char* p) noexcept
 
 void Filesystem::Path::Reset(const char* p) noexcept
 {
-    m_path.free();
+    m_path.free_memory();
 
     if (p)
     {

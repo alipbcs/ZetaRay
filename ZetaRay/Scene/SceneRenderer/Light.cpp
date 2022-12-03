@@ -120,7 +120,7 @@ void Light::Shutdown(LightData& data) noexcept
 	//data.AnalyticalLightSources.free();
 	data.EmissiveAliasTable.Reset();
 	data.EmissiveTrianglesBuff.Reset();
-	data.EmissiveTriangles.free();
+	data.EmissiveTriangles.free_memory();
 	data.HdrLightAccumRTV.Reset();
 	data.GpuDescTable.Reset();
 	data.HdrLightAccumTex.Reset();

@@ -18,7 +18,7 @@ namespace ZetaRay::Math
 
 	struct float3;
 
-	// Returns the smallest power of 2 that is bigger than x
+	// Returns the smallest power of 2 that is larger than x
 	inline constexpr size_t NextPow2(size_t x) noexcept
 	{
 		x--;
@@ -38,7 +38,7 @@ namespace ZetaRay::Math
 		return (x != 0) && ((x & (x - 1)) == 0);
 	}
 
-	// Aligns to nearest biggest multiple of alignment
+	// Aligns to nearest largest multiple of alignment
 	inline constexpr size_t AlignDown(size_t size, size_t alignment) noexcept
 	{
 		if (alignment > 0)

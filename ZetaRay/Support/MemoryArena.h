@@ -7,21 +7,21 @@ namespace ZetaRay::Support
 	class MemoryArena
 	{
 	public:
-		explicit MemoryArena(uint32_t blockSize = 64 * 1024 * 1024) noexcept;
+		explicit MemoryArena(size_t blockSize = 64 * 1024 * 1024) noexcept;
 		~MemoryArena() noexcept;
 
 		MemoryArena(MemoryArena&&) noexcept;
 		MemoryArena& operator=(MemoryArena&&) noexcept;
 
-		void* AllocateAligned(size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept {};
+		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept {};
 		size_t TotalSize() const;
 
 	private:
 		struct MemoryBlock
 		{
 			MemoryBlock() noexcept = default;
-			explicit MemoryBlock(uint32_t size) noexcept
+			explicit MemoryBlock(size_t size) noexcept
 			{
 				Start = malloc(size);
 				Offset = 0;
@@ -53,10 +53,10 @@ namespace ZetaRay::Support
 
 			void* Start;
 			uintptr_t Offset;
-			uint32_t Size;
+			size_t Size;
 		};
 
-		const uint32_t m_blockSize;
+		const size_t m_blockSize;
 		Util::SmallVector<MemoryBlock, SystemAllocator, 8> m_blocks;
 
 #ifdef _DEBUG
@@ -81,14 +81,14 @@ namespace ZetaRay::Support
 			return *this;
 		}
 
-		__forceinline void* AllocateAligned(size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept
+		__forceinline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
 		{
-			return m_allocator->AllocateAligned(size, name, alignment);
+			return m_allocator->AllocateAligned(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, const char* name, uint32_t alignment = alignof(std::max_align_t)) noexcept
+		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
 		{
-			m_allocator->FreeAligned(mem, size, name, alignment);
+			m_allocator->FreeAligned(mem, size, alignment);
 		}
 
 	private:

@@ -7,6 +7,29 @@
 
 using namespace ZetaRay::Support;
 
+#define VALIDATE_MOVE 0
+
+#ifndef _DEBUG
+#define VALIDATE_MOVE 0
+#endif // _DEBUG
+
+namespace
+{
+	int Length(void* head) noexcept
+	{
+		int ret = 0;
+
+		void* currHead = head;
+		while (currHead)
+		{
+			memcpy(&currHead, currHead, sizeof(void*));
+			ret++;
+		}
+
+		return ret;
+	}
+}
+
 //--------------------------------------------------------------------------------------
 // MemoryPool
 //--------------------------------------------------------------------------------------
@@ -18,7 +41,7 @@ MemoryPool::~MemoryPool() noexcept
 
 void MemoryPool::Init() noexcept
 {
-	for (size_t i = 0; i < POOL_COUNT; i++)
+	for (int i = 0; i < POOL_COUNT; i++)
 	{
 		m_currHead[i] = nullptr;
 		m_numMemoryBlocks[i] = 0;
@@ -60,9 +83,61 @@ size_t MemoryPool::GetPoolIndexFromSize(size_t x) noexcept
 	return idx - INDEX_SHIFT;
 }
 
+void MemoryPool::MoveTo(MemoryPool& dest) noexcept
+{
+	for (int poolIndex = 0; poolIndex < POOL_COUNT; poolIndex++)
+	{
+		void* curr = m_currHead[poolIndex];
+		void* tail = nullptr;
+		int sourceLen = 0;
+
+		// walk the linked list & find the tail
+		while (curr)
+		{
+			tail = curr;
+			memcpy(&curr, curr, sizeof(void*));
+			sourceLen++;
+		}
+
+		// append destination's existing linked list to the tail
+		if (tail)
+		{
+#if VALIDATE_MOVE
+			int destLen = 0;
+
+			{
+				void* currHead = dest.m_currHead[poolIndex];
+				while (currHead)
+				{
+					memcpy(&currHead, currHead, sizeof(void*));
+					destLen++;
+				}
+			}
+#endif
+
+			memcpy(tail, &dest.m_currHead[poolIndex], sizeof(void*));
+			dest.m_currHead[poolIndex] = m_currHead[poolIndex];
+			m_currHead[poolIndex] = nullptr;
+
+#if VALIDATE_MOVE
+			int newLen = 0;
+			void* currHead = dest.m_currHead[poolIndex];
+
+			while (currHead)
+			{
+				memcpy(&currHead, currHead, sizeof(void*));
+				newLen++;
+			}
+
+			Assert(sourceLen + destLen == newLen, "bug");
+#endif
+		}
+	}
+}
+
 void* MemoryPool::Allocate(size_t size) noexcept
 {
-	// use malloc for requests bigger than block size
+	// use malloc for requests larger than block size
 	if (size > MAX_ALLOC_SIZE)
 		return malloc(size);
 
@@ -70,10 +145,11 @@ void* MemoryPool::Allocate(size_t size) noexcept
 	size_t poolIndex = GetPoolIndexFromSize(size);
 	size_t chunkSize = GetChunkSizeFromPoolIndex(poolIndex);
 
-	// if the pool for requested size is empty or has become full, add a new memory block consisting of 
-	// chunks of size "chunkSize"
+	// no more chunks, add a new memory block
 	if (!m_currHead[poolIndex])
 		Grow(poolIndex);
+
+	Assert(m_currHead[poolIndex], "bug");
 
 	// get the pointer to first entry in the linked list
 	void* oldHead = m_currHead[poolIndex];
@@ -83,14 +159,14 @@ void* MemoryPool::Allocate(size_t size) noexcept
 	return oldHead;
 }
 
-void* MemoryPool::AllocateAligned(size_t size, int alignment) noexcept
+void* MemoryPool::AllocateAligned(size_t size, size_t alignment) noexcept
 {
+	if (alignment <= alignof(std::max_align_t))
+		return Allocate(size);
+
 	// Alignment > 256 is not supported
 	if(alignment > 256)
 		return _aligned_malloc(size, alignment);
-
-	if (alignment <= alignof(std::max_align_t))
-		return Allocate(size);
 
 	// Given alignment a, at most a - 1 additional bytes are needed, e.g. size = 1, a = 64, 
 	// then 63 more bytes has to be allocated assuming original memory was allocated at an 
@@ -112,11 +188,10 @@ void* MemoryPool::AllocateAligned(size_t size, int alignment) noexcept
 	size_t poolIndex = GetPoolIndexFromSize(maxNumBytes);
 	size_t chunkSize = GetChunkSizeFromPoolIndex(poolIndex);
 
-	// use malloc for requests bigger than 512 bytes
+	// use malloc for requests larger than 512 bytes
 	if (poolIndex >= POOL_COUNT)
 	{
 		Assert(size >= MAX_ALLOC_SIZE, "bug");
-		//return malloc(size);
 		return _aligned_malloc(size, alignment);
 	}
 
@@ -149,33 +224,28 @@ void* MemoryPool::AllocateAligned(size_t size, int alignment) noexcept
 	return reinterpret_cast<void*>(aligned);
 }
 
-void MemoryPool::Free(void* pMem, size_t size) noexcept
+void MemoryPool::Free(void* mem, size_t size) noexcept
 {
-	//free(pMem);
-
-	if (pMem)
+	if (mem)
 	{
 		// this request was allocated with malloc
 		if (size > MAX_ALLOC_SIZE)
 		{
-			free(pMem);
+			free(mem);
 			return;
 		}
 
 		size_t poolIndex = GetPoolIndexFromSize(size);
 
 		// set "mem"s next pointer to be current head of the linked list
-		if (m_currHead[poolIndex])
-			memcpy(pMem, &m_currHead[poolIndex], sizeof(void*));
-		else
-			memset(pMem, 0, sizeof(void*));
+		memcpy(mem, &m_currHead[poolIndex], sizeof(void*));
 
-		// update the head of linked list to point to "pMem"
-		m_currHead[poolIndex] = pMem;
+		// update the head of linked list to point to "mem"
+		m_currHead[poolIndex] = mem;
 	}
 }
 
-void MemoryPool::FreeAligned(void* mem, size_t size, int alignment) noexcept
+void MemoryPool::FreeAligned(void* mem, size_t size, size_t alignment) noexcept
 {
 	if (alignment <= alignof(std::max_align_t))
 		return Free(mem, size);
@@ -199,10 +269,7 @@ void MemoryPool::FreeAligned(void* mem, size_t size, int alignment) noexcept
 		origMem = diff > 0 ? origMem - diff : origMem - 256;
 
 		// set "mem"s next pointer to be current head of the linked list
-		if (m_currHead[poolIndex])
-			memcpy(reinterpret_cast<void*>(origMem), &m_currHead[poolIndex], sizeof(void*));
-		else
-			memset(reinterpret_cast<void*>(origMem), 0, sizeof(void*));
+		memcpy(reinterpret_cast<void*>(origMem), &m_currHead[poolIndex], sizeof(void*));
 
 		// update the head of linked list to point to "pMem"
 		m_currHead[poolIndex] = reinterpret_cast<void*>(origMem);
@@ -213,8 +280,9 @@ void* MemoryPool::AllocateNewBlock(size_t chunkSize) noexcept
 {
 	// allocate a new block of memory
 	void* block = malloc(BLOCK_SIZE);
+	Assert(block, "malloc() failed.");
 
-	// make this block a linked list i.e. in each chunk store a pointer to the next chunk
+	// make this block a linked list, i.e. store a pointer to the next chunk in each chunk 
 	uintptr_t currHead = reinterpret_cast<uintptr_t>(block);
 	uintptr_t nextHead = currHead + chunkSize;
 	const uintptr_t end = currHead + BLOCK_SIZE;
@@ -240,7 +308,7 @@ void MemoryPool::Grow(size_t poolIndex) noexcept
 
 	// array of pointers to heads of memory blocks for this pool size. size has changed so we need the destroy the old one
 	// and allocate a new one. moreover all the head pointers have to be copied over to this new array
-	void** newMemoryBlockArray = (void**)malloc((m_numMemoryBlocks[poolIndex] + 1) * sizeof(void*));
+	void** newMemoryBlockArray = reinterpret_cast<void**>(malloc((m_numMemoryBlocks[poolIndex] + 1) * sizeof(void*)));
 	Assert(newMemoryBlockArray, "malloc() failed.");
 
 	void* newBlock = AllocateNewBlock(chunkSize);

@@ -63,8 +63,8 @@ void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::PoolAllocator>& 
 
 void BVH::Clear() noexcept
 {
-	m_nodes.free();
-	m_instances.free();
+	m_nodes.free_memory();
+	m_instances.free_memory();
 }
 
 void BVH::Build(Vector<BVHInput, App::PoolAllocator>&& instances) noexcept

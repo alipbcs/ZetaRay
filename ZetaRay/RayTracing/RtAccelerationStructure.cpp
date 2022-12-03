@@ -121,7 +121,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 
 	Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
 
-	// allocate a new buffer only if this is the first time or the old one isn't big enough
+	// allocate a new buffer only if this is the first time or the old one isn't large enough
 	if (!m_blasBuffer.GetResource() || m_blasBuffer.GetDesc().Width < prebuild.ResultDataMaxSizeInBytes)
 	{
 		m_blasBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("StaticBLAS",

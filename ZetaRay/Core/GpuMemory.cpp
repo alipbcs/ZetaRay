@@ -1249,7 +1249,7 @@ void GpuMemory::Shutdown() noexcept
 	auto allThreadIDs = App::GetAllThreadIDs();
 
 	for (int i = 0; i < allThreadIDs.size(); i++)
-		m_threadContext[i].ToReleaseTextures.free();
+		m_threadContext[i].ToReleaseTextures.free_memory();
 }
 
 UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(size_t sizeInBytes, size_t alignment) noexcept

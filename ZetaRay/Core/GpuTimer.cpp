@@ -39,7 +39,7 @@ void GpuTimer::Shutdown() noexcept
 {
 	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
 	{
-		m_timings[i].free();
+		m_timings[i].free_memory();
 	}
 }
 

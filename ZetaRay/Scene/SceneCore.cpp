@@ -42,8 +42,6 @@ namespace
 
 void SceneCore::Init() noexcept
 {
-	CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
-
 	// level 0 is just a (dummy) root
 	m_sceneGraph.resize(2);
 	m_sceneGraph[0].m_toWorlds.resize(1);
@@ -61,8 +59,7 @@ void SceneCore::Init() noexcept
 		strlen(SceneRenderer::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE)));
 	m_emissiveDescTable.Init(XXH3_64bits(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE, strlen(SceneRenderer::EMISSIVE_DESCRIPTOR_TABLE)));
 
-	//auto* device = App::GetRenderer().GetDevice();
-	//CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
+	CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
 	m_sceneRenderer.Init();
 }
@@ -167,10 +164,10 @@ void SceneCore::Shutdown() noexcept
 	m_metalnessRougnessrTableOffsetToID.free();
 	m_emissiveTableOffsetToID.free();
 
-	m_frameInstances.free();
-	m_prevToWorlds.free();
+	m_frameInstances.free_memory();
+	m_prevToWorlds.free_memory();
 	m_sceneMetadata.free();
-	m_sceneGraph.free();
+	m_sceneGraph.free_memory();
 	m_IDtoTreePos.free();
 
 	m_sceneRenderer.Shutdown();
@@ -200,9 +197,11 @@ void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexce
 	const uint64_t matFromSceneID = MaterialID(sceneID, mesh.MaterialIdx);
 
 	AcquireSRWLockExclusive(&m_meshLock);
+
 	// remember from which gltf scene this mesh came from
 	m_sceneMetadata[sceneID].Meshes.push_back(meshFromSceneID);
 	m_meshes.Add(meshFromSceneID, mesh.Vertices, mesh.Indices, matFromSceneID);
+
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 

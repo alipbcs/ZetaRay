@@ -87,7 +87,7 @@ namespace ZetaRay::Math
 		return vTemp4;
 	}
 
-	// Finds the axis with the biggest span
+	// Finds the axis with the largest span
 	//static int FindAxisWithMaximumExtent(const DirectX::XMFLOAT3& vec) noexcept
 	//{
 	//	const float EPS = 1e-5;

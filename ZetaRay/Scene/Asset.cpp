@@ -229,7 +229,17 @@ void MeshContainer::RebuildBuffers() noexcept
 	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::SCENE_VERTEX_BUFFER, m_vertexBuffer);
 	r.InsertOrAssignDefaultHeapBuffer(SceneRenderer::SCENE_INDEX_BUFFER, m_indexBuffer);
 
-	m_vertices.free();
-	m_indices.free();
+	m_vertices.free_memory();
+	m_indices.free_memory();
+}
+
+void MeshContainer::Clear() noexcept
+{
+	m_meshes.clear();
+	m_vertexBuffer.Reset();
+	m_indexBuffer.Reset();
+
+	m_vertices.free_memory();
+	m_indices.free_memory();
 }
 

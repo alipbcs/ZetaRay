@@ -125,7 +125,7 @@ namespace ZetaRay::Util
 
 			// free the previously allocated memory
 			if(bucket_count())
-				App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), "HashTable", alignof(Entry));
+				App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
 		}
 
 		inline void swap(HashTable& other) noexcept
@@ -196,7 +196,7 @@ namespace ZetaRay::Util
 			Entry* oldTable = m_beg;
 			const size_t oldBucketCount = bucket_count();
 
-			m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), "HashTable", alignof(Entry)));
+			m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), alignof(Entry)));
 			// adjust the end pointer
 			m_end = m_beg + n;
 
@@ -235,7 +235,7 @@ namespace ZetaRay::Util
 			}
 
 			// free the previously allocated memory
-			App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), "HashTable", alignof(Entry));
+			App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
 		}
 
 		static constexpr size_t MIN_NUM_BUCKETS = 4;
