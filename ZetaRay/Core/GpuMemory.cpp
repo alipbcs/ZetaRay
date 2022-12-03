@@ -350,6 +350,9 @@ namespace ZetaRay::Core::Internal
 
 		UploadHeapBuffer GetBuffer(int threadIdx, size_t size, size_t alignment = -1, bool forceCleanPage = false) noexcept
 		{
+			Check(size <= MAX_ALLOC_SIZE, "allocations larger than %llu MB are not supported.",
+				MAX_ALLOC_SIZE / (1024 * 1024));
+
 			if (alignment == -1)
 				alignment = 4;
 
@@ -454,8 +457,9 @@ namespace ZetaRay::Core::Internal
 		static constexpr size_t MIN_PAGE_SIZE = 64 * 1024;
 		static constexpr size_t MIN_ALLOC_SIZE = 64 * 1024;
 		static constexpr size_t ALLOCATOR_INDEX_SHIFT = 16; // start block sizes at 64KB
-		// log2(2 gb) - log2(64 kb)
-		static constexpr size_t POOL_COUNT = 11; // allocation sizes up to 64 MB supported
+		// log2(128 mb) - log2(64 kb)
+		static constexpr size_t POOL_COUNT = 12; // allocation sizes up to 128 MB supported
+		static constexpr size_t MAX_ALLOC_SIZE = 1 << (POOL_COUNT - 1 + ALLOCATOR_INDEX_SHIFT);
 
 		static_assert((1 << ALLOCATOR_INDEX_SHIFT) == MIN_ALLOC_SIZE, "1 << ALLOCATOR_INDEX_SHIFT must == MIN_PAGE_SIZE (in KiB)");
 		static_assert((MIN_PAGE_SIZE& (MIN_PAGE_SIZE - 1)) == 0, "MIN_PAGE_SIZE must be a power of 2");
