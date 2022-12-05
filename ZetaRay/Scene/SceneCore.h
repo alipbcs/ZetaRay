@@ -94,7 +94,7 @@ namespace ZetaRay::Scene
 		// Mesh
 		//
 		void AddMesh(uint64_t sceneID, Model::glTF::Asset::MeshSubset&& mesh) noexcept;
-		inline Model::TriangleMesh GetMesh(uint64_t id) noexcept
+		Model::TriangleMesh GetMesh(uint64_t id) noexcept
 		{
 			AcquireSRWLockShared(&m_meshLock);
 			auto d = m_meshes.GetMesh(id);
@@ -112,7 +112,7 @@ namespace ZetaRay::Scene
 		// Material
 		//
 		void AddMaterial(uint64_t sceneID, Model::glTF::Asset::MaterialDesc&& mat) noexcept;
-		inline Material GetMaterial(uint64_t id) noexcept
+		Material GetMaterial(uint64_t id) noexcept
 		{
 			AcquireSRWLockShared(&m_matLock);
 			auto mat = m_matBuffer.Get(id);
@@ -145,7 +145,7 @@ namespace ZetaRay::Scene
 		void Recycle() noexcept;
 		void Shutdown() noexcept;
 
-		inline void DebugDrawRenderGraph() { m_sceneRenderer.DebugDrawRenderGraph(); }
+		void DebugDrawRenderGraph() { m_sceneRenderer.DebugDrawRenderGraph(); }
 
 	private:
 		struct TreePos
@@ -159,7 +159,7 @@ namespace ZetaRay::Scene
 			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept;
 		//void RemoveFromLevel(int idx, int level) noexcept;
 
-		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::PoolAllocator>& toUpdateInstances) noexcept;
+		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept;
 		void RebuildBVH() noexcept;
 
 		struct AnimationUpdateOut
@@ -168,7 +168,7 @@ namespace ZetaRay::Scene
 			int Offset;
 		};
 
-		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::PoolAllocator>& animVec) noexcept;
+		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept;
 		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec) noexcept;
 
 		// TODO remove, should be polled from App
@@ -249,7 +249,7 @@ namespace ZetaRay::Scene
 		// instances
 		//
 
-		Util::SmallVector<uint64_t, App::PoolAllocator> m_frameInstances;
+		Util::SmallVector<uint64_t, App::FrameAllocator> m_frameInstances;
 
 		//
 		// assets

@@ -4,6 +4,7 @@
 #include "CommandList.h"
 #include "Direct3DHelpers.h"
 #include "../Support/Task.h"
+#include "../Support/MemoryArena.h"
 #include <thread>
 #include <algorithm>
 #include <xxHash-0.8.1/xxhash.h>
@@ -86,7 +87,7 @@ namespace ZetaRay::Core::Internal
 			return *this;
 		}
 
-		inline size_t Suballocate(size_t size, size_t alignment) noexcept
+		__forceinline size_t Suballocate(size_t size, size_t alignment) noexcept
 		{
 			size_t offset = Math::AlignUp(m_offset, alignment);
 			Assert(offset + size <= m_size, "Out of free memory in page suballoc");
@@ -314,10 +315,12 @@ namespace ZetaRay::Core::Internal
 			return m_inUsePages[i];
 		}
 
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_pendingFencePages;		// Pages that are pending fence becoming signalled by the GPU
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_inUsePages;				// Pages with reference count > 1
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_reuseReadyPages;			// Pages that are unused and can be free'd or otherwise reused
-		SmallVector<LinearAllocatorPage, App::PoolAllocator> m_toGarbackCollectPages;	// Pages that are unused and can be free'd or otherwise reused
+		// TODO PoolAllocator isn't a good fit here -- come up with a custom allocator
+		// that handles allocations that persist over multiple frames
+		SmallVector<LinearAllocatorPage> m_pendingFencePages;		// Pages that are pending fence becoming signalled by the GPU
+		SmallVector<LinearAllocatorPage> m_inUsePages;				// Pages with reference count > 1
+		SmallVector<LinearAllocatorPage> m_reuseReadyPages;			// Pages that are unused and can be free'd or otherwise reused
+		SmallVector<LinearAllocatorPage> m_toGarbackCollectPages;	// Pages that are unused and can be free'd or otherwise reused
 		size_t m_pageSize = -1;
 		SRWLOCK m_inUseLock = SRWLOCK_INIT;
 		SRWLOCK m_gcLock = SRWLOCK_INIT;
@@ -465,7 +468,7 @@ namespace ZetaRay::Core::Internal
 		static_assert((MIN_ALLOC_SIZE& (MIN_ALLOC_SIZE - 1)) == 0, "MIN_ALLOC_SIZE size must be a power of 2");
 		static_assert(MIN_ALLOC_SIZE >= (4 * 1024), "MIN_ALLOC_SIZE size must be greater than 4K");
 
-		inline int64_t GetPoolIndexFromSize(size_t x)
+		__forceinline int64_t GetPoolIndexFromSize(size_t x)
 		{
 			x = std::max(64llu * 1024, Math::NextPow2(x));
 			DWORD bitIndex;
@@ -474,7 +477,7 @@ namespace ZetaRay::Core::Internal
 			return bitIndex - ALLOCATOR_INDEX_SHIFT;
 		}
 
-		inline size_t GetPageSizeFromPoolIndex(size_t x)
+		__forceinline size_t GetPageSizeFromPoolIndex(size_t x)
 		{
 			//return std::max(MIN_PAGE_SIZE, 1llu << (x + ALLOCATOR_INDEX_SHIFT));
 			return 1llu << (x + ALLOCATOR_INDEX_SHIFT);
@@ -499,8 +502,8 @@ namespace ZetaRay::Core::Internal
 		DefaultHeapManager(DefaultHeapManager&&) = delete;
 		DefaultHeapManager&& operator=(DefaultHeapManager&&) = delete;
 
-		DefaultHeapBuffer GetBuffer(const char* name, uint64_t sizeInBytes,
-			D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero) noexcept
+		DefaultHeapBuffer GetBuffer(const char* name, uint64_t sizeInBytes, D3D12_RESOURCE_STATES initState, 
+			bool allowUAV, bool initToZero) noexcept
 		{
 			Assert((initState == D3D12_RESOURCE_STATE_COMMON) || initState & RendererConstants::VALID_BUFFER_STATES, "Invalid initial state for a buffer.");
 			const size_t key = Math::AlignUp(sizeInBytes, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
@@ -508,13 +511,13 @@ namespace ZetaRay::Core::Internal
 			return AllocateBuffer(name, key, initState, allowUAV, initToZero);
 		}
 
-		void ReleaseBuffer(ComPtr<ID3D12Resource>&& buf) noexcept
+		void ReleaseBuffer(ComPtr<ID3D12Resource>&& buff) noexcept
 		{
 			m_doGarbageCollectionThisFrame = true;
 
 			// use the same fence value for all the releases in this frame, then
 			// at the end of the frame, signal it
-			m_resourcePool.emplace_back(ZetaMove(buf), m_currFenceVal);
+			m_relesedResources.emplace_back(ZetaMove(buff), m_currFenceVal);
 		}
 
 		void Recycle() noexcept
@@ -534,10 +537,10 @@ namespace ZetaRay::Core::Internal
 
 					const uint64_t lastCompletedFence = m_fence->GetCompletedValue();
 
-					for (auto it = m_resourcePool.begin(); it != m_resourcePool.end();)
+					for (auto it = m_relesedResources.begin(); it != m_relesedResources.end();)
 					{
 						if (lastCompletedFence > it->FenceValWhenReleased)
-							it = m_resourcePool.erase(*it);
+							it = m_relesedResources.erase(*it);
 						else
 							it++;
 					}
@@ -548,8 +551,8 @@ namespace ZetaRay::Core::Internal
 		}
 
 	private:
-		DefaultHeapBuffer AllocateBuffer(const char* name, uint64_t sizeInBytes,
-			D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero) noexcept
+		DefaultHeapBuffer AllocateBuffer(const char* name, uint64_t sizeInBytes, D3D12_RESOURCE_STATES initState, 
+			bool allowUAV, bool initToZero) noexcept
 		{
 			D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
 
@@ -573,10 +576,10 @@ namespace ZetaRay::Core::Internal
 			return DefaultHeapBuffer(name, ZetaMove(r));
 		}
 
-		struct ResourceAndMetadata
+		struct ReleasedResource
 		{
-			ResourceAndMetadata() = default;
-			ResourceAndMetadata(ComPtr<ID3D12Resource>&& b, uint64_t f) noexcept
+			ReleasedResource() = default;
+			ReleasedResource(ComPtr<ID3D12Resource>&& b, uint64_t f) noexcept
 				: R(ZetaMove(b)),
 				FenceValWhenReleased(f)
 			{}
@@ -585,9 +588,8 @@ namespace ZetaRay::Core::Internal
 			uint64_t FenceValWhenReleased;
 		};
 
-		SmallVector<ResourceAndMetadata, App::PoolAllocator> m_resourcePool;
+		SmallVector<ReleasedResource, App::PoolAllocator> m_relesedResources;
 
-		// fence
 		uint64_t m_currFenceVal = 1;
 		ComPtr<ID3D12Fence> m_fence;
 
@@ -602,21 +604,36 @@ namespace ZetaRay::Core::Internal
 	struct ResourceUploadBatch
 	{
 		ResourceUploadBatch() noexcept
+			: m_arena(4 * 1096),
+			m_scratchResources(m_arena)
 		{
 			CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 			m_event = CreateEventA(nullptr, false, false, "");
 			CheckWin32(m_event);
+
+			m_scratchResourcesReleased.store(false, std::memory_order_relaxed);
 		}
 		~ResourceUploadBatch() noexcept = default;
 
 		ResourceUploadBatch(ResourceUploadBatch&& other) = delete;
 		ResourceUploadBatch& operator=(ResourceUploadBatch&& other) = delete;
 
-		// Needs to be called at the beginning of each frame
 		void Begin() noexcept
 		{
 			Assert(!m_inBeginEndBlock, "Can't Begin: already in a Begin-End block.");
 			m_inBeginEndBlock = true;
+
+			if (m_scratchResourcesReleased.load(std::memory_order_acquire))
+			{
+				// between the check above and the next statement (inside the if block or not), m_scratchResourcesReleased 
+				// could've changed from false to true, which is ok. It's only important that it didn't change from true
+				// to false, which can't happen by a background thread
+
+				// at this point no other thread is referencing the memory in MemoryArena
+				m_arena.Reset();
+
+				m_scratchResourcesReleased.store(false, std::memory_order_relaxed);
+			}
 		}
 
 		// Works by:
@@ -826,10 +843,10 @@ namespace ZetaRay::Core::Internal
 				// signal the fence
 				renderer.SignalDirectQueue(m_fence.Get(), m_fenceVal++);
 
-				int numRes = (int)m_scratchResources.size();
-				StackStr(tname, m, "Releasing %d gpu-copy scratch buffers_%d", numRes, rand());
+				size_t numRes = m_scratchResources.size();
+				StackStr(tname, m, "Releasing %llu gpu-copy scratch buffers_%d", numRes, rand());
 
-				Task t(tname, TASK_PRIORITY::BACKGRUND, [this, res = ZetaMove(m_scratchResources)]()
+				Task t(tname, TASK_PRIORITY::BACKGRUND, [this, res = ZetaMove(m_scratchResources)] () mutable
 				{
 					if (m_fence->GetCompletedValue() < m_fenceVal - 1)
 					{
@@ -837,13 +854,13 @@ namespace ZetaRay::Core::Internal
 						WaitForSingleObject(m_event, INFINITE);
 					}
 
-					// resources in m_scratchResources are free'd now
+					res.free_memory();
+					m_scratchResourcesReleased.store(true, std::memory_order_release);
 				});
+
 				Assert(m_scratchResources.empty(), "");
 
-				// submit
-				App::SubmitBackground(ZetaMove(t));
-				
+				App::SubmitBackground(ZetaMove(t));				
 				m_directCmdList = nullptr;
 			}
 
@@ -852,12 +869,15 @@ namespace ZetaRay::Core::Internal
 
 	private:
 		// scratch resources need to stay alive while GPU is using them
-		SmallVector<UploadHeapBuffer, App::PoolAllocator> m_scratchResources;
+		MemoryArena m_arena;
+		SmallVector<UploadHeapBuffer, Support::ArenaAllocator> m_scratchResources;
 		GraphicsCmdList* m_directCmdList = nullptr;
 		ComPtr<ID3D12Fence> m_fence;
 		HANDLE m_event;
 		uint64_t m_fenceVal = 1;
 		bool m_inBeginEndBlock = false;
+
+		std::atomic_bool m_scratchResourcesReleased;
 	};
 }
 
@@ -1129,11 +1149,11 @@ void GpuMemory::Init() noexcept
 	int i = 0;
 
 	{
-		auto mainThreadIDs = App::GetMainThreadIDs();
+		auto workerThreadIDs = App::GetWorkerThreadIDs();
 
-		for (; i < mainThreadIDs.size(); i++)
+		for (; i < workerThreadIDs.size(); i++)
 		{
-			m_threadIDs[i] = mainThreadIDs[i];
+			m_threadIDs[i] = workerThreadIDs[i];
 
 			m_threadContext[i].UploadHeap.reset(new(std::nothrow) UploadHeapManager);
 			m_threadContext[i].DefaultHeap.reset(new(std::nothrow) DefaultHeapManager);
@@ -1152,7 +1172,7 @@ void GpuMemory::Init() noexcept
 
 void GpuMemory::BeginFrame() noexcept
 {
-	const int numThreads = App::GetNumMainThreads();
+	const int numThreads = App::GetNumWorkerThreads();
 
 	for (int i = 0; i < numThreads; i++)
 		m_threadContext[i].ResUploader->Begin();
@@ -1160,7 +1180,7 @@ void GpuMemory::BeginFrame() noexcept
 
 void GpuMemory::SubmitResourceCopies() noexcept
 {
-	const int numThreads = App::GetNumMainThreads();
+	const int numThreads = App::GetNumWorkerThreads();
 
 	for (int i = 0; i < numThreads; i++)
 		m_threadContext[i].ResUploader->End();
@@ -1174,10 +1194,13 @@ void GpuMemory::Recycle() noexcept
 	const uint64_t completedFenceValDir = m_fenceDirect->GetCompletedValue();
 	const uint64_t completedFenceValCompute = m_fenceCompute->GetCompletedValue();
 
-	const int numMainThreads = App::GetNumMainThreads();
+	const int numMainThreads = App::GetNumWorkerThreads();
 	const int numBackgroundThreads = App::GetNumBackgroundThreads();
 	
-	SmallVector<PendingTexture, App::PoolAllocator> textures;
+	// TODO FrameAllocator can't be used with background tasks and PoolAllocator isn't a good 
+	// fit here due to threading issues -- come up with a custom allocator than handles allocations 
+	// that persist over multiple frames
+	SmallVector<PendingTexture> textures;
 	size_t n = 0;
 
 	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
@@ -1190,16 +1213,17 @@ void GpuMemory::Recycle() noexcept
 		if (i < numMainThreads)
 		{
 			m_threadContext[i].UploadHeap->Recycle();
-			m_threadContext[i].DefaultHeap->Recycle();		// TODO move to a background task
-			m_threadContext[i].UploadHeap->GarbageCollect();	// lanches a background task to not block the main worker threads
+			m_threadContext[i].DefaultHeap->Recycle();			// TODO move to a background task
+			m_threadContext[i].UploadHeap->GarbageCollect();	// lanches a background task
 		}
 
 		for (auto it = m_threadContext[i].ToReleaseTextures.begin(); it != m_threadContext[i].ToReleaseTextures.end();)
 		{
 			if (it->ReleaseFence <= completedFenceValDir && it->ReleaseFence <= completedFenceValCompute)
 			{
+				const size_t pos = it - m_threadContext[i].ToReleaseTextures.begin();
 				textures.emplace_back(ZetaMove(*it));
-				it = m_threadContext[i].ToReleaseTextures.erase(*it);
+				it = m_threadContext[i].ToReleaseTextures.erase(pos);
 			}
 			else
 				it++;
@@ -1208,13 +1232,12 @@ void GpuMemory::Recycle() noexcept
 
 	if (!textures.empty())
 	{
-		Task t("Freeing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
+		Task t("Releasing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
 			{
 				Assert(Textures.size() > 0, "input texture vec is empty");
 				// resources in textures are free'd now
 			});
 
-		// submit
 		App::SubmitBackground(ZetaMove(t));
 	}
 
@@ -1236,7 +1259,7 @@ void GpuMemory::Shutdown() noexcept
 
 	WaitForMultipleObjects(ZetaArrayLen(handles), handles, true, INFINITE);
 
-	auto mainThreadIDs = App::GetMainThreadIDs();
+	auto mainThreadIDs = App::GetWorkerThreadIDs();
 
 	for (int i = 0; i < mainThreadIDs.size(); i++)
 	{
@@ -1489,7 +1512,7 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 
 int GpuMemory::GetIndexForThread() noexcept
 {
-	const uint32_t tid = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
+	const uint32_t tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
 	for (int i = 0; i < MAX_NUM_THREADS; i++)
 	{

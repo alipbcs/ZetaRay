@@ -38,7 +38,7 @@ namespace ZetaRay::Support
 		// Wait until are tasks are "finished" (!= empty queue)
 		bool TryFlush() noexcept;
 
-		inline bool IsEmpty() noexcept
+		bool AreAllTasksFinished() noexcept
 		{
 			const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
 			return isEmpty;
@@ -60,7 +60,7 @@ namespace ZetaRay::Support
 		// thread pool
 		std::thread m_threadPool[MAX_NUM_THREADS];
 		std::thread::id m_threadIDs[MAX_NUM_THREADS];
-		uint32_t m_appThreadIds[MAX_NUM_THREADS];
+		THREAD_ID_TYPE m_appThreadIds[MAX_NUM_THREADS];
 		
 		// concurrent task queue
 		// Source: https://github.com/cameron314/concurrentqueue

@@ -26,6 +26,8 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type, const char* name) noexc
 
 	m_event = CreateEventA(nullptr, false, false, "CommandQueue");
 	CheckWin32(m_event);
+
+	m_cmdAllocPool.reserve(32);
 }
 
 CommandQueue::~CommandQueue() noexcept
@@ -67,6 +69,7 @@ uint64_t CommandQueue::ExecuteCommandList(CommandList* context) noexcept
 
 ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
 {
+	// try to reuse
 	{
 		ReleasedCmdAlloc cmdAlloc;
 		bool found = false;
@@ -79,6 +82,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
 			{
 				cmdAlloc = m_cmdAllocPool[0];
 				m_cmdAllocPool.erase(0);
+
 				std::make_heap(m_cmdAllocPool.begin(), m_cmdAllocPool.end(),
 					[](const ReleasedCmdAlloc& lhs, const ReleasedCmdAlloc& rhs) noexcept
 					{
@@ -96,7 +100,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
 		}
 	}
 
-	// reuse wasn't possible, create a new one
+	// create a new one
 	auto* device = App::GetRenderer().GetDevice();
 	ID3D12CommandAllocator* cmdAlloc;
 	CheckHR(device->CreateCommandAllocator(m_type, IID_PPV_ARGS(&cmdAlloc)));

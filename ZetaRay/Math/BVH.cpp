@@ -346,7 +346,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 	return currNodeIdx;
 }
 
-void BVH::Update(Vector<BVHUpdateInput, App::PoolAllocator>&& instances) noexcept
+void BVH::Update(Vector<BVHUpdateInput, App::FrameAllocator>&& instances) noexcept
 {
 	for (auto& [oldBox, newBox, id] : instances)
 	{
@@ -411,7 +411,7 @@ void BVH::Remove(uint64_t ID, const Math::AABB& AABB) noexcept
 
 void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 	const Math::float4x4a& viewToWorld, 
-	Vector<uint64_t, App::PoolAllocator>& visibleModelIDs)
+	Vector<uint64_t, App::FrameAllocator>& visibleModelIDs)
 {
 	// transform the view-frustum from the view-space into the world-space
 	v_float4x4 vM(const_cast<float4x4a&>(viewToWorld));

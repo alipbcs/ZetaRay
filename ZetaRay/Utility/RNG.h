@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Core/ZetaRay.h"
+#include "../App/ZetaRay.h"
 #include <float.h>
 
 namespace ZetaRay::Util
@@ -22,7 +22,7 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed 32-bit random number
-        inline uint32_t GetUniformUint() noexcept
+        uint32_t GetUniformUint() noexcept
         {
             uint64_t oldstate = State;
             State = oldstate * 6364136223846793005ULL + Inc;
@@ -35,7 +35,7 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed float in [0, 1)
-        inline float GetUniformFloat() noexcept
+        float GetUniformFloat() noexcept
         {
             constexpr float oneSubEps = 0x1.fffffep-1;
             const float uniformFloat01Inclusive = GetUniformUint() * 0x1p-32f;
@@ -44,7 +44,7 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed number, r, where 0 <= r < bound
-        inline uint32_t GetUniformUintBounded(uint32_t bound) noexcept
+        uint32_t GetUniformUintBounded(uint32_t bound) noexcept
         {
             // To avoid bias, we need to make the range of the RNG a multiple of
             // bound, which we do by dropping output less than a threshold.

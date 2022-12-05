@@ -42,12 +42,12 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = 0;
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		Core::RootSignature m_rootSig;
 
-		inline static const char* COMPILED_VS[] = { "SkyDome_vs.cso" };
-		inline static const char* COMPILED_PS[] = { "SkyDome_ps.cso" };
+		inline static constexpr const char* COMPILED_VS[] = { "SkyDome_vs.cso" };
+		inline static constexpr const char* COMPILED_PS[] = { "SkyDome_ps.cso" };
 
 		ID3D12PipelineState* m_pso = nullptr;
 

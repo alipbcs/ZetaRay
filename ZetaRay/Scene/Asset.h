@@ -83,7 +83,7 @@ namespace ZetaRay::Scene::Internal
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		// returns a copy since references to elements are not stable
-		inline Material Get(uint64_t id) noexcept
+		Material Get(uint64_t id) noexcept
 		{
 			Material* m = m_matTable.find(id);
 			Assert(m, "material with id %llu was not found", id);

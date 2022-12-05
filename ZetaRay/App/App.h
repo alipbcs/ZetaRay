@@ -14,6 +14,7 @@ namespace ZetaRay::Support
 namespace ZetaRay::App
 {
 	struct PoolAllocator;
+	struct FrameAllocator;
 }
 
 namespace ZetaRay::Util
@@ -66,14 +67,12 @@ namespace ZetaRay::App
 	int Run() noexcept;
 	void Abort() noexcept;
 
+	void* AllocateFromFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 	void* AllocateFromMemoryPool(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 	void FreeMemoryPool(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 
-	// thread-safe
 	int RegisterTask() noexcept;
-	// thread-safe
 	void TaskFinalizedCallback(int handle, int indegree) noexcept;
-	// thread-safe
 	void WaitForAdjacentHeadNodes(int handle) noexcept;
 	void SignalAdjacentTailNodes(int* taskIDs, int n) noexcept;
 
@@ -81,14 +80,13 @@ namespace ZetaRay::App
 	void Submit(Support::Task&& t) noexcept;
 	void Submit(Support::TaskSet&& ts) noexcept;
 	void SubmitBackground(Support::Task&& t) noexcept;
-	void FlushMainThreadPool() noexcept;
+	void FlushWorkerThreadPool() noexcept;
 	void FlushAllThreadPools() noexcept;
 
-	//HWND GetHWND() noexcept;
 	Core::Renderer& GetRenderer() noexcept;
 	Scene::SceneCore& GetScene() noexcept;
 	const Scene::Camera& GetCamera() noexcept;
-	int GetNumMainThreads() noexcept;
+	int GetNumWorkerThreads() noexcept;
 	int GetNumBackgroundThreads() noexcept;
 	uint32_t GetDPI() noexcept;
 	float GetUpscalingFactor() noexcept;
@@ -96,7 +94,7 @@ namespace ZetaRay::App
 	bool IsFullScreen() noexcept;
 	const App::Timer& GetTimer() noexcept;
 
-	Util::Span<uint32_t> GetMainThreadIDs() noexcept;
+	Util::Span<uint32_t> GetWorkerThreadIDs() noexcept;
 	Util::Span<uint32_t> GetBackgroundThreadIDs() noexcept;
 	Util::Span<uint32_t> GetAllThreadIDs() noexcept;
 
@@ -116,7 +114,7 @@ namespace ZetaRay::App
 	void AddFrameStat(const char* group, const char* name, float f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::Stat, App::PoolAllocator>> GetStats() noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::Stat, App::FrameAllocator>> GetStats() noexcept;
 	Util::Span<float> GetFrameTimeHistory() noexcept;
 
 	const char* GetPSOCacheDir() noexcept;
@@ -140,5 +138,15 @@ namespace ZetaRay::App
 		{
 			App::FreeMemoryPool(mem, size, alignment);
 		}
+	};
+
+	struct FrameAllocator
+	{
+		__forceinline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		{
+			return App::AllocateFromFrameAllocator(size, alignment);
+		}
+
+		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
 	};
 }

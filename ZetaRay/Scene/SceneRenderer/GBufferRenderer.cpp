@@ -342,7 +342,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 	}
 
 	// fill in the draw arguments
-	SmallVector<GBufferPass::InstanceData, App::PoolAllocator> instances;
+	SmallVector<GBufferPass::InstanceData, App::FrameAllocator> instances;
 	instances.resize(frameInstances.size());
 
 	size_t currInstance = 0;

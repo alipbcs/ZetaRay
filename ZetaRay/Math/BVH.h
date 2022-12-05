@@ -43,7 +43,7 @@ namespace ZetaRay::Math
 		void Build(Util::Vector<BVHInput, App::PoolAllocator>&& instances) noexcept;
 
 		// Updates the BVH for the given instance
-		void Update(Util::Vector<BVHUpdateInput, App::PoolAllocator>&& instances) noexcept;
+		void Update(Util::Vector<BVHUpdateInput, App::FrameAllocator>&& instances) noexcept;
 
 		// Removes given model from the BVH
 		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
@@ -52,14 +52,14 @@ namespace ZetaRay::Math
 		// view-frustum is in the view-space
 		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 			const Math::float4x4a& viewToWorld,
-			Util::Vector<uint64_t, App::PoolAllocator>& instanceIDs);
+			Util::Vector<uint64_t, App::FrameAllocator>& instanceIDs);
 
 		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
 		// be in world-space
 		uint64_t CastRay(Math::Ray& r) noexcept;
 
 		// Returns the AABB that encompasses the World
-		inline Math::AABB GetWorldAABB() noexcept 
+		Math::AABB GetWorldAABB() noexcept 
 		{
 			Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
 			return m_nodes[0].AABB; 
@@ -77,7 +77,7 @@ namespace ZetaRay::Math
 			void InitAsLeaf(int base, int count, int parent) noexcept;
 			void InitAsInternal(const Util::Vector<BVH::BVHInput, App::PoolAllocator>& models, int base, int count,
 				int right, int parent) noexcept;
-			inline bool IsLeaf() const { return RightChild == -1; }
+			bool IsLeaf() const { return RightChild == -1; }
 
 			// Union AABB of all the child nodes for internal nodes
 			// AABB is also used to distinguish between leaf & internal nodes

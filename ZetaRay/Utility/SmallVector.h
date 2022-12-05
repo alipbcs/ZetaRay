@@ -88,60 +88,60 @@ namespace ZetaRay::Util
 			other.m_end = other.m_beg + oldSize;
 		}
 
-		inline T* begin() noexcept
+		__forceinline T* begin() noexcept
 		{
 			return m_beg;
 		}
 
-		inline T* end() noexcept
+		__forceinline T* end() noexcept
 		{
 			return m_end;
 		}
 
-		inline const T* begin() const noexcept
+		__forceinline const T* begin() const noexcept
 		{
 			return m_beg;
 		}
 
-		inline const T* end() const noexcept
+		__forceinline const T* end() const noexcept
 		{
 			return m_end;
 		}
 
-		inline const T* cbegin() const noexcept
+		__forceinline const T* cbegin() const noexcept
 		{
 			return m_beg;
 		}
 
-		inline const T* cend() const noexcept
+		__forceinline const T* cend() const noexcept
 		{
 			return m_end;
 		}
 
-		inline T* data() noexcept
+		__forceinline T* data() noexcept
 		{
 			return m_beg;
 		}
 
-		inline T& back() noexcept
+		__forceinline T& back() noexcept
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		inline const T& back() const noexcept
+		__forceinline const T& back() const noexcept
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		inline T& operator[](size_t pos) noexcept
+		__forceinline T& operator[](size_t pos) noexcept
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
 		}
 
-		inline const T& operator[](size_t pos) const noexcept
+		__forceinline const T& operator[](size_t pos) const noexcept
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
@@ -152,12 +152,12 @@ namespace ZetaRay::Util
 			return m_last - m_beg;
 		}
 
-		inline size_t size() const noexcept
+		size_t size() const noexcept
 		{
 			return m_end - m_beg;
 		}
 
-		inline bool empty() const noexcept
+		bool empty() const noexcept
 		{
 			return m_end - m_beg == 0;
 		}

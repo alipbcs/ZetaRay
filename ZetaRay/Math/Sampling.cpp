@@ -8,7 +8,7 @@ using namespace ZetaRay::Math;
 
 namespace
 {
-	inline void Normalize(float* vals, size_t n) noexcept
+	void Normalize(float* vals, size_t n) noexcept
 	{
 		// 1. compute sum of values (S)
 		// 2. normalize

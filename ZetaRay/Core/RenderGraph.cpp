@@ -25,7 +25,7 @@ using namespace ZetaRay::Core::Direct3DHelper;
 
 namespace
 {
-	inline const char* GetResStateName(D3D12_RESOURCE_STATES s) noexcept
+	const char* GetResStateName(D3D12_RESOURCE_STATES s) noexcept
 	{
 		switch (s)
 		{
@@ -277,7 +277,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 		m_renderNodes[i].Indegree = (int)m_renderNodes[i].Inputs.size();
 
 	// adjacent tail nodes
-	SmallVector<RenderNodeHandle, App::PoolAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
+	SmallVector<RenderNodeHandle, App::FrameAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
 
 	// add the graph edges. For each input of node N, add an edge from 
 	// that input's producer node (previously populated by AddOutput) to N
@@ -442,7 +442,7 @@ void RenderGraph::BuildTaskGraph(TaskSet& ts) noexcept
 	}
 }
 
-void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::PoolAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
+void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	RenderNodeHandle sorted[MAX_NUM_RENDER_PASSES];
@@ -644,7 +644,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			const bool skipBarrier = ((1 << i++) & node.OutputMask);
 
 			const size_t ouputFrameResIdx = FindFrameResource(currOutputRes.ResID);
-			Assert(ouputFrameResIdx != -1, "Resource %ull was not found.", currOutputRes.ResID);
+			Assert(ouputFrameResIdx != -1, "Resource %llu was not found.", currOutputRes.ResID);
 			const D3D12_RESOURCE_STATES outputResState = m_frameResources[ouputFrameResIdx].State;
 
 			if (!skipBarrier && !(m_frameResources[ouputFrameResIdx].State & currOutputRes.ExpectedState))

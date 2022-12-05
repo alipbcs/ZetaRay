@@ -41,12 +41,12 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 5;
 		static constexpr int NUM_CONSTS = 0;
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		Core::RootSignature m_rootSig;
 
-		inline static const char* COMPILED_VS[] = { "Sun_vs.cso" };
-		inline static const char* COMPILED_PS[] = { "Sun_ps.cso" };
+		inline static constexpr const char* COMPILED_VS[] = { "Sun_vs.cso" };
+		inline static constexpr const char* COMPILED_PS[] = { "Sun_ps.cso" };
 
 		ID3D12PipelineState* m_pso = nullptr;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };

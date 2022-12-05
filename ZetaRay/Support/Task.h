@@ -46,7 +46,7 @@ namespace ZetaRay::Support
 
 	private:
 		Util::Function m_dlg;
-		Util::SmallVector<int, App::PoolAllocator> m_adjacentTailNodes;
+		Util::SmallVector<int, App::FrameAllocator> m_adjacentTailNodes;
 		char m_name[MAX_NAME_LENGTH];
 		int m_signalHandle = -1;
 		int m_indegree = 0;
@@ -99,7 +99,7 @@ namespace ZetaRay::Support
 		TaskSet(const TaskSet&) = delete;
 		TaskSet& operator=(const TaskSet&) = delete;
 
-		inline TaskHandle EmplaceTask(const char* name, Util::Function&& f) noexcept
+		TaskHandle EmplaceTask(const char* name, Util::Function&& f) noexcept
 		{
 			Check(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
 			Check(m_currSize < MAX_NUM_TASKS - 2, "current implementation of this functions doesn't support more than 64 tasks.");

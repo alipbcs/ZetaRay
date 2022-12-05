@@ -17,7 +17,7 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	inline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
+	__forceinline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
 	{
 		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
 		uint64_t meshFromSceneID = XXH3_64bits(str, n);
@@ -25,7 +25,7 @@ namespace
 		return meshFromSceneID;
 	}
 
-	inline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
+	__forceinline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
 	{
 		StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
 		uint64_t matFromSceneID = XXH3_64bits(str, n);
@@ -75,11 +75,11 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 
 	TaskSet::TaskHandle h0 = sceneTS.EmplaceTask("Scene::Update", [this, dt]()
 		{
-			SmallVector<AnimationUpdateOut, App::PoolAllocator> animUpdates;
+			SmallVector<AnimationUpdateOut, App::FrameAllocator> animUpdates;
 			UpdateAnimations((float)dt, animUpdates);
 			UpdateLocalTransforms(animUpdates);
 
-			SmallVector<BVH::BVHUpdateInput, App::PoolAllocator> toUpdateInstances;
+			SmallVector<BVH::BVHUpdateInput, App::FrameAllocator> toUpdateInstances;
 			UpdateWorldTransformations(toUpdateInstances);
 
 			if (m_rebuildBVHFlag)
@@ -90,7 +90,8 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			else
 				m_bvh.Update(ZetaMove(toUpdateInstances));
 
-			m_frameInstances.clear();
+			//m_frameInstances.clear();
+			m_frameInstances.free_memory();
 			m_frameInstances.reserve(m_IDtoTreePos.size());
 
 			const Camera& camera = App::GetCamera();
@@ -533,7 +534,7 @@ void SceneCore::RebuildBVH() noexcept
 	m_bvh.Build(ZetaMove(allInstances));
 }
 
-void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::PoolAllocator>& toUpdateInstances) noexcept
+void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept
 {
 	m_prevToWorlds.clear();
 	const int numLevels = (int)m_sceneGraph.size();
@@ -592,7 +593,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Pool
 		});
 }
 
-void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::PoolAllocator>& animVec) noexcept
+void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept
 {
 	for (int i = 0; i < m_animationOffsets.size(); i++)
 	{

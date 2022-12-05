@@ -51,7 +51,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     Model::glTF::Load(p, false);
 
     timer.End();
-    App::FlushMainThreadPool();
+    App::FlushWorkerThreadPool();
     LOG("gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
 
     // add an environment light

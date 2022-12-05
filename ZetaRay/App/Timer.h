@@ -23,7 +23,7 @@ namespace ZetaRay::App
 		void Tick() noexcept;
 
 		// Get total time since the start of the program.
-		inline double GetTotalTime() const
+		double GetTotalTime() const
 		{
 			int64_t numCounts;
 

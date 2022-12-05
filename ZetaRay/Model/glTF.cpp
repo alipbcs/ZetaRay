@@ -37,7 +37,7 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	inline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
+	uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
 	{
 		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
 		uint64_t meshFromSceneID = XXH3_64bits(str, n);

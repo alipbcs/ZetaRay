@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Core/ZetaRay.h"
+#include "../App/ZetaRay.h"
 
 namespace ZetaRay::Util
 {

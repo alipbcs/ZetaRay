@@ -51,10 +51,10 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 0;
 		static constexpr int NUM_CONSTS = sizeof(cbGuiPass) / sizeof(DWORD);
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
-		inline static const char* COMPILED_VS[] = { "ImGui_vs.cso" };
-		inline static const char* COMPILED_PS[] = { "ImGui_ps.cso" };
+		inline static constexpr const char* COMPILED_VS[] = { "ImGui_vs.cso" };
+		inline static constexpr const char* COMPILED_PS[] = { "ImGui_ps.cso" };
 
 		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;

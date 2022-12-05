@@ -1,5 +1,6 @@
 set(SUPPORT_DIR "${RENDERER_DIR}/Support")
 set(SUPPORT_SRC
+    "${SUPPORT_DIR}/FrameMemory.h"
     "${SUPPORT_DIR}/Memory.h"
     "${SUPPORT_DIR}/MemoryPool.cpp"
     "${SUPPORT_DIR}/MemoryPool.h"

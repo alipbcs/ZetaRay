@@ -69,17 +69,17 @@ namespace ZetaRay::Util
 			return *elem;
 		}
 
-		inline size_t bucket_count() const noexcept
+		size_t bucket_count() const noexcept
 		{
 			return m_end - m_beg;
 		}
 
-		inline size_t size() const noexcept
+		size_t size() const noexcept
 		{
 			return m_numEntries;
 		}		
 		
-		inline float load_factor() const noexcept
+		float load_factor() const noexcept
 		{
 			// necessary to avoid divide-by-zero
 			if (empty())
@@ -88,7 +88,7 @@ namespace ZetaRay::Util
 			return (float)m_numEntries / bucket_count();
 		}
 
-		inline bool empty() const noexcept
+		bool empty() const noexcept
 		{
 			return m_end - m_beg == 0;
 		}
@@ -128,14 +128,14 @@ namespace ZetaRay::Util
 				App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
 		}
 
-		inline void swap(HashTable& other) noexcept
+		void swap(HashTable& other) noexcept
 		{
 			std::swap(m_beg, other.m_beg);
 			std::swap(m_end, other.m_end);
 			std::swap(m_numEntries, other.m_numEntries);
 		}
 
-		inline T& operator[](uint64_t key) noexcept
+		__forceinline T& operator[](uint64_t key) noexcept
 		{
 			static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
 
@@ -146,12 +146,12 @@ namespace ZetaRay::Util
 			return e->Val;
 		}
 
-		inline Entry* begin_it() noexcept
+		__forceinline Entry* begin_it() noexcept
 		{
 			return m_beg;
 		}
 
-		inline Entry* next_it(Entry* curr) noexcept
+		__forceinline Entry* next_it(Entry* curr) noexcept
 		{
 			Entry* next = curr + 1;
 			while (next != m_end && next->Key == NULL_KEY)
@@ -160,7 +160,7 @@ namespace ZetaRay::Util
 			return next;
 		}
 
-		inline Entry* end_it() noexcept
+		__forceinline Entry* end_it() noexcept
 		{
 			return m_end;
 		}

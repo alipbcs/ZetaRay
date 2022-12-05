@@ -26,6 +26,5 @@ set(CORE_SRC
         "${CORE_DIR}/RootSignature.h"
         "${CORE_DIR}/SharedShaderResources.cpp"
         "${CORE_DIR}/SharedShaderResources.h"
-        "${CORE_DIR}/Vertex.h"
-        "${CORE_DIR}/ZetaRay.h")
+        "${CORE_DIR}/Vertex.h")
 set(CORE_SRC ${CORE_SRC} PARENT_SCOPE)

@@ -59,7 +59,7 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 2;
 		static constexpr int NUM_CONSTS = 0;
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		enum class SHADER_OUT
 		{
@@ -84,7 +84,7 @@ namespace ZetaRay::RenderPass
 		Core::RootSignature m_rootSig;
 
 		// per-draw arguments for the drawcalls
-		Util::SmallVector<DrawCallArgs, App::PoolAllocator> m_perDrawCallArgs;
+		Util::SmallVector<DrawCallArgs, App::FrameAllocator> m_perDrawCallArgs;
 
 		// constant buffer containing all the Per-draw data
 		Core::UploadHeapBuffer m_perDrawCB;
@@ -94,7 +94,7 @@ namespace ZetaRay::RenderPass
 		ID3D12PipelineState* m_pso = nullptr;
 
 		// TODO: instead of fixed path, get the assets directory from the app
-		inline static const char* COMPILED_VS[] = { "GBuffer_vs.cso" };
-		inline static const char* COMPILED_PS[] = { "GBuffer_ps.cso" };
+		inline static constexpr const char* COMPILED_VS[] = { "GBuffer_vs.cso" };
+		inline static constexpr const char* COMPILED_PS[] = { "GBuffer_ps.cso" };
 	};
 }

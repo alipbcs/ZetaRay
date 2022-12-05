@@ -95,7 +95,7 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 9;
 		static constexpr int NUM_CONSTS = (int)std::max(sizeof(cbTemporalPass) / sizeof(DWORD), sizeof(cbSpatialPass) / sizeof(DWORD));
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		void CreateOutputs() noexcept;
 
@@ -190,7 +190,7 @@ namespace ZetaRay::RenderPass
 		};
 
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-		inline static const char* COMPILED_CS[(int)SHADERS::COUNT] = { 
+		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
 			"ReSTIR_GI_TemporalPass_cs.cso", 
 			"ReSTIR_GI_SpatialPass_cs.cso", 
 			"ReSTIR_GI_Validation_cs.cso" 

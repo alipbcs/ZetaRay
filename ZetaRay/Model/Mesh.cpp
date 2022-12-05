@@ -643,7 +643,7 @@ namespace
 		{ true, { 118, 118, 118, 118, 124, 122, 119, 121, 123, 126, 125, 120, 40, 39, 38, 37 } },
 	};
 
-	inline float3 CubicInterpolate(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
+	float3 CubicInterpolate(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
 	{
 		float T0 = (1 - t) * (1 - t) * (1 - t);
 		float T1 = 3 * t * (1 - t) * (1 - t);
@@ -655,7 +655,7 @@ namespace
 		return result;
 	}
 
-	inline float3 CubicTangent(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
+	float3 CubicTangent(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
 	{
 		return p1 * (-1 + 2 * t - t * t) +
 			p2 * (1 - 4 * t + 3 * t * t) +

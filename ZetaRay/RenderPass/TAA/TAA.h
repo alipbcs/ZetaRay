@@ -63,9 +63,9 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbTAA) / sizeof(DWORD);
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
-		inline static const char* COMPILED_CS[] = { "TAA_cs.cso" };
+		inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
 
 		// ping-pong between input & output
 		Core::Texture m_antiAliased[2];

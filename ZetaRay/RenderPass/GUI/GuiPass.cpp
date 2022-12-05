@@ -700,7 +700,9 @@ void GuiPass::GpuTimingsTab() noexcept
 {
 	if (m_cachedTimings.empty() || App::GetTimer().GetTotalFrameCount() % 5 == 0)
 	{
-		m_cachedTimings = App::GetRenderer().GetGpuTimer().GetFrameTimings(&m_cachedNumQueries);
+		auto& timings = App::GetRenderer().GetGpuTimer().GetFrameTimings(&m_cachedNumQueries);
+		m_cachedTimings.clear();
+		m_cachedTimings.append_range(timings.begin(), timings.end());
 
 		if(m_cachedNumQueries > 0)
 		{

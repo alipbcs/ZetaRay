@@ -127,7 +127,7 @@ namespace ZetaRay::Core
 				*alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 		}
 
-		inline uint64_t GetPathID() const { return m_pathID; }
+		uint64_t GetPathID() const { return m_pathID; }
 
 	private:
 		uint64_t m_pathID = -1;
@@ -148,11 +148,11 @@ namespace ZetaRay::Core
 		bool IsInitialized() const { return m_pathID != -1; }
 		void Reset(bool guardDestruction = true) noexcept;
 
-		inline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		inline ID3D12Resource* GetResource() { return m_resource.Get(); }
+		D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
+		ID3D12Resource* GetResource() { return m_resource.Get(); }
 		void GetAllocationInfo(size_t* size = nullptr, size_t* alignment = nullptr) noexcept;
 
-		inline uint64_t GetPathID() const { return m_pathID; }
+		uint64_t GetPathID() const { return m_pathID; }
 
 	private:
 		uint64_t m_pathID = -1;
@@ -236,11 +236,11 @@ namespace ZetaRay::Core
 			std::unique_ptr<Internal::DefaultHeapManager> DefaultHeap;
 			std::unique_ptr<Internal::ResourceUploadBatch> ResUploader;
 
-			Util::SmallVector<PendingTexture, App::PoolAllocator> ToReleaseTextures;
+			Util::SmallVector<PendingTexture> ToReleaseTextures;
 		};
 
 		ThreadContext m_threadContext[MAX_NUM_THREADS];
-		uint32_t m_threadIDs[MAX_NUM_THREADS];
+		uint32_t alignas(64) m_threadIDs[MAX_NUM_THREADS];
 
 		ComPtr<ID3D12Fence> m_fenceDirect;
 		ComPtr<ID3D12Fence> m_fenceCompute;

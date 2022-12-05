@@ -55,9 +55,9 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbReduction) / sizeof(DWORD);
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
-		inline static const char* COMPILED_CS[] = { "ReductionFirst_cs.cso", "ReductionSecond_cs.cso" };
+		inline static constexpr const char* COMPILED_CS[] = { "ReductionFirst_cs.cso", "ReductionSecond_cs.cso" };
 
 		Core::DefaultHeapBuffer m_reducedLumIntermediate;
 		Core::DefaultHeapBuffer m_reducedLum;

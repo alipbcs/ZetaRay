@@ -65,7 +65,7 @@ namespace ZetaRay::RenderPass
 			static constexpr DXGI_FORMAT SKY_VIEW_LUT = DXGI_FORMAT_R11G11B10_FLOAT;
 		};
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		// both shaders use the same root signature
 		Core::RootSignature m_rootSig;
@@ -107,7 +107,7 @@ namespace ZetaRay::RenderPass
 		};
 
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { nullptr };
-		inline static const char* COMPILED_CS[(int)SHADERS::COUNT] = { "SkyViewLUT_cs.cso", "Inscattering_cs.cso" };
+		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = { "SkyViewLUT_cs.cso", "Inscattering_cs.cso" };
 
 		// parameter callbacks
 		void DepthMapExpCallback(const Support::ParamVariant& p) noexcept;

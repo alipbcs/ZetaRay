@@ -103,6 +103,11 @@ void GBufferPass::SetInstances(Span<InstanceData> instances) noexcept
 	}
 
 	{
+		// Warning: m_perDrawCallArgs is a class member and appears to persist between frames,
+		// yet since it's using FrameAllocator for SmallVector allocations, its capacity must be
+		// set to zero before usage in each frame, otherwise it might attempt to reuse previous
+		// frame's temp memory
+		m_perDrawCallArgs.free_memory();
 		m_perDrawCallArgs.resize(instances.size());
 
 		for (int i = 0; i < instances.size(); i++)

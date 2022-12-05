@@ -20,7 +20,7 @@
 
 #pragma warning(disable : 4324)
 
-#include "ZetaRay.h"
+#include "../App/ZetaRay.h"
 
 #ifndef MAKEFOURCC
 #define MAKEFOURCC(ch0, ch1, ch2, ch3) \

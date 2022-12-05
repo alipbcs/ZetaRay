@@ -8,7 +8,7 @@ namespace ZetaRay::Support
 	{
 	public:
 		explicit MemoryArena(size_t blockSize = 64 * 1024 * 1024) noexcept;
-		~MemoryArena() noexcept;
+		~MemoryArena() noexcept = default;
 
 		MemoryArena(MemoryArena&&) noexcept;
 		MemoryArena& operator=(MemoryArena&&) noexcept;
@@ -16,6 +16,7 @@ namespace ZetaRay::Support
 		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept {};
 		size_t TotalSize() const;
+		void Reset() noexcept;
 
 	private:
 		struct MemoryBlock
@@ -26,6 +27,15 @@ namespace ZetaRay::Support
 				Start = malloc(size);
 				Offset = 0;
 				Size = size;
+			}
+			~MemoryBlock() noexcept
+			{
+				if (Start)
+					free(Start);
+
+				Start = nullptr;
+				Offset = 0;
+				Size = 0;
 			}
 
 			MemoryBlock(MemoryBlock&& rhs) noexcept

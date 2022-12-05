@@ -1,6 +1,6 @@
 #pragma once
 
-#include "ZetaRay.h"
+#include "../App/ZetaRay.h"
 #include "../Win32/Win32.h"
 #include <D3D12/1.606.3/d3d12.h>
 #include <D3D12/1.606.3/dxgiformat.h>

@@ -57,7 +57,7 @@ namespace ZetaRay::Support
 		size_t GetPoolIndexFromSize(size_t x) noexcept;
 
 		// the chunk size for given pool index
-		inline size_t GetChunkSizeFromPoolIndex(size_t x) const
+		__forceinline size_t GetChunkSizeFromPoolIndex(size_t x) const
 		{
 			return 1llu << (x + INDEX_SHIFT);
 		}

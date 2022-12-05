@@ -1,5 +1,6 @@
 #include "../App/App.h"
 #include "../Support/MemoryPool.h"
+#include "../Support/FrameMemory.h"
 #include "../Utility/SynchronizedView.h"
 #include "../App/Timer.h"
 #include "../Support/Param.h"
@@ -61,17 +62,17 @@ namespace
 		static const int INITIAL_WINDOW_WIDTH = 1536;
 		static const int INITIAL_WINDOW_HEIGHT = 864;
 #if defined(_DEBUG)
-		inline static const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Debug";
-		inline static const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Debug";
+		inline static constexpr const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Debug";
+		inline static constexpr const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Debug";
 #else
-		inline static const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Release";
-		inline static const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Release";
+		inline static constexpr const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Release";
+		inline static constexpr const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Release";
 #endif // _DEBUG
 
-		inline static const char* ASSET_DIR = "Assets";
-		inline static const char* TOOLS_DIR = "Tools";
-		inline static const char* DXC_PATH = "Tools\\dxc\\bin\\x64\\dxc.exe";
-		inline static const char* RENDER_PASS_DIR = "ZetaRay\\RenderPass";
+		inline static constexpr const char* ASSET_DIR = "Assets";
+		inline static constexpr const char* TOOLS_DIR = "Tools";
+		inline static constexpr const char* DXC_PATH = "Tools\\dxc\\bin\\x64\\dxc.exe";
+		inline static constexpr const char* RENDER_PASS_DIR = "ZetaRay\\RenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
 
@@ -95,26 +96,23 @@ namespace
 
 		Timer m_timer;
 		Renderer m_renderer;
-		ThreadPool m_mainThreadPool;
+		ThreadPool m_workerThreadPool;
 		ThreadPool m_backgroundThreadPool;
 		SceneCore m_scene;
 		Camera m_camera;
 
-		struct alignas(64) ThreadContext
-		{
-			MemoryPool MemPool;
-		};
-
-		ThreadContext m_threadContexts[MAX_NUM_THREADS];
-		//std::thread::id m_threadIDs[MAX_NUM_THREADS];
-		uint32_t m_threadIDs[MAX_NUM_THREADS];
+		THREAD_ID_TYPE alignas(64) m_threadIDs[MAX_NUM_THREADS];
+		MemoryPool m_memoryPools[MAX_NUM_THREADS];
 		RNG m_rng;
+		FrameMemory m_frameMemory;
+		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
+		std::atomic_int32_t m_currFrameAllocIndex;
 
 		SmallVector<ParamVariant, PoolAllocator> m_params;
 		SmallVector<ParamUpdate, PoolAllocator, 32> m_paramsUpdates;
 
 		SmallVector<ShaderReloadHandler, PoolAllocator> m_shaderReloadHandlers;
-		SmallVector<Stat, PoolAllocator> m_frameStats;
+		SmallVector<Stat, FrameAllocator> m_frameStats;
 		FrameTime m_frameTime;
 
 		SRWLOCK m_stdOutLock = SRWLOCK_INIT;
@@ -137,7 +135,7 @@ namespace
 		Motion m_frameMotion;
 	};
 
-	static AppData* g_pApp = nullptr;
+	static AppData* g_app = nullptr;
 }
 
 namespace ZetaRay::AppImpl
@@ -184,11 +182,11 @@ namespace ZetaRay::AppImpl
 
 		// Obtain focused and hovered window. We forward mouse input when focused or when hovered (and no other window is capturing)
 		HWND focused_window = GetForegroundWindow();
-		HWND hovered_window = g_pApp->m_hwnd;
+		HWND hovered_window = g_app->m_hwnd;
 		HWND mouse_window = NULL;
-		if (hovered_window && (hovered_window == g_pApp->m_hwnd || IsChild(hovered_window, g_pApp->m_hwnd)))
+		if (hovered_window && (hovered_window == g_app->m_hwnd || IsChild(hovered_window, g_app->m_hwnd)))
 			mouse_window = hovered_window;
-		else if (focused_window && (focused_window == g_pApp->m_hwnd || IsChild(focused_window, g_pApp->m_hwnd)))
+		else if (focused_window && (focused_window == g_app->m_hwnd || IsChild(focused_window, g_app->m_hwnd)))
 			mouse_window = focused_window;
 		if (mouse_window == NULL)
 			return;
@@ -197,7 +195,7 @@ namespace ZetaRay::AppImpl
 		if (io.WantSetMousePos)
 		{
 			POINT pos = { (int)mouse_pos_prev.x, (int)mouse_pos_prev.y };
-			if (ClientToScreen(g_pApp->m_hwnd, &pos))
+			if (ClientToScreen(g_app->m_hwnd, &pos))
 				SetCursorPos(pos.x, pos.y);
 		}
 
@@ -208,9 +206,9 @@ namespace ZetaRay::AppImpl
 
 		// Update OS mouse cursor with the cursor requested by imgui
 		ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-		if (g_pApp->m_imguiCursor != mouse_cursor)
+		if (g_app->m_imguiCursor != mouse_cursor)
 		{
-			g_pApp->m_imguiCursor = mouse_cursor;
+			g_app->m_imguiCursor = mouse_cursor;
 			ImGuiUpdateMouseCursor();
 		}
 	}
@@ -234,7 +232,7 @@ namespace ZetaRay::AppImpl
 		colors[ImGuiCol_FrameBg] = ImVec4(6 / 255.0f, 14 / 255.0f, 6 / 255.0f, 1.0f);
 		//colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 64 / 255.0f, 150 / 255.0f, 0.98f);
 
-		style.ScaleAllSizes((float)g_pApp->m_dpi / 96.0f);
+		style.ScaleAllSizes((float)g_app->m_dpi / 96.0f);
 		style.FramePadding = ImVec2(7.0f, 3.0f);
 		style.GrabMinSize = 13.0f;
 		style.FrameRounding = 12.0f;
@@ -251,11 +249,11 @@ namespace ZetaRay::AppImpl
 
 	void UpdateStats() noexcept
 	{
-		g_pApp->m_frameStats.clear();
+		g_app->m_frameStats.clear();
 
-		const float frameTimeMs = (float)(g_pApp->m_timer.GetElapsedTime() * 1000.0);
+		const float frameTimeMs = (float)(g_app->m_timer.GetElapsedTime() * 1000.0);
 
-		auto& frameStats = g_pApp->m_frameTime;
+		auto& frameStats = g_app->m_frameTime;
 		frameStats.NextFramHistIdx = (frameStats.NextFramHistIdx < 59) ? frameStats.NextFramHistIdx + 1 : frameStats.NextFramHistIdx;
 		Assert(frameStats.NextFramHistIdx >= 0 && frameStats.NextFramHistIdx < 60, "bug");
 
@@ -276,20 +274,20 @@ namespace ZetaRay::AppImpl
 		*/
 
 		DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo = {};
-		CheckHR(g_pApp->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
+		CheckHR(g_app->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
 
-		//g_pApp->m_frameStats.emplace_back("Frame", "#Frames", g_pApp->m_timer.GetTotalFrameCount());
-		g_pApp->m_frameStats.emplace_back("Frame", "FrameTime", (float)frameTimeMs);
-		//g_pApp->m_frameStats.emplace_back("Frame", "FrameTime Avg.", (float) movingAvg);
-		g_pApp->m_frameStats.emplace_back("Frame", "FPS", g_pApp->m_timer.GetFramesPerSecond());
-		g_pApp->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
+		//g_app->m_frameStats.emplace_back("Frame", "#Frames", g_app->m_timer.GetTotalFrameCount());
+		g_app->m_frameStats.emplace_back("Frame", "FrameTime", (float)frameTimeMs);
+		//g_app->m_frameStats.emplace_back("Frame", "FrameTime Avg.", (float) movingAvg);
+		g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
+		g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
 
 		/*
 		printf("----------------------\n");
 
-		for (int i = 0; i < g_pApp->m_processorCoreCount; i++)
+		for (int i = 0; i < g_app->m_processorCoreCount; i++)
 		{
-			printf("Thread %d: %llu kb\n", i, g_pApp->m_threadContexts[i].MemPool.TotalSize() / 1024);
+			printf("Thread %d: %llu kb\n", i, g_app->m_threadContexts[i].MemPool.TotalSize() / 1024);
 		}
 
 		printf("----------------------\n\n");
@@ -303,93 +301,93 @@ namespace ZetaRay::AppImpl
 		ImGuiUpdateMouse();
 		ImGui::NewFrame();
 
-		g_pApp->m_frameMotion.dt = (float)g_pApp->m_timer.GetElapsedTime();
+		g_app->m_frameMotion.dt = (float)g_app->m_timer.GetElapsedTime();
 
-		float scale = g_pApp->m_inMouseWheelMove ? g_pApp->m_inMouseWheelMove * 20 : 1.0f;
-		scale = g_pApp->m_frameMotion.Acceleration.z != 0 || g_pApp->m_frameMotion.Acceleration.x != 0 ?
+		float scale = g_app->m_inMouseWheelMove ? g_app->m_inMouseWheelMove * 20 : 1.0f;
+		scale = g_app->m_frameMotion.Acceleration.z != 0 || g_app->m_frameMotion.Acceleration.x != 0 ?
 			fabsf(scale) : scale;
 
 		// 'W'
-		if (g_pApp->m_inMouseWheelMove || (GetAsyncKeyState(0x57) & (1 << 16)))
-			g_pApp->m_frameMotion.Acceleration.z = 1;
+		if (g_app->m_inMouseWheelMove || (GetAsyncKeyState(0x57) & (1 << 16)))
+			g_app->m_frameMotion.Acceleration.z = 1;
 		// 'A'
 		if (GetAsyncKeyState(0x41) & (1 << 16))
-			g_pApp->m_frameMotion.Acceleration.x = -1;
+			g_app->m_frameMotion.Acceleration.x = -1;
 		// 'S'
-		if (!g_pApp->m_inMouseWheelMove && (GetAsyncKeyState(0x53) & (1 << 16)))
-			g_pApp->m_frameMotion.Acceleration.z = -1;
+		if (!g_app->m_inMouseWheelMove && (GetAsyncKeyState(0x53) & (1 << 16)))
+			g_app->m_frameMotion.Acceleration.z = -1;
 		// 'D'
 		if (GetAsyncKeyState(0x44) & (1 << 16))
-			g_pApp->m_frameMotion.Acceleration.x = 1;
+			g_app->m_frameMotion.Acceleration.x = 1;
 
-		g_pApp->m_frameMotion.Acceleration.normalize(); 
-		g_pApp->m_frameMotion.Acceleration *= g_pApp->m_cameraAcceleration * scale;
-		g_pApp->m_inMouseWheelMove = 0;
-		g_pApp->m_camera.Update(g_pApp->m_frameMotion);
+		g_app->m_frameMotion.Acceleration.normalize(); 
+		g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
+		g_app->m_inMouseWheelMove = 0;
+		g_app->m_camera.Update(g_app->m_frameMotion);
 
-		g_pApp->m_scene.Update(g_pApp->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
+		g_app->m_scene.Update(g_app->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
 	}
 
 	void OnActivated() noexcept
 	{
-		g_pApp->m_timer.Resume();
-		g_pApp->m_isActive = true;
+		g_app->m_timer.Resume();
+		g_app->m_isActive = true;
 	}
 
 	void OnDeactivated() noexcept
 	{
-		g_pApp->m_timer.Pause();
-		g_pApp->m_isActive = false;
+		g_app->m_timer.Pause();
+		g_app->m_isActive = false;
 	}
 
 	void OnWindowSizeChanged() noexcept
 	{
-		if (g_pApp->m_timer.GetTotalFrameCount() > 0)
+		if (g_app->m_timer.GetTotalFrameCount() > 0)
 		{
 			RECT rect;
-			GetClientRect(g_pApp->m_hwnd, &rect);
+			GetClientRect(g_app->m_hwnd, &rect);
 
 			//int newWidth = (int)((rect.right - rect.left) * 96.0f / m_dpi);
 			//int newHeight = (int)((rect.bottom - rect.top) * 96.0f / m_dpi);
 			int newWidth = rect.right - rect.left;
 			int newHeight = rect.bottom - rect.top;
 
-			if (newWidth == g_pApp->m_displayWidth && newHeight == g_pApp->m_displayHeight)
+			if (newWidth == g_app->m_displayWidth && newHeight == g_app->m_displayHeight)
 				return;
 
-			g_pApp->m_displayWidth = newWidth;
-			g_pApp->m_displayHeight = newHeight;
+			g_app->m_displayWidth = newWidth;
+			g_app->m_displayHeight = newHeight;
 
-			const float renderWidth = g_pApp->m_displayWidth / g_pApp->m_upscaleFactor;
-			const float renderHeight = g_pApp->m_displayHeight / g_pApp->m_upscaleFactor;
+			const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
+			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
 			// following order is important
-			g_pApp->m_renderer.OnWindowSizeChanged(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight,
-				g_pApp->m_displayWidth, g_pApp->m_displayHeight);
-			g_pApp->m_scene.OnWindowSizeChanged();
+			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight,
+				g_app->m_displayWidth, g_app->m_displayHeight);
+			g_app->m_scene.OnWindowSizeChanged();
 
 			ImGuiIO& io = ImGui::GetIO();
-			io.DisplaySize = ImVec2((float)g_pApp->m_displayWidth, (float)g_pApp->m_displayHeight);
+			io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 		}
 	}
 
 	void OnToggleFullscreenWindow() noexcept
 	{
 		// switch from windowed to full-screen
-		if (!g_pApp->m_isFullScreen)
+		if (!g_app->m_isFullScreen)
 		{
-			GetWindowRect(g_pApp->m_hwnd, &g_pApp->m_wndRectCache);
+			GetWindowRect(g_app->m_hwnd, &g_app->m_wndRectCache);
 
 			// Make the window borderless so that the client area can fill the screen.
-			SetWindowLong(g_pApp->m_hwnd, GWL_STYLE, WS_OVERLAPPED & ~(WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME));
+			SetWindowLong(g_app->m_hwnd, GWL_STYLE, WS_OVERLAPPED & ~(WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME));
 
 			RECT fullscreenWindowRect;
 
 			// Get the settings of the display on which the app's window is currently displayed
-			DXGI_OUTPUT_DESC desc = g_pApp->m_renderer.GetOutputMonitorDesc();
+			DXGI_OUTPUT_DESC desc = g_app->m_renderer.GetOutputMonitorDesc();
 			fullscreenWindowRect = desc.DesktopCoordinates;
 
-			SetWindowPos(g_pApp->m_hwnd,
+			SetWindowPos(g_app->m_hwnd,
 				HWND_NOTOPMOST,
 				fullscreenWindowRect.left,
 				fullscreenWindowRect.top,
@@ -397,27 +395,27 @@ namespace ZetaRay::AppImpl
 				fullscreenWindowRect.bottom,
 				SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
-			ShowWindow(g_pApp->m_hwnd, SW_MAXIMIZE);
+			ShowWindow(g_app->m_hwnd, SW_MAXIMIZE);
 		}
 		else
 		{
 			// Restore the window's attributes and size.
-			SetWindowLong(g_pApp->m_hwnd, GWL_STYLE, WS_OVERLAPPED);
+			SetWindowLong(g_app->m_hwnd, GWL_STYLE, WS_OVERLAPPED);
 
 			SetWindowPos(
-				g_pApp->m_hwnd,
+				g_app->m_hwnd,
 				HWND_NOTOPMOST,
-				g_pApp->m_wndRectCache.left,
-				g_pApp->m_wndRectCache.top,
-				g_pApp->m_wndRectCache.right - g_pApp->m_wndRectCache.left,
-				g_pApp->m_wndRectCache.bottom - g_pApp->m_wndRectCache.top,
+				g_app->m_wndRectCache.left,
+				g_app->m_wndRectCache.top,
+				g_app->m_wndRectCache.right - g_app->m_wndRectCache.left,
+				g_app->m_wndRectCache.bottom - g_app->m_wndRectCache.top,
 				SWP_FRAMECHANGED | SWP_NOACTIVATE);
 
-			ShowWindow(g_pApp->m_hwnd, SW_NORMAL);
+			ShowWindow(g_app->m_hwnd, SW_NORMAL);
 		}
 
-		printf("g_pApp->m_isFullScreen was: %d\n", g_pApp->m_isFullScreen);
-		g_pApp->m_isFullScreen = !g_pApp->m_isFullScreen;
+		printf("g_app->m_isFullScreen was: %d\n", g_app->m_isFullScreen);
+		g_app->m_isFullScreen = !g_app->m_isFullScreen;
 	}
 
 	void OnKeyboard(UINT message, WPARAM vkKey, LPARAM lParam) noexcept
@@ -462,30 +460,30 @@ namespace ZetaRay::AppImpl
 			{
 				//A
 			case 0x41:
-				//g_pApp->m_frameMotion.Acceleration.x = -g_pApp->m_cameraAcceleration;
+				//g_app->m_frameMotion.Acceleration.x = -g_app->m_cameraAcceleration;
 				return;
 
 				//D
 			case 0x44:
-				//g_pApp->m_frameMotion.Acceleration.x = g_pApp->m_cameraAcceleration;
+				//g_app->m_frameMotion.Acceleration.x = g_app->m_cameraAcceleration;
 				return;
 
 				//W
 			case 0x57:
-				//printf("%llu, OnKeyboard(), repeat count: %lld\n", g_pApp->m_timer.GetTotalFrameCount(), lParam & 0xffff);
-				//g_pApp->m_frameMotion.Acceleration.z = g_pApp->m_cameraAcceleration;
+				//printf("%llu, OnKeyboard(), repeat count: %lld\n", g_app->m_timer.GetTotalFrameCount(), lParam & 0xffff);
+				//g_app->m_frameMotion.Acceleration.z = g_app->m_cameraAcceleration;
 				return;
 
 				//S
 			case 0x53:
-				//g_pApp->m_frameMotion.Acceleration.z = -g_pApp->m_cameraAcceleration;
+				//g_app->m_frameMotion.Acceleration.z = -g_app->m_cameraAcceleration;
 				return;
 			}
 			*/
 
 			// ALT+ENTER:
 			/*
-			auto& renderer = g_pApp->m_renderer;
+			auto& renderer = g_app->m_renderer;
 			bool listenToAltEnter = renderer.IsTearingSupported() && renderer.GetVSyncInterval() == 0;
 
 			if (listenToAltEnter && (vkKey == VK_RETURN) && (lParam & (1 << 29)))
@@ -512,7 +510,7 @@ namespace ZetaRay::AppImpl
 			button = 2;
 
 		if (!ImGui::IsAnyMouseDown() && GetCapture() == NULL)
-			SetCapture(g_pApp->m_hwnd);
+			SetCapture(g_app->m_hwnd);
 
 		ImGuiIO& io = ImGui::GetIO();
 		//io.MouseDown[button] = true;
@@ -525,9 +523,9 @@ namespace ZetaRay::AppImpl
 
 			if (btnState == MK_LBUTTON)
 			{
-				SetCapture(g_pApp->m_hwnd);
-				g_pApp->m_lastMousePosX = x;
-				g_pApp->m_lastMousePosY = y;
+				SetCapture(g_app->m_hwnd);
+				g_app->m_lastMousePosX = x;
+				g_app->m_lastMousePosY = y;
 			}
 		}
 	}
@@ -549,7 +547,7 @@ namespace ZetaRay::AppImpl
 
 		io.MouseDown[button] = false;
 
-		if (!ImGui::IsAnyMouseDown() && GetCapture() == g_pApp->m_hwnd)
+		if (!ImGui::IsAnyMouseDown() && GetCapture() == g_app->m_hwnd)
 			ReleaseCapture();
 
 		io.AddMouseButtonEvent(button, false);
@@ -569,11 +567,11 @@ namespace ZetaRay::AppImpl
 		ImGuiIO& io = ImGui::GetIO();
 
 		// We need to call TrackMouseEvent in order to receive WM_MOUSELEAVE events
-		if (!g_pApp->m_imguiMouseTracked)
+		if (!g_app->m_imguiMouseTracked)
 		{
-			TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, g_pApp->m_hwnd, 0 };
+			TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, g_app->m_hwnd, 0 };
 			TrackMouseEvent(&tme);
-			g_pApp->m_imguiMouseTracked = true;
+			g_app->m_imguiMouseTracked = true;
 		}
 
 		io.AddMousePosEvent((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
@@ -585,14 +583,14 @@ namespace ZetaRay::AppImpl
 				int x = GET_X_LPARAM(lParam);
 				int y = GET_Y_LPARAM(lParam);
 
-				//g_pApp->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_pApp->m_lastMousePosX)));
-				//g_pApp->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_pApp->m_lastMousePosY)));
+				//g_app->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_app->m_lastMousePosX)));
+				//g_app->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_app->m_lastMousePosY)));
 
-				g_pApp->m_frameMotion.RotationDegreesY = Math::DegreeToRadians((float)(x - g_pApp->m_lastMousePosX));
-				g_pApp->m_frameMotion.RotationDegreesX = Math::DegreeToRadians((float)(y - g_pApp->m_lastMousePosY));
+				g_app->m_frameMotion.RotationDegreesY = Math::DegreeToRadians((float)(x - g_app->m_lastMousePosX));
+				g_app->m_frameMotion.RotationDegreesX = Math::DegreeToRadians((float)(y - g_app->m_lastMousePosY));
 
-				g_pApp->m_lastMousePosX = x;
-				g_pApp->m_lastMousePosY = y;
+				g_app->m_lastMousePosX = x;
+				g_app->m_lastMousePosY = y;
 			}
 		}
 	}
@@ -612,9 +610,9 @@ namespace ZetaRay::AppImpl
 			short zDelta = GET_WHEEL_DELTA_WPARAM(btnState);
 
 			if (zDelta > 0)
-				g_pApp->m_inMouseWheelMove = 1;
+				g_app->m_inMouseWheelMove = 1;
 			else
-				g_pApp->m_inMouseWheelMove = -1;
+				g_app->m_inMouseWheelMove = -1;
 		}
 	}
 
@@ -626,38 +624,38 @@ namespace ZetaRay::AppImpl
 
 		App::FlushAllThreadPools();
 
-		g_pApp->m_mainThreadPool.Shutdown();
-		g_pApp->m_backgroundThreadPool.Shutdown();
-		g_pApp->m_scene.Shutdown();
-		g_pApp->m_renderer.Shutdown();
-		g_pApp->m_params.clear();
+		g_app->m_workerThreadPool.Shutdown();
+		g_app->m_backgroundThreadPool.Shutdown();
+		g_app->m_scene.Shutdown();
+		g_app->m_renderer.Shutdown();
+		g_app->m_params.clear();
 
 		// TODO fix
 		//for (int i = 0; i < m_processorCoreCount; i++)
 		//	m_threadMemPools[i].Clear();
 
-		delete g_pApp;
-		g_pApp = nullptr;
+		delete g_app;
+		g_app = nullptr;
 	}
 
 	void ApplyParamUpdates() noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
-		AcquireSRWLockExclusive(&g_pApp->m_paramLock);
+		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
+		AcquireSRWLockExclusive(&g_app->m_paramLock);
 
-		for (auto& p : g_pApp->m_paramsUpdates)
+		for (auto& p : g_app->m_paramsUpdates)
 		{
 			if (p.Op == ParamUpdate::OP_TYPE::ADD)
 			{
-				g_pApp->m_params.push_back(p.P);
+				g_app->m_params.push_back(p.P);
 			}
 			else if (p.Op == ParamUpdate::OP_TYPE::REMOVE)
 			{
 				size_t i = 0;
 				bool found = false;
-				while (i < g_pApp->m_params.size())
+				while (i < g_app->m_params.size())
 				{
-					if (g_pApp->m_params[i].GetID() == p.P.GetID())
+					if (g_app->m_params[i].GetID() == p.P.GetID())
 					{
 						found = true;
 						break;
@@ -667,14 +665,14 @@ namespace ZetaRay::AppImpl
 				}
 
 				Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
-				g_pApp->m_params.erase(i);
+				g_app->m_params.erase(i);
 			}
 		}
 
-		g_pApp->m_paramsUpdates.clear();
+		g_app->m_paramsUpdates.clear();
 
-		ReleaseSRWLockExclusive(&g_pApp->m_paramLock);
-		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		ReleaseSRWLockExclusive(&g_app->m_paramLock);
+		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
 	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
@@ -690,29 +688,29 @@ namespace ZetaRay::AppImpl
 			return 0;
 
 		case WM_ENTERSIZEMOVE:
-			g_pApp->m_inSizeMove = true;
+			g_app->m_inSizeMove = true;
 			AppImpl::OnDeactivated();
 
 			return 0;
 
 		case WM_EXITSIZEMOVE:
-			g_pApp->m_inSizeMove = false;
+			g_app->m_inSizeMove = false;
 			AppImpl::OnWindowSizeChanged();
 			AppImpl::OnActivated();
 
 			return 0;
 
 		case WM_SIZE:
-			if (!g_pApp->m_inSizeMove)
+			if (!g_app->m_inSizeMove)
 			{
 				if (wParam == SIZE_MINIMIZED)
 				{
-					g_pApp->m_minimized = true;
+					g_app->m_minimized = true;
 					AppImpl::OnDeactivated();
 				}
 				else if (wParam == SIZE_RESTORED)
 				{
-					if (g_pApp->m_minimized)
+					if (g_app->m_minimized)
 						AppImpl::OnActivated();
 
 					AppImpl::OnWindowSizeChanged();
@@ -755,7 +753,7 @@ namespace ZetaRay::AppImpl
 			// TODO test
 		case WM_DPICHANGED:
 		{
-			g_pApp->m_dpi = HIWORD(wParam);
+			g_app->m_dpi = HIWORD(wParam);
 
 			RECT* const prcNewWindow = (RECT*)lParam;
 			SetWindowPos(hWnd, nullptr,
@@ -795,7 +793,7 @@ namespace ZetaRay::AppImpl
 
 		RegisterClassA(&wc);
 
-		g_pApp->m_hwnd = CreateWindowA(wndClassName,
+		g_app->m_hwnd = CreateWindowA(wndClassName,
 			"ZetaRay",
 			WS_OVERLAPPEDWINDOW,
 			CW_USEDEFAULT, CW_USEDEFAULT,
@@ -804,17 +802,17 @@ namespace ZetaRay::AppImpl
 			instance,
 			nullptr);
 
-		CheckWin32(g_pApp->m_hwnd);
+		CheckWin32(g_app->m_hwnd);
 
 		SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 		SetProcessDPIAware();
-		g_pApp->m_dpi = GetDpiForWindow(g_pApp->m_hwnd);
+		g_app->m_dpi = GetDpiForWindow(g_app->m_hwnd);
 
-		const int wndWidth = (int)((AppData::INITIAL_WINDOW_WIDTH * g_pApp->m_dpi) / 96.0f);
-		const int wndHeight = (int)((AppData::INITIAL_WINDOW_HEIGHT * g_pApp->m_dpi) / 96.0f);
+		const int wndWidth = (int)((AppData::INITIAL_WINDOW_WIDTH * g_app->m_dpi) / 96.0f);
+		const int wndHeight = (int)((AppData::INITIAL_WINDOW_HEIGHT * g_app->m_dpi) / 96.0f);
 
-		SetWindowPos(g_pApp->m_hwnd, nullptr, 0, 0, wndWidth, wndHeight, 0);
-		ShowWindow(g_pApp->m_hwnd, SW_SHOWNORMAL);
+		SetWindowPos(g_app->m_hwnd, nullptr, 0, 0, wndWidth, wndHeight, 0);
+		ShowWindow(g_app->m_hwnd, SW_SHOWNORMAL);
 	}
 
 	void GetProcessorInfo() noexcept
@@ -840,7 +838,7 @@ namespace ZetaRay::AppImpl
 			switch (curr->Relationship)
 			{
 			case RelationProcessorCore:
-				g_pApp->m_processorCoreCount++;
+				g_app->m_processorCoreCount++;
 
 				// A hyperthreaded core supplies more than one logical processor.
 				logicalProcessorCount += (int)__popcnt64(curr->ProcessorMask);
@@ -857,29 +855,29 @@ namespace ZetaRay::AppImpl
 
 	void SetCameraAcceleration(const ParamVariant& p) noexcept
 	{
-		g_pApp->m_cameraAcceleration = p.GetFloat().m_val;
+		g_app->m_cameraAcceleration = p.GetFloat().m_val;
 	}}
 
 namespace ZetaRay
 {
 	__forceinline int GetThreadIdx() noexcept
 	{
-		for (int i = 0; i < g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
+		for (int i = 0; i < g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
 		{
-			if (g_pApp->m_threadIDs[i] == std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id()))
+			if (g_app->m_threadIDs[i] == std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
 				return i;
 		}
 
 		return -1;
 	}
 
-	void RejoinBackgroundMemPoolsToMain() noexcept
+	void RejoinBackgroundMemPoolsToWorkers() noexcept
 	{
 		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
 		{
-			int sourceThreadIdx = g_pApp->m_processorCoreCount + i;
-			int destThreadIdx = g_pApp->m_rng.GetUniformUintBounded(g_pApp->m_processorCoreCount);
-			g_pApp->m_threadContexts[sourceThreadIdx].MemPool.MoveTo(g_pApp->m_threadContexts[destThreadIdx].MemPool);
+			int sourceThreadIdx = g_app->m_processorCoreCount + i;
+			int destThreadIdx = g_app->m_rng.GetUniformUintBounded(g_app->m_processorCoreCount);
+			g_app->m_memoryPools[sourceThreadIdx].MoveTo(g_app->m_memoryPools[destThreadIdx]);
 		}
 	}
 
@@ -902,114 +900,120 @@ namespace ZetaRay
 		// set locale to C
 		setlocale(LC_ALL, "C");
 
-		g_pApp = new AppData;
+		g_app = new AppData;
 
 		AppImpl::GetProcessorInfo();
 
 		// create the window
 		AppImpl::CreateAppWindow(instance);
-		SetWindowTextA(g_pApp->m_hwnd, "ZetaRay");
+		SetWindowTextA(g_app->m_hwnd, "ZetaRay");
 
-		const int totalNumThreads = g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
+		const int totalNumThreads = g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
 
 		// initialize thread pools
-		g_pApp->m_mainThreadPool.Init(g_pApp->m_processorCoreCount - 1,
+		g_app->m_workerThreadPool.Init(g_app->m_processorCoreCount - 1,
 			totalNumThreads,
 			L"ZetaWorker",
 			THREAD_PRIORITY::NORMAL);
 
-		g_pApp->m_backgroundThreadPool.Init(AppData::NUM_BACKGROUND_THREADS,
+		g_app->m_backgroundThreadPool.Init(AppData::NUM_BACKGROUND_THREADS,
 			totalNumThreads,
 			L"ZetaBackgroundWorker",
 			THREAD_PRIORITY::BACKGROUND);
 
+		// initialize frame allocators
+		memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+		g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
+
+		// initialize memory pools. has to happen after thread pool has been created
+
 		// main thread
-		g_pApp->m_threadContexts[0].MemPool.Init();
-		g_pApp->m_threadIDs[0] = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
+		g_app->m_memoryPools[0].Init();
+		g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
-		// initialize memory pools
-		// this has to happen after thread pool has been created
-		auto mainThreadIDs = g_pApp->m_mainThreadPool.ThreadIDs();
+		// worker threads
+		auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
 
-		for (int i = 0; i < mainThreadIDs.size(); i++)
+		for (int i = 0; i < workerThreadIDs.size(); i++)
 		{
-			g_pApp->m_threadIDs[i + 1] = std::bit_cast<uint32_t, std::thread::id>(mainThreadIDs[i]);
-			g_pApp->m_threadContexts[i + 1].MemPool.Init();
+			g_app->m_threadIDs[i + 1] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(workerThreadIDs[i]);
+			g_app->m_memoryPools[i + 1].Init();
 		}
 
-		auto backgroundThreadIDs = g_pApp->m_backgroundThreadPool.ThreadIDs();
+		// background threads
+		auto backgroundThreadIDs = g_app->m_backgroundThreadPool.ThreadIDs();
 
 		for (int i = 0; i < backgroundThreadIDs.size(); i++)
 		{
-			g_pApp->m_threadIDs[mainThreadIDs.size() + 1 + i] = std::bit_cast<uint32_t, std::thread::id>(backgroundThreadIDs[i]);
-			g_pApp->m_threadContexts[mainThreadIDs.size() + 1 + i].MemPool.Init();
+			g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
+			g_app->m_memoryPools[workerThreadIDs.size() + 1 + i].Init();
 		}
 
-		uint64_t seed = std::bit_cast<uint64_t, void*>(g_pApp);
-		g_pApp->m_rng = RNG(seed);
+		uint64_t seed = std::bit_cast<uint64_t, void*>(g_app);
+		g_app->m_rng = RNG(seed);
 
-		//		g_pApp->m_mainThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size()));
-		//		g_pApp->m_backgroundThreadPool.SetThreadIds(Span(g_pApp->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
+		//		g_app->m_mainThreadPool.SetThreadIds(Span(g_app->m_threadIDs, 1 + mainThreadIDs.size()));
+		//		g_app->m_backgroundThreadPool.SetThreadIds(Span(g_app->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
 
-		g_pApp->m_mainThreadPool.Start();
-		g_pApp->m_backgroundThreadPool.Start();
+		g_app->m_workerThreadPool.Start();
+		g_app->m_backgroundThreadPool.Start();
 
 		RECT rect;
-		GetClientRect(g_pApp->m_hwnd, &rect);
+		GetClientRect(g_app->m_hwnd, &rect);
 
-		g_pApp->m_displayWidth = rect.right - rect.left;
-		g_pApp->m_displayHeight = rect.bottom - rect.top;
+		g_app->m_displayWidth = rect.right - rect.left;
+		g_app->m_displayHeight = rect.bottom - rect.top;
 
 		AppImpl::InitImGui();
 
-		const float renderWidth = g_pApp->m_displayWidth / g_pApp->m_upscaleFactor;
-		const float renderHeight = g_pApp->m_displayHeight / g_pApp->m_upscaleFactor;
+		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
+		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
 		// initialize renderer
-		g_pApp->m_renderer.Init(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight, g_pApp->m_displayWidth, g_pApp->m_displayHeight);
+		g_app->m_renderer.Init(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
 
 		ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2((float)g_pApp->m_displayWidth, (float)g_pApp->m_displayHeight);
+		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 
 		// initialize camera
-		g_pApp->m_frameMotion.Reset();
+		g_app->m_frameMotion.Reset();
 
 		//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 0.1f, true);
-		g_pApp->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
+		g_app->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
 			Math::DegreeToRadians(75.0f), 0.1f, true);
 		//m_camera.Init(float3(-1127.61f, 348.67f, 66.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 10.0f, true);
 		//m_camera.Init(float3(0.61f, 3.67f, 0.25f), App::GetRenderer().GetAspectRatio(), Math::DegreeToRadians(85.0f), 0.1f);
 
 		// scene can now be initialized
-		g_pApp->m_scene.Init();
+		g_app->m_scene.Init();
 
 		ParamVariant acc;
 		acc.InitFloat("Scene", "Camera", "Acceleration", fastdelegate::FastDelegate1(&AppImpl::SetCameraAcceleration),
-			g_pApp->m_cameraAcceleration,
+			g_app->m_cameraAcceleration,
 			0.1f,
 			100.0f,
 			1.0f);
 		App::AddParam(acc);
 
-		g_pApp->m_isInitialized = true;
+		g_app->m_isInitialized = true;
 	}
 
 	void App::InitSimple() noexcept
 	{
 		// main thread
-		if (g_pApp == nullptr || !g_pApp->m_isInitialized)
+		if (g_app == nullptr || !g_app->m_isInitialized)
 		{
-			g_pApp = new AppData;
-			g_pApp->m_processorCoreCount = 1;
+			g_app = new AppData;
+			g_app->m_processorCoreCount = 1;
 
-			g_pApp->m_isInitialized = true;
+			g_app->m_isInitialized = true;
 
-			g_pApp->m_threadContexts[0].MemPool.Init();
-			g_pApp->m_threadIDs[0] = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
-			//g_pApp->m_threadContexts[0].Lock = SRWLOCK_INIT;
-			//g_pApp->m_threadContexts[0].Rng = RNG(g_pApp->m_threadIDs[0]);
+			g_app->m_memoryPools[0].Init();
+			g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+			//g_app->m_threadContexts[0].Lock = SRWLOCK_INIT;
+			//g_app->m_threadContexts[0].Rng = RNG(g_app->m_threadIDs[0]);
 		}
 	}
 
@@ -1028,28 +1032,33 @@ namespace ZetaRay
 			// game loop
 			else
 			{
-				if (!g_pApp->m_isActive)
+				if (!g_app->m_isActive)
 				{
 					Sleep(16);
 					continue;
 				}
 
-				// help out while there are unfinished tasks from the previous frame
-				bool success = g_pApp->m_mainThreadPool.TryFlush();
+				// help out while there are (non-background) unfinished tasks from the previous frame
+				bool success = g_app->m_workerThreadPool.TryFlush();
 
 				// don't block the message-handling thread
 				if (!success)
 					continue;
 
-				if (g_pApp->m_backgroundThreadPool.IsEmpty())
-					RejoinBackgroundMemPoolsToMain();
-
 				// begin frame
-				g_pApp->m_renderer.BeginFrame();
-				g_pApp->m_timer.Tick();
+				g_app->m_renderer.BeginFrame();
+				g_app->m_timer.Tick();
 
-				// at this point, we know all the (CPU) tasks from the previous frame are done
-				g_pApp->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
+				// at this point, all worker tasks from the previous frame are done (GPU may still be executing those though)
+				g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
+
+				g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
+				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				g_app->m_frameMemory.Reset();		// set the offset to 0; essentially freeing the memory
+
+				// background tasks are not necessarily done 
+				if (g_app->m_backgroundThreadPool.AreAllTasksFinished())
+					RejoinBackgroundMemPoolsToWorkers();
 
 				// update app
 				{
@@ -1073,7 +1082,7 @@ namespace ZetaRay
 
 					auto h0 = sceneRendererTS.EmplaceTask("ResourceUploadSubmission", []()
 						{
-							g_pApp->m_renderer.SubmitResourceCopies();
+							g_app->m_renderer.SubmitResourceCopies();
 						});
 
 					// make sure resource submission runs after everything else
@@ -1097,25 +1106,25 @@ namespace ZetaRay
 				// make sure all updates are finished before moving to rendering
 				success = false;
 				while (!success)
-					success = g_pApp->m_mainThreadPool.TryFlush();
+					success = g_app->m_workerThreadPool.TryFlush();
 
-				g_pApp->m_frameMotion.Reset();
+				g_app->m_frameMotion.Reset();
 
 				// render
 				{
 					TaskSet renderTS;
 					TaskSet endFrameTS;
 
-					g_pApp->m_scene.Render(renderTS);
+					g_app->m_scene.Render(renderTS);
 					renderTS.Sort();
 
 					// end-frame
 					{
-						g_pApp->m_renderer.EndFrame(endFrameTS);
+						g_app->m_renderer.EndFrame(endFrameTS);
 
 						endFrameTS.EmplaceTask("Scene::Recycle", []()
 							{
-								g_pApp->m_scene.Recycle();
+								g_app->m_scene.Recycle();
 							});
 
 						endFrameTS.Sort();
@@ -1129,7 +1138,7 @@ namespace ZetaRay
 					Submit(ZetaMove(endFrameTS));
 				}
 
-				g_pApp->m_mainThreadPool.PumpUntilEmpty();
+				g_app->m_workerThreadPool.PumpUntilEmpty();
 			}
 		}
 		
@@ -1142,29 +1151,74 @@ namespace ZetaRay
 		PostQuitMessage(0);
 	}
 
+	void* App::AllocateFromFrameAllocator(size_t size, size_t alignment) noexcept
+	{
+		alignment = std::max(alignof(std::max_align_t), alignment);
+
+		// at most alignment - 1 extra bytes are required
+		Assert(size + alignment - 1 <= FrameMemory::BLOCK_SIZE, "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
+
+		const int threadIdx = GetThreadIdx();
+		Assert(threadIdx != -1, "thread idx was not found");
+
+		// current memory block has enough space
+		int allocIdx = g_app->m_threadFrameAllocIndices[threadIdx];
+
+		// first time in this frame
+		if (allocIdx != -1)
+		{
+			FrameMemory::MemoryBlock& block = g_app->m_frameMemory.GetAndInitIfEmpty(allocIdx);
+
+			const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
+			const uintptr_t ret = Math::AlignUp(start + block.Offset, alignment);
+			const uintptr_t startOffset = ret - start;
+
+			if (startOffset + size < FrameMemory::BLOCK_SIZE)
+			{
+				block.Offset = startOffset + size;
+				return reinterpret_cast<void*>(ret);
+			}
+		}
+
+		// allocate/reuse a new block
+		allocIdx = g_app->m_currFrameAllocIndex.fetch_add(1, std::memory_order_relaxed);
+		g_app->m_threadFrameAllocIndices[threadIdx] = allocIdx;
+		FrameMemory::MemoryBlock& block = g_app->m_frameMemory.GetAndInitIfEmpty(allocIdx);
+		Assert(block.Offset == 0, "block offset should be initially 0");
+
+		const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
+		const uintptr_t ret = Math::AlignUp(start, alignment);
+		const uintptr_t startOffset = ret - start;
+
+		Assert(startOffset + size < FrameMemory::BLOCK_SIZE, "should never happen.");
+		block.Offset = startOffset + size;
+
+		return reinterpret_cast<void*>(ret);
+	}
+
 	void* App::AllocateFromMemoryPool(size_t size, size_t alignment) noexcept
 	{
 		//return malloc(size);
 
 		const int idx = GetThreadIdx();
 		Assert(idx != -1, "thread idx was not found");
-		void* mem = g_pApp->m_threadContexts[idx].MemPool.AllocateAligned(size, alignment);
+		void* mem = g_app->m_memoryPools[idx].AllocateAligned(size, alignment);
 
 		return mem;
 	}
 
 	void App::FreeMemoryPool(void* mem, size_t size, size_t alignment) noexcept
 	{
-		//free(pMem);
+		//free(mem);
 
 		const int idx = GetThreadIdx();
 		Assert(idx != -1, "thread idx was not found");
-		g_pApp->m_threadContexts[idx].MemPool.FreeAligned(mem, size, alignment);
+		g_app->m_memoryPools[idx].FreeAligned(mem, size, alignment);
 	}
 
 	int App::RegisterTask() noexcept
 	{
-		int idx = g_pApp->m_currTaskSignalIdx.fetch_add(1, std::memory_order_relaxed);
+		int idx = g_app->m_currTaskSignalIdx.fetch_add(1, std::memory_order_relaxed);
 		Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME, "number of task signals exceeded MAX_NUM_TASKS_PER_FRAME");
 
 		return idx;
@@ -1173,19 +1227,19 @@ namespace ZetaRay
 	void App::TaskFinalizedCallback(int handle, int indegree) noexcept
 	{
 		Assert(indegree > 0, "unnecessary call.");
-		const int c = g_pApp->m_currTaskSignalIdx.load(std::memory_order_relaxed);
+		const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
 		Assert(handle < c, "received handle %d while #handles for current frame is %d", c);
 
-		g_pApp->m_registeredTasks[handle].Indegree.store(indegree, std::memory_order_release);
-		g_pApp->m_registeredTasks[handle].BlockFlag.store(true, std::memory_order_release);
+		g_app->m_registeredTasks[handle].Indegree.store(indegree, std::memory_order_release);
+		g_app->m_registeredTasks[handle].BlockFlag.store(true, std::memory_order_release);
 	}
 
 	void App::WaitForAdjacentHeadNodes(int handle) noexcept
 	{
-		const int c = g_pApp->m_currTaskSignalIdx.load(std::memory_order_relaxed);
+		const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
 		Assert(handle >= 0 && handle < c, "received handle %d while #handles for current frame is %d", c);
 
-		auto& taskSignal = g_pApp->m_registeredTasks[handle];
+		auto& taskSignal = g_app->m_registeredTasks[handle];
 		const int indegree = taskSignal.Indegree.load(std::memory_order_acquire);
 		Assert(indegree >= 0, "invalid task indegree");
 
@@ -1202,7 +1256,7 @@ namespace ZetaRay
 		{
 			int handle = taskIDs[i];
 
-			auto& taskSignal = g_pApp->m_registeredTasks[handle];
+			auto& taskSignal = g_app->m_registeredTasks[handle];
 			const int n = taskSignal.Indegree.fetch_sub(1, std::memory_order_acquire);
 
 			// this was the last dependency, unblock the task
@@ -1217,47 +1271,47 @@ namespace ZetaRay
 	void App::Submit(Task&& t) noexcept
 	{
 		Assert(t.GetPriority() == TASK_PRIORITY::NORMAL, "Background task is not allowed to be executed in main thread-pool");
-		g_pApp->m_mainThreadPool.Enqueue(ZetaMove(t));
+		g_app->m_workerThreadPool.Enqueue(ZetaMove(t));
 	}
 
 	void App::Submit(TaskSet&& ts) noexcept
 	{
-		g_pApp->m_mainThreadPool.Enqueue(ZetaMove(ts));
+		g_app->m_workerThreadPool.Enqueue(ZetaMove(ts));
 	}
 
 	void App::SubmitBackground(Task&& t) noexcept
 	{
 		Assert(t.GetPriority() == TASK_PRIORITY::BACKGRUND, "Normal task is not allowed to be executed in background thread-pool");
-		g_pApp->m_backgroundThreadPool.Enqueue(ZetaMove(t));
+		g_app->m_backgroundThreadPool.Enqueue(ZetaMove(t));
 	}
 
-	void App::FlushMainThreadPool() noexcept
+	void App::FlushWorkerThreadPool() noexcept
 	{
 		bool success = false;
 		while (!success)
-			success = g_pApp->m_mainThreadPool.TryFlush();
+			success = g_app->m_workerThreadPool.TryFlush();
 	}
 
 	void App::FlushAllThreadPools() noexcept
 	{
 		bool success = false;
 		while (!success)
-			success = g_pApp->m_mainThreadPool.TryFlush();
+			success = g_app->m_workerThreadPool.TryFlush();
 
 		success = false;
 		while (!success)
-			success = g_pApp->m_backgroundThreadPool.TryFlush();
+			success = g_app->m_backgroundThreadPool.TryFlush();
 	}
 
-	Renderer& App::GetRenderer() noexcept { return g_pApp->m_renderer; }
-	SceneCore& App::GetScene() noexcept { return g_pApp->m_scene; }
-	const Camera& App::GetCamera() noexcept { return g_pApp->m_camera; }
-	int App::GetNumMainThreads() noexcept { return g_pApp->m_processorCoreCount; }
+	Renderer& App::GetRenderer() noexcept { return g_app->m_renderer; }
+	SceneCore& App::GetScene() noexcept { return g_app->m_scene; }
+	const Camera& App::GetCamera() noexcept { return g_app->m_camera; }
+	int App::GetNumWorkerThreads() noexcept { return g_app->m_processorCoreCount; }
 	int App::GetNumBackgroundThreads() noexcept { return AppData::NUM_BACKGROUND_THREADS; }
-	uint32_t App::GetDPI() noexcept { return g_pApp->m_dpi; }
-	float App::GetUpscalingFactor() noexcept { return g_pApp->m_upscaleFactor; }
-	bool App::IsFullScreen() noexcept { return g_pApp->m_isFullScreen; }
-	const App::Timer& App::GetTimer() noexcept { return g_pApp->m_timer; }
+	uint32_t App::GetDPI() noexcept { return g_app->m_dpi; }
+	float App::GetUpscalingFactor() noexcept { return g_app->m_upscaleFactor; }
+	bool App::IsFullScreen() noexcept { return g_app->m_isFullScreen; }
+	const App::Timer& App::GetTimer() noexcept { return g_app->m_timer; }
 	const char* App::GetPSOCacheDir() noexcept { return AppData::PSO_CACHE_DIR; }
 	const char* App::GetCompileShadersDir() noexcept { return AppData::COMPILED_SHADER_DIR; }
 	const char* App::GetAssetDir() noexcept { return AppData::ASSET_DIR; }
@@ -1267,109 +1321,109 @@ namespace ZetaRay
 
 	void App::SetUpscalingEnablement(bool e) noexcept
 	{
-		const float oldScaleFactor = g_pApp->m_upscaleFactor;
+		const float oldScaleFactor = g_app->m_upscaleFactor;
 
 		if (e)
-			g_pApp->m_upscaleFactor = 1.5f;
+			g_app->m_upscaleFactor = 1.5f;
 		else
-			g_pApp->m_upscaleFactor = 1.0f;
+			g_app->m_upscaleFactor = 1.0f;
 
-		if (oldScaleFactor == g_pApp->m_upscaleFactor)
+		if (oldScaleFactor == g_app->m_upscaleFactor)
 			return;
 
-		const float renderWidth = g_pApp->m_displayWidth / g_pApp->m_upscaleFactor;
-		const float renderHeight = g_pApp->m_displayHeight / g_pApp->m_upscaleFactor;
+		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
+		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
-		g_pApp->m_renderer.OnWindowSizeChanged(g_pApp->m_hwnd, (int)renderWidth, (int)renderHeight, g_pApp->m_displayWidth, g_pApp->m_displayHeight);
-		g_pApp->m_scene.OnWindowSizeChanged();
+		g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+		g_app->m_scene.OnWindowSizeChanged();
 	}
 
 	void App::LockStdOut() noexcept
 	{
-		if(g_pApp)
-			AcquireSRWLockExclusive(&g_pApp->m_stdOutLock);
+		if(g_app)
+			AcquireSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 
 	void App::UnlockStdOut() noexcept
 	{
-		if(g_pApp)
-			ReleaseSRWLockExclusive(&g_pApp->m_stdOutLock);
+		if(g_app)
+			ReleaseSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 
-	Span<uint32_t> App::GetMainThreadIDs() noexcept
+	Span<uint32_t> App::GetWorkerThreadIDs() noexcept
 	{
-		return Span(g_pApp->m_threadIDs, g_pApp->m_processorCoreCount);
+		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount);
 	}
 
 	Span<uint32_t> App::GetBackgroundThreadIDs() noexcept
 	{
-		return Span(g_pApp->m_threadIDs + g_pApp->m_processorCoreCount, AppData::NUM_BACKGROUND_THREADS);
+		return Span(g_app->m_threadIDs + g_app->m_processorCoreCount, AppData::NUM_BACKGROUND_THREADS);
 	}
 
 	Span<uint32_t> App::GetAllThreadIDs() noexcept
 	{
-		return Span(g_pApp->m_threadIDs, g_pApp->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
+		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
 	RWSynchronizedView<Vector<ParamVariant, PoolAllocator>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator>>(g_pApp->m_params, g_pApp->m_paramLock);
+		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator>>(g_app->m_params, g_app->m_paramLock);
 	}
 
 	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>> App::GetShaderReloadHandlers() noexcept
 	{
-		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>>(g_pApp->m_shaderReloadHandlers, g_pApp->m_shaderReloadLock);
+		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
 	}
 
-	RWSynchronizedView<Vector<Stat, PoolAllocator>> App::GetStats() noexcept
+	RWSynchronizedView<Vector<Stat, FrameAllocator>> App::GetStats() noexcept
 	{
-		return RWSynchronizedView<Vector<Stat, PoolAllocator>>(g_pApp->m_frameStats, g_pApp->m_statsLock);
+		return RWSynchronizedView<Vector<Stat, FrameAllocator>>(g_app->m_frameStats, g_app->m_statsLock);
 	}
 
 	void App::AddParam(ParamVariant& p) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
 
-		g_pApp->m_paramsUpdates.push_back(ParamUpdate{
+		g_app->m_paramsUpdates.push_back(ParamUpdate{
 			.P = p,
 			.Op = ParamUpdate::ADD });
 
-		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
 	void App::RemoveParam(const char* group, const char* subgroup, const char* name) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
 
 		// create a dummy ParamVariant (never exposed to outside)
 		ParamVariant dummy;
 		dummy.InitBool(group, subgroup, name, fastdelegate::FastDelegate1<const ParamVariant&>(), false);
 
-		g_pApp->m_paramsUpdates.push_back(ParamUpdate{
+		g_app->m_paramsUpdates.push_back(ParamUpdate{
 			.P = dummy,
 			.Op = ParamUpdate::REMOVE });
 
-		ReleaseSRWLockExclusive(&g_pApp->m_paramUpdateLock);
+		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
 	void App::AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_shaderReloadLock);
-		g_pApp->m_shaderReloadHandlers.emplace_back(name, dlg);
-		ReleaseSRWLockExclusive(&g_pApp->m_shaderReloadLock);
+		AcquireSRWLockExclusive(&g_app->m_shaderReloadLock);
+		g_app->m_shaderReloadHandlers.emplace_back(name, dlg);
+		ReleaseSRWLockExclusive(&g_app->m_shaderReloadLock);
 	}
 
 	void App::RemoveShaderReloadHandler(const char* name) noexcept
 	{
 		uint64_t id = XXH3_64bits(name, std::min(ShaderReloadHandler::MAX_LEN, (int)strlen(name) + 1));
 
-		AcquireSRWLockExclusive(&g_pApp->m_shaderReloadLock);
+		AcquireSRWLockExclusive(&g_app->m_shaderReloadLock);
 		size_t i = 0;
 		bool found = false;
 
-		for (i = 0; i < g_pApp->m_shaderReloadHandlers.size(); i++)
+		for (i = 0; i < g_app->m_shaderReloadHandlers.size(); i++)
 		{
-			if (g_pApp->m_shaderReloadHandlers[i].ID == id)
+			if (g_app->m_shaderReloadHandlers[i].ID == id)
 			{
 				found = true;
 				break;
@@ -1377,49 +1431,49 @@ namespace ZetaRay
 		}
 
 		if (found)
-			g_pApp->m_shaderReloadHandlers.erase(i);
+			g_app->m_shaderReloadHandlers.erase(i);
 
-		ReleaseSRWLockExclusive(&g_pApp->m_shaderReloadLock);
+		ReleaseSRWLockExclusive(&g_app->m_shaderReloadLock);
 	}
 
 	void App::AddFrameStat(const char* group, const char* name, int i) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
-		g_pApp->m_frameStats.emplace_back(group, name, i);
-		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
+		AcquireSRWLockExclusive(&g_app->m_statsLock);
+		g_app->m_frameStats.emplace_back(group, name, i);
+		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
 	void App::AddFrameStat(const char* group, const char* name, uint32_t u) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
-		g_pApp->m_frameStats.emplace_back(group, name, u);
-		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
+		AcquireSRWLockExclusive(&g_app->m_statsLock);
+		g_app->m_frameStats.emplace_back(group, name, u);
+		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
 	void App::AddFrameStat(const char* group, const char* name, float f) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
-		g_pApp->m_frameStats.emplace_back(group, name, f);
-		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
+		AcquireSRWLockExclusive(&g_app->m_statsLock);
+		g_app->m_frameStats.emplace_back(group, name, f);
+		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
 	void App::AddFrameStat(const char* group, const char* name, uint64_t u) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
-		g_pApp->m_frameStats.emplace_back(group, name, u);
-		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
+		AcquireSRWLockExclusive(&g_app->m_statsLock);
+		g_app->m_frameStats.emplace_back(group, name, u);
+		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
 	void App::AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept
 	{
-		AcquireSRWLockExclusive(&g_pApp->m_statsLock);
-		g_pApp->m_frameStats.emplace_back(group, name, num, total);
-		ReleaseSRWLockExclusive(&g_pApp->m_statsLock);
+		AcquireSRWLockExclusive(&g_app->m_statsLock);
+		g_app->m_frameStats.emplace_back(group, name, num, total);
+		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
 	Span<float> App::GetFrameTimeHistory() noexcept
 	{
-		auto& frameStats = g_pApp->m_frameTime;
+		auto& frameStats = g_app->m_frameTime;
 		return frameStats.FrameTimeHist;
 	}
 }

@@ -66,7 +66,7 @@ namespace ZetaRay::Core
 			uint32_t Count;
 		};
 
-		Util::SmallVector<PendingDescTable, App::PoolAllocator> m_pending;
+		Util::SmallVector<PendingDescTable, App::FrameAllocator> m_pending;
 
 		ComPtr<ID3D12Fence> m_fence;
 
@@ -114,13 +114,13 @@ namespace ZetaRay::Core
 			std::swap(m_descHeap, other.m_descHeap);
 		}
 
-		inline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const noexcept
+		D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const noexcept
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out-of-bounds");
 			return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
 		}
 		
-		inline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const noexcept
+		D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const noexcept
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out-of-bounds");
 			Assert(m_descHeap->IsShaderVisible(), "This descriptor doesn't belong to a shader-visible heap.");
@@ -130,7 +130,7 @@ namespace ZetaRay::Core
 		uint32_t GetNumDescriptors() const { return m_numDescriptors; };
 		
 		// Offset to tje beginning of this desc. table in the GPU descriptor heap
-		inline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const noexcept
+		uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const noexcept
 		{
 			Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
 			Assert(offset < m_numDescriptors, "Descriptor offset is out-of-bounds");

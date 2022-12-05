@@ -27,7 +27,7 @@ namespace ZetaRay::Core
 			: Val(u)
 		{}
 
-		inline bool IsValid() { return Val != -1; }
+		bool IsValid() { return Val != -1; }
 
 		int Val = -1;
 	};
@@ -111,7 +111,7 @@ namespace ZetaRay::Core
 
 		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
 		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
-		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::PoolAllocator>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
+		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
 		void InsertResourceBarriers(Util::Span<RenderNodeHandle> mapping) noexcept;
 
 #ifdef _DEBUG
@@ -204,9 +204,9 @@ namespace ZetaRay::Core
 			{
 				Indegree = 0;
 				BatchIdx = -1;
-				Inputs.clear();
-				Outputs.clear();
-				Barriers.clear();
+				Inputs.free_memory();
+				Outputs.free_memory();
+				Barriers.free_memory();
 				HasUnsupportedBarrier = false;
 				CompletionFence = -1;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
@@ -221,9 +221,9 @@ namespace ZetaRay::Core
 				Dlg = dlg;
 				Indegree = 0;
 				BatchIdx = -1;
-				Inputs.clear();
-				Outputs.clear();
-				Barriers.clear();
+				Inputs.free_memory();
+				Outputs.free_memory();
+				Barriers.free_memory();
 				HasUnsupportedBarrier = false;
 				CompletionFence = -1;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
@@ -242,9 +242,11 @@ namespace ZetaRay::Core
 			static constexpr int MAX_NAME_LENGTH = 16;
 			char Name[MAX_NAME_LENGTH];
 
-			Util::SmallVector<Dependency, App::PoolAllocator, 2> Inputs;
-			Util::SmallVector<Dependency, App::PoolAllocator, 1> Outputs;
-			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::PoolAllocator> Barriers;
+			// Due to usage of FrameAllocator, capacity must be set to zero manually
+			// in each frame, otherwise it might reuse previous frame's temp memory
+			Util::SmallVector<Dependency, App::FrameAllocator, 2> Inputs;
+			Util::SmallVector<Dependency, App::FrameAllocator, 1> Outputs;
+			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator> Barriers;
 
 			uint32_t OutputMask = 0;
 			int Indegree = 0;

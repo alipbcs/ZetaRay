@@ -8,16 +8,17 @@
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::App;
+using namespace ZetaRay::Util;
 
 namespace
 {
-	__forceinline int FindThreadIdx(uint32_t* threadIds, int n) noexcept
+	__forceinline int FindThreadIdx(Span<THREAD_ID_TYPE> threadIds) noexcept
 	{
 		int idx = -1;
 
-		for (int i = 0; i < n; i++)
+		for (int i = 0; i < threadIds.size(); i++)
 		{
-			if (threadIds[i] == std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id()))
+			if (threadIds[i] == std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
 			{
 				idx = i;
 				break;
@@ -117,7 +118,7 @@ void ThreadPool::Shutdown() noexcept
 
 void ThreadPool::Enqueue(Task&& t) noexcept
 {
-	const int idx = FindThreadIdx(m_appThreadIds, m_totalNumThreads);
+	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
 	bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[idx], ZetaMove(t));
@@ -135,7 +136,7 @@ void ThreadPool::Enqueue(TaskSet&& ts) noexcept
 	m_numTasksInQueue.fetch_add(ts.GetSize(), std::memory_order_release);
 	auto tasks = ts.GetTasks();
 
-	const int idx = FindThreadIdx(m_appThreadIds, m_totalNumThreads);
+	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
 	bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], std::make_move_iterator(tasks.data()), tasks.size());
@@ -144,10 +145,10 @@ void ThreadPool::Enqueue(TaskSet&& ts) noexcept
 
 void ThreadPool::PumpUntilEmpty() noexcept
 {
-	const int idx = FindThreadIdx(m_appThreadIds, m_totalNumThreads);
+	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
-	const uint32_t tid = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
+	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 	DeltaTimer timer;
 	Task task;
 
@@ -205,10 +206,10 @@ void ThreadPool::WorkerThread() noexcept
 {
 	while (!m_start.load(std::memory_order_acquire));
 
-	const uint32_t tid = std::bit_cast<uint32_t, std::thread::id>(std::this_thread::get_id());
+	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 	LOG("Thread %u waiting for tasks...\n", tid);
 
-	const int idx = FindThreadIdx(m_appThreadIds, m_totalNumThreads);
+	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
 	DeltaTimer timer;

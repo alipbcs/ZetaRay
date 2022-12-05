@@ -11,12 +11,6 @@ MemoryArena::MemoryArena(size_t blockSize) noexcept
 {
 }
 
-MemoryArena::~MemoryArena() noexcept
-{
-	for (auto& block : m_blocks)
-		free(block.Start);
-}
-
 MemoryArena::MemoryArena(MemoryArena&& rhs) noexcept
 	: m_blockSize(rhs.m_blockSize)
 {
@@ -48,11 +42,11 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
 	{
 		const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
 		const uintptr_t ret = Math::AlignUp(start + block.Offset, alignment);
-		const uintptr_t nextOffset = ret - start;
+		const uintptr_t startOffset = ret - start;
 
-		if (nextOffset + size < block.Size)
+		if (startOffset + size < block.Size)
 		{
-			block.Offset = nextOffset + size;
+			block.Offset = startOffset + size;
 
 #ifdef _DEBUG
 			m_numAllocs++;
@@ -80,5 +74,24 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
 	m_blocks.push_front(ZetaMove(memBlock));
 
 	return reinterpret_cast<void*>(ret);
+}
+
+size_t MemoryArena::TotalSize() const
+{
+	size_t sum = 0;
+
+	for (auto& block : m_blocks)
+		sum += block.Size;
+
+	return sum;
+}
+
+void MemoryArena::Reset() noexcept
+{
+	while (m_blocks.size() > 1)
+		m_blocks.pop_back();
+
+	if (!m_blocks.empty())
+		m_blocks[0].Offset = 0;
 }
 

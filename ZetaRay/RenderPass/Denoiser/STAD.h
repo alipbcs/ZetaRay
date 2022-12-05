@@ -100,7 +100,7 @@ namespace ZetaRay::RenderPass
 		static constexpr size_t NUM_CONSTS = std::max(sizeof(cbSTADSpatialFilter) / sizeof(DWORD), 
 			sizeof(cbSTADTemporalFilter) / sizeof(DWORD));
 
-		inline static RpObjects s_rpObjs;
+		RpObjects s_rpObjs;
 
 		struct ResourceFormats
 		{
@@ -150,7 +150,7 @@ namespace ZetaRay::RenderPass
 		void FilterRadiusBaseCallback(const Support::ParamVariant& p) noexcept;
 		void FilterRadiusScaleCallback(const Support::ParamVariant& p) noexcept;
 
-		inline static const char* COMPILED_CS[(int)SHADERS::COUNT] =
+		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
 		{
 			"STAD_TemporalFilter_cs.cso",
 			"STAD_SpatialFilter_cs.cso"
