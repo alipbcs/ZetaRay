@@ -1118,6 +1118,24 @@ void Direct3DHelper::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DE
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
+void Direct3DHelper::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT stride, UINT numElements) noexcept
+{
+    auto* res = const_cast<DefaultHeapBuffer&>(buff).GetResource();
+    Assert(res, "Buffer hasn't been initialized.");
+    Assert((stride & (4 - 1)) == 0, "Stride must be a multiple of 4.");
+
+    const uint32_t byteWidth = stride * numElements;
+
+    D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
+    uavDesc.ViewDimension = D3D12_UAV_DIMENSION_BUFFER;
+    uavDesc.Format = DXGI_FORMAT_R32_TYPELESS;
+    uavDesc.Buffer.NumElements = byteWidth >> 2;    // should be equal to number of 4-byte (unsigned) integers
+    uavDesc.Buffer.Flags = D3D12_BUFFER_UAV_FLAG_RAW;
+
+    auto* device = App::GetRenderer().GetDevice();
+    device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
+}
+
 void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
 {

@@ -5,12 +5,14 @@
 #include "../../Scene/SceneRenderer/SceneRenderer.h"
 #include "../../Math/MatrixFuncs.h"
 #include "../../Scene/SceneCore.h"
+#include "../../Model/Mesh.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Util;
+using namespace ZetaRay::Model;
 
 //--------------------------------------------------------------------------------------
 // GBufferPass
@@ -19,28 +21,58 @@ using namespace ZetaRay::Util;
 GBufferPass::GBufferPass() noexcept
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
-	// instance buffer
+	// frame constants
 	m_rootSig.InitAsCBV(0,							// root idx
 		0,											// register num
-		0,											// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_VERTEX);
-
-	// frame constants
-	m_rootSig.InitAsCBV(1,							// root idx
-		1,											// register num
 		0,											// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		D3D12_SHADER_VISIBILITY_ALL,
 		SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME);
 
+	// root constants
+	m_rootSig.InitAsConstants(1,		// root idx
+		NUM_CONSTS,						// num DWORDs
+		1,								// register num
+		0);								// register space
+
+	// mesh buffer
+	m_rootSig.InitAsBufferSRV(2,						// root idx
+		0,												// register
+		0,												// register space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC);		// flags
+
+	// scene VB
+	m_rootSig.InitAsBufferSRV(3,						// root idx
+		1,												// register
+		0,												// register space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
+		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+		SceneRenderer::SCENE_VERTEX_BUFFER);
+
+	// scene IB
+	m_rootSig.InitAsBufferSRV(4,						// root idx
+		2,												// register
+		0,												// register space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
+		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+		SceneRenderer::SCENE_INDEX_BUFFER);
+
 	// material buffer
-	m_rootSig.InitAsBufferSRV(2,					// root idx
-		0,											// register num
+	m_rootSig.InitAsBufferSRV(5,					// root idx
+		3,											// register num
 		0,											// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_PIXEL,
+		D3D12_SHADER_VISIBILITY_ALL,
 		SceneRenderer::MATERIAL_BUFFER);
+
+	// indirect args
+	m_rootSig.InitAsBufferUAV(6,					// root idx
+		0,											// register num
+		0,											// register space
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE, 
+		D3D12_SHADER_VISIBILITY_ALL,
+		nullptr,
+		true);
 }
 
 GBufferPass::~GBufferPass() noexcept
@@ -51,8 +83,7 @@ GBufferPass::~GBufferPass() noexcept
 void GBufferPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept
 {
 	auto& renderer = App::GetRenderer();
-	auto& scene = App::GetScene();
-	
+
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -65,145 +96,216 @@ void GBufferPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept
 	auto samplers = App::GetRenderer().GetStaticSamplers();
 	s_rpObjs.Init("GBufferPass", m_rootSig, samplers.size(), samplers.data(), flags);
 
-	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
+	// command signature
+	D3D12_INDIRECT_ARGUMENT_DESC indirectCallArgs[2];
+	indirectCallArgs[0].Type = D3D12_INDIRECT_ARGUMENT_TYPE_CONSTANT;
+	indirectCallArgs[0].Constant.RootParameterIndex = 1;
+	indirectCallArgs[0].Constant.Num32BitValuesToSet = sizeof(cbGBuffer) / sizeof(DWORD);
+	indirectCallArgs[0].Constant.DestOffsetIn32BitValues = 0;
+
+	indirectCallArgs[1].Type = D3D12_INDIRECT_ARGUMENT_TYPE_DRAW_INDEXED;
+
+	D3D12_COMMAND_SIGNATURE_DESC desc;
+	desc.ByteStride = sizeof(CommandSig);
+	desc.NumArgumentDescs = ZetaArrayLen(indirectCallArgs);
+	desc.pArgumentDescs = indirectCallArgs;
+	desc.NodeMask = 0;
+
+	CheckHR(renderer.GetDevice()->CreateCommandSignature(&desc, s_rpObjs.m_rootSig.Get(), IID_PPV_ARGS(m_cmdSig.GetAddressOf())));
+
+	// PSOs
+	for (int i = 0; i < (int)COMPUTE_SHADERS::COUNT; i++)
+	{
+		m_computePsos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
+			s_rpObjs.m_rootSig.Get(),
+			COMPILED_CS[i]);
+	}
+
+	m_graphicsPso = s_rpObjs.m_psoLib.GetGraphicsPSO((int)COMPUTE_SHADERS::COUNT, psoDesc, s_rpObjs.m_rootSig.Get(), 
+		COMPILED_VS[0], COMPILED_PS[0]);
+
+	// create a zero-initialized buffer for resetting the counter
+	m_zeroBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("Zero", 
+		sizeof(uint32_t), 
+		D3D12_RESOURCE_STATE_COMMON, 
+		false, 
+		true);
 }
 
 void GBufferPass::Reset() noexcept
 {
-	if (m_pso)
+	if (m_graphicsPso)
+	{
 		s_rpObjs.Clear();
+		m_graphicsPso = nullptr;
+	}
 
-	m_perDrawCallArgs.free_memory();
-	m_perDrawCB.Reset();
-	m_pso = nullptr;
-	//m_rootSig.Reset();
+	m_meshInstances.Reset();
+	m_indirectDrawArgs.Reset();
+	m_zeroBuffer.Reset();
+	m_maxNumDrawCallsSoFar = 0;
 
 #ifdef _DEBUG
-	memset(m_descriptors, 0, sizeof(D3D12_CPU_DESCRIPTOR_HANDLE) * SHADER_IN_DESC::COUNT);
+	memset(m_inputDescriptors, 0, sizeof(D3D12_CPU_DESCRIPTOR_HANDLE) * SHADER_IN_DESC::COUNT);
 #endif // _DEBUG
 }
 
-void GBufferPass::SetInstances(Span<InstanceData> instances) noexcept
+void GBufferPass::SetInstances(Span<MeshInstance> instances) noexcept
 {
+	m_numMeshesThisFrame = (uint32_t)instances.size();
+
+	if (m_numMeshesThisFrame == 0)
+		return;
+
 	auto& gpuMem = App::GetRenderer().GetGpuMemory();
-	constexpr size_t instanceSize = Math::AlignUp(sizeof(DrawCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-	m_perDrawCB = gpuMem.GetUploadHeapBuffer(instanceSize * instances.size(), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
+	// TODO recreating every frame can be avoided if the existing one is large enough
+	const size_t meshInsBuffsizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
+	m_meshInstances = gpuMem.GetDefaultHeapBufferAndInit("GBufferMeshInstances",
+		meshInsBuffsizeInBytes,
+		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+		false,
+		instances.data());
+
+	// avoid recreating the indirect args buffer if the existing one is large enough
+	if (m_maxNumDrawCallsSoFar < m_numMeshesThisFrame)
 	{
-		DrawCB cb;
+		m_maxNumDrawCallsSoFar = m_numMeshesThisFrame;
 
-		for (int i = 0; i < instances.size(); i++)
-		{
-			cb.CurrWorld = float3x4(instances[i].CurrToWorld);
-			cb.PrevWorld = float3x4(instances[i].PrevToWorld);
-			cb.MatID = instances[i].IdxInMatBuff;
+		// extra 4 bytes for the counter
+		m_counterBufferOffset = sizeof(CommandSig) * m_maxNumDrawCallsSoFar;
+		const size_t indDrawArgsBuffsizeInBytes = m_counterBufferOffset + sizeof(uint32_t);
 
-			m_perDrawCB.Copy(i * instanceSize, sizeof(DrawCB), &cb);
-		}
+		m_indirectDrawArgs = gpuMem.GetDefaultHeapBuffer("IndirectDrawArgs",
+			indDrawArgsBuffsizeInBytes,
+			D3D12_RESOURCE_STATE_COMMON,
+			true);
 	}
 
-	{
-		// Warning: m_perDrawCallArgs is a class member and appears to persist between frames,
-		// yet since it's using FrameAllocator for SmallVector allocations, its capacity must be
-		// set to zero before usage in each frame, otherwise it might attempt to reuse previous
-		// frame's temp memory
-		m_perDrawCallArgs.free_memory();
-		m_perDrawCallArgs.resize(instances.size());
+	// descriptor table needs to be recreated every frame
+	m_gpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((uint32_t)DESC_TABLE::COUNT);
 
-		for (int i = 0; i < instances.size(); i++)
-		{
-			m_perDrawCallArgs[i].VBStartOffsetInBytes = instances[i].VBStartOffsetInBytes;
-			m_perDrawCallArgs[i].VertexCount = instances[i].VertexCount;
-			m_perDrawCallArgs[i].IBStartOffsetInBytes = instances[i].IBStartOffsetInBytes;
-			m_perDrawCallArgs[i].IndexCount = instances[i].IndexCount;
-			//m_perDrawCallArgs[i].MeshID = instances[i].MeshID;
-			m_perDrawCallArgs[i].InstanceID = instances[i].InstanceID;
-		}
-	}
+	Direct3DHelper::CreateBufferSRV(m_meshInstances,
+		m_gpuDescTable.CPUHandle((uint32_t)DESC_TABLE::MESH_INSTANCES_SRV),
+		sizeof(MeshInstance),
+		m_numMeshesThisFrame);
+
+	Direct3DHelper::CreateRawBufferUAV(m_indirectDrawArgs,
+		m_gpuDescTable.CPUHandle((uint32_t)DESC_TABLE::INDIRECT_ARGS_UAV),
+		sizeof(CommandSig),
+		m_numMeshesThisFrame);
 }
 
 void GBufferPass::Render(CommandList& cmdList) noexcept
 {
-	//Assert(m_rtvTable->GetNumDescriptors() == SHADER_OUT::COUNT - 1, "Mismatch between #RTVs and #GBuffers");
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
-	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
-	constexpr size_t instanceSize = Math::AlignUp(sizeof(DrawCB), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
-	directCmdList.PIXBeginEvent("GBufferPass");
+	if (m_numMeshesThisFrame == 0)
+		return;
 
-	D3D12_VIEWPORT viewports[(int)SHADER_OUT::COUNT - 1] =
+	// Occlusion culling
 	{
-		App::GetRenderer().GetRenderViewport(),
-		App::GetRenderer().GetRenderViewport(),
-		App::GetRenderer().GetRenderViewport(),
-		App::GetRenderer().GetRenderViewport(),
-		App::GetRenderer().GetRenderViewport()
-	};
+		ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
-	D3D12_RECT scissors[(int)SHADER_OUT::COUNT - 1] =
+		computeCmdList.PIXBeginEvent("OcclusionCulling");
+		
+		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::OCCLUSION_CULLING]);
+
+		cbOcclussionCulling localCB;
+		localCB.NumMeshes = m_numMeshesThisFrame;
+		localCB.CounterBufferOffset = m_counterBufferOffset;
+
+		m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
+		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
+		m_rootSig.SetRootUAV(6, m_indirectDrawArgs.GetGpuVA());
+		m_rootSig.End(computeCmdList);
+
+		computeCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_RESOURCE_STATE_COPY_DEST);
+
+		// clear the counter
+		computeCmdList.CopyBufferRegion(m_indirectDrawArgs.GetResource(),
+			m_counterBufferOffset, 
+			m_zeroBuffer.GetResource(), 
+			0, 
+			sizeof(uint32_t));
+
+		computeCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numMeshesThisFrame, OCCLUSION_CULL_THREAD_GROUP_SIZE_X),
+			1, 1);
+
+		computeCmdList.PIXEndEvent();
+	}
+
+	// GBuffer
 	{
-		App::GetRenderer().GetRenderScissor(),
-		App::GetRenderer().GetRenderScissor(),
-		App::GetRenderer().GetRenderScissor(),
-		App::GetRenderer().GetRenderScissor(),
-		App::GetRenderer().GetRenderScissor()
-	};
+		GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
-	Assert(sizeof(viewports) / sizeof(D3D12_VIEWPORT) == (int)SHADER_OUT::COUNT - 1, "bug");
-	Assert(sizeof(scissors) / sizeof(D3D12_RECT) == (int)SHADER_OUT::COUNT - 1, "bug");
+		directCmdList.PIXBeginEvent("GBufferPass");
 
-	directCmdList.RSSetViewportsScissorsRects((int)SHADER_OUT::COUNT - 1, viewports, scissors);
+		directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		directCmdList.SetPipelineState(m_graphicsPso);
 
-	Assert(m_descriptors[(int)SHADER_IN_DESC::RTV].ptr > 0, "RTV hasn't been set.");
-	Assert(m_descriptors[(int)SHADER_IN_DESC::DEPTH_BUFFER].ptr > 0, "DSV hasn't been set.");
-
-	directCmdList.OMSetRenderTargets((int)SHADER_OUT::COUNT - 1, &m_descriptors[SHADER_IN_DESC::RTV],
-		true, &m_descriptors[(int)SHADER_IN_DESC::DEPTH_BUFFER]);
-	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
-	directCmdList.SetPipelineState(m_pso);
-	directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-	D3D12_VERTEX_BUFFER_VIEW vbv;
-	vbv.StrideInBytes = sizeof(Vertex);
-	
-	D3D12_INDEX_BUFFER_VIEW ibv;
-	ibv.Format = DXGI_FORMAT_R32_UINT;
-	int i = 0;
-
-	const Core::DefaultHeapBuffer& sceneVB = App::GetScene().GetMeshVB();
-	Assert(sceneVB.IsInitialized(), "VB hasn't been built yet.");
-	const auto vbGpuVa = sceneVB.GetGpuVA();
-
-	const Core::DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
-	Assert(sceneIB.IsInitialized(), "IB hasn't been built yet.");
-	const auto ibGpuVa = sceneIB.GetGpuVA();
-
-	for (auto& instance : m_perDrawCallArgs)
-	{
-		char buff[32];
-		stbsp_snprintf(buff, sizeof(buff), "Mesh_%llu", instance.InstanceID);
-		directCmdList.PIXBeginEvent(buff);
-
-		vbv.BufferLocation = vbGpuVa + instance.VBStartOffsetInBytes;
-		vbv.SizeInBytes = instance.VertexCount * sizeof(Vertex);
-
-		ibv.BufferLocation = ibGpuVa + instance.IBStartOffsetInBytes;
-		ibv.SizeInBytes = instance.IndexCount * sizeof(uint32_t);
-
-		directCmdList.IASetVertexAndIndexBuffers(vbv, ibv);
-
-		m_rootSig.SetRootCBV(0, m_perDrawCB.GetGpuVA() + i++ * instanceSize);
+		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
 		m_rootSig.End(directCmdList);
 
-		directCmdList.DrawIndexedInstanced(
-			instance.IndexCount,
-			1,
+		D3D12_VIEWPORT viewports[(int)SHADER_OUT::COUNT - 1] =
+		{
+			App::GetRenderer().GetRenderViewport(),
+			App::GetRenderer().GetRenderViewport(),
+			App::GetRenderer().GetRenderViewport(),
+			App::GetRenderer().GetRenderViewport(),
+			App::GetRenderer().GetRenderViewport()
+		};
+
+		D3D12_RECT scissors[(int)SHADER_OUT::COUNT - 1] =
+		{
+			App::GetRenderer().GetRenderScissor(),
+			App::GetRenderer().GetRenderScissor(),
+			App::GetRenderer().GetRenderScissor(),
+			App::GetRenderer().GetRenderScissor(),
+			App::GetRenderer().GetRenderScissor()
+		};
+
+		Assert(ZetaArrayLen(viewports) == (int)SHADER_OUT::COUNT - 1, "bug");
+		Assert(ZetaArrayLen(scissors) == (int)SHADER_OUT::COUNT - 1, "bug");
+
+		const Core::DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
+		Assert(sceneIB.IsInitialized(), "IB hasn't been built yet.");
+		const auto ibGpuVa = sceneIB.GetGpuVA();
+
+		D3D12_INDEX_BUFFER_VIEW ibv;
+		ibv.BufferLocation = ibGpuVa;
+		ibv.SizeInBytes = (UINT)sceneIB.GetDesc().Width;
+		ibv.Format = DXGI_FORMAT_R32_UINT;
+
+		directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		directCmdList.IASetIndexBuffer(ibv);
+		directCmdList.RSSetViewportsScissorsRects((int)SHADER_OUT::COUNT - 1, viewports, scissors);
+
+		Assert(m_inputDescriptors[(int)SHADER_IN_DESC::GBUFFERS_RTV].ptr > 0, "GBuffers RTV hasn't been set.");
+		Assert(m_inputDescriptors[(int)SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV].ptr > 0, "Depth buffer DSV hasn't been set.");
+
+		directCmdList.OMSetRenderTargets((int)SHADER_OUT::COUNT - 1, &m_inputDescriptors[SHADER_IN_DESC::GBUFFERS_RTV],
+			true, &m_inputDescriptors[(int)SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV]);
+
+		directCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
+
+		directCmdList.ExecuteIndirect(m_cmdSig.Get(),
+			m_numMeshesThisFrame,
+			m_indirectDrawArgs.GetResource(),
 			0,
-			0,
-			0);
+			m_indirectDrawArgs.GetResource(),
+			m_counterBufferOffset);
 
 		directCmdList.PIXEndEvent();
 	}
-
-	directCmdList.PIXEndEvent();
 }
+

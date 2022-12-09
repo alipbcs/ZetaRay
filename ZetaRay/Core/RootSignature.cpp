@@ -10,7 +10,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Core;
 
 RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts) noexcept
-	: m_numParams(nCBV + nSRV + nUAV + (nConsts > 0 ? 1 : 0)),
+	: m_numParams(nCBV + nSRV + nUAV + (nConsts > 0)),
 	m_numCBVs(nCBV),
 	m_numSRVs(nSRV),
 	m_numUAVs(nUAV),
@@ -27,10 +27,9 @@ RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nCons
 void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32_t registerNum,
 	uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility) noexcept
 {
-	Assert(rootIdx < m_numParams, "Root index %d is out of bound.", rootIdx);
+	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert(m_numRootConstants == numDwords, "Given number of root constants doesn't match m_numRootConstants");
 
-	//m_params[rootIdx].InitAsConstants(numDwords, registerNum, registerSpace, visibility);
 	m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
 	m_params[rootIdx].ShaderVisibility = visibility;
 	m_params[rootIdx].Constants.Num32BitValues = numDwords;
@@ -41,13 +40,12 @@ void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32
 void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
 	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
 {
-	Assert(rootIdx < m_numParams, "Root index %d is out of bound.", rootIdx);
+	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
 	Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
 	Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
 	Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
 
-	//m_params[rootIdx].InitAsConstantBufferView(registerNum, registerSpace, flag, visibility);
 	m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
 	m_params[rootIdx].ShaderVisibility = visibility;
 	m_params[rootIdx].Descriptor.ShaderRegister = registerNum;
@@ -69,13 +67,12 @@ void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t r
 void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
 	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
 {
-	Assert(rootIdx < m_numParams, "Root index %d is out of bound.", rootIdx);
+	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
 	Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
 	Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
 	Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
 
-	//m_params[rootIdx].InitAsShaderResourceView(registerNum, registerSpace, flag, visibility);
 	m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
 	m_params[rootIdx].ShaderVisibility = visibility;
 	m_params[rootIdx].Descriptor.ShaderRegister = registerNum;
@@ -97,13 +94,12 @@ void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint
 void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
 	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
 {
-	Assert(rootIdx < m_numParams, "Root index %d is out of bound.", rootIdx);
+	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
 	Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
 	Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
 	Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
 
-	//m_params[rootIdx].InitAsUnorderedAccessView(registerNum, registerSpace, flag, visibility);
 	m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
 	m_params[rootIdx].ShaderVisibility = visibility;
 	m_params[rootIdx].Descriptor.ShaderRegister = registerNum;
@@ -126,7 +122,6 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
 	UINT numStaticSamplers, const D3D12_STATIC_SAMPLER_DESC* samplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
-	//rootSigDesc.Init_1_1(NumParams(), m_params.data(), numStaticSamplers, samplers, flags);
 	rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 	rootSigDesc.Desc_1_1.NumParameters = m_numParams;
 	rootSigDesc.Desc_1_1.pParameters = m_params;
@@ -150,7 +145,7 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
 	Assert(name, "name was NULL");
 	rootSig->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(name), name);
 
-	// calculate root parameter index for root constants (if any)
+	// calculate the root parameter index for root constants (if any)
 	uint32_t u = (1 << m_numParams) - 1;		// set the first NumParams() bits to 1
 	u &= (m_rootCBVBitMap | m_rootSRVBitMap | m_rootUAVBitMap | m_globalsBitMap);
 
@@ -229,7 +224,7 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 			continue;
 
 		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root CBV in parameter %d has not been set", nextParam);
+		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root CBV in parameter %d has not been set", nextParam);
 		ctx.SetRootConstantBufferView(nextParam, m_rootDescriptors[nextParam]);
 	}
 
@@ -246,7 +241,7 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 			continue;
 
 		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root SRV in parameter %d has not been set", nextParam);
+		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root SRV in parameter %d has not been set", nextParam);
 		ctx.SetRootShaderResourceView(nextParam, m_rootDescriptors[nextParam]);
 	}
 
@@ -263,7 +258,7 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 			continue;
 
 		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root UAV in parameter %d has not been set", nextParam);
+		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root UAV in parameter %d has not been set", nextParam);
 		ctx.SetRootUnorderedAccessView(nextParam, m_rootDescriptors[nextParam]);
 	}
 
@@ -435,17 +430,3 @@ void RootSignature::End(ComputeCmdList& ctx) noexcept
 			Assert(false, "Root global was not found.");
 	}
 }
-
-/*
-void RootSignature::Reset() noexcept
-{
-	m_rootCBVBitMap = 0;
-	m_rootSRVBitMap = 0;
-	m_rootUAVBitMap = 0;
-	m_globalsBitMap = 0;
-	m_optionalBitMap = 0;
-	m_rootConstantsIdx = -1;
-	m_modifiedBitMap = 0;
-	m_modifiedGlobalsBitMap = 0;
-}
-*/

@@ -20,12 +20,13 @@ namespace ZetaRay
 #endif
 	namespace RT
 	{
-		struct Instance
+		struct MeshInstance
 		{
 			uint32_t BaseVtxOffset;
 			uint32_t BaseIdxOffset;
 			uint16_t MatID;
-			uint16_t pad;
+			uint16_t pad0;
+			uint32_t pad1;
 		};
 	}
 #ifdef __cplusplus

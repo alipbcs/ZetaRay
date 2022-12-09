@@ -57,7 +57,7 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SOBOL_SEQ);
 
-	// scrambling-tile
+	// scrambling tile
 	m_rootSig.InitAsBufferSRV(5,						// root idx
 		4,												// register
 		0,												// register-space
@@ -65,7 +65,7 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SCRAMBLING_TILE);
 
-	// ranking-tile
+	// ranking tile
 	m_rootSig.InitAsBufferSRV(6,						// root idx
 		5,												// register
 		0,												// register-space
@@ -73,7 +73,7 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SCRAMBLING_TILE);
 
-	// mesh-instance
+	// mesh buffer
 	m_rootSig.InitAsBufferSRV(7,						// root idx
 		6,												// register
 		0,												// register-space

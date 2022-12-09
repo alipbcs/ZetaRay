@@ -620,7 +620,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 {
 	SceneCore& scene = App::GetScene();
 	const size_t numInstances = scene.m_IDtoTreePos.size();
-	SmallVector<RT::Instance, App::FrameAllocator> frameInstanceData;
+	SmallVector<RT::MeshInstance, App::FrameAllocator> frameInstanceData;
 	frameInstanceData.resize(numInstances);
 
 	int currInstance = 0;
@@ -647,7 +647,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode == RT_MESH_MODE::STATIC)
 			{
-				RT::Instance instance;
+				RT::MeshInstance instance;
 				instance.MatID = mat.GpuBufferIndex();
 				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
 				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
@@ -664,7 +664,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode != RT_MESH_MODE::STATIC)
 			{
-				RT::Instance instance;
+				RT::MeshInstance instance;
 				instance.MatID = mat.GpuBufferIndex();
 				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
 				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
@@ -676,11 +676,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 	Assert(currInstance == numInstances, "bug");
 
-	// records a copy command, previous default buffer is released (but not immediately destroyed, it'll
-	// will alive for a few frames). As at the time of release, GPU hasn't finished referencing this resource,
-	// number of frames to wait until release must be greater than one.
-	size_t sizeInBytes = numInstances * sizeof(uint32_t);
-	// TODO ring buffer
+	const size_t sizeInBytes = numInstances * sizeof(RT::MeshInstance);
 	m_framesMeshInstances = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(SceneRenderer::RT_FRAME_MESH_INSTANCES,
 		sizeInBytes,
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,

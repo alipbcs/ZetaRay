@@ -31,17 +31,17 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR] };
 
-	D3D12_INPUT_ELEMENT_DESC inputElements[] =
-	{
-		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-	};
+	//D3D12_INPUT_ELEMENT_DESC inputElements[] =
+	//{
+	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	//};
 
-	D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements, .NumElements = ZetaArrayLen(inputElements) };
+	//D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements, .NumElements = ZetaArrayLen(inputElements) };
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 		NUM_RTVs,
 		rtvFormats,
 		Constants::DEPTH_BUFFER_FORMAT);
@@ -247,18 +247,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 
 	if (frameInstances.size() && !gbuffData.GBuffPass.IsInitialized())
 	{
-		D3D12_INPUT_ELEMENT_DESC inputElements[] =
-		{
-			{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-			{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-		};
-
-		D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements,
-			.NumElements = ZetaArrayLen(inputElements) };
-
-		// exclude the depth-buffer
+		// exclude the depth buffer
 		const int NUM_RTVs = GBufferData::GBUFFER::COUNT - 1;
 
 		DXGI_FORMAT rtvFormats[NUM_RTVs] = {
@@ -268,7 +257,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR] };
 
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 			NUM_RTVs,
 			rtvFormats,
 			Constants::DEPTH_BUFFER_FORMAT);
@@ -280,33 +269,43 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 	}
 
 	// fill in the draw arguments
-	SmallVector<GBufferPass::InstanceData, App::FrameAllocator> instances;
+	SmallVector<MeshInstance, App::FrameAllocator> instances;
 	instances.resize(frameInstances.size());
 
-	size_t currInstance = 0;
-
-	for (auto instanceID : frameInstances)
 	{
-		const uint64_t meshID = scene.GetMeshIDForInstance(instanceID);
-		const TriangleMesh mesh = scene.GetMesh(meshID);
-		const Material mat = scene.GetMaterial(mesh.m_materialID);
+		size_t currInstance = 0;
 
-		instances[currInstance].VertexCount = mesh.m_numVertices;
-		instances[currInstance].VBStartOffsetInBytes = mesh.m_vtxBuffStartOffset * sizeof(Vertex);
-		instances[currInstance].IndexCount = mesh.m_numIndices;
-		instances[currInstance].IBStartOffsetInBytes = mesh.m_idxBuffStartOffset * sizeof(uint32_t);
-		instances[currInstance].IdxInMatBuff = mat.GpuBufferIndex();
-		instances[currInstance].PrevToWorld = scene.GetPrevToWorld(instanceID);
-		instances[currInstance].CurrToWorld = scene.GetToWorld(instanceID);
-		instances[currInstance].InstanceID = instanceID;
+		for (auto instanceID : frameInstances)
+		{
+			instances[currInstance].PrevWorld = float3x4(scene.GetPrevToWorld(instanceID));
+			instances[currInstance].CurrWorld = float3x4(scene.GetToWorld(instanceID));
 
-		currInstance++;
+			currInstance++;
+		}
+	}
+
+	{
+		size_t currInstance = 0;
+
+		for (auto instanceID : frameInstances)
+		{
+			const uint64_t meshID = scene.GetMeshIDForInstance(instanceID);
+			const TriangleMesh mesh = scene.GetMesh(meshID);
+			const Material mat = scene.GetMaterial(mesh.m_materialID);
+
+			instances[currInstance].IndexCount = mesh.m_numIndices;
+			instances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
+			instances[currInstance].BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
+			instances[currInstance].IdxInMatBuff = mat.GpuBufferIndex();
+
+			currInstance++;
+		}
 	}
 
 	// these change every frame
-	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::RTV,
+	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::GBUFFERS_RTV,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(0));
-	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::DEPTH_BUFFER,
+	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
 
 	gbuffData.GBuffPass.SetInstances(instances);
@@ -322,7 +321,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::EMISSIVE_COLOR,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-	gbuffData.ClearPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::DEPTH_BUFFER,
+	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::DEPTH_BUFFER,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
 
 	// additionally clear the HDR light accumulation texture (if initialized)

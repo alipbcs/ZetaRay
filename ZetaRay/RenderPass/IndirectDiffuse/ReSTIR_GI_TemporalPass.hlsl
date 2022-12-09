@@ -27,7 +27,7 @@ StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<RT::Instance> g_frameMeshData : register(t6);
+StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t6);
 StructuredBuffer<Vertex> g_sceneVertices : register(t7);
 StructuredBuffer<uint> g_sceneIndices : register(t8);
 
@@ -127,7 +127,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out Hit
 
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
-		const RT::Instance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
+		const RT::MeshInstance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
 		//const uint16_t meshDescHeapIdx = (uint16_t) (packedMeshData >> 16);
 
 		//StructuredBuffer<Vertex> VB = ResourceDescriptorHeap[meshDescHeapIdx];

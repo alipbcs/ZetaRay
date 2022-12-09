@@ -43,9 +43,6 @@ namespace ZetaRay::Core
 
 	struct RootSignature
 	{
-		//static_assert((nCBV + nSRV + nUAV + nGlobs) * 2 + nConsts < 64, "A maximum of 64 DWORDS can be present at root signature.");
-		//inline static const int NumParams = nCBV + nSRV + nUAV + nGlobs + (nConsts > 0 ? 1 : 0);
-
 		RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts) noexcept;
 		~RootSignature() noexcept = default;
 
@@ -83,8 +80,6 @@ namespace ZetaRay::Core
 		void End(GraphicsCmdList& ctx) noexcept;
 		void End(ComputeCmdList& ctx) noexcept;
 
-		//void Reset() noexcept;
-
 	private:
 		static constexpr int MAX_NUM_PARAMS = 10;
 		static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 9;
@@ -112,7 +107,7 @@ namespace ZetaRay::Core
 		// Bitmap indicating which root params are optional
 		uint32_t m_optionalBitMap = 0;
 
-		// Index of the root constants param (there can be at most one root constants param)
+		// Index of the root constants param (there can be at most one)
 		int m_rootConstantsIdx = -1;
 
 		// root descriptors

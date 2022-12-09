@@ -233,6 +233,16 @@ namespace ZetaRay::Core
 		{
 			m_cmdList->CopyRaytracingAccelerationStructure(dest, src, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
 		}
+
+		ZetaInline void ExecuteIndirect(ID3D12CommandSignature* cmdSig,
+			UINT maxCmdCount,
+			ID3D12Resource* argBuffer,
+			UINT64 argBufferOffset,
+			ID3D12Resource* countBuffer,
+			UINT64 countBufferOffset) noexcept
+		{
+			m_cmdList->ExecuteIndirect(cmdSig, maxCmdCount, argBuffer, argBufferOffset, countBuffer, countBufferOffset);
+		}
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -307,6 +317,11 @@ namespace ZetaRay::Core
 			UINT startSlot = 0) noexcept
 		{
 			m_cmdList->IASetVertexBuffers(startSlot, 1, &vbv);
+			m_cmdList->IASetIndexBuffer(&ibv);
+		}
+
+		ZetaInline void IASetIndexBuffer(const D3D12_INDEX_BUFFER_VIEW& ibv) noexcept
+		{
 			m_cmdList->IASetIndexBuffer(&ibv);
 		}
 

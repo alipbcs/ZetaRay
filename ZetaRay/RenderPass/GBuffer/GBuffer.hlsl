@@ -6,16 +6,19 @@
 #include "GBuffer_Common.h"
 
 //--------------------------------------------------------------------------------------
-// Helper structs
+// Root Signature
 //--------------------------------------------------------------------------------------
 
-struct VSIn
-{
-	float3 PosL : POSITION;
-	float3 NormalL : NORMAL;
-	float2 TexUV : TEXUV;
-	float3 TangentU : TANGENT;
-};
+ConstantBuffer<cbFrameConstants> g_frame : register(b0);
+ConstantBuffer<cbGBuffer> g_local : register(b1);
+StructuredBuffer<MeshInstance> g_meshes : register(t0);
+StructuredBuffer<Vertex> g_sceneVertices : register(t1);
+StructuredBuffer<uint> g_sceneIndices : register(t2);
+StructuredBuffer<Material> g_materials : register(t3);
+
+//--------------------------------------------------------------------------------------
+// Helper structs
+//--------------------------------------------------------------------------------------
 
 struct VSOut
 {
@@ -29,7 +32,7 @@ struct VSOut
 	nointerpolation uint MatID : MATERIALID;
 };
 
-struct GBUFFER_OUT
+struct PS_OUT
 {
 	half4 BaseColor : SV_Target0;
 	half2 Normal : SV_Target1;
@@ -39,28 +42,19 @@ struct GBUFFER_OUT
 };
 
 //--------------------------------------------------------------------------------------
-// Root Signature
-//--------------------------------------------------------------------------------------
-
-ConstantBuffer<DrawCB> g_instance : register(b0, space0);
-ConstantBuffer<cbFrameConstants> g_frame : register(b1, space0);
-StructuredBuffer<Material> g_materials : register(t0, space0);
-
-//--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, half roughness,
+PS_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, half roughness,
 	half2 motionVec)
 {
-	GBUFFER_OUT psout;
+	PS_OUT psout;
 	
 	psout.BaseColor = baseColor;
 	psout.Emissive = half4(emissive, 1);
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormalAsHalf2(sn);
 	psout.MetallicRoughness = half2(metalness, roughness);
 	psout.MotionVec = motionVec;
-	//psout.Curvature = surfaceSpreadAngle;
 
 	return psout;
 }
@@ -69,30 +63,33 @@ GBUFFER_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalne
 // Main
 //--------------------------------------------------------------------------------------
 
-VSOut mainVS(VSIn vsin)
+VSOut mainVS(uint vtxID : SV_VertexID)
 {
+	MeshInstance mesh = g_meshes[g_local.MeshIdxinBuff];
+	Vertex vtx = g_sceneVertices[mesh.BaseVtxOffset + vtxID];
+
 	VSOut vsout;
 		
-	float3 posW = mul(g_instance.CurrWorld, float4(vsin.PosL, 1.0f));
+	float3 posW = mul(mesh.CurrWorld, float4(vtx.PosL, 1.0f));
 	float4 posH = mul(float4(posW, 1.0f), g_frame.CurrViewProj);
 
-	float4 prevPosH = float4(mul(g_instance.PrevWorld, float4(vsin.PosL, 1.0f)), 1.0f);
+	float4 prevPosH = float4(mul(mesh.PrevWorld, float4(vtx.PosL, 1.0f)), 1.0f);
 	prevPosH = mul(prevPosH, g_frame.PrevViewProj);
 		
 	// W (4x3)
 	// W^T (3x4) = g_instance.CurrWorld
 	// (W^-1)^T = (W^T)^-1   (assuming W is invertible)
 	// (W^T)^-1 = (g_instance.CurrWorld)^-1
-	float3x3 worldInvT = Math::Inverse(((float3x3) g_instance.CurrWorld));
+	float3x3 worldInvT = Math::Inverse(((float3x3) mesh.CurrWorld));
 	
 	vsout.PosW = posW;
 	vsout.PosSS = posH;
 	vsout.PosH = posH;
 	vsout.PosHPrev = prevPosH;
-	vsout.NormalW = mul(vsin.NormalL, worldInvT);
-	vsout.TexUV = vsin.TexUV;
-	vsout.TangentW = mul((float3x3) g_instance.CurrWorld, vsin.TangentU);
-	vsout.MatID = g_instance.MatID;
+	vsout.NormalW = mul(vtx.NormalL, worldInvT);
+	vsout.TexUV = vtx.TexUV;
+	vsout.TangentW = mul((float3x3) mesh.CurrWorld, vtx.TangentU);
+	vsout.MatID = mesh.IdxInMatBuff;
 	
 	return vsout;
 }
@@ -117,7 +114,7 @@ float3 GetCheckerboardColor(float2 uv)
 	return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
 }
 
-GBUFFER_OUT mainPS(VSOut psin)
+PS_OUT mainPS(VSOut psin)
 {
 	Material mat = g_materials[psin.MatID];
 		
@@ -190,12 +187,12 @@ GBUFFER_OUT mainPS(VSOut psin)
 //	float3 B = ddy(psin.PosW);
 //	float3 geometricNormal = normalize(cross(T, B));
 
-	GBUFFER_OUT psout = PackGBuffer(baseColor,
-									emissiveColor,
-									shadingNormal,
-									metalness,
-	                                roughness,
-	                                half2(motionVecTS));
+	PS_OUT psout = PackGBuffer(baseColor, 
+							emissiveColor,
+							shadingNormal,
+							metalness,
+							roughness,
+	                        half2(motionVecTS));
 
 //	psout.Normal = float4(psin.NormalW * mat.NormalScale, psout.Albedo.a - mat.AlphaCuttoff);
 //	psout.Normal = float3(0.5f * psin.NormalW * mat.NormalScale + 0.5f);
