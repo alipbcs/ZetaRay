@@ -295,7 +295,6 @@ void SceneRenderer::Update(TaskSet& ts) noexcept
 		{
 			auto* data = m_data.get();
 			GBuffer::Update(data->m_gBuffData, data->m_lightData);
-			Light::Update(data->m_settings, data->m_gBuffData, data->m_raytracerData, data->m_lightData);
 
 			Common::UpdateFrameConstants(data->m_frameConstants, data->m_frameConstantsBuff, data->m_gBuffData, data->m_lightData);
 		});
@@ -304,6 +303,7 @@ void SceneRenderer::Update(TaskSet& ts) noexcept
 		{
 			auto* data = m_data.get();
 			RayTracer::Update(data->m_settings, data->m_raytracerData);
+			Light::Update(data->m_settings, data->m_gBuffData, data->m_raytracerData, data->m_lightData);
 		});
 
 	auto h2 = ts.EmplaceTask("SceneRenderer::Update_RT_Graph", [this]()

@@ -208,15 +208,6 @@ namespace ZetaRay::Core::Direct3DHelper
         return RequiredSize;
     }
 
-    void LoadDDSFromFile(const char* path,
-        Util::Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator>& subresources,
-        DXGI_FORMAT& format,
-        std::unique_ptr<uint8_t[]>& ddsData,
-        uint32_t& width,
-        uint32_t& height,
-        uint32_t& depth,
-        uint32_t& mipCount) noexcept;
-
     inline D3D12_BLEND_DESC DefaultBlendDesc() noexcept
     {
         D3D12_BLEND_DESC desc{};
@@ -282,6 +273,30 @@ namespace ZetaRay::Core::Direct3DHelper
         return desc;
     }
 
+    inline constexpr DXGI_FORMAT NoSRGB(DXGI_FORMAT fmt) noexcept
+    {
+        switch (fmt)
+        {
+        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+            return DXGI_FORMAT_R8G8B8A8_UNORM;
+        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
+            return DXGI_FORMAT_B8G8R8A8_UNORM;
+        case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
+            return DXGI_FORMAT_B8G8R8X8_UNORM;
+        default:
+            return fmt;
+        }
+    }
+
+    void LoadDDSFromFile(const char* path,
+        Util::Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator>& subresources,
+        DXGI_FORMAT& format,
+        std::unique_ptr<uint8_t[]>& ddsData,
+        uint32_t& width,
+        uint32_t& height,
+        uint32_t& depth,
+        uint32_t& mipCount) noexcept;
+
     D3D12_GRAPHICS_PIPELINE_STATE_DESC GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
         int numRenderTargets,
         DXGI_FORMAT* rtvFormats,
@@ -301,32 +316,19 @@ namespace ZetaRay::Core::Direct3DHelper
         const D3D12_SHADER_BYTECODE* domainShader,
         ID3D12PipelineState** pPipelineState) noexcept;
 
-    inline constexpr DXGI_FORMAT NoSRGB(DXGI_FORMAT fmt) noexcept
-    {
-        switch (fmt)
-        {
-        case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-            return DXGI_FORMAT_R8G8B8A8_UNORM;
-        case DXGI_FORMAT_B8G8R8A8_UNORM_SRGB:
-            return DXGI_FORMAT_B8G8R8A8_UNORM;
-        case DXGI_FORMAT_B8G8R8X8_UNORM_SRGB:
-            return DXGI_FORMAT_B8G8R8X8_UNORM;
-        default:
-            return fmt;
-        }
-    }
-
     void CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
         UINT stride, UINT numElements) noexcept;
     void CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
         UINT stride, UINT numElements) noexcept;
-    void CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+    void CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
         float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+    void CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
         float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice = 0, UINT numSlices = 0,
-        UINT firstSliceIdx = 0) noexcept;
+    void CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
+        UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
+    void CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
+        UINT mipSlice = 0, UINT numSlices = 0, UINT firstSliceIdx = 0) noexcept;
 
-    void CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
+    void CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
+        UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
 }

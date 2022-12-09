@@ -149,27 +149,13 @@ void TAA::CreateResources() noexcept
 		D3D12_RESOURCE_STATE_COMMON,
 		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.PlaneSlice = 0;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
+	// SRVs
+	Direct3DHelper::CreateTexture2DSRV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_SRV));
+	Direct3DHelper::CreateTexture2DSRV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_SRV));
 
-	auto* device = renderer.GetDevice();
-	device->CreateShaderResourceView(m_antiAliased[0].GetResource(), &srvDesc, m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_SRV));
-	device->CreateShaderResourceView(m_antiAliased[1].GetResource(), &srvDesc, m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_SRV));
-
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Format = DXGI_FORMAT_R16G16B16A16_FLOAT;
-	uavDesc.Texture2D.MipSlice = 0;
-	uavDesc.Texture2D.PlaneSlice = 0;
-
-	device->CreateUnorderedAccessView(m_antiAliased[0].GetResource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_UAV));
-	device->CreateUnorderedAccessView(m_antiAliased[1].GetResource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_UAV));
+	// UAVs
+	Direct3DHelper::CreateTexture2DUAV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_UAV));
+	Direct3DHelper::CreateTexture2DUAV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_UAV));
 }
 
 void TAA::BlendWeightCallback(const ParamVariant& p) noexcept

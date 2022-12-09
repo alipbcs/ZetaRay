@@ -59,19 +59,6 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 	const int width = App::GetRenderer().GetRenderWidth();
 	const int height = App::GetRenderer().GetRenderHeight();
 
-	D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
-	rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
-	rtvDesc.Texture2D.MipSlice = 0;
-	rtvDesc.Texture2D.PlaneSlice = 0;
-
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc;
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.PlaneSlice = 0;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
 	// base-color	
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
@@ -90,19 +77,11 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 				1,
 				&clearValue));
 
-			rtvDesc.Format = GBufferData::GBUFFER_FORMAT[::GBufferData::GBUFFER_BASE_COLOR];
+			// RTV
+			Direct3DHelper::CreateRTV(data.BaseColor[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 
-			// RTVs
-			device->CreateRenderTargetView(data.BaseColor[i].GetResource(),
-				&rtvDesc,
-				data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
-
-			// SRVs
-			srvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::GBUFFER_BASE_COLOR];
-
-			device->CreateShaderResourceView(data.BaseColor[i].GetResource(),
-				&srvDesc,
-				data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+			// SRV
+			Direct3DHelper::CreateTexture2DSRV(data.BaseColor[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 		}
 	}
 
@@ -111,9 +90,6 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL];
-
-		rtvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL];
-		srvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL];
 
 		for (int i = 0; i < 2; i++)
 		{
@@ -126,13 +102,11 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 				1,
 				&clearValue));
 
-			device->CreateRenderTargetView(data.Normal[i].GetResource(),
-				&rtvDesc,
-				data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
+			// RTV
+			Direct3DHelper::CreateRTV(data.Normal[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
 
-			device->CreateShaderResourceView(data.Normal[i].GetResource(),
-				&srvDesc,
-				data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
+			// SRV
+			Direct3DHelper::CreateTexture2DSRV(data.Normal[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
 		}
 	}
 
@@ -153,23 +127,15 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 				1,
 				&clearValue));
 
-			// RTVs
-			rtvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS];
+			// RTV
+			Direct3DHelper::CreateRTV(data.MetalnessRoughness[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
 
-			device->CreateRenderTargetView(data.MetalnessRoughness[i].GetResource(),
-				&rtvDesc,
-				data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
-
-			// SRVs
-			srvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS];
-
-			device->CreateShaderResourceView(data.MetalnessRoughness[i].GetResource(),
-				&srvDesc,
-				data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
+			// SRV
+			Direct3DHelper::CreateTexture2DSRV(data.MetalnessRoughness[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
 		}
 	}
 
-	// motion-vector
+	// motion vector
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
@@ -182,30 +148,16 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 			1,
 			&clearValue));
 
-		// RTVs
-		rtvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR];
+		// RTV
+		Direct3DHelper::CreateRTV(data.MotionVec, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DHelper::CreateRTV(data.MotionVec, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 
-		device->CreateRenderTargetView(data.MotionVec.GetResource(),
-			&rtvDesc,
-			data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
-
-		device->CreateRenderTargetView(data.MotionVec.GetResource(),
-			&rtvDesc,
-			data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
-
-		// SRVs
-		srvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR];
-
-		device->CreateShaderResourceView(data.MotionVec.GetResource(),
-			&srvDesc,
-			data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
-
-		device->CreateShaderResourceView(data.MotionVec.GetResource(),
-			&srvDesc,
-			data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		// SRV
+		Direct3DHelper::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DHelper::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 	}
 
-	// emissive-color	
+	// emissive color	
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
@@ -218,27 +170,13 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 			1,
 			&clearValue));
 
-		// RTVs
-		rtvDesc.Format = GBufferData::GBUFFER_FORMAT[::GBufferData::GBUFFER_EMISSIVE_COLOR];
+		// RTV
+		Direct3DHelper::CreateRTV(data.EmissiveColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DHelper::CreateRTV(data.EmissiveColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 
-		device->CreateRenderTargetView(data.EmissiveColor.GetResource(),
-			&rtvDesc,
-			data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-
-		device->CreateRenderTargetView(data.EmissiveColor.GetResource(),
-			&rtvDesc,
-			data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-
-		// SRVs
-		srvDesc.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::GBUFFER_EMISSIVE_COLOR];
-
-		device->CreateShaderResourceView(data.EmissiveColor.GetResource(),
-			&srvDesc,
-			data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-
-		device->CreateShaderResourceView(data.EmissiveColor.GetResource(),
-			&srvDesc,
-			data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		// SRV
+		Direct3DHelper::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DHelper::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 	}
 
 	// depth
@@ -254,8 +192,6 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		desc.Format = RendererConstants::DEPTH_BUFFER_FORMAT;
 		desc.Texture2D.MipSlice = 0;
 
-		srvDesc.Format = DXGI_FORMAT_R32_FLOAT;
-
 		for (int i = 0; i < 2; i++)
 		{
 			StackStr(name, n, "DepthBuffer_%d", i);
@@ -266,12 +202,14 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 				TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL,
 				1,
 				&clearValueDepth));
-
+			
+			// DSV
 			device->CreateDepthStencilView(data.DepthBuffer[i].GetResource(), &desc,
 				data.DSVDescTable[i].CPUHandle(0));
 
-			device->CreateShaderResourceView(data.DepthBuffer[i].GetResource(), &srvDesc,
-				data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_DEPTH));
+			// SRV
+			Direct3DHelper::CreateTexture2DSRV(data.DepthBuffer[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_DEPTH), 
+				DXGI_FORMAT_R32_FLOAT);
 		}
 	}
 }

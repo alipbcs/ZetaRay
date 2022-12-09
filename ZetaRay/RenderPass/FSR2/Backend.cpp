@@ -34,8 +34,10 @@ namespace
 		ComPtr<ID3D12RootSignature> RootSig;
 		ID3D12PipelineState* PSO = nullptr;
 
-		DescriptorTable SrvTable;
-		DescriptorTable UavTable;
+		DescriptorTable SrvTableGpu;
+		int SrvTableGpuNumDescs = -1;
+		DescriptorTable UavTableGpu;
+		int UavTableGpuNumDescs = -1;
 	};
 
 	struct PsoMap
@@ -294,7 +296,7 @@ namespace
 			uavDescTableCpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapCpu().Allocate(desc.MipLevels);
 
 			for (uint32_t i = 0; i < desc.MipLevels; i++)
-				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableCpu.CPUHandle(i), i);
+				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableCpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
 		}
 
 		if (uavDescTableGpu.IsEmpty())
@@ -302,7 +304,7 @@ namespace
 			uavDescTableGpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(desc.MipLevels);
 
 			for (uint32_t i = 0; i < desc.MipLevels; i++)
-				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), i);
+				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
 		}
 
 		if (job.target.internalIndex == FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT)
@@ -337,7 +339,8 @@ namespace
 		g_fsr2Data->m_cmdList->SetPipelineState(reinterpret_cast<ID3D12PipelineState*>(job.pipeline.pipeline));
 
 		uint32_t currRootParam = 0;
-		auto* device = App::GetRenderer().GetDevice();
+		auto& renderer = App::GetRenderer();
+		auto* device = renderer.GetDevice();
 		const int idx = FindPSO(reinterpret_cast<ID3D12PipelineState*>(job.pipeline.pipeline));
 		Assert(idx != -1, "Given PSO was not found");
 
@@ -348,6 +351,12 @@ namespace
 		
 		D3D12_RESOURCE_BARRIER barriers[g_fsr2Data->MAX_BARRIERS];
 		int currBarrierIdx = 0;
+
+		g_fsr2Data->m_passes[pass].SrvTableGpu = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(
+			g_fsr2Data->m_passes[pass].SrvTableGpuNumDescs);
+
+		g_fsr2Data->m_passes[pass].UavTableGpu = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(
+			g_fsr2Data->m_passes[pass].UavTableGpuNumDescs);
 
 		// UAVs
 		for (uint32_t i = 0; i < job.pipeline.uavCount; i++)
@@ -368,7 +377,7 @@ namespace
 				uavAllMips = App::GetRenderer().GetCbvSrvUavDescriptorHeapCpu().Allocate(desc.MipLevels);
 
 				for (uint32_t i = 0; i < desc.MipLevels; i++)
-					Direct3DHelper::CreateTexture2DUAV(t, uavAllMips.CPUHandle(i), i);
+					Direct3DHelper::CreateTexture2DUAV(t, uavAllMips.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
 			}
 
 			if ((g_fsr2Data->m_resData[uavResIdx].State & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) == 0)
@@ -393,12 +402,12 @@ namespace
 			const int uavBindSlot = job.pipeline.uavResourceBindings[i].slotIndex;
 
 			device->CopyDescriptorsSimple(1,
-				passData.UavTable.CPUHandle(uavBindSlot),
+				passData.UavTableGpu.CPUHandle(uavBindSlot),
 				uavAllMips.CPUHandle(job.uavMip[i]),
 				D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 
-		g_fsr2Data->m_cmdList->SetRootDescriptorTable(currRootParam++, passData.UavTable.GPUHandle(0));
+		g_fsr2Data->m_cmdList->SetRootDescriptorTable(currRootParam++, passData.UavTableGpu.GPUHandle(0));
 		
 		// SRVs
 		for (uint32_t i = 0; i < job.pipeline.srvCount; i++)
@@ -431,12 +440,12 @@ namespace
 			const int srvBindSlot = job.pipeline.srvResourceBindings[i].slotIndex;
 
 			device->CopyDescriptorsSimple(1, 
-				passData.SrvTable.CPUHandle(srvBindSlot),
+				passData.SrvTableGpu.CPUHandle(srvBindSlot),
 				srv.CPUHandle(0), 
 				D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV);
 		}
 		
-		g_fsr2Data->m_cmdList->SetRootDescriptorTable(currRootParam++, passData.SrvTable.GPUHandle(0));
+		g_fsr2Data->m_cmdList->SetRootDescriptorTable(currRootParam++, passData.SrvTableGpu.GPUHandle(0));
 
 		// root constants
 		for (uint32_t currRootConstantIdx = 0; currRootConstantIdx < job.pipeline.constCount; ++currRootConstantIdx)
@@ -1135,7 +1144,8 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	}
 
 	if(maxSrvSlot >= 0)
-		g_fsr2Data->m_passes[pass].SrvTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(maxSrvSlot + 1);
+		g_fsr2Data->m_passes[pass].SrvTableGpuNumDescs = maxSrvSlot + 1;
+		//g_fsr2Data->m_passes[pass].SrvTableGpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(maxSrvSlot + 1);
 
 	int maxUavSlot = -1;
 
@@ -1152,7 +1162,8 @@ FfxErrorCode FSR2_Internal::Fsr2CreatePipeline(FfxFsr2Interface* backendInterfac
 	}
 
 	if (maxUavSlot >= 0)
-		g_fsr2Data->m_passes[pass].UavTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(maxUavSlot + 1);
+		g_fsr2Data->m_passes[pass].UavTableGpuNumDescs = maxUavSlot + 1;
+		//g_fsr2Data->m_passes[pass].UavTableGpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(maxUavSlot + 1);
 
 	for (uint32_t cbIndex = 0; cbIndex < outPipeline->constCount; ++cbIndex)
 	{

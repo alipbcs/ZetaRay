@@ -1118,7 +1118,7 @@ void Direct3DHelper::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DE
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
@@ -1134,12 +1134,12 @@ void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     srvDesc.Texture2D.PlaneSlice = planeSlice;
     srvDesc.Texture2D.ResourceMinLODClamp = minLODClamp;
     srvDesc.Texture2D.MipLevels = desc.MipLevels;
-    srvDesc.Format = desc.Format;
+    srvDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
     
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+void Direct3DHelper::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
@@ -1153,13 +1153,13 @@ void Direct3DHelper::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     srvDesc.Texture3D.MipLevels = desc.MipLevels;
     srvDesc.Texture3D.MostDetailedMip = mostDetailedMip;
     srvDesc.Texture3D.ResourceMinLODClamp = minLODClamp;
-
-    srvDesc.Format = desc.Format;
+    srvDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
 
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice, UINT planeSlice) noexcept
+void Direct3DHelper::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT planeSlice) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
@@ -1170,12 +1170,13 @@ void Direct3DHelper::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpu
     rtvDesc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
     rtvDesc.Texture2D.MipSlice = mipSlice;
     rtvDesc.Texture2D.PlaneSlice = planeSlice;
-    rtvDesc.Format = desc.Format;
+    rtvDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
 
     device->CreateRenderTargetView(res, &rtvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice, UINT planeSlice) noexcept
+void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT planeSlice) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
@@ -1184,15 +1185,15 @@ void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-    uavDesc.Format = desc.Format;
     uavDesc.Texture2D.MipSlice = mipSlice;
     uavDesc.Texture2D.PlaneSlice = planeSlice;
+    uavDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
 
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT mipSlice, UINT numSlices,
-    UINT firstSliceIdx) noexcept
+void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT numSlices, UINT firstSliceIdx) noexcept
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
@@ -1201,10 +1202,10 @@ void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
-    uavDesc.Format = desc.Format;
     uavDesc.Texture3D.MipSlice = mipSlice;
     uavDesc.Texture3D.WSize = numSlices > 0 ? numSlices : desc.DepthOrArraySize;
     uavDesc.Texture3D.FirstWSlice = firstSliceIdx;
+    uavDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
 
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }

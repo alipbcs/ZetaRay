@@ -134,8 +134,6 @@ void STAD::Reset() noexcept
 		m_temporalCache[0].Reset();
 		m_temporalCache[1].Reset();
 
-		m_descTable.Reset();
-
 		m_isTemporalCacheValid = false;
 	}
 }
@@ -257,22 +255,6 @@ void STAD::Render(CommandList& cmdList) noexcept
 void STAD::CreateResources() noexcept
 {
 	auto& renderer = App::GetRenderer();
-	auto* device = App::GetRenderer().GetDevice();
-
-	// SRV
-	D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
-	srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
-	srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
-	srvDesc.Texture2D.MipLevels = 1;
-	srvDesc.Texture2D.MostDetailedMip = 0;
-	srvDesc.Texture2D.PlaneSlice = 0;
-	srvDesc.Texture2D.ResourceMinLODClamp = 0.0f;
-
-	// UAV
-	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
-	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
-	uavDesc.Texture2D.MipSlice = 0;
-	uavDesc.Texture2D.PlaneSlice = 0;
 
 	// temporal cache (ping-pong between frames)
 	{
@@ -288,24 +270,11 @@ void STAD::CreateResources() noexcept
 			D3D12_RESOURCE_STATE_COMMON,
 			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		srvDesc.Format = ResourceFormats::TEMPORAL_CACHE;
-		uavDesc.Format = ResourceFormats::TEMPORAL_CACHE;
+		Direct3DHelper::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_A_SRV));
+		Direct3DHelper::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_A_UAV));
 
-		device->CreateShaderResourceView(m_temporalCache[0].GetResource(),
-			&srvDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_A_SRV));
-		device->CreateUnorderedAccessView(m_temporalCache[0].GetResource(),
-			nullptr,
-			&uavDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_A_UAV));
-
-		device->CreateShaderResourceView(m_temporalCache[1].GetResource(),
-			&srvDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_B_SRV));
-		device->CreateUnorderedAccessView(m_temporalCache[1].GetResource(),
-			nullptr,
-			&uavDesc,
-			m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_B_UAV));
+		Direct3DHelper::CreateTexture2DSRV(m_temporalCache[1], m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_B_SRV));
+		Direct3DHelper::CreateTexture2DUAV(m_temporalCache[1], m_descTable.CPUHandle((int)DESC_TABLE::TEMPORAL_CACHE_B_UAV));
 	}
 }
 
