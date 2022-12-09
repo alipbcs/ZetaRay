@@ -23,6 +23,9 @@ Task::Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 
 Task::Task(Task&& other) noexcept
 {
+	if (this == &other)
+		return;
+
 	//m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
 	m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
 	other.m_adjacentTailNodes.clear();

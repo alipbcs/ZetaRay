@@ -33,6 +33,10 @@ namespace ZetaRay::Util
 			resize(initaliSize);
 		}
 
+		// TODO implement move & copy constructors/assignments
+		HashTable(const HashTable&) = delete;
+		HashTable& operator=(const HashTable&) = delete;
+
 		// returns NULL if element with given key is not found
 		// Note: in contrast to find(), find_entry() only return NULL when the table is empty
 		T* find(uint64_t key) noexcept

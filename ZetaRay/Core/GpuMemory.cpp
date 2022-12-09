@@ -77,6 +77,9 @@ namespace ZetaRay::Core::Internal
 
 		LinearAllocatorPage& operator=(LinearAllocatorPage&& rhs) noexcept
 		{
+			if (this == &rhs)
+				return *this;
+
 			m_uploadResource.Swap(rhs.m_uploadResource);
 			m_fence.Swap(rhs.m_fence);
 			std::swap(m_pendingFence, rhs.m_pendingFence);
@@ -916,10 +919,16 @@ UploadHeapBuffer::UploadHeapBuffer(UploadHeapBuffer&& rhs) noexcept
 
 UploadHeapBuffer& UploadHeapBuffer::operator=(UploadHeapBuffer&& rhs) noexcept
 {
-	// release the current Page (if any)
-	Reset();
+	if (this == &rhs)
+		return *this;
 
+	// release the current Page (if any)
+	// TODO following two lines seem unnecessary at first glance, yet
+	// can lead to serious memory leak if avoided. The overall upload heap
+	// design is too complicated, making reasoning and debugging harder
+	Reset();
 	PageHandle.Reset();
+
 	std::swap(PageHandle, rhs.PageHandle);
 	std::swap(GpuAddress, rhs.GpuAddress);
 	std::swap(Resource, rhs.Resource);
@@ -966,20 +975,19 @@ DefaultHeapBuffer::~DefaultHeapBuffer() noexcept
 	Reset();
 }
 
-DefaultHeapBuffer::DefaultHeapBuffer(DefaultHeapBuffer&& other) noexcept
-	: m_pathID(other.m_pathID)
+DefaultHeapBuffer::DefaultHeapBuffer(DefaultHeapBuffer&& rhs) noexcept
+	: m_pathID(rhs.m_pathID)
 {
-	m_resource.Swap(other.m_resource);
-
-	other.Reset();
+	m_resource.Swap(rhs.m_resource);
 }
 
-DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& other) noexcept
+DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& rhs) noexcept
 {
-	m_pathID = other.m_pathID;
-	m_resource.Swap(other.m_resource);
+	if (this == &rhs)
+		return *this;
 
-	other.Reset();
+	m_resource.Swap(rhs.m_resource);
+	m_pathID = rhs.m_pathID;
 
 	return *this;
 }
@@ -987,11 +995,9 @@ DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& other) noexc
 void DefaultHeapBuffer::Reset() noexcept
 {
 	if (m_resource)
-	{
 		App::GetRenderer().GetGpuMemory().ReleaseDefaultHeapBuffer(ZetaMove(*this));
-		m_resource = nullptr;
-	}
 
+	m_resource = nullptr;
 	m_pathID = -1;
 }
 
@@ -1003,7 +1009,7 @@ ReadbackHeapBuffer::ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r) noexcept
 {
 	m_resource.Swap(r);
 
-	// buffers have only 1 subresource
+	// buffers have only one subresource
 	CheckHR(m_resource->Map(0, nullptr, &m_mappedMemory));
 }
 
@@ -1018,10 +1024,14 @@ ReadbackHeapBuffer::ReadbackHeapBuffer(ReadbackHeapBuffer&& other) noexcept
 	m_resource.Swap(other.m_resource);
 }
 
-ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& other) noexcept
+ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& rhs) noexcept
 {
-	m_resource.Swap(other.m_resource);
-	m_mappedMemory = std::exchange(other.m_mappedMemory, nullptr);
+	if (this == &rhs)
+		return *this;
+
+	m_resource.Swap(rhs.m_resource);
+	m_mappedMemory = rhs.m_mappedMemory;
+	rhs.m_mappedMemory = nullptr;
 
 	return *this;
 }
@@ -1030,11 +1040,12 @@ void ReadbackHeapBuffer::Reset() noexcept
 {
 	if (m_mappedMemory)
 	{
+		Assert(m_resource, "non-null mapped memory for null resource");
 		m_resource->Unmap(0, nullptr);
-		m_mappedMemory = nullptr;
 	}
 
 	m_resource = nullptr;
+	m_mappedMemory = nullptr;
 }
 
 void ReadbackHeapBuffer::Map() noexcept
@@ -1075,18 +1086,16 @@ Texture::~Texture() noexcept
 Texture::Texture(Texture&& other) noexcept
 {
 	m_resource.Swap(other.m_resource);
-	//other.m_resource.Reset();
 	m_pathID = other.m_pathID;
-	other.m_pathID = -1;
 }
 
-Texture& Texture::operator=(Texture&& other) noexcept
+Texture& Texture::operator=(Texture&& rhs) noexcept
 {
-	m_resource.Swap(other.m_resource);
-	//other.m_resource.Reset();
+	if (this == &rhs)
+		return *this;
 
-	m_pathID = other.m_pathID;
-	other.m_pathID = -1;
+	m_resource.Swap(rhs.m_resource);
+	m_pathID = rhs.m_pathID;
 
 	return *this;
 }

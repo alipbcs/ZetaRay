@@ -134,14 +134,17 @@ namespace ZetaRay::Core
 				CurrProdIdx = other.CurrProdIdx.load(std::memory_order_relaxed);
 				IsWindowSizeDependant = other.IsWindowSizeDependant;
 			}
-			ResourceMetadata& operator=(const ResourceMetadata& other) noexcept
+			ResourceMetadata& operator=(const ResourceMetadata& rhs) noexcept
 			{
-				ID = other.ID;
-				Res = other.Res;
-				State = other.State;
-				memcpy(Producers, other.Producers, MAX_NUM_PRODUCERS * sizeof(RenderNodeHandle));
-				CurrProdIdx = other.CurrProdIdx.load(std::memory_order_relaxed);
-				IsWindowSizeDependant = other.IsWindowSizeDependant;
+				if (this == &rhs)
+					return *this;
+
+				ID = rhs.ID;
+				Res = rhs.Res;
+				State = rhs.State;
+				memcpy(Producers, rhs.Producers, MAX_NUM_PRODUCERS * sizeof(RenderNodeHandle));
+				CurrProdIdx = rhs.CurrProdIdx.load(std::memory_order_relaxed);
+				IsWindowSizeDependant = rhs.IsWindowSizeDependant;
 
 				return *this;
 			}
