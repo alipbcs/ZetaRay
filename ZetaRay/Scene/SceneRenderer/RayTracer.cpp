@@ -17,7 +17,7 @@ using namespace ZetaRay::Core;
 
 void RayTracer::Init(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+	//data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
 
 	// init sampler (async)
 	data.RtSampler.InitLowDiscrepancyBlueNoise();
@@ -60,6 +60,8 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 {
 	if (settings.RTIndirectDiffuse)
 	{
+		data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+
 		auto func = [&data](ReSTIR_GI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
 		{
 			const Texture& t = data.ReSTIR_GIPass.GetOutput(r);

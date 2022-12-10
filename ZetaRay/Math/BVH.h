@@ -40,7 +40,7 @@ namespace ZetaRay::Math
 		void Clear() noexcept;
 
 		// Builds the BVH
-		void Build(Util::Vector<BVHInput, App::PoolAllocator>&& instances) noexcept;
+		void Build(Util::Vector<BVHInput, App::ThreadAllocator>&& instances) noexcept;
 
 		// Updates the BVH for the given instance
 		void Update(Util::Vector<BVHUpdateInput, App::FrameAllocator>&& instances) noexcept;
@@ -75,7 +75,7 @@ namespace ZetaRay::Math
 		{
 			bool IsInitialized() noexcept { return Parent != -1; }
 			void InitAsLeaf(int base, int count, int parent) noexcept;
-			void InitAsInternal(const Util::Vector<BVH::BVHInput, App::PoolAllocator>& models, int base, int count,
+			void InitAsInternal(const Util::Vector<BVH::BVHInput, App::ThreadAllocator>& models, int base, int count,
 				int right, int parent) noexcept;
 			bool IsLeaf() const { return RightChild == -1; }
 
@@ -115,10 +115,10 @@ namespace ZetaRay::Math
 		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx) noexcept;
 
 		// tree-hierarchy is stored as an array
-		Util::SmallVector<Node, App::PoolAllocator> m_nodes;
+		Util::SmallVector<Node, App::ThreadAllocator> m_nodes;
 
 		// array of inputs to build a BVH for. During BVH build, elements are moved around
-		Util::SmallVector<BVHInput, App::PoolAllocator> m_instances;
+		Util::SmallVector<BVHInput, App::ThreadAllocator> m_instances;
 
 		uint32_t m_numNodes = 0;
 	};

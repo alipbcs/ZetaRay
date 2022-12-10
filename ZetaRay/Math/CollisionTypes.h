@@ -66,7 +66,7 @@ namespace ZetaRay::Math
 			vExtents = _mm_insert_ps(vExtents, _mm_load_ss(&e.z), 0x20);
 		}
 
-		__forceinline void __vectorcall Reset(__m128 vMinPoint, __m128 vMaxPoint) noexcept
+		ZetaInline void __vectorcall Reset(__m128 vMinPoint, __m128 vMaxPoint) noexcept
 		{
 			const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
 			vCenter = _mm_mul_ps(_mm_add_ps(vMaxPoint, vMinPoint), vOneDivTwo);

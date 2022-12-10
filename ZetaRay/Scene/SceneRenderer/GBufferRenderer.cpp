@@ -44,7 +44,7 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 		NUM_RTVs,
 		rtvFormats,
-		RendererConstants::DEPTH_BUFFER_FORMAT);
+		Constants::DEPTH_BUFFER_FORMAT);
 
 	// reverse z
 	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
@@ -182,14 +182,14 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 	// depth
 	{
 		D3D12_CLEAR_VALUE clearValueDepth = {};
-		clearValueDepth.Format = RendererConstants::DEPTH_BUFFER_FORMAT;
-		clearValueDepth.DepthStencil.Depth = RendererConstants::USE_REVERSE_Z ? 0.0f : 1.0f;
+		clearValueDepth.Format = Constants::DEPTH_BUFFER_FORMAT;
+		clearValueDepth.DepthStencil.Depth = Constants::USE_REVERSE_Z ? 0.0f : 1.0f;
 		clearValueDepth.DepthStencil.Stencil = 0;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC desc{};
 		desc.ViewDimension = D3D12_DSV_DIMENSION_TEXTURE2D;
 		desc.Flags = D3D12_DSV_FLAG_NONE;
-		desc.Format = RendererConstants::DEPTH_BUFFER_FORMAT;
+		desc.Format = Constants::DEPTH_BUFFER_FORMAT;
 		desc.Texture2D.MipSlice = 0;
 
 		for (int i = 0; i < 2; i++)
@@ -271,7 +271,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 			NUM_RTVs,
 			rtvFormats,
-			RendererConstants::DEPTH_BUFFER_FORMAT);
+			Constants::DEPTH_BUFFER_FORMAT);
 
 		// reverse z
 		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;

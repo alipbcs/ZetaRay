@@ -7,7 +7,7 @@ using namespace ZetaRay::RenderPass;
 
 void RpObjects::Init(const char* name,
 	RootSignature& rootSigInstance,
-	int numStaticSamplers,
+	size_t numStaticSamplers,
 	const D3D12_STATIC_SAMPLER_DESC* samplers,
 	D3D12_ROOT_SIGNATURE_FLAGS flags) noexcept
 {
@@ -16,7 +16,7 @@ void RpObjects::Init(const char* name,
 	// initialize if object haven't been initialized yet
 	if (prev == 0)
 	{
-		rootSigInstance.Finalize(name, m_rootSig, numStaticSamplers, samplers, flags);
+		rootSigInstance.Finalize(name, m_rootSig, (UINT)numStaticSamplers, samplers, flags);
 		m_psoLib.Init(name);
 
 		CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));

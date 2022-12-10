@@ -106,7 +106,7 @@ const char* Filesystem::Path::Get() const noexcept
 // Functions
 //--------------------------------------------------------------------------------------
 
-void Filesystem::LoadFromFile(const char* filePath, Vector<uint8_t, App::PoolAllocator>& fileData) noexcept
+void Filesystem::LoadFromFile(const char* filePath, Vector<uint8_t, App::ThreadAllocator>& fileData) noexcept
 {
     Assert(filePath, "filePath was NULL");
 

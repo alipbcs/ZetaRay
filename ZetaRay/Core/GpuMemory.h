@@ -47,10 +47,10 @@ namespace ZetaRay::Core
 		UploadHeapBuffer& operator=(UploadHeapBuffer&&) noexcept;
 
 		bool IsInitialized() noexcept { return Resource != nullptr; }
-		D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return GpuAddress; }
-		ID3D12Resource* GetResource() { return Resource; }
-		size_t GetSize() const { return Size; }
-		size_t GetOffset() const { return OffsetFromResource; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return GpuAddress; }
+		ZetaInline ID3D12Resource* GetResource() { return Resource; }
+		ZetaInline size_t GetSize() const { return Size; }
+		ZetaInline size_t GetOffset() const { return OffsetFromResource; }
 
 		void Reset() noexcept;
 		void Copy(size_t offset, size_t numBytesToCopy, void* data) noexcept;
@@ -76,9 +76,9 @@ namespace ZetaRay::Core
 
 		void Reset() noexcept;
 
-		D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ID3D12Resource* GetResource() { return m_resource.Get(); }
-		size_t Size() const { return m_resource->GetDesc().Width; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
+		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
+		ZetaInline size_t Size() const { return m_resource->GetDesc().Width; }
 		
 		// reminder: source and destination resources for CopyResource() can't be mapped
 		// From MS Docs:
@@ -87,7 +87,7 @@ namespace ZetaRay::Core
 		// when the page caching behavior is write-back."
 		void Map() noexcept;
 		void Unmap() noexcept;
-		void* GetMappedMemory() noexcept 
+		ZetaInline void* GetMappedMemory() noexcept
 		{ 
 			Assert(m_mappedMemory, "Resource is not mapped.");
 			return m_mappedMemory;
@@ -110,10 +110,11 @@ namespace ZetaRay::Core
 		DefaultHeapBuffer& operator=(DefaultHeapBuffer&&) noexcept;
 
 		void Reset() noexcept;
-		bool IsInitialized() const noexcept { return m_resource != nullptr; }
-		D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ID3D12Resource* GetResource() { return m_resource.Get(); }
-		D3D12_RESOURCE_DESC GetDesc() const { return m_resource->GetDesc(); }
+		ZetaInline bool IsInitialized() const noexcept { return m_resource != nullptr; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
+		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
+		ZetaInline D3D12_RESOURCE_DESC GetDesc() const { return m_resource->GetDesc(); }
+		ZetaInline uint64_t GetPathID() const { return m_pathID; }
 
 		void GetAllocationInfo(size_t* size = nullptr, size_t* alignment = nullptr) const
 		{
@@ -126,8 +127,6 @@ namespace ZetaRay::Core
 			if (alignment)
 				*alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
 		}
-
-		uint64_t GetPathID() const { return m_pathID; }
 
 	private:
 		uint64_t m_pathID = -1;
@@ -145,14 +144,13 @@ namespace ZetaRay::Core
 		Texture(Texture&&) noexcept;
 		Texture& operator=(Texture&&) noexcept;
 
-		bool IsInitialized() const { return m_pathID != -1; }
+		ZetaInline bool IsInitialized() const { return m_pathID != -1; }
 		void Reset(bool guardDestruction = true) noexcept;
 
-		D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ID3D12Resource* GetResource() { return m_resource.Get(); }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
+		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
+		ZetaInline uint64_t GetPathID() const { return m_pathID; }
 		void GetAllocationInfo(size_t* size = nullptr, size_t* alignment = nullptr) noexcept;
-
-		uint64_t GetPathID() const { return m_pathID; }
 
 	private:
 		uint64_t m_pathID = -1;

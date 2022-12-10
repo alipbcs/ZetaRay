@@ -16,9 +16,16 @@ using namespace ZetaRay::Util;
 // TexSRVDescriptorTable
 //--------------------------------------------------------------------------------------
 				
+TexSRVDescriptorTable::TexSRVDescriptorTable(const uint32_t descTableSize) noexcept
+	: m_descTableSize(descTableSize),
+	m_numMasks(descTableSize >> 6)
+{
+	Assert(Math::IsPow2(descTableSize), "descriptor table size must be a power of two.");
+}
+
 void TexSRVDescriptorTable::Init(uint64_t id) noexcept
 {
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(NUM_DESCRIPTORS);
+	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(m_descTableSize);
 	Assert(!m_descTable.IsEmpty(), "Allocating descriptors from the GPU descriptor heap failed.");
 
 	auto& s = App::GetRenderer().GetSharedShaderResources();
@@ -31,7 +38,7 @@ uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noex
 	if (auto it = m_cache.find(id); it != nullptr)
 	{
 		const uint32_t offset = it->DescTableOffset;
-		Assert(offset < NUM_DESCRIPTORS, "invalid offset.");
+		Assert(offset < m_descTableSize, "invalid offset.");
 		it->RefCount++;
 
 		return offset;
@@ -43,7 +50,7 @@ uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noex
 	// find the first free slot in the table
 	DWORD freeSlot = -1;
 	int i = 0;
-	for (; i < NUM_MASKS; i++)
+	for (; i < (int)m_numMasks; i++)
 	{
 		if (_BitScanForward64(&freeSlot, ~m_inUseBitset[i]))
 			break;
@@ -53,7 +60,7 @@ uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noex
 	m_inUseBitset[i] |= (1llu << freeSlot);	// set the slot to occupied
 
 	freeSlot += i * 64;		// each uint64_t covers 64 slots
-	Assert(freeSlot < NUM_DESCRIPTORS, "Invalid table index.");
+	Assert(freeSlot < m_descTableSize, "Invalid table index.");
 
 	// create the SRV
 	auto descTpuHandle = m_descTable.CPUHandle(freeSlot);
@@ -76,8 +83,8 @@ void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal) noexcept
 		if (it->FenceVal <= completedFenceVal)
 		{
 			// set the descriptor slot to free
-			const int idx = it->DescTableOffset >> 6;
-			Assert(idx < NUM_MASKS, "invalid index.");
+			const uint32_t idx = it->DescTableOffset >> 6;
+			Assert(idx < m_numMasks, "invalid index.");
 			m_inUseBitset[idx] |= (1llu << (it->DescTableOffset & 63));
 
 			it = m_pending.erase(*it);
@@ -95,7 +102,7 @@ void TexSRVDescriptorTable::Clear() noexcept
 	// Assumes GPU synchronization has been performed, so GPU is done with all the textures
 	m_pending.clear();
 	m_cache.clear();
-	memset(m_inUseBitset, 0, NUM_MASKS * sizeof(uint64_t));
+	memset(m_inUseBitset, 0, m_numMasks * sizeof(uint64_t));
 	m_descTable.Reset();
 }
 

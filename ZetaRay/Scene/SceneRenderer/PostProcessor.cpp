@@ -20,11 +20,11 @@ void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postDa
 
 	// Final Pass
 	{
-		DXGI_FORMAT rtvFormats[1] = { RendererConstants::BACK_BUFFER_FORMAT };
+		DXGI_FORMAT rtvFormats[1] = { Constants::BACK_BUFFER_FORMAT };
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 			1,
 			rtvFormats,
-			RendererConstants::DEPTH_BUFFER_FORMAT);
+			Constants::DEPTH_BUFFER_FORMAT);
 
 		// no blending required
 

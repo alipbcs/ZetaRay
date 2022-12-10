@@ -30,33 +30,33 @@ namespace ZetaRay::Util
 			m_size(N)
 		{}
 
-		__forceinline T* begin() noexcept
+		ZetaInline T* begin() noexcept
 		{
 			return m_ptr;
 		}
 
-		__forceinline T* end() noexcept
+		ZetaInline T* end() noexcept
 		{
 			return m_ptr + m_size;
 		}
 
-		__forceinline const T* begin() const noexcept
+		ZetaInline const T* begin() const noexcept
 		{
 			return m_ptr;
 		}
 
-		__forceinline const T* end() const noexcept
+		ZetaInline const T* end() const noexcept
 		{
 			return m_ptr + m_size;
 		}
 
-		__forceinline T& operator[](size_t pos) noexcept
+		ZetaInline T& operator[](size_t pos) noexcept
 		{
 			Assert(pos < m_size, "Out-of-bound access.");
 			return *(m_ptr + pos);
 		}
 
-		__forceinline const T& operator[](size_t pos) const noexcept
+		ZetaInline const T& operator[](size_t pos) const noexcept
 		{
 			Assert(pos < m_size, "Out-of-bound access.");
 			return *(m_ptr + pos);

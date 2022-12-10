@@ -241,7 +241,7 @@ void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_S
 {
 	Assert(h.IsValid(), "Invalid handle");
 	Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
-	Assert(expectedState & RendererConstants::READ_STATES, "Invalid read state.");
+	Assert(expectedState & Constants::READ_STATES, "Invalid read state.");
 
 	// defer checking for invalid states until later on
 	m_renderNodes[h.Val].Inputs.emplace_back(pathID, expectedState);
@@ -251,8 +251,8 @@ void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_
 {
 	Assert(h.IsValid(), "Invalid handle");
 	Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
-	Assert(expectedState & RendererConstants::WRITE_STATES, "Invalid write state.");
-	Assert(m_renderNodes[h.Val].Type != RENDER_NODE_TYPE::ASYNC_COMPUTE || !(expectedState & RendererConstants::INVALID_COMPUTE_STATES),
+	Assert(expectedState & Constants::WRITE_STATES, "Invalid write state.");
+	Assert(m_renderNodes[h.Val].Type != RENDER_NODE_TYPE::ASYNC_COMPUTE || !(expectedState & Constants::INVALID_COMPUTE_STATES),
 		"state transition to %u is not supported on an async-compute command list.", expectedState);
 
 	m_renderNodes[h.Val].Outputs.emplace_back(pathID, expectedState);
@@ -573,7 +573,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			{
 				// unsupported stateAfter should've been caught earlier
 				node.HasUnsupportedBarrier = node.HasUnsupportedBarrier || 
-					(isAsyncCompute && (inputResState & RendererConstants::INVALID_COMPUTE_STATES));
+					(isAsyncCompute && (inputResState & Constants::INVALID_COMPUTE_STATES));
 				node.Barriers.push_back(TransitionBarrier(m_frameResources[inputFrameResIdx].Res,
 					inputResState,
 					currInputRes.ExpectedState));
@@ -651,7 +651,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			{
 				// unsupported resourceAfter should've been caught earlier
 				node.HasUnsupportedBarrier = node.HasUnsupportedBarrier || 
-					(isAsyncCompute && (outputResState & RendererConstants::INVALID_COMPUTE_STATES));
+					(isAsyncCompute && (outputResState & Constants::INVALID_COMPUTE_STATES));
 				node.Barriers.push_back(TransitionBarrier(m_frameResources[ouputFrameResIdx].Res,
 					outputResState,
 					currOutputRes.ExpectedState));

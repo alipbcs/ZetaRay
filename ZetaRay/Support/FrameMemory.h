@@ -30,7 +30,7 @@ namespace ZetaRay::Support
 			int UsageCounter;
 		};
 
-		__forceinline MemoryBlock& GetAndInitIfEmpty(int i) noexcept
+		ZetaInline MemoryBlock& GetAndInitIfEmpty(int i) noexcept
 		{
 			Assert(i >= 0 && i < NUM_BLOCKS, "invalid block index.");
 

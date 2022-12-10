@@ -26,7 +26,7 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
 			1,
 			rtvFormats,
-			RendererConstants::DEPTH_BUFFER_FORMAT);
+			Constants::DEPTH_BUFFER_FORMAT);
 
 		// disable depth-testing, but not writing
 		psoDesc.DepthStencilState.DepthEnable = false;
@@ -57,7 +57,7 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 			1,
 			rtvFormats,
-			RendererConstants::DEPTH_BUFFER_FORMAT);
+			Constants::DEPTH_BUFFER_FORMAT);
 
 		psoDesc.DepthStencilState.DepthEnable = true;
 		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;

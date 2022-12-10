@@ -46,15 +46,15 @@ void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	auto* samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("SkyDome", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	auto samplers = renderer.GetStaticSamplers();
+	s_rpObjs.Init("SkyDome", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 
 	// create the sphere mesh
-	SmallVector<Vertex, App::PoolAllocator> vertices;
-	SmallVector<INDEX_TYPE, App::PoolAllocator> indices;
+	SmallVector<Vertex, App::ThreadAllocator> vertices;
+	SmallVector<INDEX_TYPE, App::ThreadAllocator> indices;
 //	float worldRadius = App::GetScene().GetWorldAABB().Extents.length();
 	float worldRadius = 6360.0f;
 

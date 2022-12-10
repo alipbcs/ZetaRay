@@ -10,7 +10,7 @@ namespace ZetaRay::Math
 	// Functions
 	//--------------------------------------------------------------------------------------
 
-	__forceinline __m128 __vectorcall distFromPlane(const __m128 point, const __m128 plane) noexcept
+	ZetaInline __m128 __vectorcall distFromPlane(const __m128 point, const __m128 plane) noexcept
 	{
 		// plane: n.(p - p0) = 0
 		// dist(p, p0) = proj_n(p - p0) = n.(p - p0)
@@ -18,7 +18,7 @@ namespace ZetaRay::Math
 	}
 
 	// Computes AABB that encloses the given mesh. Assumes vtxStride - (posOffset + sizeof(float3)) >= sizeof(float)
-	__forceinline v_AABB __vectorcall compueMeshAABB(void* data, uint32_t posOffset, uint32_t vtxStride, uint32_t numVertices) noexcept
+	ZetaInline v_AABB __vectorcall compueMeshAABB(void* data, uint32_t posOffset, uint32_t vtxStride, uint32_t numVertices) noexcept
 	{
 		uintptr_t dataPtr = (uintptr_t)data + posOffset;
 		float3* currPos = reinterpret_cast<float3*>(dataPtr);
@@ -48,7 +48,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns the union of two AABBs
-	__forceinline v_AABB __vectorcall compueUnionAABB(const v_AABB vBox1, const v_AABB vBox2) noexcept
+	ZetaInline v_AABB __vectorcall compueUnionAABB(const v_AABB vBox1, const v_AABB vBox2) noexcept
 	{
 		__m128 vMin1 = _mm_sub_ps(vBox1.vCenter, vBox1.vExtents);
 		__m128 vMax1 = _mm_add_ps(vBox1.vCenter, vBox1.vExtents);
@@ -68,7 +68,7 @@ namespace ZetaRay::Math
 	}
 
 	// Computes surface area of an AABB
-	__forceinline float __vectorcall computeAABBSurfaceArea(v_AABB vBox) noexcept
+	ZetaInline float __vectorcall computeAABBSurfaceArea(v_AABB vBox) noexcept
 	{
 		const __m128 vEight = _mm_set1_ps(8.0f);
 		const __m128 vYZX = _mm_shuffle_ps(vBox.vExtents, vBox.vExtents, V_SHUFFLE_XYZW(1, 2, 0, 0));
@@ -85,7 +85,7 @@ namespace ZetaRay::Math
 
 	// Returns how source "intersects" target (i.e. source contains/intersects/disjoins target). Both
 	// must be in the same coordinate system
-	__forceinline COLLISION_TYPE __vectorcall intersectAABBvsAABB(const v_AABB source, const v_AABB target) noexcept
+	ZetaInline COLLISION_TYPE __vectorcall intersectAABBvsAABB(const v_AABB source, const v_AABB target) noexcept
 	{
 		__m128 vMinSource = _mm_sub_ps(source.vCenter, source.vExtents);
 		__m128 vMaxSource = _mm_add_ps(source.vCenter, source.vExtents);
@@ -110,7 +110,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns the AABB that results from the intersection of two AABBs
-	__forceinline v_AABB __vectorcall computeOverlapAABB(const v_AABB vBox1, const v_AABB vBox2) noexcept
+	ZetaInline v_AABB __vectorcall computeOverlapAABB(const v_AABB vBox1, const v_AABB vBox2) noexcept
 	{
 		v_AABB vO;
 
@@ -131,7 +131,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns whether given AABB and plane intersect. Both must be in the same coordinate system
-	__forceinline bool __vectorcall intersectAABBvsPlane(const v_AABB vAABB, const __m128 vPlane) noexcept
+	ZetaInline bool __vectorcall intersectAABBvsPlane(const v_AABB vAABB, const __m128 vPlane) noexcept
 	{
 		// Seperating-axis theorem, use the plane Normal as the axis
 		__m128 vProjLengthAlongAxis = _mm_dp_ps(vAABB.vExtents, abs(vPlane), 0xf);
@@ -144,7 +144,7 @@ namespace ZetaRay::Math
 
 	// Returns whether given view-frustum contains or intersects given AABB.
 	// Assumes plane normals of frustum are already normalized.
-	__forceinline COLLISION_TYPE __vectorcall instersectFrustumVsAABB(const v_ViewFrustum vFrustum, const v_AABB vBox) noexcept
+	ZetaInline COLLISION_TYPE __vectorcall instersectFrustumVsAABB(const v_ViewFrustum vFrustum, const v_AABB vBox) noexcept
 	{
 		// Seperating-axis theorem, use the plane Normal as the axis
 
@@ -200,7 +200,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns whether given ray and AABB intersect
-	__forceinline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const v_AABB& vBox, float& t) noexcept
+	ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const v_AABB& vBox, float& t) noexcept
 	{
 		// An AABB can be described as the intersection of three "slabs", where a slab
 		// is the (infinite) region of space between two parallel planes.
@@ -267,7 +267,7 @@ namespace ZetaRay::Math
 	// Returns whether given ray and AABB intersect
 	// When a given Ray is tested against multiple AABBs, a few values that only depend 
 	// on that ray can be precomputed to avoid unneccesary recomputations
-	__forceinline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const __m128 vDirRcp,
+	ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const __m128 vDirRcp,
 		const __m128 vDirIsPos, const __m128 vIsParallel, const v_AABB& vBox, float& t) noexcept
 	{
 		const __m128 vCenterTranslatedToOrigin = _mm_sub_ps(vBox.vCenter, vRay.vOrigin);
@@ -304,7 +304,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns whether given ray and triangle formed by vertices v0v1v2 (clockwise order) intersect
-	__forceinline bool __vectorcall intersectRayVsTriangle(const v_Ray vRay, __m128 v0,
+	ZetaInline bool __vectorcall intersectRayVsTriangle(const v_Ray vRay, __m128 v0,
 		__m128 v1, __m128 v2, float& t) noexcept
 	{
 		// closer to (0, 0, 0) provides better precision, so translate ray origin to (0, 0, 0)
@@ -368,7 +368,7 @@ namespace ZetaRay::Math
 	}
 
 	// Ref: J. Arvo, "Transforming axis-aligned bounding boxes," Graphics Gems, 1990.
-	__forceinline v_AABB __vectorcall transform(const v_float4x4 M, const v_AABB& aabb) noexcept
+	ZetaInline v_AABB __vectorcall transform(const v_float4x4 M, const v_AABB& aabb) noexcept
 	{
 		// transform the center
 		v_AABB newAABB;
@@ -388,7 +388,7 @@ namespace ZetaRay::Math
 	}
 
 	// Transforms given view-frustum with a transformation matrix
-	__forceinline v_ViewFrustum __vectorcall transform(const v_float4x4 M, const v_ViewFrustum& vFrustum) noexcept
+	ZetaInline v_ViewFrustum __vectorcall transform(const v_float4x4 M, const v_ViewFrustum& vFrustum) noexcept
 	{
 		// In general, planes need to be transformed with the inverse-tranpose of a given transformation M
 		// (due to the normal vector). For view-to-world transformation, we know that it only consists
@@ -458,7 +458,7 @@ namespace ZetaRay::Math
 		return vRet;
 	}
 
-	__forceinline AABB __vectorcall store(v_AABB vBox) noexcept
+	ZetaInline AABB __vectorcall store(v_AABB vBox) noexcept
 	{
 		AABB aabb;
 

@@ -90,7 +90,7 @@ namespace ZetaRay::Core::Internal
 			return *this;
 		}
 
-		__forceinline size_t Suballocate(size_t size, size_t alignment) noexcept
+		ZetaInline size_t Suballocate(size_t size, size_t alignment) noexcept
 		{
 			size_t offset = Math::AlignUp(m_offset, alignment);
 			Assert(offset + size <= m_size, "Out of free memory in page suballoc");
@@ -471,7 +471,7 @@ namespace ZetaRay::Core::Internal
 		static_assert((MIN_ALLOC_SIZE& (MIN_ALLOC_SIZE - 1)) == 0, "MIN_ALLOC_SIZE size must be a power of 2");
 		static_assert(MIN_ALLOC_SIZE >= (4 * 1024), "MIN_ALLOC_SIZE size must be greater than 4K");
 
-		__forceinline int64_t GetPoolIndexFromSize(size_t x)
+		ZetaInline int64_t GetPoolIndexFromSize(size_t x)
 		{
 			x = std::max(64llu * 1024, Math::NextPow2(x));
 			DWORD bitIndex;
@@ -480,7 +480,7 @@ namespace ZetaRay::Core::Internal
 			return bitIndex - ALLOCATOR_INDEX_SHIFT;
 		}
 
-		__forceinline size_t GetPageSizeFromPoolIndex(size_t x)
+		ZetaInline size_t GetPageSizeFromPoolIndex(size_t x)
 		{
 			//return std::max(MIN_PAGE_SIZE, 1llu << (x + ALLOCATOR_INDEX_SHIFT));
 			return 1llu << (x + ALLOCATOR_INDEX_SHIFT);
@@ -508,7 +508,7 @@ namespace ZetaRay::Core::Internal
 		DefaultHeapBuffer GetBuffer(const char* name, uint64_t sizeInBytes, D3D12_RESOURCE_STATES initState, 
 			bool allowUAV, bool initToZero) noexcept
 		{
-			Assert((initState == D3D12_RESOURCE_STATE_COMMON) || initState & RendererConstants::VALID_BUFFER_STATES, "Invalid initial state for a buffer.");
+			Assert((initState == D3D12_RESOURCE_STATE_COMMON) || initState & Constants::VALID_BUFFER_STATES, "Invalid initial state for a buffer.");
 			const size_t key = Math::AlignUp(sizeInBytes, D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
 
 			return AllocateBuffer(name, key, initState, allowUAV, initToZero);
@@ -591,7 +591,7 @@ namespace ZetaRay::Core::Internal
 			uint64_t FenceValWhenReleased;
 		};
 
-		SmallVector<ReleasedResource, App::PoolAllocator> m_relesedResources;
+		SmallVector<ReleasedResource, App::ThreadAllocator> m_relesedResources;
 
 		uint64_t m_currFenceVal = 1;
 		ComPtr<ID3D12Fence> m_fence;
@@ -1471,7 +1471,7 @@ Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t hei
 
 Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
 {
-	SmallVector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator, 10> subresources;
+	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
 	uint32_t width;
 	uint32_t height;

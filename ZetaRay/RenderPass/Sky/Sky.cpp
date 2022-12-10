@@ -53,7 +53,6 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 	m_localCB.LutHeight = lutHeight;
 
 	auto& renderer = App::GetRenderer();
-	auto* samplers = renderer.GetStaticSamplers();
 
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -63,12 +62,13 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	s_rpObjs.Init("Sky", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	auto samplers = renderer.GetStaticSamplers();
+	s_rpObjs.Init("Sky", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	m_psos[(int)SHADERS::SKY_LUT] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
 
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
 
 	m_localCB.DepthMappingExp = DefaultParamVals::DEPTH_MAP_EXP;
 	m_localCB.VoxelGridNearZ = DefaultParamVals::VOXEL_GRID_NEAR_Z;

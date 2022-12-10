@@ -88,76 +88,76 @@ namespace ZetaRay::Util
 			other.m_end = other.m_beg + oldSize;
 		}
 
-		__forceinline T* begin() noexcept
+		ZetaInline T* begin() noexcept
 		{
 			return m_beg;
 		}
 
-		__forceinline T* end() noexcept
+		ZetaInline T* end() noexcept
 		{
 			return m_end;
 		}
 
-		__forceinline const T* begin() const noexcept
+		ZetaInline const T* begin() const noexcept
 		{
 			return m_beg;
 		}
 
-		__forceinline const T* end() const noexcept
+		ZetaInline const T* end() const noexcept
 		{
 			return m_end;
 		}
 
-		__forceinline const T* cbegin() const noexcept
+		ZetaInline const T* cbegin() const noexcept
 		{
 			return m_beg;
 		}
 
-		__forceinline const T* cend() const noexcept
+		ZetaInline const T* cend() const noexcept
 		{
 			return m_end;
 		}
 
-		__forceinline T* data() noexcept
+		ZetaInline T* data() noexcept
 		{
 			return m_beg;
 		}
 
-		__forceinline T& back() noexcept
+		ZetaInline T& back() noexcept
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		__forceinline const T& back() const noexcept
+		ZetaInline const T& back() const noexcept
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		__forceinline T& operator[](size_t pos) noexcept
+		ZetaInline T& operator[](size_t pos) noexcept
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
 		}
 
-		__forceinline const T& operator[](size_t pos) const noexcept
+		ZetaInline const T& operator[](size_t pos) const noexcept
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
 		}
 
-		inline size_t capacity() const noexcept
+		ZetaInline size_t capacity() const noexcept
 		{
 			return m_last - m_beg;
 		}
 
-		size_t size() const noexcept
+		ZetaInline size_t size() const noexcept
 		{
 			return m_end - m_beg;
 		}
 
-		bool empty() const noexcept
+		ZetaInline bool empty() const noexcept
 		{
 			return m_end - m_beg == 0;
 		}
@@ -435,7 +435,7 @@ namespace ZetaRay::Util
 			m_end = m_beg;
 			m_last = m_beg + N;
 
-			if (!std::is_trivially_default_constructible_v<T>)
+			if constexpr (!std::is_trivially_default_constructible_v<T>)
 			{
 				T* curr = m_beg;
 
@@ -444,6 +444,25 @@ namespace ZetaRay::Util
 					new (curr) T;
 					curr++;
 				}
+			}
+		}
+
+		Vector(size_t N, const T& t, const Allocator& a) noexcept
+			: m_allocator(a)
+		{
+			static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
+
+			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
+			m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
+			m_end = m_beg;
+			m_last = m_beg + N;
+
+			T* curr = m_beg;
+
+			while (curr != m_last)
+			{
+				new (curr) T(t);
+				curr++;
 			}
 		}
 
@@ -689,6 +708,10 @@ namespace ZetaRay::Util
 	public:
 		SmallVector(const Allocator& a = Allocator()) noexcept
 			: Vector<T, Allocator>(N, a)
+		{}
+
+		SmallVector(const T& t, const Allocator& a = Allocator()) noexcept
+			: Vector<T, Allocator>(N, t, a)
 		{}
 
 		SmallVector(const SmallVector& other) noexcept

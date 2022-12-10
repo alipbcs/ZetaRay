@@ -53,7 +53,7 @@ namespace
 		uint64_t ParentID;
 	};
 
-	void ProcessPositions(const tinygltf::Model& model, int posIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
+	void ProcessPositions(const tinygltf::Model& model, int posIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[posIdx];
 
@@ -78,7 +78,7 @@ namespace
 		}
 	}
 
-	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
+	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[normalIdx];
 
@@ -102,7 +102,7 @@ namespace
 		}
 	}
 
-	void ProcessTexCoords(const tinygltf::Model& model, int uv0Idx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
+	void ProcessTexCoords(const tinygltf::Model& model, int uv0Idx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[uv0Idx];
 
@@ -125,7 +125,7 @@ namespace
 		}
 	}
 
-	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Vector<Vertex, App::PoolAllocator>& vertices) noexcept
+	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
 	{
 		const auto& accessor = model.accessors[tangentIdx];
 
@@ -148,7 +148,7 @@ namespace
 		}
 	}
 
-	void ProcessIndices(const tinygltf::Model& model, int indicesIdx, Vector<INDEX_TYPE, App::PoolAllocator>& indices) noexcept
+	void ProcessIndices(const tinygltf::Model& model, int indicesIdx, Vector<INDEX_TYPE, App::ThreadAllocator>& indices) noexcept
 	{
 		const auto& accessor = model.accessors[indicesIdx];
 		Check(accessor.type == TINYGLTF_TYPE_SCALAR, "Invalid index type.");
@@ -397,7 +397,7 @@ namespace
 	}
 
 	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId, 
-		Vector<IntemediateInstance, App::PoolAllocator>& instances, bool blenderToYupConversion) noexcept
+		Vector<IntemediateInstance, App::ThreadAllocator>& instances, bool blenderToYupConversion) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -481,7 +481,7 @@ namespace
 		}
 	}
 
-	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::PoolAllocator>& instances, bool blenderToYupConversion) noexcept
+	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances, bool blenderToYupConversion) noexcept
 	{
 		for (int i : model.scenes[model.defaultScene].nodes)
 		{
@@ -490,7 +490,7 @@ namespace
 		}
 	}
 
-	void ProcessInstances(uint64_t sceneID, const Vector<IntemediateInstance, App::PoolAllocator>& instances, const tinygltf::Model& model) noexcept
+	void ProcessInstances(uint64_t sceneID, const Vector<IntemediateInstance, App::ThreadAllocator>& instances, const tinygltf::Model& model) noexcept
 	{
 		for (auto& instance : instances)
 		{
@@ -627,7 +627,7 @@ void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 	ts.Finalize(&waitObj);
 	App::Submit(ZetaMove(ts));
 
-	SmallVector<IntemediateInstance, App::PoolAllocator> instances;
+	SmallVector<IntemediateInstance, App::ThreadAllocator> instances;
 	instances.reserve(model.nodes.size());
 
 	// TODO is this necessary?

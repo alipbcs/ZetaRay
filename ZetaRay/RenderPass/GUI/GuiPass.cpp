@@ -23,7 +23,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Vector<ParamVariant, App::PoolAllocator>& params, size_t offset, size_t count) noexcept
+	void AddParamRange(Vector<ParamVariant, App::ThreadAllocator>& params, size_t offset, size_t count) noexcept
 	{
 		for (size_t p = offset; p < offset + count; p++)
 		{
@@ -154,8 +154,8 @@ void GuiPass::Init() noexcept
 			D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 			D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-		auto* samplers = App::GetRenderer().GetStaticSamplers();
-		s_rpObjs.Init("GuiPass", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+		auto samplers = App::GetRenderer().GetStaticSamplers();
+		s_rpObjs.Init("GuiPass", m_rootSig, samplers.size(), samplers.data(), flags);
 	}
 
 	// PSO
@@ -170,12 +170,12 @@ void GuiPass::Init() noexcept
 
 		// RTV & DSV formats
 		D3D12_INPUT_LAYOUT_DESC inputLayout = { local_layout, 3 };
-		DXGI_FORMAT rtv[1] = { RendererConstants::BACK_BUFFER_FORMAT };
+		DXGI_FORMAT rtv[1] = { Constants::BACK_BUFFER_FORMAT };
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 			1,
 			rtv,
-			RendererConstants::DEPTH_BUFFER_FORMAT);
+			Constants::DEPTH_BUFFER_FORMAT);
 
 		// blending
 		psoDesc.BlendState.RenderTarget[0].BlendEnable = true;
@@ -208,7 +208,7 @@ void GuiPass::Reset() noexcept
 	m_imguiFontTex.Reset();
 	m_fontTexSRV.Reset();
 
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
 		m_imguiFrameBuffs[i].IndexBuffer.Reset();
 		m_imguiFrameBuffs[i].VertexBuffer.Reset();

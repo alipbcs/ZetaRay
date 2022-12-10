@@ -23,19 +23,19 @@ namespace ZetaRay::Core
 		CommandList& operator=(const CommandList&) = delete;
 
 		void Reset(ID3D12CommandAllocator* cmdAlloc) noexcept;
-		D3D12_COMMAND_LIST_TYPE GetType() const { return m_type; }
+		ZetaInline D3D12_COMMAND_LIST_TYPE GetType() const { return m_type; }
 
-		inline void PIXBeginEvent(const char* s) noexcept
+		ZetaInline void PIXBeginEvent(const char* s) noexcept
 		{
 			::PIXBeginEvent(m_cmdList.Get(), PIX_COLOR_DEFAULT, s);
 		}
 
-		inline void PIXEndEvent() noexcept
+		ZetaInline void PIXEndEvent() noexcept
 		{
 			::PIXEndEvent(m_cmdList.Get());
 		}
 
-		inline void SetName(const char* s) noexcept
+		ZetaInline void SetName(const char* s) noexcept
 		{
 			m_cmdList->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(s), s);
 		}
@@ -59,7 +59,7 @@ namespace ZetaRay::Core
 			: CommandList(t, cmdAlloc)
 		{}
 
-		inline void TransitionResource(ID3D12Resource* res, D3D12_RESOURCE_STATES oldState, D3D12_RESOURCE_STATES newState,
+		ZetaInline void TransitionResource(ID3D12Resource* res, D3D12_RESOURCE_STATES oldState, D3D12_RESOURCE_STATES newState,
 			UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) noexcept
 		{
 			Assert(oldState != newState, "Invalid barrier states");
@@ -67,28 +67,28 @@ namespace ZetaRay::Core
 			m_cmdList->ResourceBarrier(1, &barrier);
 		}
 
-		inline void TransitionResource(D3D12_RESOURCE_BARRIER* barriers, UINT numBarriers) noexcept
+		ZetaInline void TransitionResource(D3D12_RESOURCE_BARRIER* barriers, UINT numBarriers) noexcept
 		{
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
 		}
 
-		inline void UAVBarrier(UINT numBarriers, D3D12_RESOURCE_BARRIER* barriers) noexcept
+		ZetaInline void UAVBarrier(UINT numBarriers, D3D12_RESOURCE_BARRIER* barriers) noexcept
 		{
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
 		}
 
-		inline void CopyResource(ID3D12Resource* dstResource, ID3D12Resource* srcResource) noexcept
+		ZetaInline void CopyResource(ID3D12Resource* dstResource, ID3D12Resource* srcResource) noexcept
 		{
 			m_cmdList->CopyResource(dstResource, srcResource);
 		}
 
-		inline void CopyBufferRegion(ID3D12Resource* dstBuffer, UINT64 dstOffset, ID3D12Resource* srcBuffer,
+		ZetaInline void CopyBufferRegion(ID3D12Resource* dstBuffer, UINT64 dstOffset, ID3D12Resource* srcBuffer,
 			UINT64 srcOffset, UINT64 numBytes) noexcept
 		{
 			m_cmdList->CopyBufferRegion(dstBuffer, dstOffset, srcBuffer, srcOffset, numBytes);
 		}
 
-		inline void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst,
+		ZetaInline void CopyTextureRegion(const D3D12_TEXTURE_COPY_LOCATION* dst,
 			UINT dstX,
 			UINT dstY,
 			UINT dstZ,
@@ -110,12 +110,12 @@ namespace ZetaRay::Core
 			: CopyCmdList(t, cmdAlloc)
 		{}
 
-		inline void BeginQuery(ID3D12QueryHeap* queryHeap, D3D12_QUERY_TYPE type, UINT index) noexcept
+		ZetaInline void BeginQuery(ID3D12QueryHeap* queryHeap, D3D12_QUERY_TYPE type, UINT index) noexcept
 		{
 			m_cmdList->BeginQuery(queryHeap, type, index);
 		}
 
-		inline void ResolveQueryData(ID3D12QueryHeap* queryHeap,
+		ZetaInline void ResolveQueryData(ID3D12QueryHeap* queryHeap,
 			D3D12_QUERY_TYPE type,
 			UINT startIndex,
 			UINT numQueries,
@@ -125,12 +125,12 @@ namespace ZetaRay::Core
 			m_cmdList->ResolveQueryData(queryHeap, type, startIndex, numQueries, destinationBuffer, alignedDestinationBufferOffset);
 		}
 
-		inline void EndQuery(ID3D12QueryHeap* queryHeap, D3D12_QUERY_TYPE type, UINT index) noexcept
+		ZetaInline void EndQuery(ID3D12QueryHeap* queryHeap, D3D12_QUERY_TYPE type, UINT index) noexcept
 		{
 			m_cmdList->EndQuery(queryHeap, type, index);
 		}
 
-		inline void ClearUnorderedAccessViewFloat(D3D12_GPU_DESCRIPTOR_HANDLE viewGPUHandleInCurrentHeap,
+		ZetaInline void ClearUnorderedAccessViewFloat(D3D12_GPU_DESCRIPTOR_HANDLE viewGPUHandleInCurrentHeap,
 			D3D12_CPU_DESCRIPTOR_HANDLE viewCPUHandle,
 			ID3D12Resource* resource,
 			float clearX = 0.0f, float clearY = 0.0f, float clearZ = 0.0f, float ClearW = 0.0f,
@@ -148,7 +148,7 @@ namespace ZetaRay::Core
 				rects);
 		}
 
-		inline void ClearUnorderedAccessViewUint(D3D12_GPU_DESCRIPTOR_HANDLE viewGPUHandleInCurrentHeap,
+		ZetaInline void ClearUnorderedAccessViewUint(D3D12_GPU_DESCRIPTOR_HANDLE viewGPUHandleInCurrentHeap,
 			D3D12_CPU_DESCRIPTOR_HANDLE viewCPUHandle,
 			ID3D12Resource* resource,
 			UINT clearX = 0, UINT clearY = 0, UINT clearZ = 0, UINT clearW = 0,
@@ -165,40 +165,40 @@ namespace ZetaRay::Core
 				rects);
 		}
 
-		inline void SetRootSignature(RootSignature& rootSig, ID3D12RootSignature* rootSigObj) noexcept
+		ZetaInline void SetRootSignature(RootSignature& rootSig, ID3D12RootSignature* rootSigObj) noexcept
 		{
 			rootSig.Begin();
 			Assert(rootSigObj, "rootSigObj was NULL");
 			m_cmdList->SetComputeRootSignature(rootSigObj);
 		}
 
-		inline void SetRootSignature(ID3D12RootSignature* rootSigObj) noexcept
+		ZetaInline void SetRootSignature(ID3D12RootSignature* rootSigObj) noexcept
 		{
 			Assert(rootSigObj, "rootSigObj was NULL");
 			m_cmdList->SetComputeRootSignature(rootSigObj);
 		}
 
-		inline void SetRootConstantBufferView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootConstantBufferView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetComputeRootConstantBufferView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRootShaderResourceView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootShaderResourceView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetComputeRootShaderResourceView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRootDescriptorTable(UINT rootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE baseDescriptor) noexcept
+		ZetaInline void SetRootDescriptorTable(UINT rootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE baseDescriptor) noexcept
 		{
 			m_cmdList->SetComputeRootDescriptorTable(rootParameterIndex, baseDescriptor);
 		}
 
-		inline void SetRootUnorderedAccessView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootUnorderedAccessView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetComputeRootUnorderedAccessView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRoot32BitConstants(UINT rootParameterIndex,
+		ZetaInline void SetRoot32BitConstants(UINT rootParameterIndex,
 			UINT num32BitValuesToSet,
 			const void* srcData,
 			UINT destOffsetIn32BitValues) noexcept
@@ -206,30 +206,30 @@ namespace ZetaRay::Core
 			m_cmdList->SetComputeRoot32BitConstants(rootParameterIndex, num32BitValuesToSet, srcData, destOffsetIn32BitValues);
 		}
 
-		inline void SetPipelineState(ID3D12PipelineState* pipelineState) noexcept
+		ZetaInline void SetPipelineState(ID3D12PipelineState* pipelineState) noexcept
 		{
 			Assert(pipelineState, "pipelineState was NULL");
 			m_cmdList->SetPipelineState(pipelineState);
 		}
 
-		inline void Dispatch(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) noexcept
+		ZetaInline void Dispatch(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) noexcept
 		{
 			m_cmdList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
 		}
 
-		inline void SetPredication(ID3D12Resource* buffer, UINT64 bufferOffset, D3D12_PREDICATION_OP op) noexcept
+		ZetaInline void SetPredication(ID3D12Resource* buffer, UINT64 bufferOffset, D3D12_PREDICATION_OP op) noexcept
 		{
 			m_cmdList->SetPredication(buffer, bufferOffset, op);
 		}
 
-		inline void BuildRaytracingAccelerationStructure(const D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC* desc,
+		ZetaInline void BuildRaytracingAccelerationStructure(const D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC* desc,
 			UINT numPostbuildInfoDescs,
 			const D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_DESC* postbuildInfoDescs) noexcept
 		{
 			m_cmdList->BuildRaytracingAccelerationStructure(desc, numPostbuildInfoDescs, postbuildInfoDescs);
 		}
 
-		inline void CompactAccelerationStructure(D3D12_GPU_VIRTUAL_ADDRESS dest, D3D12_GPU_VIRTUAL_ADDRESS src) noexcept
+		ZetaInline void CompactAccelerationStructure(D3D12_GPU_VIRTUAL_ADDRESS dest, D3D12_GPU_VIRTUAL_ADDRESS src) noexcept
 		{
 			m_cmdList->CopyRaytracingAccelerationStructure(dest, src, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
 		}
@@ -246,34 +246,34 @@ namespace ZetaRay::Core
 			: ComputeCmdList(D3D12_COMMAND_LIST_TYPE_DIRECT, cmdAlloc)
 		{}
 
-		inline void SetRootSignature(RootSignature& rootSig, ID3D12RootSignature* rootSigObj) noexcept
+		ZetaInline void SetRootSignature(RootSignature& rootSig, ID3D12RootSignature* rootSigObj) noexcept
 		{
 			rootSig.Begin();
 			Assert(rootSigObj, "rootSigObj was NULL");
 			m_cmdList->SetGraphicsRootSignature(rootSigObj);
 		}
 
-		inline void SetRootConstantBufferView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootConstantBufferView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetGraphicsRootConstantBufferView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRootShaderResourceView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootShaderResourceView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetGraphicsRootShaderResourceView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRootDescriptorTable(UINT rootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE baseDescriptor) noexcept
+		ZetaInline void SetRootDescriptorTable(UINT rootParameterIndex, D3D12_GPU_DESCRIPTOR_HANDLE baseDescriptor) noexcept
 		{
 			m_cmdList->SetGraphicsRootDescriptorTable(rootParameterIndex, baseDescriptor);
 		}
 
-		inline void SetRootUnorderedAccessView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
+		ZetaInline void SetRootUnorderedAccessView(UINT rootParameterIndex, D3D12_GPU_VIRTUAL_ADDRESS bufferLocation) noexcept
 		{
 			m_cmdList->SetGraphicsRootUnorderedAccessView(rootParameterIndex, bufferLocation);
 		}
 
-		inline void SetRoot32BitConstants(UINT rootParameterIndex,
+		ZetaInline void SetRoot32BitConstants(UINT rootParameterIndex,
 			UINT num32BitValuesToSet,
 			const void* srcData,
 			UINT destOffsetIn32BitValues) noexcept
@@ -289,7 +289,7 @@ namespace ZetaRay::Core
 			m_cmdList->ClearDepthStencilView(depthStencilView, clearFlags, depth, stencil, numRects, rects);
 		}
 
-		inline void ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE renderTargetView,
+		ZetaInline void ClearRenderTargetView(D3D12_CPU_DESCRIPTOR_HANDLE renderTargetView,
 			float r, float g, float b, float a,
 			UINT numRects = 0, const D3D12_RECT* rects = nullptr) noexcept
 		{
@@ -297,12 +297,12 @@ namespace ZetaRay::Core
 			m_cmdList->ClearRenderTargetView(renderTargetView, rgb, numRects, rects);
 		}
 
-		inline void IASetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitiveTopology) noexcept
+		ZetaInline void IASetPrimitiveTopology(D3D12_PRIMITIVE_TOPOLOGY primitiveTopology) noexcept
 		{
 			m_cmdList->IASetPrimitiveTopology(primitiveTopology);
 		}
 
-		inline void IASetVertexAndIndexBuffers(const D3D12_VERTEX_BUFFER_VIEW& vbv,
+		ZetaInline void IASetVertexAndIndexBuffers(const D3D12_VERTEX_BUFFER_VIEW& vbv,
 			const D3D12_INDEX_BUFFER_VIEW& ibv,
 			UINT startSlot = 0) noexcept
 		{
@@ -310,7 +310,7 @@ namespace ZetaRay::Core
 			m_cmdList->IASetIndexBuffer(&ibv);
 		}
 
-		inline void DrawInstanced(UINT vertexCountPerInstance,
+		ZetaInline void DrawInstanced(UINT vertexCountPerInstance,
 			UINT instanceCount,
 			UINT startVertexLocation,
 			UINT startInstanceLocation) noexcept
@@ -318,7 +318,7 @@ namespace ZetaRay::Core
 			m_cmdList->DrawInstanced(vertexCountPerInstance, instanceCount, startVertexLocation, startInstanceLocation);
 		}
 
-		inline void DrawIndexedInstanced(UINT indexCountPerInstance,
+		ZetaInline void DrawIndexedInstanced(UINT indexCountPerInstance,
 			UINT instanceCount,
 			UINT startIndexLocation,
 			INT  baseVertexLocation,
@@ -327,7 +327,7 @@ namespace ZetaRay::Core
 			m_cmdList->DrawIndexedInstanced(indexCountPerInstance, instanceCount, startIndexLocation, baseVertexLocation, startInstanceLocation);
 		}
 
-		inline void OMSetRenderTargets(UINT numRenderTargetDescriptors, 
+		ZetaInline void OMSetRenderTargets(UINT numRenderTargetDescriptors, 
 			const D3D12_CPU_DESCRIPTOR_HANDLE* renderTargetDescriptors,
 			BOOL RTsSingleHandleToDescriptorRange, 
 			const D3D12_CPU_DESCRIPTOR_HANDLE* depthStencilDescriptor) noexcept
@@ -335,12 +335,12 @@ namespace ZetaRay::Core
 			m_cmdList->OMSetRenderTargets(numRenderTargetDescriptors, renderTargetDescriptors, RTsSingleHandleToDescriptorRange, depthStencilDescriptor);
 		}
 
-		inline void RSSetViewports(UINT num, const D3D12_VIEWPORT* viewports)
+		ZetaInline void RSSetViewports(UINT num, const D3D12_VIEWPORT* viewports)
 		{
 			m_cmdList->RSSetViewports(num, viewports);
 		}
 
-		inline void RSSetViewportsScissorsRects(int num, const D3D12_VIEWPORT* viewports, const D3D12_RECT* rects = nullptr) noexcept
+		ZetaInline void RSSetViewportsScissorsRects(int num, const D3D12_VIEWPORT* viewports, const D3D12_RECT* rects = nullptr) noexcept
 		{
 			m_cmdList->RSSetViewports(num, viewports);
 
@@ -348,18 +348,18 @@ namespace ZetaRay::Core
 				m_cmdList->RSSetScissorRects(num, rects);
 		}
 
-		inline void RSSetScissorRects(UINT numRects, const D3D12_RECT* rects) noexcept
+		ZetaInline void RSSetScissorRects(UINT numRects, const D3D12_RECT* rects) noexcept
 		{
 			m_cmdList->RSSetScissorRects(numRects, rects);
 		}
 
-		inline void OMSetBlendFactor(float blendFactorR, float blendFactorG, float blendFactorB, float blendFactorW) noexcept
+		ZetaInline void OMSetBlendFactor(float blendFactorR, float blendFactorG, float blendFactorB, float blendFactorW) noexcept
 		{
 			FLOAT rgb[4] = { blendFactorR, blendFactorG, blendFactorB, blendFactorW };
 			m_cmdList->OMSetBlendFactor(rgb);
 		}
 
-		inline void SetPredication(ID3D12Resource* buffer, UINT64 bufferOffset, D3D12_PREDICATION_OP op) noexcept
+		ZetaInline void SetPredication(ID3D12Resource* buffer, UINT64 bufferOffset, D3D12_PREDICATION_OP op) noexcept
 		{
 			m_cmdList->SetPredication(buffer, bufferOffset, op);
 		}

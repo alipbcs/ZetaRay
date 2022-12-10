@@ -48,8 +48,8 @@ void TAA::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	auto* samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("TAA", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	auto samplers = App::GetRenderer().GetStaticSamplers();
+	s_rpObjs.Init("TAA", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);

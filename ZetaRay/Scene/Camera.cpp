@@ -11,7 +11,7 @@ using namespace ZetaRay::Math;
 
 namespace
 {
-	__forceinline void __vectorcall setCamPos(const __m128 vNewCamPos, float4x4a& view, float4x4a& viewInv) noexcept
+	ZetaInline void __vectorcall setCamPos(const __m128 vNewCamPos, float4x4a& view, float4x4a& viewInv) noexcept
 	{
 		const __m128 vT = minus(vNewCamPos);
 		viewInv.m[3] = store(vNewCamPos);
@@ -28,7 +28,7 @@ namespace
 		view.m[3] = store(_mm_insert_ps(v4thRow, _mm_set1_ps(1.0f), 0x30));
 	}
 
-	__forceinline v_float4x4 __vectorcall resetViewMatrix(const __m128 vBasisX, const __m128 vBasisY,
+	ZetaInline v_float4x4 __vectorcall resetViewMatrix(const __m128 vBasisX, const __m128 vBasisY,
 		const __m128 vBasisZ, const __m128 vEye, float4x4a& viewInv) noexcept
 	{
 		v_float4x4 vViewInv;

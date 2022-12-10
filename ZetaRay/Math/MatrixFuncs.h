@@ -9,7 +9,7 @@
 
 namespace ZetaRay::Math
 {
-	__forceinline v_float4x4 zero() noexcept
+	ZetaInline v_float4x4 zero() noexcept
 	{
 		const __m256 vZero = _mm256_setzero_ps();
 
@@ -19,7 +19,7 @@ namespace ZetaRay::Math
 			_mm_setzero_ps());
 	}
 
-	__forceinline v_float4x4 identity() noexcept
+	ZetaInline v_float4x4 identity() noexcept
 	{
 		const __m128 vZero = _mm_setzero_ps();
 		const __m128 vOne = _mm_set1_ps(1.0f);
@@ -30,7 +30,7 @@ namespace ZetaRay::Math
 			_mm_insert_ps(vZero, vOne, 0x37));
 	}
 
-	__forceinline v_float4x4 __vectorcall add(const v_float4x4 M1, const v_float4x4& M2) noexcept
+	ZetaInline v_float4x4 __vectorcall add(const v_float4x4 M1, const v_float4x4& M2) noexcept
 	{
 		return v_float4x4(_mm_add_ps(M1.vRow[0], M2.vRow[0]),
 			_mm_add_ps(M1.vRow[1], M2.vRow[1]),
@@ -38,7 +38,7 @@ namespace ZetaRay::Math
 			_mm_add_ps(M1.vRow[3], M2.vRow[3]));
 	}
 
-	__forceinline v_float4x4 __vectorcall sub(const v_float4x4 M1, const v_float4x4& M2) noexcept
+	ZetaInline v_float4x4 __vectorcall sub(const v_float4x4 M1, const v_float4x4& M2) noexcept
 	{
 		return v_float4x4(_mm_sub_ps(M1.vRow[0], M2.vRow[0]),
 			_mm_sub_ps(M1.vRow[1], M2.vRow[1]),
@@ -46,7 +46,7 @@ namespace ZetaRay::Math
 			_mm_sub_ps(M1.vRow[3], M2.vRow[3]));
 	}
 
-	__forceinline v_float4x4 __vectorcall transpose(const v_float4x4 M) noexcept
+	ZetaInline v_float4x4 __vectorcall transpose(const v_float4x4 M) noexcept
 	{
 		//
 		//		0  1  2  3
@@ -65,7 +65,7 @@ namespace ZetaRay::Math
 			_mm_shuffle_ps(vTemp2, vTemp3, 0xdd));
 	}
 
-	__forceinline __m128 __vectorcall mul(const v_float4x4 M, const __m128& v) noexcept
+	ZetaInline __m128 __vectorcall mul(const v_float4x4 M, const __m128& v) noexcept
 	{
 		// (v.x, v.x, v.x, v.x)
 		const __m128 vX = _mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(0, 0, 0, 0));
@@ -86,7 +86,7 @@ namespace ZetaRay::Math
 		return result;
 	}
 
-	__forceinline v_float4x4 __vectorcall mul(const v_float4x4 M1, const v_float4x4& M2) noexcept
+	ZetaInline v_float4x4 __vectorcall mul(const v_float4x4 M1, const v_float4x4& M2) noexcept
 	{
 		v_float4x4 M3;
 
@@ -98,7 +98,7 @@ namespace ZetaRay::Math
 		return M3;
 	}
 
-	__forceinline __m128 __vectorcall determinant3x3(const v_float4x4 M) noexcept
+	ZetaInline __m128 __vectorcall determinant3x3(const v_float4x4 M) noexcept
 	{
 		//  
 		//			 a b c
@@ -120,7 +120,7 @@ namespace ZetaRay::Math
 	// Given transformation matrix of the following form, returns its inverse,
 	// M = S * R * T,
 	// where S is a scaling, R is a rotation and T is a translation transformation
-	__forceinline v_float4x4 __vectorcall inverseSRT(const v_float4x4 M) noexcept
+	ZetaInline v_float4x4 __vectorcall inverseSRT(const v_float4x4 M) noexcept
 	{
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vZero = _mm_setzero_ps();
@@ -167,7 +167,7 @@ namespace ZetaRay::Math
 		return vI;
 	}
 
-	__forceinline v_float4x4 scale(float sx, float sy, float sz) noexcept
+	ZetaInline v_float4x4 scale(float sx, float sy, float sz) noexcept
 	{
 		float4a f(sx, sy, sz, 1.0f);
 
@@ -182,7 +182,7 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	__forceinline v_float4x4 __vectorcall scale(float4a s) noexcept
+	ZetaInline v_float4x4 __vectorcall scale(float4a s) noexcept
 	{
 		s.w = 1.0f;
 		const __m128 vZero = _mm_setzero_ps();
@@ -194,7 +194,7 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	__forceinline v_float4x4 __vectorcall scale(const __m128 vS) noexcept
+	ZetaInline v_float4x4 __vectorcall scale(const __m128 vS) noexcept
 	{
 		const __m128 vZero = _mm_setzero_ps();
 
@@ -204,7 +204,7 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vZero, _mm_set1_ps(1.0f), _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	__forceinline v_float4x4 __vectorcall rotate(const __m128 vN, float angle) noexcept
+	ZetaInline v_float4x4 __vectorcall rotate(const __m128 vN, float angle) noexcept
 	{
 		v_float4x4 vR;
 
@@ -239,7 +239,7 @@ namespace ZetaRay::Math
 		return vR;
 	}
 
-	__forceinline v_float4x4 rotateX(float angle) noexcept
+	ZetaInline v_float4x4 rotateX(float angle) noexcept
 	{
 		v_float4x4 vR;
 
@@ -259,7 +259,7 @@ namespace ZetaRay::Math
 		return vR;
 	}
 
-	__forceinline v_float4x4 rotateY(float angle) noexcept
+	ZetaInline v_float4x4 rotateY(float angle) noexcept
 	{
 		v_float4x4 vR;
 
@@ -279,7 +279,7 @@ namespace ZetaRay::Math
 		return vR;
 	}
 
-	__forceinline v_float4x4 rotateZ(float angle) noexcept
+	ZetaInline v_float4x4 rotateZ(float angle) noexcept
 	{
 		v_float4x4 vR;
 
@@ -300,7 +300,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns a rotation matrix from the given unit quaternion. Assumes vQ is a unit quaternion
-	__forceinline v_float4x4 __vectorcall rotationMatrixFromQuat(const __m128 vQ) noexcept
+	ZetaInline v_float4x4 __vectorcall rotationMatrixFromQuat(const __m128 vQ) noexcept
 	{
 		// (q1^2, q2^2, q3^2, q4^2)
 		const __m128 vQ2 = _mm_mul_ps(vQ, vQ);
@@ -353,7 +353,7 @@ namespace ZetaRay::Math
 	}
 
 	// TODO complete
-	//		__forceinline __m128 __vectorcall quatFromRotationMatrix(const v_float4x4 vM) noexcept
+	//		ZetaInline __m128 __vectorcall quatFromRotationMatrix(const v_float4x4 vM) noexcept
 	//		{
 	//			// q4 = 0.5f * (sqrt(trace(M) + 1)
 	//			// q1 = (M_23 - M_32) / (4 * q_4)
@@ -379,7 +379,7 @@ namespace ZetaRay::Math
 	//
 	//		}
 
-	__forceinline v_float4x4 __vectorcall translate(float x, float y, float z) noexcept
+	ZetaInline v_float4x4 __vectorcall translate(float x, float y, float z) noexcept
 	{
 		const __m128 vZero = _mm_setzero_ps();
 		const __m128 vOne = _mm_set_ps1(1.0f);
@@ -391,7 +391,7 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	__forceinline v_float4x4 __vectorcall translate(float4a t) noexcept
+	ZetaInline v_float4x4 __vectorcall translate(float4a t) noexcept
 	{
 		const __m128 vZero = _mm_setzero_ps();
 		const __m128 vOne = _mm_set_ps1(1.0f);
@@ -403,7 +403,7 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	__forceinline v_float4x4 __vectorcall affineTransformation(float4a s, float4a q, float4a t) noexcept
+	ZetaInline v_float4x4 __vectorcall affineTransformation(float4a s, float4a q, float4a t) noexcept
 	{
 		v_float4x4 vS = scale(s);
 		v_float4x4 vR = rotationMatrixFromQuat(_mm_load_ps(reinterpret_cast<float*>(&q)));
@@ -414,7 +414,7 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	__forceinline v_float4x4 __vectorcall affineTransformation(const __m128 vS, const __m128 vQ, const __m128 vT) noexcept
+	ZetaInline v_float4x4 __vectorcall affineTransformation(const __m128 vS, const __m128 vQ, const __m128 vT) noexcept
 	{
 		v_float4x4 vScaleM = scale(vS);
 		v_float4x4 vRotM = rotationMatrixFromQuat(vQ);
@@ -429,7 +429,7 @@ namespace ZetaRay::Math
 	// Decomposes an affine transformation matrix. Assumes transformations were
 	// multiplied in the SRT order. S, R and T stand for scaling, rotation and translation respectively
 	// (does not correctly handle negative scales right now)
-	//__forceinline v_float4x4 __vectorcall decomposeAffine(const v_float4x4 vM, float4a& s, float4a& q, float4a& t) noexcept
+	//ZetaInline v_float4x4 __vectorcall decomposeAffine(const v_float4x4 vM, float4a& s, float4a& q, float4a& t) noexcept
 	//{
 	//	_mm_store_ps(reinterpret_cast<float*>(&t), vM.vRow[3]);
 
@@ -458,7 +458,7 @@ namespace ZetaRay::Math
 	//	s.z = temp.x;
 	//}
 
-	__forceinline v_float4x4 __vectorcall lookAtLH(float4a cameraPos, float4a focus, float4a up) noexcept
+	ZetaInline v_float4x4 __vectorcall lookAtLH(float4a cameraPos, float4a focus, float4a up) noexcept
 	{
 		v_float4x4 vM = identity();
 
@@ -487,7 +487,7 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	__forceinline v_float4x4 __vectorcall perspective(float aspectRatio, float vFOV, float nearZ, float farZ) noexcept
+	ZetaInline v_float4x4 __vectorcall perspective(float aspectRatio, float vFOV, float nearZ, float farZ) noexcept
 	{
 		v_float4x4 P;
 
@@ -504,7 +504,7 @@ namespace ZetaRay::Math
 		return P;
 	}
 
-	__forceinline v_float4x4 perspectiveReverseZ(float aspectRatio, float vFOV, float nearZ) noexcept
+	ZetaInline v_float4x4 perspectiveReverseZ(float aspectRatio, float vFOV, float nearZ) noexcept
 	{
 		v_float4x4 P;
 
@@ -520,7 +520,7 @@ namespace ZetaRay::Math
 		return P;
 	}
 
-	__forceinline bool __vectorcall equal(v_float4x4 vM1, v_float4x4 vM2) noexcept
+	ZetaInline bool __vectorcall equal(v_float4x4 vM1, v_float4x4 vM2) noexcept
 	{
 		const __m256 vEps = _mm256_set1_ps(FLT_EPSILON);
 
@@ -538,7 +538,7 @@ namespace ZetaRay::Math
 		return (r1 & r2) == 0xff;
 	}
 
-	__forceinline v_float4x4 __vectorcall load(float4x4a M) noexcept
+	ZetaInline v_float4x4 __vectorcall load(float4x4a M) noexcept
 	{
 		v_float4x4 vM;
 
@@ -550,7 +550,7 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	__forceinline v_float4x4 __vectorcall load(float4x3 M) noexcept
+	ZetaInline v_float4x4 __vectorcall load(float4x3 M) noexcept
 	{
 		v_float4x4 vM;
 		float4x4a temp(M);
@@ -563,7 +563,7 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	__forceinline float4x4a __vectorcall store(v_float4x4 M) noexcept
+	ZetaInline float4x4a __vectorcall store(v_float4x4 M) noexcept
 	{
 		float4x4a m;
 

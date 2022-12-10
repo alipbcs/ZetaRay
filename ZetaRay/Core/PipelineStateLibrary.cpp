@@ -378,8 +378,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 		Assert(pathToCompiledVS, "path to vertex shader was NULL");
 		Assert(pathToCompiledPS, "path to pixel shader was NULL");
 
-		SmallVector<uint8_t, App::PoolAllocator> vsBytecode;
-		SmallVector<uint8_t, App::PoolAllocator> psBytecode;
+		SmallVector<uint8_t, App::ThreadAllocator> vsBytecode;
+		SmallVector<uint8_t, App::ThreadAllocator> psBytecode;
 
 		{
 			Filesystem::Path pVs(App::GetCompileShadersDir());
@@ -469,7 +469,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 		Filesystem::Path pCs(App::GetCompileShadersDir());
 		pCs.Append(pathToCompiledCS);
 		
-		SmallVector<uint8_t, App::PoolAllocator> bytecode;
+		SmallVector<uint8_t, App::ThreadAllocator> bytecode;
 		Filesystem::LoadFromFile(pCs.Get(), bytecode);
 
 		desc.CS.BytecodeLength = bytecode.size();

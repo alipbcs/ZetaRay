@@ -70,7 +70,7 @@ namespace ZetaRay::Scene
 			return instanceFromSceneID;
 		}
 
-		SceneCore() noexcept = default;
+		SceneCore() noexcept;
 		~SceneCore() noexcept = default;
 
 		SceneCore(const SceneCore&) = delete;
@@ -148,6 +148,15 @@ namespace ZetaRay::Scene
 		void DebugDrawRenderGraph() { m_sceneRenderer.DebugDrawRenderGraph(); }
 
 	private:
+		static constexpr uint32_t BASE_COLOR_DESC_TABLE_SIZE = 256;
+		static constexpr uint32_t NORMAL_DESC_TABLE_SIZE = 256;
+		static constexpr uint32_t METALNESS_ROUGHNESS_DESC_TABLE_SIZE = 256;
+		static constexpr uint32_t EMISSIVE_DESC_TABLE_SIZE = 64;
+
+		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
+		// by order of declaration and destroyed in reverse order"
+		Support::MemoryPool m_memoryPool;
+
 		struct TreePos
 		{
 			int Level;
@@ -195,27 +204,38 @@ namespace ZetaRay::Scene
 
 		struct TreeLevel
 		{
-			Util::SmallVector<uint64_t, App::PoolAllocator> m_IDs;
-			Util::SmallVector<Math::float4x3, App::PoolAllocator> m_localTransforms;
-			Util::SmallVector<Math::float4x3, App::PoolAllocator> m_toWorlds;
-			Util::SmallVector<uint64_t, App::PoolAllocator> m_meshIDs;
-			Util::SmallVector<Range, App::PoolAllocator> m_subtreeRanges;
-			Util::SmallVector<int, App::PoolAllocator> m_parendIndices;
+			TreeLevel(Support::MemoryPool& mp) noexcept
+				: m_IDs(mp),
+				m_localTransforms(mp),
+				m_toWorlds(mp),
+				m_meshIDs(mp),
+				m_subtreeRanges(mp),
+				m_parendIndices(mp),
+				m_rtFlags(mp)
+			{}
+
+			Util::SmallVector<uint64_t, Support::PoolAllocator> m_IDs;
+			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_localTransforms;
+			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_toWorlds;
+			Util::SmallVector<uint64_t, Support::PoolAllocator> m_meshIDs;
+			Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;
+			Util::SmallVector<int, Support::PoolAllocator> m_parendIndices;
 			// first six bits encode MeshInstanceFlags, last two bits indicate RT_MESH_MODE
-			Util::SmallVector<uint8_t, App::PoolAllocator> m_rtFlags;
+			Util::SmallVector<uint8_t, Support::PoolAllocator> m_rtFlags;
 		};
 
-		Util::SmallVector<TreeLevel, App::PoolAllocator> m_sceneGraph;
+		Util::SmallVector<TreeLevel, Support::PoolAllocator> m_sceneGraph;
 
 		//
 		// scene metadata
 		//
 
+		// TODO use MemoryPool for these
 		struct SceneMetadata
 		{
-			Util::SmallVector<uint64_t, App::PoolAllocator> Meshes;
-			Util::SmallVector<uint64_t, App::PoolAllocator> MaterialIDs;
-			Util::SmallVector<uint64_t, App::PoolAllocator> Instances;
+			Util::SmallVector<uint64_t> Meshes;
+			Util::SmallVector<uint64_t> MaterialIDs;
+			Util::SmallVector<uint64_t> Instances;
 		};
 
 		Util::HashTable<SceneMetadata> m_sceneMetadata;
@@ -236,7 +256,7 @@ namespace ZetaRay::Scene
 			uint64_t ID;
 		};
 
-		Util::SmallVector<PrevToWorld, App::PoolAllocator> m_prevToWorlds;
+		Util::SmallVector<PrevToWorld, Support::PoolAllocator> m_prevToWorlds;
 
 		//
 		// BVH
@@ -310,9 +330,9 @@ namespace ZetaRay::Scene
 			float BegTimeOffset;
 		};
 
-		Util::SmallVector<InstanceToAnimationMap, App::PoolAllocator> m_animOffsetToInstanceMap;
-		Util::SmallVector<AnimationOffset, App::PoolAllocator> m_animationOffsets;
-		Util::SmallVector<Keyframe, App::PoolAllocator> m_keyframes;
+		Util::SmallVector<InstanceToAnimationMap, Support::PoolAllocator> m_animOffsetToInstanceMap;
+		Util::SmallVector<AnimationOffset, Support::PoolAllocator> m_animationOffsets;
+		Util::SmallVector<Keyframe, Support::PoolAllocator> m_keyframes;
 
 		//
 		// Scene Renderer

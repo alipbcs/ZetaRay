@@ -12,7 +12,7 @@ using namespace ZetaRay::Util;
 
 namespace
 {
-	__forceinline int FindThreadIdx(Span<THREAD_ID_TYPE> threadIds) noexcept
+	ZetaInline int FindThreadIdx(Span<THREAD_ID_TYPE> threadIds) noexcept
 	{
 		int idx = -1;
 

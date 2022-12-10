@@ -56,8 +56,8 @@ namespace ZetaRay::Support
 		//			...
 		size_t GetPoolIndexFromSize(size_t x) noexcept;
 
-		// the chunk size for given pool index
-		__forceinline size_t GetChunkSizeFromPoolIndex(size_t x) const
+		// chunk size for given pool index
+		ZetaInline size_t GetChunkSizeFromPoolIndex(size_t x) const
 		{
 			return 1llu << (x + INDEX_SHIFT);
 		}
@@ -82,5 +82,36 @@ namespace ZetaRay::Support
 
 		// pointer to head of the linked list for each memory block
 		void* m_currHead[POOL_COUNT] = { nullptr };
+	};
+
+	struct PoolAllocator
+	{
+		PoolAllocator(MemoryPool& mp) noexcept
+			: m_allocator(&mp)
+		{}
+
+		PoolAllocator(const PoolAllocator& other) noexcept
+			: m_allocator(other.m_allocator)
+		{
+		}
+
+		PoolAllocator& operator=(const PoolAllocator& other) noexcept
+		{
+			m_allocator = other.m_allocator;
+			return *this;
+		}
+
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		{
+			return m_allocator->AllocateAligned(size, alignment);
+		}
+
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		{
+			m_allocator->FreeAligned(mem, size, alignment);
+		}
+
+	private:
+		MemoryPool* m_allocator;
 	};
 }

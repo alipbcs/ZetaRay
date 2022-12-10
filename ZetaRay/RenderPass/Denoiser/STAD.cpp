@@ -76,8 +76,8 @@ void STAD::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	auto* samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("STAD", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	auto samplers = App::GetRenderer().GetStaticSamplers();
+	s_rpObjs.Init("STAD", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	m_psos[(int)SHADERS::TEMPORAL_PASS] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::TEMPORAL_PASS,
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::TEMPORAL_PASS]);

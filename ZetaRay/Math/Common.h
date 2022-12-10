@@ -19,7 +19,7 @@ namespace ZetaRay::Math
 	struct float3;
 
 	// Returns the smallest power of 2 that is larger than x
-	inline constexpr size_t NextPow2(size_t x) noexcept
+	ZetaInline constexpr size_t NextPow2(size_t x) noexcept
 	{
 		x--;
 		x |= x >> 1;
@@ -33,13 +33,13 @@ namespace ZetaRay::Math
 	}
 
 	// Returns whether x is a power of 2
-	inline constexpr bool IsPow2(size_t x) noexcept
+	ZetaInline constexpr bool IsPow2(size_t x) noexcept
 	{
 		return (x != 0) && ((x & (x - 1)) == 0);
 	}
 
 	// Aligns to nearest largest multiple of alignment
-	inline constexpr size_t AlignDown(size_t size, size_t alignment) noexcept
+	ZetaInline constexpr size_t AlignDown(size_t size, size_t alignment) noexcept
 	{
 		if (alignment > 0)
 		{
@@ -52,7 +52,7 @@ namespace ZetaRay::Math
 	}
 
 	// Aligns to nearest smallest multiple of alignment
-	inline constexpr size_t AlignUp(size_t x, size_t alignment) noexcept
+	ZetaInline constexpr size_t AlignUp(size_t x, size_t alignment) noexcept
 	{
 		if (alignment > 0)
 		{
@@ -65,18 +65,18 @@ namespace ZetaRay::Math
 	}
 
 	template<typename T>
-	inline constexpr T max(T a, T b) noexcept
+	ZetaInline constexpr T max(T a, T b) noexcept
 	{
 		return a < b ? b : a;
 	}
 
 	template<typename T>
-	inline constexpr T min(T a, T b) noexcept
+	ZetaInline constexpr T min(T a, T b) noexcept
 	{
 		return a < b ? a : b;
 	}
 
-	inline bool IsNaN(float f) noexcept
+	ZetaInline bool IsNaN(float f) noexcept
 	{
 		// for NaN:
 		//  - sign bit could be 0 or 1
@@ -92,12 +92,12 @@ namespace ZetaRay::Math
 	// Solves quadratic equation a * x^2 + b * x + c = 0
 	bool SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexcept;
 
-	inline float DegreeToRadians(float d) noexcept
+	ZetaInline float DegreeToRadians(float d) noexcept
 	{
 		return d * PI * ONE_DIV_180;
 	}
 
-	inline float RadiansToDegrees(float r) noexcept
+	ZetaInline float RadiansToDegrees(float r) noexcept
 	{
 		return r * 180.0f * ONE_DIV_PI;
 	}
@@ -105,7 +105,7 @@ namespace ZetaRay::Math
 	void SphericalFromCartesian(const Math::float3& w, float& theta, float& phi) noexcept;
 	Math::float3 SphericalToCartesian(float theta, float phi) noexcept;
 
-	inline size_t CeilUnsignedIntDiv(size_t x, size_t y) noexcept
+	ZetaInline size_t CeilUnsignedIntDiv(size_t x, size_t y) noexcept
 	{
 		Assert(x != 0, "Input must be greater than 0");
 		return 1 + ((x - 1) / y);

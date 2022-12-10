@@ -105,8 +105,6 @@ ReSTIR_GI::~ReSTIR_GI() noexcept
 
 void ReSTIR_GI::Init() noexcept
 {
-	auto* samplers = App::GetRenderer().GetStaticSamplers();
-
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
@@ -117,7 +115,8 @@ void ReSTIR_GI::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	s_rpObjs.Init("ReSTIR_GI", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	auto samplers = App::GetRenderer().GetStaticSamplers();
+	s_rpObjs.Init("ReSTIR_GI", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{

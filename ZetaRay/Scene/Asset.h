@@ -21,7 +21,7 @@ namespace ZetaRay::Scene::Internal
 
 	struct TexSRVDescriptorTable
 	{
-		TexSRVDescriptorTable() noexcept = default;
+		TexSRVDescriptorTable(const uint32_t descTableSize = 1024) noexcept;
 		~TexSRVDescriptorTable() noexcept = default;
 
 		TexSRVDescriptorTable(const TexSRVDescriptorTable&) = delete;
@@ -46,10 +46,13 @@ namespace ZetaRay::Scene::Internal
 
 		Util::SmallVector<ToBeFreedTexture> m_pending;
 
-		static constexpr int NUM_DESCRIPTORS = 1024;
-		static constexpr int NUM_MASKS = NUM_DESCRIPTORS >> 6;
-		static_assert(NUM_MASKS * 64 == NUM_DESCRIPTORS, "these must match.");
-		uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
+		static constexpr int MAX_NUM_DESCRIPTORS = 1024;
+		static constexpr int MAX_NUM_MASKS = MAX_NUM_DESCRIPTORS >> 6;
+		static_assert(MAX_NUM_MASKS * 64 == MAX_NUM_DESCRIPTORS, "these must match.");
+		
+		const uint32_t m_descTableSize;
+		const uint32_t m_numMasks;
+		uint64_t m_inUseBitset[MAX_NUM_MASKS] = { 0 };
 
 		struct CacheEntry
 		{
@@ -141,8 +144,8 @@ namespace ZetaRay::Scene::Internal
 
 	private:
 		Util::HashTable<Model::TriangleMesh> m_meshes;
-		Util::SmallVector<Core::Vertex, App::PoolAllocator> m_vertices;
-		Util::SmallVector<INDEX_TYPE, App::PoolAllocator> m_indices;
+		Util::SmallVector<Core::Vertex, App::ThreadAllocator> m_vertices;
+		Util::SmallVector<INDEX_TYPE, App::ThreadAllocator> m_indices;
 
 		Core::DefaultHeapBuffer m_vertexBuffer;
 		Core::DefaultHeapBuffer m_indexBuffer;

@@ -328,7 +328,7 @@ namespace
     HRESULT FillInitData(size_t width, size_t height, size_t depth, size_t mipCount,
         size_t arraySize, size_t numberOfPlanes, DXGI_FORMAT format, size_t maxsize, size_t bitSize,
         const uint8_t* bitData, size_t& twidth, size_t& theight, size_t& tdepth, size_t& skipMip,
-        Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator>& initData) noexcept
+        Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& initData) noexcept
     {
         skipMip = 0;
         twidth = 0;
@@ -412,7 +412,7 @@ namespace
         return initData.empty() ? E_FAIL : S_OK;
     }
 
-    void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator>& subresources, const uint8_t* bitData, 
+    void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources, const uint8_t* bitData, 
         size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, uint32_t& mipCount, DXGI_FORMAT& format) noexcept
     {
         auto* device = App::GetRenderer().GetDevice();
@@ -1001,7 +1001,7 @@ HRESULT Direct3DHelper::GetSurfaceInfo(size_t width,
 }
 
 void Direct3DHelper::LoadDDSFromFile(const char* path,
-    Vector<D3D12_SUBRESOURCE_DATA, App::PoolAllocator>& subresources,
+    Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources,
     DXGI_FORMAT& format, 
     std::unique_ptr<uint8_t[]>& ddsData,
     uint32_t& width, 

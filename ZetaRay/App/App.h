@@ -13,7 +13,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::App
 {
-	struct PoolAllocator;
+	struct ThreadAllocator;
 	struct FrameAllocator;
 }
 
@@ -100,11 +100,11 @@ namespace ZetaRay::App
 
 	void AddParam(Support::ParamVariant& p) noexcept;
 	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, App::PoolAllocator>> GetParams() noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, App::ThreadAllocator>> GetParams() noexcept;
 
 	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
 	void RemoveShaderReloadHandler(const char* name) noexcept;
-	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, App::PoolAllocator>> GetShaderReloadHandlers() noexcept;
+	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, App::ThreadAllocator>> GetShaderReloadHandlers() noexcept;
 
 	// these could be implemented as a template function, but then the implementation has to be in the header,
 	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
@@ -127,14 +127,14 @@ namespace ZetaRay::App
 	void LockStdOut() noexcept;
 	void UnlockStdOut() noexcept;
 
-	struct PoolAllocator
+	struct ThreadAllocator
 	{
-		__forceinline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
 		{
 			return App::AllocateFromMemoryPool(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
 		{
 			App::FreeMemoryPool(mem, size, alignment);
 		}
@@ -142,11 +142,11 @@ namespace ZetaRay::App
 
 	struct FrameAllocator
 	{
-		__forceinline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
 		{
 			return App::AllocateFromFrameAllocator(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
 	};
 }

@@ -19,13 +19,13 @@ void GpuTimer::Init() noexcept
 
 	D3D12_QUERY_HEAP_DESC desc{};
 	desc.Type = D3D12_QUERY_HEAP_TYPE_TIMESTAMP;
-	desc.Count = MAX_NUM_QUERIES * 2 * RendererConstants::NUM_BACK_BUFFERS;
+	desc.Count = MAX_NUM_QUERIES * 2 * Constants::NUM_BACK_BUFFERS;
 	desc.NodeMask = 0;
 
 	auto* device = renderer.GetDevice();
 	CheckHR(device->CreateQueryHeap(&desc, IID_PPV_ARGS(m_queryHeap.GetAddressOf())));
 
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
 		m_timings[i].resize(MAX_NUM_QUERIES);
 	}
@@ -36,7 +36,7 @@ void GpuTimer::Init() noexcept
 
 void GpuTimer::Shutdown() noexcept
 {
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
 		m_timings[i].free_memory();
 	}
@@ -47,7 +47,7 @@ void GpuTimer::BeginFrame() noexcept
 	Assert(m_queryCount[m_currFrameIdx].load(std::memory_order_relaxed) == 0,
 		"Attempting to begin a new frame while GpuTimer::Resolve hasn't been called yet for previous frame.");
 
-	m_currFrameIdx = m_currFrameIdx + 1 < RendererConstants::NUM_BACK_BUFFERS ? m_currFrameIdx + 1 : 0;
+	m_currFrameIdx = m_currFrameIdx + 1 < Constants::NUM_BACK_BUFFERS ? m_currFrameIdx + 1 : 0;
 
 	for (int i = 0; i < MAX_NUM_QUERIES; i++)
 		m_timings[m_currFrameIdx][i].Reset();
@@ -74,7 +74,7 @@ void GpuTimer::EndQuery(ComputeCmdList* cmdList, uint32_t begHeapIdx) noexcept
 {
 	Assert((int)begHeapIdx >= MAX_NUM_QUERIES * 2 * m_currFrameIdx, "invalid query index.");
 	uint32_t endHeapIdx = begHeapIdx + 1;
-	Assert(endHeapIdx < MAX_NUM_QUERIES * 2 * RendererConstants::NUM_BACK_BUFFERS, "invalid query index.");
+	Assert(endHeapIdx < MAX_NUM_QUERIES * 2 * Constants::NUM_BACK_BUFFERS, "invalid query index.");
 
 	cmdList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, endHeapIdx);
 }

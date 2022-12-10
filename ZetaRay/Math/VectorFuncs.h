@@ -8,7 +8,7 @@
 
 namespace ZetaRay::Math
 {
-	__forceinline __m128 __vectorcall abs(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall abs(const __m128 v) noexcept
 	{
 		// all bits are 0 except for the sign bit
 		const __m128 vMinusZero = _mm_set1_ps(-0.0f);
@@ -17,7 +17,7 @@ namespace ZetaRay::Math
 		return _mm_andnot_ps(vMinusZero, v);
 	}
 
-	__forceinline __m256 __vectorcall abs(const __m256 v) noexcept
+	ZetaInline __m256 __vectorcall abs(const __m256 v) noexcept
 	{
 		// all bits are 0 except for the sign bit
 		const __m256 vMinusZero = _mm256_set1_ps(-0.0f);
@@ -26,7 +26,7 @@ namespace ZetaRay::Math
 		return _mm256_andnot_ps(vMinusZero, v);
 	}
 
-	__forceinline __m128 __vectorcall minus(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall minus(const __m128 v) noexcept
 	{
 		// all bits are 0 except for the sign bit
 		const __m128 vMinusZero = _mm_set1_ps(-0.0f);
@@ -36,7 +36,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns v1 + t * (v2 - v1)
-	__forceinline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t) noexcept
+	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t) noexcept
 	{
 		__m128 vT = _mm_broadcast_ss(&t);
 		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
@@ -44,14 +44,14 @@ namespace ZetaRay::Math
 		return vInterpolated;
 	}
 
-	__forceinline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT) noexcept
+	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT) noexcept
 	{
 		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
 
 		return vInterpolated;
 	}
 
-	__forceinline __m128 __vectorcall length(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall length(const __m128 v) noexcept
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vNorm = _mm_sqrt_ps(vNorm2);
@@ -59,7 +59,7 @@ namespace ZetaRay::Math
 		return vNorm;
 	}
 
-	__forceinline __m128 __vectorcall normalize(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall normalize(const __m128 v) noexcept
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vN = _mm_div_ps(v, _mm_sqrt_ps(vNorm2));
@@ -67,7 +67,7 @@ namespace ZetaRay::Math
 		return vN;
 	}
 
-	__forceinline __m128 __vectorcall normalizeFast(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall normalizeFast(const __m128 v) noexcept
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vN = _mm_mul_ps(v, _mm_rsqrt_ps(vNorm2));
@@ -75,7 +75,7 @@ namespace ZetaRay::Math
 		return vN;
 	}
 
-	__forceinline bool __vectorcall equal(const __m128 v1, const __m128 v2) noexcept
+	ZetaInline bool __vectorcall equal(const __m128 v1, const __m128 v2) noexcept
 	{
 		const __m128 vEps = _mm_set1_ps(FLT_EPSILON);
 		__m128 vRes = _mm_cmpgt_ps(vEps, abs(_mm_sub_ps(v1, v2)));
@@ -84,7 +84,7 @@ namespace ZetaRay::Math
 		return r == 0;
 	}
 
-	__forceinline __m128 __vectorcall cross(const __m128 v1, const __m128 v2) noexcept
+	ZetaInline __m128 __vectorcall cross(const __m128 v1, const __m128 v2) noexcept
 	{
 		__m128 vTmp0 = _mm_shuffle_ps(v1, v1, 0x9);		// yzx
 		__m128 vTmp1 = _mm_shuffle_ps(v2, v2, 0x12);	// zxy
@@ -101,7 +101,7 @@ namespace ZetaRay::Math
 	}
 
 	// Following function is ported from DirectXMath (under MIT License).
-	__forceinline __m128 __vectorcall acos(const __m128 V) noexcept
+	ZetaInline __m128 __vectorcall acos(const __m128 V) noexcept
 	{
 		__m128 nonnegative = _mm_cmpge_ps(V, _mm_setzero_ps());
 		__m128 mvalue = _mm_sub_ps(_mm_setzero_ps(), V);
@@ -156,7 +156,7 @@ namespace ZetaRay::Math
 
 	// Following function is ported from DirectXMath (under MIT License).
 	// vTheta must be in -XM_PI <= theta < XM_PI
-	__forceinline __m128 __vectorcall sin(__m128 vTheta) noexcept
+	ZetaInline __m128 __vectorcall sin(__m128 vTheta) noexcept
 	{
 #ifdef _DEBUG
 		__m128 vM1 = _mm_cmpge_ps(vTheta, _mm_set1_ps(-PI));
@@ -206,7 +206,7 @@ namespace ZetaRay::Math
 		return Result;
 	}
 
-	__forceinline float4a __vectorcall store(__m128 v) noexcept
+	ZetaInline float4a __vectorcall store(__m128 v) noexcept
 	{
 		float4a f;
 		_mm_store_ps(reinterpret_cast<float*>(&f), v);

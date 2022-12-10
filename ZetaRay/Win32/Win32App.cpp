@@ -108,10 +108,10 @@ namespace
 		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
 		std::atomic_int32_t m_currFrameAllocIndex;
 
-		SmallVector<ParamVariant, PoolAllocator> m_params;
-		SmallVector<ParamUpdate, PoolAllocator, 32> m_paramsUpdates;
+		SmallVector<ParamVariant, ThreadAllocator> m_params;
+		SmallVector<ParamUpdate, ThreadAllocator, 32> m_paramsUpdates;
 
-		SmallVector<ShaderReloadHandler, PoolAllocator> m_shaderReloadHandlers;
+		SmallVector<ShaderReloadHandler, ThreadAllocator> m_shaderReloadHandlers;
 		SmallVector<Stat, FrameAllocator> m_frameStats;
 		FrameTime m_frameTime;
 
@@ -860,7 +860,7 @@ namespace ZetaRay::AppImpl
 
 namespace ZetaRay
 {
-	__forceinline int GetThreadIdx() noexcept
+	ZetaInline int GetThreadIdx() noexcept
 	{
 		for (int i = 0; i < g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
 		{
@@ -1365,14 +1365,14 @@ namespace ZetaRay
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedView<Vector<ParamVariant, PoolAllocator>> App::GetParams() noexcept
+	RWSynchronizedView<Vector<ParamVariant, ThreadAllocator>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant, PoolAllocator>>(g_app->m_params, g_app->m_paramLock);
+		return RWSynchronizedView<Vector<ParamVariant, ThreadAllocator>>(g_app->m_params, g_app->m_paramLock);
 	}
 
-	RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>> App::GetShaderReloadHandlers() noexcept
+	RSynchronizedView<Vector<ShaderReloadHandler, ThreadAllocator>> App::GetShaderReloadHandlers() noexcept
 	{
-		return RSynchronizedView<Vector<ShaderReloadHandler, PoolAllocator>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
+		return RSynchronizedView<Vector<ShaderReloadHandler, ThreadAllocator>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
 	}
 
 	RWSynchronizedView<Vector<Stat, FrameAllocator>> App::GetStats() noexcept

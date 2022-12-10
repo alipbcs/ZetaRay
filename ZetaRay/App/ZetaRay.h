@@ -18,6 +18,7 @@
 // "Move" was defined in OCIdl.h! 
 #define ZetaMove(x) static_cast<std::remove_reference_t<decltype(x)>&&>(x)
 #define ZetaForward(x) static_cast<decltype(x)&&>(x)
+#define ZetaInline __forceinline
 
 #define MAX_NUM_THREADS 16
 #define THREAD_ID_TYPE uint32_t

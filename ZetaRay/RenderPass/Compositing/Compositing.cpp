@@ -39,7 +39,7 @@ Compositing::~Compositing() noexcept
 void Compositing::Init() noexcept
 {
 	auto& renderer = App::GetRenderer();
-	auto* samplers = renderer.GetStaticSamplers();
+	auto samplers = renderer.GetStaticSamplers();
 
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -49,7 +49,7 @@ void Compositing::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	s_rpObjs.Init("Compositing", m_rootSig, RendererConstants::NUM_STATIC_SAMPLERS, samplers, flags);
+	s_rpObjs.Init("Compositing", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);

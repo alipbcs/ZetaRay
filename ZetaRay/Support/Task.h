@@ -33,12 +33,12 @@ namespace ZetaRay::Support
 		Task& operator=(Task&&) noexcept;
 
 		void Reset(const char* name, TASK_PRIORITY p, Util::Function&& f) noexcept;
-		const char* GetName() const { return m_name; }
-		int GetSignalHandle() const { return m_signalHandle; }
-		Util::Span<int> GetAdjacencies() { return Util::Span(m_adjacentTailNodes); }
-		TASK_PRIORITY GetPriority() { return m_priority; }
+		ZetaInline const char* GetName() const { return m_name; }
+		ZetaInline int GetSignalHandle() const { return m_signalHandle; }
+		ZetaInline Util::Span<int> GetAdjacencies() { return Util::Span(m_adjacentTailNodes); }
+		ZetaInline TASK_PRIORITY GetPriority() { return m_priority; }
 
-		__forceinline void DoTask() noexcept
+		ZetaInline void DoTask() noexcept
 		{
 			Assert(m_dlg.IsSet(), "attempting to run an empty Function");
 			m_dlg.Run();
@@ -119,18 +119,18 @@ namespace ZetaRay::Support
 		void ConnectTo(Task& other) noexcept;
 		void ConnectFrom(Task& other) noexcept;
 
-		bool IsFinalized() noexcept { return m_isFinalized; }
+		ZetaInline bool IsFinalized() noexcept { return m_isFinalized; }
 		void Sort() noexcept;
 		void Finalize(WaitObject* waitObj = nullptr) noexcept;
 
-		int GetSize() { return m_currSize; }
-		Util::Span<Task> GetTasks() { return Util::Span(m_tasks, m_currSize); }
+		ZetaInline int GetSize() { return m_currSize; }
+		ZetaInline Util::Span<Task> GetTasks() { return Util::Span(m_tasks, m_currSize); }
 
 	private:
 		struct TaskMetadata
 		{
-			int Indegree() const { return __popcnt16(PredecessorMask); }
-			int Outdegree() const { return __popcnt16(SuccessorMask); }
+			ZetaInline int Indegree() const { return __popcnt16(PredecessorMask); }
+			ZetaInline int Outdegree() const { return __popcnt16(SuccessorMask); }
 			
 			// index of adjacet tasks (this Task has an edge to them)
 			uint16_t SuccessorMask = 0;

@@ -14,12 +14,12 @@ namespace ZetaRay::Support
 
 	struct SystemAllocator
 	{
-		__forceinline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
 		{
 			return _aligned_malloc(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
 		{
 			_aligned_free(mem);
 		}

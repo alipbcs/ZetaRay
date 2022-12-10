@@ -123,7 +123,7 @@ void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint
 }
 
 void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& rootSig, 
-	int numStaticSamplers, const D3D12_STATIC_SAMPLER_DESC* samplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
+	UINT numStaticSamplers, const D3D12_STATIC_SAMPLER_DESC* samplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
 	//rootSigDesc.Init_1_1(NumParams(), m_params.data(), numStaticSamplers, samplers, flags);

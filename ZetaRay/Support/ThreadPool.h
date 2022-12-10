@@ -44,8 +44,8 @@ namespace ZetaRay::Support
 			return isEmpty;
 		}
 
-		int ThreadPoolSize() const { return m_threadPoolSize; }
-		Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
+		ZetaInline int ThreadPoolSize() const { return m_threadPoolSize; }
+		ZetaInline Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
 
 	private:
 		void WorkerThread() noexcept;

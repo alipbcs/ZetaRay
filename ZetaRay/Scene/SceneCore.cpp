@@ -17,7 +17,7 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	__forceinline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
+	ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
 	{
 		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
 		uint64_t meshFromSceneID = XXH3_64bits(str, n);
@@ -25,7 +25,7 @@ namespace
 		return meshFromSceneID;
 	}
 
-	__forceinline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
+	ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
 	{
 		StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
 		uint64_t matFromSceneID = XXH3_64bits(str, n);
@@ -38,10 +38,27 @@ namespace
 // Scene
 //--------------------------------------------------------------------------------------
 
+SceneCore::SceneCore() noexcept
+	: m_baseColorDescTable(BASE_COLOR_DESC_TABLE_SIZE),
+	m_normalDescTable(NORMAL_DESC_TABLE_SIZE),
+	m_metalnessRoughnessDescTable(METALNESS_ROUGHNESS_DESC_TABLE_SIZE),
+	m_emissiveDescTable(EMISSIVE_DESC_TABLE_SIZE),
+	m_sceneGraph(m_memoryPool, m_memoryPool),
+	m_prevToWorlds(m_memoryPool),
+	m_animOffsetToInstanceMap(m_memoryPool),
+	m_animationOffsets(m_memoryPool),
+	m_keyframes(m_memoryPool)
+{
+}
+
 void SceneCore::Init() noexcept
 {
 	// level 0 is just a (dummy) root
-	m_sceneGraph.resize(2);
+	m_sceneGraph.reserve(2);
+
+	m_sceneGraph.emplace_back(m_memoryPool);
+	m_sceneGraph.emplace_back(m_memoryPool);
+
 	m_sceneGraph[0].m_toWorlds.resize(1);
 	m_sceneGraph[0].m_subtreeRanges.resize(1);
 	m_sceneGraph[0].m_subtreeRanges[0] = Range(0, 0);
@@ -393,7 +410,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3
 
 	// append it to the end, then keep swapping it back until it's at insertIdx
 	auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-	(Vector<T, App::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
+	(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
 	{
 		vec.emplace_back(T(ZetaForward(args)...));
 		for (int i = (int)vec.size() - 1; i != insertIdx; --i)
@@ -511,7 +528,7 @@ uint64_t SceneCore::GetMeshIDForInstance(uint64_t id) noexcept
 
 void SceneCore::RebuildBVH() noexcept
 {
-	SmallVector<BVH::BVHInput, App::PoolAllocator> allInstances;
+	SmallVector<BVH::BVHInput, App::ThreadAllocator> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
 
 	const int numLevels = (int)m_sceneGraph.size();

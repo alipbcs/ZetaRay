@@ -5,7 +5,7 @@
 
 namespace ZetaRay::App::Filesystem
 {
-    void LoadFromFile(const char* filePath, Util::Vector<uint8_t, App::PoolAllocator>& fileData) noexcept;
+    void LoadFromFile(const char* filePath, Util::Vector<uint8_t, App::ThreadAllocator>& fileData) noexcept;
     void WriteToFile(const char* filePath, uint8_t* data, uint32_t sizeInBytes) noexcept;
     void RemoveFile(const char* filePath) noexcept;
     bool Exists(const char* filePath) noexcept;
@@ -25,6 +25,6 @@ namespace ZetaRay::App::Filesystem
 
     private:
         static constexpr size_t DEFAULT_PATH_LENGTH = 256;
-        Util::SmallVector<char, App::PoolAllocator, DEFAULT_PATH_LENGTH> m_path;
+        Util::SmallVector<char, App::ThreadAllocator, DEFAULT_PATH_LENGTH> m_path;
     };
 }

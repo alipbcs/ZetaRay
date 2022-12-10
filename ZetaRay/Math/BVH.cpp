@@ -10,13 +10,13 @@ namespace
 {
 	struct alignas(16) Bin
 	{
-		__forceinline void __vectorcall Extend(v_AABB box) noexcept
+		ZetaInline void __vectorcall Extend(v_AABB box) noexcept
 		{
 			Box = NumModels > 0 ? compueUnionAABB(Box, box) : box;
 			NumModels++;
 		}
 
-		__forceinline void __vectorcall Extend(Bin bin) noexcept
+		ZetaInline void __vectorcall Extend(Bin bin) noexcept
 		{
 			Box = NumModels > 0 ? compueUnionAABB(Box, bin.Box) : bin.Box;
 			NumModels += bin.NumModels;
@@ -41,7 +41,7 @@ void BVH::Node::InitAsLeaf(int base, int count, int parent) noexcept
 	Parent = parent;
 }
 
-void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::PoolAllocator>& models, int base, int count,
+void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::ThreadAllocator>& models, int base, int count,
 	int right, int parent) noexcept
 {
 	Assert(count, "Invalid args");
@@ -67,7 +67,7 @@ void BVH::Clear() noexcept
 	m_instances.free_memory();
 }
 
-void BVH::Build(Vector<BVHInput, App::PoolAllocator>&& instances) noexcept
+void BVH::Build(Vector<BVHInput, App::ThreadAllocator>&& instances) noexcept
 {
 	if (instances.size() == 0)
 		return;

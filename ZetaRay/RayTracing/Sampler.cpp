@@ -21,7 +21,7 @@ void Sampler::InitLowDiscrepancyBlueNoise() noexcept
 
             const int sobolSeqSizeInBytes = 256 * 256 * sizeof(int);
             //Vector<uint8_t> sobelSeq(sobolSeqSizeInBytes);
-            SmallVector<uint8_t, App::PoolAllocator> sobelSeq;
+            SmallVector<uint8_t, App::ThreadAllocator> sobelSeq;
             sobelSeq.resize(sobolSeqSizeInBytes);
 
             Filesystem::LoadFromFile(p.Get(), sobelSeq);
@@ -42,7 +42,7 @@ void Sampler::InitLowDiscrepancyBlueNoise() noexcept
 
             const int scramblingTileSizeInBytes = 128 * 128 * 8 * sizeof(int);
             //Vector<uint8_t> scramblingTile(scramblingTileSizeInBytes);
-            SmallVector<uint8_t, App::PoolAllocator> scramblingTile;
+            SmallVector<uint8_t, App::ThreadAllocator> scramblingTile;
             scramblingTile.resize(scramblingTileSizeInBytes);
 
             Filesystem::LoadFromFile(p.Get(), scramblingTile);
@@ -63,7 +63,7 @@ void Sampler::InitLowDiscrepancyBlueNoise() noexcept
 
             const int rankingTileSizeInBytes = 128 * 128 * 8 * sizeof(int);
             //Vector<uint8_t> rankingTile(rankingTileSizeInBytes);
-            SmallVector<uint8_t, App::PoolAllocator> rankingTile;
+            SmallVector<uint8_t, App::ThreadAllocator> rankingTile;
             rankingTile.resize(rankingTileSizeInBytes);
 
             Filesystem::LoadFromFile(p.Get(), rankingTile);

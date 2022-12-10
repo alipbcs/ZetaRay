@@ -10,8 +10,8 @@ namespace ZetaRay::Model::glTF::Asset
 {
 	struct MeshSubset
 	{
-		Util::SmallVector<Core::Vertex, App::PoolAllocator> Vertices;
-		Util::SmallVector<INDEX_TYPE, App::PoolAllocator> Indices;
+		Util::SmallVector<Core::Vertex, App::ThreadAllocator> Vertices;
+		Util::SmallVector<INDEX_TYPE, App::ThreadAllocator> Indices;
 		int MaterialIdx;
 		int MeshIdx;
 		int MeshPrimIdx;

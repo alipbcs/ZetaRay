@@ -76,7 +76,7 @@ namespace ZetaRay::RT
 		int FindDynamicBLAS(uint64_t id) noexcept;
 
 		StaticBLAS m_staticBLAS;
-		Util::SmallVector<DynamicBLAS, App::PoolAllocator> m_dynamicBLASes;
+		Util::SmallVector<DynamicBLAS, App::ThreadAllocator> m_dynamicBLASes;
 
 		Core::DefaultHeapBuffer m_framesMeshInstances;
 

@@ -76,17 +76,17 @@ namespace ZetaRay::Model
 		//void ComputeBox(Vector<VertexPosNormalTexTangent>& vertices, Vector<uint16_t>& indices, 
 		//	Math::float3 size) noexcept;
 
-		void ComputeSphere(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeSphere(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float diameter, size_t tessellation) noexcept;
-		void ComputeCylinder(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeCylinder(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept;
-		void ComputeCone(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeCone(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float diameter, float height, size_t tessellation) noexcept;
-		void ComputeTorus(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeTorus(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float diameter, float thickness, size_t tessellation) noexcept;
-		void ComputeTeapot(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeTeapot(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float size, size_t tessellation) noexcept;
-		void ComputeGrid(Util::Vector<Core::Vertex, App::PoolAllocator>& vertices, Util::Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+		void ComputeGrid(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 			float width, float depth, uint32_t m, uint32_t n) noexcept;
 	}
 }

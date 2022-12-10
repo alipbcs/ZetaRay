@@ -91,12 +91,12 @@ namespace ZetaRay::Support
 			return *this;
 		}
 
-		__forceinline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
 		{
 			return m_allocator->AllocateAligned(size, alignment);
 		}
 
-		__forceinline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
 		{
 			m_allocator->FreeAligned(mem, size, alignment);
 		}

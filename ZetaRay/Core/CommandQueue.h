@@ -18,7 +18,7 @@ namespace ZetaRay::Core
 		CommandQueue(const CommandQueue&) = delete;
 		CommandQueue& operator=(const CommandQueue&) = delete;
 
-		ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
+		ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
 		CommandList* GetCommandList() noexcept;
 
 		// Returns given command allocator back for future resuse, once the specified fence value
@@ -56,7 +56,7 @@ namespace ZetaRay::Core
 			uint64_t FenceToWaitFor;
 		};
 
-		Util::SmallVector<ReleasedCmdAlloc, App::PoolAllocator> m_cmdAllocPool;
+		Util::SmallVector<ReleasedCmdAlloc, App::ThreadAllocator> m_cmdAllocPool;
 
 		struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
 		{

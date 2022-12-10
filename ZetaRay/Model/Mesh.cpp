@@ -46,7 +46,7 @@ TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices,
 // PrimitiveMesh
 //--------------------------------------------------------------------------------------
 
-void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float width, float depth, uint32_t m, uint32_t n) noexcept
 {
 	vertices.clear();
@@ -111,7 +111,7 @@ void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex, App::PoolAllocator>& vertic
 	}
 }
 
-void PrimitiveMesh::ComputeSphere(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeSphere(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float diameter, size_t tessellation) noexcept
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
@@ -183,7 +183,7 @@ void PrimitiveMesh::ComputeSphere(Vector<Vertex, App::PoolAllocator>& vertices, 
 	ComputeMeshTangentVectors(vertices, indices);
 }
 
-void PrimitiveMesh::ComputeCylinder(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeCylinder(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept
 {
 	vertices.clear();
@@ -335,7 +335,7 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex, App::PoolAllocator>& vertices
 	}
 }
 
-void PrimitiveMesh::ComputeCone(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeCone(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float diameter, float height, size_t tessellation) noexcept
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
@@ -412,7 +412,7 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex, App::PoolAllocator>& vertices, Ve
 	ComputeMeshTangentVectors(vertices, indices);
 }
 
-void PrimitiveMesh::ComputeTorus(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeTorus(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float diameter, float thickness, size_t tessellation) noexcept
 {
 	vertices.clear();
@@ -663,7 +663,7 @@ namespace
 			p4 * (t * t);
 	}
 
-	void CreatePatchVertices(Vector<Vertex, App::PoolAllocator>& vertices, float3 patch[16],
+	void CreatePatchVertices(Vector<Vertex, App::ThreadAllocator>& vertices, float3 patch[16],
 		size_t tessellation, bool isMirrored) noexcept
 	{
 		for (size_t i = 0; i <= tessellation; i++)
@@ -744,7 +744,7 @@ namespace
 		}
 	}
 
-	void CreatePatchIndices(Vector<INDEX_TYPE, App::PoolAllocator>& indices, size_t vbase, size_t tessellation, bool isMirrored)
+	void CreatePatchIndices(Vector<INDEX_TYPE, App::ThreadAllocator>& indices, size_t vbase, size_t tessellation, bool isMirrored)
 	{
 		size_t stride = tessellation + 1;
 
@@ -788,7 +788,7 @@ namespace
 	}
 
 	// Tessellates the specified bezier patch.
-	void TessellatePatch(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+	void TessellatePatch(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 		const TeapotPatch& patch, size_t tessellation, float3 scale, bool isMirrored)
 	{
 		// Look up the 16 control points for this patch.
@@ -808,7 +808,7 @@ namespace
 	}
 }
 
-void PrimitiveMesh::ComputeTeapot(Vector<Vertex, App::PoolAllocator>& vertices, Vector<INDEX_TYPE, App::PoolAllocator>& indices,
+void PrimitiveMesh::ComputeTeapot(Vector<Vertex, App::ThreadAllocator>& vertices, Vector<INDEX_TYPE, App::ThreadAllocator>& indices,
 	float size, size_t tessellation) noexcept
 {
 	vertices.clear();

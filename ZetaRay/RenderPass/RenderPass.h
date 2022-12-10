@@ -13,7 +13,7 @@ namespace ZetaRay::RenderPass
 	{
 		void Init(const char* name,
 			Core::RootSignature& rootSigInstance,
-			int numStaticSamplers = 0,
+			size_t numStaticSamplers = 0,
 			const D3D12_STATIC_SAMPLER_DESC* samplers = nullptr,
 			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE) noexcept;
 

@@ -63,7 +63,7 @@ namespace ZetaRay::Util
         //    new (&m_buffer) F(ZetaMove(f));
         //}
 
-        __forceinline void Run() noexcept
+        ZetaInline void Run() noexcept
         {
             return m_lambda->call(&m_buffer);
         }

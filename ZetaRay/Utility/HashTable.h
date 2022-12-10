@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Math/Common.h"
-#include "../App/App.h"
 
 namespace ZetaRay::Util
 {
@@ -120,16 +119,15 @@ namespace ZetaRay::Util
 			if constexpr (!std::is_trivially_destructible_v<T>)
 			{
 				while (curr != m_end)
-				{
 					curr++->~Entry();
-				}
 			}
 
 			m_numEntries = 0;
 
 			// free the previously allocated memory
 			if(bucket_count())
-				App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
+				//App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
+				_aligned_free(m_beg);
 		}
 
 		void swap(HashTable& other) noexcept
@@ -139,7 +137,7 @@ namespace ZetaRay::Util
 			std::swap(m_numEntries, other.m_numEntries);
 		}
 
-		__forceinline T& operator[](uint64_t key) noexcept
+		ZetaInline T& operator[](uint64_t key) noexcept
 		{
 			static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
 
@@ -150,12 +148,12 @@ namespace ZetaRay::Util
 			return e->Val;
 		}
 
-		__forceinline Entry* begin_it() noexcept
+		ZetaInline Entry* begin_it() noexcept
 		{
 			return m_beg;
 		}
 
-		__forceinline Entry* next_it(Entry* curr) noexcept
+		ZetaInline Entry* next_it(Entry* curr) noexcept
 		{
 			Entry* next = curr + 1;
 			while (next != m_end && next->Key == NULL_KEY)
@@ -164,7 +162,7 @@ namespace ZetaRay::Util
 			return next;
 		}
 
-		__forceinline Entry* end_it() noexcept
+		ZetaInline Entry* end_it() noexcept
 		{
 			return m_end;
 		}
@@ -200,7 +198,8 @@ namespace ZetaRay::Util
 			Entry* oldTable = m_beg;
 			const size_t oldBucketCount = bucket_count();
 
-			m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), alignof(Entry)));
+			//m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), alignof(Entry)));
+			m_beg = reinterpret_cast<Entry*>(_aligned_malloc(n * sizeof(Entry), alignof(Entry)));
 			// adjust the end pointer
 			m_end = m_beg + n;
 
@@ -233,13 +232,12 @@ namespace ZetaRay::Util
 			if constexpr (!std::is_trivially_destructible_v<Entry>)
 			{
 				for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
-				{
 					curr->~Entry();
-				}
 			}
 
 			// free the previously allocated memory
-			App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
+			//App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
+			_aligned_free(oldTable);
 		}
 
 		static constexpr size_t MIN_NUM_BUCKETS = 4;
