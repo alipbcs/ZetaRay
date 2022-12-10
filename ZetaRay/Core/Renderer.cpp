@@ -15,6 +15,14 @@ using namespace ZetaRay::Support;
 // Renderer
 //--------------------------------------------------------------------------------------
 
+Renderer::Renderer() noexcept
+	: m_cbvSrvUavDescHeapGpu(32),
+	m_cbvSrvUavDescHeapCpu(32),
+	m_rtvDescHeap(8),
+	m_dsvDescHeap(8)
+{
+}
+
 Renderer::~Renderer() noexcept
 {
 }
@@ -42,19 +50,19 @@ void Renderer::Init(HWND hwnd, int renderWidth, int renderHeight, int displayWid
 
 	// descriptor heaps
 	m_cbvSrvUavDescHeapGpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-		RendererConstants::NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS,
+		Constants::NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS,
 		true);
 
 	m_cbvSrvUavDescHeapCpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-		RendererConstants::NUM_CBV_SRV_UAV_DESC_HEAP_CPU_DESCRIPTORS,
+		Constants::NUM_CBV_SRV_UAV_DESC_HEAP_CPU_DESCRIPTORS,
 		false);
 
 	m_rtvDescHeap.Init(D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
-		RendererConstants::NUM_RTV_DESC_HEAP_DESCRIPTORS,
+		Constants::NUM_RTV_DESC_HEAP_DESCRIPTORS,
 		false);
 
 	m_dsvDescHeap.Init(D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-		RendererConstants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
+		Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
 		false);
 
 	// command queues
@@ -65,7 +73,7 @@ void Renderer::Init(HWND hwnd, int renderWidth, int renderHeight, int displayWid
 	m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);
 
 	// swapchain & depth descriptor tables
-	m_backbuffDescTable = m_rtvDescHeap.Allocate(RendererConstants::NUM_BACK_BUFFERS);
+	m_backbuffDescTable = m_rtvDescHeap.Allocate(Constants::NUM_BACK_BUFFERS);
 	m_depthBuffDescTable = m_dsvDescHeap.Allocate(1);
 
 	ResizeBackBuffers(hwnd);
@@ -107,25 +115,25 @@ void Renderer::ResizeBackBuffers(HWND hwnd) noexcept
 	// if the backbuffers already exist, resize them
 	if (m_backBuffers[0].GetResource())
 	{
-		for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+		for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 			m_backBuffers[i].Reset(false);
 
-		m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, RendererConstants::MAX_SWAPCHAIN_FRAME_LATENCY);
+		m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
 	}
 	else
 	{
 		m_deviceObjs.CreateSwapChain(m_directQueue->GetCommandQueue(),
 			hwnd,
 			m_displayWidth, m_displayHeight,
-			RendererConstants::NUM_BACK_BUFFERS,
-			Direct3DHelper::NoSRGB(RendererConstants::BACK_BUFFER_FORMAT),
-			RendererConstants::MAX_SWAPCHAIN_FRAME_LATENCY);
+			Constants::NUM_BACK_BUFFERS,
+			Direct3DHelper::NoSRGB(Constants::BACK_BUFFER_FORMAT),
+			Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
 	}
 
 	m_currBackBuffIdx = m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
 
 	// obtain the buffers
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
 		ComPtr<ID3D12Resource> backbuff;
 		CheckHR(m_deviceObjs.m_dxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(backbuff.GetAddressOf())));
@@ -135,10 +143,10 @@ void Renderer::ResizeBackBuffers(HWND hwnd) noexcept
 	}
 
 	// create RTVs
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
 		D3D12_RENDER_TARGET_VIEW_DESC desc{};
-		desc.Format = RendererConstants::BACK_BUFFER_FORMAT;
+		desc.Format = Constants::BACK_BUFFER_FORMAT;
 		desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
 		m_deviceObjs.m_device->CreateRenderTargetView(m_backBuffers[i].GetResource(), &desc, m_backbuffDescTable.CPUHandle(i));
@@ -166,7 +174,7 @@ void Renderer::Shutdown() noexcept
 		m_deviceObjs.m_dxgiSwapChain->SetFullscreenState(false, nullptr);
 	}
 
-	for (int i = 0; i < RendererConstants::NUM_BACK_BUFFERS; i++)
+	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 		m_backBuffers[i].Reset();
 
 	m_backbuffDescTable.Reset();
@@ -235,8 +243,8 @@ void Renderer::SubmitResourceCopies() noexcept
 {
 	m_gpuMemory.SubmitResourceCopies();
 
-	App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetNumFreeSlots(), m_rtvDescHeap.GetHeapSize());
-	App::AddFrameStat("Renderer", "Gpu Desc. Heap", m_cbvSrvUavDescHeapGpu.GetNumFreeSlots(), m_cbvSrvUavDescHeapGpu.GetHeapSize());
+	App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetNumFreeDescriptors(), m_rtvDescHeap.GetHeapSize());
+	App::AddFrameStat("Renderer", "Gpu Desc. Heap", m_cbvSrvUavDescHeapGpu.GetNumFreeDescriptors(), m_cbvSrvUavDescHeapGpu.GetHeapSize());
 }
 
 void Renderer::EndFrame(TaskSet& endFrameTS) noexcept
