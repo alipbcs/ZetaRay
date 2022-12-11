@@ -62,12 +62,7 @@ namespace ZetaRay::Core
 
 		Util::SmallVector<Entry, App::ThreadAllocator, 2> m_compiledPSOs;
 		Util::SmallVector<uint8_t, App::ThreadAllocator> m_cachedBlob;
-		//std::atomic_bool m_vecLock;
-		SRWLOCK m_vecLock = SRWLOCK_INIT;			
 		
-		// flag indicating whether some in thread is in modifying the PSO lib
-		std::atomic_bool m_compileInProgress;
-
 		bool m_foundOnDisk = false;
 		bool m_psoWasReset = false;
 	};
