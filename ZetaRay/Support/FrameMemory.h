@@ -49,8 +49,7 @@ namespace ZetaRay::Support
 		{
 			for (int i = 0; i < NUM_BLOCKS; i++)
 			{
-				if (m_blocks[i].Start)
-					m_blocks[i].Offset = 0;
+				m_blocks[i].Offset = 0;
 
 				m_blocks[i].UsageCounter = (m_blocks[i].UsageCounter == NUM_FRAMES_TO_FREE_DELAY) ?
 					NUM_FRAMES_TO_FREE_DELAY :
@@ -79,7 +78,7 @@ namespace ZetaRay::Support
 
 		static constexpr int NUM_BLOCKS = MAX_NUM_THREADS * 2;
 		static constexpr int NUM_FRAMES_TO_FREE_DELAY = 10;
-		static constexpr size_t BLOCK_SIZE = 128 * 1024;
+		static constexpr size_t BLOCK_SIZE = 256 * 1024;
 
 		MemoryBlock m_blocks[NUM_BLOCKS];
 	};

@@ -414,6 +414,7 @@ namespace ZetaRay::Util
 			{
 				m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
 
+				// TODO these should reset to pointing to the inline storage
 				m_beg = nullptr;
 				m_end = nullptr;
 				m_last = nullptr;

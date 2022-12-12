@@ -66,9 +66,6 @@ namespace ZetaRay::Model
 		Math::AABB m_AABB;
 	};
 
-	static constexpr int q = sizeof(TriangleMesh);
-
-
 	// Ref: DirectXTK12 library (MIT License), available from:
 	// https://github.com/microsoft/DirectXTK12
 	namespace PrimitiveMesh

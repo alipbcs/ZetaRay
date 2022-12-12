@@ -15,8 +15,8 @@ using namespace ZetaRay::Math;
 //--------------------------------------------------------------------------------------
 
 TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices, 
-	size_t vtxBuffStartOffset, 
-	size_t idxBuffStartOffset, 
+	size_t vtxBuffStartOffset,
+	size_t idxBuffStartOffset,
 	uint32_t numIndices, 
 	uint64_t matID) noexcept
 	: m_numIndices(numIndices),

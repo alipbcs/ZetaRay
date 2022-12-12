@@ -24,7 +24,7 @@ TAA::TAA() noexcept
 		D3D12_SHADER_VISIBILITY_ALL,
 		SceneRenderer::FRAME_CONSTANTS_BUFFER_NAME);
 
-	// root-constants
+	// root constants
 	m_rootSig.InitAsConstants(1,		// root idx
 		sizeof(cbTAA) / sizeof(DWORD),	// num DWORDs
 		1,								// register

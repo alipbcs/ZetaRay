@@ -212,8 +212,12 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 		}
 
 		// try to allocate from existing linked lists with a larger block size
+		// TODO alternatively chunks from smaller block sizes can be coalesced together
 		if (!success)
 		{
+			// TODO instead of returning a larger block directly, break it into chunks (with size
+			// of each equal to the best fit for this request), insert those chunks into the current
+			// (empty) list and then return the head
 			while (m_heads[listIdx].Head == -1)
 			{
 				listIdx++;

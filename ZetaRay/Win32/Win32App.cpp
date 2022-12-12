@@ -249,7 +249,7 @@ namespace ZetaRay::AppImpl
 
 	void UpdateStats() noexcept
 	{
-		g_app->m_frameStats.clear();
+		g_app->m_frameStats.free_memory();
 
 		const float frameTimeMs = (float)(g_app->m_timer.GetElapsedTime() * 1000.0);
 

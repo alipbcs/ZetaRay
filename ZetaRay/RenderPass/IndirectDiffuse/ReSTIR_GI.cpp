@@ -135,7 +135,7 @@ void ReSTIR_GI::Init() noexcept
 	m_cbTemporal.PdfCorrection = m_cbSpatial.PdfCorrection = true;
 	m_cbSpatial.NormalExp = DefaultParamVals::NormalExp;
 	m_cbTemporal.FrameCounter = 0;
-	m_cbTemporal.CheckerboardTracing = false;
+	m_cbTemporal.CheckerboardTracing = true;
 
 	ParamVariant paramMaxPlaneDist;
 	paramMaxPlaneDist.InitFloat("Renderer", "ReSTIR_GI", "MaxPlaneDist",

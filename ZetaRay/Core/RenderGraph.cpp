@@ -8,12 +8,12 @@
 #include "CommandList.h"
 #include "../Support/Task.h"
 #include "../App/Timer.h"
-#include "../App/Log.h"
 #include <algorithm>
 #include <xxHash-0.8.1/xxhash.h>
 #include <imgui/imnodes.h>
 
 #ifdef _DEBUG
+#include "../App/Log.h"
 #include <string>
 #endif // _DEBUG
 
@@ -136,9 +136,6 @@ void RenderGraph::BeginFrame() noexcept
 	m_numPassesPrevFrame = numNodes;
 	m_currRenderPassIdx.store(0, std::memory_order_relaxed);
 
-	//m_currFrameIdx = 1 - m_currFrameIdx;
-	//m_currResIdx.store(0, std::memory_order_relaxed);
-
 	// reset the producers
 	for (auto& rm : m_frameResources)
 	{
@@ -147,6 +144,10 @@ void RenderGraph::BeginFrame() noexcept
 		for (int i = 0; i < MAX_NUM_PRODUCERS; i++)
 			rm.Producers[i].Val = INVALID_NODE_HANDLE;
 	}
+
+	// reset the render nodes
+	for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
+		m_renderNodes[currNode].Reset();
 }
 
 int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
@@ -276,7 +277,6 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 	for (int i = 0; i < numNodes; i++)
 		m_renderNodes[i].Indegree = (int)m_renderNodes[i].Inputs.size();
 
-	// adjacent tail nodes
 	SmallVector<RenderNodeHandle, App::FrameAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
 
 	// add the graph edges. For each input of node N, add an edge from 
