@@ -28,7 +28,7 @@ TAA::TAA() noexcept
 	m_rootSig.InitAsConstants(1,		// root idx
 		sizeof(cbTAA) / sizeof(DWORD),	// num DWORDs
 		1,								// register
-		0);								// register-space
+		0);								// register space
 }
 
 TAA::~TAA() noexcept

@@ -42,9 +42,7 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 
 void RayTracer::UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	if (!settings.RTIndirectDiffuse)
-		data.ReSTIR_GIPass.Reset();
-	else if (settings.RTIndirectDiffuse && !data.ReSTIR_GIPass.IsInitialized())
+	if(!data.ReSTIR_GIPass.IsInitialized())
 		data.ReSTIR_GIPass.Init();
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::NONE)
@@ -58,24 +56,21 @@ void RayTracer::UpdatePasses(const RenderSettings& settings, RayTracerData& data
 
 void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	if (settings.RTIndirectDiffuse)
+	data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+
+	auto func = [&data](ReSTIR_GI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
 	{
-		data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+		const Texture& t = data.ReSTIR_GIPass.GetOutput(r);
+		Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
+	};
 
-		auto func = [&data](ReSTIR_GI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
-		{
-			const Texture& t = data.ReSTIR_GIPass.GetOutput(r);
-			Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
-		};
-
-		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A);
-		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_B);
-		func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_C);
-		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A);
-		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B);
-		func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_C);
-	}
-
+	func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A);
+	func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_B);
+	func(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C, RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_C);
+	func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A);
+	func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B);
+	func(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C, RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_C);
+	
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
 		// temporal cache changes every frame due to ping-ponging
@@ -117,48 +112,45 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 		renderGraph.RegisterResource(tlas.GetResource(), tlas.GetPathID(), D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 			false);
 
-		// IndirectDiffuse
-		if (settings.RTIndirectDiffuse)
+		// indirect diffuse
+		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.ReSTIR_GIPass,
+			&ReSTIR_GI::Render);
+		data.ReSTIR_GIHandle = renderGraph.RegisterRenderPass("ReSTIR_GI", RENDER_NODE_TYPE::COMPUTE, dlg);
+
+		auto registerOutputs = [&data, &renderGraph](ReSTIR_GI::SHADER_OUT_RES r)
 		{
-			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.ReSTIR_GIPass,
-				&ReSTIR_GI::Render);
-			data.ReSTIR_GIHandle = renderGraph.RegisterRenderPass("ReSTIR_GI", RENDER_NODE_TYPE::COMPUTE, dlg);
+			// Direct3D api doesn't accept const pointers
+			Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetOutput(r));
+			renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+		};
 
-			auto registerOutputs = [&data, &renderGraph](ReSTIR_GI::SHADER_OUT_RES r)
-			{
-				// Direct3D api doesn't accept const pointers
-				Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetOutput(r));
-				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
-			};
+		auto registerInputs = [&data, &renderGraph](ReSTIR_GI::SHADER_IN_RES r)
+		{
+			Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetInput(r));
+			renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+		};
 
-			auto registerInputs = [&data, &renderGraph](ReSTIR_GI::SHADER_IN_RES r)
-			{
-				Texture& t = const_cast<Texture&>(data.ReSTIR_GIPass.GetInput(r));
-				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
-			};
+		registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A);
+		registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B);
+		registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B);
+		registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C);
 
-			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A);
-			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B);
-			registerInputs(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B);
-			registerOutputs(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C);
+		// STAD
+		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		{
+			fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.StadPass, &STAD::Render);
+			data.StadHandle = renderGraph.RegisterRenderPass("STAD", RENDER_NODE_TYPE::COMPUTE, dlg);
 
-			// STAD
-			if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
-			{
-				fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.StadPass, &STAD::Render);
-				data.StadHandle = renderGraph.RegisterRenderPass("STAD", RENDER_NODE_TYPE::COMPUTE, dlg);
-
-				// Direct3D api doesn't accept const pointers
-				Texture& temporalCacheIn = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN));
-				Texture& temporalCacheOut = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT));
-				renderGraph.RegisterResource(temporalCacheIn.GetResource(), temporalCacheIn.GetPathID());
-				renderGraph.RegisterResource(temporalCacheOut.GetResource(), temporalCacheOut.GetPathID());
-			}
+			// Direct3D api doesn't accept const pointers
+			Texture& temporalCacheIn = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN));
+			Texture& temporalCacheOut = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT));
+			renderGraph.RegisterResource(temporalCacheIn.GetResource(), temporalCacheIn.GetPathID());
+			renderGraph.RegisterResource(temporalCacheOut.GetResource(), temporalCacheOut.GetPathID());
 		}
 	}
 }
@@ -175,113 +167,111 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBuffer
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 		
-		// indirect-diffuse
-		if (settings.RTIndirectDiffuse)
-		{
-			// RT-AS
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				data.RtAS.GetTLAS().GetPathID(),
-				D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+		// indirect diffuse
 
-			// Current GBuffers
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
+		// RT-AS
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			data.RtAS.GetTLAS().GetPathID(),
+			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+
+		// current gbuffers
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			gbuffData.Normal[outIdx].GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			gbuffData.MetalnessRoughness[outIdx].GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			gbuffData.EmissiveColor.GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			gbuffData.DepthBuffer[outIdx].GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// prev. temporal reservoirs
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// current temporal reservoirs
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		// current spatial reservoirs
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		// STAD
+		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
+		{
+			renderGraph.AddInput(data.StadHandle,
 				gbuffData.Normal[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				gbuffData.EmissiveColor.GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
+			renderGraph.AddInput(data.StadHandle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			// prev. temporal reservoirs
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A).GetPathID(),
+			renderGraph.AddInput(data.StadHandle,
+				gbuffData.Normal[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B).GetPathID(),
+			renderGraph.AddInput(data.StadHandle,
+				gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetInput(ReSTIR_GI::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			// current temporal reservoirs
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
-				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			// current spatial reservoirs
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			renderGraph.AddInput(data.StadHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			renderGraph.AddInput(data.StadHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddOutput(data.ReSTIR_GIHandle,
+			renderGraph.AddInput(data.StadHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.StadHandle,
+				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddOutput(data.StadHandle,
+				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-			// STAD
-			if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
-			{
-				renderGraph.AddInput(data.StadHandle,
-					gbuffData.Normal[outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					gbuffData.DepthBuffer[outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					gbuffData.Normal[1 - outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddInput(data.StadHandle,
-					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN).GetPathID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-				renderGraph.AddOutput(data.StadHandle,
-					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT).GetPathID(),
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-				renderGraph.AddOutput(data.StadHandle,
-					data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
-					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			}
+			renderGraph.AddOutput(data.StadHandle,
+				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 	}
 }

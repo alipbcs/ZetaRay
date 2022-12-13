@@ -9,7 +9,7 @@
 #include "../../RenderPass/IndirectDiffuse/ReSTIR_GI.h"
 #include "../../RenderPass/Clear/Clear.h"
 #include "../../RenderPass/GBuffer/GBuffer.h"
-#include "../../RenderPass/Sun/Sun.h"
+#include "../../RenderPass/SunShadow/SunShadow.h"
 #include "../../RenderPass/Sky/SkyDome.h"
 #include "../../RenderPass/Compositing/Compositing.h"
 #include "../../RenderPass/TAA/TAA.h"
@@ -40,9 +40,8 @@ namespace ZetaRay::Scene::Render
 
 	struct alignas(64) RenderSettings
 	{
-		bool SunLighting = true;
 		bool Inscattering = false;
-		bool RTIndirectDiffuse = true;
+		//bool RTIndirectDiffuse = true;
 		Settings::DENOISER IndirectDiffuseDenoiser = Settings::DENOISER::STAD;
 		Settings::AA AntiAliasing = Settings::AA::NATIVE;
 	};
@@ -107,6 +106,7 @@ namespace ZetaRay::Scene::Render
 			HDR_LIGHT_ACCUM_UAV,
 			ENV_MAP_SRV,
 			INSCATTERING_SRV,
+			SUN_SHADOW_SRV,
 			COUNT
 		};
 		Core::DescriptorTable GpuDescTable;
@@ -129,8 +129,8 @@ namespace ZetaRay::Scene::Render
 		Core::DefaultHeapBuffer EmissiveAliasTable;
 
 		// Render Passes
-		RenderPass::SunLight SunLightPass;
-		Core::RenderNodeHandle SunLightHandle;
+		RenderPass::SunShadow SunShadowPass;
+		Core::RenderNodeHandle SunShadowHandle;
 
 		RenderPass::SkyDome SkyDomePass;
 		Core::RenderNodeHandle SkyDomeHandle;

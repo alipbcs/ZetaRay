@@ -39,7 +39,6 @@ namespace ZetaRay::RenderPass
 
 		void Init() noexcept;
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
-		void Reload() noexcept;
 		void Reset() noexcept;
 		void OnWindowResized() noexcept;
 		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx) noexcept
@@ -56,6 +55,8 @@ namespace ZetaRay::RenderPass
 
 	private:
 		void CreateResources() noexcept;
+		void BlendWeightCallback(const Support::ParamVariant& p) noexcept;
+		void ReloadShader() noexcept;
 
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 0;
@@ -77,7 +78,6 @@ namespace ZetaRay::RenderPass
 		// local constant buffer cache
 		cbTAA m_localCB;
 
-		// descriptor table
 		enum class DESC_TABLE
 		{
 			TEX_A_SRV,
@@ -94,10 +94,5 @@ namespace ZetaRay::RenderPass
 		{
 			static constexpr float BlendWeight = 0.35f;
 		};
-
-		// parameter callbacks
-		void BlendWeightCallback(const Support::ParamVariant& p) noexcept;
-
-		void ReloadShader() noexcept;
 	};
 }

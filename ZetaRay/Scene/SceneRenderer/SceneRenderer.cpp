@@ -169,11 +169,11 @@ void SceneRenderer::Init() noexcept
 
 	// render settings
 	{
-		ParamVariant enableIndirectDiffuse;
-		enableIndirectDiffuse.InitBool("Renderer", "Settings", "RaytracedIndirectDiffuse",
-			fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndirectDiffuseEnablement),
-			m_data->m_settings.RTIndirectDiffuse);
-		App::AddParam(enableIndirectDiffuse);
+		//ParamVariant enableIndirectDiffuse;
+		//enableIndirectDiffuse.InitBool("Renderer", "Settings", "RaytracedIndirectDiffuse",
+		//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndirectDiffuseEnablement),
+		//	m_data->m_settings.RTIndirectDiffuse);
+		//App::AddParam(enableIndirectDiffuse);
 
 		//ParamVariant enableDenoiser;
 		//enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
@@ -369,10 +369,10 @@ void SceneRenderer::DebugDrawRenderGraph() noexcept
 	m_data->m_renderGraph.DebugDrawGraph();
 }
 
-void SceneRenderer::SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept
-{
-	m_data->m_settings.RTIndirectDiffuse = p.GetBool();
-}
+//void SceneRenderer::SetIndirectDiffuseEnablement(const ParamVariant& p) noexcept
+//{
+//	m_data->m_settings.RTIndirectDiffuse = p.GetBool();
+//}
 
 void SceneRenderer::SetIndierctDiffuseDenoiser(const ParamVariant& p) noexcept
 {
@@ -383,7 +383,7 @@ void SceneRenderer::SetIndierctDiffuseDenoiser(const ParamVariant& p) noexcept
 	if (u == DENOISER::NONE)
 		m_data->m_settings.IndirectDiffuseDenoiser = DENOISER::NONE;
 	else if (u == DENOISER::STAD)
-		m_data->m_settings.IndirectDiffuseDenoiser = m_data->m_settings.RTIndirectDiffuse ? DENOISER::STAD : DENOISER::NONE;
+		m_data->m_settings.IndirectDiffuseDenoiser = DENOISER::STAD;
 }
 
 void SceneRenderer::SetInscatteringEnablement(const ParamVariant& p) noexcept

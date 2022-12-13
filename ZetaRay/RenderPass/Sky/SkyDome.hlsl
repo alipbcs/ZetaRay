@@ -54,13 +54,14 @@ float4 mainPS(VSOut psin) : SV_Target
 //	float3 w = normalize(psin.PosW);
 //	float3 w = normalize(psin.PosW - g_frame.CameraPos);
 	
-	float3 q = float3(0, 0.2, 0);
+	// skydome center
+	float3 center = float3(0, 1e-1, 0);
 	
-	float3 w = normalize(psin.PosW - q);
+	float3 w = normalize(psin.PosW - center);
 	const float3 sigma_s_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
 	const float3 sigma_a_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
-	float3 rayOrigin = q;
+	float3 rayOrigin = center;
 	rayOrigin.y += g_frame.PlanetRadius;
 	float3 color = 0.0f.xxx;
 
@@ -71,9 +72,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, w, t);
 		
 		if (!intersectedPlanet)
-		{
 			color = g_frame.SunIlluminance;
-		}
 	}
 	// sample the sky texture otherwise
 	else
@@ -99,7 +98,6 @@ float4 mainPS(VSOut psin) : SV_Target
 		v = 0.5f + s * sqrt(abs(v) * ONE_DIV_PI);
 #endif
 		
-		// BC6H_UF16
 		Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 		color = g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);		
 #else

@@ -16,7 +16,7 @@ add_subdirectory(GUI)
 add_subdirectory(IndirectDiffuse)
 add_subdirectory(LuminanceReduction)
 add_subdirectory(Sky)
-add_subdirectory(Sun)
+add_subdirectory(SunShadow)
 add_subdirectory(TAA)
 
 set(RENDERPASS_SRC ${RENDERPASS_SRC} 

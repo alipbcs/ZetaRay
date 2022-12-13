@@ -22,6 +22,7 @@ namespace ZetaRay::RenderPass
 			INSCATTERING,
 			RESERVOIR_A,
 			RESERVOIR_B,
+			SUN_SHADOW,
 			COUNT
 		};
 
@@ -54,6 +55,9 @@ namespace ZetaRay::RenderPass
 				break;
 			case SHADER_IN_GPU_DESC::RESERVOIR_B:
 				m_localCB.InputReservoir_B_DescHeapIdx = descHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::SUN_SHADOW:
+				m_localCB.SunShadowDescHeapIdx = descHeapIdx;
 				break;
 			default:
 				break;

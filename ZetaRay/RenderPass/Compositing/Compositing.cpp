@@ -98,8 +98,14 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	computeCmdList.SetPipelineState(m_pso);
 
 	Assert(m_localCB.HDRLightAccumDescHeapIdx > 0, "Gpu descriptor for HDR light accum texture hasn't been set");
-	Assert(m_localCB.UseRawIndirectDiffuse || m_localCB.DenoiserTemporalCacheDescHeapIdx > 0, 
-		"Denoiser is on, while descriptor heap index for it hasn't been set");
+	//Assert(m_localCB.UseRawIndirectDiffuse || m_localCB.DenoiserTemporalCacheDescHeapIdx > 0, 
+	//	"Denoiser is on, while descriptor heap index for it hasn't been set");
+
+	const bool oldUseRawIndirectDiffuse = m_localCB.UseRawIndirectDiffuse;
+
+	// if denoised texture is not set, make sure shader doesn't attempt to read from it
+	if (!m_localCB.DisplayDirectLightingOnly)
+		m_localCB.UseRawIndirectDiffuse = m_localCB.UseRawIndirectDiffuse | (m_localCB.DenoiserTemporalCacheDescHeapIdx == 0);
 
 	if (m_localCB.AccumulateInscattering)
 	{
@@ -121,6 +127,8 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
 	computeCmdList.PIXEndEvent();
+
+	m_localCB.UseRawIndirectDiffuse = oldUseRawIndirectDiffuse;
 }
 
 void Compositing::UseRawIndirectDiffuseCallback(const Support::ParamVariant& p) noexcept

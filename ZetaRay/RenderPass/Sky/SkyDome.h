@@ -23,7 +23,7 @@ namespace ZetaRay::RenderPass
 		SkyDome() noexcept;
 		~SkyDome() noexcept;
 
-		void Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept;
+		void Init(DXGI_FORMAT rtvFormat) noexcept;
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
 		void Reset() noexcept;
 		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept

@@ -4,9 +4,9 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Material.h"
-#include "../Common/Sampling.hlsli"
 #include "../Common/RT.hlsli"
 #include "../IndirectDiffuse/Reservoir.hlsli"
+#include "../Common/VolumetricLighting.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -19,6 +19,47 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Pixel Shader
 //--------------------------------------------------------------------------------------
 
+float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr, float3 posW, float3 wo)
+{
+	Texture2D<uint> g_sunShadowMask = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
+	
+	uint groupX = DTid.x >= 8 ? DTid.x >> 3 : 0;
+	uint groupY = DTid.y >= 4 ? DTid.y >> 2 : 0;
+	uint laneIdx = (DTid.y & (4 - 1)) * 8 + (DTid.x & (8 - 1));
+	
+	uint groupMask = g_sunShadowMask[uint2(groupX, groupY)];
+	uint isUnoccluded = groupMask & (1u << laneIdx);
+	
+	if (!isUnoccluded)
+		return 0.0.xxx;
+	
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal,
+		mr.y, mr.x, wo, baseColor.rgb);
+	
+	surface.InitComplete(-g_frame.SunDir);
+	
+	float3 f = BRDF::ComputeSurfaceBRDF(surface);
+
+	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
+	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
+	const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
+
+	posW.y += g_frame.PlanetRadius;
+	
+	float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
+	float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
+		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+
+	float3 L_i = (tr * f) * g_frame.SunIlluminance;
+
+	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::EMISSIVE_COLOR];
+	half3 L_e = g_emissiveColor[DTid].rgb;
+	L_i += L_e;
+
+	return L_i;
+}
+
 [numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
@@ -26,24 +67,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 
-	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
-	float3 color = g_hdrLightAccum[DTid.xy].rgb;
-	
-	if (g_local.DisplayDirectLightingOnly)
-	{
-		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
-		return;
-	}
-
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
 	if(depth == 0.0)
-	{
-		g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
 		return;
-	}
-				
+
+	float3 color = 0.0.xxx;
+	
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 		
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
@@ -53,11 +84,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv);
 	
-	Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
-				g_local.InputReservoir_B_DescHeapIdx);
-
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	const float3 wi = normalize(r.SamplePos - posW);
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
@@ -70,33 +97,39 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 	const half2 mr = g_metallicRoughness[DTid.xy];
 	
-	float3 diffuseReflectance = baseColor * (1.0f - mr.x);
-	
-	// TODO account for Fresnel during denoising
-	/*
-		float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
-		float3 wh = normalize(wi + wo);
-		float whdotwo = saturate(dot(wh, wo)); // == hdotwi
-		float3 F = BRDF::FresnelSchlick(F0, whdotwo);
-		float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
-	*/
-
-	float3 f = diffuseReflectance * ONE_DIV_PI;
-	float3 integratedLiXndotwi = r.Li * r.GetW();
-	
-	if (!g_local.UseRawIndirectDiffuse)
-	{
-		Texture2D<half4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
-		half3 integratedVals = g_temporalCache[DTid.xy].rgb;
-		integratedLiXndotwi = integratedVals;
-	}
-	
 	if (!g_local.DisplayIndirectDiffuseOnly)
-		color += integratedLiXndotwi * f;
-	else
-		color = integratedLiXndotwi * f;
+		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);
 	
-	//color = f * 10;
+	if(!g_local.DisplayDirectLightingOnly)
+	{	
+		Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
+				g_local.InputReservoir_B_DescHeapIdx);
+
+		const float3 wi = normalize(r.SamplePos - posW);
+		float3 diffuseReflectance = baseColor * (1.0f - mr.x);
+	
+		// TODO account for Fresnel during denoising
+		/*
+			float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
+			float3 wh = normalize(wi + wo);
+			float whdotwo = saturate(dot(wh, wo)); // == hdotwi
+			float3 F = BRDF::FresnelSchlick(F0, whdotwo);
+			float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
+		*/
+
+		float3 f = diffuseReflectance * ONE_DIV_PI;
+		float3 integratedLiXndotwi = r.Li * r.GetW();
+	
+		if (!g_local.UseRawIndirectDiffuse)
+		{
+			Texture2D<half4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
+			half3 integratedVals = g_temporalCache[DTid.xy].rgb;
+			integratedLiXndotwi = integratedVals;
+		}
+	
+		color += integratedLiXndotwi * f;
+		//color = f * 10;
+	}
 	
 	if (g_local.AccumulateInscattering)
 	{
@@ -118,5 +151,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		}
 	}
 	
+	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
 	g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
 }

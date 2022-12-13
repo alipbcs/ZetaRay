@@ -14,9 +14,7 @@ using namespace ZetaRay::Scene::Settings;
 void PostProcessor::Init(const RenderSettings& settings, PostProcessData& postData, const LightData& lightata) noexcept
 {
 	// Luminance Reduction
-	{
-		postData.LumReductionPass.Init();
-	}
+	postData.LumReductionPass.Init();
 
 	// Final Pass
 	{
@@ -176,31 +174,28 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferData& gb
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.HdrLightAccumSRV.GPUDesciptorHeapIndex(0));
 	}
 
-	if (settings.RTIndirectDiffuse)
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_A,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A));
+
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_B,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_B));
+
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_C,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_C));
+
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_A,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
+
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
+
+	data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_C));
+
+	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_A,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_A));
-
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_B,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_B));
-
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_C,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::TEMPORAL_RESERVOIR_C));
-
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_A,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
-
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
-
-		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_C));
-
-		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
-		{
-			data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
-				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
-		}
+		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
+			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
 }
 
@@ -346,13 +341,8 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 
 	const DefaultHeapBuffer& avgLumBuff = postData.LumReductionPass.GetOutput(LuminanceReduction::SHADER_OUT_RES::AVG_LUM);
 	
-	// lum-reduction
+	// lum reduction
 	{
-		// make lum-reduction dependant on compositing
-		renderGraph.AddInput(postData.LumReductionHandle,
-			RenderGraph::DUMMY_RES::RES_2,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
 		renderGraph.AddInput(postData.LumReductionHandle,
 			lightData.HdrLightAccumTex.GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -363,41 +353,45 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 	}
 
 	// Final
+	renderGraph.AddInput(postData.LumReductionHandle,
+		lightData.HdrLightAccumTex.GetPathID(),
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
 	renderGraph.AddInput(postData.FinalHandle,
 		avgLumBuff.GetPathID(),
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	if (settings.RTIndirectDiffuse && const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
+	if (const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
 	{
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
 			renderGraph.AddInput(postData.FinalHandle,
 				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 		}
 	}
 

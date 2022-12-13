@@ -33,7 +33,7 @@ SkyDome::~SkyDome() noexcept
 	Reset();
 }
 
-void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
+void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 {
 	auto& renderer = App::GetRenderer();
 
@@ -48,6 +48,28 @@ void SkyDome::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 
 	auto samplers = renderer.GetStaticSamplers();
 	s_rpObjs.Init("SkyDome", m_rootSig, samplers.size(), samplers.data(), flags);
+
+	D3D12_INPUT_ELEMENT_DESC inputElements[] =
+	{
+		{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+		{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	};
+
+	D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements,
+		.NumElements = ZetaArrayLen(inputElements) };
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+		1,
+		&rtvFormat,
+		Constants::DEPTH_BUFFER_FORMAT);
+
+	psoDesc.DepthStencilState.DepthEnable = true;
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER_EQUAL;
+	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
+	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;		// we're inside the sphere
+	//psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
 
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);

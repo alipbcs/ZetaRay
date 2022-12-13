@@ -31,6 +31,8 @@ struct cbCompositing
 	uint16_t DisplayIndirectDiffuseOnly;
 	uint16_t UseRawIndirectDiffuse;
 	uint16_t pad;
+
+	uint32_t SunShadowDescHeapIdx;
 };
 
 #endif // COMPOSITING_H
