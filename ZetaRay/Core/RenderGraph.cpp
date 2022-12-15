@@ -9,7 +9,7 @@
 #include "../Support/Task.h"
 #include "../App/Timer.h"
 #include <algorithm>
-#include <xxHash-0.8.1/xxhash.h>
+#include <xxHash/xxhash.h>
 #include <imgui/imnodes.h>
 
 #ifdef _DEBUG
@@ -192,7 +192,7 @@ RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_T
 
 void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependant) noexcept
 {
-	Assert(res == nullptr || path > DUMMY_RES::COUNT, "reource path ID can't take special value %llu", path);
+	Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
 
 	const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources);
 

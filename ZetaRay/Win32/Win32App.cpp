@@ -19,7 +19,7 @@
 //#define STB_SPRINTF_IMPLEMENTATION
 #define XXH_STATIC_LINKING_ONLY
 #define XXH_IMPLEMENTATION 
-#include <xxHash-0.8.1/xxhash.h>
+#include <xxHash/xxhash.h>
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>

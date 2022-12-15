@@ -1,5 +1,5 @@
 #include "SharedShaderResources.h"
-#include <xxHash-0.8.1/xxhash.h>
+#include <xxHash/xxhash.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;

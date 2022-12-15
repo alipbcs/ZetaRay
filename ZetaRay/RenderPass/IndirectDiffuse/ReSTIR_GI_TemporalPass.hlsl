@@ -108,7 +108,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out HitSurface surface)
+bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
 {
 	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
@@ -169,7 +169,7 @@ bool FindClosestHit(in float3 pos, in float3 wi, in RT::RayCone rayCone, out Hit
 	return false;
 }
 
-bool Trace(in uint Gidx, in float3 origin, in float3 dir, in RT::RayCone rayCone, out HitSurface hitInfo,
+bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSurface hitInfo,
 	out bool isRayValid, out uint16_t sortedIdx)
 {
 #if RAY_BINNING
@@ -353,8 +353,8 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-Sample ComputeLi(in uint2 DTid, in uint Gidx, in float3 posW, in float3 normal, in float3 wi, 
-	in RT::RayCone rayCone, out uint16_t sortedIdx)
+Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, RT::RayCone rayCone, 
+	out uint16_t sortedIdx)
 {
 	Sample ret;
 	
@@ -410,7 +410,7 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 	return weights;
 }
 
-void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3 normal, inout Reservoir r, inout RNG rng)
+void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, inout Reservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -513,8 +513,8 @@ void SampleTemporalReservoirAndResample(in uint2 DTid, in float3 posW, in float3
 	}
 }
 
-Reservoir DoTemporalResampling(in uint2 DTid, in float3 posW, in float3 normal, in float sourcePdf, 
-	Sample s, bool isSampleValid, inout RNG rng)
+Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float sourcePdf, Sample s, 
+	bool isSampleValid, inout RNG rng)
 {
 	Reservoir r = Reservoir::Init();
 

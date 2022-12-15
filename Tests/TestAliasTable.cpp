@@ -2,7 +2,7 @@
 #include <Utility/SmallVector.h>
 #include <Utility/RNG.h>
 #include <Win32/App.h>
-#include <doctest-2.4.9/doctest.h>
+#include <doctest/doctest.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Support;

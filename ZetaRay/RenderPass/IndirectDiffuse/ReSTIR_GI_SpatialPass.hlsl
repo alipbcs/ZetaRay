@@ -71,7 +71,7 @@ float NormalWeight(float3 input, float3 sample, float scale)
 	return weight;
 }
 
-void DoSpatialResampling(in uint16_t2 DTid, in float3 posW, in float3 normal, inout Reservoir r, inout RNG rng)
+void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, inout Reservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];

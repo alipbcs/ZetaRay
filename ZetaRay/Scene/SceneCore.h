@@ -5,7 +5,7 @@
 #include "../Math/BVH.h"
 #include "Asset.h"
 #include "SceneRenderer/SceneRenderer.h"
-#include <xxHash-0.8.1/xxhash.h>
+#include <xxHash/xxhash.h>
 
 namespace ZetaRay::Model
 {

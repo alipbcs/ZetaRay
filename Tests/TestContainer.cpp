@@ -1,7 +1,7 @@
 #include <Utility/SmallVector.h>
 #include <Win32/App.h>
 #include <Support/MemoryArena.h>
-#include <doctest-2.4.9/doctest.h>
+#include <doctest/doctest.h>
 
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;

@@ -101,7 +101,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
+bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 {
 	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
@@ -150,8 +150,8 @@ bool FindClosestHit(in float3 pos, in float3 wi, out HitSurface surface)
 	return false;
 }
 
-bool Trace(in uint Gidx, in float3 origin, in float3 dir, out HitSurface hitInfo,
-	out bool isRayValid, out uint16_t sortedIdx)
+bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out bool isRayValid, 
+	out uint16_t sortedIdx)
 {
 #if RAY_BINNING
 	//
@@ -296,8 +296,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-Sample ComputeLi(in uint2 DTid, in uint Gidx, in float3 posW, in float3 normal, in float3 wi, 
-	out uint16_t sortedIdx)
+Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, out uint16_t sortedIdx)
 {
 	Sample ret;
 	
@@ -379,7 +378,7 @@ Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
 	return prevReservoir;
 }
 
-void Validate(in Sample s, in float3 posW, inout Reservoir r, inout RNG rng)
+void Validate(Sample s, float3 posW, inout Reservoir r, inout RNG rng)
 {
 	// TODO not sure what's the best way to do this -- there are either 
 	// false positives or false negatives

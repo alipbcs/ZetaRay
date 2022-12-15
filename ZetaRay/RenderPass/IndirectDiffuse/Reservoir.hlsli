@@ -78,7 +78,7 @@ struct Reservoir
 		}
 	}
 	
-	void Combine(in Reservoir r, in float3 wi, in float3 normal, in float maxM, in float weight, in float jacobianDet, inout RNG rng)
+	void Combine(Reservoir r, float3 wi, float3 normal, float maxM, float weight, float jacobianDet, inout RNG rng)
 	{
 		float clampedM = min(r.M, maxM);
 		float weightedM = clampedM * weight;
@@ -137,7 +137,7 @@ float3 PackNormalLiRayT(half2 normal, float3 Li, half rayT)
 	return asfloat(r);
 }
 
-void UnpackNormalLiRayT(in float3 packed, out half2 normal, out float3 Li, out half rayT)
+void UnpackNormalLiRayT(float3 packed, out half2 normal, out float3 Li, out half rayT)
 {
 	uint3 packedU = asuint(packed);
 	

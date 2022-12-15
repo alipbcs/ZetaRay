@@ -92,7 +92,7 @@ float EdgeStoppingNormal(float3 input, float3 sample, float scale)
 }
 
 // normal is assumed to be normalized
-float2 GetWorldPosUVFromSurfaceLocalCoord(in float3 pos, in float3 normal, in float2 xz, out float3 samplePosW)
+float2 GetWorldPosUVFromSurfaceLocalCoord(float3 pos, float3 normal, float2 xz, out float3 samplePosW)
 {
 	float3 posLocal = float3(xz.x, 0.0f, xz.y);
 	

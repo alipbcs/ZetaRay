@@ -58,7 +58,7 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal, in float2 currUV, inout uint tspp, out float3 color)
+void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float2 currUV, inout uint tspp, out float3 color)
 {
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
@@ -163,7 +163,7 @@ void SampleTemporalCache(in uint2 DTid, in float3 currPos, in float3 currNormal,
 	}
 }
 
-void Integrate(in uint2 DTid, in float3 pos, in float3 normal, inout uint tspp, inout float3 color)
+void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout float3 color)
 {
 	Reservoir r = PartialReadInputReservoir(DTid, g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx);
