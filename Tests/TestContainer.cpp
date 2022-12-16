@@ -1,5 +1,5 @@
 #include <Utility/SmallVector.h>
-#include <Win32/App.h>
+#include <App/App.h>
 #include <Support/MemoryArena.h>
 #include <doctest/doctest.h>
 

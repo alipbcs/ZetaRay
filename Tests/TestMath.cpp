@@ -1,4 +1,3 @@
-#include <Core/ZetaRay.h>
 #include <Math/CollisionFuncs.h>
 #include <Math/Quaternion.h>
 #include <Math/MatrixFuncs.h>

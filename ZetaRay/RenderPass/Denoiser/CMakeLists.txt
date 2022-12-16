@@ -1,8 +1,0 @@
-set(RP_DENOISER_DIR "${RENDERPASS_DIR}/Denoiser")
-set(RP_DENOISER_SRC
-    "${RP_DENOISER_DIR}/STAD.cpp"
-    "${RP_DENOISER_DIR}/STAD.h"
-    "${RP_DENOISER_DIR}/STAD_TemporalFilter.hlsl"
-    "${RP_DENOISER_DIR}/STAD_SpatialFilter.hlsl"
-    "${RP_DENOISER_DIR}/STAD_Common.h")
-set(RP_DENOISER_SRC ${RP_DENOISER_SRC} PARENT_SCOPE)

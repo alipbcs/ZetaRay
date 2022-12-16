@@ -8,10 +8,6 @@ project(ZetaRay
     LANGUAGES CXX
     DESCRIPTION "A Physically-Based Hybrid Raster-Raytraced Renderer in DirectX 12")
 
-if(MSVC_TOOLSET_VERSION VERSION_LESS 142)
-    message(FATAL_ERROR "MSVC toolset version 142 or greater was not found. Please make sure Visual Studio 2019 or newer installed")
-endif()
-
 # set output directories
 set(CMAKE_SUPPRESS_REGENERATION true)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Bin")
@@ -23,7 +19,10 @@ set(CMAKE_LIBRARY_OUTPUT_DIRECTORY_RELEASE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_DEBUG "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY_RELEASE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+# append 'd' to debug targets
 set(CMAKE_DEBUG_POSTFIX "d")
+
+# enable folders for code organization
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
 # 
@@ -34,6 +33,10 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 
 if(MSVC)
+	if(MSVC_TOOLSET_VERSION VERSION_LESS 142)
+		message(FATAL_ERROR "MSVC toolset version 142 or greater is required.")
+	endif()
+
     # disable exceptions
     string(REPLACE "/EHsc" "" NEW_CXX_FLAGS ${CMAKE_CXX_FLAGS})
     set(CMAKE_CXX_FLAGS ${NEW_CXX_FLAGS} CACHE STRING "" FORCE) 
@@ -43,7 +46,7 @@ if(MSVC)
     # multi-processor compilation
     add_compile_options(/MP)
     # warning level
-    add_compile_options(/W3)
+    add_compile_options(/W4)
     # enable intrinsic functions
     add_compile_options(/Oi)
     add_compile_options(/Ob1)
@@ -58,7 +61,9 @@ endif()
 # 
 set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/External")
 set(TOOLS_DIR "${CMAKE_SOURCE_DIR}/Tools")
-set(RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRay")
+set(ZETA_CORE_DIR "${CMAKE_SOURCE_DIR}/ZetaCore")
+set(ZETA_RENDER_PASS_DIR "${CMAKE_SOURCE_DIR}/ZetaRenderPass")
+set(ZETA_RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRenderer")
 set(ASSET_DIR "${CMAKE_SOURCE_DIR}/Assets")
 set(CSO_DIR_DEBUG "${ASSET_DIR}/CSO/Debug")
 set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
@@ -68,6 +73,8 @@ set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
 # 
 SetupDXC(DXC_BIN_DIR)
 
-add_subdirectory(ZetaRay)
+add_subdirectory(ZetaCore)
+add_subdirectory(ZetaRenderPass)
+add_subdirectory(ZetaRenderer)
 add_subdirectory(Samples)
 add_subdirectory(Tests)

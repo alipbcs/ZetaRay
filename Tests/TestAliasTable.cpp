@@ -1,7 +1,7 @@
 #include <Math/Sampling.h>
 #include <Utility/SmallVector.h>
 #include <Utility/RNG.h>
-#include <Win32/App.h>
+#include <App/App.h>
 #include <doctest/doctest.h>
 
 using namespace ZetaRay;

@@ -1,0 +1,76 @@
+include("${CMAKE_INCLUDE_DIR}/Copy.cmake")
+
+add_subdirectory(App)
+add_subdirectory(Core)
+add_subdirectory(Math)
+add_subdirectory(Model)
+add_subdirectory(RayTracing)
+add_subdirectory(Scene)
+add_subdirectory(Support)
+add_subdirectory(Utility)
+add_subdirectory(Win32)
+
+set(CORE_SRC
+	${APP_SRC}
+	${CORE_SRC}
+	${MATH_SRC}
+	${MODEL_SRC}
+	${RT_SRC}
+	${SCENE_SRC}
+	${SUPPORT_SRC}
+	${UTIL_SRC}
+	${WIN32_SRC})
+
+# ImGui
+set(IMGUI_DIR "${EXTERNAL_DIR}/imgui")
+set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
+	"${IMGUI_DIR}/imgui_draw.cpp"
+	"${IMGUI_DIR}/imgui_tables.cpp"
+	"${IMGUI_DIR}/imgui_widgets.cpp"
+	"${IMGUI_DIR}/imnodes.cpp"
+	"${IMGUI_DIR}/implot.cpp"
+	"${IMGUI_DIR}/implot_items.cpp")
+
+# natvis
+set(NATVIS_SRC "${CMAKE_SOURCE_DIR}/natvis/Container.natvis"
+	"${CMAKE_SOURCE_DIR}/natvis/imgui.natvis"
+	"${CMAKE_SOURCE_DIR}/natvis/App.natvis")
+
+source_group(TREE "${ZETA_CORE_DIR}" FILES ${CORE_SRC})
+source_group(TREE "${CMAKE_SOURCE_DIR}" FILES ${NATVIS_SRC})
+source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
+
+# build ZetaCore as a static library
+add_library(ZetaCore STATIC ${CORE_SRC} ${IMGUI_SRC} ${NATVIS_SRC})
+target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR})
+set_target_properties(ZetaCore PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+
+# 
+# WinPixEventRuntime
+# 
+add_library(WinPixEventRuntimeLib SHARED IMPORTED GLOBAL)
+set_target_properties(WinPixEventRuntimeLib PROPERTIES IMPORTED_IMPLIB "${EXTERNAL_DIR}/WinPixEventRuntime/WinPixEventRuntime.lib")
+
+# custom command that copies the dll to the runtime directory
+set(WINPIXEVENT_DLL_PATH "${EXTERNAL_DIR}/WinPixEventRuntime/WinPixEventRuntime.dll")
+Copy("${WINPIXEVENT_DLL_PATH}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}" CopyWinPixDLL)
+add_dependencies(WinPixEventRuntimeLib CopyWinPixDLL)
+
+# 
+# DirectX Agility SDK
+# 
+add_library(DX12AgilitySDK INTERFACE)
+set(DX12AgilitySDK_BIN
+	"${EXTERNAL_DIR}/D3D12/1.606.3/D3D12Core.dll"
+    "${EXTERNAL_DIR}/D3D12/1.606.3/d3d12SDKLayers.dll")
+
+Copy("${DX12AgilitySDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/" CopyDX12AgilitySDKBins)
+add_dependencies(DX12AgilitySDK CopyDX12AgilitySDKBins)
+
+# 
+# link against all the external libraries
+# 
+# set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib)
+set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib)
+target_link_libraries(ZetaCore debug ${LIBS} dbghelp)
+target_link_libraries(ZetaCore optimized ${LIBS})

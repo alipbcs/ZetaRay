@@ -6,8 +6,12 @@
 #include <App/Timer.h>
 #include <Scene/SceneCore.h>
 #include <Model/glTF.h>
+#include <Default/DefaultRenderer.h>
+
+#ifdef _DEBUG
 #include <fcntl.h>
 #include <io.h>
+#endif
 
 using namespace ZetaRay;
 using namespace ZetaRay::Math;
@@ -38,7 +42,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     SetCurrentDirectoryA("../");
 
-    App::Init();
+    auto rndIntrf = DefaultRenderer::InitAndGetInterface();
+    App::Init(rndIntrf);
 
     App::DeltaTimer timer;
     timer.Start();

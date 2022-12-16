@@ -1,7 +1,0 @@
-set(RP_FSR2_DIR ${RENDERPASS_DIR}/FSR2)
-set(RP_FSR2_SRC
-    ${RP_FSR2_DIR}/Backend.cpp
-    ${RP_FSR2_DIR}/Backend.h
-    ${RP_FSR2_DIR}/FSR2.cpp
-    ${RP_FSR2_DIR}/FSR2.h)
-set(RP_FSR2_SRC ${RP_FSR2_SRC} PARENT_SCOPE)

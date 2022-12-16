@@ -1,0 +1,5 @@
+set(RP_CLEAR_DIR ${ZETA_RENDER_PASS_DIR}/Clear)
+set(RP_CLEAR_SRC
+    ${RP_CLEAR_DIR}/Clear.cpp
+    ${RP_CLEAR_DIR}/Clear.h)
+set(RP_CLEAR_SRC ${RP_CLEAR_SRC} PARENT_SCOPE)

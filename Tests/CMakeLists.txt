@@ -6,8 +6,8 @@ set(TEST_SRC
     "${TEST_DIR}/main.cpp")
 
 add_executable(Tests ${TEST_SRC})
-target_link_libraries(Tests ZetaRay)
-target_include_directories(Tests BEFORE PRIVATE "${RENDERER_DIR}")
+target_link_libraries(Tests ZetaCore)
+target_include_directories(Tests BEFORE PRIVATE ${ZETA_CORE_DIR})
 # doctest requires exception handling
 target_compile_options(Tests PRIVATE /EHsc)
 set_target_properties(Tests PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
