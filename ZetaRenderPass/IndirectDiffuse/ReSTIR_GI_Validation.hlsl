@@ -140,7 +140,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = Math::Encoding::EncodeUnitNormalAsHalf2(normal);
+		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 		surface.T = (half) rayQuery.CommittedRayT();
 
@@ -240,7 +240,7 @@ bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out boo
 
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
-	float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(hitInfo.ShadingNormal);
+	float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.ShadingNormal);
 
 	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
 		return 0.0.xxx;
@@ -331,7 +331,7 @@ Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, o
 		temp.y += g_frame.PlanetRadius;
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
-		ret.Normal = Math::Encoding::EncodeUnitNormalAsHalf2(-normalize(ret.Pos));
+		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
 		ret.RayT = (half) t;
 	}
 	
@@ -496,7 +496,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 
 	Reservoir r = SampleTemporalReservoir(swizzledDTid, posW, normal);
 	

@@ -113,7 +113,7 @@ float JacobianDeterminant(float3 x1_q, float3 x2_q, float3 wi, float3 secondToFi
 {
 	const float3 secondToFirst_q = x1_q - x2_q;
 
-	const float3 normalAtSecondVertex = Math::Encoding::DecodeUnitNormalFromHalf2(neighborReservoir.SampleNormal);
+	const float3 normalAtSecondVertex = Math::Encoding::DecodeUnitNormal(neighborReservoir.SampleNormal);
 	const float cosPhi2_r = saturate(abs(dot(-wi, normalAtSecondVertex)));
 	const float cosPhi2_q = saturate(abs(dot(normalize(secondToFirst_q), normalAtSecondVertex)));
 

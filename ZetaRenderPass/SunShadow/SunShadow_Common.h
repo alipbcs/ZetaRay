@@ -15,13 +15,14 @@
 struct cbSunShadow
 {
 	uint32_t OutShadowMaskDescHeapIdx;
+	uint32_t SoftShadows;
 };
 
 struct cbFFX_DNSR_Temporal
 {
-	uint32_t ShadowMaskDescHeapIdx;
-	uint32_t CurrMetadataDescHeapIdx;
-	uint32_t CurrMomentsHeapIdx;
+	uint32_t ShadowMaskSRVDescHeapIdx;
+	uint32_t MetadataUAVDescHeapIdx;
+	uint32_t MomentsUAVHeapIdx;
 	uint32_t PrevTemporalCacheHeapIdx;
 	uint32_t CurrTemporalCacheHeapIdx;
 	uint16_t NumShadowMaskThreadGroupsX;
@@ -33,10 +34,11 @@ struct cbFFX_DNSR_Temporal
 
 struct cbFFX_DNSR_Spatial
 {
-	uint32_t CurrMetadataDescHeapIdx;
-	uint32_t CurrTemporalCacheHeapIdx;
-	uint32_t CurrMomentsHeapIdx;
+	uint32_t MetadataSRVDescHeapIdx;
+	uint32_t InTemporalCacheHeapIdx;
+	uint32_t OutTemporalCacheHeapIdx;
 	float DepthSigma;
+	float NormalExp;
 	uint16_t PassNum;
 	uint16_t StepSize;
 };

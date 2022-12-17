@@ -127,7 +127,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	{
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		half2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
-		color = Math::Encoding::DecodeUnitNormalFromHalf2(encodedNormal.xy);
+		color = Math::Encoding::DecodeUnitNormal(encodedNormal.xy);
 		color = abs(color);	
 	}
 	else if (g_local.DisplayBaseColor)

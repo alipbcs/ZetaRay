@@ -73,7 +73,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	frameConsts.PrevGBufferDescHeapOffset = gbuffData.SRVDescTable[1 - currIdx].GPUDesciptorHeapIndex();
 
 	// env. map SRV
-	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::ENV_MAP_SRV);
+	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
 	frameConstsBuff = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
 		Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT),
@@ -425,7 +425,7 @@ namespace ZetaRay::DefaultRenderer
 		auto h1 = ts.EmplaceTask("SceneRenderer::Update_RT", []()
 			{
 				RayTracer::Update(g_data->m_settings, g_data->m_raytracerData);
-				Light::Update(g_data->m_settings, g_data->m_gBuffData, g_data->m_raytracerData, g_data->m_lightData);
+				Light::Update(g_data->m_settings, g_data->m_lightData, g_data->m_gBuffData, g_data->m_raytracerData);
 			});
 
 		auto h2 = ts.EmplaceTask("SceneRenderer::Update_RT_Graph", []()
@@ -436,16 +436,17 @@ namespace ZetaRay::DefaultRenderer
 				g_data->m_renderGraph.BeginFrame();
 
 				GBuffer::Register(g_data->m_gBuffData, g_data->m_renderGraph);
-				Light::Register(g_data->m_settings, g_data->m_raytracerData, g_data->m_lightData, g_data->m_renderGraph);
+				Light::Register(g_data->m_settings, g_data->m_lightData, g_data->m_raytracerData, g_data->m_renderGraph);
 				RayTracer::Register(g_data->m_settings, g_data->m_raytracerData, g_data->m_renderGraph);
 				PostProcessor::Register(g_data->m_settings, g_data->m_postProcessorData, g_data->m_renderGraph);
 
 				g_data->m_renderGraph.MoveToPostRegister();
 
 				GBuffer::DeclareAdjacencies(g_data->m_gBuffData, g_data->m_lightData, g_data->m_renderGraph);
-				Light::DeclareAdjacencies(g_data->m_settings, g_data->m_gBuffData, g_data->m_raytracerData,
-					g_data->m_lightData, g_data->m_renderGraph);
-				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_gBuffData, g_data->m_raytracerData, g_data->m_renderGraph);
+				Light::DeclareAdjacencies(g_data->m_settings, g_data->m_lightData, g_data->m_gBuffData, 
+					g_data->m_raytracerData, g_data->m_renderGraph);
+				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gBuffData, 
+					g_data->m_renderGraph);
 				PostProcessor::DeclareAdjacencies(g_data->m_settings, g_data->m_gBuffData, g_data->m_lightData,
 					g_data->m_raytracerData, g_data->m_postProcessorData, g_data->m_renderGraph);
 			});

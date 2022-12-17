@@ -162,7 +162,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
 					
 			float2 encodedNormal = g_currNormal.SampleLevel(g_samPointClamp, samplePosUV, 0.0f);
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(encodedNormal);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(encodedNormal);
 			//const float normalToleranceScale = saturate(oneSubAccSpeed * 16.0f);
 			const float normalToleranceScale = 1.0f;
 			const float w_n = EdgeStoppingNormal(normal, sampleNormal, normalToleranceScale);
@@ -200,7 +200,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 				g_frame.CurrViewInv);
 			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
 					
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float normalToleranceScale = 1.0f;
 			const float w_n = EdgeStoppingNormal(normal, sampleNormal, normalToleranceScale);
 					
@@ -279,7 +279,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	// current frame's normal
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[swizzledDTid].xy);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid].xy);
 		
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 

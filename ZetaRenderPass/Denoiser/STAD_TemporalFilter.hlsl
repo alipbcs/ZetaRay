@@ -92,10 +92,10 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float2 c
 	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	float3 prevNormals[4];
 			
-	prevNormals[0] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = DecodeUnitNormalFromHalf2(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = DecodeUnitNormal(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 		
 	const float4 normalWeights = ComputeNormalConsistency(prevNormals, currNormal);
 	*/
@@ -215,7 +215,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 currNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[DTid.xy].xy);
+	const float3 currNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[DTid.xy].xy);
 
 	// current frame's depth
 	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);

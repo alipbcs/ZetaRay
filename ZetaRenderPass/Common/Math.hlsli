@@ -421,7 +421,7 @@ namespace Math
 			return (1.0f - abs(v.yx)) * select(v.xy >= 0.0f, 1.0f, -1.0f);
 		}
  
-		half2 EncodeUnitNormalAsHalf2(float3 n)
+		half2 EncodeUnitNormal(float3 n)
 		{
 			n /= (abs(n.x) + abs(n.y) + abs(n.z));
 			n.xy = n.z >= 0.0f ? n.xy : OctWrap(n.xy);
@@ -430,7 +430,7 @@ namespace Math
 			return half2(n.xy);
 		}
  
-		float3 DecodeUnitNormalFromHalf2(float2 u)
+		float3 DecodeUnitNormal(float2 u)
 		{
 			float2 f = u * 2.0f - 1.0f;
  

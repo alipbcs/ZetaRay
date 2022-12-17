@@ -156,8 +156,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 	}
 }
 
-void RayTracer::DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, 
-	RayTracerData& data, RenderGraph& renderGraph) noexcept
+void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData& data, const GBufferData& gbuffData, RenderGraph& renderGraph) noexcept
 {
 	const int outIdx = App::GetRenderer().CurrOutIdx();
 	auto& tlas = data.RtAS.GetTLAS();

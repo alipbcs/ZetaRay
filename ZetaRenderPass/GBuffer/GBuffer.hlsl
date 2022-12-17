@@ -52,7 +52,7 @@ PS_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, h
 	
 	psout.BaseColor = baseColor;
 	psout.Emissive = half4(emissive, 1);
-	psout.Normal.xy = Math::Encoding::EncodeUnitNormalAsHalf2(sn);
+	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
 	psout.MetallicRoughness = half2(metalness, roughness);
 	psout.MotionVec = motionVec;
 

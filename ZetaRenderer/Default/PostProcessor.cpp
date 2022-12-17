@@ -295,9 +295,9 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 
 			// TODO find a better way to do this
 			// make TAA dependant on compositing
-			renderGraph.AddInput(postData.TaaHandle,
-				RenderGraph::DUMMY_RES::RES_2,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			//renderGraph.AddInput(postData.TaaHandle,
+			//	RenderGraph::DUMMY_RES::RES_2,
+			//	D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// Final
 			renderGraph.AddInput(postData.FinalHandle,
@@ -321,9 +321,9 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 
 			// TODO find a better way to do this
 			// make FSR2 dependant on compositing
-			renderGraph.AddInput(postData.Fsr2Handle,
-				RenderGraph::DUMMY_RES::RES_2,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			//renderGraph.AddInput(postData.Fsr2Handle,
+			//	RenderGraph::DUMMY_RES::RES_2,
+			//	D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			const Texture& upscaled = postData.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
 			Assert(upscaled.IsInitialized(), "Upscaled output hasn't been initialized.");

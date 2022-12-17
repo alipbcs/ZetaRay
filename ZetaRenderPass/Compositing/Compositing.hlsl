@@ -21,6 +21,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr, float3 posW, float3 wo)
 {
+#if 0
 	Texture2D<uint> g_sunShadowMask = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	
 	uint groupX = DTid.x >= 8 ? DTid.x >> 3 : 0;
@@ -29,10 +30,14 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 	
 	uint groupMask = g_sunShadowMask[uint2(groupX, groupY)];
 	uint isUnoccluded = groupMask & (1u << laneIdx);
-	
+
 	if (!isUnoccluded)
 		return 0.0.xxx;
-	
+#endif	
+
+	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
+	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
+		
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal,
 		mr.y, mr.x, wo, baseColor.rgb);
 	
@@ -51,6 +56,7 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
 	float3 L_i = (tr * f) * g_frame.SunIlluminance;
+	L_i *= shadowVal;
 
 	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::EMISSIVE_COLOR];
@@ -91,16 +97,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	float3 baseColor = g_baseColor[DTid.xy].rgb;
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 	const half2 mr = g_metallicRoughness[DTid.xy];
 	
-	if (!g_local.DisplayIndirectDiffuseOnly)
+	if (!g_local.SkipLighting && !g_local.DisplayIndirectDiffuseOnly)
 		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);
 	
-	if(!g_local.DisplayDirectLightingOnly)
+	if (!g_local.SkipLighting && !g_local.DisplayDirectLightingOnly)
 	{	
 		Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx);
@@ -131,7 +137,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		//color = f * 10;
 	}
 	
-	if (g_local.AccumulateInscattering)
+	if (!g_local.SkipLighting && g_local.AccumulateInscattering)
 	{
 		if (linearDepth > 1e-4f)
 		{

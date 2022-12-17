@@ -125,7 +125,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, inout Reser
 				g_frame.CurrViewInv);
 			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, posW, biasToleranceScale);
 					
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormalFromHalf2(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float w_n = NormalWeight(normal, sampleNormal, biasToleranceScale);
 
 			const float weight = w_z * w_n;
@@ -208,7 +208,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 	
 	Reservoir r = ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);

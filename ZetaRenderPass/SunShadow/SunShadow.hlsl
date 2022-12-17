@@ -77,21 +77,25 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		g_frame.CurrViewInv);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormalFromHalf2(g_normal[DTid.xy]);
-
-	// sample the cone subtended by sun	
-	const uint sampleIdx = g_frame.FrameNum & 31;
-	const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 2);
-	const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, sampleIdx, 3);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
 	float3 wi = -g_frame.SunDir;
-	float pdf = 1.0f;
-	float3 wiLocal = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
-	float4 q = Math::Transform::QuaternionFromY(wi);
-	// transform from local space to world space
-	wi = Math::Transform::RotateVector(wiLocal, q);	
+	
+	// sample the cone subtended by sun	
+	if (g_local.SoftShadows)
+	{
+		const uint sampleIdx = g_frame.FrameNum & 31;
+		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			DTid.x, DTid.y, sampleIdx, 2);
+		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			DTid.x, DTid.y, sampleIdx, 3);
+	
+		float pdf = 1.0f;
+		float3 wiLocal = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
+		float4 q = Math::Transform::QuaternionFromY(wi);
+		// transform from local space to world space
+		wi = Math::Transform::RotateVector(wiLocal, q);
+	}
 	
 	const bool isUnoccluded = EvaluateVisibility(posW, wi, normal, linearDepth);
 	const uint laneMask = (isUnoccluded << WaveGetLaneIndex());

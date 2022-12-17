@@ -16,7 +16,7 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 {
 	auto& renderer = App::GetRenderer();
 	data.HdrLightAccumRTV = renderer.GetRtvDescriptorHeap().Allocate(1);
-	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(LightData::DESC_TABLE::COUNT);
+	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_CONST::COUNT);
 
 	CreateHDRLightAccumTex(data);
 
@@ -34,14 +34,12 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 
 	// descriptors
 	Direct3DHelper::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
-		data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::ENV_MAP_SRV));
-	Direct3DHelper::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::SHADOW_MASK),
-		data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::SUN_SHADOW_SRV));
+		data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV));
 
 	if (settings.Inscattering)
 	{
 		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::INSCATTERING_SRV));
+			data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
 	}
 }
 
@@ -67,7 +65,7 @@ void Light::CreateHDRLightAccumTex(LightData& data) noexcept
 	Direct3DHelper::CreateRTV(data.HdrLightAccumTex, data.HdrLightAccumRTV.CPUHandle(0));
 
 	// UAV
-	Direct3DHelper::CreateTexture2DUAV(data.HdrLightAccumTex, data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
+	Direct3DHelper::CreateTexture2DUAV(data.HdrLightAccumTex, data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_UAV));
 }
 
 void Light::OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept
@@ -95,15 +93,15 @@ void Light::Shutdown(LightData& data) noexcept
 	data.SkyPass.Reset();
 }
 
-void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData, 
-	const RayTracerData& rayTracerData, LightData& data) noexcept
+void Light::Update(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
+	const RayTracerData& rayTracerData) noexcept
 {
 	if (settings.Inscattering && !data.SkyPass.IsInscatteringEnabled())
 	{
 		data.SkyPass.SetInscatteringEnablement(true);
 
 		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle(LightData::DESC_TABLE::INSCATTERING_SRV));
+			data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
 	}
 	else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
 		data.SkyPass.SetInscatteringEnablement(false);
@@ -116,7 +114,7 @@ void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData,
 		gbuffData.DSVDescTable[currOutIdx].CPUHandle(0));
 
 	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
-		data.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::HDR_LIGHT_ACCUM_UAV));
+		data.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_UAV));
 
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
@@ -128,8 +126,19 @@ void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData,
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_B,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
 
+		// sun shadow temporal cache changes every frame
+		data.SunShadowGpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
+
+		Direct3DHelper::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST),
+			data.SunShadowGpuDescTable.CPUHandle((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
+
+		Direct3DHelper::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK),
+			data.SunShadowGpuDescTable.CPUHandle((int)LightData::DESC_TABLE_PER_FRAME::RAW_SHADOW_MASK));
+
+//		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
+//			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex(0));
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
-			data.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::SUN_SHADOW_SRV));
+			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
 
 		if (settings.Inscattering)
 		{
@@ -143,7 +152,7 @@ void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData,
 			data.CompositingPass.SetVoxelGridMappingExp(p);
 			data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
 			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
-				data.GpuDescTable.GPUDesciptorHeapIndex(LightData::DESC_TABLE::INSCATTERING_SRV));
+				data.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
 		}
 		else
 			data.CompositingPass.SetInscatteringEnablement(false);
@@ -156,8 +165,8 @@ void Light::Update(const RenderSettings& settings, const GBufferData& gbuffData,
 	}
 }
 
-void Light::Register(const RenderSettings& settings, const RayTracerData& rayTracerData, 
-	LightData& data, RenderGraph& renderGraph) noexcept
+void Light::Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData,
+	RenderGraph& renderGraph) noexcept
 {
 	renderGraph.RegisterResource(data.HdrLightAccumTex.GetResource(), data.HdrLightAccumTex.GetPathID());
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
@@ -186,8 +195,14 @@ void Light::Register(const RenderSettings& settings, const RayTracerData& rayTra
 			&SunShadow::Render);
 		data.SunShadowHandle = renderGraph.RegisterRenderPass("SunShadow", RENDER_NODE_TYPE::COMPUTE, dlg);
 
-		Texture& t = const_cast<Texture&>(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::SHADOW_MASK));
-		renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+		Texture& mask = const_cast<Texture&>(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK));
+		renderGraph.RegisterResource(mask.GetResource(), mask.GetPathID());
+
+		Texture& tcA = const_cast<Texture&>(data.SunShadowPass.GetInput(SunShadow::SHADER_IN_RES::TEMPORAL_CACHE_IN));
+		renderGraph.RegisterResource(tcA.GetResource(), tcA.GetPathID());
+
+		Texture& tcB = const_cast<Texture&>(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_PRE));
+		renderGraph.RegisterResource(tcB.GetResource(), tcB.GetPathID());
 	}
 
 	// skydome
@@ -204,8 +219,8 @@ void Light::Register(const RenderSettings& settings, const RayTracerData& rayTra
 	data.CompositingHandle = renderGraph.RegisterRenderPass("Compositing", RENDER_NODE_TYPE::COMPUTE, dlg);
 }
 
-void Light::DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, 
-	const RayTracerData& rayTracerData, LightData& lightData, RenderGraph& renderGraph) noexcept
+void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightData, const GBufferData& gbuffData,
+	const RayTracerData& rayTracerData, RenderGraph& renderGraph) noexcept
 {
 	const int outIdx = App::GetRenderer().CurrOutIdx();
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
@@ -241,11 +256,27 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, const GBufferData
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(lightData.SunShadowHandle,
+			gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(lightData.SunShadowHandle,
 			gbuffData.Normal[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+		renderGraph.AddInput(lightData.SunShadowHandle,
+			gbuffData.MotionVec.GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
 		renderGraph.AddOutput(lightData.SunShadowHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::SHADOW_MASK).GetPathID(),
+			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddInput(lightData.SunShadowHandle,
+			lightData.SunShadowPass.GetInput(SunShadow::SHADER_IN_RES::TEMPORAL_CACHE_IN).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddOutput(lightData.SunShadowHandle,
+			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_PRE).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
@@ -290,8 +321,12 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, const GBufferData
 	if (tlas.IsInitialized())
 	{
 		renderGraph.AddInput(lightData.CompositingHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::SHADOW_MASK).GetPathID(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(lightData.CompositingHandle,
+			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(lightData.CompositingHandle,
 			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),

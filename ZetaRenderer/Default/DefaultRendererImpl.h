@@ -110,16 +110,23 @@ namespace ZetaRay::DefaultRenderer
 		static const int SKY_LUT_WIDTH = 256;
 		static const int SKY_LUT_HEIGHT = 128;
 
-		enum DESC_TABLE
+		enum class DESC_TABLE_CONST
 		{
 			HDR_LIGHT_ACCUM_UAV,
 			ENV_MAP_SRV,
 			INSCATTERING_SRV,
-			SUN_SHADOW_SRV,
+			COUNT
+		};
+
+		enum class DESC_TABLE_PER_FRAME
+		{
+			RAW_SHADOW_MASK,
+			DENOISED_SHADOW_MASK,
 			COUNT
 		};
 
 		Core::DescriptorTable GpuDescTable;
+		Core::DescriptorTable SunShadowGpuDescTable;
 
 		// HDR Light-accumulation texture
 		Core::Texture HdrLightAccumTex;
@@ -263,11 +270,12 @@ namespace ZetaRay::DefaultRenderer::Light
 	void OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept;
 	void Shutdown(LightData& data) noexcept;
 
-	void Register(const RenderSettings& settings, const RayTracerData& rayTracerData, LightData& data, Core::RenderGraph& renderGraph) noexcept;
-	void Update(const RenderSettings& settings, const GBufferData& gbuffData, const RayTracerData& rayTracerData,
-		LightData& lightManagerData) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, const RayTracerData& rayTracerData,
-		LightData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
+	void Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData, 
+		Core::RenderGraph& renderGraph) noexcept;
+	void Update(const RenderSettings& settings, LightData& lightData, const GBufferData& gbuffData, 
+		const RayTracerData& rayTracerData) noexcept;
+	void DeclareAdjacencies(const RenderSettings& settings, LightData& lightData, const GBufferData& gbuffData, 
+		const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph) noexcept;
 }
 
 //--------------------------------------------------------------------------------------
@@ -284,7 +292,7 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 	void UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Update(const RenderSettings& settings, RayTracerData& data) noexcept;
 	void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, const GBufferData& gbuffData, RayTracerData& rtData,
+	void DeclareAdjacencies(const RenderSettings& settings, RayTracerData& rtData, const GBufferData& gbuffData, 
 		Core::RenderGraph& renderGraph) noexcept;
 }
 
