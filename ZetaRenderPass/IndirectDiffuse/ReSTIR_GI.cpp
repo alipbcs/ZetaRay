@@ -228,14 +228,20 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
-	const int w = App::GetRenderer().GetRenderWidth();
-	const int h = App::GetRenderer().GetRenderHeight();
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+	const int w = renderer.GetRenderWidth();
+	const int h = renderer.GetRenderHeight();
+
 	const bool isTraceFrame = m_validationPeriod == 0 || m_validationFrame != 0;
 
 	// Temporal resampling/Validation
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_TEMPORAL_THREAD_GROUP_SIZE_X);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y);
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Temporal");
 
 		if (isTraceFrame)
 		{
@@ -276,6 +282,9 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
 		cmdList.PIXEndEvent();
 	}
 
@@ -292,6 +301,9 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		m_cbSpatial.NumGroupsInTile = RGI_SPATIAL_TILE_WIDTH * m_cbSpatial.DispatchDimY;
 
 		{
+			// record the timestamp prior to execution
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Spatial_1");
+
 			computeCmdList.PIXBeginEvent("ReSTIR_GI_Spatial_1");
 
 			// transition temporal reservoir into read state
@@ -316,7 +328,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			D3D12_RESOURCE_BARRIER inBarriers[] = { barrier0, barrier1, barrier2, barrier3, barrier4, barrier5 };
-			computeCmdList.TransitionResource(inBarriers, ZetaArrayLen(inBarriers));
+			computeCmdList.ResourceBarrier(inBarriers, ZetaArrayLen(inBarriers));
 
 			m_cbSpatial.IsFirstPass = true;
 
@@ -339,10 +351,16 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
+			// record the timestamp after execution
+			gpuTimer.EndQuery(computeCmdList, queryIdx);
+
 			cmdList.PIXEndEvent();
 		}
 
 		{
+			// record the timestamp prior to execution
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Spatial_2");
+
 			computeCmdList.PIXBeginEvent("ReSTIR_GI_Spatial_2");
 
 			// transition spatial reservoir into read state
@@ -357,7 +375,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 			D3D12_RESOURCE_BARRIER inBarriers[] = { barrier0, barrier1, barrier2 };
-			computeCmdList.TransitionResource(inBarriers, ZetaArrayLen(inBarriers));
+			computeCmdList.ResourceBarrier(inBarriers, ZetaArrayLen(inBarriers));
 
 			m_cbSpatial.IsFirstPass = false;
 
@@ -380,6 +398,9 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
+			// record the timestamp after execution
+			gpuTimer.EndQuery(computeCmdList, queryIdx);
+
 			cmdList.PIXEndEvent();
 		}
 	}
@@ -399,7 +420,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	D3D12_RESOURCE_BARRIER outBarriers[] = { barrierA, barrierB, barrierC };
-	computeCmdList.TransitionResource(outBarriers, ZetaArrayLen(outBarriers));
+	computeCmdList.ResourceBarrier(outBarriers, ZetaArrayLen(outBarriers));
 
 	if (!m_isTemporalReservoirValid)
 		m_isTemporalReservoirValid = !m_cbTemporal.CheckerboardTracing ? true : m_sampleIdx >= 2;

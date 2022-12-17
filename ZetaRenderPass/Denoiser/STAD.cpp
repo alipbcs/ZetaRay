@@ -153,6 +153,8 @@ void STAD::Render(CommandList& cmdList) noexcept
 	auto& renderer = App::GetRenderer();
 	const int w = renderer.GetRenderWidth();
 	const int h = renderer.GetRenderHeight();
+	auto& gpuTimer = renderer.GetGpuTimer();
+	
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
 	int temporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
@@ -168,6 +170,10 @@ void STAD::Render(CommandList& cmdList) noexcept
 		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_A] != 0, "Input descriptor heap idx hasn't been set.");
 
 		computeCmdList.PIXBeginEvent("STAD_TemporalPass");
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "STAD_TemporalPass");
+
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::TEMPORAL_PASS]);
 
 		m_cbTemporalFilter.InputReservoir_A_DescHeapIdx = m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_A];
@@ -183,12 +189,18 @@ void STAD::Render(CommandList& cmdList) noexcept
 			(uint32_t)CeilUnsignedIntDiv(h, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y),
 			STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z);
 
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
 		computeCmdList.PIXEndEvent();
 	}
 
 	if (m_doSpatialFilter)
 	{
 		computeCmdList.PIXBeginEvent("STAD_SpatialFilter");
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "STAD_SpatialFilter");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_FILTER]);
 
@@ -212,7 +224,7 @@ void STAD::Render(CommandList& cmdList) noexcept
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			computeCmdList.TransitionResource(barriers, ZetaArrayLen(barriers));
+			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 			uint32_t prevTemporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
 				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
@@ -232,6 +244,9 @@ void STAD::Render(CommandList& cmdList) noexcept
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 		}
 
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
 		computeCmdList.PIXEndEvent();
 	}
 
@@ -244,7 +259,7 @@ void STAD::Render(CommandList& cmdList) noexcept
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		computeCmdList.TransitionResource(&barrier, 1);
+		computeCmdList.ResourceBarrier(&barrier, 1);
 	}
 
 	// for next frame

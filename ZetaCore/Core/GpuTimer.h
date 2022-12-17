@@ -45,16 +45,16 @@ namespace ZetaRay::Core
 		}
 
 		// call before recording commands for a particular command list
-		uint32_t BeginQuery(ComputeCmdList* cmdList, const char* name) noexcept;
+		uint32_t BeginQuery(ComputeCmdList& cmdList, const char* name) noexcept;
 
 		// call after all commands for a particular command list are recorded
-		void EndQuery(ComputeCmdList* cmdList, uint32_t idx) noexcept;
+		void EndQuery(ComputeCmdList& cmdList, uint32_t idx) noexcept;
 
 		// call before rendering this frame
 		void BeginFrame() noexcept;
 
 		// call after all rendering commands for this frame have been submitted
-		bool EndFrame(ComputeCmdList* cmdList) noexcept;
+		bool EndFrame(ComputeCmdList& cmdList) noexcept;
 
 	private:
 		static const int MAX_NUM_QUERIES = 32;

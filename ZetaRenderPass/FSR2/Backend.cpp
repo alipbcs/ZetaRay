@@ -318,7 +318,7 @@ namespace
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// TODO barriers should be batched
-			g_fsr2Data->m_cmdList->TransitionResource(&barrier, 1);
+			g_fsr2Data->m_cmdList->ResourceBarrier(&barrier, 1);
 
 			g_fsr2Data->m_resData[job.target.internalIndex].State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 		}
@@ -457,7 +457,7 @@ namespace
 		}
 
 		if(currBarrierIdx)
-			g_fsr2Data->m_cmdList->TransitionResource(barriers, currBarrierIdx);
+			g_fsr2Data->m_cmdList->ResourceBarrier(barriers, currBarrierIdx);
 
 		g_fsr2Data->m_cmdList->Dispatch(job.dimensions[0], job.dimensions[1], job.dimensions[2]);
 	}
@@ -726,8 +726,16 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 
 	g_fsr2Data->m_reset = false;
 
+	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
+	
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(*g_fsr2Data->m_cmdList, "FSR2");
+
 	//CheckFSR(ffxFsr2ContextDispatch(&g_fsr2Data->m_ctx, &params));
 	CheckFSR(g_fsr2Data->m_dll.FpDispatch(&g_fsr2Data->m_ctx, &params));
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(*g_fsr2Data->m_cmdList, queryIdx);
 
 	g_fsr2Data->m_cmdList = nullptr;
 

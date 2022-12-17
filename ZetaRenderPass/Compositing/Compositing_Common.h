@@ -30,7 +30,7 @@ struct cbCompositing
 	uint16_t DisplayDirectLightingOnly;
 	uint16_t DisplayIndirectDiffuseOnly;
 	uint16_t UseRawIndirectDiffuse;
-	uint16_t pad;
+	uint16_t SkipLighting;
 
 	uint32_t SunShadowDescHeapIdx;
 };

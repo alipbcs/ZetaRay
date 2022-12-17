@@ -111,7 +111,13 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+
 	directCmdList.PIXBeginEvent("Final");
+
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Final");
 
 	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	directCmdList.SetPipelineState(m_pso);
@@ -131,13 +137,16 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
 
-	D3D12_VIEWPORT viewports[1] = { App::GetRenderer().GetDisplayViewport() };
-	D3D12_RECT scissors[1] = { App::GetRenderer().GetDisplayScissor() };
+	D3D12_VIEWPORT viewports[1] = { renderer.GetDisplayViewport() };
+	D3D12_RECT scissors[1] = { renderer.GetDisplayScissor() };
 	directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	directCmdList.RSSetViewportsScissorsRects(1, viewports, scissors);
 	Assert(m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV].ptr > 0, "RTV hasn't been set.");
 	directCmdList.OMSetRenderTargets(1, &m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV], true, nullptr);
 	directCmdList.DrawInstanced(3, 1, 0, 0);
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	directCmdList.PIXEndEvent();
 }

@@ -133,7 +133,7 @@ void LuminanceReduction::Render(CommandList& cmdList) noexcept
 		D3D12_RESOURCE_BARRIER barrier = TransitionBarrier(m_reducedLumIntermediate.GetResource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		computeCmdList.TransitionResource(&barrier, 1);
+		computeCmdList.ResourceBarrier(&barrier, 1);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
@@ -154,7 +154,7 @@ void LuminanceReduction::Render(CommandList& cmdList) noexcept
 		barriers[1] = TransitionBarrier(m_reducedLumIntermediate.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		computeCmdList.TransitionResource(barriers, sizeof(barriers) / sizeof(D3D12_RESOURCE_BARRIER));
+		computeCmdList.ResourceBarrier(barriers, sizeof(barriers) / sizeof(D3D12_RESOURCE_BARRIER));
 
 		m_rootSig.SetRootSRV(2, m_reducedLumIntermediate.GetGpuVA());
 		m_rootSig.SetRootUAV(3, m_reducedLum.GetGpuVA());

@@ -106,7 +106,13 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+
 	directCmdList.PIXBeginEvent("SkyDome");
+
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "SkyViewLUT");
 
 	Assert(m_descriptors[SHADER_IN_DESC::RTV].ptr > 0, "RTV hasn't been set.");
 	Assert(m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER].ptr > 0, "DSV hasn't been set.");
@@ -116,8 +122,8 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 
 	m_rootSig.End(directCmdList);
 
-	D3D12_VIEWPORT viewports[1] = { App::GetRenderer().GetRenderViewport() };
-	D3D12_RECT scissors[1] = { App::GetRenderer().GetRenderScissor() };
+	D3D12_VIEWPORT viewports[1] = { renderer.GetRenderViewport() };
+	D3D12_RECT scissors[1] = { renderer.GetRenderScissor() };
 
 	directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 	directCmdList.IASetVertexAndIndexBuffers(m_vbv, m_ibv);
@@ -125,6 +131,9 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	directCmdList.OMSetRenderTargets(1, &m_descriptors[SHADER_IN_DESC::RTV], true, &m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER]);
 
 	directCmdList.DrawIndexedInstanced(m_ibv.SizeInBytes / sizeof(INDEX_TYPE), 1, 0, 0, 0);
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	directCmdList.PIXEndEvent();
 }

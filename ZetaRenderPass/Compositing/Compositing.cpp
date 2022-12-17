@@ -59,6 +59,7 @@ void Compositing::Init() noexcept
 	m_localCB.DisplayDirectLightingOnly = 0;
 	m_localCB.DisplayIndirectDiffuseOnly = false;
 	m_localCB.UseRawIndirectDiffuse = false;
+	m_localCB.SkipLighting = false;
 
 	ParamVariant p1;
 	p1.InitEnum("Renderer", "Settings", "Lighting", fastdelegate::MakeDelegate(this, &Compositing::ChangeLightingOptionCallback),
@@ -92,8 +93,13 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
+	
+	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
 
 	computeCmdList.PIXBeginEvent("Compositing");
+
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "Compositing");
 
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	computeCmdList.SetPipelineState(m_pso);
@@ -107,6 +113,8 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	// if denoised texture is not set, make sure shader doesn't attempt to read from it
 	if (!m_localCB.DisplayDirectLightingOnly)
 		m_localCB.UseRawIndirectDiffuse = m_localCB.UseRawIndirectDiffuse | (m_localCB.DenoiserTemporalCacheDescHeapIdx == 0);
+
+	m_localCB.SkipLighting = m_localCB.InputReservoir_A_DescHeapIdx == 0 || m_localCB.SunShadowDescHeapIdx == 0;
 
 	if (m_localCB.AccumulateInscattering)
 	{
@@ -126,6 +134,9 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, THREAD_GROUP_SIZE_Y);
 
 	computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 	computeCmdList.PIXEndEvent();
 

@@ -158,6 +158,9 @@ void Sky::Render(CommandList& cmdList) noexcept
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	m_rootSig.SetRootConstants(0, sizeof(m_localCB) / sizeof(DWORD), &m_localCB);
 	m_rootSig.End(computeCmdList);
@@ -168,12 +171,18 @@ void Sky::Render(CommandList& cmdList) noexcept
 	{
 		computeCmdList.PIXBeginEvent("SkyViewLUT");
 
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyViewLUT");
+
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SKY_LUT]);
 
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(m_localCB.LutWidth, SKY_VIEW_LUT_THREAD_GROUP_SIZE_X);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(m_localCB.LutHeight, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Y);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 		computeCmdList.PIXEndEvent();
 	}
@@ -186,8 +195,14 @@ void Sky::Render(CommandList& cmdList) noexcept
 	{
 		computeCmdList.PIXBeginEvent("InscatteringVoxelGrid");
 
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "InscatteringVoxelGrid");
+
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::INSCATTERING]);
 		computeCmdList.Dispatch(m_localCB.NumVoxelsX, m_localCB.NumVoxelsY, 1);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 		computeCmdList.PIXEndEvent();
 	}

@@ -53,7 +53,7 @@ void GpuTimer::BeginFrame() noexcept
 		m_timings[m_currFrameIdx][i].Reset();
 }
 
-uint32_t GpuTimer::BeginQuery(ComputeCmdList* cmdList, const char* name) noexcept
+uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name) noexcept
 {
 	uint32_t queryIdx = m_queryCount[m_currFrameIdx].fetch_add(1, std::memory_order_relaxed);
 	Assert(queryIdx < MAX_NUM_QUERIES, "number of queries exceeded maximum allowed.");
@@ -62,24 +62,24 @@ uint32_t GpuTimer::BeginQuery(ComputeCmdList* cmdList, const char* name) noexcep
 	memcpy(&m_timings[m_currFrameIdx][queryIdx].Name, name, n);
 	m_timings[m_currFrameIdx][queryIdx].Name[n] = '\0';
 	m_timings[m_currFrameIdx][queryIdx].Delta = 0.0;
-	m_timings[m_currFrameIdx][queryIdx].ExecutionQueue = cmdList->GetType();
+	m_timings[m_currFrameIdx][queryIdx].ExecutionQueue = cmdList.GetType();
 
 	uint32_t heapIdx = MAX_NUM_QUERIES * 2 * m_currFrameIdx + queryIdx * 2;
-	cmdList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, heapIdx);
+	cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, heapIdx);
 
 	return heapIdx;
 }
 
-void GpuTimer::EndQuery(ComputeCmdList* cmdList, uint32_t begHeapIdx) noexcept
+void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx) noexcept
 {
 	Assert((int)begHeapIdx >= MAX_NUM_QUERIES * 2 * m_currFrameIdx, "invalid query index.");
 	uint32_t endHeapIdx = begHeapIdx + 1;
 	Assert(endHeapIdx < MAX_NUM_QUERIES * 2 * Constants::NUM_BACK_BUFFERS, "invalid query index.");
 
-	cmdList->EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, endHeapIdx);
+	cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, endHeapIdx);
 }
 
-bool GpuTimer::EndFrame(ComputeCmdList* cmdList) noexcept
+bool GpuTimer::EndFrame(ComputeCmdList& cmdList) noexcept
 {
 	int queryCount = m_queryCount[m_currFrameIdx].load(std::memory_order_acquire) - 1;
 	m_numQueryHist[m_currFrameIdx] = queryCount;
@@ -90,18 +90,18 @@ bool GpuTimer::EndFrame(ComputeCmdList* cmdList) noexcept
 	uint32_t heapStartIdx = m_currFrameIdx * MAX_NUM_QUERIES * 2;
 	uint64_t bufferOffsetBeg = heapStartIdx * sizeof(uint64_t);
 
-	cmdList->PIXBeginEvent("GpuTimer");
+	cmdList.PIXBeginEvent("GpuTimer");
 
 	// ResolveQueryData performs a batched operation that writes query data into a destination 
 	// buffer. Query data is written contiguously to the destination buffer
-	cmdList->ResolveQueryData(m_queryHeap.Get(), 
+	cmdList.ResolveQueryData(m_queryHeap.Get(), 
 		D3D12_QUERY_TYPE_TIMESTAMP, 
 		heapStartIdx, 
 		queryCount * 2,
 		m_readbackBuff.GetResource(), 
 		bufferOffsetBeg);
 
-	cmdList->PIXEndEvent();
+	cmdList.PIXEndEvent();
 
 	m_readbackBuff.Map();
 	uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.GetMappedMemory());

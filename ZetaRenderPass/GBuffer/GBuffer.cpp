@@ -203,12 +203,18 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 	if (m_numMeshesThisFrame == 0)
 		return;
 
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+
 	// Occlusion culling
 	{
 		ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
 		computeCmdList.PIXBeginEvent("OcclusionCulling");
 		
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "OcclusionCulling");
+
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::OCCLUSION_CULLING]);
 
@@ -221,7 +227,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		m_rootSig.SetRootUAV(6, m_indirectDrawArgs.GetGpuVA());
 		m_rootSig.End(computeCmdList);
 
-		computeCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+		computeCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_COMMON,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 
@@ -232,12 +238,15 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			0, 
 			sizeof(uint32_t));
 
-		computeCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+		computeCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numMeshesThisFrame, OCCLUSION_CULL_THREAD_GROUP_SIZE_X),
 			1, 1);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 		computeCmdList.PIXEndEvent();
 	}
@@ -248,6 +257,9 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 		directCmdList.PIXBeginEvent("GBufferPass");
 
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "GBufferPass");
+
 		directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 		directCmdList.SetPipelineState(m_graphicsPso);
 
@@ -256,20 +268,20 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 		D3D12_VIEWPORT viewports[(int)SHADER_OUT::COUNT - 1] =
 		{
-			App::GetRenderer().GetRenderViewport(),
-			App::GetRenderer().GetRenderViewport(),
-			App::GetRenderer().GetRenderViewport(),
-			App::GetRenderer().GetRenderViewport(),
-			App::GetRenderer().GetRenderViewport()
+			renderer.GetRenderViewport(),
+			renderer.GetRenderViewport(),
+			renderer.GetRenderViewport(),
+			renderer.GetRenderViewport(),
+			renderer.GetRenderViewport()
 		};
 
 		D3D12_RECT scissors[(int)SHADER_OUT::COUNT - 1] =
 		{
-			App::GetRenderer().GetRenderScissor(),
-			App::GetRenderer().GetRenderScissor(),
-			App::GetRenderer().GetRenderScissor(),
-			App::GetRenderer().GetRenderScissor(),
-			App::GetRenderer().GetRenderScissor()
+			renderer.GetRenderScissor(),
+			renderer.GetRenderScissor(),
+			renderer.GetRenderScissor(),
+			renderer.GetRenderScissor(),
+			renderer.GetRenderScissor()
 		};
 
 		static_assert(ZetaArrayLen(viewports) == (int)SHADER_OUT::COUNT - 1, "bug");
@@ -294,7 +306,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		directCmdList.OMSetRenderTargets((int)SHADER_OUT::COUNT - 1, &m_inputDescriptors[SHADER_IN_DESC::GBUFFERS_RTV],
 			true, &m_inputDescriptors[(int)SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV]);
 
-		directCmdList.TransitionResource(m_indirectDrawArgs.GetResource(),
+		directCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
@@ -304,6 +316,9 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			0,
 			m_indirectDrawArgs.GetResource(),
 			m_counterBufferOffset);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(directCmdList, queryIdx);
 
 		directCmdList.PIXEndEvent();
 	}

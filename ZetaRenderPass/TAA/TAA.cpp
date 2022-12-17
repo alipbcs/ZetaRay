@@ -107,7 +107,11 @@ void TAA::Render(CommandList& cmdList) noexcept
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
-	const int outIdx = App::GetRenderer().CurrOutIdx();
+	auto& renderer = App::GetRenderer();
+	auto& gpuTimer = renderer.GetGpuTimer();
+	const int outIdx = renderer.CurrOutIdx();
+	const int w = renderer.GetRenderWidth();
+	const int h = renderer.GetRenderHeight();
 
 	Assert(m_inputDesc[(int)SHADER_IN_DESC::SIGNAL] > 0, "Input SRV hasn't been set.");
 	m_localCB.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::SIGNAL];
@@ -117,19 +121,22 @@ void TAA::Render(CommandList& cmdList) noexcept
 
 	computeCmdList.PIXBeginEvent("TAA");
 
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "TAA");
+
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	computeCmdList.SetPipelineState(m_pso);
 
 	m_rootSig.SetRootConstants(0, sizeof(cbTAA) / sizeof(DWORD), &m_localCB);
 	m_rootSig.End(computeCmdList);
 
-	int w = App::GetRenderer().GetRenderWidth();
-	int h = App::GetRenderer().GetRenderHeight();
-
 	computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, TAA_THREAD_GROUP_SIZE_X), 
 		(uint32_t)CeilUnsignedIntDiv(h, TAA_THREAD_GROUP_SIZE_Y), 1);
 
 	computeCmdList.PIXEndEvent();
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 	m_isTemporalTexValid = true;
 }

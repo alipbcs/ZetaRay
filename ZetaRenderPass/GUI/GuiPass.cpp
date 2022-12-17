@@ -269,7 +269,13 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
+	auto& renderer = App::GetRenderer(); 
+	auto& gpuTimer = renderer.GetGpuTimer();
+
 	directCmdList.PIXBeginEvent("ImGui");
+
+	// record the timestamp prior to execution
+	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "ImGui");
 
 	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	directCmdList.SetPipelineState(m_pso);
@@ -281,7 +287,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	UpdateBuffers();
 
 	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-	const int currBackBuffIdx = App::GetRenderer().CurrOutIdx();
+	const int currBackBuffIdx = renderer.CurrOutIdx();
 
 	// Rendering
 	const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w,
@@ -312,7 +318,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 
 	cb.FontTex = m_fontTexSRV.GPUDesciptorHeapIndex();
 
-	D3D12_VIEWPORT viewports[1] = { App::GetRenderer().GetDisplayViewport() };
+	D3D12_VIEWPORT viewports[1] = { renderer.GetDisplayViewport() };
 	directCmdList.RSSetViewports(1, viewports);
 
 	m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
@@ -374,12 +380,14 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 		global_vtx_offset += cmd_list->VtxBuffer.Size;
 	}
 
-	// this is the last RenderPass, transition to PRESENT can be done here
+	// [hack] this is the last RenderPass, transition to PRESENT can be done here
 	// Transition the render target to the state that allows it to be presented to the display.
-	auto barrier = Direct3DHelper::TransitionBarrier(App::GetRenderer().GetCurrentBackBuffer().GetResource(), 
-		D3D12_RESOURCE_STATE_RENDER_TARGET, 
+	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().GetResource(),
+		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT);
-	directCmdList.TransitionResource(&barrier, 1);
+
+	// record the timestamp after execution
+	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	directCmdList.PIXEndEvent();
 }
@@ -469,7 +477,7 @@ void GuiPass::RenderSettingsWindow() noexcept
 
 void GuiPass::RenderProfilerWindow() noexcept
 {
-	ImGui::SetNextWindowBgAlpha(0.1f);
+	ImGui::SetNextWindowBgAlpha(0.95f);
 	ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
 
 	const float w = App::GetRenderer().GetDisplayWidth() * 0.17f;
@@ -527,9 +535,7 @@ void GuiPass::RenderProfilerWindow() noexcept
 		};
 
 		for (auto s : stats)
-		{
 			func(s);
-		}
 	}
 
 	ImGui::Text("");
