@@ -730,7 +730,7 @@ namespace ZetaRay::Core::Internal
 			}
 
 			if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST)
-				m_directCmdList->TransitionResource(resource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
+				m_directCmdList->ResourceBarrier(resource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
 
 			// Preserve the scratch buffer for as long as GPU is using it 
 			m_scratchResources.push_back(ZetaMove(intermediateBuff));
@@ -776,7 +776,7 @@ namespace ZetaRay::Core::Internal
 			if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST &&
 				postCopyState != D3D12_RESOURCE_STATE_COMMON &&
 				postCopyState != D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
-				m_directCmdList->TransitionResource(resource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
+				m_directCmdList->ResourceBarrier(resource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
 
 			// Preserve the scratch buffer for as long as GPU is using it 
 			m_scratchResources.push_back(ZetaMove(scratchBuff));
@@ -823,7 +823,7 @@ namespace ZetaRay::Core::Internal
 			m_directCmdList->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, NULL);
 
 			if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST)
-				m_directCmdList->TransitionResource(dstResource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
+				m_directCmdList->ResourceBarrier(dstResource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
 
 			// Preserve the scratch buffer for as long as GPU is using it 
 			m_scratchResources.push_back(ZetaMove(scratchBuff));

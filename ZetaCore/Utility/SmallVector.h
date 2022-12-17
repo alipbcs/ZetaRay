@@ -272,7 +272,8 @@ namespace ZetaRay::Util
 
 		void append_range(const T* beg, const T* end) noexcept
 		{
-			Assert(beg && end && (beg != end) && (beg < end), "invalid args");
+			if (!beg || !end || beg == end || beg > end)
+				return;
 
 			const size_t num = end - beg;
 			const size_t oldSize = size();

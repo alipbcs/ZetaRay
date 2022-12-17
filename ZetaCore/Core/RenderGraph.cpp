@@ -70,6 +70,37 @@ namespace
 }
 
 //--------------------------------------------------------------------------------------
+// AggregateRenderNode
+//--------------------------------------------------------------------------------------
+
+void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx) noexcept
+{
+	Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
+
+	Barriers.append_range(node.Barriers.begin(), node.Barriers.end());
+	Dlgs.push_back(node.Dlg);
+
+	GpuDepIdx.Val = Math::Max(GpuDepIdx.Val, mappedGpeDepIdx);
+
+	Assert(!node.HasUnsupportedBarrier || node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE, "Invalid condition.");
+	HasUnsupportedBarrier = !HasUnsupportedBarrier ? node.HasUnsupportedBarrier : true;
+
+	int base = Dlgs.size() > 1 ? (int)strlen(Name) : 0;
+
+	if (base)
+	{
+		Name[base] = '_';
+		base++;
+	}
+
+	int numBytesToCopy = Math::Min(MAX_NAME_LENGTH - base - 1, (int)strlen(node.Name));
+	Assert(numBytesToCopy, "bug");
+	
+	memcpy(Name + base, node.Name, numBytesToCopy);
+	Name[base + numBytesToCopy] = '\0';
+}
+
+//--------------------------------------------------------------------------------------
 // RenderGraph
 //--------------------------------------------------------------------------------------
 
@@ -117,6 +148,7 @@ void RenderGraph::Reset() noexcept
 	for (int currNode = 0; currNode < numNodes; currNode++)
 		m_renderNodes[currNode].Reset();
 
+	m_aggregateNodes.free_memory();
 	m_currRenderPassIdx.store(0, std::memory_order_relaxed);
 }
 
@@ -148,6 +180,8 @@ void RenderGraph::BeginFrame() noexcept
 	// reset the render nodes
 	for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
 		m_renderNodes[currNode].Reset();
+
+	m_aggregateNodes.free_memory();
 }
 
 int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
@@ -341,6 +375,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 
 	// at this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" was sorted. "mapping" must be used instead
 	InsertResourceBarriers(mapping);
+	JoinRenderNodes();
 	BuildTaskGraph(ts);
 
 #ifdef _DEBUG
@@ -348,7 +383,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 #endif // _DEBUG
 }
 
-void RenderGraph::BuildTaskGraph(TaskSet& ts) noexcept
+void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 {
 	// Task-level dependency cases:
 	// 1. From nodes with batchIdx i to nodes with batchIdx i + 1
@@ -359,87 +394,66 @@ void RenderGraph::BuildTaskGraph(TaskSet& ts) noexcept
 	// the tasks from batch index B where B = C.batchIdx
 	//  - Remove C's GPU dependency (if any), then add a GPU dependency from T to C
 
-	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
-
-	int prevBatchOffset = 0;
-	int prevBatchSize = 0;
-	int currBatchSize = 0;
-	int currBatchIdx = 0;
-
-	for (int currNode = 0; currNode < numNodes; currNode++)
+	for (int i = 0; i < m_aggregateNodes.size(); i++)
 	{
-		if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
-		{
-			prevBatchOffset = currNode - currBatchSize;
-			prevBatchSize = currBatchSize;
-			currBatchSize = 0;
-			currBatchIdx = m_renderNodes[currNode].BatchIdx;
-		}
-
-		m_renderNodes[currNode].TaskH = ts.EmplaceTask(m_renderNodes[currNode].Name, [this, currNode, numNodes]() noexcept
+		m_aggregateNodes[i].TaskH = ts.EmplaceTask(m_aggregateNodes[i].Name, [this, i]() noexcept
 			{
+				AggregateRenderNode& aggregateNode = m_aggregateNodes[i];
 				auto& renderer = App::GetRenderer();
-				auto& gpuTimer = renderer.GetGpuTimer();
-				RenderNode& node = m_renderNodes[currNode];
-
-				// get a command list
 				ComputeCmdList* cmdList = nullptr;
 
-				if (node.Type != RENDER_NODE_TYPE::ASYNC_COMPUTE)
+				if (!aggregateNode.IsAsyncCompute)
 					cmdList = static_cast<ComputeCmdList*>(renderer.GetGraphicsCmdList());
 				else
 					cmdList = renderer.GetComputeCmdList();
 
-				cmdList->SetName(node.Name);
+#ifdef _DEBUG
+				cmdList->SetName(aggregateNode.Name);
+#endif // _DEBUG
 
-				if (node.HasUnsupportedBarrier)
+				if (aggregateNode.HasUnsupportedBarrier)
 				{
 					CommandList* barrierCmdList = renderer.GetGraphicsCmdList();
 					GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(*barrierCmdList);
 					directCmdList.SetName("Barrier");
 
-					directCmdList.TransitionResource(node.Barriers.begin(), (UINT)node.Barriers.size());
+					directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), (UINT)aggregateNode.Barriers.size());
 					uint64_t f = renderer.ExecuteCmdList(barrierCmdList);
 
 					renderer.WaitForDirectQueueOnComputeQueue(f);
 				}
-				else if (node.Barriers.size() > 0)
-				{
-					cmdList->TransitionResource(node.Barriers.begin(), (UINT)node.Barriers.size());
-				}
+				else if (!aggregateNode.Barriers.empty())
+					cmdList->ResourceBarrier(aggregateNode.Barriers.begin(), (UINT)aggregateNode.Barriers.size());
 
-				const uint32_t queryIdx = gpuTimer.BeginQuery(cmdList, node.Name);	// record the timestamp prior to execution
-				node.Dlg(*cmdList);													// record
-				gpuTimer.EndQuery(cmdList, queryIdx);								// record the timestamp after execution
+				// record
+				for(auto dlg : aggregateNode.Dlgs)
+					dlg(*cmdList);
 
 				// wait for possible GPU fence
-				if (!node.HasUnsupportedBarrier && node.GpuDepSourceIdx.Val != -1)
+				if (!aggregateNode.HasUnsupportedBarrier && aggregateNode.GpuDepIdx.Val != -1)
 				{
-					uint64_t f = m_renderNodes[node.GpuDepSourceIdx.Val].CompletionFence;
-					Assert(f != -1, "Gpu hasn't finished executing");
+					uint64_t f = m_aggregateNodes[aggregateNode.GpuDepIdx.Val].CompletionFence;
+					Assert(f != uint64_t(-1), "Gpu hasn't finished executing");
 
-					if (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
+					if (aggregateNode.IsAsyncCompute)
 						renderer.WaitForDirectQueueOnComputeQueue(f);
 					else
 						renderer.WaitForComputeQueueOnDirectQueue(f);
 				}
 
-				if (currNode == numNodes - 1)
-					gpuTimer.EndFrame(cmdList);
+				if (aggregateNode.IsLast)
+				{
+					auto& gpuTimer = renderer.GetGpuTimer();
+					gpuTimer.EndFrame(*cmdList);
+				}
 
 				// submit
-				node.CompletionFence = renderer.ExecuteCmdList(cmdList);
+				aggregateNode.CompletionFence = renderer.ExecuteCmdList(cmdList);
 			});
-
-		if (currBatchIdx > 0)
-		{
-			// there must be a dependency regardless of type
-			for (int i = prevBatchOffset; i < prevBatchOffset + prevBatchSize; i++)
-				ts.AddOutgoingEdge(m_renderNodes[i].TaskH, m_renderNodes[currNode].TaskH);
-		}
-
-		currBatchSize++;
 	}
+
+	for (int i = 1; i < m_aggregateNodes.size(); i++)
+		ts.AddOutgoingEdge(m_aggregateNodes[i - 1].TaskH, m_aggregateNodes[i].TaskH);
 }
 
 void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
@@ -669,6 +683,86 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 		m_frameResources[idx].State = D3D12_RESOURCE_STATE_PRESENT;
 }
 
+void RenderGraph::JoinRenderNodes() noexcept
+{
+	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
+	m_aggregateNodes.reserve(numNodes);
+
+	int currBatchIdx = 0;
+	SmallVector<int, App::FrameAllocator, 16> nonAsyncComputeNodes;
+	SmallVector<int, App::FrameAllocator, 16> asyncComputeNodes;
+
+	auto insertAggRndrNode = [this, &nonAsyncComputeNodes, &asyncComputeNodes]() noexcept
+	{
+		Assert(!nonAsyncComputeNodes.empty() || !asyncComputeNodes.empty(), "bug");
+
+		if (!asyncComputeNodes.empty())
+		{
+			m_aggregateNodes.emplace_back(true);
+
+			for (auto n : asyncComputeNodes)
+			{
+				m_aggregateNodes.back().Append(m_renderNodes[n], -1);
+				m_renderNodes[n].BatchIdx = (int)m_aggregateNodes.size() - 1;
+			}
+		}
+
+		if (!nonAsyncComputeNodes.empty())
+		{
+			// if there's an async. compute task in this batch that has unsupported barriers,
+			// then that task's going to sync with the direct queue immediately before execution,
+			// which supersedes any other gpu fence in that batch
+			bool gpuFenceSuperfluous = !asyncComputeNodes.empty() && m_aggregateNodes.back().HasUnsupportedBarrier;
+			bool hasGpuFence = false;
+
+			for (auto n : nonAsyncComputeNodes)
+			{
+				hasGpuFence = m_renderNodes[n].GpuDepSourceIdx.Val != -1;
+				if (hasGpuFence)
+					break;
+			}
+
+			if (!hasGpuFence || !gpuFenceSuperfluous)
+				m_aggregateNodes.emplace_back(false);
+
+			for (auto n : nonAsyncComputeNodes)
+			{
+				int mappedGpuDepIdx = m_renderNodes[n].GpuDepSourceIdx.Val == -1 ?
+					-1 :
+					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].BatchIdx;
+
+				m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
+				m_renderNodes[n].BatchIdx = (int)m_aggregateNodes.size() - 1;
+			}
+
+			m_aggregateNodes.back().GpuDepIdx = hasGpuFence && gpuFenceSuperfluous ?
+				RenderNodeHandle(-1) :
+				m_aggregateNodes.back().GpuDepIdx;
+		}
+	};
+
+	for (int currNode = 0; currNode < numNodes; currNode++)
+	{
+		if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
+		{
+			insertAggRndrNode();
+
+			nonAsyncComputeNodes.clear();
+			asyncComputeNodes.clear();
+			currBatchIdx = m_renderNodes[currNode].BatchIdx;
+		}
+
+		if (m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
+			asyncComputeNodes.push_back(currNode);
+		else
+			nonAsyncComputeNodes.push_back(currNode);
+	}
+
+	insertAggRndrNode();
+
+	m_aggregateNodes.back().IsLast = true;
+}
+
 void RenderGraph::DebugDrawGraph() noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
@@ -829,33 +923,27 @@ void RenderGraph::DebugDrawGraph() noexcept
 #ifdef _DEBUG
 void RenderGraph::Log() noexcept
 {
-	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
-
 	std::string formattedRenderGraph;
 	formattedRenderGraph.reserve(2048);
 
 	char temp[256];
 	stbsp_snprintf(temp, sizeof(temp), "\nRenderGraph for frame %llu, #batches = %d\n", App::GetTimer().GetTotalFrameCount(),
-		m_renderNodes[numNodes - 1].BatchIdx);
+		m_aggregateNodes.size());
 	formattedRenderGraph += temp;
 
-	int currBatch = -1;
+	int currBatch = 0;
 	temp[0] = '\0';
 
-	for (int currNode = 0; currNode < numNodes; currNode++)
+	for (auto node : m_aggregateNodes)
 	{
-		if (m_renderNodes[currNode].BatchIdx != currBatch)
-		{
-			currBatch = m_renderNodes[currNode].BatchIdx;
-			stbsp_snprintf(temp, sizeof(temp), "Batch %d\n", currBatch);
-			formattedRenderGraph += temp;
-		}
-
-		stbsp_snprintf(temp, sizeof(temp), "\t%d. %s (GPU dep %d)\n", currNode, m_renderNodes[currNode].Name, 
-			m_renderNodes[currNode].GpuDepSourceIdx.Val);
+		stbsp_snprintf(temp, sizeof(temp), "Batch %d\n", currBatch);
 		formattedRenderGraph += temp;
 
-		for (auto b : m_renderNodes[currNode].Barriers)
+		stbsp_snprintf(temp, sizeof(temp), "\t%s (GPU dep %d == %s)\n", node.Name, node.GpuDepIdx.Val, 
+			node.GpuDepIdx.Val != -1 ? m_aggregateNodes[node.GpuDepIdx.Val].Name : "None");
+		formattedRenderGraph += temp;
+
+		for (auto b : node.Barriers)
 		{
 			char buff[64] = { '\0' };
 			UINT n = sizeof(buff);
@@ -868,6 +956,8 @@ void RenderGraph::Log() noexcept
 
 			formattedRenderGraph += temp;
 		}
+
+		currBatch++;
 	}
 
 	formattedRenderGraph += '\n';

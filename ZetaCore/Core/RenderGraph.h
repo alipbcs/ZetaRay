@@ -113,6 +113,7 @@ namespace ZetaRay::Core
 		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
 		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
 		void InsertResourceBarriers(Util::Span<RenderNodeHandle> mapping) noexcept;
+		void JoinRenderNodes() noexcept;
 
 #ifdef _DEBUG
 		void Log() noexcept;
@@ -211,9 +212,7 @@ namespace ZetaRay::Core
 				Outputs.free_memory();
 				Barriers.free_memory();
 				HasUnsupportedBarrier = false;
-				CompletionFence = uint64_t(-1);
 				GpuDepSourceIdx = RenderNodeHandle(-1);
-				TaskH = uint32_t(-1);
 				OutputMask = 0;
 				memset(Name, 0, MAX_NAME_LENGTH);
 			}
@@ -228,9 +227,7 @@ namespace ZetaRay::Core
 				Outputs.free_memory();
 				Barriers.free_memory();
 				HasUnsupportedBarrier = false;
-				CompletionFence = uint64_t(-1);
 				GpuDepSourceIdx = RenderNodeHandle(-1);
-				TaskH = uint32_t(-1);
 				OutputMask = 0;
 
 				int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
@@ -251,23 +248,62 @@ namespace ZetaRay::Core
 			Util::SmallVector<Dependency, App::FrameAllocator, 1> Outputs;
 			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator> Barriers;
 
-			uint32_t OutputMask = 0;
-			int Indegree = 0;
-			int BatchIdx = -1;
-
-			uint64_t CompletionFence = uint64_t(-1);
-
 			// at most one GPU dependency
 			RenderNodeHandle GpuDepSourceIdx = RenderNodeHandle(-1);
 
-			//TaskSet::TaskHandle TaskH;
+			uint32_t OutputMask = 0;
+			int Indegree = 0;
+			int BatchIdx = -1;
+		};
+
+		struct AggregateRenderNode
+		{
+			AggregateRenderNode() noexcept = default;
+			AggregateRenderNode(bool isAsyncCompute) noexcept
+				: IsAsyncCompute(isAsyncCompute)
+			{
+			}
+
+			void Reset() noexcept
+			{
+				Barriers.free_memory();
+				Dlgs.free_memory();
+
+#if 0
+				HasUnsupportedBarrier = false;
+				CompletionFence = uint64_t(-1);
+				GpuDepIdx = RenderNodeHandle(-1);
+				TaskH = uint32_t(-1);
+				IsAsyncCompute = false;
+				IsLast = false;
+				memset(Name, 0, MAX_NAME_LENGTH);
+#endif
+			}
+
+			void Append(const RenderNode& node, int mappedGpeDepIdx) noexcept;
+
+			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
+			Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 4> Dlgs;
+
+			uint64_t CompletionFence = uint64_t(-1);
 			uint32_t TaskH;
+
+			// at most one GPU dependency
+			RenderNodeHandle GpuDepIdx = RenderNodeHandle(-1);
+
+			static constexpr int MAX_NAME_LENGTH = 64;
+			char Name[MAX_NAME_LENGTH];
+
+			bool IsAsyncCompute;
+			bool HasUnsupportedBarrier = false;
+			bool IsLast = false;
 		};
 
 		static_assert(std::is_move_constructible_v<RenderNode>);
 		static_assert(std::is_swappable_v<RenderNode>);
 
 		RenderNode m_renderNodes[MAX_NUM_RENDER_PASSES];
+		Util::SmallVector<AggregateRenderNode, App::FrameAllocator> m_aggregateNodes;
 
 		int m_numPassesPrevFrame;
 	};

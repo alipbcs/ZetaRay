@@ -198,7 +198,7 @@ void StaticBLAS::CopyCompactionSize(ComputeCmdList& cmdList) noexcept
 {
 	cmdList.PIXBeginEvent("StaticBLAS::CopyCompactionSize");
 
-	cmdList.TransitionResource(m_postBuildInfo.GetResource(),
+	cmdList.ResourceBarrier(m_postBuildInfo.GetResource(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		D3D12_RESOURCE_STATE_COPY_SOURCE);
 

@@ -59,7 +59,7 @@ namespace ZetaRay::Core
 			: CommandList(t, cmdAlloc)
 		{}
 
-		ZetaInline void TransitionResource(ID3D12Resource* res, D3D12_RESOURCE_STATES oldState, D3D12_RESOURCE_STATES newState,
+		ZetaInline void ResourceBarrier(ID3D12Resource* res, D3D12_RESOURCE_STATES oldState, D3D12_RESOURCE_STATES newState,
 			UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES) noexcept
 		{
 			Assert(oldState != newState, "Invalid barrier states");
@@ -67,7 +67,7 @@ namespace ZetaRay::Core
 			m_cmdList->ResourceBarrier(1, &barrier);
 		}
 
-		ZetaInline void TransitionResource(D3D12_RESOURCE_BARRIER* barriers, UINT numBarriers) noexcept
+		ZetaInline void ResourceBarrier(D3D12_RESOURCE_BARRIER* barriers, UINT numBarriers) noexcept
 		{
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
 		}
