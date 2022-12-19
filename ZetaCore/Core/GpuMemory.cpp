@@ -463,7 +463,7 @@ namespace ZetaRay::Core::Internal
 		static constexpr size_t MIN_ALLOC_SIZE = 64 * 1024;
 		static constexpr size_t ALLOCATOR_INDEX_SHIFT = 16; // start block sizes at 64KB
 		// log2(128 mb) - log2(64 kb)
-		static constexpr size_t POOL_COUNT = 12; // allocation sizes up to 128 MB supported
+		static constexpr size_t POOL_COUNT = 13; // allocation sizes up to 128 MB supported
 		static constexpr size_t MAX_ALLOC_SIZE = 1 << (POOL_COUNT - 1 + ALLOCATOR_INDEX_SHIFT);
 
 		static_assert((1 << ALLOCATOR_INDEX_SHIFT) == MIN_ALLOC_SIZE, "1 << ALLOCATOR_INDEX_SHIFT must == MIN_PAGE_SIZE (in KiB)");

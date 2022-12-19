@@ -92,8 +92,8 @@ TEST_CASE("AABBvsFrustum")
 		auto ct = frustum.Contains(xb1);
 		bool xr = (ct == DirectX::INTERSECTS) || (ct == DirectX::CONTAINS);
 
-		auto r = instersectFrustumVsAABB(vf, b1);
-		bool zr = (r == COLLISION_TYPE::CONTAINS) || (r == COLLISION_TYPE::INTERSECTS);
+		auto res = instersectFrustumVsAABB(vf, b1);
+		bool zr = (res == COLLISION_TYPE::CONTAINS) || (res == COLLISION_TYPE::INTERSECTS);
 
 		INFO("Center:(", c1.x, ", ", c1.y, ", ", c1.z, ")", "Extents:(", e1.x, ", ", e1.y, ", ", e1.z, ")");
 		INFO("DirectXMath result: ", xr, "ZetaRay result: ", zr);
@@ -339,11 +339,11 @@ TEST_CASE("Quaternion")
 		DirectX::XMFLOAT4X4 res;
 		DirectX::XMStoreFloat4x4(&res, quatX);
 
-		for (int i = 0; i < 4; i++)
+		for (int k = 0; k < 4; k++)
 		{
 			for (int j = 0; j < 4; j++)
 			{
-				CHECK(res.m[i][j] - reinterpret_cast<float*>(&resZ.m[i])[j] <= FLT_EPSILON);
+				CHECK(res.m[k][j] - reinterpret_cast<float*>(&resZ.m[k])[j] <= FLT_EPSILON);
 			}
 		}
 

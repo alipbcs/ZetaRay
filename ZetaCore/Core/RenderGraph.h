@@ -13,7 +13,7 @@ namespace ZetaRay::Core
 {
 	class CommandList;
 
-	enum class RENDER_NODE_TYPE
+	enum class RENDER_NODE_TYPE : uint8_t
 	{
 		RENDER,
 		COMPUTE,
@@ -206,15 +206,17 @@ namespace ZetaRay::Core
 		{
 			void Reset() noexcept
 			{
-				Indegree = 0;
-				BatchIdx = -1;
 				Inputs.free_memory();
 				Outputs.free_memory();
 				Barriers.free_memory();
+#if 0
+				Indegree = 0;
+				NodeBatchIdx = -1;
 				HasUnsupportedBarrier = false;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				OutputMask = 0;
 				memset(Name, 0, MAX_NAME_LENGTH);
+#endif
 			}
 
 			void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg) noexcept
@@ -222,7 +224,7 @@ namespace ZetaRay::Core
 				Type = t;
 				Dlg = dlg;
 				Indegree = 0;
-				BatchIdx = -1;
+				NodeBatchIdx = -1;
 				Inputs.free_memory();
 				Outputs.free_memory();
 				Barriers.free_memory();
@@ -235,9 +237,11 @@ namespace ZetaRay::Core
 				Name[n] = '\0';
 			}
 
+			fastdelegate::FastDelegate1<CommandList&> Dlg;
+			int NodeBatchIdx = -1;
+
 			RENDER_NODE_TYPE Type;
 			bool HasUnsupportedBarrier = false;
-			fastdelegate::FastDelegate1<CommandList&> Dlg;
 
 			static constexpr int MAX_NAME_LENGTH = 16;
 			char Name[MAX_NAME_LENGTH];
@@ -253,7 +257,7 @@ namespace ZetaRay::Core
 
 			uint32_t OutputMask = 0;
 			int Indegree = 0;
-			int BatchIdx = -1;
+			int AggBatchIdx = -1;
 		};
 
 		struct AggregateRenderNode

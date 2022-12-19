@@ -35,7 +35,7 @@ namespace ZetaRay::RenderPass
 
 	private:
 		void ReloadShaders() noexcept;
-		void GetPSODesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept;
+		void CreatePSO() noexcept;
 
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 0;

@@ -49,11 +49,7 @@ void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 	auto samplers = renderer.GetStaticSamplers();
 	s_rpObjs.Init("SkyDome", m_rootSig, samplers.size(), samplers.data(), flags);
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
-	GetPSODesc(psoDesc);
-
-	// use an arbitrary number as "nameID" since there's only one shader
-	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
+	CreatePSO();
 
 	// create the sphere mesh
 	SmallVector<Vertex, App::ThreadAllocator> vertices;
@@ -138,7 +134,7 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void SkyDome::GetPSODesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
+void SkyDome::CreatePSO() noexcept
 {
 	D3D12_INPUT_ELEMENT_DESC inputElements[] =
 	{
@@ -151,7 +147,7 @@ void SkyDome::GetPSODesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements,
 		.NumElements = ZetaArrayLen(inputElements) };
 
-	psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
 		1,
 		&m_cachedRtvFormat,
 		Constants::DEPTH_BUFFER_FORMAT);
@@ -161,18 +157,14 @@ void SkyDome::GetPSODesc(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept
 	psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ZERO;
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_FRONT;		// we're inside the sphere
 	//psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+
+	// use an arbitrary number as "nameID" since there's only one shader
+	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
 void SkyDome::ReloadShaders() noexcept
 {
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc;
-	GetPSODesc(psoDesc);
-
 	s_rpObjs.m_psoLib.Reload(0, "Sky\\SkyDome.hlsl", false);
-	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0,
-		psoDesc,
-		s_rpObjs.m_rootSig.Get(),
-		COMPILED_VS[0],
-		COMPILED_PS[0]);
+	CreatePSO();
 }
 

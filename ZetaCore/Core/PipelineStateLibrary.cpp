@@ -115,6 +115,8 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 	Filesystem::Path hlsl(App::GetRenderPassDir());
 	hlsl.Append(pathToHlsl);
 
+	Assert(Filesystem::Exists(hlsl.Get()), "unable to find path %s", hlsl.Get());
+
 	// e.g. IndirectDiffuse\IndirectDiffuse.hlsl -> IndirectDiffuse
 	char filename[MAX_PATH];
 	hlsl.Stem(filename);

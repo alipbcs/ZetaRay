@@ -182,10 +182,10 @@ bool Filesystem::Exists(const char* filePath) noexcept
     if (h == INVALID_HANDLE_VALUE)
     {
         DWORD e = GetLastError();
-        if (e == ERROR_FILE_NOT_FOUND)
+        if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND)
             return false;
 
-        Check(false, "FindFirstFile() for path %s failed with following error code: %d", filePath, e);
+        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d", filePath, e);
     }
 
     FindClose(h);

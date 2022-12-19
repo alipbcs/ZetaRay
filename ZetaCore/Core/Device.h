@@ -36,7 +36,7 @@ using Microsoft::WRL::ComPtr;
 	    if (FAILED(hr_))																	\
 	    {													                                \
             char buff_[64];                                                                 \
-            stbsp_snprintf(buff_, 256, "HRESULT: %x\n%s: %d", hr, __FILE__,  __LINE__);     \
+            stbsp_snprintf(buff_, 256, "HRESULT: %x\n%s: %d", hr_, __FILE__,  __LINE__);    \
 			MessageBoxA(nullptr, buff_, "Fatal Error", MB_ICONERROR | MB_OK);               \
             exit(EXIT_FAILURE);                                                             \
 	    }                                                                                   \

@@ -471,7 +471,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 		{
 			// batchIdx is zero there are no dependencies
 			sorted[currIdx++] = RenderNodeHandle(currNode);
-			node.BatchIdx = 0;
+			node.NodeBatchIdx = 0;
 		}
 	}
 
@@ -499,15 +499,15 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 
 		for (RenderNodeHandle adjacent : adjacentTailNodes[currHandle.Val])
 		{
-			m_renderNodes[adjacent.Val].BatchIdx = Math::Max(
-				m_renderNodes[currHandle.Val].BatchIdx + 1,
-				m_renderNodes[adjacent.Val].BatchIdx);
+			m_renderNodes[adjacent.Val].NodeBatchIdx = Math::Max(
+				m_renderNodes[currHandle.Val].NodeBatchIdx + 1,
+				m_renderNodes[adjacent.Val].NodeBatchIdx);
 		}
 	}
 
 	std::sort(sorted, sorted + numNodes, [this](const RenderNodeHandle& lhs, const RenderNodeHandle& rhs)
 		{
-			return m_renderNodes[lhs.Val].BatchIdx < m_renderNodes[rhs.Val].BatchIdx;
+			return m_renderNodes[lhs.Val].NodeBatchIdx < m_renderNodes[rhs.Val].NodeBatchIdx;
 		});
 
 	// Producer Handle to sorted array index mapping.
@@ -631,7 +631,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 				
 				if (producerOnDifferentQueue)
 				{
-					Assert(m_renderNodes[sortedHandle.Val].BatchIdx < node.BatchIdx, "Invalid graph");
+					Assert(m_renderNodes[sortedHandle.Val].NodeBatchIdx < node.NodeBatchIdx, "Invalid graph");
 					// case a
 					largestProducerSortedHandle.Val = Math::Max(largestProducerSortedHandle.Val, sortedHandle.Val);
 				}
@@ -703,7 +703,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 			for (auto n : asyncComputeNodes)
 			{
 				m_aggregateNodes.back().Append(m_renderNodes[n], -1);
-				m_renderNodes[n].BatchIdx = (int)m_aggregateNodes.size() - 1;
+				m_renderNodes[n].AggBatchIdx = (int)m_aggregateNodes.size() - 1;
 			}
 		}
 
@@ -729,10 +729,10 @@ void RenderGraph::JoinRenderNodes() noexcept
 			{
 				int mappedGpuDepIdx = m_renderNodes[n].GpuDepSourceIdx.Val == -1 ?
 					-1 :
-					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].BatchIdx;
+					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].AggBatchIdx;
 
 				m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
-				m_renderNodes[n].BatchIdx = (int)m_aggregateNodes.size() - 1;
+				m_renderNodes[n].AggBatchIdx = (int)m_aggregateNodes.size() - 1;
 			}
 
 			m_aggregateNodes.back().GpuDepIdx = hasGpuFence && gpuFenceSuperfluous ?
@@ -743,13 +743,13 @@ void RenderGraph::JoinRenderNodes() noexcept
 
 	for (int currNode = 0; currNode < numNodes; currNode++)
 	{
-		if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
+		if (m_renderNodes[currNode].NodeBatchIdx != currBatchIdx)
 		{
 			insertAggRndrNode();
 
 			nonAsyncComputeNodes.clear();
 			asyncComputeNodes.clear();
-			currBatchIdx = m_renderNodes[currNode].BatchIdx;
+			currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
 		}
 
 		if (m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
@@ -781,12 +781,12 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 		for (int currNode = 0; currNode < numNodes; currNode++)
 		{
-			if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
+			if (m_renderNodes[currNode].NodeBatchIdx != currBatchIdx)
 			{
 				batchSize[currBatchIdx] = currBatchSize;
 
 				currBatchSize = 0;
-				currBatchIdx = m_renderNodes[currNode].BatchIdx;
+				currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
 			}
 
 			currBatchSize++;
@@ -805,13 +805,13 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 	for (int currNode = 0; currNode < numNodes; currNode++)
 	{
-		if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
+		if (m_renderNodes[currNode].NodeBatchIdx != currBatchIdx)
 		{
 			const int prevBatchSize = currBatchIdx > 0 ? batchSize[currBatchIdx - 1] : 0;
 			const int currBatchSize = batchSize[currBatchIdx];
 			const int nextBatchSize = currBatchIdx + 1 < numBatches ? batchSize[currBatchIdx + 1] : 0;
 
-			currBatchIdx = m_renderNodes[currNode].BatchIdx;
+			currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
 			currBatchStartPin += currBatchSize * prevBatchSize + nextBatchSize * currBatchSize;
 
 			currBatchInputPin = 0;
@@ -825,7 +825,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 		ImNodes::BeginNodeTitleBar();
 		ImGui::Text("\t%d. %s, Batch: %d, (GPU dep %d)\n", currNode, m_renderNodes[currNode].Name,
-			m_renderNodes[currNode].BatchIdx, m_renderNodes[currNode].GpuDepSourceIdx.Val);
+			m_renderNodes[currNode].NodeBatchIdx, m_renderNodes[currNode].GpuDepSourceIdx.Val);
 		ImNodes::EndNodeTitleBar();
 
 		for (auto b : m_renderNodes[currNode].Barriers)
@@ -882,9 +882,9 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 	for (int currNode = 0; currNode < numNodes; currNode++)
 	{
-		if (m_renderNodes[currNode].BatchIdx != currBatchIdx)
+		if (m_renderNodes[currNode].NodeBatchIdx != currBatchIdx)
 		{
-			currBatchIdx = m_renderNodes[currNode].BatchIdx;
+			currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
 
 			const int prevPrevBatchSize = currBatchIdx > 1 ? batchSize[currBatchIdx - 2] : 0;
 			const int prevBatchSize = currBatchIdx > 0 ? batchSize[currBatchIdx - 1] : 0;

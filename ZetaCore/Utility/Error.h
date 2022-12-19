@@ -79,7 +79,7 @@ namespace ZetaRay::Util
         char buff_[256];                                                                     \
         int n_ = stbsp_snprintf(buff_, 256, "%s: %d\n", __FILE__, __LINE__);                 \
         stbsp_snprintf(buff_ + n_, 256 - n_, formatStr, __VA_ARGS__);                        \
-        ZetaRay::Util::ReportError("Fatal Error", buff);                                     \
+        ZetaRay::Util::ReportError("Fatal Error", buff_);                                    \
         ZetaRay::Util::Exit();                                                               \
     }
 #endif

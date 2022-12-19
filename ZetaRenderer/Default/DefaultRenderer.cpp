@@ -230,7 +230,6 @@ namespace ZetaRay::DefaultRenderer
 		v_float4x4 vVP = mul(vCurrV, vP);
 
 		// for 1st frame
-		//data->m_frameConstants.UseReverseZ = RendererConstants::USE_REVERSE_Z;
 		g_data->m_frameConstants.PrevViewProj = store(vVP);
 		g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
 		g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
@@ -292,12 +291,6 @@ namespace ZetaRay::DefaultRenderer
 
 		// render settings
 		{
-			//ParamVariant enableIndirectDiffuse;
-			//enableIndirectDiffuse.InitBool("Renderer", "Settings", "RaytracedIndirectDiffuse",
-			//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndirectDiffuseEnablement),
-			//	m_g_data->m_settings.RTIndirectDiffuse);
-			//App::AddParam(enableIndirectDiffuse);
-
 			//ParamVariant enableDenoiser;
 			//enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
 			//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
@@ -331,7 +324,7 @@ namespace ZetaRay::DefaultRenderer
 			ParamVariant p0;
 			p0.InitUnitDir("LightSource", "Sun", "(-)Dir",
 				fastdelegate::FastDelegate1(&DefaultRenderer::ModifySunDir),
-				g_data->m_frameConstants.SunDir);
+				-g_data->m_frameConstants.SunDir);
 			App::AddParam(p0);
 
 			ParamVariant p2;
