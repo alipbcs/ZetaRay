@@ -60,17 +60,19 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
 [numthreads(SUN_SHADOW_THREAD_GROUP_SIZE_X, SUN_SHADOW_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 {
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
+		return;
+
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 	
 	if(depth == 0)
 		return;
 	
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-	
-	const uint2 textureDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);	
 	float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
-		textureDim, 
+		renderDim,
 		linearDepth, 
 		g_frame.TanHalfFOV, 
 		g_frame.AspectRatio, 

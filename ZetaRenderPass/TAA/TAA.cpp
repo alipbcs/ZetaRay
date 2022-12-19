@@ -63,7 +63,7 @@ void TAA::Init() noexcept
 	ParamVariant blendWeight;
 	blendWeight.InitFloat("Renderer", "TAA", "BlendWeight", fastdelegate::MakeDelegate(this, &TAA::BlendWeightCallback),
 		DefaultParamVals::BlendWeight,			// val	
-		0.1f,									// min
+		0.0f,									// min
 		1.0f,									// max
 		0.1f);									// step
 	App::AddParam(blendWeight);

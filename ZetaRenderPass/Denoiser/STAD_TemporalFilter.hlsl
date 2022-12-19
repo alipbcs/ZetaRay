@@ -137,9 +137,10 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float2 c
 		uint4 histTspp = (uint4) g_prevTemporalCache.GatherAlpha(g_samPointClamp, topLeftTexelUV).wzxy;
 		
 		// as tspp is an integer, make sure it's at least 1, otherwise tspp would remain at zero forever
-		uint maxTspp = max(max(histTspp.x, histTspp.y), max(histTspp.z, histTspp.w));
+		//uint maxTspp = max(max(histTspp.x, histTspp.y), max(histTspp.z, histTspp.w));
+		//tspp = min(round(dot(histTspp, weights)), maxTspp + 1);
 		histTspp = max(1, histTspp);
-		tspp = min(round(dot(histTspp, weights)), maxTspp + 1);
+		tspp = round(dot(histTspp, weights));
 		
 		if (tspp > 0)
 		{
@@ -171,10 +172,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	
 	const float3 noisySignal = r.Li * r.GetW() * saturate(dot(wi, normal));
 	//const float3 noisySignal = r.R.Li * r.GetW();
-		
-	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
-	tspp = min(tspp + 1, g_local.MaxTspp);
-	
+
 	// TODO come up with a better way to incorporate reservoir data into denoiser -- the following
 	// approach prevents convergence for more complicated geometry
 #if 0
@@ -189,7 +187,10 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	const float accumulationSpeed = 1.0f / (1.0f + tspp);
 
 	// accumulate
-	color = lerp(color, noisySignal, accumulationSpeed);
+	color = lerp(color, noisySignal, accumulationSpeed);	
+
+	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
+	tspp = min(tspp + 1, g_local.MaxTspp);
 }
 
 //--------------------------------------------------------------------------------------

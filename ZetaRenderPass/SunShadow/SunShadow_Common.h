@@ -27,6 +27,7 @@ struct cbFFX_DNSR_Temporal
 	uint32_t CurrTemporalCacheHeapIdx;
 	uint16_t NumShadowMaskThreadGroupsX;
 	uint16_t NumShadowMaskThreadGroupsY;
+	float MaxPlaneDist;
 
 	uint16_t IsTemporalValid;
 	uint16_t pad;
@@ -37,8 +38,9 @@ struct cbFFX_DNSR_Spatial
 	uint32_t MetadataSRVDescHeapIdx;
 	uint32_t InTemporalCacheHeapIdx;
 	uint32_t OutTemporalCacheHeapIdx;
-	float DepthSigma;
-	float NormalExp;
+	float EdgeStoppingNormalExp;
+	float EdgeStoppingMaxPlaneDist;
+	float EdgeStoppingShadowStdScale;
 	uint16_t PassNum;
 	uint16_t StepSize;
 };

@@ -26,6 +26,18 @@ THE SOFTWARE.
 #include "../Common/GBuffers.hlsli"
 #include "SunShadow_Common.h"
 
+#define PLANE_BASED_DEPTH_EDGE_STOP_FN 1
+#define KERNEL_RADIUS 1
+
+static const unsigned int Width = 2 * KERNEL_RADIUS + 1;
+static const float Kernel1D[Width] = { 0.27901, 0.44198, 0.27901 };
+static const float Kernel[Width][Width] =
+{
+	{ Kernel1D[0] * Kernel1D[0], Kernel1D[0] * Kernel1D[1], Kernel1D[0] * Kernel1D[2] },
+	{ Kernel1D[1] * Kernel1D[0], Kernel1D[1] * Kernel1D[1], Kernel1D[1] * Kernel1D[2] },
+	{ Kernel1D[2] * Kernel1D[0], Kernel1D[2] * Kernel1D[1], Kernel1D[2] * Kernel1D[2] },
+};
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -81,26 +93,26 @@ void FFX_DNSR_Shadows_StoreWithOffsetInGroupSharedMemory(int2 GTid, int2 offset,
 
 void FFX_DNSR_Shadows_InitializeGroupSharedMemory(int2 DTid, int2 GTid)
 {
-    int2 offset_0 = 0;
-    int2 offset_1 = int2(8, 0);
-    int2 offset_2 = int2(0, 8);
-    int2 offset_3 = int2(8, 8);
+	int2 offset_0 = 0;
+	int2 offset_1 = int2(8, 0);
+	int2 offset_2 = int2(0, 8);
+	int2 offset_3 = int2(8, 8);
 
-    half2 normals_0;
-    half2 input_0;
-    float depth_0;
+	half2 normals_0;
+	half2 input_0;
+	float depth_0;
 
 	half2 normals_1;
 	half2 input_1;
-    float depth_1;
+	float depth_1;
 
 	half2 normals_2;
 	half2 input_2;
-    float depth_2;
+	float depth_2;
 
 	half2 normals_3;
 	half2 input_3;
-    float depth_3;
+	float depth_3;
 
     /// XA
     /// BC
@@ -119,79 +131,75 @@ void FFX_DNSR_Shadows_InitializeGroupSharedMemory(int2 DTid, int2 GTid)
 
 float FFX_DNSR_Shadows_GetShadowSimilarity(float x1, float x2, float sigma)
 {
-    return exp(-abs(x1 - x2) / sigma);
+	return exp(-abs(x1 - x2) / (sigma * g_local.EdgeStoppingShadowStdScale));
 }
 
-float FFX_DNSR_Shadows_GetDepthSimilarity(float x1, float x2, float sigma)
+float FFX_DNSR_Shadows_GetDepthSimilarity(float3 samplePos, float3 currNormal, float3 currPos)
 {
-    return exp(-abs(x1 - x2) / sigma);
+	float planeDist = dot(currNormal, samplePos - currPos);
+	
+	float tolerance = g_local.EdgeStoppingMaxPlaneDist;
+	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-6f));
+	
+	return weight;
 }
 
 float FFX_DNSR_Shadows_GetNormalSimilarity(float3 x1, float3 x2, float p)
 {
-    return pow(saturate(dot(x1, x2)), p);
-}
-
-float FFX_DNSR_Shadows_GetLinearDepth(uint2 DTid, float depth)
-{
-#if 0
-    const float2 uv = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float2 ndc = 2.0f * float2(uv.x, 1.0f - uv.y) - 1.0f;
-    
-    float4 projected = mul(FFX_DNSR_Shadows_GetProjectionInverse(), float4(ndc, depth, 1));
-    return abs(projected.z / projected.w);
-#endif    
-
-	return Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+	return pow(saturate(dot(x1, x2)), p);
 }
 
 float FFX_DNSR_Shadows_FilterVariance(int2 pos)
 {
-    const int k = 1;
-    float variance = 0.0f;
-    const float kernel[2][2] =
-    {
-        { 1.0f / 4.0f, 1.0f / 8.0f  },
-        { 1.0f / 8.0f, 1.0f / 16.0f }
-    };
+	const int k = 1;
+	float variance = 0.0f;
+	const float kernel[2][2] =
+	{
+		{ 1.0f / 4.0f, 1.0f / 8.0f },
+		{ 1.0f / 8.0f, 1.0f / 16.0f }
+	};
     
-    for (int y = -k; y <= k; ++y)
-    {
-        for (int x = -k; x <= k; ++x)
-        {
-            const float w = kernel[abs(x)][abs(y)];
+	for (int y = -k; y <= k; ++y)
+	{
+		for (int x = -k; x <= k; ++x)
+		{
+			const float w = kernel[abs(x)][abs(y)];
 			int2 neighborPos = pos + int2(x, y);
 			variance += w * g_FFX_DNSR_shared_input[neighborPos.y][neighborPos.x].y;
 		}
-    }
+	}
 
-    return variance;
+	return variance;
 }
 
-void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float depth, uint stepsize, 
+void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float depth, uint stepsize,
     inout float weight_sum, inout float2 shadow_sum)
 {
     // Load our center sample
 	const float2 shadow_center = g_FFX_DNSR_shared_input[GTid.y][GTid.x];
 	const float3 normal_center = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
 
-    weight_sum = 1.0f;
-    shadow_sum = shadow_center;
+	weight_sum = 1.0f;
+	shadow_sum = shadow_center;
 
 	const float variance = FFX_DNSR_Shadows_FilterVariance(GTid);
-    const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
-	const float depth_center = FFX_DNSR_Shadows_GetLinearDepth(DTid, depth); // linearize the depth value
-
+	const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
+	const float depth_center = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float3 pos_center = Math::Transform::WorldPosFromScreenSpace(DTid, 
+        renderDim,
+        depth_center,
+        g_frame.TanHalfFOV, 
+        g_frame.AspectRatio, 
+        g_frame.CurrViewInv);
+    
     // Iterate filter kernel
-    const int k = 1;
-    const float kernel[3] = { 1.0f, 2.0f / 3.0f, 1.0f / 6.0f };
-
-    for (int y = -k; y <= k; ++y)
-    {
-        for (int x = -k; x <= k; ++x)
-        {
+	for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; ++y)
+	{
+		for (int x = -KERNEL_RADIUS; x <= KERNEL_RADIUS; ++x)
+		{
             // Should we process this sample?
-            const int2 step = int2(x, y) * stepsize;
+			const int2 step = int2(x, y) * stepsize;
 			const int2 gtid_idx = GTid + step;
 			const int2 did_idx = DTid + step;
 
@@ -199,71 +207,77 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 			float3 normal_neigh = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
 			float2 shadow_neigh = g_FFX_DNSR_shared_input[gtid_idx.y][gtid_idx.x];
 
-            float sky_pixel_multiplier = ((x == 0 && y == 0) || depth_neigh == 0.0f) ? 0 : 1; // Zero weight for sky pixels
+			float sky_pixel_multiplier = ((x == 0 && y == 0) || depth_neigh == 0.0f) ? 0 : 1; // Zero weight for sky pixels
 
             // Fetch our filtering values
-            depth_neigh = FFX_DNSR_Shadows_GetLinearDepth(did_idx, depth_neigh);
-
+			depth_neigh = Math::Transform::LinearDepthFromNDC(depth_neigh, g_frame.CameraNear);
+			float3 pos_neigh = Math::Transform::WorldPosFromScreenSpace(did_idx,
+                renderDim,
+                depth_neigh,
+                g_frame.TanHalfFOV,
+                g_frame.AspectRatio,
+                g_frame.CurrViewInv);
+            
             // Evaluate the edge-stopping function
-            float w = kernel[abs(x)] * kernel[abs(y)];  // kernel weight
-            w *= FFX_DNSR_Shadows_GetShadowSimilarity(shadow_center.x, shadow_neigh.x, std_deviation);
-			w *= FFX_DNSR_Shadows_GetDepthSimilarity(depth_center, depth_neigh, g_local.DepthSigma);
-			w *= FFX_DNSR_Shadows_GetNormalSimilarity(normal_center, normal_neigh, g_local.NormalExp);
-            w *= sky_pixel_multiplier;
+			float w = Kernel[abs(y)][abs(x)]; // kernel weight
+			w *= FFX_DNSR_Shadows_GetShadowSimilarity(shadow_center.x, shadow_neigh.x, std_deviation);
+			w *= FFX_DNSR_Shadows_GetDepthSimilarity(pos_neigh, normal_center, pos_center);
+			w *= FFX_DNSR_Shadows_GetNormalSimilarity(normal_center, normal_neigh, g_local.EdgeStoppingNormalExp);
+			w *= sky_pixel_multiplier;
 
             // Accumulate the filtered sample
-            shadow_sum += float2(w, w * w) * shadow_neigh;
-            weight_sum += w;
-        }
-    }
+			shadow_sum += float2(w, w * w) * shadow_neigh;
+			weight_sum += w;
+		}
+	}
 }
 
 float2 FFX_DNSR_Shadows_ApplyFilterWithPrecache(uint2 DTid, uint2 GTid, uint stepsize, float depth, bool isShadowReceiver)
 {
-    float weight_sum = 1.0;
-    float2 shadow_sum = 0.0;
+	float weight_sum = 1.0;
+	float2 shadow_sum = 0.0;
 
 	FFX_DNSR_Shadows_InitializeGroupSharedMemory(DTid, GTid);
     
-    GroupMemoryBarrierWithGroupSync();
+	GroupMemoryBarrierWithGroupSync();
     
 	if (isShadowReceiver)
-    {
+	{
 		GTid += 4; // Center threads in groupshared memory
 		FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(DTid, GTid, depth, stepsize, weight_sum, shadow_sum);
 	}
 
-    float mean = shadow_sum.x / weight_sum;
-    float variance = shadow_sum.y / (weight_sum * weight_sum);
-    return float2(mean, variance);
+	float mean = shadow_sum.x / weight_sum;
+	float variance = shadow_sum.y / (weight_sum * weight_sum);
+	return float2(mean, variance);
 }
 
-float2 FFX_DNSR_Shadows_FilterSoftShadowsPass(uint2 Gid, uint2 GTid, uint2 DTid, uint passNum, uint stepsize, 
+float2 FFX_DNSR_Shadows_FilterSoftShadowsPass(uint2 Gid, uint2 GTid, uint2 DTid, uint passNum, uint stepsize,
     float depth, bool isShadowReceiver, out bool writeResults)
 {
-    bool is_cleared;
-    bool all_in_light;
+	bool is_cleared;
+	bool all_in_light;
 	FFX_DNSR_Shadows_ReadTileMetadata(Gid, is_cleared, all_in_light);
 
-    writeResults = false;
-    float2 results = 0.0.xx;
+	writeResults = false;
+	float2 results = 0.0.xx;
     
     [branch]
-    if (is_cleared)
-    {
+	if (is_cleared)
+	{
 		if (passNum != 0)
-        {
-            results.x = all_in_light ? 1.0 : 0.0;
-            writeResults = true;
-        }
-    }
-    else
-    {
+		{
+			results.x = all_in_light ? 1.0 : 0.0;
+			writeResults = true;
+		}
+	}
+	else
+	{
 		results = FFX_DNSR_Shadows_ApplyFilterWithPrecache(DTid, GTid, stepsize, depth, isShadowReceiver);
-        writeResults = true;
-    }
+		writeResults = true;
+	}
 
-    return results;
+	return results;
 }
 
 //--------------------------------------------------------------------------------------
@@ -281,6 +295,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	float2 results = FFX_DNSR_Shadows_FilterSoftShadowsPass(Gid.xy, GTid.xy, DTid.xy, g_local.PassNum, g_local.StepSize,
         depth, isShadowReceiver, writeResutls);
 
-    if(writeResutls)
+	if (writeResutls)
 		FFX_DNSR_Shadows_WriteTemporalCache(DTid.xy, results);
 }

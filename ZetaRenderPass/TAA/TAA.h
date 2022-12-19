@@ -91,7 +91,7 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr float BlendWeight = 0.35f;
+			static constexpr float BlendWeight = 0.1f;
 		};
 	};
 }

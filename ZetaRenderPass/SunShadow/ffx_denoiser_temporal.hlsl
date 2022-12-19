@@ -39,8 +39,6 @@ ConstantBuffer<cbFFX_DNSR_Temporal> g_local : register(b1);
 //--------------------------------------------------------------------------------------
 
 #define KERNEL_RADIUS 8
-//#define KERNEL_WEIGHT(i) (exp(-3.0 * float(i * i) / ((KERNEL_RADIUS + 1.0) * (KERNEL_RADIUS + 1.0))))
-//#define KERNEL_WEIGHTS_INV_SUM 0.11082929f
 
 groupshared int g_FFX_DNSR_Shadows_false_count;
 groupshared float g_FFX_DNSR_Shadows_neighborhood[8][24];
@@ -49,15 +47,15 @@ static const uint2 GroupDim = uint2(DNSR_TEMPORAL_THREAD_GROUP_SIZE_X, DNSR_TEMP
 
 static const float KernelMulInvWeightSum[9] =
 {
-	0.012283131088539638,
-	0.011836521899571278,
-	0.01059178517007069,
-	0.008801248016820962,
-	0.006791244929512557,
-	0.004866139629771234,
-	0.0032377982020393606,
-	0.0020005298091230485,
-	0.0011478108212715531
+    0.11082928804490101,
+    0.10679958437318364,
+    0.0955684671165583,
+    0.07941265501277292,
+    0.06127662686745019,
+    0.043906621756875146,
+    0.02921428314803944,
+    0.01805055183890165,
+    0.010356565863768184
 };
 
 uint FFX_DNSR_Shadows_ReadRaytracedShadowMask(uint2 tileIdx)
@@ -123,9 +121,13 @@ void FFX_DNSR_Shadows_WriteTileMetadata(uint2 Gid, uint2 GTid, bool is_cleared, 
 		uint light_mask = all_in_light ? TILE_META_DATA_LIGHT_MASK : 0;
 		uint clear_mask = is_cleared ? TILE_META_DATA_CLEAR_MASK : 0;
 		uint mask = light_mask | clear_mask;
-        
+     
+		uint2 DTid = Gid * GroupDim;
+		uint groupX = DTid.x >= 8 ? DTid.x >> 3 : 0;
+		uint groupY = DTid.y >= 8 ? DTid.y >> 3 : 0;
+
 		RWTexture2D<uint> g_outMetadata = ResourceDescriptorHeap[g_local.MetadataUAVDescHeapIdx];
-		g_outMetadata[Gid] = mask;
+		g_outMetadata[uint2(groupX, groupY)] = mask;
 	}
 }
 
@@ -162,18 +164,10 @@ bool FFX_DNSR_Shadows_ThreadGroupAllTrue(bool val)
 
 float FFX_DNSR_Shadows_GetLinearDepth(uint2 did, float depth)
 {
-#if 0
-    const float2 uv = (did + 0.5f) * data.InvBufferDim;
-    const float2 ndc = 2.0f * float2(uv.x, 1.0f - uv.y) - 1.0f;
-
-    float4 projected = mul(FFX_DNSR_Shadows_GetProjectionInverse(), float4(ndc, depth, 1));
-    return abs(projected.z / projected.w);
-#endif
-    
 	return Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 }
 
-void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 gid, out bool all_in_light, out bool all_in_shadow)
+void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 Gid, out bool all_in_light, out bool all_in_shadow)
 {
     // The spatial passes can reach a total region of 1+2+4 = 7x7 around each block.
     // The masks are 8x4, so we need a larger vertical stride
@@ -189,7 +183,7 @@ void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 gid, out bool all_in_light, out 
     // xx xx xx
 
     // All of this should result in scalar ops
-    const uint2 base_tile = FFX_DNSR_Shadows_GetTileIndexFromPixelPosition(gid * GroupDim);
+    const uint2 base_tile = FFX_DNSR_Shadows_GetTileIndexFromPixelPosition(Gid * GroupDim);
 	const uint2 numThreadGroups = uint2(g_local.NumShadowMaskThreadGroupsX, g_local.NumShadowMaskThreadGroupsY);
     
     // Load the entire region of masks in a scalar fashion
@@ -200,8 +194,7 @@ void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 gid, out bool all_in_light, out 
         for (int i = -1; i <= 1; ++i)
         {
             int2 tile_index = base_tile + int2(i, j);
-			tile_index = clamp(tile_index, 0, numThreadGroups);
-			//const uint linear_tile_index = FFX_DNSR_Shadows_LinearTileIndex(tile_index, data.BufferDim.x);
+			tile_index = clamp(tile_index, 0, numThreadGroups - 1);
             const uint shadow_mask = FFX_DNSR_Shadows_ReadRaytracedShadowMask(tile_index);
 
             combined_or_mask = combined_or_mask | shadow_mask;
@@ -215,49 +208,29 @@ void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 gid, out bool all_in_light, out 
 
 bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 {
-	const float2 dims = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 uv = (DTid + 0.5f) / dims;
-    //const float2 ndc = (2.0f * uv - 1.0f) * float2(1.0f, -1.0f);
-    const float2 previous_uv = uv - velocity;
+	const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float2 prevUV = currUV - velocity;
+	float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
 	const float currlinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-    
-    bool is_disoccluded = true;
-    if (all(previous_uv > 0.0) && all(previous_uv < 1.0))
-    {
-        // Read the center values
-		float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
 
-		const float3 world_position = Math::Transform::WorldPosFromUV(uv,
+	const float3 currPos = Math::Transform::WorldPosFromUV(currUV,
             currlinearDepth,
             g_frame.TanHalfFOV,
             g_frame.AspectRatio,
             g_frame.CurrViewInv);
 
-        //float4 clip_space = mul(FFX_DNSR_Shadows_GetReprojectionMatrix(), float4(ndc, depth, 1.0f));
-		float4 clip_space = mul(float4(world_position, 1.0f), g_frame.PrevViewProj);
-        clip_space /= clip_space.w; // perspective divide
-
-        // How aligned with the view vector? (the more Z aligned, the higher the depth errors)
-        //const float4 homogeneous = mul(FFX_DNSR_Shadows_GetViewProjectionInverse(), float4(ndc, depth, 1.0f));
-        //const float3 world_position = homogeneous.xyz / homogeneous.w;  // perspective divide        
-
-        const float3 view_direction = normalize(g_frame.CameraPos.xyz - world_position);
-        float z_alignment = 1.0f - dot(view_direction, normal);
-        z_alignment = pow(z_alignment, 8);
-
-        // Calculate the depth difference
-		float linear_depth = FFX_DNSR_Shadows_GetLinearDepth(DTid, clip_space.z); // get linear depth
-
-        int2 idx = previous_uv * dims;
-        const float previous_depth = FFX_DNSR_Shadows_GetLinearDepth(idx, FFX_DNSR_Shadows_ReadPreviousDepth(idx));
-        const float depth_difference = abs(previous_depth - linear_depth) / linear_depth;
-
-        // Resolve into the disocclusion mask
-        const float depth_tolerance = lerp(1e-2f, 1e-1f, z_alignment);
-        is_disoccluded = depth_difference >= depth_tolerance;
-    }
-
-    return is_disoccluded;
+    GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
+	
+	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, 
+        prevDepth, 
+        g_frame.TanHalfFOV, 
+        g_frame.AspectRatio,
+		g_frame.PrevViewInv);
+	
+	const float planeDist = dot(normal, prevPos - currPos);
+	
+	return planeDist >= g_local.MaxPlaneDist;
 }
 
 float2 FFX_DNSR_Shadows_GetClosestVelocity(int2 DTid, float depth)
@@ -289,21 +262,6 @@ float2 FFX_DNSR_Shadows_GetClosestVelocity(int2 DTid, float depth)
 
 float FFX_DNSR_Shadows_KernelWeight(int i)
 {
-    // Statically initialize kernel_weights_sum
-#if 0
-    float kernel_weights_sum = 0;
-    kernel_weights_sum += KERNEL_WEIGHT(0);
-    for (int c = 1; c <= KERNEL_RADIUS; ++c)
-    {
-        kernel_weights_sum += 2 * KERNEL_WEIGHT(c); // Add other half of the kernel to the sum
-    }
-    float inv_kernel_weights_sum = rcp(kernel_weights_sum);
-
-    // The only runtime code in this function
-    return KERNEL_WEIGHT(i) * inv_kernel_weights_sum;
-#endif
-
-	//return Kernel[int(i)] * KERNEL_WEIGHTS_INV_SUM;
 	return KernelMulInvWeightSum[i];      // kernel is symmetric
 }
 
@@ -407,22 +365,26 @@ float FFX_DNSR_Shadows_ComputeLocalNeighborhood(int2 DTid, int2 GTid)
 void FFX_DNSR_Shadows_ClearTargets(uint2 DTid, uint2 GTid, uint2 Gid, float shadow_value, bool is_shadow_receiver, bool all_in_light)
 {
 	FFX_DNSR_Shadows_WriteTileMetadata(Gid, GTid, true, all_in_light);
-	FFX_DNSR_Shadows_WriteTemporalCache(DTid, float2(shadow_value, 0)); // mean, variance
+	FFX_DNSR_Shadows_WriteTemporalCache(DTid, float2(shadow_value, 0.0f)); // mean, variance
 
     float temporal_sample_count = is_shadow_receiver ? 1 : 0;
 	FFX_DNSR_Shadows_WriteMoments(DTid, float3(shadow_value, 0, temporal_sample_count)); // mean, variance, temporal sample count
 }
 
-void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowReceiver)
+void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid)
 {
 	const uint2 GTid = FFX_DNSR_Shadows_RemapLane8x8(Gidx); // Make sure we can use the QuadReadAcross intrinsics to access a 2x2 region.
 	const uint2 DTid = Gid * GroupDim + GTid;
-
-	const bool skip_sky = FFX_DNSR_Shadows_ThreadGroupAllTrue(!isShadowReceiver);
+	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float depth = FFX_DNSR_Shadows_ReadDepth(DTid);
+    
+	const bool is_shadow_receiver = Math::IsWithinBoundsExc(DTid.xy, (uint2) renderDim) || (depth > 0.0);
+	const bool skip_sky = FFX_DNSR_Shadows_ThreadGroupAllTrue(!is_shadow_receiver);
+    
     if (skip_sky)
     {
         // We have to set all resources of the tile we skipped to sensible values as neighboring active denoiser tiles might want to read them.
-		FFX_DNSR_Shadows_ClearTargets(DTid, GTid, Gid, 0, isShadowReceiver, false);
+		FFX_DNSR_Shadows_ClearTargets(DTid, GTid, Gid, 0, is_shadow_receiver, false);
         return;
     }
 
@@ -432,15 +394,12 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
 
     const float shadow_value = all_in_light ? 1 : 0; 
     // Either all_in_light or all_in_shadow must be true, otherwise we would not skip the tile.
-    const bool can_skip = all_in_light || all_in_shadow;
-    // We have to append the entire tile if there is a single lane that we can't skip
-    //const bool skip_tile = FFX_DNSR_Shadows_ThreadGroupAllTrue(can_skip);
-	const bool skip_tile = can_skip;
+	const bool skip_tile = all_in_light || all_in_shadow;
         
-    if (skip_tile)
+	if (skip_tile)
     {
         // We have to set all resources of the tile we skipped to sensible values as neighboring active denoiser tiles might want to read them.
-		FFX_DNSR_Shadows_ClearTargets(DTid, GTid, Gid, shadow_value, isShadowReceiver, all_in_light);
+		FFX_DNSR_Shadows_ClearTargets(DTid, GTid, Gid, shadow_value, is_shadow_receiver, all_in_light);
         return;
     }
 
@@ -448,12 +407,10 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
 
 	const float local_neighborhood = FFX_DNSR_Shadows_ComputeLocalNeighborhood(DTid, GTid);
 
-	const float depth = FFX_DNSR_Shadows_ReadDepth(DTid);
 	const float2 velocity = FFX_DNSR_Shadows_GetClosestVelocity(DTid, depth); // Must happen before we deactivate lanes	
-    const float2 dim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 uv = (DTid.xy + 0.5f) / dim;
+	const float2 uv = (DTid.xy + 0.5f) / renderDim;
     const float2 history_uv = uv - velocity;
-	float2 history_pos = history_uv * dim;
+	float2 history_pos = history_uv * renderDim;
 	history_pos = round(history_pos - 0.5f);    // nearest neighbor
     
 	const uint2 tile_index = FFX_DNSR_Shadows_GetTileIndexFromPixelPosition(DTid);
@@ -463,7 +420,7 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
     float variance = 0;
     float shadow_clamped = 0;
     
-	if (isShadowReceiver) // do not process sky pixels
+	if (is_shadow_receiver) // do not process sky pixels
     {
 		const bool hit_light = shadow_tile & FFX_DNSR_Shadows_GetBitMaskFromPixelPosition(DTid);
         const float shadow_current = hit_light ? 1.0 : 0.0;
@@ -476,7 +433,7 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
 
             const float old_m = previous_moments.x;
             const float old_s = previous_moments.y;
-            const float sample_count = previous_moments.z + 1.0f;
+			const float sample_count = previous_moments.z + 1.0f;
             const float new_m = old_m + (shadow_current - old_m) / sample_count;
             const float new_s = old_s + (shadow_current - old_m) * (shadow_current - new_m);
 
@@ -493,21 +450,23 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
 
             // Compute the clamping bounding box
             const float std_deviation = sqrt(spatial_variance);
-            const float nmin = mean - 0.5f * std_deviation;
-            const float nmax = mean + 0.5f * std_deviation;
+            const float nmin = mean - std_deviation;
+			const float nmax = mean + std_deviation;
 
             // Clamp reprojected sample to local neighborhood
             float shadow_previous = shadow_current;
 			if (g_local.IsTemporalValid)
                 shadow_previous = FFX_DNSR_Shadows_ReadHistory(history_uv);
 
-            shadow_clamped = clamp(shadow_previous, nmin, nmax);
+			shadow_clamped = clamp(shadow_previous, nmin, nmax);
 
             // Reduce history weighting
+#if 0
 			const float sigma = 20.0f;
 			const float temporal_discontinuity = (shadow_previous - mean) / max(0.5f * std_deviation, 0.001f);
 			const float sample_counter_damper = exp(-temporal_discontinuity * temporal_discontinuity / sigma);
-            moments_current.z *= sample_counter_damper;
+			moments_current.z *= sample_counter_damper;
+#endif
 
             // Boost variance on first frames
             if (moments_current.z < 16.0f)
@@ -516,12 +475,12 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
                 variance = max(variance, spatial_variance);
                 variance *= variance_boost;
             }
-        }
+		}
 
         // Perform the temporal blend
-        const float history_weight = sqrt(max(8.0f - moments_current.z, 0.0f) / 8.0f);
+        const float history_weight = sqrt(max(32.0f - moments_current.z, 0.0f) / 32.0f);
         shadow_clamped = lerp(shadow_clamped, shadow_current, lerp(0.05f, 1.0f, history_weight));
-    }
+	}
 
     // Output the results of the temporal pass 
 	FFX_DNSR_Shadows_WriteTemporalCache(DTid, float2(shadow_clamped, variance));
@@ -535,13 +494,5 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid, bool isShadowRece
 [numthreads(DNSR_TEMPORAL_THREAD_GROUP_SIZE_X, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
-		return;
-
-	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float depth = g_depth[DTid.xy];
-	const bool isShadowReceiver = depth > 0.0;
-    
-	FFX_DNSR_Shadows_TileClassification(Gidx, Gid.xy, isShadowReceiver);
+	FFX_DNSR_Shadows_TileClassification(Gidx, Gid.xy);
 }
