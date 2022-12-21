@@ -67,10 +67,17 @@ set(DX12AgilitySDK_BIN
 Copy("${DX12AgilitySDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/" CopyDX12AgilitySDKBins)
 add_dependencies(DX12AgilitySDK CopyDX12AgilitySDKBins)
 
+add_library(FONT INTERFACE)
+set(FONT_LIB "${ASSET_DIR}/Font/Font.dll")
+
+# custom command that copies the dlls into the runtime directory
+Copy("${FONT_LIB}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/" CopyFontDLL)
+add_dependencies(FONT CopyFontDLL)
+
 # 
 # link against all the external libraries
 # 
 # set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib)
-set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib)
+set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib FONT)
 target_link_libraries(ZetaCore debug ${LIBS} dbghelp)
 target_link_libraries(ZetaCore optimized ${LIBS})

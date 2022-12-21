@@ -13,7 +13,7 @@
 #include "../Scene/SceneCore.h"
 #include "../Support/ThreadPool.h"
 #include "../Utility/RNG.h"
-#include "../../Assets/Fonts/SegoeUI.h"
+#include "../Assets/Font/Font.h"
 #include <atomic>
 
 //#define STB_SPRINTF_IMPLEMENTATION
@@ -240,11 +240,25 @@ namespace ZetaRay::AppImpl
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
 
 		ImGuiIO& io = ImGui::GetIO();
+
+		// load the font
+		using getFontFP = FontSpan(*)(FONT_TYPE f);
+		HINSTANCE fontLib = LoadLibraryExA("Font", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+		CheckWin32(fontLib);
+
+		auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
+		CheckWin32(fpGetFont);
+
+		FontSpan f = fpGetFont(FONT_TYPE::SEGOE_UI);
+		Assert(f.Data, "font was not found.");
+
 		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		io.Fonts->AddFontFromMemoryCompressedBase85TTF(SegoeUI_compressed_data_base85, 17.0f);
+		io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, 17.0f);
 
 		// TODO remove hard-coded path
 		io.IniFilename = "temp//imgui.ini";
+
+		FreeLibrary(fontLib);
 	}
 
 	void UpdateStats() noexcept
