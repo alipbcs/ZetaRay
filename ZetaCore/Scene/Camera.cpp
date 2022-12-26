@@ -58,7 +58,7 @@ namespace
 // Camera
 //--------------------------------------------------------------------------------------
 
-void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter) noexcept
+void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focus) noexcept
 {
 	m_posW = float4a(posw, 1.0f);
 	m_FOV = fov;
@@ -73,7 +73,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
 	// "Ray Tracing Gems", ch. 20, eq. (30)
 	m_pixelSpreadAngle = atanf(2 * tanf(0.5f * m_FOV) / App::GetRenderer().GetRenderHeight());
-	float4a focus(0.0f, 0.0f, 0.0f, 0.0f);
+	float4a focus4(focus, 0.0f);
 
 	v_float4x4 vView = lookAtLH(m_posW, focus, m_upW);
 	m_view = store(vView);

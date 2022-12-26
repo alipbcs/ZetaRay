@@ -3,27 +3,21 @@
 
 #include "../../ZetaCore/Core/HLSLCompat.h"
 
-#define STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X 16
-#define STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y 16
-#define STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z 1
+#define DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X 16
+#define DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y 16
 
-#define STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_X 8
-#define STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y 8
-#define STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Z 1
+#define DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X 8
+#define DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y 8
 
-#define STAD_SPATIAL_TILE_WIDTH 8
-#define STAD_SPATIAL_LOG2_TILE_WIDTH 3
+#define DiffuseDNSR_SPATIAL_TILE_WIDTH 8
+#define DiffuseDNSR_SPATIAL_LOG2_TILE_WIDTH 3
 
-struct cbSTADTemporalFilter
+struct cbDiffuseDNSRTemporal
 {
 	uint32_t MaxTspp;
 	float MaxPlaneDist;
 	float BilinearNormalScale;
 	float BilinearNormalExp;
-
-	//
-	// Resources
-	//
 
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputReservoir_B_DescHeapIdx;
@@ -39,7 +33,7 @@ struct cbSTADTemporalFilter
 	uint32_t IsTemporalCacheValid;
 };
 
-struct cbSTADSpatialFilter
+struct cbDiffuseDNSRSpatial
 {
 	uint32_t MaxTspp;
 	float FilterRadiusBase;

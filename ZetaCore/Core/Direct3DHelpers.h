@@ -194,19 +194,8 @@ namespace ZetaRay::Core::Direct3DHelper
         size_t* outNumRows) noexcept;
 
     // Returns required size of a buffer to be used for data upload
-    inline UINT64 GetRequiredIntermediateSize(ID3D12Resource* pDestinationResource, UINT FirstSubresource,
-        UINT NumSubresources) noexcept
-    {
-        auto Desc = pDestinationResource->GetDesc();
-        UINT64 RequiredSize = 0;
-
-        ID3D12Device* pDevice = nullptr;
-        pDestinationResource->GetDevice(IID_ID3D12Device, reinterpret_cast<void**>(&pDevice));
-        pDevice->GetCopyableFootprints(&Desc, FirstSubresource, NumSubresources, 0, nullptr, nullptr, nullptr, &RequiredSize);
-        pDevice->Release();
-
-        return RequiredSize;
-    }
+    UINT64 GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource,
+        UINT numSubresources) noexcept;
 
     inline D3D12_BLEND_DESC DefaultBlendDesc() noexcept
     {

@@ -10,8 +10,6 @@ using namespace ZetaRay::DefaultRenderer;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
 
-#define SHADOW 0
-
 void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 {
 	auto& renderer = App::GetRenderer();
@@ -106,7 +104,7 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 	else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
 		data.SkyPass.SetInscatteringEnablement(false);
 
-	const int currOutIdx = App::GetRenderer().CurrOutIdx();
+	const int currOutIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
 	// dsv changes every frame
 	data.SkyDomePass.SetDescriptor(SkyDome::SHADER_IN_DESC::RTV, data.HdrLightAccumRTV.CPUHandle(0));
@@ -222,7 +220,7 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightData, const GBufferData& gbuffData,
 	const RayTracerData& rayTracerData, RenderGraph& renderGraph) noexcept
 {
-	const int outIdx = App::GetRenderer().CurrOutIdx();
+	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
 	// inscattering + sky-view lut
@@ -348,7 +346,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 		if (settings.IndirectDiffuseDenoiser == Settings::DENOISER::STAD)
 		{
 			renderGraph.AddInput(lightData.CompositingHandle,
-				rayTracerData.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
+				rayTracerData.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 	}

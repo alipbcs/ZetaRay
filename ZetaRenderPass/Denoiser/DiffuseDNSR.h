@@ -4,7 +4,7 @@
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
-#include "STAD_Common.h"
+#include "DiffuseDNSR_Common.h"
 
 namespace ZetaRay::Core
 {
@@ -18,7 +18,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct STAD final
+	struct DiffuseDNSR final
 	{
 		enum class SHADER_IN_RES
 		{
@@ -35,8 +35,8 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		STAD() noexcept;
-		~STAD() noexcept;
+		DiffuseDNSR() noexcept;
+		~DiffuseDNSR() noexcept;
 
 		void Init() noexcept;
 		bool IsInitialized() noexcept { return m_psos[0] != nullptr; };
@@ -97,8 +97,8 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_SRV = 3;
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 1;
-		static constexpr size_t NUM_CONSTS = Math::Max(sizeof(cbSTADSpatialFilter) / sizeof(DWORD), 
-			sizeof(cbSTADTemporalFilter) / sizeof(DWORD));
+		static constexpr size_t NUM_CONSTS = Math::Max(sizeof(cbDiffuseDNSRSpatial) / sizeof(DWORD),
+			sizeof(cbDiffuseDNSRTemporal) / sizeof(DWORD));
 
 		RpObjects s_rpObjs;
 
@@ -135,8 +135,8 @@ namespace ZetaRay::RenderPass
 		bool m_doSpatialFilter = true;
 
 		// constant buffers
-		cbSTADTemporalFilter m_cbTemporalFilter;
-		cbSTADSpatialFilter m_cbSpatialFilter;
+		cbDiffuseDNSRTemporal m_cbTemporalFilter;
+		cbDiffuseDNSRSpatial m_cbSpatialFilter;
 
 		// parameter callbacks
 		void MaxTSPPCallback(const Support::ParamVariant& p) noexcept;
@@ -152,8 +152,8 @@ namespace ZetaRay::RenderPass
 
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
 		{
-			"STAD_TemporalFilter_cs.cso",
-			"STAD_SpatialFilter_cs.cso"
+			"DiffuseDNSR_TemporalPass_cs.cso",
+			"DiffuseDNSR_SpatialFilter_cs.cso"
 		};
 	};
 }

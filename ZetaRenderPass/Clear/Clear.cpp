@@ -36,10 +36,6 @@ void ClearPass::Clear(CommandList& cmdList) noexcept
 		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::EMISSIVE_COLOR],
 			0.0f, 0.0f, 0.0f, 0.0f);
 
-	if (m_descriptors[SHADER_IN_DESC::HDR_LIGHT_ACCUM].ptr)
-		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::HDR_LIGHT_ACCUM],
-			0.0f, 0.0f, 0.0f, 0.0f);
-
 	//directCmdList.ClearDepthStencilView(m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER], D3D12_CLEAR_FLAG_DEPTH, 1.0f);
 	constexpr float clearVal = Constants::USE_REVERSE_Z ? 0.0f : 1.0f;
 	directCmdList.ClearDepthStencilView(m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER], D3D12_CLEAR_FLAG_DEPTH, clearVal);

@@ -41,7 +41,7 @@ namespace ZetaRay
 		uint32_t CurrGBufferDescHeapOffset;
 		uint32_t PrevGBufferDescHeapOffset;
 		float MipBias;
-		uint32_t pad1;
+		float dt;
 		//
 		// Material
 		//

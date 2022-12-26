@@ -48,6 +48,7 @@ namespace ZetaRay::Core
 		ZetaInline int GetDisplayWidth() { return m_displayWidth; }
 		ZetaInline int GetDisplayHeight() { return m_displayHeight; }
 		ZetaInline float GetAspectRatio() { return (float)m_renderWidth / m_renderHeight; }
+		ZetaInline int GetCurrentBackBufferIndex() { return m_currBackBuffIdx; }
 		ZetaInline Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
 
 		ZetaInline GpuMemory& GetGpuMemory() { return m_gpuMemory; }
@@ -99,7 +100,7 @@ namespace ZetaRay::Core
 		ZetaInline int GetVSyncInterval() { return m_vsyncInterval; }
 
 		ZetaInline Util::Span<D3D12_STATIC_SAMPLER_DESC> GetStaticSamplers() { return m_staticSamplers; };
-		int CurrOutIdx() noexcept;
+		ZetaInline int GlobaIdxForDoubleBufferedResources() noexcept { return m_globalDoubleBuffIdx; }
 
 	private:
 		void ResizeBackBuffers(HWND hwnd) noexcept;
@@ -130,6 +131,7 @@ namespace ZetaRay::Core
 		int m_renderHeight;
 		UINT m_presentFlags = 0;
 		int m_vsyncInterval = 1;
+		int m_globalDoubleBuffIdx = 0;
 
 		D3D12_VIEWPORT m_displayViewport;
 		D3D12_RECT m_displayScissor;

@@ -28,11 +28,6 @@ uint32_t SampleAliasTable(Vector<AliasTableEntry>& aliasTable, RNG& rng, float& 
 
 TEST_SUITE("AliasTable")
 {
-	//TEST_CASE("Init")
-	//{
-	//	App::InitSimple();
-	//}
-
 	TEST_CASE("Normalize")
 	{
 		float vals[] = { 1.0f, 22.0f, 4.0f, 8.0f, 3.5f, 10.0f };

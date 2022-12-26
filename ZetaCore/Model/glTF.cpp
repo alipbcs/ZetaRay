@@ -316,7 +316,7 @@ namespace
 			glTF::Asset::MaterialDesc desc;
 			desc.Index = m;
 			desc.AlphaMode = getAlphaMode(mat.alphaMode);
-			desc.AlphaCuttoff = Math::Max(MIN_ALPHA_CUTOFF, (float)mat.alphaCutoff);
+			desc.AlphaCuttoff = (float)mat.alphaCutoff;
 			desc.TwoSided = mat.doubleSided;
 
 			// base color map

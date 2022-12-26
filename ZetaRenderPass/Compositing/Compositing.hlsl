@@ -115,13 +115,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		float3 diffuseReflectance = baseColor * (1.0f - mr.x);
 	
 		// TODO account for Fresnel during denoising
-		/*
+		#if 0
 			float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
 			float3 wh = normalize(wi + wo);
 			float whdotwo = saturate(dot(wh, wo)); // == hdotwi
 			float3 F = BRDF::FresnelSchlick(F0, whdotwo);
 			float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
-		*/
+		#endif
 
 		float3 f = diffuseReflectance * ONE_DIV_PI;
 		float3 integratedLiXndotwi = r.Li * r.GetW();
@@ -132,6 +132,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 			half3 integratedVals = g_temporalCache[DTid.xy].rgb;
 			integratedLiXndotwi = integratedVals;
 		}
+		else
+			integratedLiXndotwi *= saturate(dot(wi, normal));
 	
 		color += integratedLiXndotwi * f;
 		//color = f * 10;
@@ -158,5 +160,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	}
 	
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
-	g_hdrLightAccum[DTid.xy] = float4(color, 1.0f);
+	g_hdrLightAccum[DTid.xy].rgb = color;
 }

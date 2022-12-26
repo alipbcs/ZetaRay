@@ -111,7 +111,7 @@ float3 FFX_DNSR_Shadows_ReadPreviousMomentsBuffer(int2 history_pos)
 float FFX_DNSR_Shadows_ReadHistory(float2 histUV)
 {
 	Texture2D<float2> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheHeapIdx];
-	return g_prevTemporalCache.SampleLevel(g_samPointClamp, histUV, 0).x;
+	return g_prevTemporalCache.SampleLevel(g_samLinearClamp, histUV, 0).x;
 }
 
 void FFX_DNSR_Shadows_WriteTileMetadata(uint2 Gid, uint2 GTid, bool is_cleared, bool all_in_light)
@@ -123,8 +123,8 @@ void FFX_DNSR_Shadows_WriteTileMetadata(uint2 Gid, uint2 GTid, bool is_cleared, 
 		uint mask = light_mask | clear_mask;
      
 		uint2 DTid = Gid * GroupDim;
-		uint groupX = DTid.x >= 8 ? DTid.x >> 3 : 0;
-		uint groupY = DTid.y >= 8 ? DTid.y >> 3 : 0;
+		uint groupX = DTid.x >> 3;
+		uint groupY = DTid.y >> 3;
 
 		RWTexture2D<uint> g_outMetadata = ResourceDescriptorHeap[g_local.MetadataUAVDescHeapIdx];
 		g_outMetadata[uint2(groupX, groupY)] = mask;

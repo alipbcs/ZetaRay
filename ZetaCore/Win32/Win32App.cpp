@@ -92,7 +92,7 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
-		float m_cameraAcceleration = 15.0f;
+		float m_cameraAcceleration = 40.0f;
 
 		Timer m_timer;
 		RendererCore m_renderer;
@@ -108,8 +108,8 @@ namespace
 		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
 		std::atomic_int32_t m_currFrameAllocIndex;
 
-		SmallVector<ParamVariant, ThreadAllocator> m_params;
-		SmallVector<ParamUpdate, ThreadAllocator, 32> m_paramsUpdates;
+		SmallVector<ParamVariant> m_params;
+		SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
 
 		SmallVector<ShaderReloadHandler, ThreadAllocator> m_shaderReloadHandlers;
 		SmallVector<Stat, FrameAllocator> m_frameStats;
@@ -240,6 +240,7 @@ namespace ZetaRay::AppImpl
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
 
 		ImGuiIO& io = ImGui::GetIO();
+		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 
 		// load the font
 		using getFontFP = FontSpan(*)(FONT_TYPE f);
@@ -638,11 +639,11 @@ namespace ZetaRay::AppImpl
 
 		App::FlushAllThreadPools();
 
-		g_app->m_workerThreadPool.Shutdown();
-		g_app->m_backgroundThreadPool.Shutdown();
 		g_app->m_scene.Shutdown();
 		g_app->m_renderer.Shutdown();
-		g_app->m_params.clear();
+		g_app->m_params.free_memory();
+		g_app->m_workerThreadPool.Shutdown();
+		g_app->m_backgroundThreadPool.Shutdown();
 
 		// TODO fix
 		//for (int i = 0; i < m_processorCoreCount; i++)
@@ -908,12 +909,12 @@ namespace ZetaRay
 
 	void App::Init(Scene::Renderer::Interface& rendererInterface) noexcept
 	{
+		setlocale(LC_ALL, "C");		// set locale to C
+		SetCurrentDirectoryA("../");
+
 		HINSTANCE instance = GetModuleHandleA(nullptr);
 		CheckWin32(instance);
-		
-		// set locale to C
-		setlocale(LC_ALL, "C");
-
+				
 		g_app = new (std::nothrow) AppData;
 
 		AppImpl::GetProcessorInfo();
@@ -922,9 +923,8 @@ namespace ZetaRay
 		AppImpl::CreateAppWindow(instance);
 		SetWindowTextA(g_app->m_hwnd, "ZetaRay");
 
-		const int totalNumThreads = g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
-
 		// initialize thread pools
+		const int totalNumThreads = g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
 		g_app->m_workerThreadPool.Init(g_app->m_processorCoreCount - 1,
 			totalNumThreads,
 			L"ZetaWorker",
@@ -939,7 +939,7 @@ namespace ZetaRay
 		memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
 		g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
 
-		// initialize memory pools. has to happen after thread pool has been created
+		// initialize memory pools. has to happen after the thread pool creation
 
 		// main thread
 		g_app->m_memoryPools[0].Init();
@@ -966,9 +966,6 @@ namespace ZetaRay
 		uint64_t seed = std::bit_cast<uint64_t, void*>(g_app);
 		g_app->m_rng = RNG(seed);
 
-		//		g_app->m_mainThreadPool.SetThreadIds(Span(g_app->m_threadIDs, 1 + mainThreadIDs.size()));
-		//		g_app->m_backgroundThreadPool.SetThreadIds(Span(g_app->m_threadIDs, 1 + mainThreadIDs.size() + backgroundThreadIDs.size()));
-
 		g_app->m_workerThreadPool.Start();
 		g_app->m_backgroundThreadPool.Start();
 
@@ -978,27 +975,26 @@ namespace ZetaRay
 		g_app->m_displayWidth = rect.right - rect.left;
 		g_app->m_displayHeight = rect.bottom - rect.top;
 
+		// ImGui
 		AppImpl::InitImGui();
 
+		// initialize renderer
 		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
-
-		// initialize renderer
 		g_app->m_renderer.Init(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
-
-		ImGuiIO& io = ImGui::GetIO();
-		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 
 		// initialize camera
 		g_app->m_frameMotion.Reset();
 
 		//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 0.1f, true);
-		g_app->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.1f, true);
+		//g_app->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.1f, true);
 		//m_camera.Init(float3(-1127.61f, 348.67f, 66.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 10.0f, true);
 		//m_camera.Init(float3(0.61f, 3.67f, 0.25f), App::GetRenderer().GetAspectRatio(), Math::DegreeToRadians(85.0f), 0.1f);
+		g_app->m_camera.Init(float3(6.4f, 1.69f, -5.44f), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.1f, true, float3(12.2f, 1.64f, -1.012f));
 
 		// scene can now be initialized
 		g_app->m_scene.Init(rendererInterface);
@@ -1012,23 +1008,6 @@ namespace ZetaRay
 		App::AddParam(acc);
 
 		g_app->m_isInitialized = true;
-	}
-
-	void App::InitSimple() noexcept
-	{
-		// main thread
-		if (g_app == nullptr || !g_app->m_isInitialized)
-		{
-			g_app = new AppData;
-			g_app->m_processorCoreCount = 1;
-
-			g_app->m_isInitialized = true;
-
-			g_app->m_memoryPools[0].Init();
-			g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
-			//g_app->m_threadContexts[0].Lock = SRWLOCK_INIT;
-			//g_app->m_threadContexts[0].Rng = RNG(g_app->m_threadIDs[0]);
-		}
 	}
 
 	int App::Run() noexcept
@@ -1070,6 +1049,7 @@ namespace ZetaRay
 				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
 				g_app->m_frameMemory.Reset();		// set the offset to 0; essentially freeing the memory
 
+				// TODO remove
 				// background tasks are not necessarily done 
 				if (g_app->m_backgroundThreadPool.AreAllTasksFinished())
 					RejoinBackgroundMemPoolsToWorkers();
@@ -1106,18 +1086,17 @@ namespace ZetaRay
 					sceneRendererTS.Sort();
 
 					// sceneRendererTS has to run after sceneTS. this may seem sequential but
-					// each taskset is spawning many tasks (which potentially can run in parallel)
+					// each taskset is spawning more tasks (which can potentially run in parallel)
 					sceneTS.ConnectTo(sceneRendererTS);
 
 					sceneTS.Finalize();
 					sceneRendererTS.Finalize();
 
-					// submit
 					Submit(ZetaMove(sceneTS));
 					Submit(ZetaMove(sceneRendererTS));
 				}
 
-				// make sure all updates are finished before moving to rendering
+				// help out as long as updates are not finished before moving to rendering
 				success = false;
 				while (!success)
 					success = g_app->m_workerThreadPool.TryFlush();
@@ -1132,7 +1111,7 @@ namespace ZetaRay
 					g_app->m_scene.Render(renderTS);
 					renderTS.Sort();
 
-					// end-frame
+					// end frame
 					{
 						g_app->m_renderer.EndFrame(endFrameTS);
 
@@ -1142,11 +1121,12 @@ namespace ZetaRay
 							});
 
 						endFrameTS.Sort();
-						renderTS.ConnectTo(endFrameTS);
-
-						renderTS.Finalize();
-						endFrameTS.Finalize();
 					}
+
+					renderTS.ConnectTo(endFrameTS);
+
+					renderTS.Finalize();
+					endFrameTS.Finalize();
 
 					Submit(ZetaMove(renderTS));
 					Submit(ZetaMove(endFrameTS));
@@ -1264,12 +1244,10 @@ namespace ZetaRay
 		}
 	}
 
-	void App::SignalAdjacentTailNodes(int* taskIDs, int n) noexcept
+	void App::SignalAdjacentTailNodes(Span<int> taskIDs) noexcept
 	{
-		for (int i = 0; i < n; i++)
+		for (auto handle : taskIDs)
 		{
-			int handle = taskIDs[i];
-
 			auto& taskSignal = g_app->m_registeredTasks[handle];
 			const int remaining = taskSignal.Indegree.fetch_sub(1, std::memory_order_acquire);
 
@@ -1379,9 +1357,9 @@ namespace ZetaRay
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedView<Vector<ParamVariant, ThreadAllocator>> App::GetParams() noexcept
+	RWSynchronizedView<Vector<ParamVariant>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant, ThreadAllocator>>(g_app->m_params, g_app->m_paramLock);
+		return RWSynchronizedView<Vector<ParamVariant>>(g_app->m_params, g_app->m_paramUpdateLock);
 	}
 
 	RSynchronizedView<Vector<ShaderReloadHandler, ThreadAllocator>> App::GetShaderReloadHandlers() noexcept

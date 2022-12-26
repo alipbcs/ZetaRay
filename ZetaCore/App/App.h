@@ -67,7 +67,6 @@ namespace ZetaRay::App
 		fastdelegate::FastDelegate0<> Dlg;
 	};
 
-	void InitSimple() noexcept;
 	void Init(Scene::Renderer::Interface& rendererInterface) noexcept;
 	int Run() noexcept;
 	void Abort() noexcept;
@@ -79,7 +78,7 @@ namespace ZetaRay::App
 	int RegisterTask() noexcept;
 	void TaskFinalizedCallback(int handle, int indegree) noexcept;
 	void WaitForAdjacentHeadNodes(int handle) noexcept;
-	void SignalAdjacentTailNodes(int* taskIDs, int n) noexcept;
+	void SignalAdjacentTailNodes(Util::Span<int> taskIDs) noexcept;
 
 	// Submits task to priority thread pool
 	void Submit(Support::Task&& t) noexcept;
@@ -105,7 +104,7 @@ namespace ZetaRay::App
 
 	void AddParam(Support::ParamVariant& p) noexcept;
 	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, App::ThreadAllocator>> GetParams() noexcept;
+	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, Support::SystemAllocator>> GetParams() noexcept;
 
 	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
 	void RemoveShaderReloadHandler(const char* name) noexcept;

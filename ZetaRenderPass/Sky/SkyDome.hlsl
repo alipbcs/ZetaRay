@@ -103,12 +103,12 @@ float4 mainPS(VSOut psin) : SV_Target
 #else
 		
 		// in-scattered lighting
-		float3 Ls = EstimateLs(g_frame.PlanetRadius, rayOrigin, w, g_frame.SunDir, g_frame.AtmosphereAltitude, g_frame.g,
+		float3 Ls = Volumetric::EstimateLs(g_frame.PlanetRadius, rayOrigin, w, g_frame.SunDir, g_frame.AtmosphereAltitude, g_frame.g,
 			sigma_s_rayleigh, g_frame.MieSigmaS, sigma_t_mie, sigma_a_ozone, 32);
 	
 		color = Ls * g_frame.SunIlluminance;
 #endif
 	}
-
+	
 	return float4(color, 1.0f);
 }

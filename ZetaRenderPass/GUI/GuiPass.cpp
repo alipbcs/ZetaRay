@@ -23,7 +23,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Vector<ParamVariant, App::ThreadAllocator>& params, size_t offset, size_t count) noexcept
+	void AddParamRange(Vector<ParamVariant>& params, size_t offset, size_t count) noexcept
 	{
 		for (size_t p = offset; p < offset + count; p++)
 		{
@@ -138,11 +138,11 @@ void GuiPass::Init() noexcept
 
 	// root signature
 	{
-		// root-constants
+		// root constants
 		m_rootSig.InitAsConstants(0,				// root idx
 			sizeof(cbGuiPass) / sizeof(DWORD),		// num DWORDs
 			0,										// register
-			0,										// register-space
+			0,										// register space
 			D3D12_SHADER_VISIBILITY_ALL);										
 
 		D3D12_ROOT_SIGNATURE_FLAGS flags =
@@ -220,7 +220,7 @@ void GuiPass::Reset() noexcept
 void GuiPass::UpdateBuffers() noexcept
 {
 	ImDrawData* draw_data = ImGui::GetDrawData();
-	const int currOutIdx = App::GetRenderer().CurrOutIdx();
+	const int currOutIdx = App::GetRenderer().GetCurrentBackBufferIndex();
 	auto& gpuMem = App::GetRenderer().GetGpuMemory();
 
 	// Avoid rendering when minimized
@@ -286,13 +286,9 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	ImGui::Render();
 	UpdateBuffers();
 
-	ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
-	const int currBackBuffIdx = renderer.CurrOutIdx();
+	const int currBackBuffIdx = renderer.GetCurrentBackBufferIndex();
 
 	// Rendering
-	const float clear_color_with_alpha[4] = { clear_color.x * clear_color.w,
-		clear_color.y * clear_color.w, clear_color.z * clear_color.w, clear_color.w };
-
 	ImDrawData* draw_data = ImGui::GetDrawData();
 	auto& fr = m_imguiFrameBuffs[currBackBuffIdx];
 
@@ -380,14 +376,14 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 		global_vtx_offset += cmd_list->VtxBuffer.Size;
 	}
 
+	// record the timestamp after execution
+	gpuTimer.EndQuery(directCmdList, queryIdx);
+
 	// [hack] this is the last RenderPass, transition to PRESENT can be done here
 	// Transition the render target to the state that allows it to be presented to the display.
 	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().GetResource(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT);
-
-	// record the timestamp after execution
-	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	directCmdList.PIXEndEvent();
 }

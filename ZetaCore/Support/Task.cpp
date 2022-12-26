@@ -199,10 +199,10 @@ void TaskSet::ComputeInOutMask() noexcept
 	for (int i = 0; i < m_currSize; ++i)
 	{
 		if (m_taskMetadata[i].Indegree() == 0)
-			m_rootMask |= (1ull << i);
+			m_rootMask |= (1llu << i);
 
 		if (m_taskMetadata[i].Outdegree() == 0)
-			m_leafMask |= (1ull << i);
+			m_leafMask |= (1llu << i);
 	}
 }
 
@@ -216,11 +216,9 @@ void TaskSet::TopologicalSort() noexcept
 	// make a temporary copy of indegrees for topological sorting
 	int tempIndegree[MAX_NUM_TASKS];
 	for (int i = 0; i < m_currSize; i++)
-	{
 		tempIndegree[i] = m_taskMetadata[i].Indegree();
-	}
 
-	// find all the nodes with indegree == 0
+	// find all the nodes with zero indegree
 	unsigned long zeroIndegreeIdx;
 	while (_BitScanForward64(&zeroIndegreeIdx, currMask))
 	{
@@ -258,9 +256,7 @@ void TaskSet::TopologicalSort() noexcept
 
 	Task oldTaskArr[MAX_NUM_TASKS];
 	for (int i = 0; i < m_currSize; i++)
-	{
 		oldTaskArr[i] = ZetaMove(m_tasks[i]);
-	}
 
 	TaskMetadata oldTaskMetadata[MAX_NUM_TASKS];
 	memcpy(oldTaskMetadata, m_taskMetadata, m_currSize * sizeof(TaskMetadata));
@@ -278,7 +274,7 @@ void TaskSet::ConnectTo(TaskSet& other) noexcept
 	Assert(!other.m_isFinalized, "Calling this method on a finalized TaskSet is invalid.");
 
 	uint64_t headMask = m_leafMask;
-	uint64_t tailMask = other.m_rootMask;
+	const uint64_t tailMask = other.m_rootMask;
 
 	// connect every leaf of this TaskSet to every root of "other"
 	unsigned long headIdx;
@@ -289,7 +285,8 @@ void TaskSet::ConnectTo(TaskSet& other) noexcept
 		m_tasks[headIdx].m_adjacentTailNodes.reserve(__popcnt16(other.m_rootMask));
 
 		unsigned long tailIdx;
-		while (_BitScanForward64(&tailIdx, tailMask))
+		uint64_t tailMaskCopy = tailMask;
+		while (_BitScanForward64(&tailIdx, tailMaskCopy))
 		{
 			Assert(tailIdx < other.m_currSize, "Index out of bound.");
 
@@ -297,10 +294,10 @@ void TaskSet::ConnectTo(TaskSet& other) noexcept
 			other.m_tasks[tailIdx].m_indegree += 1;
 			m_tasks[headIdx].m_adjacentTailNodes.push_back(other.m_tasks[tailIdx].m_signalHandle);
 
-			tailMask &= ~(1 << tailIdx);
+			tailMaskCopy &= ~(1llu << tailIdx);
 		}
 
-		headMask &= ~(1 << headIdx);
+		headMask &= ~(1llu << headIdx);
 	}
 }
 

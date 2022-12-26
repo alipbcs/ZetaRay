@@ -66,8 +66,8 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 		false);
 
 	// command queues
-	m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, "Direct Command-Queue"));
-	m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE, "Compute Command-Queue"));
+	m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, "Direct CommandQueue"));
+	m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE, "Compute CommandQueue"));
 	//m_copyQueue.reset(new CommandQueue(D3D12_COMMAND_LIST_TYPE_COPY, L"Copy Command-Queue"));
 
 	m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);
@@ -103,11 +103,6 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 	p0.InitBool("Renderer", "Settings", "VSync", fastdelegate::MakeDelegate(this, &RendererCore::SetVSync),
 		m_vsyncInterval > 0);
 	App::AddParam(p0);
-}
-
-int RendererCore::CurrOutIdx() noexcept
-{
-	return App::GetTimer().GetTotalFrameCount() & 0x1;
 }
 
 void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
@@ -267,7 +262,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 					//CheckHR(pDred->GetPageFaultAllocationOutput(&DredPageFaultOutput));
 				}
 
-				__debugbreak();
+				CheckHR(hr);
 			}
 
 			// Schedule a Signal command in the queue.
@@ -288,6 +283,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 			}
 
 			m_currBackBuffIdx = nextBackBuffidx;
+			m_globalDoubleBuffIdx = (m_globalDoubleBuffIdx + 1) & 0x1;
 		});
 
 	auto h1 = endFrameTS.EmplaceTask("RecycleGpuMem", [this]()
@@ -370,13 +366,9 @@ void RendererCore::ReleaseCmdList(CommandList* ctx) noexcept
 uint64_t RendererCore::ExecuteCmdList(CommandList* ctx) noexcept
 {
 	if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT)
-	{
 		return m_directQueue->ExecuteCommandList(ctx);
-	}
 	else if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE)
-	{
 		return m_computeQueue->ExecuteCommandList(ctx);
-	}
 
 	return uint64_t(-1);
 }

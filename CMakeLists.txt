@@ -10,7 +10,7 @@ project(ZetaRay
 
 # set output directories
 set(CMAKE_SUPPRESS_REGENERATION true)
-set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/Bin")
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 set(CMAKE_LIBRARY_OUTPUT_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
@@ -24,6 +24,12 @@ set(CMAKE_DEBUG_POSTFIX "d")
 
 # enable folders for code organization
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
+
+if(MSVC)
+    # generate pdb files for the release build (off by default)
+    add_compile_options("$<$<CONFIG:RELEASE>:/Zi>")
+    add_link_options("$<$<CONFIG:RELEASE>:/DEBUG>")
+endif()
 
 # 
 # compiler options

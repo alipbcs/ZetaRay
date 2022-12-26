@@ -109,7 +109,7 @@ void TAA::Render(CommandList& cmdList) noexcept
 
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
-	const int outIdx = renderer.CurrOutIdx();
+	const int outIdx = renderer.GlobaIdxForDoubleBufferedResources();
 	const int w = renderer.GetRenderWidth();
 	const int h = renderer.GetRenderHeight();
 

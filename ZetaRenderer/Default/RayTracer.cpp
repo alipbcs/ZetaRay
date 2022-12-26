@@ -28,8 +28,8 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 {
 	if(data.ReSTIR_GIPass.IsInitialized())
 		data.ReSTIR_GIPass.OnWindowResized();
-	if(data.StadPass.IsInitialized())
-		data.StadPass.OnWindowResized();
+	if(data.DiffuseDNSRPass.IsInitialized())
+		data.DiffuseDNSRPass.OnWindowResized();
 }
 
 void RayTracer::Shutdown(RayTracerData& data) noexcept
@@ -38,7 +38,7 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 	data.RtAS.Clear();
 	data.RtSampler.Clear();
 	data.ReSTIR_GIPass.Reset();
-	data.StadPass.Reset();
+	data.DiffuseDNSRPass.Reset();
 }
 
 void RayTracer::UpdatePasses(const RenderSettings& settings, RayTracerData& data) noexcept
@@ -47,11 +47,11 @@ void RayTracer::UpdatePasses(const RenderSettings& settings, RayTracerData& data
 		data.ReSTIR_GIPass.Init();
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::NONE)
-		data.StadPass.Reset();
+		data.DiffuseDNSRPass.Reset();
 	else if(settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
-		if (!data.StadPass.IsInitialized())
-			data.StadPass.Init();
+		if (!data.DiffuseDNSRPass.IsInitialized())
+			data.DiffuseDNSRPass.Init();
 	}
 }
 
@@ -75,7 +75,7 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
 		// temporal cache changes every frame due to ping-ponging
-		const Texture& temporalCache = data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT);
+		const Texture& temporalCache = data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::SPATIAL_FILTER_OUT);
 		Direct3DHelper::CreateTexture2DSRV(temporalCache, data.DescTableAll.CPUHandle(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
 }
@@ -89,9 +89,9 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 
 	if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 	{
-		data.StadPass.SetDescriptor(STAD::SHADER_IN_RES::RESTIR_GI_RESERVOIR_A,
+		data.DiffuseDNSRPass.SetDescriptor(DiffuseDNSR::SHADER_IN_RES::RESTIR_GI_RESERVOIR_A,
 			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
-		data.StadPass.SetDescriptor(STAD::SHADER_IN_RES::RESTIR_GI_RESERVOIR_B,
+		data.DiffuseDNSRPass.SetDescriptor(DiffuseDNSR::SHADER_IN_RES::RESTIR_GI_RESERVOIR_B,
 			data.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
 	}
 
@@ -144,12 +144,12 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 		// STAD
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
-			fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.StadPass, &STAD::Render);
-			data.StadHandle = renderGraph.RegisterRenderPass("STAD", RENDER_NODE_TYPE::COMPUTE, dlg3);
+			fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DiffuseDNSRPass, &DiffuseDNSR::Render);
+			data.DiffuseDNSRHandle = renderGraph.RegisterRenderPass("DiffuseDNSR", RENDER_NODE_TYPE::COMPUTE, dlg3);
 
 			// Direct3D api doesn't accept const pointers
-			Texture& temporalCacheIn = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN));
-			Texture& temporalCacheOut = const_cast<Texture&>(data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT));
+			Texture& temporalCacheIn = const_cast<Texture&>(data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::TEMPORAL_CACHE_IN));
+			Texture& temporalCacheOut = const_cast<Texture&>(data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::TEMPORAL_CACHE_OUT));
 			renderGraph.RegisterResource(temporalCacheIn.GetResource(), temporalCacheIn.GetPathID());
 			renderGraph.RegisterResource(temporalCacheOut.GetResource(), temporalCacheOut.GetPathID());
 		}
@@ -158,7 +158,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 
 void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData& data, const GBufferData& gbuffData, RenderGraph& renderGraph) noexcept
 {
-	const int outIdx = App::GetRenderer().CurrOutIdx();
+	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	auto& tlas = data.RtAS.GetTLAS();
 
 	if (tlas.IsInitialized())
@@ -233,44 +233,44 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 		// STAD
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)
 		{
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				gbuffData.Normal[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				gbuffData.Normal[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
 				data.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.StadHandle,
-				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_IN).GetPathID(),
+			renderGraph.AddInput(data.DiffuseDNSRHandle,
+				data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::TEMPORAL_CACHE_IN).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddOutput(data.StadHandle,
-				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::TEMPORAL_CACHE_OUT).GetPathID(),
+			renderGraph.AddOutput(data.DiffuseDNSRHandle,
+				data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::TEMPORAL_CACHE_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-			renderGraph.AddOutput(data.StadHandle,
-				data.StadPass.GetOutput(STAD::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
+			renderGraph.AddOutput(data.DiffuseDNSRHandle,
+				data.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 	}

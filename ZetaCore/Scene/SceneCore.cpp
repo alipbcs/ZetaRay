@@ -147,7 +147,7 @@ void SceneCore::Recycle() noexcept
 		m_matBuffer.m_pending.empty())
 		return;
 
-	App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal);
+	App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal++);
 
 	uint64_t completedFenceVal = m_fence->GetCompletedValue();
 	m_baseColorDescTable.Recycle(completedFenceVal);
@@ -155,8 +155,6 @@ void SceneCore::Recycle() noexcept
 	m_metalnessRoughnessDescTable.Recycle(completedFenceVal);
 	m_emissiveDescTable.Recycle(completedFenceVal);
 	m_matBuffer.Recycle(completedFenceVal);
-
-	m_nextFenceVal++;
 }
 
 void SceneCore::Shutdown() noexcept

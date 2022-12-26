@@ -26,12 +26,8 @@ extern "C"
     _declspec(dllexport) extern const char8_t* D3D12SDKPath = u8".\\D3D12\\";
 }
 
-// Entry point
 int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
 {
-    UNREFERENCED_PARAMETER(hPrevInstance);
-    UNREFERENCED_PARAMETER(lpCmdLine);
-
 #ifdef _DEBUG
     AllocConsole();
     HANDLE stdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
@@ -39,8 +35,6 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     FILE* fp = _fdopen(hConsole, "w");
     freopen_s(&fp, "CONOUT$", "w", stdout);
 #endif // _DEBUG
-
-    SetCurrentDirectoryA("../");
 
     auto rndIntrf = DefaultRenderer::InitAndGetInterface();
     App::Init(rndIntrf);
@@ -53,15 +47,12 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     //const char* p = "CornellBox_v2\\cornell9.gltf";
     //const char* p = "bistro_v6\\bistro_v6.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
+    //const char* p = "san_miguel\\san_miguel_v2.gltf";
     Model::glTF::Load(p, false);
 
     timer.End();
     App::FlushWorkerThreadPool();
     LOG("gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
-
-    // add an environment light
- //   const char* envMapPath = "EnvMap\\champagne_castle_1_1k.dds";
- //   scene.AddEnvLightSource(envMapPath);
 
     int ret = App::Run();
 

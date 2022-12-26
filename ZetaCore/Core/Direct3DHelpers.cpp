@@ -1000,6 +1000,17 @@ HRESULT Direct3DHelper::GetSurfaceInfo(size_t width,
     return S_OK;
 }
 
+UINT64 Direct3DHelper::GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource, UINT numSubresources) noexcept
+{
+    auto desc = destinationResource->GetDesc();
+    UINT64 requiredSize = 0;
+
+    ID3D12Device* device = App::GetRenderer().GetDevice();
+    device->GetCopyableFootprints(&desc, firstSubresource, numSubresources, 0, nullptr, nullptr, nullptr, &requiredSize);
+
+    return requiredSize;
+}
+
 void Direct3DHelper::LoadDDSFromFile(const char* path,
     Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources,
     DXGI_FORMAT& format, 

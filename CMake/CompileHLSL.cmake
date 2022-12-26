@@ -22,7 +22,7 @@ function(CompileHLSL HLSL_PATH COMMON_INCLUDES RET)
 		add_custom_command(
 			OUTPUT ${CSO_PATH_DBG} ${CSO_PATH_RLS}
 			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -Od -all_resources_bound -enable-16bit-types -HV 2021 -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_DBG} ${HLSL_PATH}
-			COMMAND ${DXC} -Qstrip_reflect -nologo -all_resources_bound -enable-16bit-types -HV 2021 -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_RLS} ${HLSL_PATH}
+			COMMAND ${DXC} -Qembed_debug -Qstrip_reflect -nologo -Zi -all_resources_bound -enable-16bit-types -HV 2021 -WX -T cs_6_6 -E ${MAIN_FUNC} -Fo ${CSO_PATH_RLS} ${HLSL_PATH}
 			DEPENDS ${ALL_INCLUDES} "${HLSL_PATH}"
 			COMMENT "Compiling HLSL source file ${FILE_NAME_WO_EXT}.hlsl..."
 			VERBATIM)

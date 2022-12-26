@@ -1,4 +1,4 @@
-#include "STAD.h"
+#include "DiffuseDNSR.h"
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
@@ -14,10 +14,10 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::RT;
 
 //--------------------------------------------------------------------------------------
-// STAD
+// DiffuseDNSR
 //--------------------------------------------------------------------------------------
 
-STAD::STAD() noexcept
+DiffuseDNSR::DiffuseDNSR() noexcept
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// local CB	
@@ -37,7 +37,7 @@ STAD::STAD() noexcept
 	// Owen-Scrambled Sobol Sequence
 	m_rootSig.InitAsBufferSRV(2,						// root idx
 		0,												// register
-		0,												// register-space
+		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SOBOL_SEQ);
@@ -45,7 +45,7 @@ STAD::STAD() noexcept
 	// scrambling-tile
 	m_rootSig.InitAsBufferSRV(3,						// root idx
 		1,												// register
-		0,												// register-space
+		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SCRAMBLING_TILE);
@@ -53,18 +53,18 @@ STAD::STAD() noexcept
 	// ranking-tile
 	m_rootSig.InitAsBufferSRV(4,						// root idx
 		2,												// register
-		0,												// register-space
+		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		Sampler::SCRAMBLING_TILE);
 }
 
-STAD::~STAD() noexcept
+DiffuseDNSR::~DiffuseDNSR() noexcept
 {
 	Reset();
 }
 
-void STAD::Init() noexcept
+void DiffuseDNSR::Init() noexcept
 {
 	const D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -77,7 +77,7 @@ void STAD::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("STAD", m_rootSig, samplers.size(), samplers.data(), flags);
+	s_rpObjs.Init("DiffuseDNSR", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	m_psos[(int)SHADERS::TEMPORAL_PASS] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::TEMPORAL_PASS,
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::TEMPORAL_PASS]);
@@ -100,29 +100,29 @@ void STAD::Init() noexcept
 	m_cbSpatialFilter.NormalExp = DefaultParamVals::EdgeStoppingNormalExp;
 	m_cbSpatialFilter.FilterRadiusBase = DefaultParamVals::FilterRadiusBase;
 
-	App::AddShaderReloadHandler("STAD_TemporalPass", fastdelegate::MakeDelegate(this, &STAD::ReloadTemporalPass));
-	App::AddShaderReloadHandler("STAD_SpatialFilter", fastdelegate::MakeDelegate(this, &STAD::ReloadSpatialFilter));
+	App::AddShaderReloadHandler("DiffuseDNSR_TemporalPass", fastdelegate::MakeDelegate(this, &DiffuseDNSR::ReloadTemporalPass));
+	App::AddShaderReloadHandler("DiffuseDNSR_SpatialFilter", fastdelegate::MakeDelegate(this, &DiffuseDNSR::ReloadSpatialFilter));
 }
 
-void STAD::Reset() noexcept
+void DiffuseDNSR::Reset() noexcept
 {
 	if (IsInitialized())
 	{
 		s_rpObjs.Clear();
 
-		App::RemoveParam("Renderer", "STAD", "MaxTSPP");
-		App::RemoveParam("Renderer", "STAD", "BilinearMaxPlaneDist");
-		App::RemoveParam("Renderer", "STAD", "BilinearNormalScale");
-		App::RemoveParam("Renderer", "STAD", "BilinearNormalExp");
-		App::RemoveParam("Renderer", "STAD", "EdgeStoppingMaxPlaneDist");
-		App::RemoveParam("Renderer", "STAD", "EdgeStoppingNormalExp");
-		App::RemoveParam("Renderer", "STAD", "SpatialFilter");
-		App::RemoveParam("Renderer", "STAD", "#SpatialFilterPasses");
-		App::RemoveParam("Renderer", "STAD", "FilterRadiusBase");
-		//App::RemoveParam("Renderer", "STAD", "FilterRadiusScale");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "MaxTSPP");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "BilinearMaxPlaneDist");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "BilinearNormalScale");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "BilinearNormalExp");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "EdgeStoppingMaxPlaneDist");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "EdgeStoppingNormalExp");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "SpatialFilter");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "#SpatialFilterPasses");
+		App::RemoveParam("Renderer", "DiffuseDNSR", "FilterRadiusBase");
+		//App::RemoveParam("Renderer", "DiffuseDNSR", "FilterRadiusScale");
 
-		App::RemoveShaderReloadHandler("STAD_TemporalPass");
-		App::RemoveShaderReloadHandler("STAD_SpatialFilter");
+		App::RemoveShaderReloadHandler("DiffuseDNSR_TemporalPass");
+		App::RemoveShaderReloadHandler("DiffuseDNSR_SpatialFilter");
 
 #ifdef _DEBUG
 		memset(m_inputGpuHeapIndices, 0, (int)SHADER_IN_RES::COUNT * sizeof(uint32_t));
@@ -138,13 +138,13 @@ void STAD::Reset() noexcept
 	}
 }
 
-void STAD::OnWindowResized() noexcept
+void DiffuseDNSR::OnWindowResized() noexcept
 {
 	CreateResources();
 	m_cbTemporalFilter.IsTemporalCacheValid = false;
 }
 
-void STAD::Render(CommandList& cmdList) noexcept
+void DiffuseDNSR::Render(CommandList& cmdList) noexcept
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -169,10 +169,10 @@ void STAD::Render(CommandList& cmdList) noexcept
 	{
 		Assert(m_inputGpuHeapIndices[(int)SHADER_IN_RES::RESTIR_GI_RESERVOIR_A] != 0, "Input descriptor heap idx hasn't been set.");
 
-		computeCmdList.PIXBeginEvent("STAD_TemporalPass");
+		computeCmdList.PIXBeginEvent("DiffuseDNSR_TemporalPass");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "STAD_TemporalPass");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DiffuseDNSR_TemporalPass");
 
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::TEMPORAL_PASS]);
 
@@ -182,12 +182,12 @@ void STAD::Render(CommandList& cmdList) noexcept
 		m_cbTemporalFilter.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
 		m_cbTemporalFilter.IsTemporalCacheValid = m_isTemporalCacheValid;
 
-		m_rootSig.SetRootConstants(0, sizeof(cbSTADTemporalFilter) / sizeof(DWORD), &m_cbTemporalFilter);
+		m_rootSig.SetRootConstants(0, sizeof(cbDiffuseDNSRTemporal) / sizeof(DWORD), &m_cbTemporalFilter);
 		m_rootSig.End(computeCmdList);
 
-		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X),
-			(uint32_t)CeilUnsignedIntDiv(h, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y),
-			STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z);
+		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X),
+			(uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y),
+			1);
 
 		// record the timestamp after execution
 		gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -197,19 +197,19 @@ void STAD::Render(CommandList& cmdList) noexcept
 
 	if (m_doSpatialFilter)
 	{
-		computeCmdList.PIXBeginEvent("STAD_SpatialFilter");
+		computeCmdList.PIXBeginEvent("DiffuseDNSR_SpatialFilter");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "STAD_SpatialFilter");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DiffuseDNSR_SpatialFilter");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_FILTER]);
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
+		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X);
+		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y);
 
 		m_cbSpatialFilter.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbSpatialFilter.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbSpatialFilter.NumGroupsInTile = STAD_SPATIAL_TILE_WIDTH * m_cbSpatialFilter.DispatchDimY;
+		m_cbSpatialFilter.NumGroupsInTile = DiffuseDNSR_SPATIAL_TILE_WIDTH * m_cbSpatialFilter.DispatchDimY;
 		m_cbSpatialFilter.NumPasses = m_numSpatialFilterPasses;
 
 		for (int i = 0; i < m_numSpatialFilterPasses; i++)
@@ -267,19 +267,19 @@ void STAD::Render(CommandList& cmdList) noexcept
 	m_isTemporalCacheValid = true;
 }
 
-void STAD::CreateResources() noexcept
+void DiffuseDNSR::CreateResources() noexcept
 {
 	auto& renderer = App::GetRenderer();
 
 	// temporal cache (ping-pong between frames)
 	{
-		m_temporalCache[0] = renderer.GetGpuMemory().GetTexture2D("STAD_TEMPORAL_CACHE_A",
+		m_temporalCache[0] = renderer.GetGpuMemory().GetTexture2D("DiffuseDNSR_TEMPORAL_CACHE_A",
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
 			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		m_temporalCache[1] = renderer.GetGpuMemory().GetTexture2D("STAD_TEMPORAL_CACHE_B",
+		m_temporalCache[1] = renderer.GetGpuMemory().GetTexture2D("DiffuseDNSR_TEMPORAL_CACHE_B",
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
@@ -293,16 +293,16 @@ void STAD::CreateResources() noexcept
 	}
 }
 
-void STAD::InitParams() noexcept
+void DiffuseDNSR::InitParams() noexcept
 {
 	ParamVariant enableSpatialFilter;
-	enableSpatialFilter.InitBool("Renderer", "STAD", "SpatialFilter",
-		fastdelegate::MakeDelegate(this, &STAD::SpatialFilterCallback),
+	enableSpatialFilter.InitBool("Renderer", "DiffuseDNSR", "SpatialFilter",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::SpatialFilterCallback),
 		m_doSpatialFilter);
 	App::AddParam(enableSpatialFilter);
 
 	ParamVariant maxTSPP;
-	maxTSPP.InitInt("Renderer", "STAD", "MaxTSPP", fastdelegate::MakeDelegate(this, &STAD::MaxTSPPCallback),
+	maxTSPP.InitInt("Renderer", "DiffuseDNSR", "MaxTSPP", fastdelegate::MakeDelegate(this, &DiffuseDNSR::MaxTSPPCallback),
 		DefaultParamVals::MaxTSPP,		// val
 		1,								// min
 		32,								// max
@@ -310,8 +310,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(maxTSPP);
 
 	ParamVariant bilinearMaxPlaneDist;
-	bilinearMaxPlaneDist.InitFloat("Renderer", "STAD", "BilinearMaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &STAD::BilinearMaxPlaneDistCallback),
+	bilinearMaxPlaneDist.InitFloat("Renderer", "DiffuseDNSR", "BilinearMaxPlaneDist",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::BilinearMaxPlaneDistCallback),
 		DefaultParamVals::BilinearMaxPlaneDist,		// val	
 		1e-2f,										// min
 		10.0f,										// max
@@ -319,8 +319,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(bilinearMaxPlaneDist);
 
 	//ParamVariant bilinearNormalScale;
-	//bilinearNormalScale.InitFloat("Renderer", "STAD", "BilinearNormalScale",
-	//	fastdelegate::MakeDelegate(this, &STAD::BilinearNormalScaleCallback),
+	//bilinearNormalScale.InitFloat("Renderer", "DiffuseDNSR", "BilinearNormalScale",
+	//	fastdelegate::MakeDelegate(this, &DiffuseDNSR::BilinearNormalScaleCallback),
 	//	DefaultParamVals::BilinearNormalScale,		// val	
 	//	1.0f,										// min
 	//	5.0f,										// max
@@ -328,8 +328,8 @@ void STAD::InitParams() noexcept
 	//App::AddParam(bilinearNormalScale);
 
 	//ParamVariant bilinearNormalExp;
-	//bilinearNormalExp.InitFloat("Renderer", "STAD", "BilinearNormalExp",
-	//	fastdelegate::MakeDelegate(this, &STAD::BilinearNormalExpCallback),
+	//bilinearNormalExp.InitFloat("Renderer", "DiffuseDNSR", "BilinearNormalExp",
+	//	fastdelegate::MakeDelegate(this, &DiffuseDNSR::BilinearNormalExpCallback),
 	//	DefaultParamVals::BilinearNormalExp,		// val	
 	//	16.0f,										// min
 	//	128.0f,										// max
@@ -337,8 +337,8 @@ void STAD::InitParams() noexcept
 	//App::AddParam(bilinearNormalExp);
 
 	ParamVariant edgeStoppingNormalExp;
-	edgeStoppingNormalExp.InitFloat("Renderer", "STAD", "EdgeStoppingNormalExp",
-		fastdelegate::MakeDelegate(this, &STAD::EdgeStoppingNormalExpCallback),
+	edgeStoppingNormalExp.InitFloat("Renderer", "DiffuseDNSR", "EdgeStoppingNormalExp",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::EdgeStoppingNormalExpCallback),
 		DefaultParamVals::EdgeStoppingNormalExp,		// val	
 		1.0f,											// min
 		8.0f,											// max
@@ -346,8 +346,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(edgeStoppingNormalExp);
 
 	ParamVariant edgeStoppingPlaneDist;
-	edgeStoppingPlaneDist.InitFloat("Renderer", "STAD", "EdgeStoppingMaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &STAD::EdgeStoppingMaxPlaneDistCallback),
+	edgeStoppingPlaneDist.InitFloat("Renderer", "DiffuseDNSR", "EdgeStoppingMaxPlaneDist",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::EdgeStoppingMaxPlaneDistCallback),
 		DefaultParamVals::EdgeStoppingMaxPlaneDist,	// val	
 		1e-2f,										// min
 		1.0f,										// max
@@ -355,8 +355,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(edgeStoppingPlaneDist);
 
 	ParamVariant numSpatialFilterPasses;
-	numSpatialFilterPasses.InitInt("Renderer", "STAD", "#SpatialFilterPasses",
-		fastdelegate::MakeDelegate(this, &STAD::NumSpatialFilterPassesCallback),
+	numSpatialFilterPasses.InitInt("Renderer", "DiffuseDNSR", "#SpatialFilterPasses",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::NumSpatialFilterPassesCallback),
 		DefaultParamVals::NumSpatialPasses,			// val	
 		1,											// min
 		3,											// max
@@ -364,8 +364,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(numSpatialFilterPasses);
 
 	ParamVariant baseRadius;
-	baseRadius.InitFloat("Renderer", "STAD", "FilterRadiusBase",
-		fastdelegate::MakeDelegate(this, &STAD::FilterRadiusBaseCallback),
+	baseRadius.InitFloat("Renderer", "DiffuseDNSR", "FilterRadiusBase",
+		fastdelegate::MakeDelegate(this, &DiffuseDNSR::FilterRadiusBaseCallback),
 		DefaultParamVals::FilterRadiusBase,			// val	
 		1e-3f,										// min
 		1.0f,										// max
@@ -373,8 +373,8 @@ void STAD::InitParams() noexcept
 	App::AddParam(baseRadius);
 
 	//ParamVariant radiusScale;
-	//radiusScale.InitFloat("Renderer", "STAD", "FilterRadiusScale",
-	//	fastdelegate::MakeDelegate(this, &STAD::FilterRadiusScaleCallback),
+	//radiusScale.InitFloat("Renderer", "DiffuseDNSR", "FilterRadiusScale",
+	//	fastdelegate::MakeDelegate(this, &DiffuseDNSR::FilterRadiusScaleCallback),
 	//	DefaultParamVals::FilterRadiusScale,		// val	
 	//	1.0f,										// min
 	//	10.0f,										// max
@@ -382,68 +382,68 @@ void STAD::InitParams() noexcept
 	//App::AddParam(radiusScale);
 }
 
-void STAD::MaxTSPPCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::MaxTSPPCallback(const ParamVariant& p) noexcept
 {
 	m_cbTemporalFilter.MaxTspp = p.GetInt().m_val;
 }
 
-void STAD::BilinearMaxPlaneDistCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::BilinearMaxPlaneDistCallback(const ParamVariant& p) noexcept
 {
 	m_cbTemporalFilter.MaxPlaneDist = p.GetFloat().m_val;
 }
 
-//void STAD::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
+//void DiffuseDNSR::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
 //{
 //	m_cbTemporalFilter.BilinearNormalScale = p.GetFloat().m_val;
 //}
 //
-//void STAD::BilinearNormalExpCallback(const ParamVariant& p) noexcept
+//void DiffuseDNSR::BilinearNormalExpCallback(const ParamVariant& p) noexcept
 //{
 //	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
 //}
 
-void STAD::EdgeStoppingMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept
+void DiffuseDNSR::EdgeStoppingMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbSpatialFilter.MaxPlaneDist = p.GetFloat().m_val;
 }
 
-void STAD::EdgeStoppingNormalExpCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::EdgeStoppingNormalExpCallback(const ParamVariant& p) noexcept
 {
 	m_cbSpatialFilter.NormalExp = p.GetFloat().m_val;
 }
 
-void STAD::NumSpatialFilterPassesCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::NumSpatialFilterPassesCallback(const ParamVariant& p) noexcept
 {
 	m_numSpatialFilterPasses = p.GetInt().m_val;
 }
 
-void STAD::SpatialFilterCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::SpatialFilterCallback(const ParamVariant& p) noexcept
 {
 	m_doSpatialFilter = p.GetBool();
 }
 
-void STAD::FilterRadiusBaseCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::FilterRadiusBaseCallback(const ParamVariant& p) noexcept
 {
 	m_cbSpatialFilter.FilterRadiusBase = p.GetFloat().m_val;
 }
 
-void STAD::FilterRadiusScaleCallback(const ParamVariant& p) noexcept
+void DiffuseDNSR::FilterRadiusScaleCallback(const ParamVariant& p) noexcept
 {
 	m_cbSpatialFilter.FilterRadiusScale = p.GetFloat().m_val;
 }
 
-void STAD::ReloadTemporalPass() noexcept
+void DiffuseDNSR::ReloadTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_TemporalFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\DiffuseDNSR_TemporalFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void STAD::ReloadSpatialFilter() noexcept
+void DiffuseDNSR::ReloadSpatialFilter() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_FILTER;
 
-	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\STAD_SpatialFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\DiffuseDNSR_SpatialFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

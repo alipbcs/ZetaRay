@@ -130,7 +130,6 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr float EdgeStoppingDepthSigma = 1.0f;
 			static constexpr float EdgeStoppingNormalExp = 32.0f;
 			static constexpr float MaxPlaneDist = 0.1f;
 			static constexpr float EdgeStoppingShadowStdScale = 0.5f;

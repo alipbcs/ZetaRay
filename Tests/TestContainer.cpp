@@ -11,11 +11,6 @@ using namespace ZetaRay::App;
 
 TEST_SUITE("SmallVector")
 {
-	//TEST_CASE("Init")
-	//{
-	//	App::InitSimple();
-	//}
-
 	TEST_CASE("Basic")
 	{
 		MemoryArena ma(32);

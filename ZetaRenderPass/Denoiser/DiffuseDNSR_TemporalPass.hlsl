@@ -1,4 +1,4 @@
-#include "STAD_Common.h"
+#include "DiffuseDNSR_Common.h"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/BRDF.hlsli"
@@ -9,7 +9,7 @@
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbSTADTemporalFilter> g_local : register(b0);
+ConstantBuffer<cbDiffuseDNSRTemporal> g_local : register(b0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t0, space0);
 StructuredBuffer<uint> g_scramblingTile : register(t1, space0);
@@ -197,7 +197,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_X, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Y, STAD_TEMPORAL_PASS_THREAD_GROUP_SIZE_Z)]
+[numthreads(DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);

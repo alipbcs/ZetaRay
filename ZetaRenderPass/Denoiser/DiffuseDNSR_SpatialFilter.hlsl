@@ -1,4 +1,4 @@
-#include "STAD_Common.h"
+#include "DiffuseDNSR_Common.h"
 #include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
@@ -52,7 +52,7 @@ static const float k_gaussian[] =
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbSTADSpatialFilter> g_local : register(b0);
+ConstantBuffer<cbDiffuseDNSRSpatial> g_local : register(b0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t0, space0);
 StructuredBuffer<uint> g_scramblingTile : register(t1, space0);
@@ -231,9 +231,9 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 // main
 //--------------------------------------------------------------------------------------
 
-static const uint16_t2 GroupDim = uint16_t2(STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_X, STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
+static const uint16_t2 GroupDim = uint16_t2(DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y);
 
-[numthreads(STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_X, STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y, STAD_SPATIAL_FILTER_THREAD_GROUP_SIZE_Z)]
+[numthreads(DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING

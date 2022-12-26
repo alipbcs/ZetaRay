@@ -389,7 +389,6 @@ void TLAS::Render(CommandList& cmdList) noexcept
 void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
-	const int outIdx = App::GetRenderer().CurrOutIdx();
 
 	const int numInstances = (int)m_dynamicBLASes.size() + (scene.m_numStaticInstances > 0);
 	if (numInstances == 0)

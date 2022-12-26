@@ -64,9 +64,6 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 		m_producerTokens = reinterpret_cast<moodycamel::ProducerToken*>(m_producerTokensMem);
 	}
 
-	// main thread
-	//m_threadIds[0] = std::this_thread::get_id();
-
 	for (int i = 0; i < m_threadPoolSize; i++)
 	{
 		m_threadPool[i] = std::thread(&ThreadPool::WorkerThread, this);
@@ -178,7 +175,7 @@ void ThreadPool::PumpUntilEmpty() noexcept
 			// signal dependant tasks that this task is finished
 			auto adjacencies = task.GetAdjacencies();
 			if (adjacencies.size() > 0)
-				App::SignalAdjacentTailNodes(adjacencies.data(), (int)adjacencies.size());
+				App::SignalAdjacentTailNodes(adjacencies);
 
 			m_numTasksFinished.fetch_add(1, std::memory_order_release);
 		}
@@ -248,7 +245,7 @@ void ThreadPool::WorkerThread() noexcept
 		{
 			auto adjacencies = task.GetAdjacencies();
 			if (adjacencies.size() > 0)
-				App::SignalAdjacentTailNodes(adjacencies.data(), (int)adjacencies.size());
+				App::SignalAdjacentTailNodes(adjacencies);
 		}
 
 		m_numTasksFinished.fetch_add(1, std::memory_order_release);
