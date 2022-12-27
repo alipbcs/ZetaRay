@@ -6,6 +6,7 @@
 #include <Scene/SceneCore.h>
 #include <Math/MatrixFuncs.h>
 #include <Model/Mesh.h>
+#include <algorithm>
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
@@ -69,7 +70,7 @@ GBufferPass::GBufferPass() noexcept
 	m_rootSig.InitAsBufferUAV(6,					// root idx
 		0,											// register num
 		0,											// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE, 
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE,
 		D3D12_SHADER_VISIBILITY_ALL,
 		nullptr,
 		true);
@@ -80,7 +81,7 @@ GBufferPass::~GBufferPass() noexcept
 	Reset();
 }
 
-void GBufferPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept
+void GBufferPass::Init(Util::Span<DXGI_FORMAT> rtvs) noexcept
 {
 	auto& renderer = App::GetRenderer();
 
@@ -95,6 +96,7 @@ void GBufferPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
 	s_rpObjs.Init("GBufferPass", m_rootSig, samplers.size(), samplers.data(), flags);
+	CreatePSOs(rtvs);
 
 	// command signature
 	D3D12_INDIRECT_ARGUMENT_DESC indirectCallArgs[2];
@@ -113,31 +115,20 @@ void GBufferPass::Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept
 
 	CheckHR(renderer.GetDevice()->CreateCommandSignature(&desc, s_rpObjs.m_rootSig.Get(), IID_PPV_ARGS(m_cmdSig.GetAddressOf())));
 
-	// PSOs
-	for (int i = 0; i < (int)COMPUTE_SHADERS::COUNT; i++)
-	{
-		m_computePsos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
-			COMPILED_CS[i]);
-	}
-
-	m_graphicsPso = s_rpObjs.m_psoLib.GetGraphicsPSO((int)COMPUTE_SHADERS::COUNT, psoDesc, s_rpObjs.m_rootSig.Get(), 
-		COMPILED_VS[0], COMPILED_PS[0]);
-
 	// create a zero-initialized buffer for resetting the counter
-	m_zeroBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("Zero", 
-		sizeof(uint32_t), 
-		D3D12_RESOURCE_STATE_COMMON, 
-		false, 
+	m_zeroBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("Zero",
+		sizeof(uint32_t),
+		D3D12_RESOURCE_STATE_COMMON,
+		false,
 		true);
 }
 
 void GBufferPass::Reset() noexcept
 {
-	if (m_graphicsPso)
+	if (m_graphicsPso[0])
 	{
 		s_rpObjs.Clear();
-		m_graphicsPso = nullptr;
+		memset(m_graphicsPso, 0, sizeof(ID3D12PipelineState*) * ZetaArrayLen(m_graphicsPso));
 	}
 
 	m_meshInstances.Reset();
@@ -157,12 +148,20 @@ void GBufferPass::SetInstances(Span<MeshInstance> instances) noexcept
 	if (m_numMeshesThisFrame == 0)
 		return;
 
+	auto split = std::partition(instances.begin(), instances.end(),
+		[](const MeshInstance& mesh)
+		{
+			return !mesh.IsDoubleSided;
+		});
+
+	m_numSingleSidedMeshes = (uint32_t)(split - instances.begin());
+
 	auto& gpuMem = App::GetRenderer().GetGpuMemory();
 
 	// TODO recreating every frame can be avoided if the existing one is large enough
-	const size_t meshInsBuffsizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
+	const size_t meshInsBuffSizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
 	m_meshInstances = gpuMem.GetDefaultHeapBufferAndInit("GBufferMeshInstances",
-		meshInsBuffsizeInBytes,
+		meshInsBuffSizeInBytes,
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 		false,
 		instances.data());
@@ -172,12 +171,14 @@ void GBufferPass::SetInstances(Span<MeshInstance> instances) noexcept
 	{
 		m_maxNumDrawCallsSoFar = m_numMeshesThisFrame;
 
-		// extra 4 bytes for the counter
-		m_counterBufferOffset = sizeof(CommandSig) * m_maxNumDrawCallsSoFar;
-		const size_t indDrawArgsBuffsizeInBytes = m_counterBufferOffset + sizeof(uint32_t);
+		// extra 8 bytes for the counters
+		m_counterSingleSidedBufferOffset = sizeof(CommandSig) * m_maxNumDrawCallsSoFar;
+		m_counterDoubleSidedBufferOffset = m_counterSingleSidedBufferOffset + sizeof(uint32_t);
+
+		const size_t indDrawArgsBuffSizeInBytes = m_counterDoubleSidedBufferOffset + sizeof(uint32_t);
 
 		m_indirectDrawArgs = gpuMem.GetDefaultHeapBuffer("IndirectDrawArgs",
-			indDrawArgsBuffsizeInBytes,
+			indDrawArgsBuffSizeInBytes,
 			D3D12_RESOURCE_STATE_COMMON,
 			true);
 	}
@@ -211,7 +212,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
 		computeCmdList.PIXBeginEvent("OcclusionCulling");
-		
+
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "OcclusionCulling");
 
@@ -219,31 +220,53 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::OCCLUSION_CULLING]);
 
 		cbOcclussionCulling localCB;
-		localCB.NumMeshes = m_numMeshesThisFrame;
-		localCB.CounterBufferOffset = m_counterBufferOffset;
-
-		m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
 		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
 		m_rootSig.SetRootUAV(6, m_indirectDrawArgs.GetGpuVA());
-		m_rootSig.End(computeCmdList);
 
 		computeCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_COMMON,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 
-		// clear the counter
+		// clear the counters
 		computeCmdList.CopyBufferRegion(m_indirectDrawArgs.GetResource(),
-			m_counterBufferOffset, 
-			m_zeroBuffer.GetResource(), 
-			0, 
-			sizeof(uint32_t));
+			m_counterSingleSidedBufferOffset,
+			m_zeroBuffer.GetResource(),
+			0,
+			sizeof(uint32_t) + sizeof(uint32_t));
 
 		computeCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numMeshesThisFrame, OCCLUSION_CULL_THREAD_GROUP_SIZE_X),
-			1, 1);
+		if (m_numSingleSidedMeshes)
+		{
+			localCB.NumMeshes = m_numSingleSidedMeshes;
+			localCB.CounterBufferOffset = m_counterSingleSidedBufferOffset;
+			localCB.MeshBufferStartIndex = 0;
+			localCB.ArgBufferStartOffsetInBytes = 0;
+
+			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
+			m_rootSig.End(computeCmdList);
+
+			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numSingleSidedMeshes, OCCLUSION_CULL_THREAD_GROUP_SIZE_X),
+				1, 1);
+		}
+
+		// avoid an empty dispatch call
+		if (m_numSingleSidedMeshes < m_numMeshesThisFrame)
+		{
+			const uint32_t numDoubleSided = m_numMeshesThisFrame - m_numSingleSidedMeshes;
+			localCB.NumMeshes = numDoubleSided;
+			localCB.CounterBufferOffset = m_counterDoubleSidedBufferOffset;
+			localCB.ArgBufferStartOffsetInBytes = m_numSingleSidedMeshes * sizeof(CommandSig);
+			localCB.MeshBufferStartIndex = m_numSingleSidedMeshes;
+
+			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
+			m_rootSig.End(computeCmdList);
+
+			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(numDoubleSided, OCCLUSION_CULL_THREAD_GROUP_SIZE_X),
+				1, 1);
+		}
 
 		// record the timestamp after execution
 		gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -261,7 +284,6 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "GBufferPass");
 
 		directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
-		directCmdList.SetPipelineState(m_graphicsPso);
 
 		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
 		m_rootSig.End(directCmdList);
@@ -310,12 +332,34 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
-		directCmdList.ExecuteIndirect(m_cmdSig.Get(),
-			m_numMeshesThisFrame,
-			m_indirectDrawArgs.GetResource(),
-			0,
-			m_indirectDrawArgs.GetResource(),
-			m_counterBufferOffset);
+		// single-sided meshes
+		if (m_numSingleSidedMeshes)
+		{
+			directCmdList.SetPipelineState(m_graphicsPso[(int)PSO::ONE_SIDED]);
+
+			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
+				m_numSingleSidedMeshes,
+				m_indirectDrawArgs.GetResource(),
+				0,
+				m_indirectDrawArgs.GetResource(),
+				m_counterSingleSidedBufferOffset);
+		}
+
+		// double-sided meshes
+		if (m_numSingleSidedMeshes < m_numMeshesThisFrame)
+		{
+			const uint32_t numDoubleSided = m_numMeshesThisFrame - m_numSingleSidedMeshes;
+			const uint32_t argBuffStartOffset = m_numSingleSidedMeshes * sizeof(CommandSig);
+
+			directCmdList.SetPipelineState(m_graphicsPso[(int)PSO::DOUBLE_SIDED]);
+
+			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
+				numDoubleSided,
+				m_indirectDrawArgs.GetResource(),
+				argBuffStartOffset,
+				m_indirectDrawArgs.GetResource(),
+				m_counterDoubleSidedBufferOffset);
+		}
 
 		// record the timestamp after execution
 		gpuTimer.EndQuery(directCmdList, queryIdx);
@@ -324,3 +368,44 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 	}
 }
 
+void GBufferPass::CreatePSOs(Util::Span<DXGI_FORMAT> rtvs) noexcept
+{
+	for (int i = 0; i < (int)COMPUTE_SHADERS::COUNT; i++)
+	{
+		m_computePsos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
+			s_rpObjs.m_rootSig.Get(),
+			COMPILED_CS[i]);
+	}
+
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
+		(int)rtvs.size(),
+		rtvs.data(),
+		Constants::DEPTH_BUFFER_FORMAT);
+
+	//D3D12_INPUT_ELEMENT_DESC inputElements[] =
+	//{
+	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
+	//	{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
+	//};
+
+	//D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements, .NumElements = ZetaArrayLen(inputElements) };
+
+	// reverse z
+	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
+
+	m_graphicsPso[(int)PSO::ONE_SIDED] = s_rpObjs.m_psoLib.GetGraphicsPSO((int)COMPUTE_SHADERS::COUNT + (int)PSO::ONE_SIDED,
+		psoDesc,
+		s_rpObjs.m_rootSig.Get(),
+		COMPILED_VS[0],
+		COMPILED_PS[0]);
+
+	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
+
+	m_graphicsPso[(int)PSO::DOUBLE_SIDED] = s_rpObjs.m_psoLib.GetGraphicsPSO((int)COMPUTE_SHADERS::COUNT + (int)PSO::DOUBLE_SIDED,
+		psoDesc,
+		s_rpObjs.m_rootSig.Get(),
+		COMPILED_VS[0],
+		COMPILED_PS[0]);
+}

@@ -148,6 +148,13 @@ PS_OUT mainPS(VSOut psin)
 		//float3 bumpNormal = g_normalMap.Sample(g_samAnisotropicWrap, psin.TexUV);
 
 		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
+		
+		if (mat.IsDoubleSided())
+		{
+			const float3 toEye = g_frame.CameraPos - psin.PosW;
+			if (dot(shadingNormal, toEye) < 0)
+				shadingNormal *= -1;
+		}
 	}
 	
 	if (mat.MetalnessRoughnessTexture != -1)

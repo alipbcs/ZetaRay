@@ -41,7 +41,7 @@ namespace ZetaRay::Model::glTF::Asset
 			NormalScale = 1.0f;
 			AlphaCuttoff = 0.5f;
 			AlphaMode = Material::ALPHA_MODE::OPAQUE_;
-			TwoSided = false;
+			DoubleSided = false;
 		}
 
 		// Unique index of each material within the glTF scene
@@ -85,6 +85,6 @@ namespace ZetaRay::Model::glTF::Asset
 		// Specifies whether the material is double sided. When this value is false, back-face culling 
 		// is enabled. When this value is true, back-face culling is disabled and double sided lighting 
 		// is enabled. The back-face must have its normals reversed before the lighting equation is evaluated.
-		bool TwoSided;
+		bool DoubleSided;
 	};
 }

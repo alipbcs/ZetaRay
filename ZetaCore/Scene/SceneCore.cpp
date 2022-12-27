@@ -240,7 +240,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 	mat.NormalScale = matDesc.NormalScale;
 	mat.RoughnessFactor = matDesc.RoughnessFactor;
 	mat.SetAlphaMode(matDesc.AlphaMode);
-	mat.SetTwoSided(matDesc.TwoSided);
+	mat.SetDoubleSided(matDesc.DoubleSided);
 
 	auto addTex = [](const Filesystem::Path& p, TexSRVDescriptorTable& table, uint32_t& tableOffset) noexcept -> uint64_t
 	{

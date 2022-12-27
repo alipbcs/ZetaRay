@@ -36,9 +36,11 @@
 #ifdef __cplusplus
 #define IN_PARAM(t) t&
 #define OUT_PARAM(t) t&
+#define CONST const
 #else
 #define IN_PARAM(t) in t
 #define OUT_PARAM(t) out t
+#define CONST
 #endif // __cplusplus
 
 //#ifndef __cplusplus

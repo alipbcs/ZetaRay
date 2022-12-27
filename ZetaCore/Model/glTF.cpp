@@ -317,7 +317,7 @@ namespace
 			desc.Index = m;
 			desc.AlphaMode = getAlphaMode(mat.alphaMode);
 			desc.AlphaCuttoff = (float)mat.alphaCutoff;
-			desc.TwoSided = mat.doubleSided;
+			desc.DoubleSided = mat.doubleSided;
 
 			// base color map
 			{

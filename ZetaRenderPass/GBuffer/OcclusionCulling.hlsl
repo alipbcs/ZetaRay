@@ -40,18 +40,18 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	if(isUnoccluded)
 	{
 		CommandSig cmdSig;
-		cmdSig.RootConstant = DTid.x;
+		cmdSig.RootConstant = g_local.MeshBufferStartIndex + DTid.x;
 
-		cmdSig.DrawArgs.IndexCountPerInstance = g_meshes[DTid.x].IndexCount;
+		cmdSig.DrawArgs.IndexCountPerInstance = g_meshes[g_local.MeshBufferStartIndex + DTid.x].IndexCount;
 		cmdSig.DrawArgs.InstanceCount = 1;
-		cmdSig.DrawArgs.StartIndexLocation = g_meshes[DTid.x].BaseIdxOffset;
+		cmdSig.DrawArgs.StartIndexLocation = g_meshes[g_local.MeshBufferStartIndex + DTid.x].BaseIdxOffset;
 		cmdSig.DrawArgs.BaseVertexLocation = 0;
 		cmdSig.DrawArgs.StartInstanceLocation = 0;
 
 		cmdSig.pad0 = 0;
 		cmdSig.pad1 = 0;
 		
-		uint byteOffsetToStore = laneIdxToStore * sizeof(CommandSig);
+		uint byteOffsetToStore = g_local.ArgBufferStartOffsetInBytes + laneIdxToStore * sizeof(CommandSig);
 		g_indirectDrawArgs.Store<CommandSig>(byteOffsetToStore, cmdSig);
 	}
 }

@@ -16,7 +16,7 @@ struct DRAW_INDEXED_ARGUMENTS
     uint32_t StartInstanceLocation;
 };
 
-struct DRAW_ARGUMENTS 
+struct DRAW_ARGUMENTS
 {
     uint32_t VertexCountPerInstance;
     uint32_t InstanceCount;
@@ -41,7 +41,7 @@ struct MeshInstance
     uint32_t BaseVtxOffset;
     uint32_t BaseIdxOffset;
     uint16_t IdxInMatBuff;
-    uint16_t pad0;
+    uint16_t IsDoubleSided;
 };
 
 struct cbGBuffer
@@ -53,6 +53,8 @@ struct cbOcclussionCulling
 {
     uint32_t NumMeshes;
     uint32_t CounterBufferOffset;
+    uint32_t MeshBufferStartIndex;
+    uint32_t ArgBufferStartOffsetInBytes;
 };
 
 #endif

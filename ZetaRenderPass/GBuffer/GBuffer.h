@@ -27,7 +27,7 @@ namespace ZetaRay::RenderPass
 		GBufferPass() noexcept;
 		~GBufferPass() noexcept;
 
-		void Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC&& psoDesc) noexcept;
+		void Init(Util::Span<DXGI_FORMAT> rtvs) noexcept;
 		void Reset() noexcept;
 
 		bool IsInitialized() { return m_graphicsPso != nullptr; }
@@ -47,6 +47,8 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_UAV = 1;
 		static constexpr int NUM_GLOBS = 5;
 		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cbGBuffer) / sizeof(DWORD), sizeof(cbOcclussionCulling) / sizeof(DWORD));
+
+		void CreatePSOs(Util::Span<DXGI_FORMAT> rtvs) noexcept;
 
 		RpObjects s_rpObjs;
 
@@ -82,14 +84,23 @@ namespace ZetaRay::RenderPass
 		Core::DefaultHeapBuffer m_indirectDrawArgs;
 		uint32_t m_maxNumDrawCallsSoFar = 0;
 		uint32_t m_numMeshesThisFrame = 0;
-		uint32_t m_counterBufferOffset = 0;
+		uint32_t m_counterSingleSidedBufferOffset = 0;
+		uint32_t m_counterDoubleSidedBufferOffset = 0;
+		uint32_t m_numSingleSidedMeshes = 0;
 
 		Core::RootSignature m_rootSig;
 		ComPtr<ID3D12CommandSignature> m_cmdSig;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_inputDescriptors[SHADER_IN_DESC::COUNT] = { 0 };
 
+		enum class PSO
+		{
+			ONE_SIDED,
+			DOUBLE_SIDED,
+			COUNT
+		};
+
 		ID3D12PipelineState* m_computePsos[(int)COMPUTE_SHADERS::COUNT] = { 0 };
-		ID3D12PipelineState* m_graphicsPso = nullptr;
+		ID3D12PipelineState* m_graphicsPso[(int)PSO::COUNT] = { 0 };
 
 		inline static constexpr const char* COMPILED_CS[(int)COMPUTE_SHADERS::COUNT] = {
 			//"DepthPyramid.cso",

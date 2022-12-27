@@ -7,9 +7,6 @@
 namespace ZetaRay
 {
 #endif
-    // TODO is this necessary?
-    static const float MIN_ALPHA_CUTOFF = 0.01f;
-
     struct Material
     {
 #ifdef __cplusplus
@@ -50,9 +47,9 @@ namespace ZetaRay
             Packed |= (uint32_t)(mode) << 28;
         }
 
-        void SetTwoSided(bool isTwoSided)
+        void SetDoubleSided(bool b)
         {
-            Packed |= (uint32_t)(isTwoSided) << 30;
+            Packed |= (uint32_t)(b) << 30;
         }
 
         uint32_t GpuBufferIndex() const
@@ -61,6 +58,10 @@ namespace ZetaRay
         }
 
 #endif // __cplusplus
+        bool IsDoubleSided() CONST
+        {
+            return Packed & (1 << 30);
+        }
 
         float4_ BaseColorFactor;
         float3_ EmissiveFactor;
@@ -73,7 +74,7 @@ namespace ZetaRay
         uint32_t MetalnessRoughnessTexture;
         uint32_t EmissiveTexture;
 
-        // last 4 bits encode alpha and two-sided
+        // last 4 bits encode alpha and double-sided
         // first 28 bits encode material buffer index
         uint32_t Packed;
     };

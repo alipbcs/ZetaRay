@@ -22,8 +22,7 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 
 	CreateGBuffers(data);
 
-	// initialize one render pass
-	const int NUM_RTVs = GBufferData::GBUFFER::COUNT - 1;
+	constexpr int NUM_RTVs = GBufferData::GBUFFER::COUNT - 1;
 
 	DXGI_FORMAT rtvFormats[NUM_RTVs] = {
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
@@ -32,25 +31,7 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR] };
 
-	//D3D12_INPUT_ELEMENT_DESC inputElements[] =
-	//{
-	//	{ "POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-	//	{ "NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-	//	{ "TEXUV", 0, DXGI_FORMAT_R32G32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 },
-	//	{ "TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, D3D12_APPEND_ALIGNED_ELEMENT, D3D12_INPUT_CLASSIFICATION_PER_VERTEX_DATA, 0 }
-	//};
-
-	//D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements, .NumElements = ZetaArrayLen(inputElements) };
-
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
-		NUM_RTVs,
-		rtvFormats,
-		Constants::DEPTH_BUFFER_FORMAT);
-
-	// reverse z
-	psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-
-	data.GBuffPass.Init(ZetaMove(psoDesc));
+	data.GBuffPass.Init(rtvFormats);
 }
 
 void GBuffer::CreateGBuffers(GBufferData& data) noexcept
@@ -184,7 +165,7 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 	{
 		D3D12_CLEAR_VALUE clearValueDepth = {};
 		clearValueDepth.Format = Constants::DEPTH_BUFFER_FORMAT;
-		clearValueDepth.DepthStencil.Depth = Constants::USE_REVERSE_Z ? 0.0f : 1.0f;
+		clearValueDepth.DepthStencil.Depth = 0.0f;
 		clearValueDepth.DepthStencil.Stencil = 0;
 
 		D3D12_DEPTH_STENCIL_VIEW_DESC desc{};
@@ -239,37 +220,12 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 	data.MotionVec.Reset();
 }
 
-// Assigns meshes to GBufferRenderPass instances and prepares draw call arguments
-void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcept
+void GBuffer::Update(GBufferData& gbuffData) noexcept
 {
-	const int outIdx = App::GetRenderer().CurrOutIdx();
+	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	SceneCore& scene = App::GetScene();
 	Span<uint64_t> frameInstances = scene.GetFrameInstances();
 
-	if (frameInstances.size() && !gbuffData.GBuffPass.IsInitialized())
-	{
-		// exclude the depth buffer
-		const int NUM_RTVs = GBufferData::GBUFFER::COUNT - 1;
-
-		DXGI_FORMAT rtvFormats[NUM_RTVs] = {
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL],
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS],
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR] };
-
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
-			NUM_RTVs,
-			rtvFormats,
-			Constants::DEPTH_BUFFER_FORMAT);
-
-		// reverse z
-		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_GREATER;
-
-		gbuffData.GBuffPass.Init(ZetaMove(psoDesc));
-	}
-
-	// fill in the draw arguments
 	SmallVector<MeshInstance, App::FrameAllocator> instances;
 	instances.resize(frameInstances.size());
 
@@ -298,6 +254,7 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 			instances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
 			instances[currInstance].BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
 			instances[currInstance].IdxInMatBuff = (uint16_t)mat.GpuBufferIndex();
+			instances[currInstance].IsDoubleSided = mat.IsDoubleSided();
 
 			currInstance++;
 		}
@@ -324,13 +281,6 @@ void GBuffer::Update(GBufferData& gbuffData, const LightData& lightData) noexcep
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::DEPTH_BUFFER,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
-
-	// additionally clear the HDR light accumulation texture (if initialized)
-	if (!lightData.HdrLightAccumRTV.IsEmpty())
-	{
-		gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::HDR_LIGHT_ACCUM,
-			lightData.HdrLightAccumRTV.CPUHandle(0));
-	}
 }
 
 void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
@@ -362,7 +312,7 @@ void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
 
 void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, RenderGraph& renderGraph) noexcept
 {
-	const int outIdx = App::GetRenderer().CurrOutIdx();
+	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
 	// writable to avoid a Transition
@@ -375,9 +325,6 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	renderGraph.AddOutput(data.ClearHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	if (!lightData.HdrLightAccumRTV.IsEmpty())
-		renderGraph.AddOutput(data.ClearHandle, lightData.HdrLightAccumTex.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-
 	// make the GBufferPass dependant on Clear
 	renderGraph.AddInput(data.GBuffPassHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -387,5 +334,4 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-
 }

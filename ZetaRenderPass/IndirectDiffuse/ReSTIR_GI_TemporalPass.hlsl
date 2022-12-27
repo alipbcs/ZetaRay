@@ -128,10 +128,6 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
 		const RT::MeshInstance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
-		//const uint16_t meshDescHeapIdx = (uint16_t) (packedMeshData >> 16);
-
-		//StructuredBuffer<Vertex> VB = ResourceDescriptorHeap[meshDescHeapIdx];
-		//StructuredBuffer<INDEX_TYPE> IB = ResourceDescriptorHeap[meshDescHeapIdx + 1];
 
 		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
@@ -149,6 +145,10 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 		// TODO should it be 4x3 or 3x4?
 		normal = normalize(mul(normal, (float3x3) rayQuery.CandidateObjectToWorld4x3()));
 
+		// reverse the normal if ray hit the backfacing side
+		if (dot(normal, -rayQuery.WorldRayDirection()) < 0)
+			normal *= -1.0f;
+		
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
 		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
