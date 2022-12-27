@@ -1,5 +1,6 @@
 include("${CMAKE_INCLUDE_DIR}/CompileHLSL.cmake")
 
+add_subdirectory(AutoExposure)
 add_subdirectory(Common)
 add_subdirectory(Clear)
 add_subdirectory(Compositing)
@@ -9,7 +10,6 @@ add_subdirectory(FSR2)
 add_subdirectory(GBuffer)
 add_subdirectory(GUI)
 add_subdirectory(IndirectDiffuse)
-add_subdirectory(LuminanceReduction)
 add_subdirectory(Sky)
 add_subdirectory(SunShadow)
 add_subdirectory(TAA)
@@ -18,6 +18,7 @@ set(RENDERPASS_SRC
 	"${ZETA_RENDER_PASS_DIR}/RenderPass.cpp"
     "${ZETA_RENDER_PASS_DIR}/RenderPass.h"
 	${RENDERPASS_SRC} 
+    ${RP_AUTO_EXPOSURE_SRC} 
     ${RP_CLEAR_SRC} 
     ${RP_COMMON_SRC} 
     ${RP_COMPOSITING_SRC} 
@@ -26,7 +27,6 @@ set(RENDERPASS_SRC
     ${RP_GBUFFER_SRC} 
     ${RP_GUI_SRC} 
     ${RP_IND_DIFF_SRC} 
-    ${RP_LUM_REDUCTION_SRC} 
     ${RP_SKY_SRC} 
     ${RP_DENOISER_SRC} 
     ${RP_SUN_SRC} 

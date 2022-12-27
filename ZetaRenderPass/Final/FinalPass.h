@@ -24,15 +24,10 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		enum class SHADER_IN_BUFFER_DESC
-		{
-			AVG_LUM,
-			COUNT
-		};
-
 		enum class SHADER_IN_GPU_DESC
 		{
 			FINAL_LIGHTING,
+			EXPOSURE,
 			DENOISER_TEMPORAL_CACHE,
 			ReSTIR_GI_TEMPORAL_RESERVOIR_A,
 			ReSTIR_GI_TEMPORAL_RESERVOIR_B,
@@ -46,14 +41,9 @@ namespace ZetaRay::RenderPass
 		FinalPass() noexcept;
 		~FinalPass() noexcept;
 
-		void Init(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc) noexcept;
+		void Init() noexcept;
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
 		void Reset() noexcept;
-		void SetBuffer(SHADER_IN_BUFFER_DESC i, D3D12_GPU_VIRTUAL_ADDRESS a) noexcept
-		{
-			Assert((int)i < (int)SHADER_IN_BUFFER_DESC::COUNT, "out-of-bound access.");
-			m_buffers[(int)i] = a;
-		}
 		void SetCpuDescriptor(SHADER_IN_CPU_DESC i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
 		{
 			Assert((int)i < (int)SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
@@ -68,7 +58,7 @@ namespace ZetaRay::RenderPass
 
 	private:
 		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 1;
+		static constexpr int NUM_SRV = 0;
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbFinalPass) / sizeof(DWORD);
@@ -83,39 +73,26 @@ namespace ZetaRay::RenderPass
 
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
 		uint32_t m_gpuDescs[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
-		D3D12_GPU_VIRTUAL_ADDRESS m_buffers[(int)SHADER_IN_BUFFER_DESC::COUNT] = { 0 };
-
-		struct Params
-		{
-			enum Options
-			{
-				DEFAULT,
-				BASE_COLOR,
-				NORMAL,
-				METALNESS_ROUGHNESS,
-				DEPTH,
-				STAD_TEMPORAL_CACHE,
-				ReSTIR_GI_TEMPORAL_RESERVOIR,
-				ReSTIR_GI_SPATIAL_RESERVOIR,
-				COUNT
-			};
-
-			inline static const char* RenderOptions[] = { "Default", "BaseColor", "Normal",
-				"MetalnessRoughness", "Depth", "STAD_TemporalCache", "ReSTIR_GI_TemporalReservoir", 
-				"ReSTIR_GI_SpatialReservoir"};
-
-			static_assert(Options::COUNT == ZetaArrayLen(RenderOptions), "enum <-> strings mismatch.");
-		};
 
 		cbFinalPass m_cbLocal;
 
-		// needed for shader hot-reload
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC m_cachedPsoDesc;
+		struct Params
+		{
+			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
+				"MetalnessRoughness", "Depth", "STAD_TemporalCache", "ReSTIR_GI_TemporalReservoir", 
+				"ReSTIR_GI_SpatialReservoir"};
+			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
+
+			inline static const char* Tonemappers[] = { "None", "ACESFilmic", "UE4Filmic", "Neutral" };
+			static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
+		};
+
+		void CreatePSO() noexcept;
 
 		// parameter callbacks
-		void DoTonemappingCallback(const Support::ParamVariant& p) noexcept;
 		void VisualizeOcclusionCallback(const Support::ParamVariant& p) noexcept;
-		void ChangeRenderOptionCallback(const Support::ParamVariant& p) noexcept;
+		void ChangeDisplayOptionCallback(const Support::ParamVariant& p) noexcept;
+		void ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept;
 
 		void ReloadShaders() noexcept;
 	};

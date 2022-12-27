@@ -99,9 +99,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
-	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-	const half2 mr = g_metallicRoughness[DTid.xy];
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	const half2 mr = g_metalnessRoughness[DTid.xy];
 	
 	if (!g_local.SkipLighting && !g_local.DisplayIndirectDiffuseOnly)
 		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);

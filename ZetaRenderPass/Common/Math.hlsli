@@ -477,6 +477,14 @@ namespace Math
 
 			return linearRGB;
 		}
+				
+		float3 LinearToYCbCr(float3 x)
+		{
+			float3x3 M = float3x3(0.2126, 0.7152, 0.0722,
+								  -0.1146, -0.3854, 0.5, 
+								  0.5, -0.4542, -0.0458);
+			return mul(M, x);
+		}
 	}
 }
 

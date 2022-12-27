@@ -12,11 +12,11 @@
 #include <Sky/SkyDome.h>
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
-#include <LuminanceReduction/LuminanceReduction.h>
+#include <AutoExposure/AutoExposure.h>
 #include <Final/FinalPass.h>
 #include <GUI/GuiPass.h>
 #include <Sky/Sky.h>
-#include <Denoiser/STAD.h>
+#include <Denoiser/DiffuseDNSR.h>
 #include <RayTracing/RtAccelerationStructure.h>
 #include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
@@ -154,8 +154,8 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::FSR2Pass Fsr2Pass;
 		Core::RenderNodeHandle Fsr2Handle;
 
-		RenderPass::LuminanceReduction LumReductionPass;
-		Core::RenderNodeHandle LumReductionHandle;
+		RenderPass::AutoExposure AutoExposurePass;
+		Core::RenderNodeHandle AutoExposureHandle;
 
 		RenderPass::FinalPass FinalDrawPass;
 		Core::RenderNodeHandle FinalHandle;
@@ -164,8 +164,15 @@ namespace ZetaRay::DefaultRenderer
 		Core::RenderNodeHandle GuiHandle;
 
 		// Descriptors
+		enum class DESC_TABLE_CONST
+		{
+			HDR_LIGHT_ACCUM_SRV,
+			EXPOSURE_SRV,
+			COUNT
+		};
+
+		Core::DescriptorTable WindowSizeConstSRVs;
 		Core::DescriptorTable TaaOrFsr2OutSRV;
-		Core::DescriptorTable HdrLightAccumSRV;
 		Core::DescriptorTable HdrLightAccumRTV;
 	};
 
@@ -183,8 +190,8 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::ReSTIR_GI ReSTIR_GIPass;
 		Core::RenderNodeHandle ReSTIR_GIHandle;
 
-		RenderPass::STAD StadPass;
-		Core::RenderNodeHandle StadHandle;
+		RenderPass::DiffuseDNSR DiffuseDNSRPass;
+		Core::RenderNodeHandle DiffuseDNSRHandle;
 
 		// Descriptors
 		enum DESC_TABLE
@@ -210,7 +217,7 @@ namespace ZetaRay::DefaultRenderer
 		cbFrameConstants m_frameConstants;
 		RenderSettings m_settings;
 
-		GBufferData m_gBuffData;
+		GBufferData m_gbuffData;
 		LightData m_lightData;
 		PostProcessData m_postProcessorData;
 		RayTracerData m_raytracerData;
@@ -220,7 +227,7 @@ namespace ZetaRay::DefaultRenderer
 	{
 		// Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 		inline static constexpr Math::float3 SIGMA_S_RAYLEIGH = Math::float3(5.802f, 13.558f, 33.1f) * 1e-3f;	// 1 / km
-		inline static constexpr float SIGMA_S_MIE = 3.996f * 1e-3f;		// Mie scattering is not wavelength-dependant
+		inline static constexpr float SIGMA_S_MIE = 3.996f * 1e-3f;		// Mie scattering is not wavelength dependant
 		inline static constexpr float SIGMA_A_MIE = 4.4f * 1e-3f;
 		inline static constexpr Math::float3 SIGMA_A_OZONE = Math::float3(0.65f, 1.881f, 0.085f) * 1e-3f;
 		static constexpr float g = 0.8f;
@@ -254,7 +261,7 @@ namespace ZetaRay::DefaultRenderer::GBuffer
 	void Shutdown(GBufferData& data) noexcept;
 
 	// Assigns meshes to GBufferRenderPass instances and prepares draw call arguments
-	void Update(GBufferData& gbuffData, const LightData& lightManagerData) noexcept;
+	void Update(GBufferData& gbuffData) noexcept;
 	void Register(GBufferData& data, Core::RenderGraph& renderGraph) noexcept;
 	void DeclareAdjacencies(GBufferData& data, const LightData& lightManagerData, Core::RenderGraph& renderGraph) noexcept;
 }
