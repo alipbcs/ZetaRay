@@ -5,6 +5,7 @@
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include <Core/GpuTimer.h>
+#include <Support/MemoryArena.h>
 #include "GuiPass_Common.h"
 
 namespace ZetaRay::Core
@@ -38,9 +39,11 @@ namespace ZetaRay::RenderPass
 
 	private:
 		void UpdateBuffers() noexcept;
-		void RenderSettingsWindow() noexcept;
-		void RenderProfilerWindow() noexcept;
-		void RenderRenderGraphWindow() noexcept;
+		void RenderSettings() noexcept;
+		void RenderProfiler() noexcept;
+		void RenderRenderGraph() noexcept;
+		void RenderLogWindow() noexcept;
+		void InfoTab() noexcept;
 		void CameraTab() noexcept;
 		void ParameterTab() noexcept;
 		void GpuTimingsTab() noexcept;
@@ -77,6 +80,14 @@ namespace ZetaRay::RenderPass
 		int m_cachedNumQueries = 0;
 
 		int m_currShader = -1;
+		static constexpr float m_dbgWndWidthPct = 0.19;
+		static constexpr float m_dbgWndHeightPct = 1.0;
+		static constexpr float m_logWndWidthPct = 0.4f;
+		static constexpr float m_logWndHeightPct = 0.21f;
 		bool m_isFullScreen = false;
+		bool m_showRenderGraph = false;
+
+		Support::MemoryArena m_logMemArena;
+		Util::SmallVector<App::LogMessage, Support::ArenaAllocator> m_logs;
 	};
 }

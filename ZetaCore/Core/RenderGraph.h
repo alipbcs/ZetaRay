@@ -309,6 +309,7 @@ namespace ZetaRay::Core
 		RenderNode m_renderNodes[MAX_NUM_RENDER_PASSES];
 		Util::SmallVector<AggregateRenderNode, App::FrameAllocator> m_aggregateNodes;
 
-		int m_numPassesPrevFrame;
+		//int m_numPassesPrevFrame;
+		int m_numPassesLastTimeDrawn = -1;
 	};
 }

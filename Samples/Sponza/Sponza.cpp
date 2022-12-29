@@ -42,7 +42,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     App::DeltaTimer timer;
     timer.Start();
 
-    // load gltf model
+    // load the gltf model(s)
     const char* p = "sponza_v9\\sponza_v9.gltf";
     //const char* p = "CornellBox_v2\\cornell9.gltf";
     //const char* p = "bistro_v6\\bistro_v6.gltf";
@@ -52,7 +52,8 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
 
     timer.End();
     App::FlushWorkerThreadPool();
-    LOG("gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
+
+    LOG_UI(INFO, "gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
 
     int ret = App::Run();
 

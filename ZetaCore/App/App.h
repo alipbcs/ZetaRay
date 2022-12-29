@@ -67,6 +67,24 @@ namespace ZetaRay::App
 		fastdelegate::FastDelegate0<> Dlg;
 	};
 
+	struct LogMessage
+	{
+		enum MsgType
+		{
+			INFO,
+			WARNING,
+			COUNT
+		};
+
+		static constexpr int MAX_LEN = 128;
+
+		LogMessage() noexcept = default;
+		LogMessage(const char* msg, MsgType t) noexcept;
+
+		char Msg[MAX_LEN];
+		MsgType Type;
+	};
+
 	void Init(Scene::Renderer::Interface& rendererInterface) noexcept;
 	int Run() noexcept;
 	void Abort() noexcept;
@@ -130,6 +148,9 @@ namespace ZetaRay::App
 
 	void LockStdOut() noexcept;
 	void UnlockStdOut() noexcept;
+
+	void Log(const char* msg, LogMessage::MsgType t) noexcept;
+	Util::RSynchronizedView<Util::Vector<App::LogMessage, App::FrameAllocator>> GetFrameLogs() noexcept;
 
 	struct ThreadAllocator
 	{

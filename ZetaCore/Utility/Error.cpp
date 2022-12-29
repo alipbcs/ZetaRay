@@ -83,7 +83,7 @@ namespace dbg
 
         if (SymInitialize(process, NULL, TRUE) == FALSE)
         {
-            LOG(__FUNCTION__ ": Failed to call SymInitialize.");
+            LOG_CONSOLE(__FUNCTION__ ": Failed to call SymInitialize.");
             return;
         }
 
@@ -130,7 +130,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                LOG(__FUNCTION__ ": Failed to resolve address 0x%llX: %u\n", frame.AddrPC.Offset, error);
+                LOG_CONSOLE(__FUNCTION__ ": Failed to resolve address 0x%llX: %u\n", frame.AddrPC.Offset, error);
                 f.name = "Unknown Function";
             }
 
@@ -146,7 +146,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                LOG(__FUNCTION__ ": Failed to resolve line for 0x%llX: %u\n", frame.AddrPC.Offset, error);
+                LOG_CONSOLE(__FUNCTION__ ": Failed to resolve line for 0x%llX: %u\n", frame.AddrPC.Offset, error);
                 f.line = 0;
             }
 

@@ -204,7 +204,7 @@ void ThreadPool::WorkerThread() noexcept
 	while (!m_start.load(std::memory_order_acquire));
 
 	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
-	LOG("Thread %u waiting for tasks...\n", tid);
+	LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
 
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
@@ -251,5 +251,5 @@ void ThreadPool::WorkerThread() noexcept
 		m_numTasksFinished.fetch_add(1, std::memory_order_release);
 	}
 
-	LOG("Thread %u exiting...\n", tid);
+	LOG_UI(INFO, "Thread %u exiting...\n", tid);
 }

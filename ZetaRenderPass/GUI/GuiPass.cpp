@@ -105,7 +105,9 @@ namespace
 //--------------------------------------------------------------------------------------
 
 GuiPass::GuiPass() noexcept
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS),
+	m_logMemArena(4 * 1024),
+	m_logs(m_logMemArena)
 {
 }
 
@@ -280,9 +282,8 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	directCmdList.SetPipelineState(m_pso);
 
-	RenderSettingsWindow();
-	RenderProfilerWindow();
-	RenderRenderGraphWindow();
+	RenderSettings();
+	RenderLogWindow();
 	ImGui::Render();
 	UpdateBuffers();
 
@@ -388,111 +389,129 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void GuiPass::RenderSettingsWindow() noexcept
+void GuiPass::RenderSettings() noexcept
 {
-	ImGui::SetNextWindowBgAlpha(0.85f);
+	const int displayWidth = App::GetRenderer().GetDisplayWidth();
+	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+
 	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f));
-	ImGui::SetWindowSize(ImVec2(0.19f * App::GetRenderer().GetDisplayWidth(), (float)App::GetRenderer().GetDisplayHeight() * 0.45f), 
+	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_FirstUseEver);
+	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight),
 		ImGuiCond_FirstUseEver);
 
-	ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
-	if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		if (ImGui::BeginTabItem("Camera"))
+		InfoTab();
+		ImGui::Text("");
+	}
+
+	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_None))
+	{
+		CameraTab();
+		ImGui::Text("");
+	}
+
+	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+	{
+		ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
+		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
 		{
-			CameraTab();
-			ImGui::EndTabItem();
-		}
-
-		if (ImGui::BeginTabItem("Parameters"))
-		{
-			ParameterTab();
-			ImGui::EndTabItem();
-		}
-
-		if (ImGui::BeginTabItem("Shader Hot-Reload"))
-		{
-			ShaderReloadTab();
-			ImGui::EndTabItem();
-		}
-
-		/*
-		if (ImGui::BeginTabItem("Colors"))
-		{
-			ImGuiStyle& style = ImGui::GetStyle();
-
-			//static ImGuiStyle ref_saved_style;
-
-			// Default to using internal storage as reference
-			//static bool init = true;
-			//if (init)
-			//	ref_saved_style = style;
-			//init = false;
-
-			static int output_dest = 0;
-			static bool output_only_modified = true;
-
-			ImGui::SameLine(); ImGui::SetNextItemWidth(120); ImGui::Combo("##output_type", &output_dest, "To Clipboard\0To TTY\0");
-			ImGui::SameLine(); ImGui::Checkbox("Only Modified Colors", &output_only_modified);
-
-			static ImGuiTextFilter filter;
-			filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
-
-			static ImGuiColorEditFlags alpha_flags = 0;
-			//if (ImGui::RadioButton("Opaque", alpha_flags == ImGuiColorEditFlags_None)) { alpha_flags = ImGuiColorEditFlags_None; } ImGui::SameLine();
-			//if (ImGui::RadioButton("Alpha", alpha_flags == ImGuiColorEditFlags_AlphaPreview)) { alpha_flags = ImGuiColorEditFlags_AlphaPreview; } ImGui::SameLine();
-			//if (ImGui::RadioButton("Both", alpha_flags == ImGuiColorEditFlags_AlphaPreviewHalf)) { alpha_flags = ImGuiColorEditFlags_AlphaPreviewHalf; } ImGui::SameLine();
-
-			ImGui::BeginChild("##colors", ImVec2(0, 0), true, ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_NavFlattened);
-			ImGui::PushItemWidth(-160);
-			for (int i = 0; i < ImGuiCol_COUNT; i++)
+			if (ImGui::BeginTabItem("Parameters"))
 			{
-				const char* name = ImGui::GetStyleColorName(i);
-				if (!filter.PassFilter(name))
-					continue;
-				ImGui::PushID(i);
-				ImGui::ColorEdit4("##color", (float*)&style.Colors[i], ImGuiColorEditFlags_AlphaBar | alpha_flags);
-				ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
-				ImGui::TextUnformatted(name);
-				ImGui::PopID();
+				ParameterTab();
+				ImGui::EndTabItem();
 			}
 
-			ImGui::PopItemWidth();
-			ImGui::EndChild();
+			if (ImGui::BeginTabItem("Shader Hot-Reload"))
+			{
+				ShaderReloadTab();
+				ImGui::EndTabItem();
+			}
 
-			ImGui::EndTabItem();
+			/*
+			if (ImGui::BeginTabItem("Colors"))
+			{
+				ImGuiStyle& style = ImGui::GetStyle();
+
+				//static ImGuiStyle ref_saved_style;
+
+				// Default to using internal storage as reference
+				//static bool init = true;
+				//if (init)
+				//	ref_saved_style = style;
+				//init = false;
+
+				static int output_dest = 0;
+				static bool output_only_modified = true;
+
+				ImGui::SameLine(); ImGui::SetNextItemWidth(120); ImGui::Combo("##output_type", &output_dest, "To Clipboard\0To TTY\0");
+				ImGui::SameLine(); ImGui::Checkbox("Only Modified Colors", &output_only_modified);
+
+				static ImGuiTextFilter filter;
+				filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
+
+				static ImGuiColorEditFlags alpha_flags = 0;
+				//if (ImGui::RadioButton("Opaque", alpha_flags == ImGuiColorEditFlags_None)) { alpha_flags = ImGuiColorEditFlags_None; } ImGui::SameLine();
+				//if (ImGui::RadioButton("Alpha", alpha_flags == ImGuiColorEditFlags_AlphaPreview)) { alpha_flags = ImGuiColorEditFlags_AlphaPreview; } ImGui::SameLine();
+				//if (ImGui::RadioButton("Both", alpha_flags == ImGuiColorEditFlags_AlphaPreviewHalf)) { alpha_flags = ImGuiColorEditFlags_AlphaPreviewHalf; } ImGui::SameLine();
+
+				ImGui::BeginChild("##colors", ImVec2(0, 0), true, ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_NavFlattened);
+				ImGui::PushItemWidth(-160);
+				for (int i = 0; i < ImGuiCol_COUNT; i++)
+				{
+					const char* name = ImGui::GetStyleColorName(i);
+					if (!filter.PassFilter(name))
+						continue;
+					ImGui::PushID(i);
+					ImGui::ColorEdit4("##color", (float*)&style.Colors[i], ImGuiColorEditFlags_AlphaBar | alpha_flags);
+					ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
+					ImGui::TextUnformatted(name);
+					ImGui::PopID();
+				}
+
+				ImGui::PopItemWidth();
+				ImGui::EndChild();
+
+				ImGui::EndTabItem();
+			}
+			*/
+
+			ImGui::EndTabBar();
 		}
-		*/
-		
-		ImGui::EndTabBar();
+
+		ImGui::Text("");
 	}
+
+	RenderProfiler();
 
 	ImGui::End();
 }
 
-void GuiPass::RenderProfilerWindow() noexcept
+void GuiPass::RenderProfiler() noexcept
 {
-	ImGui::SetNextWindowBgAlpha(0.95f);
-	ImGui::Begin("Profiler", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
-
-	const float w = App::GetRenderer().GetDisplayWidth() * 0.17f;
-	const float h = App::GetRenderer().GetDisplayHeight() * 0.7f;
-
-	ImGui::SetWindowPos(ImVec2(App::GetRenderer().GetDisplayWidth() - w, 0.0f), ImGuiCond_FirstUseEver);
-	ImGui::SetWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
+	const float w = App::GetRenderer().GetDisplayWidth() * m_dbgWndWidthPct;
+	//const float h = App::GetRenderer().GetDisplayHeight() * 0.7f;
 
 	auto& renderer = App::GetRenderer();
 	auto& timer = App::GetTimer();
-	ImGui::Text("Device: %s", renderer.GetDeviceDescription());
-	ImGui::Text("Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
-	ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
-	ImGui::Text("#Frame: %llu", timer.GetTotalFrameCount());
 
-	ImGui::Text("");
-
-	if (ImGui::CollapsingHeader("Stats"), ImGuiTreeNodeFlags_DefaultOpen)
+	if (ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_None))
 	{
+		//ImGui::Text("Device: %s", renderer.GetDeviceDescription());
+		//ImGui::Text("Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
+		//ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
+		ImGui::Text("Frame %llu", timer.GetTotalFrameCount());
+
+		ImGui::SameLine();
+		ImGui::Text("		");
+		ImGui::SameLine();
+
+		if (ImGui::Button("Visualize RenderGraph"))
+			m_showRenderGraph = true;
+
+		if (m_showRenderGraph)
+			RenderRenderGraph();
+
 		auto& stats = App::GetStats().View();
 
 		auto func = [](Stat& s)
@@ -500,19 +519,19 @@ void GuiPass::RenderProfilerWindow() noexcept
 			switch (s.GetType())
 			{
 			case Stat::ST_TYPE::ST_INT:
-				ImGui::Text("\t\t%s: %d", s.GetName(), s.GetInt());
+				ImGui::Text("\t%s: %d", s.GetName(), s.GetInt());
 				break;
 
 			case Stat::ST_TYPE::ST_UINT:
-				ImGui::Text("\t\t%s: %u", s.GetName(), s.GetUInt());
+				ImGui::Text("\t%s: %u", s.GetName(), s.GetUInt());
 				break;
 
 			case Stat::ST_TYPE::ST_FLOAT:
-				ImGui::Text("\t\t%s: %f", s.GetName(), s.GetFloat());
+				ImGui::Text("\t%s: %f", s.GetName(), s.GetFloat());
 				break;
 
 			case Stat::ST_TYPE::ST_UINT64:
-				ImGui::Text("\t\t%s: %llu", s.GetName(), s.GetUInt64());
+				ImGui::Text("\t%s: %llu", s.GetName(), s.GetUInt64());
 				break;
 
 			case Stat::ST_TYPE::ST_RATIO:
@@ -521,7 +540,7 @@ void GuiPass::RenderProfilerWindow() noexcept
 				uint32_t total;
 				s.GetRatio(num, total);
 
-				ImGui::Text("\t\t%s: %u/%u", s.GetName(), num, total);
+				ImGui::Text("\t%s: %u/%u", s.GetName(), num, total);
 			}
 			break;
 
@@ -532,11 +551,11 @@ void GuiPass::RenderProfilerWindow() noexcept
 
 		for (auto s : stats)
 			func(s);
+		
+		ImGui::Text(""); 
 	}
 
-	ImGui::Text("");
-
-	if (ImGui::CollapsingHeader("GPU Timings"), ImGuiTreeNodeFlags_DefaultOpen)
+	if (ImGui::CollapsingHeader("GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		auto frameTimeHist = App::GetFrameTimeHistory();
 		//double xs[128];
@@ -571,25 +590,94 @@ void GuiPass::RenderProfilerWindow() noexcept
 
 		GpuTimingsTab();
 	}
+}
+
+void GuiPass::RenderRenderGraph() noexcept
+{
+	ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_HorizontalScrollbar;
+	const ImGuiViewport* viewport = ImGui::GetMainViewport();
+	ImGui::SetNextWindowBgAlpha(0.8f);
+	ImGui::SetNextWindowPos(viewport->WorkPos);
+	ImGui::SetNextWindowSize(viewport->WorkSize);
+
+	if (ImGui::Begin("Render Graph (Use RMB for panning)", &m_showRenderGraph, flags))
+		App::GetScene().DebugDrawRenderGraph();
+	
+	ImGui::End();
+
+	////if(!ImGui::IsWindowCollapsed())
+	//App::GetScene().DebugDrawRenderGraph();
+
+	//ImGui::End();
+}
+
+void GuiPass::RenderLogWindow() noexcept
+{
+	{
+		auto& frameLogs = App::GetFrameLogs().View();
+		m_logs.append_range(frameLogs.begin(), frameLogs.end());
+	}
+
+	const int displayWidth = App::GetRenderer().GetDisplayWidth();
+	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+
+	if (ImGui::Begin("Logs", nullptr))
+	{
+		const float wndWidth = m_logWndWidthPct * displayWidth;
+		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
+
+		// TODO save the last position so that ImGuiCond_Always can be removed
+		ImGui::SetWindowPos(ImVec2(ceilf(m_dbgWndWidthPct * displayWidth), displayHeight - wndHeight), ImGuiCond_Always);
+		ImGui::SetWindowSize(ImVec2(wndWidth, wndHeight), ImGuiCond_FirstUseEver);
+
+		if (ImGui::Button("Clear"))
+			m_logs.clear();
+
+		ImGui::Separator();
+		ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
+
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+		char* buf;
+		char* buf_end;
+
+		std::partition(m_logs.begin(), m_logs.end(),
+			[](const App::LogMessage& m)
+			{
+				return m.Type == App::LogMessage::INFO;
+			}
+		);
+
+		// TODO consider using ImGuiListClipper
+		for (auto& msg : m_logs)
+		{
+			ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
+			ImGui::TextColored(color, msg.Msg);
+		}
+
+		ImGui::PopStyleVar();
+
+		if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+			ImGui::SetScrollHereY(1.0f);
+
+		ImGui::EndChild();
+	}
+	else
+		ImGui::SetWindowPos(ImVec2(ceilf(m_dbgWndWidthPct * displayWidth), (float)displayHeight), ImGuiCond_Always);
 
 	ImGui::End();
 }
 
-void GuiPass::RenderRenderGraphWindow() noexcept
+void GuiPass::InfoTab() noexcept
 {
-	const float x = 0.19f * App::GetRenderer().GetDisplayWidth();
-	const float w = 0.64f * App::GetRenderer().GetDisplayWidth();
-	const float h = (float)App::GetRenderer().GetDisplayHeight();
-
-	ImGui::SetNextWindowBgAlpha(0.8f);
-	ImGui::Begin("Render Graph (Use RMB for panning)", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::SetWindowPos(ImVec2(x, 0.0f), ImGuiCond_FirstUseEver);
-	ImGui::SetWindowSize(ImVec2(w, h), ImGuiCond_FirstUseEver);
-
-	//if(!ImGui::IsWindowCollapsed())
-	App::GetScene().DebugDrawRenderGraph();
-
-	ImGui::End();
+	auto& renderer = App::GetRenderer();
+	auto& timer = App::GetTimer();
+	ImGui::Text("Device: %s", renderer.GetDeviceDescription());
+	ImGui::Text("Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
+	ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
+	ImGui::Text("");
+	ImGui::Text("Controls:");
+	ImGui::Text("\t- WASD+LMB moves the camera and MMB to zoom in/out");
+	ImGui::Text("\t- MMB zooms in/out");
 }
 
 void GuiPass::CameraTab() noexcept
@@ -718,7 +806,7 @@ void GuiPass::GpuTimingsTab() noexcept
 
 	// When using ScrollX or ScrollY we need to specify a size for our table container!
 	// Otherwise by default the table will fit all available space, like a BeginChild() call.
-	ImVec2 outer_size = ImVec2(0.0f, TEXT_BASE_HEIGHT * 10);
+	ImVec2 outer_size = ImVec2(0.0f, TEXT_BASE_HEIGHT * 11);
 	if (ImGui::BeginTable("table_scrolly", 2, flags, outer_size))
 	{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
@@ -726,7 +814,7 @@ void GuiPass::GpuTimingsTab() noexcept
 		ImGui::TableSetupColumn("Delta (ms)", ImGuiTableColumnFlags_None);
 		ImGui::TableHeadersRow();
 
-		ImU32 row_bg_color = ImGui::GetColorU32(ImVec4(0.1f, 0.4f, 0.1f, 1.0f));
+		ImU32 row_bg_color = ImGui::GetColorU32(ImVec4(7.0f / 255, 26.0f / 255, 56.0f / 255, 1.0f));
 		ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0 + 0, row_bg_color);
 
 		for (int row = 0; row < m_cachedNumQueries; row++)

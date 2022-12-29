@@ -1,4 +1,4 @@
-#include "../App/App.h"
+#include "../App/Log.h"
 #include "../Support/MemoryPool.h"
 #include "../Support/FrameMemory.h"
 #include "../Utility/SynchronizedView.h"
@@ -57,10 +57,6 @@ namespace
 {
 	struct AppData
 	{
-		//static const int INITIAL_WINDOW_WIDTH = 1024;
-		//static const int INITIAL_WINDOW_HEIGHT = 576;
-		static const int INITIAL_WINDOW_WIDTH = 1536;
-		static const int INITIAL_WINDOW_HEIGHT = 864;
 #if defined(_DEBUG)
 		inline static constexpr const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Debug";
 		inline static constexpr const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Debug";
@@ -120,6 +116,7 @@ namespace
 		SRWLOCK m_paramUpdateLock = SRWLOCK_INIT;
 		SRWLOCK m_shaderReloadLock = SRWLOCK_INIT;
 		SRWLOCK m_statsLock = SRWLOCK_INIT;
+		SRWLOCK m_logLock = SRWLOCK_INIT;
 		
 		struct alignas(64) TaskSignal
 		{
@@ -133,6 +130,7 @@ namespace
 		bool m_isInitialized = false;
 
 		Motion m_frameMotion;
+		SmallVector<LogMessage, FrameAllocator> m_frameLogs;
 	};
 
 	AppData* g_app = nullptr;
@@ -224,13 +222,18 @@ namespace ZetaRay::AppImpl
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec4* colors = style.Colors;
 
-		colors[ImGuiCol_WindowBg] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 0.6f);
+		colors[ImGuiCol_WindowBg] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 1.0f);
 		//colors[ImGuiCol_TitleBgActive] = (ImVec4)ImColor::HSV(5 / 7.0f, 0.7f, 0.5f);
-		colors[ImGuiCol_TitleBgActive] = ImVec4(245 / 255.0f, 20 / 255.0f, 20 / 255.0f, 1.0f);
-		colors[ImGuiCol_TabActive] = ImVec4(8 / 255.0f, 47 / 255.0f, 144 / 255.0f, 1.0f);
-		colors[ImGuiCol_Tab] = ImVec4(7 / 255.0f, 14 / 255.0f, 24 / 255.0f, 1.0f);
-		colors[ImGuiCol_FrameBg] = ImVec4(6 / 255.0f, 14 / 255.0f, 6 / 255.0f, 1.0f);
-		//colors[ImGuiCol_TitleBgActive] = ImVec4(1.0f, 64 / 255.0f, 150 / 255.0f, 0.98f);
+		//colors[ImGuiCol_TitleBgActive] = ImVec4(4 / 255.0f, 4 / 255.0f, 4 / 255.0f, 1.0f);
+		colors[ImGuiCol_TitleBg] = ImVec4(26 / 255.0f, 26 / 255.0f, 26 / 255.0f, 1.0f);
+		colors[ImGuiCol_Tab] = ImVec4(9 / 255.0f, 10 / 255.0f, 14 / 255.0f, 1.0f);
+		colors[ImGuiCol_TabHovered] = ImVec4(40 / 255.0f, 42 / 255.0f, 47 / 255.0f, 1.0f);
+		colors[ImGuiCol_TabActive] = ImVec4(7 / 255.0f, 26 / 255.0f, 56 / 255.0f, 1.0f);
+		colors[ImGuiCol_TitleBgActive] = colors[ImGuiCol_TabActive];
+		colors[ImGuiCol_FrameBg] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
+		colors[ImGuiCol_Header] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
+		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
+		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
 
 		style.ScaleAllSizes((float)g_app->m_dpi / 96.0f);
 		style.FramePadding = ImVec2(7.0f, 3.0f);
@@ -292,7 +295,7 @@ namespace ZetaRay::AppImpl
 		CheckHR(g_app->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
 
 		//g_app->m_frameStats.emplace_back("Frame", "#Frames", g_app->m_timer.GetTotalFrameCount());
-		g_app->m_frameStats.emplace_back("Frame", "FrameTime", (float)frameTimeMs);
+		//g_app->m_frameStats.emplace_back("Frame", "FrameTime", (float)frameTimeMs);
 		//g_app->m_frameStats.emplace_back("Frame", "FrameTime Avg.", (float) movingAvg);
 		g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
 		g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
@@ -312,6 +315,9 @@ namespace ZetaRay::AppImpl
 	void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
 	{
 		UpdateStats();
+
+		if (g_app->m_timer.GetTotalFrameCount() > 1)
+			g_app->m_frameLogs.free_memory();
 
 		ImGuiUpdateMouse();
 		ImGui::NewFrame();
@@ -812,19 +818,25 @@ namespace ZetaRay::AppImpl
 			"ZetaRay",
 			WS_OVERLAPPEDWINDOW,
 			CW_USEDEFAULT, CW_USEDEFAULT,
-			AppData::INITIAL_WINDOW_WIDTH, AppData::INITIAL_WINDOW_HEIGHT,
+			CW_USEDEFAULT, CW_USEDEFAULT,
 			nullptr, nullptr,
 			instance,
 			nullptr);
 
 		CheckWin32(g_app->m_hwnd);
 
+		RECT workingArea;
+		CheckWin32(SystemParametersInfoA(SPI_GETWORKAREA, 0, &workingArea, 0));
+
 		SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
 		SetProcessDPIAware();
 		g_app->m_dpi = GetDpiForWindow(g_app->m_hwnd);
 
-		const int wndWidth = (int)((AppData::INITIAL_WINDOW_WIDTH * g_app->m_dpi) / 96.0f);
-		const int wndHeight = (int)((AppData::INITIAL_WINDOW_HEIGHT * g_app->m_dpi) / 96.0f);
+		const int monitorWidth = workingArea.right - workingArea.left;
+		const int monitorHeight = workingArea.bottom - workingArea.top;
+
+		const int wndWidth = (int)((monitorWidth * g_app->m_dpi) / 96.0f);
+		const int wndHeight = (int)((monitorHeight * g_app->m_dpi) / 96.0f);
 
 		SetWindowPos(g_app->m_hwnd, nullptr, 0, 0, wndWidth, wndHeight, 0);
 		ShowWindow(g_app->m_hwnd, SW_SHOWNORMAL);
@@ -905,6 +917,18 @@ namespace ZetaRay
 		Name[n] = '\0';
 
 		ID = XXH3_64bits(Name, n);
+	}
+
+	LogMessage::LogMessage(const char* msg, LogMessage::MsgType t) noexcept
+	{
+		const int n = Math::Min((int)strlen(msg), LogMessage::MAX_LEN - 1);
+		Assert(n > 0, "invalid log message.");
+
+		const char* logType = t == MsgType::INFO ? "INFO" : "WARNING";
+		Type = t;
+
+		stbsp_snprintf(Msg, LogMessage::MAX_LEN - 1, "[Frame %04d] [tid %05d] [%s] | %s",
+			g_app->m_timer.GetTotalFrameCount(), GetCurrentThreadId(), logType, msg);
 	}
 
 	void App::Init(Scene::Renderer::Interface& rendererInterface) noexcept
@@ -988,13 +1012,13 @@ namespace ZetaRay
 
 		//m_camera.Init(float3(-10.61f, 4.67f, -3.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 0.1f, true);
-		//g_app->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
-		//	Math::DegreeToRadians(75.0f), 0.1f, true);
+		g_app->m_camera.Init(float3(-5.61f, 4.67f, -0.25f), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.1f, true);
 		//m_camera.Init(float3(-1127.61f, 348.67f, 66.25f), App::GetRenderer().GetAspectRatio(), 
 		//	Math::DegreeToRadians(85.0f), 10.0f, true);
 		//m_camera.Init(float3(0.61f, 3.67f, 0.25f), App::GetRenderer().GetAspectRatio(), Math::DegreeToRadians(85.0f), 0.1f);
-		g_app->m_camera.Init(float3(6.4f, 1.69f, -5.44f), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.1f, true, float3(12.2f, 1.64f, -1.012f));
+		//g_app->m_camera.Init(float3(6.4f, 1.69f, -5.44f), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(12.2f, 1.64f, -1.012f));
 
 		// scene can now be initialized
 		g_app->m_scene.Init(rendererInterface);
@@ -1008,6 +1032,9 @@ namespace ZetaRay
 		App::AddParam(acc);
 
 		g_app->m_isInitialized = true;
+
+		LOG_UI(INFO, "Detected %d physical cores...", g_app->m_processorCoreCount);
+		LOG_UI(INFO, "Work area on the primary display monitor is %dx%d...", g_app->m_displayWidth, g_app->m_displayHeight);
 	}
 
 	int App::Run() noexcept
@@ -1045,9 +1072,12 @@ namespace ZetaRay
 				// at this point, all worker tasks from the previous frame are done (GPU may still be executing those though)
 				g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
 
-				g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
-				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
-				g_app->m_frameMemory.Reset();		// set the offset to 0; essentially freeing the memory
+				if (g_app->m_timer.GetTotalFrameCount() > 1)
+				{
+					g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
+					memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+					g_app->m_frameMemory.Reset();		// set the offset to 0; essentially freeing the memory
+				}
 
 				// TODO remove
 				// background tasks are not necessarily done 
@@ -1467,5 +1497,17 @@ namespace ZetaRay
 	{
 		auto& frameStats = g_app->m_frameTime;
 		return frameStats.FrameTimeHist;
+	}
+
+	void App::Log(const char* msg, LogMessage::MsgType t) noexcept
+	{
+		AcquireSRWLockExclusive(&g_app->m_logLock);
+		g_app->m_frameLogs.emplace_back(msg, t);
+		ReleaseSRWLockExclusive(&g_app->m_logLock);
+	}
+
+	Util::RSynchronizedView<Util::Vector<App::LogMessage, App::FrameAllocator>> App::GetFrameLogs() noexcept
+	{
+		return RSynchronizedView<Vector<LogMessage, FrameAllocator>>(g_app->m_frameLogs, g_app->m_logLock);;
 	}
 }

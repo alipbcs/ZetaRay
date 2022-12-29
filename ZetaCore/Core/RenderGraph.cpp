@@ -165,7 +165,7 @@ void RenderGraph::BeginFrame() noexcept
 	m_prevFramesNumResources = m_currResIdx.load(std::memory_order_relaxed);
 
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
-	m_numPassesPrevFrame = numNodes;
+	//m_numPassesPrevFrame = numNodes;
 	m_currRenderPassIdx.store(0, std::memory_order_relaxed);
 
 	// reset the producers
@@ -766,7 +766,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 void RenderGraph::DebugDrawGraph() noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
-	const bool needsReorder = m_numPassesPrevFrame != numNodes;
+	const bool needsReorder = m_numPassesLastTimeDrawn != numNodes;
 
 	ImNodes::BeginNodeEditor();
 
@@ -916,8 +916,10 @@ void RenderGraph::DebugDrawGraph() noexcept
 		idxInBatch++;
 	}
 
-	ImNodes::MiniMap(0.3f, ImNodesMiniMapLocation_BottomLeft);
+	ImNodes::MiniMap(0.3f, ImNodesMiniMapLocation_BottomRight);
 	ImNodes::EndNodeEditor();
+
+	m_numPassesLastTimeDrawn = numNodes;
 }
 
 #ifdef _DEBUG
@@ -962,6 +964,6 @@ void RenderGraph::Log() noexcept
 
 	formattedRenderGraph += '\n';
 
-	LOG(formattedRenderGraph.c_str());
+	LOG_CONSOLE(formattedRenderGraph.c_str());
 }
 #endif

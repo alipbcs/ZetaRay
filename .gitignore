@@ -1,8 +1,8 @@
 /.vs
 /.vscode
 docs/
-Build/
-Bin/
+build/
+bin/
 External/
 Tools/
 Assets/
