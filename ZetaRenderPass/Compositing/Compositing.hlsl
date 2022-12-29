@@ -76,7 +76,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
-	if(depth == 0.0)
+	if (depth == 0.0)
 		return;
 
 	float3 color = 0.0.xxx;
@@ -107,7 +107,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);
 	
 	if (!g_local.SkipLighting && !g_local.DisplayDirectLightingOnly)
-	{	
+	{
 		Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx);
 
@@ -115,13 +115,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		float3 diffuseReflectance = baseColor * (1.0f - mr.x);
 	
 		// TODO account for Fresnel during denoising
-		#if 0
+#if 0
 			float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
 			float3 wh = normalize(wi + wo);
 			float whdotwo = saturate(dot(wh, wo)); // == hdotwi
 			float3 F = BRDF::FresnelSchlick(F0, whdotwo);
 			float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
-		#endif
+#endif
 
 		float3 f = diffuseReflectance * ONE_DIV_PI;
 		float3 integratedLiXndotwi = r.Li * r.GetW();

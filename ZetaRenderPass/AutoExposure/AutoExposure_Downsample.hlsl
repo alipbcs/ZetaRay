@@ -18,7 +18,7 @@ groupshared AU1 spdCounter;
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cbAutoExposure> g_local : register(b1);
+ConstantBuffer<cbAutoExposureDownsample> g_local : register(b1);
 globallycoherent RWStructuredBuffer<uint> g_spdGlobalAtomic : register(u0);
 
 //--------------------------------------------------------------------------------------

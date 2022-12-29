@@ -14,7 +14,7 @@ using namespace ZetaRay::Core;
 void PostProcessor::Init(const RenderSettings& settings, PostProcessData& data, const LightData& lightata) noexcept
 {
 	// Auto Exposure
-	data.AutoExposurePass.Init();
+	data.AutoExposurePass.Init(AutoExposure::MODE::HISTOGRAM);
 
 	// Final Pass
 	data.FinalDrawPass.Init();

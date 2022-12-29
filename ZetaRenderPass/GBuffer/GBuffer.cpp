@@ -182,19 +182,6 @@ void GBufferPass::SetInstances(Span<MeshInstance> instances) noexcept
 			D3D12_RESOURCE_STATE_COMMON,
 			true);
 	}
-
-	// descriptor table needs to be recreated every frame
-	m_gpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((uint32_t)DESC_TABLE::COUNT);
-
-	Direct3DHelper::CreateBufferSRV(m_meshInstances,
-		m_gpuDescTable.CPUHandle((uint32_t)DESC_TABLE::MESH_INSTANCES_SRV),
-		sizeof(MeshInstance),
-		m_numMeshesThisFrame);
-
-	Direct3DHelper::CreateRawBufferUAV(m_indirectDrawArgs,
-		m_gpuDescTable.CPUHandle((uint32_t)DESC_TABLE::INDIRECT_ARGS_UAV),
-		sizeof(CommandSig),
-		m_numMeshesThisFrame);
 }
 
 void GBufferPass::Render(CommandList& cmdList) noexcept

@@ -70,15 +70,6 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		enum class DESC_TABLE
-		{
-			MESH_INSTANCES_SRV,
-			INDIRECT_ARGS_UAV,
-			COUNT
-		};
-
-		Core::DescriptorTable m_gpuDescTable;
-
 		Core::DefaultHeapBuffer m_zeroBuffer;		// for resetting the UAV counter to zero each frame
 		Core::DefaultHeapBuffer m_meshInstances;	// frustum-visible meshes in the scene
 		Core::DefaultHeapBuffer m_indirectDrawArgs;

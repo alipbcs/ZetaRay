@@ -242,7 +242,7 @@ namespace ZetaRay::DefaultRenderer
 		//g_data->m_frameConstants.SunDir = float3(0.6169695854187012, -0.6370740532875061, -0.4620445668697357);
 		g_data->m_frameConstants.SunDir.normalize();
 		//g_data->m_frameConstants.SunIlluminance = 50.0f;
-		g_data->m_frameConstants.SunIlluminance = 187.0f;
+		g_data->m_frameConstants.SunIlluminance = 20.0f;
 		// sun angular diamter ~ 0.545 degrees 
 		// 0.5 degrees == 0.0087266 radians 
 		// cos(0.0087266 / 2)
@@ -314,7 +314,7 @@ namespace ZetaRay::DefaultRenderer
 		}
 
 		ParamVariant rayOffset;
-		rayOffset.InitFloat("Renderer", "General", "RayOffset", 
+		rayOffset.InitFloat("Renderer", "SunShadow", "RayOffset", 
 			fastdelegate::FastDelegate1(&DefaultRenderer::RayOffset),
 			Defaults::RAY_T_OFFSET,
 			1e-4f,
@@ -335,7 +335,7 @@ namespace ZetaRay::DefaultRenderer
 				fastdelegate::FastDelegate1(&DefaultRenderer::ModifySunLux),
 				g_data->m_frameConstants.SunIlluminance,
 				1.0f,
-				1000.0f,
+				500.0f,
 				1.0f);
 			App::AddParam(p2);
 
