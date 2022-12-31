@@ -380,9 +380,7 @@ void TLAS::Render(CommandList& cmdList) noexcept
 
 	computeCmdList.PIXBeginEvent("TLAS_Build");
 	RebuildOrUpdateBLASes(computeCmdList);
-
-	//if(App::GetTimer().GetTotalFrameCount() < 10)
-		RebuildTLAS(computeCmdList);
+	RebuildTLAS(computeCmdList);
 	computeCmdList.PIXEndEvent();
 }
 
@@ -473,6 +471,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 
 	if (!m_tlasBuffer.GetResource() || m_tlasBuffer.GetDesc().Width < prebuildInfo.ResultDataMaxSizeInBytes)
 	{
+		// previous TLAS is released automatically with proper fence
 		m_tlasBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBuffer("TLAS",
 			prebuildInfo.ScratchDataSizeInBytes,
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
@@ -609,9 +608,9 @@ void TLAS::Clear() noexcept
 		buff.Clear();
 
 	m_framesMeshInstances.Reset();
+	m_tlasBuffer.Reset();
 	m_scratchBuff.Reset();
 	m_staticBLAS.Clear();
-	m_tlasBuffer.Reset();
 	m_tlasInstanceBuff.Reset();
 }
 
@@ -676,11 +675,19 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 	Assert(currInstance == numInstances, "bug");
 
 	const size_t sizeInBytes = numInstances * sizeof(RT::MeshInstance);
-	m_framesMeshInstances = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::RT_FRAME_MESH_INSTANCES,
-		sizeInBytes,
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-		false,
-		frameInstanceData.data());
+	auto& renderer = App::GetRenderer();
+
+	if (!m_framesMeshInstances.IsInitialized() || m_framesMeshInstances.GetDesc().Width < sizeInBytes)
+	{
+		m_framesMeshInstances = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::RT_FRAME_MESH_INSTANCES,
+			sizeInBytes,
+			D3D12_RESOURCE_STATE_COMMON,
+			false,
+			frameInstanceData.data());
+	}
+	else
+		// this is recorded now but submitted after last frame's submissions
+		renderer.GetGpuMemory().UploadToDefaultHeapBuffer(m_framesMeshInstances, sizeInBytes, frameInstanceData.data());
 
 	// register the shared resources
 	auto& r = App::GetRenderer().GetSharedShaderResources();

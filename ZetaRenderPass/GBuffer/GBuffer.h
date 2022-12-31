@@ -19,7 +19,6 @@ namespace ZetaRay::RenderPass
 		enum SHADER_IN_DESC
 		{
 			GBUFFERS_RTV,
-			PREV_DEPTH_BUFFER_SRV,
 			CURR_DEPTH_BUFFER_DSV,
 			COUNT
 		};
@@ -65,13 +64,13 @@ namespace ZetaRay::RenderPass
 
 		enum class COMPUTE_SHADERS
 		{
-			//DEPTH_PYRAMID,
+			DEPTH_PYRAMID,
 			OCCLUSION_CULLING,
 			COUNT
 		};
 
-		Core::DefaultHeapBuffer m_zeroBuffer;		// for resetting the UAV counter to zero each frame
-		Core::DefaultHeapBuffer m_meshInstances;	// frustum-visible meshes in the scene
+		Core::DefaultHeapBuffer m_zeroBuffer;			// for resetting the UAV counter to zero each frame
+		Core::DefaultHeapBuffer m_meshInstances;		// frustum-visible meshes in the scene
 		Core::DefaultHeapBuffer m_indirectDrawArgs;
 		uint32_t m_maxNumDrawCallsSoFar = 0;
 		uint32_t m_numMeshesThisFrame = 0;
@@ -94,7 +93,7 @@ namespace ZetaRay::RenderPass
 		ID3D12PipelineState* m_graphicsPso[(int)PSO::COUNT] = { 0 };
 
 		inline static constexpr const char* COMPILED_CS[(int)COMPUTE_SHADERS::COUNT] = {
-			//"DepthPyramid.cso",
+			"DepthPyramid_cs.cso",
 			"OcclusionCulling_cs.cso"
 		};
 

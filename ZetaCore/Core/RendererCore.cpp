@@ -300,7 +300,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 		});
 }
 
-DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() noexcept
+DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() const noexcept
 {
 	ComPtr<IDXGIOutput> pOutput;
 	CheckHR(m_deviceObjs.m_dxgiSwapChain->GetContainingOutput(&pOutput));
@@ -311,7 +311,7 @@ DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() noexcept
 	return desc;
 }
 
-uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) noexcept
+uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const noexcept
 {
 	uint64_t freq = uint64_t(-1);
 

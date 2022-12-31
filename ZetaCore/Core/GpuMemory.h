@@ -192,6 +192,7 @@ namespace ZetaRay::Core
 			D3D12_RESOURCE_STATES postCopyState,
 			bool allowUAV, 
 			void* data) noexcept;
+		void UploadToDefaultHeapBuffer(const DefaultHeapBuffer& buff, size_t sizeInBytes, void* data) noexcept;
 		void ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept;
 		void ReleaseTexture(Texture&& t) noexcept;
 

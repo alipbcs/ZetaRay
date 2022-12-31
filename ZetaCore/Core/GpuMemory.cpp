@@ -458,7 +458,7 @@ namespace ZetaRay::Core::Internal
 		}
 
 	private:
-		static constexpr size_t SHRINK_FREQUECNY = 10;
+		static constexpr size_t SHRINK_FREQUECNY = 8;
 		static constexpr size_t MIN_PAGE_SIZE = 64 * 1024;
 		static constexpr size_t MIN_ALLOC_SIZE = 64 * 1024;
 		static constexpr size_t ALLOCATOR_INDEX_SHIFT = 16; // start block sizes at 64KB
@@ -496,6 +496,8 @@ namespace ZetaRay::Core::Internal
 	{
 	public:
 		DefaultHeapManager() noexcept
+			: m_arena(256), 
+			m_relesedResources(m_arena)
 		{
 			auto* device = App::GetRenderer().GetDevice();
 			CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
@@ -543,6 +545,9 @@ namespace ZetaRay::Core::Internal
 				else
 					it++;
 			}
+
+			if (m_relesedResources.empty())
+				m_arena.Reset();
 		}
 
 	private:
@@ -583,7 +588,8 @@ namespace ZetaRay::Core::Internal
 			uint64_t FenceValWhenReleased;
 		};
 
-		SmallVector<ReleasedResource, App::ThreadAllocator> m_relesedResources;
+		MemoryArena m_arena;
+		SmallVector<ReleasedResource, ArenaAllocator> m_relesedResources;
 
 		uint64_t m_currFenceVal = 1;
 		ComPtr<ID3D12Fence> m_fence;
@@ -1291,6 +1297,15 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_
 		buff.GetResource(), data, sizeInBytes, postCopyState);
 
 	return buff;
+}
+
+void GpuMemory::UploadToDefaultHeapBuffer(const DefaultHeapBuffer& buff, size_t sizeInBytes, void* data) noexcept
+{
+	const int idx = GetIndexForThread();
+
+	auto desc = buff.GetDesc();
+	m_threadContext[idx].ResUploader->UploadBuffer(idx, *m_threadContext[idx].UploadHeap,
+		const_cast<DefaultHeapBuffer&>(buff).GetResource(), data, sizeInBytes, D3D12_RESOURCE_STATE_COMMON);
 }
 
 void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept

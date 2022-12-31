@@ -78,11 +78,18 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	// env. map SRV
 	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
-	frameConstsBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
-		Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT),
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
-		false,
-		&frameConsts);
+	const size_t sizeInBytes = Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
+	if (!frameConstsBuff.IsInitialized())
+	{
+		frameConstsBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
+			sizeInBytes,
+			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
+			false,
+			&frameConsts);
+	}
+	else
+		renderer.GetGpuMemory().UploadToDefaultHeapBuffer(frameConstsBuff, sizeInBytes, &frameConsts);
 
 	renderer.GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
 		frameConstsBuff);
@@ -467,7 +474,7 @@ namespace ZetaRay::DefaultRenderer
 		Light::Shutdown(g_data->m_lightData);
 		RayTracer::Shutdown(g_data->m_raytracerData);
 		PostProcessor::Shutdown(g_data->m_postProcessorData);
-
+		
 		g_data->m_frameConstantsBuff.Reset();
 		g_data->m_renderGraph.Shutdown();
 

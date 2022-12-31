@@ -156,15 +156,23 @@ void GBufferPass::SetInstances(Span<MeshInstance> instances) noexcept
 
 	m_numSingleSidedMeshes = (uint32_t)(split - instances.begin());
 
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
+	auto& renderer = App::GetRenderer();
+	auto& gpuMem = renderer.GetGpuMemory();
 
 	// TODO recreating every frame can be avoided if the existing one is large enough
 	const size_t meshInsBuffSizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
-	m_meshInstances = gpuMem.GetDefaultHeapBufferAndInit("GBufferMeshInstances",
-		meshInsBuffSizeInBytes,
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-		false,
-		instances.data());
+
+	if (!m_meshInstances.IsInitialized())
+	{
+		m_meshInstances = gpuMem.GetDefaultHeapBufferAndInit("GBufferMeshInstances",
+			meshInsBuffSizeInBytes,
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+			false,
+			instances.data());
+	}
+	else
+		// this is recorded now but submitted after last frame's submissions
+		gpuMem.UploadToDefaultHeapBuffer(m_meshInstances, meshInsBuffSizeInBytes, instances.data());
 
 	// avoid recreating the indirect args buffer if the existing one is large enough
 	if (m_maxNumDrawCallsSoFar < m_numMeshesThisFrame)

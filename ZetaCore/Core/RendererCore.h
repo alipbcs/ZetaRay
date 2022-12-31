@@ -40,15 +40,15 @@ namespace ZetaRay::Core
 		ZetaInline ID3D12Device8* GetDevice() { return m_deviceObjs.m_device.Get(); };
 		ZetaInline const char* GetDeviceDescription() { return m_deviceObjs.m_deviceName; }
 		ZetaInline IDXGIAdapter3* GetAdapter() { return m_deviceObjs.m_dxgiAdapter.Get(); }
-		DXGI_OUTPUT_DESC GetOutputMonitorDesc() noexcept;
-		uint64_t GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) noexcept;
+		DXGI_OUTPUT_DESC GetOutputMonitorDesc() const noexcept;
+		uint64_t GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const noexcept;
 
-		ZetaInline int GetRenderWidth() { return m_renderWidth; }
-		ZetaInline int GetRenderHeight() { return m_renderHeight; }
-		ZetaInline int GetDisplayWidth() { return m_displayWidth; }
-		ZetaInline int GetDisplayHeight() { return m_displayHeight; }
-		ZetaInline float GetAspectRatio() { return (float)m_renderWidth / m_renderHeight; }
-		ZetaInline int GetCurrentBackBufferIndex() { return m_currBackBuffIdx; }
+		ZetaInline int GetRenderWidth() const { return m_renderWidth; }
+		ZetaInline int GetRenderHeight() const { return m_renderHeight; }
+		ZetaInline int GetDisplayWidth() const { return m_displayWidth; }
+		ZetaInline int GetDisplayHeight() const { return m_displayHeight; }
+		ZetaInline float GetAspectRatio() const { return (float)m_renderWidth / m_renderHeight; }
+		ZetaInline int GetCurrentBackBufferIndex() const { return m_currBackBuffIdx; }
 		ZetaInline Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
 
 		ZetaInline GpuMemory& GetGpuMemory() { return m_gpuMemory; }
@@ -89,18 +89,18 @@ namespace ZetaRay::Core
 		//void WaitForCopyQueueOnComputeQueue(uint64_t v) noexcept;
 		void FlushAllCommandQueues() noexcept;
 
-		ZetaInline D3D12_VIEWPORT GetDisplayViewport() { return m_displayViewport; }
-		ZetaInline D3D12_RECT GetDisplayScissor() { return m_displayScissor; }
-		ZetaInline D3D12_VIEWPORT GetRenderViewport() { return m_renderViewport; }
-		ZetaInline D3D12_RECT GetRenderScissor() { return m_renderScissor; }
-		ZetaInline const Texture& GetCurrBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
-		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
+		ZetaInline D3D12_VIEWPORT GetDisplayViewport() const { return m_displayViewport; }
+		ZetaInline D3D12_RECT GetDisplayScissor() const { return m_displayScissor; }
+		ZetaInline D3D12_VIEWPORT GetRenderViewport() const { return m_renderViewport; }
+		ZetaInline D3D12_RECT GetRenderScissor() const { return m_renderScissor; }
+		ZetaInline const Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
+		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
-		ZetaInline bool IsTearingSupported() noexcept { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
-		ZetaInline int GetVSyncInterval() { return m_vsyncInterval; }
+		ZetaInline bool IsTearingSupported() const noexcept { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
+		ZetaInline int GetVSyncInterval() const { return m_vsyncInterval; }
 
 		ZetaInline Util::Span<D3D12_STATIC_SAMPLER_DESC> GetStaticSamplers() { return m_staticSamplers; };
-		ZetaInline int GlobaIdxForDoubleBufferedResources() noexcept { return m_globalDoubleBuffIdx; }
+		ZetaInline int GlobaIdxForDoubleBufferedResources() const noexcept { return m_globalDoubleBuffIdx; }
 
 	private:
 		void ResizeBackBuffers(HWND hwnd) noexcept;

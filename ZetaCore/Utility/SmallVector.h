@@ -270,7 +270,7 @@ namespace ZetaRay::Util
 			m_end++;
 		}
 
-		void append_range(const T* beg, const T* end) noexcept
+		void append_range(const T* beg, const T* end, bool exact = false) noexcept
 		{
 			if (!beg || !end || beg == end || beg > end)
 				return;
@@ -282,7 +282,8 @@ namespace ZetaRay::Util
 			if (currCapacity < oldSize + num)
 			{
 				size_t newCapacity = oldSize + num;
-				newCapacity = Math::Max(MIN_CAPACITY, newCapacity + (newCapacity >> 1));
+				newCapacity = !exact ? Math::Max(MIN_CAPACITY, newCapacity + (newCapacity >> 1)) : 
+					Math::Max(MIN_CAPACITY, newCapacity);
 
 				reserve(newCapacity);
 			}

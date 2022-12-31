@@ -41,16 +41,16 @@ void BVH::Node::InitAsLeaf(int base, int count, int parent) noexcept
 	Parent = parent;
 }
 
-void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::ThreadAllocator>& models, int base, int count,
+void BVH::Node::InitAsInternal(Span<BVH::BVHInput> instances, int base, int count,
 	int right, int parent) noexcept
 {
 	Assert(count, "Invalid args");
-	Assert(base + count <= models.size(), "Invalid args");
+	Assert(base + count <= instances.size(), "Invalid args");
 
-	v_AABB vBox(models[base].AABB);
+	v_AABB vBox(instances[base].AABB);
 
 	for (int i = base + 1; i < base + count; i++)
-		vBox = compueUnionAABB(vBox, v_AABB(models[i].AABB));
+		vBox = compueUnionAABB(vBox, v_AABB(instances[i].AABB));
 
 	AABB = store(vBox);
 	RightChild = right;
@@ -61,23 +61,31 @@ void BVH::Node::InitAsInternal(const Vector<BVH::BVHInput, App::ThreadAllocator>
 // BVH
 //--------------------------------------------------------------------------------------
 
+BVH::BVH() noexcept
+	: m_arena(4 * 1096),
+	m_instances(m_arena),
+	m_nodes(m_arena)
+{
+}
+
 void BVH::Clear() noexcept
 {
 	m_nodes.free_memory();
 	m_instances.free_memory();
 }
 
-void BVH::Build(Vector<BVHInput, App::ThreadAllocator>&& instances) noexcept
+void BVH::Build(Span<BVHInput> instances) noexcept
 {
 	if (instances.size() == 0)
 		return;
 
-	m_instances.swap(instances);
+	//m_instances.swap(instances);
+	m_instances.append_range(instances.begin(), instances.end(), true);
 	Assert(m_instances.size() < UINT32_MAX, "not supported");
-	const uint32_t numModels = (uint32_t)m_instances.size();
+	const uint32_t numInstances = (uint32_t)m_instances.size();
 
 	// special case when there's less than MAX_NUM_MODELS_PER_LEAF instances
-	if (m_instances.size() <= MAX_NUM_MODELS_PER_LEAF)
+	if (m_instances.size() <= MAX_NUM_INSTANCES_PER_LEAF)
 	{
 		m_nodes.resize(1);
 
@@ -94,10 +102,10 @@ void BVH::Build(Vector<BVHInput, App::ThreadAllocator>&& instances) noexcept
 		return;
 	}
 
-	const uint32_t MAX_NUM_NODES = (uint32_t)Math::CeilUnsignedIntDiv(4 * numModels, MAX_NUM_MODELS_PER_LEAF);
+	const uint32_t MAX_NUM_NODES = (uint32_t)Math::CeilUnsignedIntDiv(4 * numInstances, MAX_NUM_INSTANCES_PER_LEAF);
 	m_nodes.resize(MAX_NUM_NODES);
 
-	BuildSubtree(0, numModels, -1);
+	BuildSubtree(0, numInstances, -1);
 }
 
 int BVH::BuildSubtree(int base, int count, int parent) noexcept
@@ -107,7 +115,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 	Assert(!m_nodes[currNodeIdx].IsInitialized(), "invalid index");
 	
 	// create a leaf node and return
-	if (count <= MAX_NUM_MODELS_PER_LEAF)
+	if (count <= MAX_NUM_INSTANCES_PER_LEAF)
 	{
 		m_nodes[currNodeIdx].InitAsLeaf(base, count, parent);
 		return currNodeIdx;
@@ -158,7 +166,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 	uint32_t splitCount;
 
 	// split using SAH
-	if (count >= MIN_NUM_MODELS_SPLIT_SAH)
+	if (count >= MIN_NUM_INSTANCES_SPLIT_SAH)
 	{
 		Bin bins[NUM_SAH_BINS];
 		const float leftMostPlane = reinterpret_cast<float*>(&centroidAABB.Center)[splitAxis] - maxExtent;
@@ -347,7 +355,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 	return currNodeIdx;
 }
 
-void BVH::Update(Vector<BVHUpdateInput, App::FrameAllocator>&& instances) noexcept
+void BVH::Update(Span<BVHUpdateInput> instances) noexcept
 {
 	for (auto& [oldBox, newBox, id] : instances)
 	{

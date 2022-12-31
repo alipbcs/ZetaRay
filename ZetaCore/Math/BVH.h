@@ -6,8 +6,9 @@
 
 #pragma once
 
-#include "../Utility/SmallVector.h"
+#include "../Utility/Span.h"
 #include "../Math/CollisionTypes.h"
+#include "../Support/MemoryArena.h"
 #include "../App/App.h"
 
 namespace ZetaRay::Math
@@ -30,7 +31,7 @@ namespace ZetaRay::Math
 			uint64_t ID;
 		};
 
-		BVH() noexcept = default;
+		BVH() noexcept;
 		~BVH() noexcept = default;
 
 		BVH(BVH&&) = delete;
@@ -40,10 +41,10 @@ namespace ZetaRay::Math
 		void Clear() noexcept;
 
 		// Builds the BVH
-		void Build(Util::Vector<BVHInput, App::ThreadAllocator>&& instances) noexcept;
+		void Build(Util::Span<BVHInput> instances) noexcept;
 
 		// Updates the BVH for the given instance
-		void Update(Util::Vector<BVHUpdateInput, App::FrameAllocator>&& instances) noexcept;
+		void Update(Util::Span<BVHUpdateInput> instances) noexcept;
 
 		// Removes given model from the BVH
 		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
@@ -66,16 +67,16 @@ namespace ZetaRay::Math
 		}
 
 	private:
-		// maximum number of models that can be included in a leaf node
-		static constexpr int MAX_NUM_MODELS_PER_LEAF = 8;
-		static constexpr int MIN_NUM_MODELS_SPLIT_SAH = 10;
+		// maximum number of instances that can be included in a leaf node
+		static constexpr int MAX_NUM_INSTANCES_PER_LEAF = 8;
+		static constexpr int MIN_NUM_INSTANCES_SPLIT_SAH = 10;
 		static constexpr int NUM_SAH_BINS = 6;
 
 		struct alignas(64) Node
 		{
 			bool IsInitialized() noexcept { return Parent != -1; }
 			void InitAsLeaf(int base, int count, int parent) noexcept;
-			void InitAsInternal(const Util::Vector<BVH::BVHInput, App::ThreadAllocator>& models, int base, int count,
+			void InitAsInternal(Util::Span<BVH::BVHInput> instances, int base, int count,
 				int right, int parent) noexcept;
 			bool IsLeaf() const { return RightChild == -1; }
 
@@ -114,11 +115,13 @@ namespace ZetaRay::Math
 		// Finds the leaf node that contains the given instance. Returns -1 otherwise.
 		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx) noexcept;
 
-		// tree-hierarchy is stored as an array
-		Util::SmallVector<Node, App::ThreadAllocator> m_nodes;
+		Support::MemoryArena m_arena;
+
+		// tree hierarchy is stored as an array
+		Util::SmallVector<Node, Support::ArenaAllocator> m_nodes;
 
 		// array of inputs to build a BVH for. During BVH build, elements are moved around
-		Util::SmallVector<BVHInput, App::ThreadAllocator> m_instances;
+		Util::SmallVector<BVHInput, Support::ArenaAllocator> m_instances;
 
 		uint32_t m_numNodes = 0;
 	};
