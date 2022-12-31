@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Math/Common.h"
+#include "../Support/Memory.h"
 
 namespace ZetaRay::Util
 {
@@ -12,10 +13,12 @@ namespace ZetaRay::Util
 	//  - Iterators (pointers) are NOT stable; pointer to an entry found earlier might not be valid
 	//	  anymore due to subsequent insertions and possible resize.
 	//  - Not thread-safe
-	template<typename T>
+	template<typename T, typename Allocator = Support::SystemAllocator>
 	class HashTable
 	{
 		static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+		static_assert(Support::AllocType<Allocator>, "Allocator doesn't meet the requirements for AllocType.");
+		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be copy-constructible.");
 
 	public:
 
@@ -25,19 +28,37 @@ namespace ZetaRay::Util
 			T Val;
 		};
 
-		HashTable() noexcept = default;
-		explicit HashTable(size_t initaliSize) noexcept
+		HashTable(const Allocator& a = Allocator()) noexcept
+			: m_allocator(a)
+		{}
+
+		explicit HashTable(size_t initialSize, const Allocator& a = Allocator()) noexcept
+			: m_allocator(a)
 		{
 			static_assert(std::is_default_constructible_v<T>);
-			resize(initaliSize);
+			relocate(initialSize);
 		}
 
 		// TODO implement move & copy constructors/assignments
 		HashTable(const HashTable&) = delete;
 		HashTable& operator=(const HashTable&) = delete;
 
-		// returns NULL if element with given key is not found
-		// Note: in contrast to find(), find_entry() only return NULL when the table is empty
+		void resize(size_t n) noexcept
+		{
+			const size_t numBuckets = bucket_count();
+			if (n <= numBuckets)		// also covers when n == 0
+				return;
+
+			n = Math::Max(n, MIN_NUM_BUCKETS);
+
+			// n > #buckets, so the next power of 2 will necessarily respect the max load factor
+			n = Math::NextPow2(n);
+
+			relocate(n);
+		}
+
+		// returns NULL if an element with the given key is not found
+		// Note: in contrast to find(), find_entry() only returns NULL when the table is empty
 		T* find(uint64_t key) noexcept
 		{
 			Entry* e = find_entry(key);
@@ -48,41 +69,97 @@ namespace ZetaRay::Util
 		}
 
 		template<typename... Args>
-		Entry& emplace_or_assign(uint64_t key, Args&&... args) noexcept
+		bool emplace(uint64_t key, Args&&... args) noexcept
 		{
 			Assert(key != NULL_KEY, "Invalid key");
-			const size_t numBuckets = bucket_count();
-			const float load = load_factor();
-
-			if (!m_beg || load >= MAX_LOAD)
-				resize(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
 
 			Entry* elem = find_entry(key);
-			if (elem->Key == NULL_KEY)
+			if (!elem || elem->Key == NULL_KEY)
 			{
+				const size_t numBuckets = bucket_count();
+				const float load = load_factor();
+
+				if (!m_beg || load >= MAX_LOAD)
+					relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+
+				// find the new position to construct this Entry
+				elem = find_entry(key);
+				elem->Key = key;
+				new (&elem->Val) T(ZetaForward(args)...);
+
 				m_numEntries++;
 
-				if constexpr (!std::is_trivially_destructible_v<T>)
-					elem->Val.~T();
+				return true;
 			}
 
-			elem->Key = key;
-			new (&elem->Val) T(ZetaForward(args)...);
+			return false;
+		}
+
+		Entry& insert_or_assign(uint64_t key, const T& val) noexcept
+		{
+			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
+
+			Assert(key != NULL_KEY, "Invalid key");
+
+			Entry* elem = find_entry(key);
+			if (!elem || elem->Key == NULL_KEY)
+			{
+				const size_t numBuckets = bucket_count();
+				const float load = load_factor();
+
+				if (!m_beg || load >= MAX_LOAD)
+					relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+
+				// find the new position to insert this Entry
+				elem = find_entry(key);
+				elem->Key = key;
+
+				m_numEntries++;
+			}
+
+			new (&elem->Val) T(val);
 
 			return *elem;
 		}
 
-		size_t bucket_count() const noexcept
+		Entry& insert_or_assign(uint64_t key, T&& val) noexcept
+		{
+			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
+
+			Assert(key != NULL_KEY, "Invalid key");
+
+			Entry* elem = find_entry(key);
+			if (!elem || elem->Key == NULL_KEY)
+			{
+				const size_t numBuckets = bucket_count();
+				const float load = load_factor();
+
+				if (!m_beg || load >= MAX_LOAD)
+					relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+
+				// find the new position to insert this Entry
+				elem = find_entry(key);
+				elem->Key = key;
+
+				m_numEntries++;
+			}
+
+			new (&elem->Val) T(ZetaForward(val));
+
+			return *elem;
+		}
+
+		ZetaInline size_t bucket_count() const noexcept
 		{
 			return m_end - m_beg;
 		}
 
-		size_t size() const noexcept
+		ZetaInline size_t size() const noexcept
 		{
 			return m_numEntries;
 		}		
 		
-		float load_factor() const noexcept
+		ZetaInline float load_factor() const noexcept
 		{
 			// necessary to avoid divide-by-zero
 			if (empty())
@@ -91,7 +168,7 @@ namespace ZetaRay::Util
 			return (float)m_numEntries / bucket_count();
 		}
 
-		bool empty() const noexcept
+		ZetaInline bool empty() const noexcept
 		{
 			return m_end - m_beg == 0;
 		}
@@ -127,7 +204,8 @@ namespace ZetaRay::Util
 			// free the previously allocated memory
 			if(bucket_count())
 				//App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
-				_aligned_free(m_beg);
+				//_aligned_free(m_beg);
+				m_allocator.FreeAligned(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
 		}
 
 		void swap(HashTable& other) noexcept
@@ -135,17 +213,31 @@ namespace ZetaRay::Util
 			std::swap(m_beg, other.m_beg);
 			std::swap(m_end, other.m_end);
 			std::swap(m_numEntries, other.m_numEntries);
+			std::swap(m_allocator, other.m_allocator);
 		}
 
 		ZetaInline T& operator[](uint64_t key) noexcept
 		{
 			static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
 
-			Entry* e = find_entry(key);
-			if (!e || e->Key == NULL_KEY)
-				return emplace_or_assign(key).Val;
+			Entry* elem = find_entry(key);
+			if (!elem || elem->Key == NULL_KEY)
+			{
+				const size_t numBuckets = bucket_count();
+				const float load = load_factor();
 
-			return e->Val;
+				if (!m_beg || load >= MAX_LOAD)
+					relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+
+				// find the new position to insert this Entry
+				elem = find_entry(key);
+				elem->Key = key;
+				new (&elem->Val) T();
+
+				m_numEntries++;
+			}
+
+			return elem->Val;
 		}
 
 		ZetaInline Entry* begin_it() noexcept
@@ -174,8 +266,7 @@ namespace ZetaRay::Util
 			if (n == 0)
 				return nullptr;
 
-			Assert(Math::IsPow2(n), "#buckets must be a power of two");
-			const size_t origPos = key & (n - 1);	// == key % n
+			const size_t origPos = key & (n - 1);	// == key % n (n is a power of 2)
 			size_t nextPos = origPos;
 			Entry* curr = m_beg + origPos;
 
@@ -191,15 +282,15 @@ namespace ZetaRay::Util
 			return m_beg + nextPos;
 		}
 
-		void resize(size_t n) noexcept
+		void relocate(size_t n) noexcept
 		{
 			Assert(Math::IsPow2(n), "n must be a power of 2");
-			Assert(n > bucket_count(), "n must greater than current bucket count.");
+			Assert(n > bucket_count(), "n must be greater than the current bucket count.");
 			Entry* oldTable = m_beg;
 			const size_t oldBucketCount = bucket_count();
 
-			//m_beg = reinterpret_cast<Entry*>(App::AllocateFromMemoryPool(n * sizeof(Entry), alignof(Entry)));
-			m_beg = reinterpret_cast<Entry*>(_aligned_malloc(n * sizeof(Entry), alignof(Entry)));
+			//m_beg = reinterpret_cast<Entry*>(_aligned_malloc(n * sizeof(Entry), alignof(Entry)));
+			m_beg = reinterpret_cast<Entry*>(m_allocator.AllocateAligned(n * sizeof(Entry), alignof(Entry)));
 			// adjust the end pointer
 			m_end = m_beg + n;
 
@@ -226,7 +317,7 @@ namespace ZetaRay::Util
 				elem->Val = ZetaMove(curr->Val);
 			}
 
-			// destruct previous elements
+			// destruct previous elements (if necessary)
 			if constexpr (!std::is_trivially_destructible_v<Entry>)
 			{
 				for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
@@ -235,7 +326,9 @@ namespace ZetaRay::Util
 
 			// free the previously allocated memory
 			//App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
-			_aligned_free(oldTable);
+			//_aligned_free(oldTable);
+			if(oldTable)
+				m_allocator.FreeAligned(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
 		}
 
 		static constexpr size_t MIN_NUM_BUCKETS = 4;
@@ -243,8 +336,10 @@ namespace ZetaRay::Util
 		//static constexpr float GROWTH_RATE = 1.5f;
 		static constexpr uint64_t NULL_KEY = uint64_t(-1);
 
-		Entry* m_beg = nullptr;		// pointer to the begining of memory-block
-		Entry* m_end = nullptr;		// pointer to the end of memory-block
+		Entry* m_beg = nullptr;		// pointer to the begining of memory block
+		Entry* m_end = nullptr;		// pointer to the end of memory block
 		size_t m_numEntries = 0;
+
+		Allocator m_allocator;
 	};
 }
