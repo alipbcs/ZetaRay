@@ -58,10 +58,10 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
 
 	size_t blockSize = Math::Max(m_blockSize, size);
 
-	// memory allocs are 16-byte aligned by default; for larger alignments, at
-	// most alignment - 1 bytes are required
+	// memory allocs are 16-byte aligned by default -- for larger alignments, at
+	// most alignment - 1 extra bytes are required
 	if (alignment > 16)
-		blockSize = (blockSize + alignment - 1) & ~(alignment - 1);
+		blockSize = Math::AlignUp(blockSize + alignment - 1, alignment);
 
 	MemoryBlock memBlock(blockSize);
 
