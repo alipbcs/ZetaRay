@@ -19,8 +19,6 @@ RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nCons
 {
 	Assert((nCBV + nSRV + nUAV) * 2 + nConsts <= 64, "A maximum of 64 DWORDS can be present at root signature.");
 	Assert(nCBV + nSRV + nUAV + (nConsts > 0 ? 1 : 0) <= MAX_NUM_PARAMS, "Number of root parameters can't exceed MAX_NUM_PARAMS");
-	Assert(nCBV + nSRV + nUAV <= MAX_NUM_ROOT_DESCRIPTORS,
-		"Number of root descriptors can't exceed MAX_NUM_ROOT_DESCRIPTORS");
 	Assert(nConsts <= MAX_NUM_ROOT_CONSTANTS, "Number of root constants can't exceed MAX_NUM_ROOT_CONSTANTS");
 }
 
@@ -161,7 +159,7 @@ void RootSignature::Begin() noexcept
 	// set each global to modified only at the beginning of each frame
 	m_modifiedGlobalsBitMap = m_globalsBitMap;
 
-	memset(m_rootDescriptors, 0, sizeof(D3D12_GPU_VIRTUAL_ADDRESS) * MAX_NUM_ROOT_DESCRIPTORS);
+	memset(m_rootDescriptors, 0, sizeof(D3D12_GPU_VIRTUAL_ADDRESS) * MAX_NUM_PARAMS);
 }
 
 void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, void* data) noexcept

@@ -82,8 +82,8 @@ namespace ZetaRay::Core
 
 	private:
 		static constexpr int MAX_NUM_PARAMS = 10;
-		static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 9;
-		static constexpr int MAX_NUM_ROOT_CONSTANTS = 20;
+		//static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 9;
+		static constexpr int MAX_NUM_ROOT_CONSTANTS = 24;
 
 		const uint32_t m_numParams;
 		const uint32_t m_numCBVs;
@@ -111,7 +111,7 @@ namespace ZetaRay::Core
 		int m_rootConstantsIdx = -1;
 
 		// root descriptors
-		D3D12_GPU_VIRTUAL_ADDRESS m_rootDescriptors[MAX_NUM_ROOT_DESCRIPTORS] = { 0 };
+		D3D12_GPU_VIRTUAL_ADDRESS m_rootDescriptors[MAX_NUM_PARAMS] = { 0 };
 
 		// root constants data
 		uint32_t m_rootConstants[MAX_NUM_ROOT_CONSTANTS];
