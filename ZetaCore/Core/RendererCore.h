@@ -138,11 +138,11 @@ namespace ZetaRay::Core
 		D3D12_VIEWPORT m_renderViewport;
 		D3D12_RECT m_renderScissor;
 
-		D3D12_STATIC_SAMPLER_DESC m_staticSamplers[7];
+		D3D12_STATIC_SAMPLER_DESC m_staticSamplers[8];
 
 		ComPtr<ID3D12Fence> m_fence;
-		uint64_t m_fenceVals[Constants::NUM_BACK_BUFFERS] = { 0, 0, 0 };
-		uint64_t m_currFenceVal = 1;
+		uint64_t m_fenceVals[Constants::NUM_BACK_BUFFERS] = { 0 };
+		uint64_t m_nextFenceVal = 1;
 		HANDLE m_event;
 
 		GpuTimer m_gpuTimer;

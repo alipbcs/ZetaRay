@@ -246,8 +246,6 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 {
 	auto h0 = endFrameTS.EmplaceTask("Present", [this]()
 		{
-			const int currBackBuffIdx = m_currBackBuffIdx;
-
 			auto hr = m_deviceObjs.m_dxgiSwapChain->Present(m_vsyncInterval, m_presentFlags);
 			if (FAILED(hr))
 			{
@@ -267,8 +265,8 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 
 			// Schedule a Signal command in the queue.
 			// Set the fence value for the next frame.
-			m_fenceVals[currBackBuffIdx] = m_currFenceVal;
-			CheckHR(m_directQueue->GetCommandQueue()->Signal(m_fence.Get(), m_currFenceVal++));
+			m_fenceVals[m_currBackBuffIdx] = m_nextFenceVal;
+			CheckHR(m_directQueue->GetCommandQueue()->Signal(m_fence.Get(), m_nextFenceVal++));
 
 			// Update the back buffer index.
 			const int nextBackBuffidx = m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
@@ -419,7 +417,7 @@ void RendererCore::FlushAllCommandQueues() noexcept
 
 void RendererCore::InitStaticSamplers() noexcept
 {
-	D3D12_STATIC_SAMPLER_DESC pointWrap{};
+	D3D12_STATIC_SAMPLER_DESC pointWrap;
 	pointWrap.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	pointWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	pointWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -434,7 +432,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	pointWrap.RegisterSpace = 0;
 	pointWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC pointClamp{};
+	D3D12_STATIC_SAMPLER_DESC pointClamp;
 	pointClamp.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
 	pointClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	pointClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -449,7 +447,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	pointClamp.RegisterSpace = 0;
 	pointClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC linearWrap{};
+	D3D12_STATIC_SAMPLER_DESC linearWrap;
 	linearWrap.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	linearWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	linearWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -464,7 +462,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	linearWrap.RegisterSpace = 0;
 	linearWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC linearClamp{};
+	D3D12_STATIC_SAMPLER_DESC linearClamp;
 	linearClamp.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	linearClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	linearClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -479,7 +477,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	linearClamp.RegisterSpace = 0;
 	linearClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC anisotropicWrap{};
+	D3D12_STATIC_SAMPLER_DESC anisotropicWrap;
 	anisotropicWrap.Filter = D3D12_FILTER_ANISOTROPIC;
 	anisotropicWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	anisotropicWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -494,7 +492,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	anisotropicWrap.RegisterSpace = 0;
 	anisotropicWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC anisotropicClamp{};
+	D3D12_STATIC_SAMPLER_DESC anisotropicClamp;
 	anisotropicClamp.Filter = D3D12_FILTER_ANISOTROPIC;
 	anisotropicClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	anisotropicClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
@@ -509,7 +507,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	anisotropicClamp.RegisterSpace = 0;
 	anisotropicClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC imguiSampler = {};
+	D3D12_STATIC_SAMPLER_DESC imguiSampler;
 	imguiSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
 	imguiSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	imguiSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -524,6 +522,21 @@ void RendererCore::InitStaticSamplers() noexcept
 	imguiSampler.RegisterSpace = 0;
 	imguiSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
+	D3D12_STATIC_SAMPLER_DESC minPoint;
+	minPoint.Filter = D3D12_FILTER_MINIMUM_MIN_MAG_LINEAR_MIP_POINT;
+	minPoint.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	minPoint.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	minPoint.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+	minPoint.MipLODBias = 0;
+	minPoint.MaxAnisotropy = 16;
+	minPoint.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+	minPoint.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+	minPoint.MinLOD = 0.0f;
+	minPoint.MaxLOD = D3D12_FLOAT32_MAX;
+	minPoint.ShaderRegister = 7;
+	minPoint.RegisterSpace = 0;
+	minPoint.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
 	m_staticSamplers[0] = pointWrap;
 	m_staticSamplers[1] = pointClamp;
 	m_staticSamplers[2] = linearWrap;
@@ -531,6 +544,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	m_staticSamplers[4] = anisotropicWrap;
 	m_staticSamplers[5] = anisotropicClamp;
 	m_staticSamplers[6] = imguiSampler;
+	m_staticSamplers[7] = minPoint;
 }
 
 void RendererCore::SetVSync(const ParamVariant& p) noexcept
