@@ -7,7 +7,7 @@
 #include <Common/FrameConstants.h>
 #include <IndirectDiffuse/ReSTIR_GI.h>
 #include <Clear/Clear.h>
-#include <GBuffer/GBuffer.h>
+#include <GBuffer/GBufferPass.h>
 #include <SunShadow/SunShadow.h>
 #include <Sky/SkyDome.h>
 #include <Compositing/Compositing.h>
