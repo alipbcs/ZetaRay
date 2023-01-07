@@ -142,7 +142,7 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p->Level].m_toWorlds[p->Offset];
 		}
 
-		ZetaInline uint64_t GetMeshIDForInstance(uint64_t id) noexcept
+		ZetaInline uint64_t GetInstanceMeshID(uint64_t id) noexcept
 		{
 			TreePos* p = FindTreePosFromID(id);
 			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
@@ -150,7 +150,16 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p->Level].m_meshIDs[p->Offset];
 		}
 
-		ZetaInline Util::Span<uint64_t> GetFrameInstances() { return m_frameInstances; }
+		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id) noexcept
+		{
+			auto* e = m_instanceVisibilityIdx.find(id);
+			Assert(e, "instance with ID %llu was not found.", id);
+
+			return *e;
+		}
+
+		ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
+		ZetaInline Util::Span<Math::BVH::BVHInput> GetFrameInstances() { return m_frameInstances; }
 
 		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true) noexcept;
 
@@ -284,7 +293,8 @@ namespace ZetaRay::Scene
 		// instances
 		//
 
-		Util::SmallVector<uint64_t, App::FrameAllocator> m_frameInstances;
+		Util::SmallVector<Math::BVH::BVHInput, App::FrameAllocator> m_frameInstances;
+		Util::HashTable<uint32_t> m_instanceVisibilityIdx;
 
 		//
 		// assets

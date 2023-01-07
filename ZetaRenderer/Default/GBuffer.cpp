@@ -224,18 +224,20 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	SceneCore& scene = App::GetScene();
-	Span<uint64_t> frameInstances = scene.GetFrameInstances();
+	Span<Math::BVH::BVHInput> frameInstances = scene.GetFrameInstances();
 
-	SmallVector<MeshInstance, App::FrameAllocator> instances;
-	instances.resize(frameInstances.size());
+	SmallVector<MeshInstance, App::FrameAllocator> gbuffInstances;
+	gbuffInstances.resize(frameInstances.size());
 
 	{
 		size_t currInstance = 0;
 
-		for (auto instanceID : frameInstances)
+		for (const auto& instance : frameInstances)
 		{
-			instances[currInstance].PrevWorld = float3x4(scene.GetPrevToWorld(instanceID));
-			instances[currInstance].CurrWorld = float3x4(scene.GetToWorld(instanceID));
+			gbuffInstances[currInstance].PrevWorld = float3x4(scene.GetPrevToWorld(instance.ID));
+			gbuffInstances[currInstance].CurrWorld = float3x4(scene.GetToWorld(instance.ID));
+			gbuffInstances[currInstance].BoundingBox.Center = instance.AABB.Center;
+			gbuffInstances[currInstance].BoundingBox.Extents = instance.AABB.Extents;
 
 			currInstance++;
 		}
@@ -244,17 +246,29 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 	{
 		size_t currInstance = 0;
 
-		for (auto instanceID : frameInstances)
+		for (const auto& instance : frameInstances)
 		{
-			const uint64_t meshID = scene.GetMeshIDForInstance(instanceID);
+			const uint64_t meshID = scene.GetInstanceMeshID(instance.ID);
 			const TriangleMesh mesh = scene.GetMesh(meshID);
 			const Material mat = scene.GetMaterial(mesh.m_materialID);
 
-			instances[currInstance].IndexCount = mesh.m_numIndices;
-			instances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
-			instances[currInstance].BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
-			instances[currInstance].IdxInMatBuff = (uint16_t)mat.GpuBufferIndex();
-			instances[currInstance].IsDoubleSided = mat.IsDoubleSided();
+			gbuffInstances[currInstance].IndexCount = mesh.m_numIndices;
+			gbuffInstances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
+			gbuffInstances[currInstance].BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
+			gbuffInstances[currInstance].IdxInMatBuff = (uint16_t)mat.GpuBufferIndex();
+			gbuffInstances[currInstance].IsDoubleSided = mat.IsDoubleSided();
+
+			currInstance++;
+		}
+	}
+
+	{
+		size_t currInstance = 0;
+
+		for (const auto& instance : frameInstances)
+		{
+			const uint32_t visIdx = scene.GetInstanceVisibilityIndex(instance.ID);
+			gbuffInstances[currInstance].VisibilityIdx = visIdx;
 
 			currInstance++;
 		}
@@ -266,7 +280,7 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
 
-	gbuffData.GBuffPass.SetInstances(instances);
+	gbuffData.GBuffPass.Update(gbuffInstances, gbuffData.DepthBuffer[outIdx].GetResource());
 
 	// clear the gbuffers
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::BASE_COLOR,

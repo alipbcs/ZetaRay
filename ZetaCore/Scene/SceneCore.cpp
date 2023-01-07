@@ -113,7 +113,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 				m_rebuildBVHFlag = false;
 			}
 			else
-				m_bvh.Update(ZetaMove(toUpdateInstances));
+				m_bvh.Update(toUpdateInstances);
 
 			//m_frameInstances.clear();
 			m_frameInstances.free_memory();
@@ -122,8 +122,6 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			const Camera& camera = App::GetCamera();
 			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
 
-			//App::AddFrameStat("Scene", "#Instances", m_IDtoTreePos.size());
-			//App::AddFrameStat("Scene", "#FrustumCulled", m_IDtoTreePos.size() - m_frameInstances.size());
 			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
 		});
 
@@ -186,7 +184,6 @@ void SceneCore::Shutdown() noexcept
 	m_metalnessRougnessrTableOffsetToID.free();
 	m_emissiveTableOffsetToID.free();
 
-	m_frameInstances.free_memory();
 	m_prevToWorlds.free_memory();
 	m_sceneMetadata.free();
 	m_sceneGraph.free_memory();
@@ -324,9 +321,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		m_staleStaticInstances = true;
 	}
 	else
-	{
 		m_numDynamicInstances++;
-	}
 	
 	int treeLevel = 1;
 	int parentIdx = 0;
@@ -347,7 +342,8 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	// update the instance "dictionary"
 	{
 		Assert(m_IDtoTreePos.find(instanceID) == nullptr, "instance with id %llu already existed.", instanceID);
-		m_IDtoTreePos.emplace_or_assign(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
+		//m_IDtoTreePos.emplace(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
+		m_IDtoTreePos.insert_or_assign(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
 		// adjust the tree-positions of shifted instances
 		for(int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
@@ -492,27 +488,34 @@ float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
 
 void SceneCore::RebuildBVH() noexcept
 {
-	SmallVector<BVH::BVHInput, App::ThreadAllocator> allInstances;
+	SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
 
+	m_instanceVisibilityIdx.resize(m_IDtoTreePos.size());
+
 	const int numLevels = (int)m_sceneGraph.size();
+	uint32_t currInsIdx = 0;
 
 	for (int level = 1; level < numLevels; ++level)
 	{
 		for (int i = 0; i < m_sceneGraph[level].m_toWorlds.size(); ++i)
 		{
-			// find the Mesh of this instance
+			// find this intantce's Mesh
 			const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
 			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
 			v_float4x4 vM(m_sceneGraph[level].m_toWorlds[i]);
 
+			// transform AABB to world space
 			vBox = transform(vM, vBox);
+			const uint64_t insID = m_sceneGraph[level].m_IDs[i];
 
-			allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .ID = m_sceneGraph[level].m_IDs[i] });
+			allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .ID = insID });
+
+			m_instanceVisibilityIdx.emplace(insID, currInsIdx++);
 		}
 	}
 
-	m_bvh.Build(ZetaMove(allInstances));
+	m_bvh.Build(allInstances);
 }
 
 void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept

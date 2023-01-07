@@ -420,16 +420,16 @@ void BVH::Remove(uint64_t ID, const Math::AABB& AABB) noexcept
 
 void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 	const Math::float4x4a& viewToWorld, 
-	Vector<uint64_t, App::FrameAllocator>& visibleModelIDs)
+	Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs)
 {
-	// transform the view-frustum from the view-space into the world-space
+	// transform the view frustum from view space into world space
 	v_float4x4 vM(const_cast<float4x4a&>(viewToWorld));
 	v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
 	vFrustum = Math::transform(vM, vFrustum);
 
 	v_AABB vBox(m_nodes[0].AABB);
 
-	// can return early if root doesn't intersect the camera
+	// root doesn't intersect the camera
 	if (Math::instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
 		return;
 
@@ -454,7 +454,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 				vBox.Reset(m_instances[i].AABB);
 
 				if (Math::instersectFrustumVsAABB(vFrustum, vBox) != COLLISION_TYPE::DISJOINT)
-					visibleModelIDs.push_back(m_instances[i].ID);
+					visibleInstanceIDs.push_back(m_instances[i].ID);
 			}
 		}
 		else
@@ -484,6 +484,62 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 			visibleModelIDs.push_back(m_instances[i].ID);
 	}
 	*/
+}
+
+void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
+	const Math::float4x4a& viewToWorld,
+	Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs)
+{
+	// transform view frustum from view space into world space
+	v_float4x4 vM(const_cast<float4x4a&>(viewToWorld));
+	v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
+	vFrustum = Math::transform(vM, vFrustum);
+
+	v_AABB vBox(m_nodes[0].AABB);
+
+	// root doesn't intersect the camera
+	if (Math::instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
+		return;
+
+	// manual stack
+	constexpr int STACK_SIZE = 64;
+	int stack[STACK_SIZE];
+	int currStackIdx = 0;
+	stack[currStackIdx] = 0;		// insert root
+	int currNode = -1;
+
+	while (currStackIdx >= 0)
+	{
+		Assert(currStackIdx < 64, "Stack size exceeded maximum allowed.");
+
+		currNode = stack[currStackIdx--];
+		const Node& node = m_nodes[currNode];
+
+		if (node.IsLeaf())
+		{
+			for (int i = node.Base; i < node.Base + node.Count; i++)
+			{
+				vBox.Reset(m_instances[i].AABB);
+
+				if (Math::instersectFrustumVsAABB(vFrustum, vBox) != COLLISION_TYPE::DISJOINT)
+				{
+					visibleInstanceIDs.emplace_back(BVH::BVHInput{
+						.AABB = m_instances[i].AABB,
+						.ID = m_instances[i].ID });
+				}
+			}
+		}
+		else
+		{
+			vBox.Reset(node.AABB);
+
+			if (Math::instersectFrustumVsAABB(vFrustum, vBox) != COLLISION_TYPE::DISJOINT)
+			{
+				stack[++currStackIdx] = node.RightChild;
+				stack[++currStackIdx] = currNode + 1;
+			}
+		}
+	}
 }
 
 uint64_t BVH::CastRay(Math::Ray& r) noexcept

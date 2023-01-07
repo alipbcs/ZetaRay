@@ -49,11 +49,17 @@ namespace ZetaRay::Math
 		// Removes given model from the BVH
 		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
 		
-		// Returns ID of instances that are (at least partially) in the view-frustum. Assumes 
-		// view-frustum is in the view-space
+		// Returns ID of instances that at least partially overlap the view frustum. Assumes 
+		// the view frustum is in the view space
 		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
 			const Math::float4x4a& viewToWorld,
-			Util::Vector<uint64_t, App::FrameAllocator>& instanceIDs);
+			Util::Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs);
+
+		// Returns IDs & AABBs of instances that at least partially overlap the view frustum. Assumes 
+		// the view frustum is in the view space
+		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
+			const Math::float4x4a& viewToWorld,
+			Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
 
 		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
 		// be in world-space
