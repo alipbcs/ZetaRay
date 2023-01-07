@@ -105,9 +105,7 @@ namespace
 //--------------------------------------------------------------------------------------
 
 GuiPass::GuiPass() noexcept
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS),
-	m_logMemArena(4 * 1024),
-	m_logs(m_logMemArena)
+	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 }
 
@@ -394,12 +392,13 @@ void GuiPass::RenderSettings() noexcept
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 
-	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar);
-	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_FirstUseEver);
+	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
+	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
 	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight),
-		ImGuiCond_FirstUseEver);
+		ImGuiCond_Always);
 
-	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
+	//if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
 	{
 		InfoTab();
 		ImGui::Text("");
@@ -621,7 +620,7 @@ void GuiPass::RenderLogWindow() noexcept
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 
-	if (ImGui::Begin("Logs", nullptr))
+	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove))
 	{
 		const float wndWidth = m_logWndWidthPct * displayWidth;
 		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
@@ -781,15 +780,15 @@ void GuiPass::ParameterTab() noexcept
 
 void GuiPass::GpuTimingsTab() noexcept
 {
-	if (m_cachedTimings.empty() || App::GetTimer().GetTotalFrameCount() % 5 == 0)
+	if (App::GetTimer().GetTotalFrameCount() % 5 == 0)
 	{
-		auto& timings = App::GetRenderer().GetGpuTimer().GetFrameTimings(&m_cachedNumQueries);
+		auto timings = App::GetRenderer().GetGpuTimer().GetFrameTimings();
 		m_cachedTimings.clear();
 		m_cachedTimings.append_range(timings.begin(), timings.end());
 
-		if(m_cachedNumQueries > 0)
+		if(m_cachedTimings.size() > 0)
 		{
-			std::sort(m_cachedTimings.begin(), m_cachedTimings.begin() + m_cachedNumQueries,
+			std::sort(m_cachedTimings.begin(), m_cachedTimings.begin() + m_cachedTimings.size(),
 				[](const GpuTimer::Timing& t0, const GpuTimer::Timing& t1)
 				{
 					return strcmp(t0.Name, t1.Name) < 0;
@@ -797,7 +796,7 @@ void GuiPass::GpuTimingsTab() noexcept
 		}
 	}
 
-	if (m_cachedNumQueries == 0)
+	if (m_cachedTimings.empty())
 		return;
 
 	const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
@@ -817,7 +816,7 @@ void GuiPass::GpuTimingsTab() noexcept
 		ImU32 row_bg_color = ImGui::GetColorU32(ImVec4(7.0f / 255, 26.0f / 255, 56.0f / 255, 1.0f));
 		ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0 + 0, row_bg_color);
 
-		for (int row = 0; row < m_cachedNumQueries; row++)
+		for (int row = 0; row < (int)m_cachedTimings.size(); row++)
 		{
 			ImGui::TableNextRow();
 

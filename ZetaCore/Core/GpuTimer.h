@@ -2,7 +2,8 @@
 
 #include "../Core/Constants.h"
 #include "GpuMemory.h"
-#include "../Utility/SmallVector.h"
+#include "../Utility/Span.h"
+
 #include <atomic>
 
 namespace ZetaRay::Core
@@ -13,11 +14,11 @@ namespace ZetaRay::Core
 	{
 		struct alignas(32) Timing
 		{
-			void Reset() noexcept
-			{
-				Delta = -1;
-				Name[0] = '\0';
-			}
+			//void Reset() noexcept
+			//{
+			//	Delta = -1;
+			//	Name[0] = '\0';
+			//}
 
 			static constexpr int MAX_NAME_LENGTH = 16;
 
@@ -35,14 +36,7 @@ namespace ZetaRay::Core
 		void Init() noexcept;
 		void Shutdown() noexcept;
 
-		Util::Vector<Timing, App::ThreadAllocator>& GetFrameTimings(int* numQueries = nullptr) noexcept
-		{
-			int prevFrameIdx = m_currFrameIdx - 1 >= 0 ? m_currFrameIdx - 1 : Constants::NUM_BACK_BUFFERS - 1;
-			if (numQueries)
-				*numQueries = m_numQueryHist[prevFrameIdx];
-
-			return m_timings[prevFrameIdx];
-		}
+		Util::Span<Timing> GetFrameTimings() noexcept;
 
 		// call before recording commands for a particular command list
 		uint32_t BeginQuery(ComputeCmdList& cmdList, const char* name) noexcept;
@@ -54,21 +48,25 @@ namespace ZetaRay::Core
 		void BeginFrame() noexcept;
 
 		// call after all rendering commands for this frame have been submitted
-		bool EndFrame(ComputeCmdList& cmdList) noexcept;
+		void EndFrame(ComputeCmdList& cmdList) noexcept;
 
 	private:
-		static const int MAX_NUM_QUERIES = 32;
+		static const uint32_t MAX_NUM_QUERIES = 32;
 
 		ComPtr<ID3D12QueryHeap> m_queryHeap;
 		ReadbackHeapBuffer m_readbackBuff;
 
-		Util::SmallVector<Timing, App::ThreadAllocator> m_timings[Constants::NUM_BACK_BUFFERS];
-		std::atomic<int32_t> m_queryCount[Constants::NUM_BACK_BUFFERS] = { 0 };
+		Util::SmallVector<Timing, App::ThreadAllocator> m_timings[Constants::NUM_BACK_BUFFERS + 1];
+		int m_queryCounts[Constants::NUM_BACK_BUFFERS + 1] = { 0 };
+		std::atomic<int32_t> m_frameQueryCount;
 
 		UINT64 m_directQueueFreq;
 		UINT64 m_computeQueueFreq;
+		
 		int m_currFrameIdx = 0;
-
-		int m_numQueryHist[Constants::NUM_BACK_BUFFERS] = { 0 };
+		int m_nextCompletedFrameIdx = 0;
+		uint64_t m_fenceVals[Constants::NUM_BACK_BUFFERS] = { 0 };
+		uint64_t m_nextFenceVal = 1;
+		ComPtr<ID3D12Fence> m_fence;
 	};
 }

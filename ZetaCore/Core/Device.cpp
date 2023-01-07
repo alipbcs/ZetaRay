@@ -7,7 +7,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::App;
 
-// PIX crashes when debug layer is enabled
+// PIX crashes & NSight doesn't work when the debug layer is enabled
 #define ENABLE_DEBUG_LAYER
 
 void DeviceObjects::InitializeAdapter() noexcept
@@ -71,7 +71,8 @@ void DeviceObjects::CreateDevice() noexcept
 		//D3D12_MESSAGE_ID_LOADPIPELINE_INVALIDDESC,
 		D3D12_MESSAGE_ID_CREATEPIPELINELIBRARY_DRIVERVERSIONMISMATCH,
 		//D3D12_MESSAGE_ID_CREATEPIPELINELIBRARY_INVALIDLIBRARYBLOB,
-		D3D12_MESSAGE_ID_RESOLVE_QUERY_INVALID_QUERY_STATE	// TODO remove
+		//D3D12_MESSAGE_ID_RESOLVE_QUERY_INVALID_QUERY_STATE,
+		D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_GPU_WRITTEN_READBACK_RESOURCE_MAPPED
 	};
 
 	D3D12_INFO_QUEUE_FILTER filter{};

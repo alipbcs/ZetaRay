@@ -76,8 +76,7 @@ namespace ZetaRay::RenderPass
 		Core::DescriptorTable m_fontTexSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };
 
-		Util::SmallVector<Core::GpuTimer::Timing, App::ThreadAllocator> m_cachedTimings;
-		int m_cachedNumQueries = 0;
+		Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
 
 		int m_currShader = -1;
 		static constexpr float m_dbgWndWidthPct = 0.19;
@@ -87,7 +86,6 @@ namespace ZetaRay::RenderPass
 		bool m_isFullScreen = false;
 		bool m_showRenderGraph = false;
 
-		Support::MemoryArena m_logMemArena;
-		Util::SmallVector<App::LogMessage, Support::ArenaAllocator> m_logs;
+		Util::SmallVector<App::LogMessage> m_logs;
 	};
 }
