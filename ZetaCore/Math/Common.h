@@ -116,4 +116,30 @@ namespace ZetaRay::Math
 		size_t* offsets,
 		size_t* sizes,
 		size_t minNumElems = 0) noexcept;
+
+	// Ref: https://github.com/zeux/meshoptimizer/blob/master/src/meshoptimizer.h
+	inline uint16_t FloatToHalf(float v)
+	{
+		//union { float f; uint32_t ui; } u = { v };
+		//uint32_t ui = u.ui;
+		uint32_t ui;
+		memcpy(&ui, &v, sizeof(float));
+
+		int s = (ui >> 16) & 0x8000;
+		int em = ui & 0x7fffffff;
+
+		/* bias exponent and round to nearest; 112 is relative exponent bias (127-15) */
+		int h = (em - (112 << 23) + (1 << 12)) >> 13;
+
+		/* underflow: flush to zero; 113 encodes exponent -14 */
+		h = (em < (113 << 23)) ? 0 : h;
+
+		/* overflow: infinity; 143 encodes exponent 16 */
+		h = (em >= (143 << 23)) ? 0x7c00 : h;
+
+		/* NaN; note that we convert all types of NaN to qNaN */
+		h = (em > (255 << 23)) ? 0x7e00 : h;
+
+		return (uint16_t)(s | h);
+	}
 }

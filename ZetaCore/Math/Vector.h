@@ -157,25 +157,25 @@ namespace ZetaRay::Math
 	{
 		float4() noexcept = default;
 
-		constexpr explicit float4(float x) noexcept
-			: x(x),
-			y(x),
-			z(x),
-			w(x)
+		constexpr explicit float4(float f) noexcept
+			: x(f),
+			y(f),
+			z(f),
+			w(f)
 		{}
 
-		constexpr float4(float x, float y, float z, float w) noexcept
-			: x(x),
-			y(y),
-			z(z),
-			w(w)
+		constexpr float4(float fx, float fy, float fz, float fw) noexcept
+			: x(fx),
+			y(fy),
+			z(fz),
+			w(fw)
 		{}
 
-		constexpr float4(const float3& xyz, float w = 0.0f) noexcept
+		constexpr float4(const float3& xyz, float fw = 0.0f) noexcept
 			: x(xyz.x),
 			y(xyz.y),
 			z(xyz.z),
-			w(w)
+			w(fw)
 		{}
 
 		constexpr float4(const float2& xy, const float2& zw) noexcept
@@ -258,18 +258,18 @@ namespace ZetaRay::Math
 	{
 		float4a() noexcept = default;
 
-		constexpr explicit float4a(float x) noexcept
-			: x(x),
-			y(x),
-			z(x),
-			w(x)
+		constexpr explicit float4a(float f) noexcept
+			: x(f),
+			y(f),
+			z(f),
+			w(f)
 		{}
 
-		constexpr float4a(float x, float y, float z, float w) noexcept
-			: x(x),
-			y(y),
-			z(z),
-			w(w)
+		constexpr float4a(float fx, float fy, float fz, float fw) noexcept
+			: x(fx),
+			y(fy),
+			z(fz),
+			w(fw)
 		{}
 
 		constexpr float4a(float4 f) noexcept
@@ -290,6 +290,77 @@ namespace ZetaRay::Math
 		float y;
 		float z;
 		float w;
+	};
+
+	using half = uint16_t;
+
+	struct half2
+	{
+		half2() noexcept = default;
+
+		explicit half2(float f) noexcept
+		{
+			half h = FloatToHalf(f);
+			x = h;
+			y = h;
+		}
+
+		half2(float fx, float fy) noexcept
+			: x(FloatToHalf(fx)),
+			y(FloatToHalf(fy))
+		{}
+
+		half x;
+		half y;
+	};
+
+	struct half3
+	{
+		half3() noexcept = default;
+
+		explicit half3(float f) noexcept
+		{
+			half h = FloatToHalf(f);
+			x = h;
+			y = h;
+			z = h;
+		}
+
+		half3(float fx, float fy, float fz) noexcept
+			: x(FloatToHalf(fx)),
+			y(FloatToHalf(fy)),
+			z(FloatToHalf(fz))
+		{}
+
+		half x;
+		half y;
+		half z;
+	};
+
+	struct half4
+	{
+		half4() noexcept = default;
+
+		explicit half4(float f) noexcept
+		{
+			half h = FloatToHalf(f);
+			x = h;
+			y = h;
+			z = h;
+			w = h;
+		}
+
+		half4(float fx, float fy, float fz, float fw) noexcept
+			: x(FloatToHalf(fx)),
+			y(FloatToHalf(fy)),
+			z(FloatToHalf(fz)),
+			w(FloatToHalf(fw))
+		{}
+
+		half x;
+		half y;
+		half z;
+		half w;
 	};
 
 	//--------------------------------------------------------------------------------------

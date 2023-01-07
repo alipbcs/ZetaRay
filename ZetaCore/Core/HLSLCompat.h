@@ -5,21 +5,17 @@
 	#include <cstdint>
 	#include "../Math/Matrix.h"
 	
-	#define half_ uint16_t
-	#define half2(x) uint16_t x[2]
-	#define half3(x) uint16_t x[3]
-	#define half4(x) uint16_t x[4]
 	#define float2_ ZetaRay::Math::float2
 	#define float3_ ZetaRay::Math::float3
 	#define float4_ ZetaRay::Math::float4
 	#define float3x3_ ZetaRay::Math::float3x3
 	#define float3x4_ ZetaRay::Math::float3x4
 	#define float4x4_ ZetaRay::Math::float4x4a
+	#define half_ ZetaRay::Math::half
+	#define half2_ ZetaRay::Math::half2
+	#define half3_ ZetaRay::Math::half3
+	#define	uint4_(x) uint32_t x[4]
 #else
-	#define half_ half
-	#define half2_ half2
-	#define half3_ half3
-	#define half4_ half4
 	#define float2_ float2
 	#define float3_ float3
 	#define float4_ float4
@@ -28,10 +24,11 @@
 	#define float3x4_ float3x4
 	#define float4x3_ float4x3
 	#define float4x4_ float4x4
-	#define index_type INDEX_TYPE
+	#define half_ half
+	#define half2_ half2
+	#define half3_ half3
+	#define uint4_(x) uint4 x
 #endif
-
-#define INDEX_TYPE uint32_t
 
 #ifdef __cplusplus
 #define IN_PARAM(t) t&
@@ -42,10 +39,6 @@
 #define OUT_PARAM(t) out t
 #define CONST
 #endif // __cplusplus
-
-//#ifndef __cplusplus
-//static const uint INVALID_INDEX = uint(-1);
-//#endif
 
 #ifdef __cplusplus
 #ifndef row_major
