@@ -66,7 +66,7 @@ void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 		false, 
 		vertices.begin());
 
-	sizeInBytes = sizeof(INDEX_TYPE) * indices.size();
+	sizeInBytes = sizeof(uint32_t) * indices.size();
 	m_domeIndexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("DomeIndexBuffer", 
 		sizeInBytes,
 		D3D12_RESOURCE_STATE_INDEX_BUFFER, 
@@ -126,7 +126,7 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	directCmdList.RSSetViewportsScissorsRects(1, viewports, scissors);
 	directCmdList.OMSetRenderTargets(1, &m_descriptors[SHADER_IN_DESC::RTV], true, &m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER]);
 
-	directCmdList.DrawIndexedInstanced(m_ibv.SizeInBytes / sizeof(INDEX_TYPE), 1, 0, 0, 0);
+	directCmdList.DrawIndexedInstanced(m_ibv.SizeInBytes / sizeof(uint32_t), 1, 0, 0, 0);
 
 	// record the timestamp after execution
 	gpuTimer.EndQuery(directCmdList, queryIdx);

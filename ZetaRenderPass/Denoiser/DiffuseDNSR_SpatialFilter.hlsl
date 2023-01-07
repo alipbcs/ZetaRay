@@ -99,7 +99,7 @@ float2 GetWorldPosUVFromSurfaceLocalCoord(float3 pos, float3 normal, float2 xz, 
 	float4 q = Math::Transform::QuaternionFromY(normal);
 	samplePosW = pos + Math::Transform::RotateVector(posLocal, q);
 	
-	float4 posNDC = mul(float4(samplePosW, 1.0f), g_frame.CurrViewProj);
+	float4 posNDC = mul(g_frame.CurrViewProj, float4(samplePosW, 1.0f));
 	posNDC.xy /= posNDC.w;
 	posNDC.y = -posNDC.y;
 

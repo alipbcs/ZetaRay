@@ -301,13 +301,13 @@ void DiffuseDNSR::InitParams() noexcept
 		m_doSpatialFilter);
 	App::AddParam(enableSpatialFilter);
 
-	ParamVariant maxTSPP;
-	maxTSPP.InitInt("Renderer", "DiffuseDNSR", "MaxTSPP", fastdelegate::MakeDelegate(this, &DiffuseDNSR::MaxTSPPCallback),
-		DefaultParamVals::MaxTSPP,		// val
-		1,								// min
-		32,								// max
-		1);								// step
-	App::AddParam(maxTSPP);
+	//ParamVariant maxTSPP;
+	//maxTSPP.InitInt("Renderer", "DiffuseDNSR", "MaxTSPP", fastdelegate::MakeDelegate(this, &DiffuseDNSR::MaxTSPPCallback),
+	//	DefaultParamVals::MaxTSPP,		// val
+	//	1,								// min
+	//	32,								// max
+	//	1);								// step
+	//App::AddParam(maxTSPP);
 
 	ParamVariant bilinearMaxPlaneDist;
 	bilinearMaxPlaneDist.InitFloat("Renderer", "DiffuseDNSR", "BilinearMaxPlaneDist",
@@ -363,14 +363,14 @@ void DiffuseDNSR::InitParams() noexcept
 		1);											// step
 	App::AddParam(numSpatialFilterPasses);
 
-	ParamVariant baseRadius;
-	baseRadius.InitFloat("Renderer", "DiffuseDNSR", "FilterRadiusBase",
-		fastdelegate::MakeDelegate(this, &DiffuseDNSR::FilterRadiusBaseCallback),
-		DefaultParamVals::FilterRadiusBase,			// val	
-		1e-3f,										// min
-		1.0f,										// max
-		1e-3f);										// step
-	App::AddParam(baseRadius);
+	//ParamVariant baseRadius;
+	//baseRadius.InitFloat("Renderer", "DiffuseDNSR", "FilterRadiusBase",
+	//	fastdelegate::MakeDelegate(this, &DiffuseDNSR::FilterRadiusBaseCallback),
+	//	DefaultParamVals::FilterRadiusBase,			// val	
+	//	1e-3f,										// min
+	//	1.0f,										// max
+	//	1e-3f);										// step
+	//App::AddParam(baseRadius);
 
 	//ParamVariant radiusScale;
 	//radiusScale.InitFloat("Renderer", "DiffuseDNSR", "FilterRadiusScale",

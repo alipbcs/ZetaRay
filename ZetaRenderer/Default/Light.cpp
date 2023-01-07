@@ -167,13 +167,14 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 	RenderGraph& renderGraph) noexcept
 {
 	renderGraph.RegisterResource(data.HdrLightAccumTex.GetResource(), data.HdrLightAccumTex.GetPathID());
+
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
+	const bool isTLASbuilt = tlas.IsInitialized();
 
 	// sky view lut + inscattering
-	if (tlas.IsInitialized())
+	if (isTLASbuilt)
 	{
-		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyPass,
-			&Sky::Render);
+		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyPass, &Sky::Render);
 		data.SkyHandle = renderGraph.RegisterRenderPass("Sky", RENDER_NODE_TYPE::ASYNC_COMPUTE, dlg);
 
 		if (settings.Inscattering)
@@ -187,7 +188,7 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 	renderGraph.RegisterResource(skyviewLUT.GetResource(), skyviewLUT.GetPathID(), D3D12_RESOURCE_STATE_COMMON, false);
 
 	// sun shadow
-	if (tlas.IsInitialized())
+	if (isTLASbuilt)
 	{
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SunShadowPass,
 			&SunShadow::Render);
@@ -204,10 +205,9 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 	}
 
 	// skydome
-	if(tlas.IsInitialized())
+	if(isTLASbuilt)
 	{
-		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyDomePass,
-			&SkyDome::Render);
+		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyDomePass, &SkyDome::Render);
 		data.SkyDomeHandle = renderGraph.RegisterRenderPass("SkyDome", RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
@@ -222,11 +222,12 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
+	const bool isTLASbuilt = tlas.IsInitialized();
 
 	// inscattering + sky-view lut
-	if (settings.Inscattering && tlas.IsInitialized())
+	if (settings.Inscattering && isTLASbuilt)
 	{
-		// RT-AS
+		// RT_AS
 		renderGraph.AddInput(lightData.SkyHandle,
 			const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
@@ -241,9 +242,9 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 	}
 
 	// sun shadow
-	if (tlas.IsInitialized())
+	if (isTLASbuilt)
 	{
-		// RT-AS
+		// RT_AS
 		renderGraph.AddInput(lightData.SunShadowHandle,
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
@@ -279,7 +280,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 	}
 
 	// sky dome
-	if (tlas.IsInitialized())
+	if (isTLASbuilt)
 	{
 		// make sure it runs post gbuffer
 		renderGraph.AddInput(lightData.SkyDomeHandle, 
@@ -316,7 +317,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 		gbuffData.MetalnessRoughness[outIdx].GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	if (tlas.IsInitialized())
+	if (isTLASbuilt)
 	{
 		renderGraph.AddInput(lightData.CompositingHandle,
 			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST).GetPathID(),

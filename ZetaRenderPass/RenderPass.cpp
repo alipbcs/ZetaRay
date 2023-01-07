@@ -13,7 +13,7 @@ void RpObjects::Init(const char* name,
 {
 	const int prev = m_refCount++;
 
-	// initialize if object haven't been initialized yet
+	// don't init more than once
 	if (prev == 0)
 	{
 		rootSigInstance.Finalize(name, m_rootSig, (UINT)numStaticSamplers, samplers, flags);
@@ -39,7 +39,6 @@ void RpObjects::Clear() noexcept
 
 			WaitForSingleObject(handle, INFINITE);
 			CloseHandle(handle);
-
 		}
 
 		m_psoLib.ClearAndFlushToDisk();

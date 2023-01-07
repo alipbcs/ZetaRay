@@ -30,6 +30,11 @@ namespace ZetaRay::Util
 			m_size(N)
 		{}
 
+		ZetaInline bool empty() noexcept
+		{
+			return m_ptr != nullptr;
+		}
+
 		ZetaInline T* begin() noexcept
 		{
 			return m_ptr;

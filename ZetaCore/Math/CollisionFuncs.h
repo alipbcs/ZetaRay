@@ -67,7 +67,6 @@ namespace ZetaRay::Math
 		return vRet;
 	}
 
-	// Computes surface area of an AABB
 	ZetaInline float __vectorcall computeAABBSurfaceArea(v_AABB vBox) noexcept
 	{
 		const __m128 vEight = _mm_set1_ps(8.0f);
@@ -130,7 +129,7 @@ namespace ZetaRay::Math
 		return vO;
 	}
 
-	// Returns whether given AABB and plane intersect. Both must be in the same coordinate system
+	// Returns whether the given AABB and plane intersect. Both must be in the same coordinate system
 	ZetaInline bool __vectorcall intersectAABBvsPlane(const v_AABB vAABB, const __m128 vPlane) noexcept
 	{
 		// Seperating-axis theorem, use the plane Normal as the axis
@@ -142,8 +141,8 @@ namespace ZetaRay::Math
 		return r & 0xf;
 	}
 
-	// Returns whether given view-frustum contains or intersects given AABB.
-	// Assumes plane normals of frustum are already normalized.
+	// Returns whether the given view frustum contains or intersects the given AABB.
+	// Assumes plane normals of the frustum are already normalized.
 	ZetaInline COLLISION_TYPE __vectorcall instersectFrustumVsAABB(const v_ViewFrustum vFrustum, const v_AABB vBox) noexcept
 	{
 		// Seperating-axis theorem, use the plane Normal as the axis
@@ -179,13 +178,13 @@ namespace ZetaRay::Math
 		// (C.z, C.z, C.z, C.z, C.z, C.z, C.z, C.z)
 		const __m256 vCz256 = _mm256_insertf128_ps(_mm256_castps128_ps256(vCz), vCz, 0x1);
 
-		// compute the distance of that AABB center from the plane
+		// distance of the AABB center from the plane
 		__m256 vCenterDistFromPlane = _mm256_mul_ps(vCx256, vFrustum.vN_x);
 		vCenterDistFromPlane = _mm256_fmadd_ps(vCy256, vFrustum.vN_y, vCenterDistFromPlane);
 		vCenterDistFromPlane = _mm256_fmadd_ps(vCz256, vFrustum.vN_z, vCenterDistFromPlane);
 		vCenterDistFromPlane = _mm256_add_ps(vFrustum.vd, vCenterDistFromPlane);
 
-		// AABB is (at least partially) in the poistive half-space of plane. It may or may not intersect the plane
+		// AABB is (at least partially) in the poistive half-space of the plane. It may or may not intersect the plane
 		__m256 vIntersects1 = _mm256_cmp_ps(vCenterDistFromPlane, _mm256_setzero_ps(), _CMP_GE_OQ);
 		// AABB intersects the plane
 		__m256 vIntersects2 = _mm256_cmp_ps(vLargestProjLengthAlongAxis, abs(vCenterDistFromPlane), _CMP_GE_OQ);
@@ -387,7 +386,7 @@ namespace ZetaRay::Math
 		return newAABB;
 	}
 
-	// Transforms given view-frustum with a transformation matrix
+	// Transforms given view frustum with a transformation matrix
 	ZetaInline v_ViewFrustum __vectorcall transform(const v_float4x4 M, const v_ViewFrustum& vFrustum) noexcept
 	{
 		// In general, planes need to be transformed with the inverse-tranpose of a given transformation M

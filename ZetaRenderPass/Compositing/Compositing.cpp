@@ -62,12 +62,12 @@ void Compositing::Init() noexcept
 	m_localCB.SkipLighting = false;
 
 	ParamVariant p1;
-	p1.InitEnum("Renderer", "Settings", "Lighting", fastdelegate::MakeDelegate(this, &Compositing::ChangeLightingOptionCallback),
+	p1.InitEnum("Renderer", "General", "Lighting", fastdelegate::MakeDelegate(this, &Compositing::ChangeLightingOptionCallback),
 		Params::RenderOptions, ZetaArrayLen(Params::RenderOptions), 0);
 	App::AddParam(p1);
 
 	ParamVariant p5;
-	p5.InitBool("Renderer", "Settings", "RawIndirectDiffuse", fastdelegate::MakeDelegate(this, &Compositing::UseRawIndirectDiffuseCallback),
+	p5.InitBool("Renderer", "General", "RawIndirectDiffuse", fastdelegate::MakeDelegate(this, &Compositing::UseRawIndirectDiffuseCallback),
 		m_localCB.UseRawIndirectDiffuse);
 	App::AddParam(p5);
 

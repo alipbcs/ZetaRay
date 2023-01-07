@@ -13,8 +13,8 @@ namespace ZetaRay
 		row_major float4x4_ CurrProj;
 		row_major float3x4_ CurrView;
 		row_major float3x4_ PrevView;
-		row_major float4x4_ CurrViewProj;
-		row_major float4x4_ PrevViewProj;
+		float4x4_ CurrViewProj;
+		float4x4_ PrevViewProj;
 		row_major float3x4_ CurrViewInv;
 		row_major float3x4_ PrevViewInv;
 		//

@@ -71,10 +71,10 @@ VSOut mainVS(uint vtxID : SV_VertexID)
 	VSOut vsout;
 		
 	float3 posW = mul(mesh.CurrWorld, float4(vtx.PosL, 1.0f));
-	float4 posH = mul(float4(posW, 1.0f), g_frame.CurrViewProj);
+	float4 posH = mul(g_frame.CurrViewProj, float4(posW, 1.0f));
 
 	float4 prevPosH = float4(mul(mesh.PrevWorld, float4(vtx.PosL, 1.0f)), 1.0f);
-	prevPosH = mul(prevPosH, g_frame.PrevViewProj);
+	prevPosH = mul(g_frame.PrevViewProj, prevPosH);
 		
 	// W (4x3)
 	// W^T (3x4) = g_instance.CurrWorld

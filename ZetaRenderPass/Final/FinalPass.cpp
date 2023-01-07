@@ -70,7 +70,7 @@ void FinalPass::Init() noexcept
 	App::AddParam(p2);
 
 	ParamVariant p6;
-	p6.InitBool("Renderer", "Settings", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &FinalPass::VisualizeOcclusionCallback),
+	p6.InitBool("Renderer", "Display", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &FinalPass::VisualizeOcclusionCallback),
 		false);
 	App::AddParam(p6);
 

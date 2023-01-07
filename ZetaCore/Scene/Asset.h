@@ -126,7 +126,7 @@ namespace ZetaRay::Scene::Internal
 
 	struct MeshContainer
 	{
-		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<INDEX_TYPE> indices, uint64_t matID) noexcept;
+		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID) noexcept;
 		void RebuildBuffers() noexcept;
 		
 		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept
@@ -145,7 +145,7 @@ namespace ZetaRay::Scene::Internal
 	private:
 		Util::HashTable<Model::TriangleMesh> m_meshes;
 		Util::SmallVector<Core::Vertex, App::ThreadAllocator> m_vertices;
-		Util::SmallVector<INDEX_TYPE, App::ThreadAllocator> m_indices;
+		Util::SmallVector<uint32_t, App::ThreadAllocator> m_indices;
 
 		Core::DefaultHeapBuffer m_vertexBuffer;
 		Core::DefaultHeapBuffer m_indexBuffer;

@@ -196,10 +196,7 @@ namespace Math
 
 		float2 UVFromNDC(float2 posNDC)
 		{
-			float x = 0.5f * posNDC.x + 0.5f;
-			float y = -0.5f * posNDC.y + 0.5f;
-	
-			return float2(x, y);
+			return posNDC * float2(0.5, -0.5) + 0.5f;
 		}
 
 		float2 ScreenSpaceFromNDC(float2 posNDC, float2 screenDim)

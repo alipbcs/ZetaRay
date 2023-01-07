@@ -128,9 +128,9 @@ namespace ZetaRay::App
 	void RemoveShaderReloadHandler(const char* name) noexcept;
 	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, App::ThreadAllocator>> GetShaderReloadHandlers() noexcept;
 
-	// these could be implemented as a template function, but then the implementation has to be in the header,
+	// these could be implemented as template functions, but then the implementation has to be in the header,
 	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
-	// codebase, this will have a measurable impact on compile time
+	// codebase, this would have a measurable impact on the compile time.
 	void AddFrameStat(const char* group, const char* name, int i) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
 	void AddFrameStat(const char* group, const char* name, float f) noexcept;

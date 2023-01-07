@@ -308,13 +308,13 @@ namespace ZetaRay::DefaultRenderer
 			//App::AddParam(enableDenoiser);
 
 			ParamVariant enableInscattering;
-			enableInscattering.InitBool("Renderer", "Settings", "Inscattering",
+			enableInscattering.InitBool("Renderer", "General", "Inscattering",
 				fastdelegate::FastDelegate1(&DefaultRenderer::SetInscatteringEnablement),
 				g_data->m_settings.Inscattering);
 			App::AddParam(enableInscattering);
 
 			ParamVariant p6;
-			p6.InitEnum("Renderer", "Settings", "Upscaling/AA", 
+			p6.InitEnum("Renderer", "General", "Upscaling/AA", 
 				fastdelegate::FastDelegate1(&DefaultRenderer::SetAA),
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);

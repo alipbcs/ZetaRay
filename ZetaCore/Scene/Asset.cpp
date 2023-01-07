@@ -67,7 +67,7 @@ uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noex
 	Direct3DHelper::CreateTexture2DSRV(tex, descTpuHandle);
 
 	// add this texture to the cache
-	m_cache.emplace_or_assign(id, CacheEntry{ 
+	m_cache.insert_or_assign(id, CacheEntry{ 
 		.T = ZetaMove(tex), 
 		.DescTableOffset = freeSlot,
 		.RefCount = 1 });
@@ -163,7 +163,7 @@ void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
 
 	// copy to the GPU buffer
 	m_buffer.Copy(freeIdx * sizeof(Material), sizeof(Material), reinterpret_cast<void*>(&mat));
-	m_matTable.emplace_or_assign(id, mat);
+	m_matTable.insert_or_assign(id, mat);
 }
 
 void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept
@@ -208,12 +208,12 @@ void MaterialBuffer::Clear() noexcept
 // MeshContainer
 //--------------------------------------------------------------------------------------
 
-void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<INDEX_TYPE> indices, uint64_t matID) noexcept
+void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indices, uint64_t matID) noexcept
 {
 	const size_t vtxOffset = m_vertices.size();
 	const size_t idxOffset = m_indices.size();
 
-	m_meshes.emplace_or_assign(id, ZetaMove(vertices), vtxOffset, idxOffset, (uint32_t)indices.size(), matID);
+	m_meshes.emplace(id, ZetaMove(vertices), vtxOffset, idxOffset, (uint32_t)indices.size(), matID);
 
 	m_vertices.append_range(vertices.begin(), vertices.end());
 	m_indices.append_range(indices.begin(), indices.end());
@@ -228,7 +228,7 @@ void MeshContainer::RebuildBuffers() noexcept
 	m_vertexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, vbSizeInBytes,
 		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false, m_vertices.data());
 
-	const size_t ibSizeInBytes = sizeof(INDEX_TYPE) * m_indices.size();
+	const size_t ibSizeInBytes = sizeof(uint32_t) * m_indices.size();
 	m_indexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, ibSizeInBytes,
 		D3D12_RESOURCE_STATE_INDEX_BUFFER, false, m_indices.data());
 

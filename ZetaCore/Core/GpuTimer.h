@@ -20,7 +20,7 @@ namespace ZetaRay::Core
 			//	Name[0] = '\0';
 			//}
 
-			static constexpr int MAX_NAME_LENGTH = 16;
+			static constexpr int MAX_NAME_LENGTH = 20;
 
 			char Name[MAX_NAME_LENGTH];
 			double Delta;

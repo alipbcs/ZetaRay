@@ -100,7 +100,7 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 	m_gpuTimer.Init();
 
 	ParamVariant p0;
-	p0.InitBool("Renderer", "Settings", "VSync", fastdelegate::MakeDelegate(this, &RendererCore::SetVSync),
+	p0.InitBool("Renderer", "General", "VSync", fastdelegate::MakeDelegate(this, &RendererCore::SetVSync),
 		m_vsyncInterval > 0);
 	App::AddParam(p0);
 }
