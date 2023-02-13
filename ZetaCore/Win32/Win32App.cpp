@@ -78,6 +78,7 @@ namespace
 		int m_displayWidth;
 		int m_displayHeight;
 		bool m_isActive = true;
+		bool m_manuallyPaused = false;
 		int m_lastMousePosX = 0;
 		int m_lastMousePosY = 0;
 		int m_inMouseWheelMove = 0;
@@ -328,17 +329,13 @@ namespace ZetaRay::AppImpl
 		scale = g_app->m_frameMotion.Acceleration.z != 0 || g_app->m_frameMotion.Acceleration.x != 0 ?
 			fabsf(scale) : scale;
 
-		// 'W'
-		if (g_app->m_inMouseWheelMove || (GetAsyncKeyState(0x57) & (1 << 16)))
+		if (g_app->m_inMouseWheelMove || (GetAsyncKeyState('W') & (1 << 16)))
 			g_app->m_frameMotion.Acceleration.z = 1;
-		// 'A'
-		if (GetAsyncKeyState(0x41) & (1 << 16))
+		if (GetAsyncKeyState('A') & (1 << 16))
 			g_app->m_frameMotion.Acceleration.x = -1;
-		// 'S'
-		if (!g_app->m_inMouseWheelMove && (GetAsyncKeyState(0x53) & (1 << 16)))
+		if (!g_app->m_inMouseWheelMove && (GetAsyncKeyState('S') & (1 << 16)))
 			g_app->m_frameMotion.Acceleration.z = -1;
-		// 'D'
-		if (GetAsyncKeyState(0x44) & (1 << 16))
+		if (GetAsyncKeyState('D') & (1 << 16))
 			g_app->m_frameMotion.Acceleration.x = 1;
 
 		g_app->m_frameMotion.Acceleration.normalize(); 
@@ -476,6 +473,20 @@ namespace ZetaRay::AppImpl
 
 		if (!io.WantCaptureKeyboard)
 		{
+			if (GetAsyncKeyState('P') & (1 << 16))
+			{
+				if (g_app->m_isActive)
+				{
+					g_app->m_manuallyPaused = true;
+					AppImpl::OnDeactivated();
+				}
+				else
+				{
+					g_app->m_manuallyPaused = false;
+					AppImpl::OnActivated();
+				}
+			}
+
 			/*
 			switch (vkKey)
 			{
@@ -701,7 +712,7 @@ namespace ZetaRay::AppImpl
 		switch (message)
 		{
 		case WM_ACTIVATEAPP:
-			if (wParam)
+			if (wParam && !g_app->m_manuallyPaused)
 				AppImpl::OnActivated();
 			else
 				AppImpl::OnDeactivated();
@@ -717,7 +728,9 @@ namespace ZetaRay::AppImpl
 		case WM_EXITSIZEMOVE:
 			g_app->m_inSizeMove = false;
 			AppImpl::OnWindowSizeChanged();
-			AppImpl::OnActivated();
+
+			if(!g_app->m_manuallyPaused)
+				AppImpl::OnActivated();
 
 			return 0;
 
@@ -731,23 +744,19 @@ namespace ZetaRay::AppImpl
 				}
 				else if (wParam == SIZE_RESTORED)
 				{
-					if (g_app->m_minimized)
+					if (g_app->m_minimized && !g_app->m_manuallyPaused)
 						AppImpl::OnActivated();
 
 					AppImpl::OnWindowSizeChanged();
 				}
 				else if (wParam == SIZE_MAXIMIZED)
-				{
 					AppImpl::OnWindowSizeChanged();
-				}
 			}
 
 			return 0;
 
 		case WM_KEYDOWN:
-		case WM_KEYUP:
 		case WM_SYSKEYDOWN:
-		case WM_SYSKEYUP:
 			AppImpl::OnKeyboard(message, wParam, lParam);
 			return 0;
 
