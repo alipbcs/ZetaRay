@@ -118,7 +118,7 @@ namespace
 		SRWLOCK m_shaderReloadLock = SRWLOCK_INIT;
 		SRWLOCK m_statsLock = SRWLOCK_INIT;
 		SRWLOCK m_logLock = SRWLOCK_INIT;
-		
+
 		struct alignas(64) TaskSignal
 		{
 			std::atomic_int32_t Indegree;
@@ -132,6 +132,8 @@ namespace
 
 		Motion m_frameMotion;
 		SmallVector<LogMessage, FrameAllocator> m_frameLogs;
+
+		fastdelegate::FastDelegate0<> m_rebuildFontTexDlg;
 	};
 
 	AppData* g_app = nullptr;
@@ -139,6 +141,66 @@ namespace
 
 namespace ZetaRay::AppImpl
 {
+	void LoadFont() noexcept
+	{
+		ImGuiIO& io = ImGui::GetIO();
+		io.Fonts->Clear();
+
+		using getFontFP = FontSpan(*)(FONT_TYPE f);
+		HINSTANCE fontLib = LoadLibraryExA("Font", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
+		CheckWin32(fontLib);
+
+		auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
+		CheckWin32(fpGetFont);
+
+		FontSpan f = fpGetFont(FONT_TYPE::SEGOE_UI);
+		Assert(f.Data, "font was not found.");
+
+		constexpr float fontSizePixels96 = 13.6f;
+		const float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
+		io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, fontSizePixelsDPI);
+
+		FreeLibrary(fontLib);
+
+		// font texture is always built in the first frame
+		if (g_app->m_timer.GetTotalFrameCount() > 0)
+		{
+			Assert(!g_app->m_rebuildFontTexDlg.empty(), "delegate hasn't been set.");
+			g_app->m_rebuildFontTexDlg();
+		}
+	}
+
+	void OnActivated() noexcept
+	{
+		g_app->m_timer.Resume();
+		g_app->m_isActive = true;
+		SetWindowTextA(g_app->m_hwnd, "ZetaRay");
+	}
+
+	void OnDeactivated() noexcept
+	{
+		g_app->m_timer.Pause();
+		g_app->m_isActive = false;
+		SetWindowTextA(g_app->m_hwnd, "ZetaRay (Paused)");
+	}
+
+	void OnDPIChanged(int newDPI, const RECT* newRect) noexcept
+	{
+		g_app->m_dpi = newDPI;
+
+		SetWindowPos(g_app->m_hwnd, nullptr,
+			newRect->left,
+			newRect->top,
+			newRect->right - newRect->left,
+			newRect->bottom - newRect->top,
+			SWP_NOZORDER | SWP_NOACTIVATE);
+
+		LoadFont();
+
+		ImGuiStyle& style = ImGui::GetStyle();
+		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
+	}
+
 	void ImGuiUpdateMouseCursor() noexcept
 	{
 		ImGuiIO& io = ImGui::GetIO();
@@ -236,34 +298,21 @@ namespace ZetaRay::AppImpl
 		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
 		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
 
-		style.ScaleAllSizes((float)g_app->m_dpi / 96.0f);
 		style.FramePadding = ImVec2(7.0f, 3.0f);
 		style.GrabMinSize = 13.0f;
 		style.FrameRounding = 12.0f;
 		style.GrabRounding = style.FrameRounding;
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
+		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 
-		// load the font
-		using getFontFP = FontSpan(*)(FONT_TYPE f);
-		HINSTANCE fontLib = LoadLibraryExA("Font", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
-		CheckWin32(fontLib);
-
-		auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
-		CheckWin32(fpGetFont);
-
-		FontSpan f = fpGetFont(FONT_TYPE::SEGOE_UI);
-		Assert(f.Data, "font was not found.");
-
-		//io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;     // Enable Keyboard Controls
-		io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, 17.0f);
-
 		// TODO remove hard-coded path
 		io.IniFilename = "temp//imgui.ini";
 
-		FreeLibrary(fontLib);
+		io.UserData = &g_app->m_rebuildFontTexDlg;
+		LoadFont();
 	}
 
 	void UpdateStats() noexcept
@@ -338,24 +387,12 @@ namespace ZetaRay::AppImpl
 		if (GetAsyncKeyState('D') & (1 << 16))
 			g_app->m_frameMotion.Acceleration.x = 1;
 
-		g_app->m_frameMotion.Acceleration.normalize(); 
+		g_app->m_frameMotion.Acceleration.normalize();
 		g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
 		g_app->m_inMouseWheelMove = 0;
 		g_app->m_camera.Update(g_app->m_frameMotion);
 
 		g_app->m_scene.Update(g_app->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
-	}
-
-	void OnActivated() noexcept
-	{
-		g_app->m_timer.Resume();
-		g_app->m_isActive = true;
-	}
-
-	void OnDeactivated() noexcept
-	{
-		g_app->m_timer.Pause();
-		g_app->m_isActive = false;
 	}
 
 	void OnWindowSizeChanged() noexcept
@@ -365,10 +402,8 @@ namespace ZetaRay::AppImpl
 			RECT rect;
 			GetClientRect(g_app->m_hwnd, &rect);
 
-			//int newWidth = (int)((rect.right - rect.left) * 96.0f / m_dpi);
-			//int newHeight = (int)((rect.bottom - rect.top) * 96.0f / m_dpi);
-			int newWidth = rect.right - rect.left;
-			int newHeight = rect.bottom - rect.top;
+			const int newWidth = rect.right - rect.left;
+			const int newHeight = rect.bottom - rect.top;
 
 			if (newWidth == g_app->m_displayWidth && newHeight == g_app->m_displayHeight)
 				return;
@@ -729,7 +764,7 @@ namespace ZetaRay::AppImpl
 			g_app->m_inSizeMove = false;
 			AppImpl::OnWindowSizeChanged();
 
-			if(!g_app->m_manuallyPaused)
+			if (!g_app->m_manuallyPaused)
 				AppImpl::OnActivated();
 
 			return 0;
@@ -780,21 +815,9 @@ namespace ZetaRay::AppImpl
 			AppImpl::OnMouseWheel(message, wParam, lParam);
 			return 0;
 
-			// TODO test
 		case WM_DPICHANGED:
 		{
-			g_app->m_dpi = HIWORD(wParam);
-
-			RECT* const prcNewWindow = (RECT*)lParam;
-			SetWindowPos(hWnd, nullptr,
-				prcNewWindow->left,
-				prcNewWindow->top,
-				prcNewWindow->right - prcNewWindow->left,
-				prcNewWindow->bottom - prcNewWindow->top,
-				SWP_NOZORDER | SWP_NOACTIVATE);
-
-			// TODO font needs to be recreated
-
+			OnDPIChanged(HIWORD(wParam), reinterpret_cast<RECT*>(lParam));
 			return 0;
 		}
 
@@ -837,15 +860,14 @@ namespace ZetaRay::AppImpl
 		RECT workingArea;
 		CheckWin32(SystemParametersInfoA(SPI_GETWORKAREA, 0, &workingArea, 0));
 
-		SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
-		SetProcessDPIAware();
+		CheckWin32(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
 		g_app->m_dpi = GetDpiForWindow(g_app->m_hwnd);
 
 		const int monitorWidth = workingArea.right - workingArea.left;
 		const int monitorHeight = workingArea.bottom - workingArea.top;
 
-		const int wndWidth = (int)((monitorWidth * g_app->m_dpi) / 96.0f);
-		const int wndHeight = (int)((monitorHeight * g_app->m_dpi) / 96.0f);
+		const int wndWidth = (int)((monitorWidth * g_app->m_dpi) / USER_DEFAULT_SCREEN_DPI);
+		const int wndHeight = (int)((monitorHeight * g_app->m_dpi) / USER_DEFAULT_SCREEN_DPI);
 
 		SetWindowPos(g_app->m_hwnd, nullptr, 0, 0, wndWidth, wndHeight, 0);
 		ShowWindow(g_app->m_hwnd, SW_SHOWNORMAL);
@@ -892,7 +914,8 @@ namespace ZetaRay::AppImpl
 	void SetCameraAcceleration(const ParamVariant& p) noexcept
 	{
 		g_app->m_cameraAcceleration = p.GetFloat().m_val;
-	}}
+	}
+}
 
 namespace ZetaRay
 {
@@ -947,7 +970,7 @@ namespace ZetaRay
 
 		HINSTANCE instance = GetModuleHandleA(nullptr);
 		CheckWin32(instance);
-				
+
 		g_app = new (std::nothrow) AppData;
 
 		AppImpl::GetProcessorInfo();
@@ -1174,7 +1197,7 @@ namespace ZetaRay
 				g_app->m_workerThreadPool.PumpUntilEmpty();
 			}
 		}
-		
+
 		return (int)msg.wParam;
 	}
 
@@ -1371,13 +1394,13 @@ namespace ZetaRay
 
 	void App::LockStdOut() noexcept
 	{
-		if(g_app)
+		if (g_app)
 			AcquireSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 
 	void App::UnlockStdOut() noexcept
 	{
-		if(g_app)
+		if (g_app)
 			ReleaseSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 

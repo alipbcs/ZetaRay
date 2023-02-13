@@ -186,6 +186,8 @@ void PostProcessor::Update(const RenderSettings& settings, const GBufferData& gb
 		data.FinalDrawPass.SetGpuDescriptor(FinalPass::SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
 	}
+
+	data.GuiPass.Update();
 }
 
 void PostProcessor::Register(const RenderSettings& settings, PostProcessData& data, RenderGraph& renderGraph) noexcept

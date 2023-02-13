@@ -763,6 +763,8 @@ namespace ZetaRay::Core::Internal
 		void UploadTexture(int threadIdx, UploadHeapManager& uploadHeap, ID3D12Resource* dstResource,
 			uint8_t* pixels, D3D12_RESOURCE_STATES postCopyState) noexcept
 		{
+			Assert(m_inBeginEndBlock, "Can't call Upload on a closed ResourceUploadBatch.");
+
 			if (!m_directCmdList)
 			{
 				m_directCmdList = App::GetRenderer().GetGraphicsCmdList();

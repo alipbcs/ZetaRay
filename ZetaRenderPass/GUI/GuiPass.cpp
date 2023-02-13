@@ -116,25 +116,16 @@ GuiPass::~GuiPass() noexcept
 
 void GuiPass::Init() noexcept
 {
+	// [hack] RenderPasses and App should be decoupled -- in the event of adding/removing fonts,
+	// ImGui expects the font texture to be rebuilt before ImGui::NewFrame() is called, whereas 
+	// RenderPasses are updated later in the frame. As a workaround, store a delegate to rebuild 
+	// method so that App can call it directly
+	m_font.RebuildFontTexDlg = fastdelegate::MakeDelegate(this, &GuiPass::RebuildFontTex);
+
 	ImGuiIO& io = ImGui::GetIO();
+	io.UserData = reinterpret_cast<void*>(&m_font.RebuildFontTexDlg);
 
-	// Build texture atlas
-	unsigned char* pixels;
-	int width, height;
-	io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
-	auto* device = App::GetRenderer().GetDevice();
-
-	// Upload texture to graphics system
-	{
-		m_imguiFontTex = gpuMem.GetTexture2DAndInit("ImgGuiFontTex", width, height, DXGI_FORMAT_R8G8B8A8_UNORM, 
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, pixels);
-
-		m_fontTexSRV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
-
-		// Create texture view
-		Direct3DHelper::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));
-	}
+	RebuildFontTex();
 
 	// root signature
 	{
@@ -261,6 +252,27 @@ void GuiPass::UpdateBuffers() noexcept
 		const ImDrawList* cmd_list = draw_data->CmdLists[n];
 		fr.IndexBuffer.Copy(offset, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx), cmd_list->IdxBuffer.Data);
 		offset += cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx);
+	}
+}
+
+void GuiPass::Update() noexcept
+{
+	if (m_font.IsStale)
+	{
+		// Upload texture to GPU
+		Assert(m_font.Pixels, "pointer to pixels was NULL.");
+		Assert(m_font.Width && m_font.Height, "invalid texture dims.");
+
+		auto& gpuMem = App::GetRenderer().GetGpuMemory();
+		m_imguiFontTex = gpuMem.GetTexture2DAndInit("ImGuiFontTex", m_font.Width, m_font.Height, DXGI_FORMAT_R8G8B8A8_UNORM,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_font.Pixels);
+
+		m_fontTexSRV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
+
+		// Create texture view
+		Direct3DHelper::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));
+
+		m_font.IsStale = false;
 	}
 }
 
@@ -867,4 +879,12 @@ void GuiPass::ShaderReloadTab() noexcept
 	}
 
 	ImGui::PopStyleColor();
+}
+
+void GuiPass::RebuildFontTex() noexcept
+{
+	ImGuiIO& io = ImGui::GetIO();
+	io.Fonts->GetTexDataAsRGBA32(&m_font.Pixels, &m_font.Width, &m_font.Height);
+
+	m_font.IsStale = true;
 }

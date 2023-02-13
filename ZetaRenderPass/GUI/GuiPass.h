@@ -35,6 +35,7 @@ namespace ZetaRay::RenderPass
 			Assert(i < SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
 			m_cpuDescriptors[i] = h;
 		}
+		void Update() noexcept;
 		void Render(Core::CommandList& cmdList) noexcept;
 
 	private:
@@ -48,6 +49,7 @@ namespace ZetaRay::RenderPass
 		void ParameterTab() noexcept;
 		void GpuTimingsTab() noexcept;
 		void ShaderReloadTab() noexcept;
+		void RebuildFontTex() noexcept;
 
 		static constexpr int NUM_CBV = 0;
 		static constexpr int NUM_SRV = 0;
@@ -87,5 +89,16 @@ namespace ZetaRay::RenderPass
 		bool m_showRenderGraph = false;
 
 		Util::SmallVector<App::LogMessage> m_logs;
+
+		struct FontTex
+		{
+			fastdelegate::FastDelegate0<> RebuildFontTexDlg;
+			uint8_t* Pixels;
+			int Width;
+			int Height;
+			bool IsStale;
+		};
+
+		FontTex m_font;
 	};
 }
