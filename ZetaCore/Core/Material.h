@@ -90,7 +90,7 @@ static_assert((sizeof(ZetaRay::Material)& (16 - 1)) == 0);
 #ifndef __cplusplus
 #define BASE_COLOR_MAP Texture2D<half4>
 #define NORMAL_MAP Texture2D<float2>
-#define METALNESS_ROUGHNESS_MAP Texture2D<half3>
+#define METALNESS_ROUGHNESS_MAP Texture2D<half2>
 #define EMISSIVE_MAP Texture2D<half3>
 #endif
 

@@ -146,7 +146,7 @@ PS_OUT mainPS(VSOut psin)
 		NORMAL_MAP g_normalMap = ResourceDescriptorHeap[g_frame.NormalMapsDescHeapOffset + mat.NormalTexture];
 		float2 bumpNormal = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 		//float3 bumpNormal = g_normalMap.Sample(g_samAnisotropicWrap, psin.TexUV);
-
+		
 		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
 		
 		if (mat.IsDoubleSided())
@@ -161,9 +161,8 @@ PS_OUT mainPS(VSOut psin)
 	{
 		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture;
 		
-		// green & blue channels contain roughness and metalness respectively
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		half2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).bg;
+		half2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 
 		metalness *= mr.x;
 		roughness *= mr.y;
