@@ -61,8 +61,8 @@ add_dependencies(WinPixEventRuntimeLib CopyWinPixDLL)
 # 
 add_library(DX12AgilitySDK INTERFACE)
 set(DX12AgilitySDK_BIN
-	"${EXTERNAL_DIR}/D3D12/1.606.3/D3D12Core.dll"
-    "${EXTERNAL_DIR}/D3D12/1.606.3/d3d12SDKLayers.dll")
+	"${EXTERNAL_DIR}/D3D12/1.608.3/D3D12Core.dll"
+    "${EXTERNAL_DIR}/D3D12/1.608.3/d3d12SDKLayers.dll")
 
 Copy("${DX12AgilitySDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/" CopyDX12AgilitySDKBins)
 add_dependencies(DX12AgilitySDK CopyDX12AgilitySDKBins)

@@ -2,8 +2,8 @@
 
 #include "../App/ZetaRay.h"
 #include "../Win32/Win32.h"
-#include <D3D12/1.606.3/d3d12.h>
-#include <D3D12/1.606.3/dxgiformat.h>
+#include <D3D12/1.608.3/d3d12.h>
+#include <D3D12/1.608.3/dxgiformat.h>
 #include <dxgi1_6.h>
 
 #ifdef _DEBUG
