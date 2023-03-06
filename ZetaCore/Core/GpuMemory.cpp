@@ -751,9 +751,7 @@ namespace ZetaRay::Core::Internal
 				sizeInBytes);
 
 			// "decay" into the COMMON state
-			if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST &&
-				postCopyState != D3D12_RESOURCE_STATE_COMMON &&
-				postCopyState != D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
+			if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST)
 				m_directCmdList->ResourceBarrier(resource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
 
 			// Preserve the scratch buffer for as long as GPU is using it 
@@ -1177,7 +1175,7 @@ void GpuMemory::Recycle() noexcept
 	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
 		n += m_threadContext[i].ToReleaseTextures.size();
 
-	textures.resize(n);		// n = 0 is ok
+	textures.reserve(n);		// n = 0 is ok
 
 	for (int i = 0; i < numMainThreads + numBackgroundThreads; i++)
 	{
@@ -1207,7 +1205,7 @@ void GpuMemory::Recycle() noexcept
 		Task t("Releasing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
 			{
 				Assert(Textures.size() > 0, "input texture vec is empty");
-				// resources in textures are free'd now
+				// resources in textures are released now
 			});
 
 		App::SubmitBackground(ZetaMove(t));
@@ -1319,6 +1317,7 @@ void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept
 void GpuMemory::ReleaseTexture(Texture&& t) noexcept
 {
 	const int idx = GetIndexForThread();
+	Assert(t.m_resource, "Invalid texture.");
 
 	m_threadContext[idx].ToReleaseTextures.emplace_back(PendingTexture{
 			.Res = ZetaMove(t.m_resource),

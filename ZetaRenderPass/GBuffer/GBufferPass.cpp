@@ -42,7 +42,7 @@ GBufferPass::GBufferPass() noexcept
 	m_rootSig.InitAsBufferSRV(2,						// root idx
 		0,												// register
 		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC);		// flags
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);		// flags
 
 	// scene VB
 	m_rootSig.InitAsBufferSRV(3,						// root idx

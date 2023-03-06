@@ -77,7 +77,7 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 	m_rootSig.InitAsBufferSRV(7,						// root idx
 		6,												// register
 		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		GlobalResource::RT_FRAME_MESH_INSTANCES);
 	
