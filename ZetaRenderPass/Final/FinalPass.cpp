@@ -51,7 +51,7 @@ void FinalPass::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	auto samplers = App::GetRenderer().GetStaticSamplers();
+	auto samplers = renderer.GetStaticSamplers();
 	s_rpObjs.Init("Final", m_rootSig, samplers.size(), samplers.data(), flags);
 	CreatePSO();
 
@@ -75,6 +75,13 @@ void FinalPass::Init() noexcept
 	App::AddParam(p6);
 
 	App::AddShaderReloadHandler("Final", fastdelegate::MakeDelegate(this, &FinalPass::ReloadShaders));
+
+	App::Filesystem::Path p(App::GetAssetDir());
+	p.Append("LUT\\tony_mc_mapface.dds");
+	m_lut = renderer.GetGpuMemory().GetTexture3DFromDisk(p.Get());
+
+	m_lutSRV = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
+	Direct3DHelper::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
 }
 
 void FinalPass::Reset() noexcept
@@ -116,6 +123,7 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	m_cbLocal.SpatialReservoir_A_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_A];
 	m_cbLocal.SpatialReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B];
 	m_cbLocal.SpatialReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C];
+	m_cbLocal.LUTDescHeapIdx = m_lutSRV.GPUDesciptorHeapIndex(0);
 	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
 

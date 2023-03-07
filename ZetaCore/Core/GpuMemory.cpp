@@ -1475,6 +1475,42 @@ Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
 	return tex;
 }
 
+Texture GpuMemory::GetTexture3DFromDisk(const char* p) noexcept
+{
+	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
+	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
+	uint32_t width;
+	uint32_t height;
+	uint32_t depth;
+	uint16_t mipCount;
+	DXGI_FORMAT format;
+
+	auto* device = App::GetRenderer().GetDevice();
+	Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+
+	// not allowed to be RT or Depth-Stencil
+	Texture tex = GetTexture3D(p, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+
+	const int idx = GetIndexForThread();
+
+	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
+		tex.GetResource(),
+		0,
+		subresources.begin(),
+		(uint32_t)subresources.size(),
+		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+	/*
+		resourceUpload.Transition(
+			*texture,
+			D3D12_RESOURCE_STATE_COPY_DEST,
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	*/
+
+	return tex;
+}
+
 Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
 	D3D12_RESOURCE_STATES postCopyState, uint8_t* pixels, uint32_t flags) noexcept
 {

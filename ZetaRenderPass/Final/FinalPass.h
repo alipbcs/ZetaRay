@@ -2,6 +2,8 @@
 
 #include "../RenderPass.h"
 #include <Core/RootSignature.h>
+#include <Core/GpuMemory.h>
+#include <Core/DescriptorHeap.h>
 #include "FinalPass_Common.h"
 
 namespace ZetaRay::Core
@@ -70,7 +72,8 @@ namespace ZetaRay::RenderPass
 
 		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;
-
+		Core::Texture m_lut;
+		Core::DescriptorTable m_lutSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
 		uint32_t m_gpuDescs[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
 

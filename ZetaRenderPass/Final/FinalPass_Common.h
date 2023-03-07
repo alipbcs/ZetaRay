@@ -42,6 +42,7 @@ struct cbFinalPass
 	uint32_t SpatialReservoir_A_DescHeapIdx;
 	uint32_t SpatialReservoir_B_DescHeapIdx;
 	uint32_t SpatialReservoir_C_DescHeapIdx;
+	uint32_t LUTDescHeapIdx;
 };
 
 #endif // FINAL_PASS_H

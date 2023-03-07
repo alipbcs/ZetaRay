@@ -38,35 +38,6 @@ float3 ACESFilm(float3 x)
 	return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
 }
 
-// Ref: https://github.com/EmbarkStudios/kajiya/blob/main/crates/lib/rust-shaders/src/tonemap.rs
-float TonemapCurve(float v)
-{
-	return 1.0 - exp(-v);
-}
-
-float3 TonemapCurve(float3 v)
-{
-	return float3(TonemapCurve(v.r), TonemapCurve(v.g), TonemapCurve(v.b));
-}
-
-float3 NeutralTonemap(float3 linearColor)
-{
-	float3 ycbcr = Math::Color::LinearToYCbCr(linearColor);
-
-	float bt = TonemapCurve(length(ycbcr.yz) * 2.4);
-	float desat = max((bt - 0.7) * 0.8, 0.0);
-	desat *= desat;
-
-	float3 desat_col = lerp(linearColor, ycbcr.xxx, desat);
-
-	float tm_luma = TonemapCurve(ycbcr.x);
-	float3 tm0 = linearColor * max(0.0, tm_luma / max(1e-5, Math::Color::LuminanceFromLinearRGB(linearColor)));
-	float final_mult = 0.97;
-	float3 tm1 = TonemapCurve(desat_col);
-
-	return lerp(tm0, tm1, bt * bt) * final_mult;
-}
-
 // Ref: https://gist.github.com/da-molchanov/85b95ab3f20fa4eb5624f9b3b959a0ee
 // Copyright 2021 Dmitry Molchanov and Julia Molchanova
 // This code is licensed under the MIT license
@@ -106,6 +77,21 @@ float3 UE4Filmic(float3 linearColor)
 	return mul(POST_TONEMAPPING_TRANSFORM, WorkingColor);
 }
 
+// Ref: https://github.com/h3r2tic/tony-mc-mapface
+float3 tony_mc_mapface(float3 stimulus)
+{
+    // Apply a non-linear transform that the LUT is encoded with.
+	const float3 encoded = stimulus / (stimulus + 1.0);
+
+    // Align the encoded range to texel centers.
+	const float LUT_DIMS = 48.0;
+	const float3 uv = encoded * ((LUT_DIMS - 1.0) / LUT_DIMS) + 0.5 / LUT_DIMS;
+
+    // Note: for OpenGL, do `uv.y = 1.0 - uv.y`
+	Texture3D<float3> g_lut = ResourceDescriptorHeap[g_local.LUTDescHeapIdx];
+	return g_lut.SampleLevel(g_samLinearClamp, uv, 0);
+}
+
 //--------------------------------------------------------------------------------------
 // Vertex Shader
 //--------------------------------------------------------------------------------------
@@ -140,7 +126,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	else if (g_local.Tonemapper == (int) Tonemapper::UE4_FILMIC)
 		color = UE4Filmic(exposedColor);
 	else if (g_local.Tonemapper == (int) Tonemapper::NEUTRAL)
-		color = NeutralTonemap(exposedColor);
+		color = tony_mc_mapface(exposedColor);
 		
 	if (g_local.DisplayOption == (int) DisplayOption::DEPTH)
 	{

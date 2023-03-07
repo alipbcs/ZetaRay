@@ -212,6 +212,7 @@ namespace ZetaRay::Core
 			uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
 
 		Texture GetTexture2DFromDisk(const char* p) noexcept;
+		Texture GetTexture3DFromDisk(const char* p) noexcept;
 		Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
 			D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0) noexcept;
 
