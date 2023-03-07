@@ -33,7 +33,7 @@ namespace ZetaRay::Scene
 		~Camera() noexcept = default;
 
 		void Init(Math::float3 posw, float aspectRatio, float fov, float nearZ = 0.1f, bool jitter = false, 
-			Math::float3 focus = Math::float3(0.0f)) noexcept;
+			Math::float3 focusOrViewDir = Math::float3(0.0f), bool lookAt = true) noexcept;
 		void Update(const Motion& m) noexcept;
 		void OnWindowSizeChanged() noexcept;
 

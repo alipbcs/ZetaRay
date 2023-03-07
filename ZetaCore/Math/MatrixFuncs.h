@@ -299,8 +299,8 @@ namespace ZetaRay::Math
 		return vR;
 	}
 
-	// Returns a rotation matrix from the given unit quaternion. Assumes vQ is a unit quaternion
-	ZetaInline v_float4x4 __vectorcall rotationMatrixFromQuat(const __m128 vQ) noexcept
+	// Returns a rotation matrix from the given unit quaternion
+	ZetaInline v_float4x4 __vectorcall rotationMatFromQuat(const __m128 vQ) noexcept
 	{
 		// (q1^2, q2^2, q3^2, q4^2)
 		const __m128 vQ2 = _mm_mul_ps(vQ, vQ);
@@ -406,7 +406,7 @@ namespace ZetaRay::Math
 	ZetaInline v_float4x4 __vectorcall affineTransformation(float4a s, float4a q, float4a t) noexcept
 	{
 		v_float4x4 vS = scale(s);
-		v_float4x4 vR = rotationMatrixFromQuat(_mm_load_ps(reinterpret_cast<float*>(&q)));
+		v_float4x4 vR = rotationMatFromQuat(_mm_load_ps(reinterpret_cast<float*>(&q)));
 
 		v_float4x4 vM = mul(vS, vR);
 		vM.vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&t));
@@ -417,7 +417,7 @@ namespace ZetaRay::Math
 	ZetaInline v_float4x4 __vectorcall affineTransformation(const __m128 vS, const __m128 vQ, const __m128 vT) noexcept
 	{
 		v_float4x4 vScaleM = scale(vS);
-		v_float4x4 vRotM = rotationMatrixFromQuat(vQ);
+		v_float4x4 vRotM = rotationMatFromQuat(vQ);
 
 		v_float4x4 vM = mul(vScaleM, vRotM);
 		vM.vRow[3] = vT;
@@ -471,7 +471,35 @@ namespace ZetaRay::Math
 		vW = normalize(vW);
 		__m128 vU = cross(vUp, vW);
 		vU = normalize(vU);		
-		__m128 vV = cross(vW, vU);	// no need to normalize U
+		__m128 vV = cross(vW, vU);	// no need to normalize as ||vV|| = 1
+
+		vM.vRow[0] = vU;
+		vM.vRow[1] = vV;
+		vM.vRow[2] = vW;
+		vM = transpose(vM);
+
+		__m128 vTemp = _mm_mul_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(0, 0, 0, 0)), vM.vRow[0]);
+		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(1, 1, 1, 0)), vM.vRow[1], vTemp);
+		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(2, 2, 2, 0)), vM.vRow[2], vTemp);
+
+		vM.vRow[3] = _mm_insert_ps(minus(vTemp), vM.vRow[3], 0xf0);
+
+		return vM;
+	}
+
+	ZetaInline v_float4x4 __vectorcall lookToLH(float4a cameraPos, float4a viewDir, float4a up) noexcept
+	{
+		v_float4x4 vM = identity();
+
+		// builds a coordiante system uvw, where w is aligned with the camera direction
+		__m128 vCamPos = _mm_load_ps(reinterpret_cast<float*>(&cameraPos));
+		__m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&up));
+		__m128 vW = _mm_load_ps(reinterpret_cast<float*>(&viewDir));
+
+		vW = normalize(vW);
+		__m128 vU = cross(vUp, vW);
+		vU = normalize(vU);
+		__m128 vV = cross(vW, vU);	// no need to normalize as ||vV|| = 1
 
 		vM.vRow[0] = vU;
 		vM.vRow[1] = vV;

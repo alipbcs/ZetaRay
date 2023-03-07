@@ -24,6 +24,7 @@ set(CORE_SRC
 # ImGui
 set(IMGUI_DIR "${EXTERNAL_DIR}/imgui")
 set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
+	"${IMGUI_DIR}/imconfig.h"
 	"${IMGUI_DIR}/imgui_draw.cpp"
 	"${IMGUI_DIR}/imgui_tables.cpp"
 	"${IMGUI_DIR}/imgui_widgets.cpp"

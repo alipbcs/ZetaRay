@@ -2,7 +2,6 @@
 
 #include "../Math/Common.h"
 #include "../Support/Memory.h"
-#include "Error.h"
 #include <utility>	// std::swap
 
 namespace ZetaRay::Util

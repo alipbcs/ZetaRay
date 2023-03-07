@@ -48,7 +48,7 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     //const char* p = "bistro_v6\\bistro_v6.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
     //const char* p = "san_miguel\\san_miguel_v3.gltf";
-    Model::glTF::Load(p, false);
+    Model::glTF::Load(p);
 
     timer.End();
     App::FlushWorkerThreadPool();

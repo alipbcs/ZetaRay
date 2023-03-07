@@ -58,7 +58,7 @@ namespace
 // Camera
 //--------------------------------------------------------------------------------------
 
-void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focus) noexcept
+void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focusOrViewDir, bool lookAt) noexcept
 {
 	m_posW = float4a(posw, 1.0f);
 	m_FOV = fov;
@@ -73,9 +73,17 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
 	// "Ray Tracing Gems", ch. 20, eq. (30)
 	m_pixelSpreadAngle = atanf(2 * tanf(0.5f * m_FOV) / App::GetRenderer().GetRenderHeight());
-	float4a focus4(focus, 0.0f);
 
-	v_float4x4 vView = lookAtLH(m_posW, focus, m_upW);
+	v_float4x4 vView;
+
+	if (lookAt)
+		vView = lookAtLH(m_posW, focusOrViewDir, m_upW);
+	else
+	{
+		Assert(fabs(focusOrViewDir.x) + fabs(focusOrViewDir.y) + fabs(focusOrViewDir.z) > 1e-6, "(0, 0, 0) is not a valid view vector.");
+		vView = lookToLH(m_posW, focusOrViewDir, m_upW);
+	}
+	
 	m_view = store(vView);
 
 	// extract the basis vectors from the view matrix. make sure the 4th element is zero

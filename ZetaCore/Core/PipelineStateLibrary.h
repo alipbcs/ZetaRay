@@ -60,8 +60,8 @@ namespace ZetaRay::Core
 		App::Filesystem::Path m_psoLibPath1;
 		ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
 
-		Util::SmallVector<Entry, App::ThreadAllocator, 2> m_compiledPSOs;
-		Util::SmallVector<uint8_t, App::ThreadAllocator> m_cachedBlob;
+		Util::SmallVector<Entry, Support::SystemAllocator, 2> m_compiledPSOs;
+		Util::SmallVector<uint8_t> m_cachedBlob;
 		
 		bool m_foundOnDisk = false;
 		bool m_psoWasReset = false;

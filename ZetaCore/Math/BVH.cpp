@@ -102,7 +102,8 @@ void BVH::Build(Span<BVHInput> instances) noexcept
 		return;
 	}
 
-	const uint32_t MAX_NUM_NODES = (uint32_t)Math::CeilUnsignedIntDiv(4 * numInstances, MAX_NUM_INSTANCES_PER_LEAF);
+	// TODO check this computation
+	const uint32_t MAX_NUM_NODES = (uint32_t)Math::CeilUnsignedIntDiv(4 * numInstances, MAX_NUM_INSTANCES_PER_LEAF) + 1;
 	m_nodes.resize(MAX_NUM_NODES);
 
 	BuildSubtree(0, numInstances, -1);
