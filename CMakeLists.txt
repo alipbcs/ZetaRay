@@ -8,6 +8,9 @@ project(ZetaRay
     LANGUAGES CXX
     DESCRIPTION "A Physically-Based Hybrid Raster-Raytraced Renderer in DirectX 12")
 
+option(BUILD_TESTS "Build unit tests" ON)
+option(BUILD_TOOLS "Build tools" ON)
+
 # set output directories
 set(CMAKE_SUPPRESS_REGENERATION true)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_SOURCE_DIR}/bin")
@@ -83,4 +86,11 @@ add_subdirectory(ZetaCore)
 add_subdirectory(ZetaRenderPass)
 add_subdirectory(ZetaRenderer)
 add_subdirectory(Samples)
-add_subdirectory(Tests)
+
+if(BUILD_TESTS)
+    add_subdirectory(Tests)
+endif()
+
+if(BUILD_TOOLS)
+    add_subdirectory(Tools)
+endif()

@@ -1,3 +1,5 @@
+#define STB_SPRINTF_IMPLEMENTATION
+
 #include "Error.h"
 #include "Span.h"
 #include "../Win32/Win32.h"

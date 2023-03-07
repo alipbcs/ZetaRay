@@ -4,6 +4,6 @@ docs/
 build/
 bin/
 External/
-Tools/
+Tools/dxc
 Assets/
 temp/
