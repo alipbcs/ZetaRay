@@ -15,6 +15,7 @@
 #define RAY_BINNING 1
 #define TOLERABLE_RELATIVE_RADIANCE_CHANGE 0.2
 #define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.35
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -266,7 +267,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 		// green & blue channels contain roughness & metalness values respectively
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).b;
+		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).r;
 	}
 
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
@@ -342,7 +343,7 @@ Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, o
 	return ret;
 }
 
-Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
+Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currLinearDepth, float3 currNormal)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -365,8 +366,9 @@ Reservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float3 currNormal)
 			g_frame.PrevViewInv);
 	
 	const float planeDist = dot(currNormal, prevPos - currPos);
+	const bool isDisoccluded = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
 	
-	if (planeDist > g_local.MaxPlaneDist)
+	if (isDisoccluded)
 	{
 		Reservoir r = Reservoir::Init();
 		return r;		
@@ -502,7 +504,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 
-	Reservoir r = SampleTemporalReservoir(swizzledDTid, posW, normal);
+	Reservoir r = SampleTemporalReservoir(swizzledDTid, posW, linearDepth, normal);
 	
 	// skip tracing if reservoir's sample is invalid
 	bool isReservoirSampleInvalid = r.SamplePos.x == INVALID_SAMPLE_POS.x && 

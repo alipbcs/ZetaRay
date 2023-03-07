@@ -9,6 +9,7 @@
 #define WORLD_SPACE_SAMPLING 0
 #define MIN_SAMPLE_RADIUS 3
 #define MAX_SAMPLE_RADIUS 32
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 
 // Ref: Christensen et al, "Progressive multi-jittered sample sequences," Computer Graphics Forum, 2018.
 static const float2 k_pmjbn[] =
@@ -62,15 +63,17 @@ StructuredBuffer<uint> g_rankingTile : register(t2, space0);
 // Edge-stopping functions and other helpers
 //--------------------------------------------------------------------------------------
 
-float EdgeStoppingGeometry(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float scale)
+float EdgeStoppingGeometry(float sampleDepth, float3 samplePos, float3 currNormal, float currLinearDepth, 
+	float3 currPos, float scale)
 {
 	float planeDist = dot(currNormal, samplePos - currPos);
 	
 	// lower the tolerance as more samples are accumulated
 	//float tolerance = g_local.MaxPlaneDist * scale;
-	float tolerance = g_local.MaxPlaneDist;
-	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-6f));
-	
+	//float tolerance = g_local.MaxPlaneDist;
+	//float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-6f));
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
+
 	return weight;
 }
 
@@ -198,7 +201,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.CurrViewInv);
-			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, pos, oneSubAccSpeed);
+			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, linearDepth, pos, oneSubAccSpeed);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float normalToleranceScale = 1.0f;

@@ -15,7 +15,6 @@
 struct cbDiffuseDNSRTemporal
 {
 	uint32_t MaxTspp;
-	float MaxPlaneDist;
 	float BilinearNormalScale;
 	float BilinearNormalExp;
 
@@ -39,7 +38,6 @@ struct cbDiffuseDNSRSpatial
 	float FilterRadiusBase;
 	float FilterRadiusScale;
 	float NormalExp;
-	float MaxPlaneDist;
 
 	uint32_t CurrPass;
 	uint32_t NumPasses;

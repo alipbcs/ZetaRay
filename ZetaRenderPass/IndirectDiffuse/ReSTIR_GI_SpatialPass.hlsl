@@ -12,6 +12,8 @@
 #define SAMPLE_RADIUS_1ST 28
 #define SAMPLE_RADIUS_2ND 16
 
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+
 static const float2 k_halton[16] =
 {
 	float2(0.0, -0.33333333333333337),
@@ -49,13 +51,14 @@ StructuredBuffer<uint> g_frameMeshData : register(t6);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float scale)
+float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float linearDepth, float scale)
 {
 	float planeDist = dot(currNormal, samplePos - currPos);
 	
 	// lower the tolerance as more samples are accumulated
-	float tolerance = g_local.MaxPlaneDist * scale;
-	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-4f));
+	//float tolerance = g_local.MaxPlaneDist * scale;
+	//float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-4f));
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
 	
 	return weight;
 }
@@ -71,7 +74,8 @@ float NormalWeight(float3 input, float3 sample, float scale)
 	return weight;
 }
 
-void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, inout Reservoir r, inout RNG rng)
+void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linearDepth, 
+	inout Reservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -123,7 +127,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, inout Reser
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.CurrViewInv);
-			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, posW, biasToleranceScale);
+			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, posW, linearDepth, biasToleranceScale);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float w_n = NormalWeight(normal, sampleNormal, biasToleranceScale);
@@ -216,7 +220,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 //	if (g_local.IsFirstPass || r.M < 2)
 //	{
 		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-		DoSpatialResampling(swizzledDTid, posW, normal, r, rng);
+		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, r, rng);
 //	}
 
 	if (g_local.IsFirstPass)

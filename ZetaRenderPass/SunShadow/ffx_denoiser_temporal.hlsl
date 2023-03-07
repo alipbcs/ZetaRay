@@ -39,6 +39,7 @@ ConstantBuffer<cbFFX_DNSR_Temporal> g_local : register(b1);
 //--------------------------------------------------------------------------------------
 
 #define KERNEL_RADIUS 8
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
 
 groupshared int g_FFX_DNSR_Shadows_false_count;
 groupshared float g_FFX_DNSR_Shadows_neighborhood[8][24];
@@ -211,10 +212,10 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 	const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 prevUV = currUV - velocity;
 	float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
-	const float currlinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
 	const float3 currPos = Math::Transform::WorldPosFromUV(currUV,
-            currlinearDepth,
+            currLinearDepth,
             g_frame.TanHalfFOV,
             g_frame.AspectRatio,
             g_frame.CurrViewInv);
@@ -229,8 +230,9 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 		g_frame.PrevViewInv);
 	
 	const float planeDist = dot(normal, prevPos - currPos);
-	
-	return planeDist >= g_local.MaxPlaneDist;
+    
+	//return planeDist >= g_local.MaxPlaneDist;
+	return abs(planeDist) > DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
 }
 
 float2 FFX_DNSR_Shadows_GetClosestVelocity(int2 DTid, float depth)

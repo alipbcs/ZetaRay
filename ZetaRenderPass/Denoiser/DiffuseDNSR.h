@@ -111,10 +111,8 @@ namespace ZetaRay::RenderPass
 		{
 			static constexpr int NumSpatialPasses = 1;
 			static constexpr int MaxTSPP = 32;
-			static constexpr float BilinearMaxPlaneDist = 0.1f;
 			static constexpr float BilinearNormalScale = 1.4f;
 			static constexpr float BilinearNormalExp = 16.0f;
-			static constexpr float EdgeStoppingMaxPlaneDist = 0.2f;
 			static constexpr float EdgeStoppingNormalExp = 2.0f;
 			static constexpr float FilterRadiusBase = 0.05f;
 		};

@@ -91,12 +91,10 @@ void DiffuseDNSR::Init() noexcept
 
 	m_cbTemporalFilter.IsTemporalCacheValid = false;
 	m_cbTemporalFilter.MaxTspp = DefaultParamVals::MaxTSPP;
-	m_cbTemporalFilter.MaxPlaneDist = DefaultParamVals::BilinearMaxPlaneDist;
 	m_cbTemporalFilter.BilinearNormalScale = DefaultParamVals::BilinearNormalScale;
 	m_cbTemporalFilter.BilinearNormalExp = DefaultParamVals::BilinearNormalExp;
 
 	m_cbSpatialFilter.MaxTspp = DefaultParamVals::MaxTSPP;
-	m_cbSpatialFilter.MaxPlaneDist = DefaultParamVals::EdgeStoppingMaxPlaneDist;
 	m_cbSpatialFilter.NormalExp = DefaultParamVals::EdgeStoppingNormalExp;
 	m_cbSpatialFilter.FilterRadiusBase = DefaultParamVals::FilterRadiusBase;
 
@@ -309,15 +307,6 @@ void DiffuseDNSR::InitParams() noexcept
 	//	1);								// step
 	//App::AddParam(maxTSPP);
 
-	ParamVariant bilinearMaxPlaneDist;
-	bilinearMaxPlaneDist.InitFloat("Renderer", "DiffuseDNSR", "BilinearMaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &DiffuseDNSR::BilinearMaxPlaneDistCallback),
-		DefaultParamVals::BilinearMaxPlaneDist,		// val	
-		1e-2f,										// min
-		10.0f,										// max
-		1e-2f);										// step
-	App::AddParam(bilinearMaxPlaneDist);
-
 	//ParamVariant bilinearNormalScale;
 	//bilinearNormalScale.InitFloat("Renderer", "DiffuseDNSR", "BilinearNormalScale",
 	//	fastdelegate::MakeDelegate(this, &DiffuseDNSR::BilinearNormalScaleCallback),
@@ -344,15 +333,6 @@ void DiffuseDNSR::InitParams() noexcept
 		8.0f,											// max
 		1.0f);											// step
 	App::AddParam(edgeStoppingNormalExp);
-
-	ParamVariant edgeStoppingPlaneDist;
-	edgeStoppingPlaneDist.InitFloat("Renderer", "DiffuseDNSR", "EdgeStoppingMaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &DiffuseDNSR::EdgeStoppingMaxPlaneDistCallback),
-		DefaultParamVals::EdgeStoppingMaxPlaneDist,	// val	
-		1e-2f,										// min
-		1.0f,										// max
-		1e-1f);										// step
-	App::AddParam(edgeStoppingPlaneDist);
 
 	ParamVariant numSpatialFilterPasses;
 	numSpatialFilterPasses.InitInt("Renderer", "DiffuseDNSR", "#SpatialFilterPasses",
@@ -387,11 +367,6 @@ void DiffuseDNSR::MaxTSPPCallback(const ParamVariant& p) noexcept
 	m_cbTemporalFilter.MaxTspp = p.GetInt().m_val;
 }
 
-void DiffuseDNSR::BilinearMaxPlaneDistCallback(const ParamVariant& p) noexcept
-{
-	m_cbTemporalFilter.MaxPlaneDist = p.GetFloat().m_val;
-}
-
 //void DiffuseDNSR::BilinearNormalScaleCallback(const ParamVariant& p) noexcept
 //{
 //	m_cbTemporalFilter.BilinearNormalScale = p.GetFloat().m_val;
@@ -401,11 +376,6 @@ void DiffuseDNSR::BilinearMaxPlaneDistCallback(const ParamVariant& p) noexcept
 //{
 //	m_cbTemporalFilter.BilinearNormalExp = p.GetFloat().m_val;
 //}
-
-void DiffuseDNSR::EdgeStoppingMaxPlaneDistCallback(const Support::ParamVariant& p) noexcept
-{
-	m_cbSpatialFilter.MaxPlaneDist = p.GetFloat().m_val;
-}
 
 void DiffuseDNSR::EdgeStoppingNormalExpCallback(const ParamVariant& p) noexcept
 {
@@ -436,7 +406,7 @@ void DiffuseDNSR::ReloadTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\DiffuseDNSR_TemporalFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Denoiser\\DiffuseDNSR_TemporalPass.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 

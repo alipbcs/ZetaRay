@@ -15,6 +15,7 @@
 #define RAY_BINNING 1
 #define COSINE_WEIGHTED_SAMPLING 0
 #define USE_RAY_CONES 0
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -312,7 +313,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		mipOffset = RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
 #endif	
 
-		metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).b;
+		metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).r;
 	}
 
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
@@ -397,7 +398,7 @@ Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, R
 	return ret;
 }
 
-float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos)
+float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos, float linearDepth)
 {
 	float4 planeDist = float4(dot(currNormal, histPositions[0] - currPos),
 		dot(currNormal, histPositions[1] - currPos),
@@ -405,12 +406,14 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 		dot(currNormal, histPositions[3] - currPos));
 	
 //	float4 weights = saturate(1 - abs(planeDist) / g_local.MaxPlaneDist);
-	float4 weights = planeDist <= g_local.MaxPlaneDist;
+	//float4 weights = planeDist <= g_local.MaxPlaneDist;
+	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
 	
 	return weights;
 }
 
-void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, inout Reservoir r, inout RNG rng)
+void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
+	inout Reservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -450,7 +453,7 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 			g_frame.PrevViewInv);
 	}
 	
-	const float4 geoWeights = GeometricHeuristic(prevPos, normal, posW);
+	const float4 geoWeights = GeometricHeuristic(prevPos, normal, posW, linearDepth);
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -513,7 +516,7 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 	}
 }
 
-Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float sourcePdf, Sample s, 
+Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf, Sample s,
 	bool isSampleValid, inout RNG rng)
 {
 	Reservoir r = Reservoir::Init();
@@ -532,7 +535,7 @@ Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float sou
 	}
 	
 	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
-		SampleTemporalReservoirAndResample(DTid, posW, normal, r, rng);
+		SampleTemporalReservoirAndResample(DTid, posW, normal, linearDepth, r, rng);
 	
 	return r;
 }
@@ -669,7 +672,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
 						
 		//const float cosTheta = saturate(pdf * PI);
-		Reservoir r = DoTemporalResampling(swizzledDTid, posW, normal, pdf, retSample, traceThisFrame, rng);
+		Reservoir r = DoTemporalResampling(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
 		
 		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
 		// Need further investigation to figure out the cause. Following seems to mitigate
@@ -678,6 +681,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		if (isnan(r.SamplePos.x) && !traceThisFrame)
 			r = Reservoir::Init();
 #endif	
+
+		// TODO when sun is at the horizon, there could be NaN propagation -- temporary
+		// fix
+		if (isnan(r.w_sum))
+			r = Reservoir::Init();
 		
 		WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);

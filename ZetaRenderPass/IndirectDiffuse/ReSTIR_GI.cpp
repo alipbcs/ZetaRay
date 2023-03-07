@@ -130,21 +130,11 @@ void ReSTIR_GI::Init() noexcept
 
 	memset(&m_cbTemporal, 0, sizeof(m_cbTemporal));
 	memset(&m_cbSpatial, 0, sizeof(m_cbSpatial));
-	m_cbTemporal.MaxPlaneDist = m_cbSpatial.MaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	m_cbTemporal.DoTemporalResampling = true;
 	m_cbTemporal.PdfCorrection = m_cbSpatial.PdfCorrection = true;
 	m_cbSpatial.NormalExp = DefaultParamVals::NormalExp;
 	m_cbTemporal.FrameCounter = 0;
 	m_cbTemporal.CheckerboardTracing = true;
-
-	ParamVariant paramMaxPlaneDist;
-	paramMaxPlaneDist.InitFloat("Renderer", "ReSTIR_GI", "MaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::MaxPlaneDistCallback),
-		DefaultParamVals::MaxPlaneDist,		// val	
-		1e-2f,								// min
-		1.0f,								// max
-		1e-2f);								// step
-	App::AddParam(paramMaxPlaneDist);
 
 	ParamVariant normalExp;
 	normalExp.InitFloat("Renderer", "ReSTIR_GI", "NormalExp",
@@ -497,12 +487,6 @@ void ReSTIR_GI::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbTemporal.PdfCorrection = p.GetBool();
 	m_cbSpatial.PdfCorrection = p.GetBool();
-}
-
-void ReSTIR_GI::MaxPlaneDistCallback(const ParamVariant& p) noexcept
-{
-	m_cbTemporal.MaxPlaneDist = p.GetFloat().m_val;
-	m_cbSpatial.MaxPlaneDist = p.GetFloat().m_val;
 }
 
 void ReSTIR_GI::ValidationPeriodCallback(const Support::ParamVariant& p) noexcept

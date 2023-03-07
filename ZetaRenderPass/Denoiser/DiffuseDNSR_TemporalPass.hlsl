@@ -5,6 +5,8 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../IndirectDiffuse/Reservoir.hlsli"
 
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -19,7 +21,7 @@ StructuredBuffer<uint> g_rankingTile : register(t2, space0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos)
+float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
 {
 	float3 prevPos[4];
 	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
@@ -37,7 +39,8 @@ float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 
 		dot(currNormal, prevPos[3] - currPos));
 	
 //	float4 weights = saturate(1 - abs(planeDist) / g_local.MaxPlaneDist);
-	float4 weights = planeDist <= g_local.MaxPlaneDist;
+	//float4 weights = planeDist <= g_local.MaxPlaneDist;
+	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
 	
 	return weights;
 }
@@ -57,7 +60,8 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float2 currUV, inout uint tspp, out float3 color)
+void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth ,float2 currUV, 
+	inout uint tspp, out float3 color)
 {
 	// pixel position for this thread
 	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
@@ -110,7 +114,7 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float2 c
 	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
 	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
 	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
-	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos);
+	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos, linearDepth);
 	
 	// weight must be zero for out-of-bound samples
 	const float4 isInBounds = float4(Math::IsWithinBoundsExc(topLeft, screenDim),
@@ -227,7 +231,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	
 	// sample temporal cache using a bilinear tap with custom weights
 	if (g_local.IsTemporalCacheValid)
-		SampleTemporalCache(DTid.xy, currPos, currNormal, currUV, tspp, color);
+		SampleTemporalCache(DTid.xy, currPos, currNormal, currLinearDepth, currUV, tspp, color);
 
 	// integrate history and current frame
 	Integrate(DTid.xy, currPos, currNormal, tspp, color);

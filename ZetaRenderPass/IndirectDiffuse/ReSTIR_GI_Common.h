@@ -19,7 +19,7 @@
 
 struct cbTemporalPass
 {
-	float MaxPlaneDist;
+	uint32_t FrameCounter;
 	uint32_t PrevTemporalReservoir_A_DescHeapIdx;
 	uint32_t PrevTemporalReservoir_B_DescHeapIdx;
 	uint32_t PrevTemporalReservoir_C_DescHeapIdx;
@@ -35,15 +35,12 @@ struct cbTemporalPass
 	uint16_t DoTemporalResampling;
 	uint16_t PdfCorrection;
 
-	uint32_t FrameCounter;
-
 	uint16_t SampleIndex;
 	uint16_t CheckerboardTracing;
 };
 
 struct cbSpatialPass
 {
-	float MaxPlaneDist;
 	float NormalExp;
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
