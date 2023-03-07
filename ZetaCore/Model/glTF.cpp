@@ -32,7 +32,7 @@ using namespace ZetaRay::Model;
 using namespace ZetaRay::App;
 
 //--------------------------------------------------------------------------------------
-// gltfModel
+// glTF
 //--------------------------------------------------------------------------------------
 
 namespace
@@ -53,7 +53,7 @@ namespace
 		uint64_t ParentID;
 	};
 
-	void ProcessPositions(const tinygltf::Model& model, int posIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
+	void ProcessPositions(const tinygltf::Model& model, int posIdx, Span<Vertex> vertices) noexcept
 	{
 		const auto& accessor = model.accessors[posIdx];
 
@@ -65,7 +65,6 @@ namespace
 		const int byteStride = accessor.ByteStride(bufferView);
 		Check(byteStride == sizeof(float3), "Invalid stride for POSITION attribute.");
 
-		// populate the vertex position attribute
 		const auto& buffer = model.buffers[bufferView.buffer];
 		const float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
@@ -73,12 +72,12 @@ namespace
 		{
 			const float3* curr = start + i;
 
-			// glTF uses a right-handed coordinate systes with +Y as up
+			// glTF uses a right-handed coordinate system with +Y as up
 			vertices[i].Position = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
+	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Span<Vertex> vertices) noexcept
 	{
 		const auto& accessor = model.accessors[normalIdx];
 
@@ -97,24 +96,23 @@ namespace
 		{
 			const float3* curr = start + i;
 
-			// glTF uses a right-handed coordinate systes with +Y as up
+			// glTF uses a right-handed coordinate system with +Y as up
 			vertices[i].Normal = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessTexCoords(const tinygltf::Model& model, int uv0Idx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
+	void ProcessTexCoords(const tinygltf::Model& model, int texCoord0Idx, Span<Vertex> vertices) noexcept
 	{
-		const auto& accessor = model.accessors[uv0Idx];
+		const auto& accessor = model.accessors[texCoord0Idx];
 
 		Check(accessor.type == TINYGLTF_TYPE_VEC2, "Invalid type for TEXCOORD_0 attribute.");
-		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT, 
+		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT,
 			"Invalid component type for TEXCOORD_0 attribute.");
 
 		const auto& bufferView = model.bufferViews[accessor.bufferView];
 		const int byteStride = accessor.ByteStride(bufferView);
 		Check(byteStride == sizeof(float2), "Invalid stride for TEXCOORD_0 attribute.");
 
-		// populate the vertex TexUV attribute
 		const auto& buffer = model.buffers[bufferView.buffer];
 		const float2* start = (float2*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
 
@@ -125,7 +123,7 @@ namespace
 		}
 	}
 
-	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Vector<Vertex, App::ThreadAllocator>& vertices) noexcept
+	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Span<Vertex> vertices) noexcept
 	{
 		const auto& accessor = model.accessors[tangentIdx];
 
@@ -143,7 +141,7 @@ namespace
 		{
 			const float4* curr = start + i;
 
-			// glTF uses a right-handed coordinate systes with +Y as up
+			// glTF uses a right-handed coordinate system with +Y as up
 			vertices[i].Tangent = float3(curr->x, curr->y, -curr->z);
 		}
 	}
@@ -168,7 +166,7 @@ namespace
 		for (size_t face = 0; face < numFaces; face++)
 		{
 			uint32_t i0 = 0;
-			uint32_t i1 = 0; 
+			uint32_t i1 = 0;
 			uint32_t i2 = 0;
 
 			memcpy(&i0, curr, byteStride);
@@ -178,14 +176,10 @@ namespace
 			memcpy(&i2, curr, byteStride);
 			curr += byteStride;
 
-			// changing the handedness to left handed was not needed, why?
-
-			indices.push_back(static_cast<uint32_t>(i0));
-			indices.push_back(static_cast<uint32_t>(i2));
-			indices.push_back(static_cast<uint32_t>(i1));
+			indices.push_back(i0);
+			indices.push_back(i2);
+			indices.push_back(i1);
 		}
-
-		Assert(indices.size() == numFaces * 3, "bug");
 	}
 
 	void ProcessMeshes(uint64_t sceneID, tinygltf::Model& model, size_t offset, size_t size) noexcept
@@ -223,7 +217,7 @@ namespace
 						}
 					}
 				}
-				
+
 				Check(posIt != prim.attributes.end(), "POSITION was not found in the vertex attributes.");
 
 				auto normalit = prim.attributes.find("NORMAL");
@@ -257,33 +251,22 @@ namespace
 				ProcessNormals(model, normalit->second, subset.Vertices);
 
 				// TEXCOORD_0
-				if(texIt != prim.attributes.end())
+				if (texIt != prim.attributes.end())
 					ProcessTexCoords(model, texIt->second, subset.Vertices);
 
-				// index buffer
+				// indices
 				ProcessIndices(model, prim.indices, subset.Indices);
 
 				// TANGENT
 				auto tangentIt = prim.attributes.find("TANGENT");
 
-				// if vertex tangent's aren't present, compute them. Make sure the computation happens after 
+				// if vertex tangents aren't present, compute them. Make sure the computation happens after 
 				// vertex & index processing
 				if (tangentIt != prim.attributes.end())
 					ProcessTangents(model, tangentIt->second, subset.Vertices);
 				else
-				{
-					bool s = Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, true);
-					//Check(s, "Failed to compute vertex tangent vectors");
+					Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, false);
 
-					if (!s)
-					{
-						printf("Failed to compute vertex tangent vectors for mesh %llu, primitive %d\n", meshIdx, primIdx);
-
-						for (auto& v : subset.Vertices)
-							v.Tangent = float3(0.0f, 0.0f, 0.0f);
-					}
-				}
-		
 				subset.MaterialIdx = prim.material;
 				scene.AddMesh(sceneID, ZetaMove(subset));
 
@@ -292,7 +275,7 @@ namespace
 		}
 	}
 
-	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const tinygltf::Model& model, 
+	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const tinygltf::Model& model,
 		int offset, int size) noexcept
 	{
 		SceneCore& scene = App::GetScene();
@@ -302,9 +285,9 @@ namespace
 			auto ret = Material::ALPHA_MODE::OPAQUE_;
 
 			if (strcmp(s.data(), "MASK") == 0)
-				ret =  Material::ALPHA_MODE::MASK;
+				ret = Material::ALPHA_MODE::MASK;
 			else if (strcmp(s.data(), "BLEND") == 0)
-				ret =  Material::ALPHA_MODE::BLEND;
+				ret = Material::ALPHA_MODE::BLEND;
 
 			return ret;
 		};
@@ -312,7 +295,7 @@ namespace
 		for (int m = offset; m != offset + size; m++)
 		{
 			const auto& mat = model.materials[m];
-			
+
 			glTF::Asset::MaterialDesc desc;
 			desc.Index = m;
 			desc.AlphaMode = getAlphaMode(mat.alphaMode);
@@ -328,7 +311,7 @@ namespace
 					Check(imgIdx != -1, "Invalid texture index");
 					const std::string& texPath = model.images[imgIdx].uri;
 
-					desc.BaseColorTexPath = Filesystem::Path(App::GetAssetDir());
+					desc.BaseColorTexPath.Reset(App::GetAssetDir());
 					desc.BaseColorTexPath.Append(modelDir.Get());
 					desc.BaseColorTexPath.Append(texPath.data());
 				}
@@ -347,7 +330,7 @@ namespace
 					Check(imgIdx != -1, "Invalid texture index");
 					const std::string& texPath = model.images[imgIdx].uri;
 
-					desc.NormalTexPath = Filesystem::Path(App::GetAssetDir());
+					desc.NormalTexPath.Reset(App::GetAssetDir());
 					desc.NormalTexPath.Append(modelDir.Get());
 					desc.NormalTexPath.Append(texPath.data());
 				}
@@ -364,7 +347,7 @@ namespace
 					Check(imgIdx != -1, "Invalid texture index");
 					const std::string& texPath = model.images[imgIdx].uri;
 
-					desc.MetalnessRoughnessTexPath = Filesystem::Path(App::GetAssetDir());
+					desc.MetalnessRoughnessTexPath.Reset(App::GetAssetDir());
 					desc.MetalnessRoughnessTexPath.Append(modelDir.Get());
 					desc.MetalnessRoughnessTexPath.Append(texPath.data());
 				}
@@ -382,7 +365,7 @@ namespace
 					Check(imgIdx != -1, "Invalid texture index");
 					const std::string& texPath = model.images[imgIdx].uri;
 
-					desc.EmissiveTexPath = Filesystem::Path(App::GetAssetDir());
+					desc.EmissiveTexPath.Reset(App::GetAssetDir());
 					desc.EmissiveTexPath.Append(modelDir.Get());
 					desc.EmissiveTexPath.Append(texPath.data());
 				}
@@ -391,35 +374,59 @@ namespace
 				Check(f.size() == 3, "Invalid emissiveFactor");
 				desc.EmissiveFactor = float3((float)f[0], (float)f[1], (float)f[2]);
 			}
-				
+
 			scene.AddMaterial(sceneID, ZetaMove(desc));
 		}
 	}
 
-	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId, 
-		Vector<IntemediateInstance, App::ThreadAllocator>& instances, bool blenderToYupConversion) noexcept
+	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId,
+		Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
 		if (node.mesh != -1)
 		{
-			// glTF uses a right-handed coordinate systes with +Y as up (source). Here, a left-handed
-			// coord. system is used where +X points to right, +Y point up and +Z points inside
-			// the screen (target). To convert between those, use a change-of-coordinate transformation. 
-			// In "target" coord. system, XYZ basis vectors of "source" are as follows:
-			//	X+: (1, 0, 0)
-			//	Y+: (0, 1, 0)
-			//	X+: (0, 0, -1)
-			v_float4x4 vRhsToLhs = scale(1.0f, 1.0f, -1.0f);
 			float4x4a M;
 			v_float4x4 vM;
 
 			if (node.matrix.size() == 16)
 			{
-				M = float4x4a(node.matrix.data());
+				vM = load(M);
+				auto det = store(determinant3x3(vM));	// last row is ignored
+				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a 0 determinant is invalid.");
+				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 
-				// tranpose the tranformation matrix to get a "row" matrix
-				vM = transpose(v_float4x4(M));
+				// RHS transformation matrix M_rhs can be converted to LHS (+Y up) as follows:
+				//
+				//		transform = M_RhsToLhs * M_rhs * M_LhsToRhs
+				// 
+				// where M_RhsToLhs is a change-of-basis transformation matrix and M_LhsToRhs = M_RhsToLhs^-1. 
+				// Replacing in above:
+				//
+				//                  | 1 0  0 |             | 1 0  0 |
+				//		transform = | 0 1  0 | * [u v w] * | 0 1  0 |
+				//                  | 0 0 -1 |             | 0 0 -1 |
+				//
+				//                  | 1 0  0 |                  
+				//                = | 0 1  0 | * [u v -w]
+				//                  | 0 0 -1 |
+				//
+				//                  |  u_1  v_1  -w_1 |                  
+				//                = |  u_2  v_2  -w_2 |
+				//                  | -u_3 -v_3   w_3 |
+
+				M = float4x4a(node.matrix.data());
+				M.m[0].z *= -1.0f;
+				M.m[1].z *= -1.0f;
+				M.m[2].x *= -1.0f;
+				M.m[2].y *= -1.0f;
+
+				// convert translation to LHS (translation is not a linear transformation, so the approach above
+				// is incorrect)
+				M.m[2].w *= -1.0f;
+
+				vM = load(M);
+				vM = transpose(v_float4x4(M));	// tranpose to get a "row" matrix
 			}
 			else
 			{
@@ -431,34 +438,37 @@ namespace
 					vS = scale((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
 
 				if (!node.translation.empty())
-					vT = translate(float4a((float)node.translation[0], 
+				{
+					vT = translate(float4a((float)node.translation[0],
 						(float)node.translation[1],
-						(float)-node.translation[2], 0.0f));
+						(float)-node.translation[2],
+						0.0f));
+				}
 
 				if (!node.rotation.empty())
 				{
-					float4a q = float4a((float)node.rotation[0], (float)node.rotation[1],
+					// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+					// where s = sin(theta/2) and c = cos(theta/2)
+					//
+					// In the left-handed coord. system here with +Y as up, n_lhs = (n_x, n_y, -n_z)
+					// and theta_lhs = -theta. Since sin(-a) = -sin(a) and cos(-a) = cos(a) we have:
+					//
+					//		q_lhs = (n_x * -s, n_y * -s, -n_z * -s, c)
+					//			  = (-n_x * s, -n_y * s, n_z * s, c)
+					//
+					//float4a q = float4a(-(float)node.rotation[0], -(float)node.rotation[1],
+					//	(float)node.rotation[2], (float)node.rotation[3]);
+					float4a q = float4a(-(float)node.rotation[0], -(float)node.rotation[1],
 						(float)node.rotation[2], (float)node.rotation[3]);
 
 					__m128 vQ = _mm_load_ps(reinterpret_cast<float*>(&q));
-					vR = rotationMatrixFromQuat(vQ);
+					vR = rotationMatFromQuat(vQ);
 				}
 
-				if (blenderToYupConversion)
-				{
-					//v_float4x4 vRotAboutX = rotateX(Math::PI_DIV_2);
-					v_float4x4 vRotAboutX = rotateX(Math::PI);
-					vR = mul(vR, vRotAboutX);
-				}
-
-				//v_float4x4 vRotAboutX = rotateX(Math::PI_DIV_2);
-				//vR = mul(vR, vRotAboutX);
-				//vR = mul(vR, vRhsToLhs);
 				vM = mul(vS, vR);
 				vM = mul(vM, vT);
 			}
 
-			//vM = mul(vM, vRhsToLhs);
 			M = store(vM);
 
 			instances.emplace_back(IntemediateInstance{
@@ -468,7 +478,7 @@ namespace
 						.ParentID = parentId
 				});
 
-			// each mesh has at least 1 primitive and any of those can be designated as the parent instance
+			// each mesh has at least one primitive and any of those can be designated as the parent instance
 			// note Scene calucaltes instance ID with proper meshPrimitive index, this instance ID is only 
 			// used to establish parent-child relationships
 			currInstanceID = SceneCore::InstanceID(sceneID, node.name.c_str(), node.mesh, 0);
@@ -477,20 +487,20 @@ namespace
 		for (int c : node.children)
 		{
 			const tinygltf::Node& childNode = model.nodes[c];
-			ProcessNodeSubtree(childNode, sceneID, model, currInstanceID, instances, blenderToYupConversion);
+			ProcessNodeSubtree(childNode, sceneID, model, currInstanceID, instances);
 		}
 	}
 
-	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances, bool blenderToYupConversion) noexcept
+	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
 	{
 		for (int i : model.scenes[model.defaultScene].nodes)
 		{
 			const tinygltf::Node& node = model.nodes[i];
-			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances, blenderToYupConversion);
+			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances);
 		}
 	}
 
-	void ProcessInstances(uint64_t sceneID, const Vector<IntemediateInstance, App::ThreadAllocator>& instances, const tinygltf::Model& model) noexcept
+	void ProcessInstances(uint64_t sceneID, Span<IntemediateInstance> instances, const tinygltf::Model& model) noexcept
 	{
 		for (auto& instance : instances)
 		{
@@ -500,20 +510,21 @@ namespace
 
 			for (auto& meshPrim : model.meshes[meshIdx].primitives)
 			{
-				Check(meshPrim.material != -1, "Mesh doesn't have any materials assigned to it.");
+				Check(meshPrim.material != -1, "Following mesh doesn't have any materials assigned to it: %s (#primitive %d)",
+					instance.Name.data(), meshIdx);
 
-				uint8_t rtInsMask = model.materials[meshPrim.material].emissiveTexture.index != -1 ? 
+				uint8_t rtInsMask = model.materials[meshPrim.material].emissiveTexture.index != -1 ?
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
-				glTF::Asset::InstanceDesc desc{ 
-					.LocalTransform = instance.LocalTransform, 
+				glTF::Asset::InstanceDesc desc{
+					.LocalTransform = instance.LocalTransform,
 					.MeshIdx = meshIdx,
 					.Name = instance.Name.data(),
 					.ParentID = instance.ParentID,
 					.MeshPrimIdx = meshPrimIdx,
 					.RtMeshMode = RT_MESH_MODE::STATIC,
 					.RtInstanceMask = rtInsMask };
-				
+
 				/*
 				if (rtInsMask & RT_AS_SUBGROUP::EMISSIVE)
 				{
@@ -534,7 +545,8 @@ namespace
 	}
 }
 
-void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
+// TODO change the relative path
+void glTF::Load(const char* modelRelPath) noexcept
 {
 	tinygltf::TinyGLTF loader;
 	tinygltf::Model model;
@@ -565,10 +577,10 @@ void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 	size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
 	size_t meshThreadSizes[MAX_NUM_MESH_WORKERS];
 
-	const size_t meshNumThreads = SubdivideRangeWithMin(model.meshes.size(), 
-		MAX_NUM_MESH_WORKERS, 
-		meshThreadOffsets, 
-		meshThreadSizes, 
+	const size_t meshNumThreads = SubdivideRangeWithMin(model.meshes.size(),
+		MAX_NUM_MESH_WORKERS,
+		meshThreadOffsets,
+		meshThreadSizes,
 		MIN_MESHES_PER_WORKER);
 
 	// how many materials are processed by each worker
@@ -577,10 +589,10 @@ void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 	size_t matThreadOffsets[MAX_NUM_MAT_WORKERS];
 	size_t matThreadSizes[MAX_NUM_MAT_WORKERS];
 
-	const size_t matNumThreads = SubdivideRangeWithMin(model.materials.size(), 
-		MAX_NUM_MAT_WORKERS, 
-		matThreadOffsets, 
-		matThreadSizes, 
+	const size_t matNumThreads = SubdivideRangeWithMin(model.materials.size(),
+		MAX_NUM_MAT_WORKERS,
+		matThreadOffsets,
+		matThreadSizes,
 		MIN_MATS_PER_WORKER);
 
 	struct ThreadContext
@@ -593,12 +605,12 @@ void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 		size_t* MatThreadSizes;
 	};
 
-	ThreadContext tc{ .SceneID = sceneID, .Model = &model, 
+	ThreadContext tc{ .SceneID = sceneID, .Model = &model,
 		.MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
 		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes };
 
 	TaskSet ts;
-	
+
 	for (size_t i = 0; i < meshNumThreads; i++)
 	{
 		StackStr(tname, n, "gltf::ProcessMesh_%d", i);
@@ -633,6 +645,6 @@ void glTF::Load(const char* modelRelPath, bool blenderToYupConversion) noexcept
 	// TODO is this necessary?
 	waitObj.Wait();
 
-	ProcessNodes(model, sceneID, instances, blenderToYupConversion);
+	ProcessNodes(model, sceneID, instances);
 	ProcessInstances(sceneID, instances, model);
 }
