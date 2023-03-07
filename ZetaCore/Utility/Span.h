@@ -25,14 +25,20 @@ namespace ZetaRay::Util
 		{}
 
 		template<size_t N>
-		Span(T(&arr)[N])
+		Span(T(&arr)[N]) noexcept
 			: m_ptr(arr),
 			m_size(N)
 		{}
 
+		Span(const char* str) noexcept
+			: m_ptr(str),
+			m_size(strlen(str))
+		{
+		}
+
 		ZetaInline bool empty() noexcept
 		{
-			return m_ptr != nullptr;
+			return m_ptr == nullptr;
 		}
 
 		ZetaInline T* begin() noexcept
@@ -67,12 +73,12 @@ namespace ZetaRay::Util
 			return *(m_ptr + pos);
 		}
 
-		size_t size() const noexcept
+		ZetaInline size_t size() const noexcept
 		{
 			return m_size;
 		}
 
-		T* data() noexcept
+		ZetaInline T* data() noexcept
 		{
 			return m_ptr;
 		}
@@ -81,4 +87,58 @@ namespace ZetaRay::Util
 		T* m_ptr;
 		size_t m_size;
 	};
+
+
+	// Span for strings
+	// Note that underlying string is not necessarily null-terminated.
+	struct StrView
+	{
+		StrView(const char* ptr, size_t n) noexcept
+			: m_ptr(ptr),
+			m_size(n)
+		{}
+
+		StrView(const char* str) noexcept
+			: m_ptr(str),
+			m_size(strlen(str))
+		{
+		}
+
+		ZetaInline bool empty() noexcept
+		{
+			return m_ptr == nullptr;
+		}
+
+		ZetaInline const char* begin() const noexcept
+		{
+			return m_ptr;
+		}
+
+		ZetaInline const char* end() const noexcept
+		{
+			return m_ptr + m_size;
+		}
+
+		ZetaInline const char& operator[](size_t pos) const noexcept
+		{
+			Assert(pos < m_size, "Out-of-bound access.");
+			return *(m_ptr + pos);
+		}
+
+		// Note that terminating null character (if any) is not counted
+		ZetaInline size_t size() const noexcept
+		{
+			return m_size;
+		}
+
+		ZetaInline const char* data() noexcept
+		{
+			return m_ptr;
+		}
+
+	private:
+		const char* m_ptr;
+		size_t m_size;
+	};
 }
+
