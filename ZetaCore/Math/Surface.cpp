@@ -1,4 +1,5 @@
 #include "Surface.h"
+#include "../App/Log.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
@@ -8,26 +9,32 @@ using namespace ZetaRay::Math;
 // Surfaces
 //--------------------------------------------------------------------------------------
 
-bool ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices) noexcept
+void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices) noexcept
 {
 	for (auto& v : vertices)
 		v.Tangent = float3(0.0f, 0.0f, 0.0f);
 
-	// Given triangle with vertices v0, v1, v2 (in clockwise order):
+	// Given triangle with vertices v0, v1, v2 (in clockwise order) and corresponding texture coords
+	// (u0, v0), (u1, v1) and (u2, v2) we have:
+	// 
 	//    p1 - p0 = (u1 - u0) * T + (v1 - v0) * B
 	//    p2 - p0 = (u2 - u0) * T + (v2 - v0) * B
 	//
 	// In matrix form:
-	// |     |                         |                  |
-	// | T B |  | u1 - u0  u2 - u0 | = | p1 - p0  p2 - p0 |
-	// |     |  | v1 - v0  v2 - v0 |   |                  |
+	// 
+	//		   [ u1 - u0  u2 - u0 ]
+	// [T B] * |                  | = [p1 - p0  p2 - p0]
+	//		   [ v1 - v0  v2 - v0 ]
 	//
-	// Solving for first matrix:
+	// This linear system is solved with:
+	// 
 	// |     |			  |                  |                                    
 	// | T B | = 1 / D	* | p1 - p0  p2 - p0 |  *  | v2 - v0  u0 - u2 |
 	// |     |			  |                  |     | v0 - v1  u1 - u0 |           
 	//
 	// where D = (u1 - u0) * (v2 - v0) - (u2 - u0) * (v1 - v0)
+
+	uint32_t numCollinearTris = 0;
 
 	for (size_t i = 0; i < indices.size(); i += 3)
 	{
@@ -56,9 +63,11 @@ bool ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 		float2 uv2Minuv0 = uv2 - uv0;
 
 		float det = uv1Minuv0.x * uv2Minuv0.y - uv1Minuv0.y * uv2Minuv0.x;
-		//Check(det != 0, "triangle uv coords are colinear");
 		if (det == 0)
-			return false;
+		{
+			numCollinearTris++;
+			continue;
+		}
 
 		float oneDivDet = 1.0f / det;
 
@@ -85,7 +94,11 @@ bool ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 		vertex.Tangent.normalize();
 	}
 
-	return true;
+	if (numCollinearTris)
+	{
+		LOG_UI_WARNING("Mesh had %u/%u collinear triangles. As a result, some vertices might have missing tangents.\n",
+			numCollinearTris, (uint32_t)indices.size() / 3);
+	}
 }
 
 //void Math::MergeBoundingBoxes(BoundingBox& out, const BoundingBox& b1, const BoundingBox& b2) noexcept
