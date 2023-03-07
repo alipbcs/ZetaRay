@@ -1,5 +1,6 @@
 #include "../App/Filesystem.h"
 #include "../Utility/Error.h"
+#include "../Support/MemoryArena.h"
 #include "Win32.h"
 
 using namespace ZetaRay::Util;
@@ -9,136 +10,209 @@ using namespace ZetaRay::App;
 // Path
 //--------------------------------------------------------------------------------------
 
-Filesystem::Path::Path(const char* p) noexcept
+Filesystem::Path::Path(Util::StrView str) noexcept
 {
-    const size_t n = Math::Min(strlen(p), DEFAULT_PATH_LENGTH);
-    m_path.resize(n + 1);
-    memcpy(m_path.data(), p, n);
+    const size_t n = str.size();
+    m_path.resize(n + 1);   // + 1 for '\0'
+
+    if(n)
+        memcpy(m_path.data(), str.data(), n);
+    
     m_path[n] = '\0';
 }
 
-void Filesystem::Path::Reset(const char* p) noexcept
+void Filesystem::Path::Reset(Util::StrView str) noexcept
 {
     m_path.free_memory();
 
-    if (p)
+    if (!str.empty())
     {
-        const size_t n = Math::Min(strlen(p), DEFAULT_PATH_LENGTH);
-        m_path.resize(n + 1);
-        memcpy(m_path.data(), p, n);
+        const size_t n = str.size();
+        m_path.resize(n + 1);   // + 1 for '\0'
+        memcpy(m_path.data(), str.data(), n);
         m_path[n] = '\0';
     }
 }
 
-Filesystem::Path& Filesystem::Path::Append(const char* pa) noexcept
+Filesystem::Path& Filesystem::Path::Append(Util::StrView str) noexcept
 {
-    if (!pa)
+    if (str.empty())
         return *this;
 
+    // don't read uninitialized memory
+    // (Note: underlying path storages's size and the actual string length may not match)
+    const size_t curr = m_path.empty() ? 0 : strlen(m_path.data()); 
     char toAppend[MAX_PATH];
 
+    size_t additionLen = str.size();
+
+    if (curr)
     {
-        const size_t len = strlen(pa);
         toAppend[0] = '\\';
-        memcpy(toAppend + 1, pa, len);
-        toAppend[1 + len] = '\0';
+        memcpy(toAppend + 1, str.data(), additionLen);
+        additionLen++;
     }
+    else
+        memcpy(toAppend, str.data(), additionLen);
 
-    const size_t addition = strlen(toAppend);
+    const size_t newSize = curr + additionLen + 1;
+    m_path.resize(newSize);
 
-    const size_t curr = m_path.size();
-    m_path.resize(curr + addition);      // '\0' is already included in curr
-    Assert(m_path[curr - 1] == '\0', "bug");
-
-    memcpy(m_path.begin() + curr - 1, toAppend, addition);
-    m_path[curr + addition - 1] = '\0';
+    memcpy(m_path.begin() + curr, toAppend, additionLen);
+    m_path[curr + additionLen] = '\0';
     
     return *this;
 }
 
 Filesystem::Path& Filesystem::Path::ToParent() noexcept
 {
-    size_t len = m_path.size();
+    const size_t len = strlen(m_path.data());
 
     char* beg = m_path.begin();
     char* curr = beg + len;
+    
     while (curr >= beg && *curr != '\\')
         curr--;
 
-    *curr = '\0';
+    if(*curr == '\\')
+        *curr = '\0';
+    else
+    {
+        m_path.resize(3);
+
+        m_path[0] = '.';
+        m_path[1] = '.';
+        m_path[2] = '\0';
+    }
 
     return *this;
 }
 
-void Filesystem::Path::Stem(Span<char> buff) const noexcept
+Filesystem::Path& Filesystem::Path::ToCurrDirectory() noexcept
 {
-    size_t len = m_path.size();
+    if (Filesystem::IsDirectory(m_path.data()))
+        return *this;
 
-    char* beg = const_cast<char*>(m_path.begin());
+    const size_t len = strlen(m_path.data());
+    char* beg = m_path.begin();
     char* curr = beg + len;
-
-    size_t start = size_t(-1);
-    size_t end = size_t(-1);
-
-    while (curr >= beg && *curr != '.')
-        curr--;
-
-    end = curr - beg;
 
     while (curr >= beg && *curr != '\\')
         curr--;
 
+    if (*curr == '\\')
+        *curr = '\0';
+    else
+    {
+        m_path.resize(2);
+        m_path[0] = '.';
+        m_path[1] = '\0';
+    }
+
+    return *this;
+}
+
+void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
+{
+    const size_t len = strlen(m_path.begin());
+
+    char* beg = const_cast<char*>(m_path.begin());
+    char* curr = beg + len - 1;
+
+    size_t start = size_t(-1);
+    size_t end = size_t(-1);
+    char* firstDot = nullptr;
+
+    // figure out the first ., e.g. a.b.c -> a
+    while (curr >= beg && *curr != '\\')
+    {
+        if (*curr == '.')
+            firstDot = curr;
+
+        curr--;
+    }
+
+    firstDot = firstDot ? firstDot : beg + len;
+    end = firstDot - beg;
     start = curr - beg + 1;
 
     size_t s = end - start + 1;
     Check(buff.size() >= s, "provided buffer is too small");
 
-    memcpy(buff.data(), beg + start, s - 1);
+    if(s > 1)
+        memcpy(buff.data(), beg + start, s - 1);
+    
     buff.data()[s - 1] = '\0';
-}
 
-const char* Filesystem::Path::Get() const noexcept
-{
-    return m_path.begin();
+    if (outStrLen)
+        *outStrLen = s - 1;
 }
 
 //--------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------
 
-void Filesystem::LoadFromFile(const char* filePath, Vector<uint8_t, App::ThreadAllocator>& fileData) noexcept
+void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData) noexcept
 {
-    Assert(filePath, "filePath was NULL");
+    Assert(path, "given path was NULL");
 
-    HANDLE h = CreateFileA(filePath,
+    HANDLE h = CreateFileA(path,
         GENERIC_READ,
         FILE_SHARE_READ,
         nullptr,
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL, nullptr);
 
-    Check(h, "CreateFile() for path %s failed with following error code: %d", filePath, GetLastError());
+    Check(h, "CreateFile() for path %s failed with following error code: %d", path, GetLastError());
 
     LARGE_INTEGER s;
     bool success = GetFileSizeEx(h, &s);
-    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d", filePath, GetLastError());
+    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d", path, GetLastError());
 
     fileData.resize(s.QuadPart);
     DWORD numRead;
     success = ReadFile(h, fileData.data(), (DWORD)s.QuadPart, &numRead, nullptr);
 
-    Check(success, "ReadFile() for path %s failed with following error code: %d", filePath, GetLastError());
+    Check(success, "ReadFile() for path %s failed with following error code: %d", path, GetLastError());
     Check(numRead == (DWORD)s.QuadPart,
         "ReadFile(): read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
 
     CloseHandle(h);
 }
 
-void Filesystem::WriteToFile(const char* filePath, uint8_t* data, uint32_t sizeInBytes) noexcept
+void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAllocator>& fileData) noexcept
 {
-    Assert(filePath, "filePath was NULL");
+    Assert(path, "given path was NULL");
 
-    HANDLE h = CreateFileA(filePath,
+    HANDLE h = CreateFileA(path,
+        GENERIC_READ,
+        FILE_SHARE_READ,
+        nullptr,
+        OPEN_EXISTING,
+        FILE_ATTRIBUTE_NORMAL, nullptr);
+
+    Check(h, "CreateFile() for path %s failed with following error code: %d", path, GetLastError());
+
+    LARGE_INTEGER s;
+    bool success = GetFileSizeEx(h, &s);
+    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d", path, GetLastError());
+
+    fileData.resize(s.QuadPart);
+    DWORD numRead;
+    success = ReadFile(h, fileData.data(), (DWORD)s.QuadPart, &numRead, nullptr);
+
+    Check(success, "ReadFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(numRead == (DWORD)s.QuadPart,
+        "ReadFile(): read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
+
+    CloseHandle(h);
+}
+
+void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInBytes) noexcept
+{
+    Assert(path, "given path was NULL");
+
+    HANDLE h = CreateFileA(path,
         GENERIC_WRITE,
         FILE_SHARE_WRITE,
         nullptr,
@@ -151,33 +225,33 @@ void Filesystem::WriteToFile(const char* filePath, uint8_t* data, uint32_t sizeI
         auto e = GetLastError();
 
         // overwrite is fine
-        Check(e == ERROR_ALREADY_EXISTS, "CreateFile() for path %s failed with following error code: %d", filePath, e);
+        Check(e == ERROR_ALREADY_EXISTS, "CreateFile() for path %s failed with following error code: %d", path, e);
     }
 
     DWORD numWritten;
     bool success = WriteFile(h, data, sizeInBytes, &numWritten, nullptr);
 
-    Check(success, "WriteFile() for path %s failed with following error code: %d", filePath, GetLastError());
+    Check(success, "WriteFile() for path %s failed with following error code: %d", path, GetLastError());
     Check(numWritten == (DWORD)sizeInBytes,
         "WriteFile(): wrote %u bytes, requested size: %llu", numWritten, sizeInBytes);
 
     CloseHandle(h);
 }
 
-void Filesystem::RemoveFile(const char* filePath) noexcept
+void Filesystem::RemoveFile(const char* path) noexcept
 {
-    Assert(filePath, "filePath was NULL");
+    Assert(path, "given path was NULL");
 
-    bool success = DeleteFileA(filePath);
-    Check(success, "DeleteFile() for path %s failed with following error code: %d", filePath, GetLastError());
+    bool success = DeleteFileA(path);
+    Check(success, "DeleteFile() for path %s failed with following error code: %d", path, GetLastError());
 }
 
-bool Filesystem::Exists(const char* filePath) noexcept
+bool Filesystem::Exists(const char* path) noexcept
 {
-    Assert(filePath, "filePath was NULL");
+    Assert(path, "given path was NULL");
 
     WIN32_FIND_DATAA findData;
-    HANDLE h = FindFirstFileA(filePath, &findData);
+    HANDLE h = FindFirstFileA(path, &findData);
 
     if (h == INVALID_HANDLE_VALUE)
     {
@@ -185,7 +259,7 @@ bool Filesystem::Exists(const char* filePath) noexcept
         if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND)
             return false;
 
-        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d", filePath, e);
+        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d", path, e);
     }
 
     FindClose(h);
@@ -193,11 +267,11 @@ bool Filesystem::Exists(const char* filePath) noexcept
     return true;
 }
 
-size_t Filesystem::GetFileSize(const char* filePath) noexcept
+size_t Filesystem::GetFileSize(const char* path) noexcept
 {
-    Assert(filePath, "filePath was NULL");
+    Assert(path, "given path was NULL");
 
-    HANDLE h = CreateFileA(filePath,
+    HANDLE h = CreateFileA(path,
         GENERIC_READ,
         FILE_SHARE_READ,
         nullptr,
@@ -213,7 +287,7 @@ size_t Filesystem::GetFileSize(const char* filePath) noexcept
             return size_t(-1);
         }
 
-        Check(false, "CreateFile() for path %s failed with following error code: %d", filePath, e);
+        Check(false, "CreateFile() for path %s failed with following error code: %d", path, e);
     }
 
     LARGE_INTEGER s;
@@ -222,6 +296,52 @@ size_t Filesystem::GetFileSize(const char* filePath) noexcept
     CloseHandle(h);
 
     return s.QuadPart;
+}
+
+void Filesystem::CreateDirectoryIfNotExists(const char* path) noexcept
+{
+    if (!CreateDirectoryA(path, nullptr))
+    {
+        auto err = GetLastError();
+        if (err != ERROR_ALREADY_EXISTS)
+        {
+            if (err == ERROR_PATH_NOT_FOUND)
+            {
+                Check(false, "Failed to create directory path %s: \
+                    One or more intermediate directories do not exist.\n", path)
+            }
+            else
+                Check(false, "Failed to create directory path %s\n", path);
+        }
+    }
+}
+
+void Filesystem::Copy(const char* path, const char* newPath) noexcept
+{
+    bool ret = CopyFileA(path, newPath, true);
+    if (!ret)
+    {
+        auto err = GetLastError();
+        Check(err == ERROR_CANNOT_MAKE, "CopyFile() failed with error code: %d\n", err);
+    }
+}
+
+bool Filesystem::IsDirectory(const char* path) noexcept
+{
+    Assert(path, "given path was NULL");
+
+    auto ret = GetFileAttributesA(path);
+
+    if (ret == INVALID_FILE_ATTRIBUTES)
+    {
+        auto err = GetLastError();
+        auto validCodes = ERROR_FILE_NOT_FOUND;
+        Check(err & validCodes, "GetFileAttributesA() failed with error %d\n", err);
+
+        return false;
+    }
+
+    return ret & FILE_ATTRIBUTE_DIRECTORY;
 }
 
 
