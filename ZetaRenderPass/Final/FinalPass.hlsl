@@ -4,7 +4,7 @@
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../IndirectDiffuse/Reservoir.hlsli"
+#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature

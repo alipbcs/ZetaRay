@@ -5,7 +5,7 @@
 #include <Core/RenderGraph.h>
 //#include <Math/Sampling.h>
 #include <Common/FrameConstants.h>
-#include <IndirectDiffuse/ReSTIR_GI.h>
+#include <IndirectDiffuse/ReSTIR_GI_Diffuse.h>
 #include <Clear/Clear.h>
 #include <GBuffer/GBufferPass.h>
 #include <SunShadow/SunShadow.h>
@@ -187,7 +187,7 @@ namespace ZetaRay::DefaultRenderer
 		// Render Passes
 		Core::RenderNodeHandle RtASBuildHandle;
 
-		RenderPass::ReSTIR_GI ReSTIR_GIPass;
+		RenderPass::ReSTIR_GI_Diffuse ReSTIR_GI_DiffusePass;
 		Core::RenderNodeHandle ReSTIR_GIHandle;
 
 		RenderPass::DiffuseDNSR DiffuseDNSRPass;

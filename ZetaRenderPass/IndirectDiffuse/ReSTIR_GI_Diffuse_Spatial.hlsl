@@ -1,4 +1,4 @@
-#include "Reservoir.hlsli"
+#include "Reservoir_Diffuse.hlsli"
 #include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
@@ -158,9 +158,9 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 // main
 //--------------------------------------------------------------------------------------
 
-static const uint16_t2 GroupDim = uint16_t2(RGI_SPATIAL_THREAD_GROUP_SIZE_X, RGI_SPATIAL_THREAD_GROUP_SIZE_Y);
+static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
 
-[numthreads(RGI_SPATIAL_THREAD_GROUP_SIZE_X, RGI_SPATIAL_THREAD_GROUP_SIZE_Y, RGI_SPATIAL_THREAD_GROUP_SIZE_Z)]
+[numthreads(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
@@ -171,19 +171,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
 
 	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
+	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
 	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
 
 	uint16_t2 groupIDinTile;
 	if (groupIDFlattened >= numGroupsInFullTiles)
 	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
+		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
 		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
 	}
 	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_SPATIAL_LOG2_TILE_WIDTH);
+		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH);
 
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_SPATIAL_TILE_WIDTH + groupIDinTile.x;
+	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_SPATIAL_TILE_WIDTH + groupIDinTile.x;
 	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
 	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
 #else

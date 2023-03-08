@@ -335,27 +335,27 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, const GBu
 	if (const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
 	{
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(postData.FinalHandle,
-			rayTracerData.ReSTIR_GIPass.GetOutput(ReSTIR_GI::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		if (settings.IndirectDiffuseDenoiser == DENOISER::STAD)

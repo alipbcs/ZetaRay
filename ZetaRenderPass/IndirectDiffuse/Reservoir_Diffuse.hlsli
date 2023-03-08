@@ -1,7 +1,7 @@
 #ifndef RESERVOIR_H
 #define RESERVOIR_H
 
-#include "ReSTIR_GI_Common.h"
+#include "ReSTIR_GI_Diffuse_Common.h"
 #include "../Common/Sampling.hlsli"
 
 #define INVALID_SAMPLE_POS 32768.xxx

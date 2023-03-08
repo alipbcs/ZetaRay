@@ -3,7 +3,7 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../IndirectDiffuse/Reservoir.hlsli"
+#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 

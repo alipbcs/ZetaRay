@@ -1,4 +1,4 @@
-#include "ReSTIR_GI.h"
+#include "ReSTIR_GI_Diffuse.h"
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
@@ -13,10 +13,10 @@ using namespace ZetaRay::RT;
 using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
-// ReSTIR_GI
+// ReSTIR_GI_Diffuse
 //--------------------------------------------------------------------------------------
 
-ReSTIR_GI::ReSTIR_GI() noexcept
+ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
@@ -98,12 +98,12 @@ ReSTIR_GI::ReSTIR_GI() noexcept
 		GlobalResource::SCENE_INDEX_BUFFER);
 }
 
-ReSTIR_GI::~ReSTIR_GI() noexcept
+ReSTIR_GI_Diffuse::~ReSTIR_GI_Diffuse() noexcept
 {
 	Reset();
 }
 
-void ReSTIR_GI::Init() noexcept
+void ReSTIR_GI_Diffuse::Init() noexcept
 {
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -116,7 +116,7 @@ void ReSTIR_GI::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("ReSTIR_GI", m_rootSig, samplers.size(), samplers.data(), flags);
+	s_rpObjs.Init("ReSTIR_GI_Diffuse", m_rootSig, samplers.size(), samplers.data(), flags);
 
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
@@ -137,8 +137,8 @@ void ReSTIR_GI::Init() noexcept
 	m_cbTemporal.CheckerboardTracing = true;
 
 	ParamVariant normalExp;
-	normalExp.InitFloat("Renderer", "ReSTIR_GI", "NormalExp",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::NormalExpCallback),
+	normalExp.InitFloat("Renderer", "ReSTIR_GI_Diffuse", "NormalExp",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::NormalExpCallback),
 		DefaultParamVals::NormalExp,		// val	
 		1.0f,								// min
 		8.0f,								// max
@@ -146,8 +146,8 @@ void ReSTIR_GI::Init() noexcept
 	App::AddParam(normalExp);
 
 	ParamVariant validationT;
-	validationT.InitInt("Renderer", "ReSTIR_GI", "ValidationPeriod",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::ValidationPeriodCallback),
+	validationT.InitInt("Renderer", "ReSTIR_GI_Diffuse", "ValidationPeriod",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ValidationPeriodCallback),
 		DefaultParamVals::ValidationPeriod,		// val	
 		0,										// min
 		10,										// max
@@ -155,39 +155,39 @@ void ReSTIR_GI::Init() noexcept
 	App::AddParam(validationT);
 
 	ParamVariant doTemporal;
-	doTemporal.InitBool("Renderer", "ReSTIR_GI", "TemporalResampling",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::DoTemporalResamplingCallback), true);
+	doTemporal.InitBool("Renderer", "ReSTIR_GI_Diffuse", "TemporalResampling",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoTemporalResamplingCallback), true);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;
-	doSpatial.InitBool("Renderer", "ReSTIR_GI", "SpatialResampling",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::DoSpatialResamplingCallback), m_doSpatialResampling);
+	doSpatial.InitBool("Renderer", "ReSTIR_GI_Diffuse", "SpatialResampling",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoSpatialResamplingCallback), m_doSpatialResampling);
 	App::AddParam(doSpatial);
 
 	ParamVariant pdfCorrection;
-	pdfCorrection.InitBool("Renderer", "ReSTIR_GI", "PdfCorrection",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
+	pdfCorrection.InitBool("Renderer", "ReSTIR_GI_Diffuse", "PdfCorrection",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
 	App::AddParam(pdfCorrection);
 
 	ParamVariant checkerboard;
-	checkerboard.InitBool("Renderer", "ReSTIR_GI", "CheckerboardTracing",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI::CheckerboardTracingCallback), m_cbTemporal.CheckerboardTracing);
+	checkerboard.InitBool("Renderer", "ReSTIR_GI_Diffuse", "CheckerboardTracing",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::CheckerboardTracingCallback), m_cbTemporal.CheckerboardTracing);
 	App::AddParam(checkerboard);
 
-	App::AddShaderReloadHandler("ReSTIR_GI_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI::ReloadTemporalPass));
-	App::AddShaderReloadHandler("ReSTIR_GI_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI::ReloadSpatialPass));
-	App::AddShaderReloadHandler("ReSTIR_GI_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI::ReloadValidationPass));
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadTemporalPass));
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadSpatialPass));
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadValidationPass));
 
 	m_isTemporalReservoirValid = false;
 }
 
-void ReSTIR_GI::Reset() noexcept
+void ReSTIR_GI_Diffuse::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Temporal");
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Spatial");
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Validation");
+		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal");
+		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial");
+		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Validation");
 		s_rpObjs.Clear();
 		
 		for (int i = 0; i < 2; i++)
@@ -207,12 +207,12 @@ void ReSTIR_GI::Reset() noexcept
 	}
 }
 
-void ReSTIR_GI::OnWindowResized() noexcept
+void ReSTIR_GI_Diffuse::OnWindowResized() noexcept
 {
 	CreateOutputs();
 }
 
-void ReSTIR_GI::Render(CommandList& cmdList) noexcept
+void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -227,20 +227,20 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 
 	// Temporal resampling/Validation
 	{
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_TEMPORAL_THREAD_GROUP_SIZE_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y);
+		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_TEMPORAL_GROUP_DIM_X);
+		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Temporal");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Diffuse_Temporal");
 
 		if (isTraceFrame)
 		{
-			computeCmdList.PIXBeginEvent("ReSTIR_GI_Temporal");
+			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Temporal");
 			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_PASS]);
 		}
 		else
 		{
-			computeCmdList.PIXBeginEvent("ReSTIR_GI_Validation");
+			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Validation");
 			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::VALIDATION]);
 		}
 
@@ -249,7 +249,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		m_cbTemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbTemporal.DispatchDimY = (uint16_t)dispatchDimY;
 		m_cbTemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
-		m_cbTemporal.NumGroupsInTile = RGI_TEMPORAL_TILE_WIDTH * m_cbTemporal.DispatchDimY;
+		m_cbTemporal.NumGroupsInTile = RGI_DIFF_TEMPORAL_TILE_WIDTH * m_cbTemporal.DispatchDimY;
 		m_cbTemporal.SampleIndex = (uint16_t)m_sampleIdx;
 		m_cbTemporal.FrameCounter = m_internalCounter;
 
@@ -281,20 +281,20 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 	// spatial resampling
 	if (m_doSpatialResampling)
 	{
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_SPATIAL_THREAD_GROUP_SIZE_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_SPATIAL_THREAD_GROUP_SIZE_Y);
+		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_SPATIAL_GROUP_DIM_X);
+		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_PASS]);
 
 		m_cbSpatial.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbSpatial.NumGroupsInTile = RGI_SPATIAL_TILE_WIDTH * m_cbSpatial.DispatchDimY;
+		m_cbSpatial.NumGroupsInTile = RGI_DIFF_SPATIAL_TILE_WIDTH * m_cbSpatial.DispatchDimY;
 
 		{
 			// record the timestamp prior to execution
-			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Spatial_1");
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Diffuse_Spatial_1");
 
-			computeCmdList.PIXBeginEvent("ReSTIR_GI_Spatial_1");
+			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Spatial_1");
 
 			// transition temporal reservoir into read state
 			D3D12_RESOURCE_BARRIER barrier0 = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
@@ -349,9 +349,9 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 
 		{
 			// record the timestamp prior to execution
-			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Spatial_2");
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Diffuse_Spatial_2");
 
-			computeCmdList.PIXBeginEvent("ReSTIR_GI_Spatial_2");
+			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Spatial_2");
 
 			// transition spatial reservoir into read state
 			D3D12_RESOURCE_BARRIER barrier0 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.GetResource(),
@@ -425,7 +425,7 @@ void ReSTIR_GI::Render(CommandList& cmdList) noexcept
 		m_sampleIdx = (m_sampleIdx + 1) & 31;
 }
 
-void ReSTIR_GI::CreateOutputs() noexcept
+void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
 {
 	auto& renderer = App::GetRenderer();
 
@@ -473,58 +473,58 @@ void ReSTIR_GI::CreateOutputs() noexcept
 	}
 }
 
-void ReSTIR_GI::DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbTemporal.DoTemporalResampling = p.GetBool();
 }
 
-void ReSTIR_GI::DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept
 {
 	m_doSpatialResampling = p.GetBool();
 }
 
-void ReSTIR_GI::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbTemporal.PdfCorrection = p.GetBool();
 	m_cbSpatial.PdfCorrection = p.GetBool();
 }
 
-void ReSTIR_GI::ValidationPeriodCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p) noexcept
 {
 	m_validationPeriod = p.GetInt().m_val;
 }
 
-void ReSTIR_GI::NormalExpCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::NormalExpCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbSpatial.NormalExp = p.GetFloat().m_val;
 }
 
-void ReSTIR_GI::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbTemporal.CheckerboardTracing = p.GetBool();
 }
 
-void ReSTIR_GI::ReloadTemporalPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_TemporalPass.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI::ReloadSpatialPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadSpatialPass() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_SpatialPass.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI::ReloadValidationPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadValidationPass() noexcept
 {
 	const int i = (int)SHADERS::VALIDATION;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Validation.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Validation.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 

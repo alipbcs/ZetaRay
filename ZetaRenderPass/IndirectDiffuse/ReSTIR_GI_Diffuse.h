@@ -4,7 +4,7 @@
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
-#include "ReSTIR_GI_Common.h"
+#include "ReSTIR_GI_Diffuse_Common.h"
 
 namespace ZetaRay::Core
 {
@@ -18,7 +18,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct ReSTIR_GI final
+	struct ReSTIR_GI_Diffuse final
 	{
 		enum class SHADER_IN_RES
 		{
@@ -39,8 +39,8 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		ReSTIR_GI() noexcept;
-		~ReSTIR_GI() noexcept;
+		ReSTIR_GI_Diffuse() noexcept;
+		~ReSTIR_GI_Diffuse() noexcept;
 
 		void Init() noexcept;
 		bool IsInitialized() noexcept { return m_psos[0] != nullptr; };
@@ -189,9 +189,9 @@ namespace ZetaRay::RenderPass
 
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
-			"ReSTIR_GI_TemporalPass_cs.cso", 
-			"ReSTIR_GI_SpatialPass_cs.cso", 
-			"ReSTIR_GI_Validation_cs.cso" 
+			"ReSTIR_GI_Diffuse_Temporal_cs.cso", 
+			"ReSTIR_GI_Diffuse_Spatial_cs.cso", 
+			"ReSTIR_GI_Diffuse_Validation_cs.cso" 
 		};
 
 		// shader reload

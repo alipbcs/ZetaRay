@@ -1,4 +1,4 @@
-#include "Reservoir.hlsli"
+#include "Reservoir_Diffuse.hlsli"
 #include "../Common/Common.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../../ZetaCore/Core/Material.h"
@@ -51,12 +51,12 @@ struct HitSurface
 #if RAY_BINNING
 groupshared uint g_binOffset[NUM_BINS];
 groupshared uint g_binIndex[NUM_BINS];
-groupshared float3 g_sortedOrigin[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
-groupshared float3 g_sortedDir[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
+groupshared float3 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
+groupshared float3 g_sortedDir[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 #endif
 
 #if USE_RAY_CONES
-groupshared RT::RayCone g_sortedRayCones[RGI_TEMPORAL_THREAD_GROUP_SIZE_X * RGI_TEMPORAL_THREAD_GROUP_SIZE_Y];
+groupshared RT::RayCone g_sortedRayCones[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 #endif
 
 //--------------------------------------------------------------------------------------
@@ -544,10 +544,10 @@ Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float lin
 // Main
 //--------------------------------------------------------------------------------------
 
-static const uint16_t2 GroupDim = uint16_t2(RGI_TEMPORAL_THREAD_GROUP_SIZE_X, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y);
+static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
 [WaveSize(32)]
-[numthreads(RGI_TEMPORAL_THREAD_GROUP_SIZE_X, RGI_TEMPORAL_THREAD_GROUP_SIZE_Y, RGI_TEMPORAL_THREAD_GROUP_SIZE_Z)]
+[numthreads(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
@@ -558,19 +558,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
 
 	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
+	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
 	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
 
 	uint16_t2 groupIDinTile;
 	if (groupIDFlattened >= numGroupsInFullTiles)
 	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_TEMPORAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
+		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_TEMPORAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
 		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
 	}
 	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_TEMPORAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_TEMPORAL_LOG2_TILE_WIDTH);
+		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_TEMPORAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH);
 
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
+	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
 	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
 	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
 #else
