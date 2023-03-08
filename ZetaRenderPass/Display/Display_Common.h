@@ -25,7 +25,7 @@ enum class Tonemapper
 	COUNT
 };
 
-struct cbFinalPass
+struct cbDisplayPass
 {
 	uint16_t DisplayOption;
 	uint16_t Tonemapper;

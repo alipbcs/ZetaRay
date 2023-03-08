@@ -4,7 +4,7 @@
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
-#include "FinalPass_Common.h"
+#include "Display_Common.h"
 
 namespace ZetaRay::Core
 {
@@ -18,7 +18,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct FinalPass final
+	struct DisplayPass final
 	{
 		enum class SHADER_IN_CPU_DESC
 		{
@@ -40,8 +40,8 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		FinalPass() noexcept;
-		~FinalPass() noexcept;
+		DisplayPass() noexcept;
+		~DisplayPass() noexcept;
 
 		void Init() noexcept;
 		bool IsInitialized() noexcept { return m_pso != nullptr; }
@@ -63,12 +63,12 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_SRV = 0;
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 1;
-		static constexpr int NUM_CONSTS = sizeof(cbFinalPass) / sizeof(DWORD);
+		static constexpr int NUM_CONSTS = sizeof(cbDisplayPass) / sizeof(DWORD);
 
 		RpObjects s_rpObjs;
 
-		inline static constexpr const char* COMPILED_VS[] = { "FinalPass_vs.cso" };
-		inline static constexpr const char* COMPILED_PS[] = { "FinalPass_ps.cso" };
+		inline static constexpr const char* COMPILED_VS[] = { "Display_vs.cso" };
+		inline static constexpr const char* COMPILED_PS[] = { "Display_ps.cso" };
 
 		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;
@@ -77,7 +77,7 @@ namespace ZetaRay::RenderPass
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
 		uint32_t m_gpuDescs[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
 
-		cbFinalPass m_cbLocal;
+		cbDisplayPass m_cbLocal;
 
 		struct Params
 		{

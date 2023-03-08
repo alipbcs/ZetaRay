@@ -13,7 +13,7 @@
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
 #include <AutoExposure/AutoExposure.h>
-#include <Final/FinalPass.h>
+#include <Display/Display.h>
 #include <GUI/GuiPass.h>
 #include <Sky/Sky.h>
 #include <Denoiser/DiffuseDNSR.h>
@@ -157,8 +157,8 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::AutoExposure AutoExposurePass;
 		Core::RenderNodeHandle AutoExposureHandle;
 
-		RenderPass::FinalPass FinalDrawPass;
-		Core::RenderNodeHandle FinalHandle;
+		RenderPass::DisplayPass DisplayPass;
+		Core::RenderNodeHandle DisplayHandle;
 
 		RenderPass::GuiPass GuiPass;
 		Core::RenderNodeHandle GuiHandle;

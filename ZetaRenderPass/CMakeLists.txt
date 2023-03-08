@@ -5,7 +5,7 @@ add_subdirectory(Common)
 add_subdirectory(Clear)
 add_subdirectory(Compositing)
 add_subdirectory(Denoiser)
-add_subdirectory(Final)
+add_subdirectory(Display)
 add_subdirectory(FSR2)
 add_subdirectory(GBuffer)
 add_subdirectory(GUI)
@@ -22,7 +22,7 @@ set(RENDERPASS_SRC
     ${RP_CLEAR_SRC} 
     ${RP_COMMON_SRC} 
     ${RP_COMPOSITING_SRC} 
-    ${RP_FINAL_SRC} 
+    ${RP_DISPLAY_SRC} 
     ${RP_FSR2_SRC} 
     ${RP_GBUFFER_SRC} 
     ${RP_GUI_SRC} 

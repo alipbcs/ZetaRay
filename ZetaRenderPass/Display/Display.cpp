@@ -1,4 +1,4 @@
-#include "FinalPass.h"
+#include "Display.h"
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
@@ -11,10 +11,10 @@ using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------
-// FinalPass
+// DisplayPass
 //--------------------------------------------------------------------------------------
 
-FinalPass::FinalPass() noexcept
+DisplayPass::DisplayPass() noexcept
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -27,19 +27,19 @@ FinalPass::FinalPass() noexcept
 
 	// root constants
 	m_rootSig.InitAsConstants(1,				// root idx
-		sizeof(cbFinalPass) / sizeof(DWORD),	// num DWORDs
+		sizeof(cbDisplayPass) / sizeof(DWORD),	// num DWORDs
 		1,										// register
 		0,										// register space
 		D3D12_SHADER_VISIBILITY_PIXEL);
 }
 
-FinalPass::~FinalPass() noexcept
+DisplayPass::~DisplayPass() noexcept
 {
 	if (m_pso)
 		s_rpObjs.Clear();
 }
 
-void FinalPass::Init() noexcept
+void DisplayPass::Init() noexcept
 {
 	auto& renderer = App::GetRenderer();
 
@@ -52,7 +52,7 @@ void FinalPass::Init() noexcept
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("Final", m_rootSig, samplers.size(), samplers.data(), flags);
+	s_rpObjs.Init("Display", m_rootSig, samplers.size(), samplers.data(), flags);
 	CreatePSO();
 
 	m_cbLocal.DisplayOption = (int)DisplayOption::DEFAULT;
@@ -60,21 +60,21 @@ void FinalPass::Init() noexcept
 	m_cbLocal.VisualizeOcclusion = false;
 
 	ParamVariant p1;
-	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &FinalPass::ChangeDisplayOptionCallback),
+	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeDisplayOptionCallback),
 		Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
 	App::AddParam(p1);
 
 	ParamVariant p2;
-	p2.InitEnum("Renderer", "Display", "Tonemapper", fastdelegate::MakeDelegate(this, &FinalPass::ChangeTonemapperCallback),
+	p2.InitEnum("Renderer", "Display", "Tonemapper", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeTonemapperCallback),
 		Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
 	App::AddParam(p2);
 
 	ParamVariant p6;
-	p6.InitBool("Renderer", "Display", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &FinalPass::VisualizeOcclusionCallback),
+	p6.InitBool("Renderer", "Display", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &DisplayPass::VisualizeOcclusionCallback),
 		false);
 	App::AddParam(p6);
 
-	App::AddShaderReloadHandler("Final", fastdelegate::MakeDelegate(this, &FinalPass::ReloadShaders));
+	App::AddShaderReloadHandler("Display", fastdelegate::MakeDelegate(this, &DisplayPass::ReloadShaders));
 
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
@@ -84,19 +84,19 @@ void FinalPass::Init() noexcept
 	Direct3DHelper::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
 }
 
-void FinalPass::Reset() noexcept
+void DisplayPass::Reset() noexcept
 {
 	if (IsInitialized())
 		s_rpObjs.Clear();
 
-	//App::RemoveParam("Renderer", "Final", "Display");
-	//App::RemoveParam("Renderer", "Final", "KeyValue");
+	//App::RemoveParam("Renderer", "Display", "Display");
+	//App::RemoveParam("Renderer", "Display", "KeyValue");
 	//App::RemoveParam("Renderer", "Settings", "Tonemapping");
 
-	App::RemoveShaderReloadHandler("Final");
+	App::RemoveShaderReloadHandler("Display");
 }
 
-void FinalPass::Render(CommandList& cmdList) noexcept
+void DisplayPass::Render(CommandList& cmdList) noexcept
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
@@ -104,10 +104,10 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
 
-	directCmdList.PIXBeginEvent("Final");
+	directCmdList.PIXBeginEvent("Display");
 
 	// record the timestamp prior to execution
-	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Final");
+	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Display");
 
 	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	directCmdList.SetPipelineState(m_pso);
@@ -124,7 +124,7 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	m_cbLocal.SpatialReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B];
 	m_cbLocal.SpatialReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C];
 	m_cbLocal.LUTDescHeapIdx = m_lutSRV.GPUDesciptorHeapIndex(0);
-	m_rootSig.SetRootConstants(0, sizeof(cbFinalPass) / sizeof(DWORD), &m_cbLocal);
+	m_rootSig.SetRootConstants(0, sizeof(cbDisplayPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);
 
 	D3D12_VIEWPORT viewports[1] = { renderer.GetDisplayViewport() };
@@ -141,7 +141,7 @@ void FinalPass::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void FinalPass::CreatePSO() noexcept
+void DisplayPass::CreatePSO() noexcept
 {
 	DXGI_FORMAT rtvFormats[1] = { Constants::BACK_BUFFER_FORMAT };
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
@@ -163,23 +163,23 @@ void FinalPass::CreatePSO() noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
-void FinalPass::VisualizeOcclusionCallback(const ParamVariant& p) noexcept
+void DisplayPass::VisualizeOcclusionCallback(const ParamVariant& p) noexcept
 {
 	m_cbLocal.VisualizeOcclusion = p.GetBool();
 }
 
-void FinalPass::ChangeDisplayOptionCallback(const ParamVariant& p) noexcept
+void DisplayPass::ChangeDisplayOptionCallback(const ParamVariant& p) noexcept
 {
 	m_cbLocal.DisplayOption = (uint16_t)p.GetEnum().m_curr;
 }
 
-void FinalPass::ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbLocal.Tonemapper = (uint16_t)p.GetEnum().m_curr;
 }
 
-void FinalPass::ReloadShaders() noexcept
+void DisplayPass::ReloadShaders() noexcept
 {
-	s_rpObjs.m_psoLib.Reload(0, "Final\\FinalPass.hlsl", false);
+	s_rpObjs.m_psoLib.Reload(0, "Display\\Display.hlsl", false);
 	CreatePSO();
 }

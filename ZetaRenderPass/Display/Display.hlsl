@@ -1,17 +1,17 @@
-#include "FinalPass_Common.h"
+#include "Display_Common.h"
 #include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
+#include "../IndirectDiffuse/Reservoir.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cbFinalPass> g_local : register(b1);
+ConstantBuffer<cbDisplayPass> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper structs
