@@ -305,7 +305,7 @@ TEST_CASE("PerspectiveMat")
 	}
 }
 
-TEST_CASE("Quaternion")
+TEST_CASE("RotationMatFromQuaternion")
 {
 	__m128 vQs[4];
 	
@@ -331,7 +331,7 @@ TEST_CASE("Quaternion")
 
 	for (int i = 0; i < 4; i++)
 	{
-		v_float4x4 vR = rotationMatrixFromQuat(vQs[i]);
+		v_float4x4 vR = rotationMatFromQuat(vQs[i]);
 		auto resZ = store(vR);
 
 		auto quatX = DirectX::XMMatrixRotationQuaternion(vQs[i]);
@@ -364,6 +364,23 @@ TEST_CASE("Quaternion")
 		*/
 	}
 }
+
+TEST_CASE("QuaternionFromRotationMat")
+{
+	float4a axis(1, 2, 3, 0);
+	__m128 vAxis = _mm_load_ps(reinterpret_cast<float*>(&axis));
+	vAxis = normalize(vAxis);
+
+	v_float4x4 vR = rotate(vAxis, PI / 6);
+	__m128 vQ = quatFromRotationMat(vR);
+	float4a result= store(vQ);
+	
+	CHECK(fabsf(result.x - 0.0691723f) <= FLT_EPSILON);
+	CHECK(fabsf(result.y - 0.1383446f) <= FLT_EPSILON);
+	CHECK(fabsf(result.z - 0.2075168f) <= FLT_EPSILON);
+	CHECK(fabsf(result.w - 0.9659258f) <= FLT_EPSILON);
+}
+
 
 /*
 TEST_CASE("PlaneTransformation")
