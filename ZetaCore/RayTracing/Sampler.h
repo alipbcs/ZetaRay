@@ -11,7 +11,8 @@ namespace ZetaRay::RT
 		inline static constexpr const char* SCRAMBLING_TILE = "ScramblingTile";
 		inline static constexpr const char* RANKING_TILE = "RankingTile";
 
-		// Ref: Heitz et al., "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
+		// Ref: E. Heitz, L. Belcour, V. Ostromoukhov, D. Coeurjolly and J. Iehl, "A Low-Discrepancy 
+		// Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
 		void InitLowDiscrepancyBlueNoise() noexcept;
 		void Clear() noexcept;
 

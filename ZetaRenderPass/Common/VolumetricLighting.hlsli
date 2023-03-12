@@ -16,7 +16,7 @@
 static const float3 SIGMA_S_RAYLEIGH = float3(5.802f, 13.558f, 33.1f) * 1e-6f;	// 1 / m
 static const float3 SIGMA_A_RAYLEIGH = float3(0.0f, 0.0f, 0.0f);				// 1 / m
 static const float3 SIGMA_T_RAYLEIGH = SIGMA_S_RAYLEIGH + SIGMA_A_RAYLEIGH;
-static const float SIGMA_S_MIE = 3.996f * 1e-6f;		// Mie scattering is not wavelength-dependant
+static const float SIGMA_S_MIE = 3.996f * 1e-6f;		// Mie scattering is not wavelength-dependent
 static const float SIGMA_A_MIE = 4.4f * 1e-6f;
 static const float SIGMA_T_MIE = SIGMA_S_MIE + SIGMA_A_MIE;
 static const float3 SIGMA_S_OZONE = float3(0.0f, 0.0f, 0.0f);

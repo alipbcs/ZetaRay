@@ -583,7 +583,7 @@ namespace ZetaRay::Math
 		return P;
 	}
 
-	ZetaInline v_float4x4 perspectiveReverseZ(float aspectRatio, float vFOV, float nearZ) noexcept
+	ZetaInline v_float4x4 __vectorcall perspectiveReverseZ(float aspectRatio, float vFOV, float nearZ) noexcept
 	{
 		v_float4x4 P;
 

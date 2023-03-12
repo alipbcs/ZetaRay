@@ -204,7 +204,8 @@ namespace Sampling
 	//--------------------------------------------------------------------------------------
 	// Blue noise sampler
 	//
-	// Ref: Heitz et al., "A Low-Discrepancy Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
+	// Ref: E. Heitz, L. Belcour, V. Ostromoukhov, D. Coeurjolly and J. Iehl, "A Low-Discrepancy 
+	// Sampler that Distributes Monte Carlo Errors as a Blue Noise in Screen Space," in SIGGRAPH, 2019.
 	//--------------------------------------------------------------------------------------
 
 	// This is for 32 samples per-pixel

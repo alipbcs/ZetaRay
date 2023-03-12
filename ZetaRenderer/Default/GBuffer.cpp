@@ -339,7 +339,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	renderGraph.AddOutput(data.ClearHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	// make the GBufferPass dependant on Clear
+	// make the GBufferPass dependent on Clear
 	renderGraph.AddInput(data.GBuffPassHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);

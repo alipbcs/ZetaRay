@@ -72,7 +72,7 @@ namespace ZetaRay
 		float3_ OzoneSigmaAColor;
 		float OzoneSigmaAScale;
 
-		float MieSigmaS;		// Mie-scattering is not wavelength dependant
+		float MieSigmaS;		// Mie-scattering is not wavelength dependent
 		float MieSigmaA;
 		float AtmosphereAltitude;
 		float g;

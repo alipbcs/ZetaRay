@@ -121,11 +121,11 @@ void RenderGraph::Reset() noexcept
 	//m_frameResources.clear();
 	m_frameResources.resize(MAX_NUM_RESOURCES);
 
-	// sort the frame resources so that window-dependant ones come after window-independant ones
+	// sort the frame resources so that window-dependent ones come after window-independent ones
 	auto it = std::partition(m_frameResources.begin(), m_frameResources.begin() + m_prevFramesNumResources,
 		[](ResourceMetadata& res)
 		{
-			return res.IsWindowSizeDependant == false;
+			return res.IsWindowSizeDependent == false;
 		});
 
 	const size_t numRemaining = it - m_frameResources.begin();
@@ -224,7 +224,7 @@ RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_T
 	return RenderNodeHandle(h);
 }
 
-void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependant) noexcept
+void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent) noexcept
 {
 	Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
 
@@ -234,7 +234,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 	if (prevPos != -1)
 	{
 		if(m_frameResources[prevPos].Res != res)
-			m_frameResources[prevPos].Reset(path, res, initState, isWindowSizeDependant);
+			m_frameResources[prevPos].Reset(path, res, initState, isWindowSizeDependent);
 
 		return;
 	}
@@ -243,7 +243,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 	int pos = m_currResIdx.fetch_add(1, std::memory_order_relaxed);
 	Assert(pos < MAX_NUM_RESOURCES, "Number of resources exceeded MAX_NUM_RESOURCES");
 
-	m_frameResources[pos].Reset(path, res, initState, isWindowSizeDependant);
+	m_frameResources[pos].Reset(path, res, initState, isWindowSizeDependent);
 }
 
 void RenderGraph::MoveToPostRegister() noexcept

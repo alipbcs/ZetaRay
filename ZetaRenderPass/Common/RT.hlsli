@@ -62,7 +62,9 @@ namespace RT
 				  abs(p.z) < origin ? p.z + float_scale * geometricNormal.z : p_i.z);
 	}
 
-	// Ref: T. Akenine-Moller et al., "Texture Level of Detail Strategies for Real-Time Ray Tracing", in Ray Tracing Gems 1, 2019.
+	// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
+	// and T. Karras1, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
+	// Ray Tracing Gems 1, 2019.
 	// Usage (Starting from GBuffer (primary hit)):
 	//		1. surfaceSpreadAngle = GetSurfaceSpreadAngleFromGBuffer()
 	//		2. RayCone rc = Init()

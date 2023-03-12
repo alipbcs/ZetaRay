@@ -82,7 +82,7 @@ namespace ZetaRay::Core
 
 		// Registers a new resource. This must be called prior to declaring resource dependencies in each frame
 		void RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
-			bool isWindowSizeDependant = true) noexcept;
+			bool isWindowSizeDependent = true) noexcept;
 		
 		// Removes given resource (useful for when resources are recreated)
 		void RemoveResource(uint64_t path) noexcept;
@@ -133,7 +133,7 @@ namespace ZetaRay::Core
 				State = other.State;
 				memcpy(Producers, other.Producers, MAX_NUM_PRODUCERS * sizeof(RenderNodeHandle));
 				CurrProdIdx = other.CurrProdIdx.load(std::memory_order_relaxed);
-				IsWindowSizeDependant = other.IsWindowSizeDependant;
+				IsWindowSizeDependent = other.IsWindowSizeDependent;
 			}
 			ResourceMetadata& operator=(const ResourceMetadata& rhs) noexcept
 			{
@@ -145,16 +145,16 @@ namespace ZetaRay::Core
 				State = rhs.State;
 				memcpy(Producers, rhs.Producers, MAX_NUM_PRODUCERS * sizeof(RenderNodeHandle));
 				CurrProdIdx = rhs.CurrProdIdx.load(std::memory_order_relaxed);
-				IsWindowSizeDependant = rhs.IsWindowSizeDependant;
+				IsWindowSizeDependent = rhs.IsWindowSizeDependent;
 
 				return *this;
 			}
 
-			void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, bool isWindowSizeDependant) noexcept
+			void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, bool isWindowSizeDependent) noexcept
 			{
 				Res = r;
 				ID = id;
-				IsWindowSizeDependant = isWindowSizeDependant;
+				IsWindowSizeDependent = isWindowSizeDependent;
 
 				if(State == D3D12_RESOURCE_STATES(-1))
 					State = s;
@@ -176,7 +176,7 @@ namespace ZetaRay::Core
 			std::atomic_uint16_t CurrProdIdx = 0;
 			RenderNodeHandle Producers[MAX_NUM_PRODUCERS] = { RenderNodeHandle(INVALID_NODE_HANDLE) };
 			D3D12_RESOURCE_STATES State = D3D12_RESOURCE_STATES(-1);
-			bool IsWindowSizeDependant = false;
+			bool IsWindowSizeDependent = false;
 		};
 
 		// make sure this doesn't get reset between frames as some states carry over to the

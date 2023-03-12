@@ -110,7 +110,7 @@ namespace ZetaRay::Support
 			return (TaskHandle)(m_currSize - 1);
 		}
 		
-		// Adds a dependant task to the list of tasks that are notified by this task upon completion
+		// Adds a dependent task to the list of tasks that are notified by this task upon completion
 		void AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept;
 		// Adds an edge from given task to every other task that is "currently" is the TaskSet
 		void AddOutgoingEdgeToAll(TaskHandle a) noexcept;
