@@ -42,7 +42,8 @@ namespace
 				float v = fp.m_val;
 
 				auto flags = (int)ImGuiSliderFlags_NoInput;
-				if ((fp.m_max - fp.m_min) / Math::Max(fp.m_min, 1e-6f) >= 1000.0f)
+				//if ((fp.m_max - fp.m_min) / Math::Max(fp.m_min, 1e-6f) >= 1000.0f)
+				if (fp.m_stepSize <= 1e-3f)
 					flags |= ImGuiSliderFlags_Logarithmic;
 
 				if(ImGui::SliderFloat(param.GetName(), &v, fp.m_min, fp.m_max, "%.5f", flags))
@@ -97,6 +98,61 @@ namespace
 					param.SetBool(v);
 			}
 		}
+	}
+
+	void DrawAxis(const char* label, const float3& axis, const float3& color, float lineWidth) noexcept
+	{
+		// axis
+		float axis_x[2];
+		float axis_y[2];
+
+		// starting point
+		axis_x[0] = 0.0f;
+		axis_y[0] = 0.0f;
+
+		// end point
+		axis_x[1] = axis.x;
+		axis_y[1] = axis.z;
+
+		ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
+		ImPlot::PlotLine(label, axis_x, axis_y, ZetaArrayLen(axis_x));
+
+		// arrow tip
+		constexpr float arrowLenX = 0.05f;
+		constexpr float arrowLenY = 0.1f;
+
+		float arrow_x[3];
+		float arrow_y[3];
+
+		// starting point
+		arrow_x[0] = 0.0f - arrowLenX;
+		arrow_y[0] = 1.0f - arrowLenY;
+
+		// middle point
+		arrow_x[1] = axis_x[1];
+		arrow_y[1] = axis_y[1];
+
+		// end point
+		arrow_x[2] = 0.0f + arrowLenX;
+		arrow_y[2] = 1.0f - arrowLenY;
+
+		// rotate
+		float2 rotMatRow1 = float2(axis.z, axis.x);
+		float2 rotMatRow2 = float2(-axis.x, axis.z);
+
+		float2 rotated;
+		rotated.x = rotMatRow1.x * arrow_x[0] + rotMatRow1.y * arrow_y[0];
+		rotated.y = rotMatRow2.x * arrow_x[0] + rotMatRow2.y * arrow_y[0];
+		arrow_x[0] = rotated.x;
+		arrow_y[0] = rotated.y;
+
+		rotated.x = rotMatRow1.x * arrow_x[2] + rotMatRow1.y * arrow_y[2];
+		rotated.y = rotMatRow2.x * arrow_x[2] + rotMatRow2.y * arrow_y[2];
+		arrow_x[2] = rotated.x;
+		arrow_y[2] = rotated.y;
+
+		ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
+		ImPlot::PlotLine("", arrow_x, arrow_y, ZetaArrayLen(arrow_x));
 	}
 }
 
@@ -569,11 +625,6 @@ void GuiPass::RenderProfiler() noexcept
 	if (ImGui::CollapsingHeader("GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		auto frameTimeHist = App::GetFrameTimeHistory();
-		//double xs[128];
-		//Assert(frameTimeHist.size() < ArraySize(xs), "xs is too small.");
-
-		//for (int i = 0; i < frameTimeHist.size(); i++)
-		//	xs[i] = i;
 
 		float max_ = -1.0f;
 		for (auto f : frameTimeHist)
@@ -581,7 +632,7 @@ void GuiPass::RenderProfiler() noexcept
 
 		if (ImPlot::BeginPlot("Frame Time (ms)", ImVec2(w * 0.9f, 150.0f), ImPlotFlags_NoLegend))
 		{
-			//ImPlot::SetupAxes("", "", 0, ImPlotAxisFlags_AutoFit);
+			ImPlot::SetupAxes("", "", 0, ImPlotAxisFlags_NoHighlight);
 			ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max_ + 1.0, ImGuiCond_Always);
 			//ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
 			ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.1f, 0.35f, 0.95f, 1.0f));
@@ -687,7 +738,7 @@ void GuiPass::InfoTab() noexcept
 	ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
 	ImGui::Text("");
 	ImGui::Text("Controls:");
-	ImGui::Text("\t- WASD+LMB moves the camera and MMB to zoom in/out");
+	ImGui::Text("\t- WASD+LMB moves the camera");
 	ImGui::Text("\t- MMB zooms in/out");
 }
 
@@ -704,6 +755,28 @@ void GuiPass::CameraTab() noexcept
 	ImGui::Text("View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
 	ImGui::Text("Aspect Ratio: %f", camera.GetAspectRatio());
 	ImGui::Text("Near Plane Z: %.3f", camera.GetNearZ());
+
+	constexpr int plotFlags = ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText | ImPlotFlags_Equal;
+
+	if (ImPlot::BeginPlot("Coodinate System", ImVec2(250.0f, 250.0f), plotFlags))
+	{
+		constexpr int axisFlags = ImPlotAxisFlags_Lock | ImPlotAxisFlags_NoHighlight;
+		ImPlot::SetupAxes("X", "Z", axisFlags, axisFlags);
+		ImPlot::SetupAxesLimits(-1.5f, 1.5f, -1.5f, 1.5f, ImGuiCond_Always);
+
+		ImGuiStyle& style = ImGui::GetStyle();
+		ImVec4* colors = style.Colors;
+		const auto wndCol = colors[ImGuiCol_WindowBg];
+		ImPlot::PushStyleColor(ImPlotCol_FrameBg, wndCol);
+		
+		const float3 xAxis = camera.GetBasisX();
+		const float3 zAxis = camera.GetBasisZ();
+		DrawAxis("X", xAxis, float3(0.99f, 0.15f, 0.05f), 3.0f);
+		DrawAxis("Z", zAxis, float3(0.1f, 0.5f, 0.99f), 3.0f);
+
+		ImPlot::PopStyleColor();
+		ImPlot::EndPlot();
+	}
 }
 
 void GuiPass::ParameterTab() noexcept
