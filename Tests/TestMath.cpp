@@ -10,6 +10,20 @@ using namespace ZetaRay;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
+TEST_CASE("3x3 Determinant")
+{
+	float4x3 M(float3(1, 0, 0),
+		float3(0, -1.19209290e-07, 0.999999940),
+		float3(0, -0.999999940, -1.19209290e-07),
+		float3(0, 0, 1));
+
+	v_float4x4 vM(M);
+	auto det = det3x3(vM);
+	auto d = store(det);
+
+	CHECK(fabsf(d.x - 1.0f) < 1e-6);
+}
+
 TEST_CASE("AABBvsAABB")
 {
 	int unused;

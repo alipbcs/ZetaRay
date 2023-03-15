@@ -98,23 +98,14 @@ namespace ZetaRay::Math
 		return M3;
 	}
 
-	ZetaInline __m128 __vectorcall determinant3x3(const v_float4x4 M) noexcept
+	ZetaInline __m128 __vectorcall det3x3(const v_float4x4 M) noexcept
 	{
-		//  
-		//			 a b c
-		//	M_3x3 =	 d e f
-		//			 g h i
-		//
-		__m128 vefd = _mm_shuffle_ps(M.vRow[1], M.vRow[1], V_SHUFFLE_XYZW(1, 2, 0, 0));
-		__m128 vigh = _mm_shuffle_ps(M.vRow[2], M.vRow[2], V_SHUFFLE_XYZW(2, 0, 1, 0));
-		__m128 vTemp0 = _mm_mul_ps(vefd, vigh);
+		// Given M = [a b c], scalar triple product a.(b x c) gives the determinant
+		const __m128 vRow1xRow2 = cross(M.vRow[1], M.vRow[2]);
+		const __m128 vRow0 = _mm_blend_ps(M.vRow[0], _mm_setzero_ps(), _MM_BLEND_XYZW(0, 0, 0, 1));
+		const __m128 det = _mm_dp_ps(M.vRow[0], vRow1xRow2, 0xff);
 
-		__m128 vfde = _mm_shuffle_ps(M.vRow[0], M.vRow[1], V_SHUFFLE_XYZW(2, 0, 1, 0));
-		__m128 vhig = _mm_shuffle_ps(M.vRow[2], M.vRow[2], V_SHUFFLE_XYZW(1, 2, 0, 0));
-		__m128 vTemp1 = _mm_mul_ps(vfde, vhig);
-
-		vefd = _mm_blend_ps(M.vRow[0], _mm_setzero_ps(), 0x8);
-		return _mm_dp_ps(_mm_sub_ps(vTemp0, vTemp1), vefd, 0xff);
+		return det;
 	}
 
 	// TODO this can be done more efficiently
