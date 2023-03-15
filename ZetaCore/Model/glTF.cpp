@@ -392,7 +392,7 @@ namespace
 			if (node.matrix.size() == 16)
 			{
 				vM = load(M);
-				auto det = store(determinant3x3(vM));	// last row is ignored
+				auto det = store(determinant3x3(vM));	// last column is ignored
 				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a 0 determinant is invalid.");
 				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 
@@ -435,7 +435,10 @@ namespace
 				v_float4x4 vR = identity();
 
 				if (!node.scale.empty())
+				{
+					Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
 					vS = scale((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
+				}
 
 				if (!node.translation.empty())
 				{
@@ -467,6 +470,10 @@ namespace
 
 				vM = mul(vS, vR);
 				vM = mul(vM, vT);
+
+				auto det = store(determinant3x3(vM));	// last row is ignored
+				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
+				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 			}
 
 			M = store(vM);

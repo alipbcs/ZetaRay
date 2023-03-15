@@ -450,12 +450,12 @@ namespace ZetaRay::Math
 		// q1 = (R_23 - R_32) / (4 * q_4)
 		// q2 = (R_31 - R_13) / (4 * q_4)
 		// q3 = (R_12 - R_21) / (4 * q_4)
-	
+
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vTwo = _mm_set1_ps(2.0f);
 		const __m128 vOneDiv2 = _mm_set1_ps(0.5f);
 		const __m128 vFour = _mm_set1_ps(4.0f);
-	
+
 		__m128 vTrace = _mm_add_ps(vR.vRow[0], _mm_shuffle_ps(vR.vRow[1], vR.vRow[1], V_SHUFFLE_XYZW(1, 1, 1, 1)));
 		vTrace = _mm_add_ps(vTrace, _mm_shuffle_ps(vR.vRow[2], vR.vRow[2], V_SHUFFLE_XYZW(2, 2, 2, 2)));
 		vTrace = _mm_shuffle_ps(vTrace, vTrace, V_SHUFFLE_XYZW(0, 0, 0, 0));
@@ -483,7 +483,7 @@ namespace ZetaRay::Math
 		}
 		else
 		{
-			
+
 		}
 	}
 	*/
@@ -535,47 +535,27 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	// Note: doens't support negative scaling
-	// TODO untested
+	// Note: doesn't support negative scaling
+	// TODO test
 	ZetaInline void __vectorcall decomposeTRS(const v_float4x4 vM, float4a& t, float4a& r, float4a& s) noexcept
 	{
 		// Given the transformation matrix M = TRS, M is easily decomposed into T and RS. That just leaves the
-		// RS part. We can check for the presence of scaling and early exit if there isn't one. Using the 
-		// determinant:
-		// 
-		//		det_RS = det(R) * det(S)
-		//             = 1 * det(S)
-		// 
-		// Rotation transformation preserves volume and orientation, so det(R) = 1. So, if there is 
-		// scaling, det(RS) != 1. Note that since S is a diagonal matrix, its determinant is equal to the 
-		// product of its diagonal entries, so unless S = I, det(S) != 1.
+		// RS part.
+		__m128 vT = _mm_insert_ps(vM.vRow[0], vM.vRow[0], 0xc7);	// (m03, 0, 0, 0)
+		vT = _mm_insert_ps(vT, vM.vRow[1], 0xd0);					// (m03, m13, 0, 0)
+		vT = _mm_insert_ps(vT, vM.vRow[2], 0xe0);					// (m03, m13, m23, 0)
+		t = store(vT);
 
-		v_float4x4 vMT = transpose(vM);
-		t = store(vMT.vRow[3]);
-
-		const __m128 vOne = _mm_set1_ps(1.0f);
-		__m128 vDet = determinant3x3(vM);
-		__m128 isDetOne = _mm_cmpeq_ps(vDet, vOne);
-
-		if (_mm_movemask_ps(isDetOne) & 0x1)
-		{
-			s = store(vOne);
-			r = store(quatFromRotationMat(vM));
-
-			return;
-		}
-
-		// If there is scaling, following approach can be used: Columns of every transformation matrix are 
+		// When there is scaling, following approach can be used: Columns of every transformation matrix are 
 		// the transformations of (orthogonal) standard basis vectors -- for matrix RS, columns of R give the 
 		// orthonormal transformation of standard basis vectors, while S provides their corresponding length.
 		// 
 		// Given the Singular value decompoistion of A = U E V^T, columns of U are the orthonormal transformation
 		// of standard basis vectors (i.e. R), diagonal elemnts of E are their lengths (scale factors) and rows 
-		// of V^T are standard basis vectors (whoose transforms are the columns of U). Now while singular values are
-		// unique, U & V aren't, so for example U may be R with some columns reversed or reordered. But for our
-		// purposes, knowing the singular values is enough.
+		// of V^T are the standard basis vectors (whoose transforms are the columns of U -- AV = UE). Note that 
+		// while singular values are unique, U & V aren't, but in this case knowing the singular values is enough.
 		// 
-		// To compute singular values, compute the eigenvalues of M^T M, whoose square roots are the singular 
+		// To compute the singular values, compute the eigenvalues of M^T M, whoose square roots are the singular 
 		// values and therefore the scale factors. Now that we know S, R can solved for as follows:
 		//
 		//		RS = R * S
@@ -585,16 +565,17 @@ namespace ZetaRay::Math
 
 		// M^T M = (RS)^T RS = S^T R^T R S = S^T S = S^2
 		v_float4x4 vM3x3 = vM;
-		__m128 vZero = _mm_setzero_ps();
-		vM3x3.vRow[3] = _mm_insert_ps(vZero, _mm_set1_ps(1.0f), 0x30);	// M[3] = (0, 0, 0, 1)
+		const __m128 vZero = _mm_setzero_ps();
+		const __m128 vOne = _mm_set1_ps(1.0f);
+		vM3x3.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);	// M[3] = (0, 0, 0, 1)
 
 		v_float4x4 vM3x3T = transpose(vM3x3);
-		v_float4x4 vMtM = mul(vM3x3T, vM3x3);
+		v_float4x4 vMTxM = mul(vM3x3T, vM3x3);
 
 		// eigenvalues of diagonal matrices are the diagonal entries
-		__m128 vS = _mm_blend_ps(vZero, vMtM.vRow[0], _MM_BLEND_XYZW(1, 0, 0, 0));
-		vS = _mm_blend_ps(vS, vMtM.vRow[1], _MM_BLEND_XYZW(0, 1, 0, 0));
-		vS = _mm_blend_ps(vS, vMtM.vRow[2], _MM_BLEND_XYZW(0, 0, 1, 0));
+		__m128 vS = _mm_blend_ps(vZero, vMTxM.vRow[0], _MM_BLEND_XYZW(1, 0, 0, 0));
+		vS = _mm_blend_ps(vS, vMTxM.vRow[1], _MM_BLEND_XYZW(0, 1, 0, 0));
+		vS = _mm_blend_ps(vS, vMTxM.vRow[2], _MM_BLEND_XYZW(0, 0, 1, 0));
 		vS = _mm_blend_ps(vS, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
 
 		// singular values are the square roots of eigenvalues
@@ -607,7 +588,44 @@ namespace ZetaRay::Math
 
 		// R = RS * S^-1
 		v_float4x4 vR = mul(vM3x3, vSinv);
-		r = store(quatFromRotationMat(vR));
+		__m128 vQ = quatFromRotationMat(vR);
+		r = store(vQ);
+	}
+
+	// Note: doesn't support negative scaling
+	ZetaInline void __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& r, float4a& t) noexcept
+	{
+		// refer to notes in decomposeTRS for explanation
+
+		__m128 vT = vM.vRow[3];
+		const __m128 vZero = _mm_setzero_ps();
+		vT = _mm_blend_ps(vT, vZero, _MM_BLEND_XYZW(0, 0, 0, 1));
+		t = store(vT);
+
+		v_float4x4 vM3x3 = vM;
+		const __m128 vOne = _mm_set1_ps(1.0f);
+		vM3x3.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);	// M[3] = (0, 0, 0, 1)
+
+		// for "row" matrices, sqaure roots of eigenvalues of MM^T are the singular values
+		// M M^T = (SR)(SR)^T = S R R^T S^T = S S^T = S^2
+		const v_float4x4 vM3x3T = transpose(vM3x3);
+		const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
+
+		// eigenvalues of diagonal matrices are the diagonal entries
+		__m128 vS = _mm_blend_ps(vMxMT.vRow[0], vMxMT.vRow[1], _MM_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
+		vS = _mm_blend_ps(vS, vMxMT.vRow[2], _MM_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
+		vS = _mm_blend_ps(vS, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
+
+		// singular values are the square roots of eigenvalues
+		vS = _mm_sqrt_ps(vS);
+		s = store(vS);
+
+		// R = S^-1 * SR
+		const __m128 vInvSDiag = _mm_div_ps(vOne, vS);
+		const v_float4x4 vSinv = scale(vInvSDiag);
+		const v_float4x4 vR = mul(vSinv, vM3x3);
+		const __m128 vQ = quatFromRotationMat(vR);
+		r = store(vQ);
 	}
 
 	ZetaInline v_float4x4 __vectorcall lookAtLH(float4a cameraPos, float4a focus, float4a up) noexcept
@@ -622,7 +640,7 @@ namespace ZetaRay::Math
 		__m128 vW = _mm_sub_ps(vFocus, vCamPos);
 		vW = normalize(vW);
 		__m128 vU = cross(vUp, vW);
-		vU = normalize(vU);		
+		vU = normalize(vU);
 		__m128 vV = cross(vW, vU);	// no need to normalize as ||vV|| = 1
 
 		vM.vRow[0] = vU;
