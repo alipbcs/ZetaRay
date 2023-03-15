@@ -92,7 +92,7 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_SRV = 8;
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 9;
-		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cbTemporalPass) / sizeof(DWORD), sizeof(cbSpatialPass) / sizeof(DWORD));
+		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cb_RGI_Diff_Temporal) / sizeof(DWORD), sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD));
 
 		RpObjects s_rpObjs;
 
@@ -163,8 +163,8 @@ namespace ZetaRay::RenderPass
 			static constexpr int ValidationPeriod = 0;
 		};
 
-		cbTemporalPass m_cbTemporal;
-		cbSpatialPass m_cbSpatial;
+		cb_RGI_Diff_Temporal m_cbTemporal;
+		cb_RGI_Diff_Spatial m_cbSpatial;
 		bool m_doSpatialResampling = true;
 		int m_validationPeriod = 0;
 		int m_validationFrame = 1;

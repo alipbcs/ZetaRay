@@ -16,13 +16,16 @@
 #define COSINE_WEIGHTED_SAMPLING 0
 #define USE_RAY_CONES 0
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+#define RAY_OFFSET_VIEW_DIST_START 30.0
+
+static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cbTemporalPass> g_local : register(b1);
+ConstantBuffer<cb_RGI_Diff_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
 StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
@@ -63,6 +66,36 @@ groupshared RT::RayCone g_sortedRayCones[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIF
 // Helper functions
 //--------------------------------------------------------------------------------------
 
+uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
+{
+#if THREAD_GROUP_SWIZZLING
+	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
+	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
+	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
+
+	// TileWidth is a power of 2 for all tiles except possibly the last one
+	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
+	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
+
+	uint16_t2 groupIDinTile;
+	if (groupIDFlattened >= numGroupsInFullTiles)
+	{
+		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_TEMPORAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
+		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
+	}
+	else
+		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_TEMPORAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH);
+
+	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
+	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
+	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
+#else
+	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
+#endif
+
+	return swizzledDTid;
+}
+
 float2 SignNotZero(float2 v)
 {
 	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
@@ -74,7 +107,6 @@ half3 MissShading(float3 wo)
 	Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
 	float2 thetaPhi = Math::SphericalFromCartesian(wo);
-
 	float2 uv = float2(thetaPhi.y * ONE_DIV_TWO_PI, thetaPhi.x * ONE_DIV_PI);
 	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
 	
@@ -255,9 +287,6 @@ bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSur
 	RT::RayCone newRayCone = rayCone;
 #endif	
 
-	// compute the incoming radiance from wi
-	// don't shade the surface position just yet, defer that to after denoising
-
 	// skip invalid rays
 	if (newDir.x == INVALID_RAY_DIR.x)
 	{
@@ -299,11 +328,10 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		baseColor *= g_baseCol.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).rgb;
 	}
 
-	half metalness = (half) mat.MetallicFactor;
+	float metalness = mat.MetallicFactor;
 	if (mat.MetalnessRoughnessTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
-		// green & blue channels contain roughness & metalness values respectively
 		METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
 
 #if 0	
@@ -319,7 +347,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
 
 	// assume the surface is Lambertian
-	half3 diffuseReflectance = baseColor * (1.0h - metalness);
+	float3 diffuseReflectance = baseColor * (1.0f - metalness);
 	float3 brdf = BRDF::LambertianBRDF(diffuseReflectance, ndotWi);
 
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
@@ -354,23 +382,24 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-Sample ComputeLi(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, RT::RayCone rayCone, 
-	out uint16_t sortedIdx)
+DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth,
+	RT::RayCone rayCone, out uint16_t sortedIdx)
 {
-	Sample ret;
+	DiffuseSample ret;
 	
+	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
+	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
+
 	// trace a ray along wi to find closest surface point
 	bool isSortedRayValid;
 	HitSurface hitInfo;
-	float3 adjustedOrigin = posW + 5e-3f * normal;		// protect against self-intersection
-
 	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isSortedRayValid, sortedIdx);
 
-	// what's the outgoing radiance from the closest hit point towards wo
+	// what's the incident radiance from the closest hit point
 	ret.Lo = 0.0.xxx;
 
-	// if the ray hit a surface, compute direct lighting at the given surface point, otherise 
-	// returns the incoming radiance from sky
+	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
+	// return the incoming radiance from the sky
 	if (hit)
 	{
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
@@ -413,7 +442,7 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 }
 
 void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
-	inout Reservoir r, inout RNG rng)
+	inout DiffuseReservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -482,7 +511,7 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 		if (!Math::IsWithinBoundsExc(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
 			continue;
 		
-		Reservoir prevReservoir = ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, 
+		DiffuseReservoir prevReservoir = RGI_Diff_Util::ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx,
 			g_local.PrevTemporalReservoir_B_DescHeapIdx, g_local.PrevTemporalReservoir_C_DescHeapIdx);
 
 		
@@ -510,16 +539,16 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 		const float3 wi = normalize(-secondToFirst_r);
 		
 		if (g_local.PdfCorrection)
-			jacobianDet = JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, prevReservoir);
+			jacobianDet = RGI_Diff_Util::JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, prevReservoir);
 		
 		r.Combine(prevReservoir, wi, normal, MAX_TEMPORAL_M, weights[i], jacobianDet, rng);
 	}
 }
 
-Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf, Sample s,
-	bool isSampleValid, inout RNG rng)
+DiffuseReservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf, 
+	DiffuseSample s, bool isSampleValid, inout RNG rng)
 {
-	Reservoir r = Reservoir::Init();
+	DiffuseReservoir r = DiffuseReservoir::Init();
 
 	// cosine term in the target cancels out cosine term in the source pdf (i.e. cos(theta) / PI)
 #if (COSINE_WEIGHTED_SAMPLING && INCLUDE_COSINE_TERM_IN_TARGET)
@@ -544,38 +573,13 @@ Reservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float lin
 // Main
 //--------------------------------------------------------------------------------------
 
-static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
-
 [WaveSize(32)]
 [numthreads(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
-#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_TEMPORAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_TEMPORAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH);
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-#endif
+	const uint16_t2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
 
 	// this lane should still participates in non-trace computations
 	const bool isWithinScreenBounds = swizzledDTid.x < g_frame.RenderWidth && swizzledDTid.y < g_frame.RenderHeight;
@@ -597,7 +601,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float depth = g_depth[swizzledDTid];
 
 	// can't early exit due to ray binning
-	const bool isPixelValid = isWithinScreenBounds && (depth != 0);
+	bool isPixelValid = isWithinScreenBounds && (depth != 0);
 	
 	// reconstruct position from depth buffer
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
@@ -613,13 +617,22 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 	
+	// metallic mask
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	const float m = g_metalnessRoughness[swizzledDTid].r;
+	
+	// skip metals
+	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
+	// add a small threshold
+	isPixelValid &= (m <= 0.1f);
+
 	// sample the cosine-weighted hemisphere above pos
 	float3 wi = INVALID_RAY_DIR;
 	float pdf;
 	
 	if (isPixelValid && traceThisFrame)
 	{
-		//const uint sampleIdx = 0;
 		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 0);
 		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
@@ -653,16 +666,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 #endif	
 	
 	uint16_t sortedIdx;
-	Sample retSample = ComputeLi(swizzledDTid, Gidx, posW, normal, wi, rayCone, sortedIdx);
+	DiffuseSample retSample = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, rayCone, sortedIdx);
 	
 #if RAY_BINNING
-	g_sortedOrigin[Gidx] = PackNormalLiRayT(retSample.Normal, retSample.Lo, retSample.RayT);
+	g_sortedOrigin[Gidx] = RGI_Diff_Util::PackSample(retSample.Normal, retSample.Lo, retSample.RayT);
 	g_sortedDir[Gidx] = retSample.Pos;
 	
 	GroupMemoryBarrierWithGroupSync();
 
 	// retrieve the non-sorted vals
-	UnpackNormalLiRayT(g_sortedOrigin[sortedIdx], retSample.Normal, retSample.Lo, retSample.RayT);
+	RGI_Diff_Util::UnpackSample(g_sortedOrigin[sortedIdx], retSample.Normal, retSample.Lo, retSample.RayT);
 	retSample.Pos = g_sortedDir[sortedIdx].xyz;
 #endif	
 	
@@ -672,28 +685,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
 						
 		//const float cosTheta = saturate(pdf * PI);
-		Reservoir r = DoTemporalResampling(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
+		DiffuseReservoir r = DoTemporalResampling(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
 		
 		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
 		// Need further investigation to figure out the cause. Following seems to mitigate
 		// the issue for now with no apparent artifacts
 #if RAY_BINNING
 		if (isnan(r.SamplePos.x) && !traceThisFrame)
-			r = Reservoir::Init();
+			r = DiffuseReservoir::Init();
 #endif	
 
 		// TODO when sun is at the horizon, there could be NaN propagation -- temporary
 		// fix
 		if (isnan(r.w_sum))
-			r = Reservoir::Init();
+			r = DiffuseReservoir::Init();
 		
-		WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 	else if (isWithinScreenBounds)
 	{
-		Reservoir r = Reservoir::Init();
-		WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
+		DiffuseReservoir r = DiffuseReservoir::Init();
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 }

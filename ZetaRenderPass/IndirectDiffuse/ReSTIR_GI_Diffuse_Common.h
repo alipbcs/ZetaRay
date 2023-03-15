@@ -15,7 +15,7 @@
 #define RGI_DIFF_SPATIAL_TILE_WIDTH 16
 #define RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH 4
 
-struct cbTemporalPass
+struct cb_RGI_Diff_Temporal
 {
 	uint32_t FrameCounter;
 	uint32_t PrevTemporalReservoir_A_DescHeapIdx;
@@ -37,7 +37,7 @@ struct cbTemporalPass
 	uint16_t CheckerboardTracing;
 };
 
-struct cbSpatialPass
+struct cb_RGI_Diff_Spatial
 {
 	float NormalExp;
 	uint16_t DispatchDimX;

@@ -267,7 +267,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		m_cbTemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 		m_cbTemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 
-		m_rootSig.SetRootConstants(0, sizeof(cbTemporalPass) / sizeof(DWORD), &m_cbTemporal);
+		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Temporal) / sizeof(DWORD), &m_cbTemporal);
 		m_rootSig.End(computeCmdList);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -336,7 +336,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			m_cbSpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 			m_cbSpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 
-			m_rootSig.SetRootConstants(0, sizeof(cbSpatialPass) / sizeof(DWORD), &m_cbSpatial);
+			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbSpatial);
 			m_rootSig.End(computeCmdList);
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -383,7 +383,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			m_cbSpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 			m_cbSpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 
-			m_rootSig.SetRootConstants(0, sizeof(cbSpatialPass) / sizeof(DWORD), &m_cbSpatial);
+			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbSpatial);
 			m_rootSig.End(computeCmdList);
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);

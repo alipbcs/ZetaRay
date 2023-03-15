@@ -169,7 +169,7 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 
 void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout float3 color)
 {
-	Reservoir r = PartialReadInputReservoir(DTid, g_local.InputReservoir_A_DescHeapIdx,
+	DiffuseReservoir r = RGI_Diff_Util::PartialReadInputReservoir(DTid, g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx);
 
 	const float3 wi = normalize(r.SamplePos - pos);

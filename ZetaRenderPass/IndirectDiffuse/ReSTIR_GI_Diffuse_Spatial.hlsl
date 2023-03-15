@@ -34,12 +34,14 @@ static const float2 k_halton[16] =
 	float2(-0.9375, 0.18518518518518512)
 };
 
+static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cbSpatialPass> g_local : register(b1);
+ConstantBuffer<cb_RGI_Diff_Spatial> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
 StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
@@ -50,6 +52,36 @@ StructuredBuffer<uint> g_frameMeshData : register(t6);
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
+
+uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
+{
+#if THREAD_GROUP_SWIZZLING
+	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
+	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
+	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
+
+	// TileWidth is a power of 2 for all tiles except possibly the last one
+	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
+	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
+
+	uint16_t2 groupIDinTile;
+	if (groupIDFlattened >= numGroupsInFullTiles)
+	{
+		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
+		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
+	}
+	else
+		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH);
+
+	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_SPATIAL_TILE_WIDTH + groupIDinTile.x;
+	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
+	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
+#else
+	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
+#endif
+
+	return swizzledDTid;
+}
 
 float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float linearDepth, float scale)
 {
@@ -75,7 +107,7 @@ float NormalWeight(float3 input, float3 sample, float scale)
 }
 
 void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linearDepth, 
-	inout Reservoir r, inout RNG rng)
+	inout DiffuseReservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -136,7 +168,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			if (weight < 1e-3)
 				continue;
 					
-			Reservoir neighborReservoir = ReadInputReservoir(samplePosSS, g_local.InputReservoir_A_DescHeapIdx,
+			DiffuseReservoir neighborReservoir = RGI_Diff_Util::ReadInputReservoir(samplePosSS, g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);
 
 			float jacobianDet = 1.0f;
@@ -146,7 +178,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			const float3 wi = normalize(-secondToFirst_r);
 
 			if (g_local.PdfCorrection)
-				jacobianDet = JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, neighborReservoir);
+				jacobianDet = RGI_Diff_Util::JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, neighborReservoir);
 	
 			float mm = g_local.IsFirstPass ? MAX_SPATIAL_M : MAX_SPATIAL_M * 8;
 			r.Combine(neighborReservoir, wi, normal, mm, weight, jacobianDet, rng);
@@ -158,38 +190,13 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 // main
 //--------------------------------------------------------------------------------------
 
-static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
-
 [numthreads(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
-#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH);
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_SPATIAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-#endif
-
+	const uint16_t2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
+	
 	if (!Math::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return;
 	
@@ -214,7 +221,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 	
-	Reservoir r = ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
+	DiffuseReservoir r = RGI_Diff_Util::ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);
 	
 //	if (g_local.IsFirstPass || r.M < 2)
@@ -225,11 +232,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
 	if (g_local.IsFirstPass)
 	{
-		WriteOutputReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx, g_local.OutputReservoir_B_DescHeapIdx, 
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx, g_local.OutputReservoir_B_DescHeapIdx,
 			g_local.OutputReservoir_C_DescHeapIdx);
 	}
 	else
 	{
-		PartialWriteOutputReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx, g_local.OutputReservoir_B_DescHeapIdx);
+		RGI_Diff_Util::PartialWriteOutputReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx, g_local.OutputReservoir_B_DescHeapIdx);
 	}
 }
