@@ -313,8 +313,8 @@ namespace ZetaRay::Math
 
 		const __m128 vp = _mm_sub_ps(v2, v0);		// v2 - v0
 		const __m128 vq = _mm_sub_ps(v1, v0);		// v1 - v0
-		const __m128 vr = minus(v0);				// ray.Orig - v0
-		const __m128 vMinDir = minus(vRay.vDir);
+		const __m128 vr = negate(v0);				// ray.Orig - v0
+		const __m128 vMinDir = negate(vRay.vDir);
 
 		// solve the linear system of equation using the Cramer's rule:
 		//		[v1 - v0, v2 - v0, -d] [v w t]^t = [origin - v0]^t
@@ -404,7 +404,7 @@ namespace ZetaRay::Math
 		// with Tv = (-T.x, -T.y, -T.z)
 		//
 		const v_float4x4 vMT = transpose(M);
-		const __m128 vTinv = minus(M.vRow[3]);
+		const __m128 vTinv = negate(M.vRow[3]);
 
 		__m128 v4th = _mm_mul_ps(vMT.vRow[0], _mm_shuffle_ps(vTinv, vTinv, V_SHUFFLE_XYZW(0, 0, 0, 0)));
 		v4th = _mm_fmadd_ps(vMT.vRow[1], _mm_shuffle_ps(vTinv, vTinv, V_SHUFFLE_XYZW(1, 1, 1, 1)), v4th);

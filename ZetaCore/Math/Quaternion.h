@@ -46,7 +46,7 @@ namespace ZetaRay::Math
 		//			           [p2  -p1  p4 -p3]
 		//			           [p1   p2  p3  p4]
 
-		const __m128 vMinP = minus(vP);
+		const __m128 vMinP = negate(vP);
 
 		// (p1, -p1, p2, -p2)
 		const __m128 vTemp0 = _mm_unpacklo_ps(vP, vMinP);
@@ -74,7 +74,7 @@ namespace ZetaRay::Math
 		const __m128 vT = _mm_set1_ps(t);
 		__m128 vCosTheta = _mm_dp_ps(vQ1, vQ2, 0xff);
 		const __m128 vOnSameHemisphere = _mm_cmpgt_ps(vCosTheta, _mm_setzero_ps());
-		vCosTheta = _mm_blendv_ps(minus(vCosTheta), vCosTheta, vOnSameHemisphere);
+		vCosTheta = _mm_blendv_ps(negate(vCosTheta), vCosTheta, vOnSameHemisphere);
 
 		__m128 vSinTheta = _mm_sub_ps(vOne, _mm_mul_ps(vCosTheta, vCosTheta));
 		vSinTheta = _mm_sqrt_ps(vSinTheta);
@@ -87,7 +87,7 @@ namespace ZetaRay::Math
 		__m128 vResSlerp = _mm_mul_ps(vQ1, _mm_shuffle_ps(vSin, vSin, V_SHUFFLE_XYZW(0, 0, 0, 0)));
 		__m128 vS2 = _mm_shuffle_ps(vSin, vSin, V_SHUFFLE_XYZW(1, 1, 1, 1));
 
-		vS2 = _mm_blendv_ps(minus(vS2), vS2, vOnSameHemisphere);
+		vS2 = _mm_blendv_ps(negate(vS2), vS2, vOnSameHemisphere);
 		vResSlerp = _mm_fmadd_ps(vQ2, vS2, vResSlerp);
 		vResSlerp = _mm_div_ps(vResSlerp, vSinTheta);
 

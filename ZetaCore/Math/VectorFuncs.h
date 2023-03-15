@@ -26,7 +26,7 @@ namespace ZetaRay::Math
 		return _mm256_andnot_ps(vMinusZero, v);
 	}
 
-	ZetaInline __m128 __vectorcall minus(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall negate(const __m128 v) noexcept
 	{
 		// all bits are 0 except for the sign bit
 		const __m128 vMinusZero = _mm_set1_ps(-0.0f);

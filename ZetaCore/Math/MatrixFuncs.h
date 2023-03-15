@@ -117,6 +117,7 @@ namespace ZetaRay::Math
 		return _mm_dp_ps(_mm_sub_ps(vTemp0, vTemp1), vefd, 0xff);
 	}
 
+	// TODO this can be done more efficiently
 	// Given transformation matrix of the following form, returns its inverse,
 	// M = S * R * T,
 	// where S is a scaling, R is a rotation and T is a translation transformation
@@ -152,7 +153,7 @@ namespace ZetaRay::Math
 
 		__m128 wCrossu = cross(w, u);
 		__m128 uCrossv = cross(u, v);
-		const __m128 vTinv = _mm_insert_ps(minus(M.vRow[3]), vOne, 0x30);
+		const __m128 vTinv = _mm_insert_ps(negate(M.vRow[3]), vOne, 0x30);
 
 		v_float4x4 vI;
 		vI.vRow[0] = _mm_insert_ps(_mm_mul_ps(vCrossW, detRcp), vZero, 0x30);
@@ -247,7 +248,7 @@ namespace ZetaRay::Math
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vC = _mm_broadcast_ss(&c);
 		const __m128 vS = _mm_broadcast_ss(&s);
-		const __m128 vMinusS = minus(vS);
+		const __m128 vMinusS = negate(vS);
 
 		vR.vRow[0] = _mm_insert_ps(vZero, vOne, 0x0);
 		vR.vRow[1] = _mm_insert_ps(vC, vS, 0x29);
@@ -267,7 +268,7 @@ namespace ZetaRay::Math
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vC = _mm_broadcast_ss(&c);
 		const __m128 vS = _mm_broadcast_ss(&s);
-		const __m128 vMinusS = minus(vS);
+		const __m128 vMinusS = negate(vS);
 
 		vR.vRow[0] = _mm_insert_ps(vC, vMinusS, 0x2a);
 		vR.vRow[1] = _mm_insert_ps(vZero, vOne, 0x10);
@@ -287,7 +288,7 @@ namespace ZetaRay::Math
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vC = _mm_broadcast_ss(&c);
 		const __m128 vS = _mm_broadcast_ss(&s);
-		const __m128 vMinusS = minus(vS);
+		const __m128 vMinusS = negate(vS);
 
 		vR.vRow[0] = _mm_insert_ps(vC, vS, 0x1c);
 		vR.vRow[1] = _mm_insert_ps(vC, vMinusS, 0xc);
@@ -329,7 +330,7 @@ namespace ZetaRay::Math
 		__m128 vTemp5 = _mm_shuffle_ps(vTemp3, vTemp3, V_SHUFFLE_XYZW(3, 1, 0, 3));
 
 		// (2q1q2 + 2q3q4, 2q1q3 - 2q2q4, 2q2q3 + 2q1q4, 2q1q2 - 2q3q4)
-		vTemp0 = _mm_addsub_ps(vTemp4, minus(vTemp5));
+		vTemp0 = _mm_addsub_ps(vTemp4, negate(vTemp5));
 
 		// (2q1q3, 2q2q3, _, _)
 		__m128 vTemp6 = _mm_shuffle_ps(vTemp2, vTemp2, V_SHUFFLE_XYZW(3, 1, 0, 0));
@@ -337,7 +338,7 @@ namespace ZetaRay::Math
 		__m128 vTemp7 = _mm_shuffle_ps(vTemp3, vTemp3, V_SHUFFLE_XYZW(1, 0, 0, 0));
 
 		// (2q1q3 + 2q2q4, 2q2q3 - 2q1q4, _, _)
-		vTemp1 = _mm_addsub_ps(vTemp6, minus(vTemp7));
+		vTemp1 = _mm_addsub_ps(vTemp6, negate(vTemp7));
 
 		v_float4x4 vR;
 		vR.vRow[0] = _mm_insert_ps(_mm_shuffle_ps(vTemp0, vTemp0, V_SHUFFLE_XYZW(0, 0, 1, 0)),
@@ -350,6 +351,99 @@ namespace ZetaRay::Math
 		return vR;
 	}
 
+	// Ported from DirectXMath (under MIT License).
+	ZetaInline __m128 __vectorcall quatFromRotationMat(const v_float4x4 vM) noexcept
+	{
+		__m128 r0 = vM.vRow[0];  // (r00, r01, r02, 0)
+		__m128 r1 = vM.vRow[1];  // (r10, r11, r12, 0)
+		__m128 r2 = vM.vRow[2];  // (r20, r21, r22, 0)
+
+		// (r00, r00, r00, r00)
+		__m128 r00 = _mm_permute_ps(r0, _MM_SHUFFLE(0, 0, 0, 0));
+		// (r11, r11, r11, r11)
+		__m128 r11 = _mm_permute_ps(r1, _MM_SHUFFLE(1, 1, 1, 1));
+		// (r22, r22, r22, r22)
+		__m128 r22 = _mm_permute_ps(r2, _MM_SHUFFLE(2, 2, 2, 2));
+
+		// x^2 >= y^2 equivalent to r11 - r00 <= 0
+		// (r11 - r00, r11 - r00, r11 - r00, r11 - r00)
+		__m128 r11mr00 = _mm_sub_ps(r11, r00);
+		__m128 x2gey2 = _mm_cmple_ps(r11mr00, _mm_setzero_ps());
+
+		// z^2 >= w^2 equivalent to r11 + r00 <= 0
+		// (r11 + r00, r11 + r00, r11 + r00, r11 + r00)
+		__m128 r11pr00 = _mm_add_ps(r11, r00);
+		__m128 z2gew2 = _mm_cmple_ps(r11pr00, _mm_setzero_ps());
+
+		// x^2 + y^2 >= z^2 + w^2 equivalent to r22 <= 0
+		__m128 x2py2gez2pw2 = _mm_cmple_ps(r22, _mm_setzero_ps());
+
+		// (4*x^2, 4*y^2, 4*z^2, 4*w^2)
+		__m128 XMPMMP = _mm_setr_ps(+1.0f, -1.0f, -1.0f, +1.0f);
+		__m128 XMMPMP = _mm_setr_ps(-1.0f, +1.0f, -1.0f, +1.0f);
+		__m128 XMMMPP = _mm_setr_ps(-1.0f, -1.0f, +1.0f, +1.0f);
+
+		__m128 t0 = _mm_fmadd_ps(XMPMMP, r00, _mm_set1_ps(1.0f));
+		__m128 t1 = _mm_mul_ps(XMMPMP, r11);
+		__m128 t2 = _mm_fmadd_ps(XMMMPP, r22, t0);
+		__m128 x2y2z2w2 = _mm_add_ps(t1, t2);
+
+		// (r01, r02, r12, r11)
+		t0 = _mm_shuffle_ps(r0, r1, _MM_SHUFFLE(1, 2, 2, 1));
+		// (r10, r10, r20, r21)
+		t1 = _mm_shuffle_ps(r1, r2, _MM_SHUFFLE(1, 0, 0, 0));
+		// (r10, r20, r21, r10)
+		t1 = _mm_permute_ps(t1, _MM_SHUFFLE(1, 3, 2, 0));
+		// (4*x*y, 4*x*z, 4*y*z, unused)
+		__m128 xyxzyz = _mm_add_ps(t0, t1);
+
+		// (r21, r20, r10, r10)
+		t0 = _mm_shuffle_ps(r2, r1, _MM_SHUFFLE(0, 0, 0, 1));
+		// (r12, r12, r02, r01)
+		t1 = _mm_shuffle_ps(r1, r0, _MM_SHUFFLE(1, 2, 2, 2));
+		// (r12, r02, r01, r12)
+		t1 = _mm_permute_ps(t1, _MM_SHUFFLE(1, 3, 2, 0));
+		// (4*x*w, 4*y*w, 4*z*w, unused)
+		__m128 xwywzw = _mm_sub_ps(t0, t1);
+		xwywzw = _mm_mul_ps(XMMPMP, xwywzw);
+
+		// (4*x^2, 4*y^2, 4*x*y, unused)
+		t0 = _mm_shuffle_ps(x2y2z2w2, xyxzyz, _MM_SHUFFLE(0, 0, 1, 0));
+		// (4*z^2, 4*w^2, 4*z*w, unused)
+		t1 = _mm_shuffle_ps(x2y2z2w2, xwywzw, _MM_SHUFFLE(0, 2, 3, 2));
+		// (4*x*z, 4*y*z, 4*x*w, 4*y*w)
+		t2 = _mm_shuffle_ps(xyxzyz, xwywzw, _MM_SHUFFLE(1, 0, 2, 1));
+
+		// (4*x*x, 4*x*y, 4*x*z, 4*x*w)
+		__m128 tensor0 = _mm_shuffle_ps(t0, t2, _MM_SHUFFLE(2, 0, 2, 0));
+		// (4*y*x, 4*y*y, 4*y*z, 4*y*w)
+		__m128 tensor1 = _mm_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 1, 1, 2));
+		// (4*z*x, 4*z*y, 4*z*z, 4*z*w)
+		__m128 tensor2 = _mm_shuffle_ps(t2, t1, _MM_SHUFFLE(2, 0, 1, 0));
+		// (4*w*x, 4*w*y, 4*w*z, 4*w*w)
+		__m128 tensor3 = _mm_shuffle_ps(t2, t1, _MM_SHUFFLE(1, 2, 3, 2));
+
+		// Select the row of the tensor-product matrix that has the largest
+		// magnitude.
+		t0 = _mm_and_ps(x2gey2, tensor0);
+		t1 = _mm_andnot_ps(x2gey2, tensor1);
+		t0 = _mm_or_ps(t0, t1);
+		t1 = _mm_and_ps(z2gew2, tensor2);
+		t2 = _mm_andnot_ps(z2gew2, tensor3);
+		t1 = _mm_or_ps(t1, t2);
+		t0 = _mm_and_ps(x2py2gez2pw2, t0);
+		t1 = _mm_andnot_ps(x2py2gez2pw2, t1);
+		t2 = _mm_or_ps(t0, t1);
+
+		// Normalize the row.  No division by zero is possible because the
+		// quaternion is unit-length (and the row is a nonzero multiple of
+		// the quaternion).
+		t0 = normalize(t2);
+		return t0;
+	}
+
+	// TODO complete
+	/*
 	ZetaInline __m128 __vectorcall quatFromRotationMat(const v_float4x4 vR) noexcept
 	{
 		// q4 = 0.5f * (sqrt(trace(R) + 1)
@@ -370,22 +464,29 @@ namespace ZetaRay::Math
 		vQ4 = _mm_sqrt_ps(vQ4);
 		__m128 vFourQ4 = _mm_mul_ps(vQ4, vTwo);
 		vQ4 = _mm_mul_ps(vOneDiv2, vQ4);
-	
-#ifdef _DEBUG
+
 		int mask = _mm_movemask_ps(_mm_cmpgt_ps(_mm_set1_ps(FLT_EPSILON), vQ4));
-		Assert((mask & 0x1) == 0, "Divide by zero");
-#endif // _DEBUG
-	
-		v_float4x4 vRT = transpose(vR);
-		v_float4x4 vRsubRT = sub(vR, vRT);
+		//Assert((mask & 0x1) == 0, "Divide by zero");
 
-		__m128 vQ = _mm_insert_ps(vQ4, vRsubRT.vRow[1], 0x80);	 // (R_23 - R_32)
-		vQ = _mm_insert_ps(vQ, vRsubRT.vRow[2], 0x10);			 // (R_31 - R_13)
-		vQ = _mm_insert_ps(vQ, vRsubRT.vRow[0], 0x60);			 // (R_12 - R_21)
-		vQ = _mm_insert_ps(_mm_div_ps(vQ, vFourQ4), vQ, 0xf0);
+		// q4 = 0
+		if ((mask & 0x1) == 0)
+		{
+			v_float4x4 vRT = transpose(vR);
+			v_float4x4 vRsubRT = sub(vR, vRT);
 
-		return vQ;
+			__m128 vQ = _mm_insert_ps(vQ4, vRsubRT.vRow[1], 0x80);	 // (R_23 - R_32)
+			vQ = _mm_insert_ps(vQ, vRsubRT.vRow[2], 0x10);			 // (R_31 - R_13)
+			vQ = _mm_insert_ps(vQ, vRsubRT.vRow[0], 0x60);			 // (R_12 - R_21)
+			vQ = _mm_insert_ps(_mm_div_ps(vQ, vFourQ4), vQ, 0xf0);
+
+			return vQ;
+		}
+		else
+		{
+			
+		}
 	}
+	*/
 
 	ZetaInline v_float4x4 __vectorcall translate(float x, float y, float z) noexcept
 	{
@@ -448,7 +549,7 @@ namespace ZetaRay::Math
 		// Rotation transformation preserves volume and orientation, so det(R) = 1. So, if there is 
 		// scaling, det(RS) != 1. Note that since S is a diagonal matrix, its determinant is equal to the 
 		// product of its diagonal entries, so unless S = I, det(S) != 1.
-		
+
 		v_float4x4 vMT = transpose(vM);
 		t = store(vMT.vRow[3]);
 
@@ -533,7 +634,7 @@ namespace ZetaRay::Math
 		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(1, 1, 1, 0)), vM.vRow[1], vTemp);
 		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(2, 2, 2, 0)), vM.vRow[2], vTemp);
 
-		vM.vRow[3] = _mm_insert_ps(minus(vTemp), vM.vRow[3], 0xf0);
+		vM.vRow[3] = _mm_insert_ps(negate(vTemp), vM.vRow[3], 0xf0);
 
 		return vM;
 	}
@@ -561,7 +662,7 @@ namespace ZetaRay::Math
 		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(1, 1, 1, 0)), vM.vRow[1], vTemp);
 		vTemp = _mm_fmadd_ps(_mm_shuffle_ps(vCamPos, vCamPos, V_SHUFFLE_XYZW(2, 2, 2, 0)), vM.vRow[2], vTemp);
 
-		vM.vRow[3] = _mm_insert_ps(minus(vTemp), vM.vRow[3], 0xf0);
+		vM.vRow[3] = _mm_insert_ps(negate(vTemp), vM.vRow[3], 0xf0);
 
 		return vM;
 	}

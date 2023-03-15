@@ -13,7 +13,7 @@ namespace
 {
 	ZetaInline void __vectorcall setCamPos(const __m128 vNewCamPos, float4x4a& view, float4x4a& viewInv) noexcept
 	{
-		const __m128 vT = minus(vNewCamPos);
+		const __m128 vT = negate(vNewCamPos);
 		viewInv.m[3] = store(vNewCamPos);
 
 		__m128 vRow0 = _mm_load_ps(reinterpret_cast<float*>(&view.m[0]));
@@ -42,7 +42,7 @@ namespace
 		vViewInv.vRow[3] = vEye;
 		viewInv = store(vViewInv);
 
-		const __m128 vT = minus(vEye);
+		const __m128 vT = negate(vEye);
 		__m128 v4thRow = _mm_mul_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(0, 0, 0, 0)), vNewView.vRow[0]);
 		v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(1, 1, 1, 0)), vNewView.vRow[1], v4thRow);
 		v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(2, 2, 2, 0)), vNewView.vRow[2], v4thRow);
