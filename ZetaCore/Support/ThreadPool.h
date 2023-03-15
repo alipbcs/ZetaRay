@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Task.h"
-#include "concurrentqueue-1.0.3/blockingconcurrentqueue.h"
+#include "concurrentqueue/blockingconcurrentqueue.h"
 
 namespace ZetaRay::Support
 {

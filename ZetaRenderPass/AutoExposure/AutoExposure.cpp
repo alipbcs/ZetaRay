@@ -298,7 +298,7 @@ void AutoExposure::SwitchMode(MODE m) noexcept
 
 		ParamVariant p3;
 		p3.InitFloat("Renderer", "AutoExposure", "LumMappingExp", fastdelegate::MakeDelegate(this, &AutoExposure::LumMappingExpCallback),
-			DefaultParamVals::LumMappingExp, 1e-3f, 1.0f, 1e-3f);
+			DefaultParamVals::LumMappingExp, 1e-1f, 1.0f, 1e-2f);
 		App::AddParam(p3);			
 			
 		ParamVariant p4;

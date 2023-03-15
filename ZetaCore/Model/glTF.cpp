@@ -472,7 +472,7 @@ namespace
 				vM = mul(vM, vT);
 
 				auto det = store(determinant3x3(vM));	// last row is ignored
-				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
+				Check(fabsf(det.x) > 1e-8f, "Transformation matrix with a zero determinant is invalid.");
 				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 			}
 

@@ -132,8 +132,8 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 			200.0f,									// max
 			1.0f);									// step
 		App::AddParam(voxelGridFarZ);
-
-		App::AddShaderReloadHandler("Inscattering", fastdelegate::MakeDelegate(this, &Sky::ReloadInscatteringShader));
+		
+		//App::AddShaderReloadHandler("Inscattering", fastdelegate::MakeDelegate(this, &Sky::ReloadInscatteringShader));
 
 		m_psos[(int)SHADERS::INSCATTERING] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING,
 			s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
@@ -146,7 +146,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 		App::RemoveParam("Renderer", "Inscattering", "VoxelGridNearZ");
 		App::RemoveParam("Renderer", "Inscattering", "VoxelGridFarZ");
 
-		App::RemoveShaderReloadHandler("Inscattering");
+		//App::RemoveShaderReloadHandler("Inscattering");
 
 		m_psos[(int)SHADERS::INSCATTERING] = nullptr;
 	}

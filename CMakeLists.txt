@@ -63,6 +63,8 @@ if(MSVC)
     add_compile_options(/GR-)
     # fast floating point
     add_compile_options(/fp:fast)
+    # standards conformance
+    add_compile_options(/permissive-)
 endif()
 
 # 

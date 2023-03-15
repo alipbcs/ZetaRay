@@ -4,7 +4,7 @@
 #include "../Utility/SmallVector.h"
 #include "../App/App.h"
 #include <shared_mutex>
-#include <concurrentqueue-1.0.3/concurrentqueue.h>
+#include <concurrentqueue/concurrentqueue.h>
 
 namespace ZetaRay::Core
 {
