@@ -82,19 +82,16 @@ float4 mainPS(VSOut psin) : SV_Target
 		// y = cos(theta)
 		// z = sin(theta) * sin(phi)
 		float phi = atan2(w.z, w.x); // [-PI, PI]
-		phi += PI;
-//		const float theta = Common::ArcCos(w.y); // [0, PI]
-//		float2 thetaPhi = float2(theta, phi);
+		phi += PI;                   // [0, 2PI]
+	
+		float theta = Math::ArcCos(w.y);
 		
-		float2 thetaPhi = Math::SphericalFromCartesian(w);
-		thetaPhi.y = phi;
-		
-		const float u = thetaPhi.y * ONE_DIV_TWO_PI;
-		float v = thetaPhi.x * ONE_DIV_PI;
+		const float u = phi * ONE_DIV_TWO_PI;
+		float v = theta * ONE_DIV_PI;
 		
 #if NON_LINEAR_LATITUDE == 1				
-		float s = thetaPhi.x >= PI_DIV_2 ? 1.0f : -1.0f;
-		v = (thetaPhi.x - PI_DIV_2) * 0.5f;
+		float s = theta >= PI_DIV_2 ? 1.0f : -1.0f;
+		v = (theta - PI_DIV_2) * 0.5f;
 		v = 0.5f + s * sqrt(abs(v) * ONE_DIV_PI);
 #endif
 		

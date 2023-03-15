@@ -94,14 +94,20 @@ float2 SignNotZero(float2 v)
 	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
 }
 
-// wo is assumed to be normalized
-half3 MissShading(float3 wo)
+// wi is assumed to be normalized
+half3 MissShading(float3 wi)
 {
-	Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
+	Texture2D<half4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
-	float2 thetaPhi = Math::SphericalFromCartesian(wo);
+	float2 thetaPhi = Math::SphericalFromCartesian(wi);
 	float2 uv = float2(thetaPhi.y * ONE_DIV_TWO_PI, thetaPhi.x * ONE_DIV_PI);
-	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f);
+
+	// undo non-linear sampling
+	float s = thetaPhi.x >= PI_DIV_2 ? 1.0f : -1.0f;
+	uv.y = (thetaPhi.x - PI_DIV_2) * 0.5f;
+	uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_DIV_PI);
+	
+	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 	
 	return color;
 }

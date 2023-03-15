@@ -25,18 +25,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	
 	// reverse the direction to uv conversion in sky dome
 	float phi = ((float) DTid.x / (float) g_local.LutWidth);
-//	phi -= 0.5f;
 	phi *= TWO_PI;
-//	phi = phi < 0.0f ? phi + PI : phi;
 	phi -= PI;
-//	phi = 
 	
 	float v = ((float) DTid.y / (float) g_local.LutHeight);
 
 #if NON_LINEAR_LATITUDE == 1
-	// horizon (theta ~ PI / 2) has higher frequency data comparitively. Subsequently, low sampleing
+	// horizon (theta ~ PI / 2) has higher frequency data comparitively. Subsequently, low sampling
 	// rate used for generating this LUT (128 for latitude) can't capture those features, which leads 
-	// to arifacts. To compensate, apply a non-linear transformations that maps more texels to be  
+	// to arifacts. To compensate, apply a non-linear transformation that maps more texels to be  
 	// around the horizon. The reverse mapping has to be applied when this LUT is sampled back.
 	// Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 	float s = v >= 0.5f ? 1.0f : -1.0f;
