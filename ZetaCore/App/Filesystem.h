@@ -19,7 +19,7 @@ namespace ZetaRay::App::Filesystem
     bool Exists(const char* path) noexcept;
     size_t GetFileSize(const char* path) noexcept;
     void CreateDirectoryIfNotExists(const char* path) noexcept;
-    void Copy(const char* srcPath, const char* dstPath) noexcept;
+    bool Copy(const char* srcPath, const char* dstPath, bool overwrite = false) noexcept;
     bool IsDirectory(const char* path) noexcept;
 
     struct Path
@@ -34,7 +34,7 @@ namespace ZetaRay::App::Filesystem
         void Reset(Util::StrView str) noexcept;
         Filesystem::Path& Append(Util::StrView str) noexcept;
         Filesystem::Path& ToParent() noexcept;
-        Filesystem::Path& ToCurrDirectory() noexcept;
+        Filesystem::Path& Directory() noexcept;
         void Stem(Util::Span<char> buff, size_t* outStrLen = nullptr) const noexcept;
         ZetaInline const char* Get() const noexcept { return m_path.begin(); }
 

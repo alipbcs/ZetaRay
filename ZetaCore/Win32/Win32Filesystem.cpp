@@ -88,7 +88,7 @@ Filesystem::Path& Filesystem::Path::ToParent() noexcept
     return *this;
 }
 
-Filesystem::Path& Filesystem::Path::ToCurrDirectory() noexcept
+Filesystem::Path& Filesystem::Path::Directory() noexcept
 {
     if (Filesystem::IsDirectory(m_path.data()))
         return *this;
@@ -316,14 +316,18 @@ void Filesystem::CreateDirectoryIfNotExists(const char* path) noexcept
     }
 }
 
-void Filesystem::Copy(const char* path, const char* newPath) noexcept
+bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite) noexcept
 {
-    bool ret = CopyFileA(path, newPath, true);
+    bool ret = CopyFileA(path, newPath, !overwrite);
     if (!ret)
     {
         auto err = GetLastError();
-        Check(err == ERROR_CANNOT_MAKE, "CopyFile() failed with error code: %d\n", err);
+        Check(err == ERROR_FILE_EXISTS, "CopyFile() failed with error code: %d\n", err);
+
+        return false;
     }
+
+    return true;
 }
 
 bool Filesystem::IsDirectory(const char* path) noexcept

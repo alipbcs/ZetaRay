@@ -23,6 +23,8 @@ namespace
 {
     static constexpr int MAX_TEX_RES = 2048;
     static constexpr const char* COMPRESSED_DIR_NAME = "compressed";
+    static const char* TEX_CONV_ARGV_NO_OVERWRITE = " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -o %s %s";
+    static const char* TEX_CONV_ARGV_OVERWRITE =    " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -y -o %s %s";
 
     enum TEXTURE_TYPE
     {
@@ -91,17 +93,46 @@ namespace
         }
     }
 
+    bool CompressedExists(const Filesystem::Path& imagePath, const Filesystem::Path& outDir) noexcept
+    {
+        char filename[MAX_PATH];
+        size_t fnLen;
+        imagePath.Stem(filename, &fnLen);
+
+        // change the extension to dds
+        Check(fnLen + 5 < ZetaArrayLen(filename), "buffer is too small.");
+        filename[fnLen] = '.';
+        filename[fnLen + 1] = 'd';
+        filename[fnLen + 2] = 'd';
+        filename[fnLen + 3] = 's';
+        filename[fnLen + 4] = '\0';
+
+        Filesystem::Path compressedPath(outDir.Get());
+        compressedPath.Append(filename);
+
+        if (Filesystem::Exists(compressedPath.Get()))
+        {
+            printf("Compressed texture already exists in path %s, skipping...\n", compressedPath.Get());
+            return true;
+        }
+
+        return false;
+    }
+
     void ConvertBaseColorMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> baseColorMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device)
+        Span<int> baseColorMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
     {
         for (auto tex : baseColorMaps)
         {
             // URI paths are relative to gltf file
             Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.ToCurrDirectory();
+            imgPath.Directory();
 
             auto& imgUri = imagePaths[tex];
             imgPath.Append(imgUri.Get());
+
+            if (!forceOverwrite && CompressedExists(imgPath, outDir))
+                continue;
 
             int x;
             int y;
@@ -116,9 +147,10 @@ namespace
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* format = GetTexFormat(TEXTURE_TYPE::BASE_COLOR);
-            stbsp_snprintf(buff, sizeof(buff), " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -o %s %s", w, h, 
-                format, outDir.Get(), imgPath.Get());
+            const char* texFormat = GetTexFormat(TEXTURE_TYPE::BASE_COLOR);
+            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
+            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
+                texFormat, outDir.Get(), imgPath.Get());
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
@@ -144,15 +176,18 @@ namespace
     }
 
     void ConvertNormalMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> normalMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device)
+        Span<int> normalMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
     {
         for (auto tex : normalMaps)
         {
             Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.ToCurrDirectory();
+            imgPath.Directory();
 
             auto& imgUri = imagePaths[tex];
             imgPath.Append(imgUri.Get());
+
+            if (!forceOverwrite && CompressedExists(imgPath, outDir))
+                continue;
 
             int x;
             int y;
@@ -167,9 +202,10 @@ namespace
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* format = GetTexFormat(TEXTURE_TYPE::NORMAL_MAP);
-            stbsp_snprintf(buff, sizeof(buff), " -w %d -h %d -m 0 -ft dds -f %s -nologo -o %s %s", w, h, 
-                format, outDir.Get(), imgPath.Get());
+            const char* texFormat = GetTexFormat(TEXTURE_TYPE::NORMAL_MAP);
+            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
+            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
+                texFormat, outDir.Get(), imgPath.Get());
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
@@ -195,15 +231,18 @@ namespace
     }
 
     void ConvertMetalnessRoughnessMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> mrMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device)
+        Span<int> mrMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
     {
         for (auto tex : mrMaps)
         {
             Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.ToCurrDirectory();
+            imgPath.Directory();
 
             auto& imgUri = imagePaths[tex];
             imgPath.Append(imgUri.Get());
+
+            if (!forceOverwrite && CompressedExists(imgPath, outDir))
+                continue;
 
             int x;
             int y;
@@ -218,9 +257,10 @@ namespace
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* format = GetTexFormat(TEXTURE_TYPE::METALNESS_ROUGHNESS);
-            stbsp_snprintf(buff, sizeof(buff), " -w %d -h %d -m 0 -ft dds -f %s -nologo -o %s %s", w, h,
-                format, outDir.Get(), imgPath.Get());
+            const char* texFormat = GetTexFormat(TEXTURE_TYPE::METALNESS_ROUGHNESS);
+            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
+            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
+                texFormat, outDir.Get(), imgPath.Get());
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
@@ -246,15 +286,18 @@ namespace
     }
 
     void ConvertEmissiveMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> emissiveMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device)
+        Span<int> emissiveMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
     {
         for (auto tex : emissiveMaps)
         {
             Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.ToCurrDirectory();
+            imgPath.Directory();
 
             auto& imgUri = imagePaths[tex];
             imgPath.Append(imgUri.Get());
+
+            if (!forceOverwrite && CompressedExists(imgPath, outDir))
+                continue;
 
             int x;
             int y;
@@ -269,9 +312,10 @@ namespace
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* format = GetTexFormat(TEXTURE_TYPE::EMISSIVE);
-            stbsp_snprintf(buff, sizeof(buff), " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -o %s %s", w, h,
-                format, outDir.Get(), imgPath.Get());
+            const char* texFormat = GetTexFormat(TEXTURE_TYPE::EMISSIVE);
+            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
+            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
+                texFormat, outDir.Get(), imgPath.Get());
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
@@ -345,10 +389,11 @@ namespace
         filename[fnLen + 12] = '\0';
 
         Filesystem::Path backupPath(gltfPath.Get());
-        backupPath.ToCurrDirectory().Append(filename);
+        backupPath.Directory().Append(filename);
 
         // make a backup
-        Filesystem::Copy(gltfPath.Get(), backupPath.Get());
+        if (!Filesystem::Copy(gltfPath.Get(), backupPath.Get()))
+            printf("Warning: Copy failed as following destination path already exists: %s\n", backupPath.Get());
 
         s = data.dump(4);
         uint8_t* str = reinterpret_cast<uint8_t*>(s.data());
@@ -361,9 +406,9 @@ int main(int argc, char* argv[])
     //Filesystem::Path gltfPath("..\\assets\\cubic_realm\\zeta6.gltf");
     //Filesystem::Path gltfPath("zeta6_olagh.gltf");
 
-    if (argc != 2)
+    if (argc != 2 && argc != 3)
     {
-        printf("Usage: BCCompressglTF <path-to-glTF>\n");
+        printf("Usage: BCCompressglTF <path-to-glTF> -y\n");
         return 0;
     }
 
@@ -373,6 +418,10 @@ int main(int argc, char* argv[])
         printf("Provided path %s was not found. Exiting...\n", gltfPath.Get());
         return 0;
     }
+
+    bool forceOverwrite = false;
+    if(argc == 3 && strcmp(argv[2], "-y") == 0)
+        forceOverwrite = true;
 
     printf("Compressing textures for %s...\n", argv[1]);
 
@@ -475,13 +524,13 @@ int main(int argc, char* argv[])
     CreateDevice(device.GetAddressOf());
 
     Filesystem::Path outDir(gltfPath.Get());
-    outDir.ToCurrDirectory().Append(COMPRESSED_DIR_NAME);
+    outDir.Directory().Append(COMPRESSED_DIR_NAME);
     Filesystem::CreateDirectoryIfNotExists(outDir.Get());
 
-    ConvertBaseColorMaps(gltfPath, outDir, baseColorMaps, imagePaths, device.Get());
-    ConvertNormalMaps(gltfPath, outDir, normalMaps, imagePaths, device.Get());
-    ConvertMetalnessRoughnessMaps(gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get());
-    ConvertEmissiveMaps(gltfPath, outDir, emissiveMaps, imagePaths, device.Get());
+    ConvertBaseColorMaps(gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), forceOverwrite);
+    ConvertNormalMaps(gltfPath, outDir, normalMaps, imagePaths, device.Get(), forceOverwrite);
+    ConvertMetalnessRoughnessMaps(gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), forceOverwrite);
+    ConvertEmissiveMaps(gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), forceOverwrite);
 
     ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
 
