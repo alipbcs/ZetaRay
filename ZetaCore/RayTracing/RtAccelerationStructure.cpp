@@ -3,7 +3,7 @@
 #include "../Core/RendererCore.h"
 #include "../Core/CommandList.h"
 #include "../Scene/SceneCore.h"
-#include "../Math/Matrix.h"
+#include "../Math/MatrixFuncs.h"
 #include "../Model/Mesh.h"
 #include "RtCommon.h"
 #include "../Core/SharedShaderResources.h"
@@ -621,12 +621,37 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 	SmallVector<RT::MeshInstance, App::FrameAllocator> frameInstanceData;
 	frameInstanceData.resize(numInstances);
 
-	int currInstance = 0;
+	uint32_t currInstance = 0;
+
+	auto addTLASInstance = [&frameInstanceData, &currInstance](const TriangleMesh& mesh, const Material& mat, float4x3& M) noexcept
+	{
+		v_float4x4 vM(M);
+
+		// meshes in TLAS go through following transformations:
+		// 1. Optional transform during BLAS build
+		// 2. Per-instance transform for each BLAS instance in TLAS
+		//
+		// When accessing triangle data in closest hit shaders, 2nd transform can be accessed
+		// using the ObjectToWorld3x4() intrinsic, but the 1st transform is lost. Here, only 
+		// normals need to be transformed, so just store the rotation.
+		float4a t;
+		float4a r;
+		float4a s;
+		decomposeSRT(vM, s, r, t);
+
+		RT::MeshInstance instance;
+		instance.MatID = (uint16_t)mat.GpuBufferIndex();
+		instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
+		instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
+		instance.Rotation = float4(r.x, r.y, r.z, r.w);
+
+		frameInstanceData[currInstance++] = instance;
+	};
 
 	// skip the first level
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
-		const auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
+		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
 		const auto& rtFlagVec = currTreeLevel.m_rtFlags;
 
 		// Layout:
@@ -642,16 +667,10 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		{
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
 			const auto mat = scene.GetMaterial(mesh.m_materialID);
+			auto& M = currTreeLevel.m_toWorlds[i];
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode == RT_MESH_MODE::STATIC)
-			{
-				RT::MeshInstance instance;
-				instance.MatID = (uint16_t)mat.GpuBufferIndex();
-				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
-				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
-
-				frameInstanceData[currInstance++] = instance;
-			}
+				addTLASInstance(mesh, mat, M);
 		}
 
 		// dynamic meshes
@@ -659,16 +678,10 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		{
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
 			const auto mat = scene.GetMaterial(mesh.m_materialID);
+			auto& M = currTreeLevel.m_toWorlds[i];
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode != RT_MESH_MODE::STATIC)
-			{
-				RT::MeshInstance instance;
-				instance.MatID = (uint16_t)mat.GpuBufferIndex();
-				instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
-				instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
-
-				frameInstanceData[currInstance++] = instance;
-			}
+				addTLASInstance(mesh, mat, M);
 		}
 	}
 

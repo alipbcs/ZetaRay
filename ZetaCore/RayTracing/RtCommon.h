@@ -22,9 +22,9 @@ namespace ZetaRay
 		{
 			uint32_t BaseVtxOffset;
 			uint32_t BaseIdxOffset;
+			float4_ Rotation;
 			uint16_t MatID;
-			uint16_t pad0;
-			uint32_t pad1;
+			uint16_t pad[3];
 		};
 	}
 #ifdef __cplusplus

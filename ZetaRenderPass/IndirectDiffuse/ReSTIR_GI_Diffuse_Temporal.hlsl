@@ -174,9 +174,10 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 
 		const float2 barry = rayQuery.CommittedTriangleBarycentrics();
 		float2 uv = V0.TexUV + barry.x * (V1.TexUV - V0.TexUV) + barry.y * (V2.TexUV - V0.TexUV);
+
 		float3 normal = V0.NormalL + barry.x * (V1.NormalL - V0.NormalL) + barry.y * (V2.NormalL - V0.NormalL);
-		// TODO should it be 4x3 or 3x4?
-		normal = normalize(mul(normal, (float3x3) rayQuery.CandidateObjectToWorld4x3()));
+		normal = normalize(normal);
+		normal = Math::Transform::RotateVector(normal, meshData.Rotation);
 
 		// reverse the normal if ray hit the backfacing side
 		if (dot(normal, -rayQuery.WorldRayDirection()) < 0)
