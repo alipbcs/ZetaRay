@@ -1266,7 +1266,8 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
 
             if (!dwOption || (dwOptions & (uint64_t(1) << dwOption)))
             {
-                PrintUsage();
+                wprintf(L"Unknown option: %ls\n", pArg);
+                //PrintUsage();
                 return 1;
             }
 
@@ -1303,7 +1304,8 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     if ((iArg + 1 >= argc))
                     {
-                        PrintUsage();
+                        printf("Invalid usage.\n");
+                        //PrintUsage();
                         return 1;
                     }
 
@@ -1320,7 +1322,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -w (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1330,7 +1332,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -h (%ls)\n", pValue);
                     printf("\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1340,7 +1342,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -m (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1354,7 +1356,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                     {
                         wprintf(L"Invalid value specified with -f (%ls)\n", pValue);
                         wprintf(L"\n");
-                        PrintUsage();
+                        //PrintUsage();
                         return 1;
                     }
                 }
@@ -1366,7 +1368,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -if (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1377,7 +1379,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -rotatecolor (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1420,7 +1422,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -ft (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1429,7 +1431,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwOptions & (uint64_t(1) << OPT_DEMUL_ALPHA))
                 {
                     wprintf(L"Can't use -pmalpha and -alpha at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1438,7 +1440,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwOptions & (uint64_t(1) << OPT_PREMUL_ALPHA))
                 {
                     wprintf(L"Can't use -pmalpha and -alpha at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1447,7 +1449,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwFilterOpts & TEX_FILTER_MIRROR)
                 {
                     wprintf(L"Can't use -wrap and -mirror at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 dwFilterOpts |= TEX_FILTER_WRAP;
@@ -1457,7 +1459,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwFilterOpts & TEX_FILTER_WRAP)
                 {
                     wprintf(L"Can't use -wrap and -mirror at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 dwFilterOpts |= TEX_FILTER_MIRROR;
@@ -1525,13 +1527,13 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (!dwNormalMap)
                 {
                     wprintf(L"-nmapamp requires -nmap\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (swscanf_s(pValue, L"%f", &nmapAmplitude) != 1)
                 {
                     wprintf(L"Invalid value specified with -nmapamp (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (nmapAmplitude < 0.f)
@@ -1545,13 +1547,13 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (swscanf_s(pValue, L"%d", &adapter) != 1)
                 {
                     wprintf(L"Invalid value specified with -gpu (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (adapter < 0)
                 {
                     wprintf(L"Invalid adapter index (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1562,7 +1564,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -fl (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1572,7 +1574,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -at (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (alphaThreshold < 0.f)
@@ -1588,7 +1590,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -aw (%ls)\n", pValue);
                     wprintf(L"\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (alphaWeight < 0.f)
@@ -1631,7 +1633,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                     if ((dwCompress & (TEX_COMPRESS_BC7_QUICK | TEX_COMPRESS_BC7_USE_3SUBSETS)) == (TEX_COMPRESS_BC7_QUICK | TEX_COMPRESS_BC7_USE_3SUBSETS))
                     {
                         wprintf(L"Can't use -bc x (max) and -bc q (quick) at same time\n\n");
-                        PrintUsage();
+                        //PrintUsage();
                         return 1;
                     }
 
@@ -1650,7 +1652,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     wprintf(L"Invalid value specified with -wicq (%ls)\n", pValue);
                     printf("\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1660,7 +1662,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 {
                     printf("Invalid value specified with -c (%ls)\n", pValue);
                     printf("\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 colorKey &= 0xFFFFFF;
@@ -1674,7 +1676,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwOptions & (uint64_t(1) << OPT_USE_DX9))
                 {
                     wprintf(L"Can't use -dx9 and -dx10 at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1683,7 +1685,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (dwOptions & (uint64_t(1) << OPT_USE_DX10))
                 {
                     wprintf(L"Can't use -dx9 and -dx10 at same time\n\n");
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 break;
@@ -1699,7 +1701,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                     else if (_wcsicmp(pValue, L"flatten") != 0)
                     {
                         wprintf(L"For recursive use -r, -r:flatten, or -r:keep\n\n");
-                        PrintUsage();
+                        //PrintUsage();
                         return 1;
                     }
                 }
@@ -1724,7 +1726,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (swscanf_s(pValue, L"%f", &paperWhiteNits) != 1)
                 {
                     wprintf(L"Invalid value specified with -nits (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (paperWhiteNits > 10000.f || paperWhiteNits <= 0.f)
@@ -1738,7 +1740,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (swscanf_s(pValue, L"%f", &preserveAlphaCoverageRef) != 1)
                 {
                     wprintf(L"Invalid value specified with -keepcoverage (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (preserveAlphaCoverageRef < 0.0f || preserveAlphaCoverageRef > 1.0f)
@@ -1752,7 +1754,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
                 if (!*pValue || wcslen(pValue) > 4)
                 {
                     wprintf(L"Invalid value specified with -swizzle (%ls)\n\n", pValue);
-                    PrintUsage();
+                    //PrintUsage();
                     return 1;
                 }
                 else if (!ParseSwizzleMask(pValue, swizzleElements, zeroElements, oneElements))
@@ -1784,8 +1786,9 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
 
     if (conversion.empty())
     {
-        PrintUsage();
-        return 0;
+        //PrintUsage();
+        printf("No input images specified.\n");
+        return 1;
     }
 
     if (~dwOptions & (uint64_t(1) << OPT_NOLOGO))

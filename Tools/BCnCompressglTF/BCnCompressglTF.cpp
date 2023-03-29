@@ -23,8 +23,34 @@ namespace
 {
     static constexpr int MAX_TEX_RES = 2048;
     static constexpr const char* COMPRESSED_DIR_NAME = "compressed";
-    static const char* TEX_CONV_ARGV_NO_OVERWRITE = " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -o %s %s";
-    static const char* TEX_CONV_ARGV_OVERWRITE =    " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -y -o %s %s";
+
+    namespace TEX_CONV_ARGV_NO_OVERWRITE_SRGB
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -o %s %s";
+        constexpr int NUM_ARGS = 16;
+    };
+
+    namespace TEX_CONV_ARGV_OVERWRITE_SRGB
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -srgb -nologo -y -o %s %s";
+        constexpr int NUM_ARGS = 17;
+    }
+
+    namespace TEX_CONV_ARGV_NO_OVERWRITE
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -nologo -o %s %s";
+        constexpr int NUM_ARGS = 15;
+    }
+
+    namespace TEX_CONV_ARGV_OVERWRITE
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -nologo -y -o %s %s";
+        constexpr int NUM_ARGS = 16;
+    }
+
+    static constexpr int MAX_NUM_ARGS = Math::Max(
+        Math::Max(TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS),
+        Math::Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS));
 
     enum TEXTURE_TYPE
     {
@@ -112,17 +138,17 @@ namespace
 
         if (Filesystem::Exists(compressedPath.Get()))
         {
-            printf("Compressed texture already exists in path %s, skipping...\n", compressedPath.Get());
+            printf("Compressed texture already exists in path %s. Skipping...\n", compressedPath.Get());
             return true;
         }
 
         return false;
     }
 
-    void ConvertBaseColorMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> baseColorMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
+    void ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
+        Span<int> textureMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool srgb, bool forceOverwrite)
     {
-        for (auto tex : baseColorMaps)
+        for (auto tex : textureMaps)
         {
             // URI paths are relative to gltf file
             Filesystem::Path imgPath(pathToglTF.Get());
@@ -147,18 +173,22 @@ namespace
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* texFormat = GetTexFormat(TEXTURE_TYPE::BASE_COLOR);
-            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
-            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
-                texFormat, outDir.Get(), imgPath.Get());
+            const char* texFormat = GetTexFormat(texType);
+            const char* formatStr = srgb ?
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::CMD : TEX_CONV_ARGV_NO_OVERWRITE::CMD);
+            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, outDir.Get(), imgPath.Get());
+            Check(len < sizeof(buff), "Provided buffer is too small.");
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
 
             wchar_t* ptr = wideBuff;
 
-            constexpr int numArgs = 16;
-            wchar_t* args[numArgs];
+            const int numArgs = srgb ? 
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS) : 
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS);
+            wchar_t* args[MAX_NUM_ARGS];
             int currArg = 0;
 
             while (ptr != wideBuff + n)
@@ -171,176 +201,12 @@ namespace
                 *ptr++ = '\0';
             }
 
-            TexConv(numArgs, args, device);
+            if (TexConv(numArgs, args, device) != 0)
+                return;
         }
     }
 
-    void ConvertNormalMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> normalMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
-    {
-        for (auto tex : normalMaps)
-        {
-            Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.Directory();
-
-            auto& imgUri = imagePaths[tex];
-            imgPath.Append(imgUri.Get());
-
-            if (!forceOverwrite && CompressedExists(imgPath, outDir))
-                continue;
-
-            int x;
-            int y;
-            int comp;
-            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", imgPath.Get(), stbi_failure_reason());
-
-            int w = std::min(x, MAX_TEX_RES);
-            int h = std::min(y, MAX_TEX_RES);
-
-            // Direct3D requires BC image to be multiple of 4 in width & height
-            w = (int)Math::AlignUp(w, 4);
-            h = (int)Math::AlignUp(h, 4);
-
-            char buff[512];
-            const char* texFormat = GetTexFormat(TEXTURE_TYPE::NORMAL_MAP);
-            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
-            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
-                texFormat, outDir.Get(), imgPath.Get());
-
-            wchar_t wideBuff[1024];
-            int n = Common::CharToWideStr(buff, wideBuff);
-
-            wchar_t* ptr = wideBuff;
-
-            constexpr int numArgs = 15;
-            wchar_t* args[numArgs];
-            int currArg = 0;
-
-            while (ptr != wideBuff + n)
-            {
-                args[currArg++] = ptr;
-
-                while (*ptr != ' ' && *ptr != '\0')
-                    ptr++;
-
-                *ptr++ = '\0';
-            }
-
-            TexConv(numArgs, args, device);
-        }
-    }
-
-    void ConvertMetalnessRoughnessMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> mrMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
-    {
-        for (auto tex : mrMaps)
-        {
-            Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.Directory();
-
-            auto& imgUri = imagePaths[tex];
-            imgPath.Append(imgUri.Get());
-
-            if (!forceOverwrite && CompressedExists(imgPath, outDir))
-                continue;
-
-            int x;
-            int y;
-            int comp;
-            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", imgPath.Get(), stbi_failure_reason());
-
-            int w = std::min(x, MAX_TEX_RES);
-            int h = std::min(y, MAX_TEX_RES);
-
-            // Direct3D requires BC image to be multiple of 4 in width & height
-            w = (int)Math::AlignUp(w, 4);
-            h = (int)Math::AlignUp(h, 4);
-
-            char buff[512];
-            const char* texFormat = GetTexFormat(TEXTURE_TYPE::METALNESS_ROUGHNESS);
-            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
-            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
-                texFormat, outDir.Get(), imgPath.Get());
-
-            wchar_t wideBuff[1024];
-            int n = Common::CharToWideStr(buff, wideBuff);
-
-            wchar_t* ptr = wideBuff;
-
-            constexpr int numArgs = 15;
-            wchar_t* args[numArgs];
-            int currArg = 0;
-
-            while (ptr != wideBuff + n)
-            {
-                args[currArg++] = ptr;
-
-                while (*ptr != ' ' && *ptr != '\0')
-                    ptr++;
-
-                *ptr++ = '\0';
-            }
-
-            TexConv(numArgs, args, device);
-        }
-    }
-
-    void ConvertEmissiveMaps(const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> emissiveMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool forceOverwrite)
-    {
-        for (auto tex : emissiveMaps)
-        {
-            Filesystem::Path imgPath(pathToglTF.Get());
-            imgPath.Directory();
-
-            auto& imgUri = imagePaths[tex];
-            imgPath.Append(imgUri.Get());
-
-            if (!forceOverwrite && CompressedExists(imgPath, outDir))
-                continue;
-
-            int x;
-            int y;
-            int comp;
-            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", imgPath.Get(), stbi_failure_reason());
-
-            int w = std::min(x, MAX_TEX_RES);
-            int h = std::min(y, MAX_TEX_RES);
-
-            // Direct3D requires BC image to be multiple of 4 in width & height
-            w = (int)Math::AlignUp(w, 4);
-            h = (int)Math::AlignUp(h, 4);
-
-            char buff[512];
-            const char* texFormat = GetTexFormat(TEXTURE_TYPE::EMISSIVE);
-            const char* formatStr = forceOverwrite ? TEX_CONV_ARGV_OVERWRITE : TEX_CONV_ARGV_NO_OVERWRITE;
-            stbsp_snprintf(buff, sizeof(buff), formatStr, w, h,
-                texFormat, outDir.Get(), imgPath.Get());
-
-            wchar_t wideBuff[1024];
-            int n = Common::CharToWideStr(buff, wideBuff);
-
-            wchar_t* ptr = wideBuff;
-
-            constexpr int numArgs = 16;
-            wchar_t* args[numArgs];
-            int currArg = 0;
-
-            while (ptr != wideBuff + n)
-            {
-                args[currArg++] = ptr;
-
-                while (*ptr != ' ' && *ptr != '\0')
-                    ptr++;
-
-                *ptr++ = '\0';
-            }
-
-            TexConv(numArgs, args, device);
-        }
-    }
-
-    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath) noexcept
+    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath, bool makeBackup) noexcept
     {
         std::string s;
         char filename[MAX_PATH];
@@ -370,30 +236,32 @@ namespace
             img["uri"] = newPath.Get();
         }
         
-        // serialize
-        gltfPath.Stem(filename, &fnLen);
-
-        Check(fnLen + 13 < ZetaArrayLen(filename), "buffer is too small.");
-        filename[fnLen] = '_';
-        filename[fnLen + 1] = 'b';
-        filename[fnLen + 2] = 'a';
-        filename[fnLen + 3] = 'c';
-        filename[fnLen + 4] = 'k';
-        filename[fnLen + 5] = 'u';
-        filename[fnLen + 6] = 'p';
-        filename[fnLen + 7] = '.';
-        filename[fnLen + 8] = 'g';
-        filename[fnLen + 9] = 'l';
-        filename[fnLen + 10] = 't';
-        filename[fnLen + 11] = 'f';
-        filename[fnLen + 12] = '\0';
-
-        Filesystem::Path backupPath(gltfPath.Get());
-        backupPath.Directory().Append(filename);
-
         // make a backup
-        if (!Filesystem::Copy(gltfPath.Get(), backupPath.Get()))
-            printf("Warning: Copy failed as following destination path already exists: %s\n", backupPath.Get());
+        if (makeBackup)
+        {
+            gltfPath.Stem(filename, &fnLen);
+
+            Check(fnLen + 13 < ZetaArrayLen(filename), "buffer is too small.");
+            filename[fnLen] = '_';
+            filename[fnLen + 1] = 'b';
+            filename[fnLen + 2] = 'a';
+            filename[fnLen + 3] = 'c';
+            filename[fnLen + 4] = 'k';
+            filename[fnLen + 5] = 'u';
+            filename[fnLen + 6] = 'p';
+            filename[fnLen + 7] = '.';
+            filename[fnLen + 8] = 'g';
+            filename[fnLen + 9] = 'l';
+            filename[fnLen + 10] = 't';
+            filename[fnLen + 11] = 'f';
+            filename[fnLen + 12] = '\0';
+
+            Filesystem::Path backupPath(gltfPath.Get());
+            backupPath.Directory().Append(filename);
+
+            if (!Filesystem::Copy(gltfPath.Get(), backupPath.Get()))
+                printf("Warning: Copy failed as following destination path already exists: %s\n", backupPath.Get());
+        }
 
         s = data.dump(4);
         uint8_t* str = reinterpret_cast<uint8_t*>(s.data());
@@ -403,12 +271,9 @@ namespace
 
 int main(int argc, char* argv[])
 {
-    //Filesystem::Path gltfPath("..\\assets\\cubic_realm\\zeta6.gltf");
-    //Filesystem::Path gltfPath("zeta6_olagh.gltf");
-
-    if (argc != 2 && argc != 3)
+    if (argc < 2 || argc > 4)
     {
-        printf("Usage: BCCompressglTF <path-to-glTF> -y\n");
+        printf("Usage: BCnCompressglTF <path-to-glTF> -y -n\n");
         return 0;
     }
 
@@ -420,8 +285,15 @@ int main(int argc, char* argv[])
     }
 
     bool forceOverwrite = false;
-    if(argc == 3 && strcmp(argv[2], "-y") == 0)
-        forceOverwrite = true;
+    bool backup = true;
+
+    for (int i = 2; i < argc; i++)
+    {
+        if (strcmp(argv[i], "-y") == 0)
+            forceOverwrite = true;
+        else if (strcmp(argv[i], "-n") == 0)
+            backup = false;
+    }
 
     printf("Compressing textures for %s...\n", argv[1]);
 
@@ -527,12 +399,12 @@ int main(int argc, char* argv[])
     outDir.Directory().Append(COMPRESSED_DIR_NAME);
     Filesystem::CreateDirectoryIfNotExists(outDir.Get());
 
-    ConvertBaseColorMaps(gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), forceOverwrite);
-    ConvertNormalMaps(gltfPath, outDir, normalMaps, imagePaths, device.Get(), forceOverwrite);
-    ConvertMetalnessRoughnessMaps(gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), forceOverwrite);
-    ConvertEmissiveMaps(gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), forceOverwrite);
+    ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), true, forceOverwrite);
+    ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths, device.Get(), false, forceOverwrite);
+    ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), false, forceOverwrite);
+    ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), true, forceOverwrite);
 
-    ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
+    ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath, backup);
 
 	return 0;
 }
