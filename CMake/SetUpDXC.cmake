@@ -4,13 +4,15 @@ function(SetupDXC DXC_BIN_DIR)
 
     # if(NOT EXISTS "${DXC_BIN_DIR}")
     if(DXC_BIN_PATH STREQUAL "")
-        set(URL "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.7.2207/dxc_2022_07_18.zip")
+        set(URL "https://github.com/microsoft/DirectXShaderCompiler/releases/download/v1.7.2212.1/dxc_2023_03_01.zip")
         message(STATUS "Downloading DXC from ${URL}...")
         set(ARCHIVE_PATH "${TOOLS_DIR}/dxc.zip")
-        file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 60)
+        file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)
         
         file(ARCHIVE_EXTRACT INPUT "${ARCHIVE_PATH}" DESTINATION "${DXC_DIR}")
         file(REMOVE_RECURSE "${DXC_DIR}/bin/arm64")
+        file(REMOVE_RECURSE "${DXC_DIR}/bin/x86")
+        file(REMOVE_RECURSE "${DXC_DIR}/lib")
         file(REMOVE "${ARCHIVE_PATH}")
 
         file(GLOB_RECURSE DXC_BIN_PATH "${DXC_DIR}/*dxc.exe")

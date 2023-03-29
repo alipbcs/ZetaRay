@@ -1,3 +1,7 @@
+include("${CMAKE_INCLUDE_DIR}/SetupDoctest.cmake")
+
+SetupDoctest()
+
 set(TEST_DIR ${CMAKE_SOURCE_DIR}/Tests)
 set(TEST_SRC 
     "${TEST_DIR}/TestContainer.cpp"

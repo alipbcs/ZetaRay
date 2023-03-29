@@ -1,4 +1,7 @@
 include("${CMAKE_INCLUDE_DIR}/Copy.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetupAgilitySDK.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetupWinPIX.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetupxxHash.cmake")
 
 add_subdirectory(App)
 add_subdirectory(Core)
@@ -49,8 +52,14 @@ set_target_properties(ZetaCore PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE
 # 
 # WinPixEventRuntime
 # 
+SetupWinPIX()
 add_library(WinPixEventRuntimeLib SHARED IMPORTED GLOBAL)
 set_target_properties(WinPixEventRuntimeLib PROPERTIES IMPORTED_IMPLIB "${EXTERNAL_DIR}/WinPixEventRuntime/WinPixEventRuntime.lib")
+
+# 
+# xxHash
+# 
+SetupxxHash()
 
 # custom command that copies the dll to the runtime directory
 set(WINPIXEVENT_DLL_PATH "${EXTERNAL_DIR}/WinPixEventRuntime/WinPixEventRuntime.dll")
@@ -60,6 +69,7 @@ add_dependencies(WinPixEventRuntimeLib CopyWinPixDLL)
 # 
 # DirectX Agility SDK
 # 
+SetupAgilitySDK()
 add_library(DX12AgilitySDK INTERFACE)
 set(DX12AgilitySDK_BIN
 	"${EXTERNAL_DIR}/D3D12/1.608.3/D3D12Core.dll"
@@ -68,6 +78,7 @@ set(DX12AgilitySDK_BIN
 Copy("${DX12AgilitySDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/" CopyDX12AgilitySDKBins)
 add_dependencies(DX12AgilitySDK CopyDX12AgilitySDKBins)
 
+# Font
 add_library(FONT INTERFACE)
 set(FONT_LIB "${ASSET_DIR}/Font/Font.dll")
 

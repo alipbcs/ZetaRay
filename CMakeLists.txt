@@ -1,8 +1,8 @@
 cmake_minimum_required(VERSION 3.21)
 
 set(CMAKE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/CMake")
-include("${CMAKE_INCLUDE_DIR}/SetUpConfigurations.cmake")
-include("${CMAKE_INCLUDE_DIR}/SetUpDXC.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetBuildConfigurations.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetupDXC.cmake")
 
 project(ZetaRay
     LANGUAGES CXX
