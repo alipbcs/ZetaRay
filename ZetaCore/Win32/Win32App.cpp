@@ -16,10 +16,11 @@
 #include "../Assets/Font/Font.h"
 #include <atomic>
 
-//#define STB_SPRINTF_IMPLEMENTATION
 #define XXH_STATIC_LINKING_ONLY
 #define XXH_IMPLEMENTATION 
 #include <xxHash/xxhash.h>
+
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>
@@ -833,7 +834,6 @@ namespace ZetaRay::AppImpl
 	void CreateAppWindow(HINSTANCE instance) noexcept
 	{
 		const char* wndClassName = "MyWindowClass";
-
 		WNDCLASSA wc{};
 
 		wc.style = CS_HREDRAW | CS_VREDRAW;
@@ -1051,8 +1051,8 @@ namespace ZetaRay
 		ParamVariant acc;
 		acc.InitFloat("Scene", "Camera", "Acceleration", fastdelegate::FastDelegate1(&AppImpl::SetCameraAcceleration),
 			g_app->m_cameraAcceleration,
-			0.1f,
-			100.0f,
+			1.0f,
+			300.0f,
 			1.0f);
 		App::AddParam(acc);
 

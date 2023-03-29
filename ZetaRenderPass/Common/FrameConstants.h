@@ -7,7 +7,6 @@
 namespace ZetaRay
 {
 #endif
-
 	struct cbFrameConstants
 	{
 		row_major float4x4_ CurrProj;

@@ -1202,10 +1202,9 @@ void GpuMemory::Recycle() noexcept
 
 	if (!textures.empty())
 	{
-		Task t("Releasing textures", TASK_PRIORITY::BACKGRUND, [this, Textures = ZetaMove(textures)]()
+		Task t("Releasing textures", TASK_PRIORITY::BACKGRUND, [Textures = ZetaMove(textures)]()
 			{
-				Assert(Textures.size() > 0, "input texture vec is empty");
-				// resources in textures are released now
+				// textures are released now
 			});
 
 		App::SubmitBackground(ZetaMove(t));

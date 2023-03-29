@@ -144,8 +144,9 @@ void SunShadow::Init() noexcept
 		1.0f);										// step
 	App::AddParam(normalExp);
 
-	App::AddShaderReloadHandler("SunShadow_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRTemporal));
-	App::AddShaderReloadHandler("SunShadow_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRSpatial));
+	//App::AddShaderReloadHandler("SunShadow_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRTemporal));
+	//App::AddShaderReloadHandler("SunShadow_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRSpatial));
+	App::AddShaderReloadHandler("SunShadow_Trace", fastdelegate::MakeDelegate(this, &SunShadow::ReloadSunShadowTrace));
 }
 
 void SunShadow::Reset() noexcept
@@ -468,5 +469,13 @@ void SunShadow::ReloadDNSRSpatial() noexcept
 	const int i = (int)SHADERS::DNSR_SPATIAL_FILTER;
 
 	s_rpObjs.m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_spatial_filter.hlsl", true);
+	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+}
+
+void SunShadow::ReloadSunShadowTrace() noexcept
+{
+	const int i = (int)SHADERS::SHADOW_MASK;
+
+	s_rpObjs.m_psoLib.Reload(i, "SunShadow\\SunShadow.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

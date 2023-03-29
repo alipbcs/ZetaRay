@@ -66,8 +66,6 @@ namespace ZetaRay::RenderPass
 		void Render(Core::CommandList& cmdList) noexcept;
 
 	private:
-		void ReloadDNSRTemporal() noexcept;
-		void ReloadDNSRSpatial() noexcept;
 		void CreateResources() noexcept;
 
 		static constexpr int NUM_CBV = 1;
@@ -140,9 +138,13 @@ namespace ZetaRay::RenderPass
 
 		void DoSoftShadowsCallback(const Support::ParamVariant& p) noexcept;
 		void NumSpatialFilterPassesCallback(const Support::ParamVariant& p) noexcept;
-		void EdgeStoppingDepthSigmaCallback(const Support::ParamVariant& p) noexcept;
+		//void EdgeStoppingDepthSigmaCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingNormalExpCallback(const Support::ParamVariant& p) noexcept;
 		void MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p) noexcept;
+
+		void ReloadDNSRTemporal() noexcept;
+		void ReloadDNSRSpatial() noexcept;
+		void ReloadSunShadowTrace() noexcept;
 	};
 }

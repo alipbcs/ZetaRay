@@ -8,6 +8,8 @@
 #include <Scene/SceneCore.h>
 #include <App/Timer.h>
 #include <Utility/SynchronizedView.h>
+
+#define IMGUI_DEFINE_MATH_OPERATORS
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
 #include <algorithm>
@@ -643,7 +645,6 @@ void GuiPass::RenderProfiler() noexcept
 
 			ImPlot::PushStyleColor(ImPlotCol_FrameBg, wndCol);
 			ImPlot::PlotLine("", frameTimeHist.data(), (int)frameTimeHist.size());
-			ImPlot::PopStyleColor();
 			ImPlot::PopStyleColor();
 			ImPlot::EndPlot();
 		}		

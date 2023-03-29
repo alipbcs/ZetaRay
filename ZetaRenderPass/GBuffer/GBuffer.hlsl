@@ -135,14 +135,14 @@ PS_OUT mainPS(VSOut psin)
 		baseColor.w = 1.0h;
 	}
 	// [hack]
-	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
-	{
-		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
-		baseColor.w = 1.0h;
-	}
+//	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
+//	{
+//		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
+//		baseColor.w = 1.0h;
+//	}
 
 	// avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-	if (mat.NormalTexture != -1 && all(abs(psin.TangentW) > 1e-6))
+	if (mat.NormalTexture != -1 && abs(dot(psin.TangentW, psin.TangentW)) > 1e-6)
 	{
 		NORMAL_MAP g_normalMap = ResourceDescriptorHeap[g_frame.NormalMapsDescHeapOffset + mat.NormalTexture];
 		float2 bumpNormal = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
@@ -174,7 +174,7 @@ PS_OUT mainPS(VSOut psin)
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture];
 		emissiveColor *= g_emissiveMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).xyz;
 	}
-
+	
 	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
 	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.w;
 	prevUnjitteredPosNDC -= g_frame.PrevCameraJitter;
