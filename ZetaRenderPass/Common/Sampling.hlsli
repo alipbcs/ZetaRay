@@ -80,15 +80,15 @@ struct RNG
 
 namespace Sampling
 {
-	// Returns samples about the (0, 1, 0) axis
-	float3 UniformSampleHemisphere(in float2 u, out float pdf)
+	// Returns samples about the (0, 0, 1) axis
+	float3 UniformSampleHemisphere(float2 u, out float pdf)
 	{
 		const float phi = TWO_PI * u.y;
 		const float sinTheta = sqrt(1.0f - u.x * u.x);
 	
 		const float x = cos(phi) * sinTheta;
-		const float y = u.x;
-		const float z = sin(phi) * sinTheta;
+		const float y = sin(phi) * sinTheta;
+		const float z = u.x;
 	
 		// w.r.t. solid angle
 		pdf = ONE_DIV_TWO_PI;
@@ -96,15 +96,15 @@ namespace Sampling
 		return float3(x, y, z);
 	}
 
-	// Returns samples about the (0, 1, 0) axis
-	float3 SampleCosineWeightedHemisphere(in float2 u, out float pdf)
+	// Returns samples about the (0, 0, 1) axis
+	float3 SampleCosineWeightedHemisphere(float2 u, out float pdf)
 	{
 		const float phi = TWO_PI * u.y;
 		const float sinTheta = sqrt(u.x);
 
 		const float x = cos(phi) * sinTheta;
-		const float y = sqrt(1.0f - u.x); // == cos(theta)
-		const float z = sin(phi) * sinTheta;
+		const float y = sin(phi) * sinTheta;
+		const float z = sqrt(1.0f - u.x); // == cos(theta)
 	
 		// w.r.t. solid angle
 		pdf = y * ONE_DIV_PI;
@@ -116,8 +116,8 @@ namespace Sampling
 	// Sampling Shapes
 	//--------------------------------------------------------------------------------------
 
-	// Returns samples about the (0, 1, 0) axis
-	float3 UniformSampleCone(in float2 u, in float cosThetaMax, out float pdf)
+	// Returns samples about the (0, 0, 1) axis
+	float3 UniformSampleCone(float2 u, float cosThetaMax, out float pdf)
 	{
 		const float phi = TWO_PI * u.y;
 
@@ -125,11 +125,11 @@ namespace Sampling
 		const float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
 
 		// x = sin(theta) * cos(phi)
-		// y = cos(theta)
-		// z = sin(theta) * sin(phi)
+		// y = sin(theta) * sin(phi)
+		// z = cos(theta)
 		const float x = cos(phi) * sinTheta;
-		const float y = cosTheta;
-		const float z = sin(phi) * sinTheta;
+		const float y = sin(phi) * sinTheta;
+		const float z = cosTheta;
 
 		// w.r.t. solid angle
 		pdf = ONE_DIV_TWO_PI * rcp(1.0f - cosThetaMax);
@@ -138,7 +138,7 @@ namespace Sampling
 	}
 
 	// Area = PI;
-	float2 UniformSampleDisk(in float2 u)
+	float2 UniformSampleDisk(float2 u)
 	{
 		const float r = sqrt(u.x);
 		const float phi = TWO_PI * u.y;
@@ -147,7 +147,7 @@ namespace Sampling
 	}
 
 	// Area = PI;
-	float2 UniformSampleDiskConcentricMapping(in float2 u)
+	float2 UniformSampleDiskConcentricMapping(float2 u)
 	{
 		float a = 2.0f * u.x - 1.0f;
 		float b = 2.0f * u.y - 1.0f;
@@ -170,7 +170,7 @@ namespace Sampling
 	}
 
 	// Area = FOUR_PI;
-	float3 UniformSampleSphere(in float2 u)
+	float3 UniformSampleSphere(float2 u)
 	{
 		// Compute radius r (branchless).
 		float u0 = 2.0f * u.x - 1.0f;

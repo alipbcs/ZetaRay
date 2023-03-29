@@ -93,10 +93,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 			DTid.x, DTid.y, sampleIdx, 3);
 	
 		float pdf = 1.0f;
-		float3 wiLocal = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
-		float4 q = Math::Transform::QuaternionFromY(wi);
-		// transform from local space to world space
-		wi = Math::Transform::RotateVector(wiLocal, q);
+		float3 wi = Sampling::UniformSampleCone(float2(u0, u1), g_frame.SunCosAngularRadius, pdf);
+		
+		float3 T;
+		float3 B;
+		Math::Transform::revisedONB(normal, T, B);
+		wi = wi.x * T + wi.y * B + wi.z * normal;
 	}
 	
 	const bool isUnoccluded = EvaluateVisibility(posW, wi, normal, linearDepth);
