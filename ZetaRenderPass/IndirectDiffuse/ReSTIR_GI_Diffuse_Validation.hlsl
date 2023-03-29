@@ -31,7 +31,7 @@ StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t6);
+ByteAddressBuffer g_frameMeshData : register(t6);
 StructuredBuffer<Vertex> g_sceneVertices : register(t7);
 StructuredBuffer<uint> g_sceneIndices : register(t8);
 
@@ -45,7 +45,6 @@ struct HitSurface
 	float2 uv;
 	half2 ShadingNormal;
 	uint16_t MatID;
-	half T;
 };
 
 #if RAY_BINNING
@@ -95,7 +94,7 @@ float2 SignNotZero(float2 v)
 }
 
 // wi is assumed to be normalized
-half3 MissShading(float3 wi)
+float3 MissShading(float3 wi)
 {
 	Texture2D<half4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
@@ -107,7 +106,7 @@ half3 MissShading(float3 wi)
 	uv.y = (thetaPhi.x - PI_DIV_2) * 0.5f;
 	uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_DIV_PI);
 	
-	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
+	float3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 	
 	return color;
 }
@@ -159,7 +158,8 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
-		const RT::MeshInstance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
+		const uint byteOffset = (rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()) * sizeof(RT::MeshInstance);
+		const RT::MeshInstance meshData = g_frameMeshData.Load<RT::MeshInstance>(byteOffset);
 
 		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
@@ -186,7 +186,6 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 		surface.uv = uv;
 		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
-		surface.T = (half) rayQuery.CommittedRayT();
 
 		return true;
 	}
@@ -293,17 +292,15 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
-		baseColor *= g_baseCol.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).rgb;
+		baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).rgb;
 	}
 
 	float metalness = mat.MetallicFactor;
 	if (mat.MetalnessRoughnessTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
-
-		// green & blue channels contain roughness & metalness values respectively
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).r;
+		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).r;
 	}
 
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
@@ -331,7 +328,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);
 		
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-		L_e *= g_emissiveMap.SampleLevel(g_samLinearClamp, hitInfo.uv, 0.0f).rgb;
+		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).rgb;
 	}
 
 	return L_o + L_e;
@@ -360,7 +357,6 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.ShadingNormal;
-		ret.RayT = hitInfo.T;
 	}
 	else if (isRayValid)
 	{
@@ -375,7 +371,6 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
-		ret.RayT = (half) t;
 	}
 	
 	return ret;
@@ -441,13 +436,13 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 	{
 		r.SamplePos = s.Pos;
 		r.SampleNormal = s.Normal;
-		r.Li = s.Lo;
+		r.Li = half3(s.Lo);
 	}
 	else if (relativeRayTChange <= TOLERABLE_RELATIVE_RAY_T_CHANGE)
 	{
 		r.SamplePos = s.Pos;
 		r.SampleNormal = s.Normal;
-		r.Li = s.Lo;
+		r.Li = half3(s.Lo);
 
 		float adjustment = 1 - smoothstep(TOLERABLE_RELATIVE_RADIANCE_CHANGE, 1, relativeRadianceChange);
 		r.M = half(max(1, r.M * adjustment));
@@ -460,7 +455,7 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 
 		r.SamplePos = s.Pos;
 		r.SampleNormal = s.Normal;
-		r.Li = s.Lo;
+		r.Li = half3(s.Lo);
 		r.M = 1;
 		
 		// following should be the correct thing to do, but for some reason casuses artifacts

@@ -176,7 +176,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 
 	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadTemporalPass));
 	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadSpatialPass));
-	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadValidationPass));
+	//App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadValidationPass));
 
 	m_isTemporalReservoirValid = false;
 }
@@ -187,7 +187,7 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 	{
 		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal");
 		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial");
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Validation");
+		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Validation");
 		s_rpObjs.Clear();
 		
 		for (int i = 0; i < 2; i++)

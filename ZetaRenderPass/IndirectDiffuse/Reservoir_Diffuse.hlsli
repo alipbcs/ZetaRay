@@ -14,7 +14,7 @@
 struct DiffuseSample
 {
 	float3 Pos;
-	half3 Lo;
+	float3 Lo;
 	half2 Normal;
 	half RayT;
 };
@@ -74,7 +74,7 @@ struct DiffuseReservoir
 		{
 			this.SamplePos = s.Pos;
 			this.SampleNormal = s.Normal;
-			this.Li = s.Lo;
+			this.Li = half3(s.Lo);
 		}
 	}
 	

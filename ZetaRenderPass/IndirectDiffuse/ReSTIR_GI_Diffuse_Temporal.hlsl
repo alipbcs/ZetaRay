@@ -31,7 +31,7 @@ StructuredBuffer<Material> g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t6);
+ByteAddressBuffer g_frameMeshData : register(t6);
 StructuredBuffer<Vertex> g_sceneVertices : register(t7);
 StructuredBuffer<uint> g_sceneIndices : register(t8);
 
@@ -45,7 +45,7 @@ struct HitSurface
 	float2 uv;
 	half2 ShadingNormal;
 	uint16_t MatID;
-	half T;
+
 #if USE_RAY_CONES
 	half Lambda;
 #endif
@@ -101,8 +101,61 @@ float2 SignNotZero(float2 v)
 	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
 }
 
+float3 LoadNormalSM(int2 GTid)
+{
+	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
+	uint v = asuint(g_sortedOrigin[Gidx].x);
+
+	half2 encoded = half2(asfloat16(uint16_t(v.x & 0xff)), asfloat16(uint16_t(v.x >> 16)));
+	return Math::Encoding::DecodeUnitNormal(encoded);
+}
+
+float LoadLinearDepthSM(int2 GTid)
+{
+	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
+	return g_sortedOrigin[Gidx].y;
+}
+
+float3 LoadPosSM(int2 GTid)
+{
+	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
+	return g_sortedDir[Gidx].y;
+}
+
+// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
+// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
+// Ray Tracing Gems 1, 2019.
+float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 GTid, bool isValid)
+{
+	if (!isValid)
+		return 0.0f;
+	
+	const float depthX = (GTid.x & 0x1) == 0 ? LoadLinearDepthSM(int2(GTid.x + 1, GTid.y)) : LoadLinearDepthSM(int2(GTid.x - 1, GTid.y));
+	const float depthY = (GTid.x & 0x1) == 0 ? LoadLinearDepthSM(int2(GTid.x, GTid.y + 1)) : LoadLinearDepthSM(int2(GTid.x, GTid.y - 1));
+	
+	const float maxDepthDiscontinuity = 0.005f;
+	const bool invalidX = abs(linearDepth - depthX) >= maxDepthDiscontinuity * linearDepth;
+	const bool invalidY = abs(linearDepth - depthY) >= maxDepthDiscontinuity * linearDepth;
+	
+	const float3 normalX = (GTid.x & 0x1) == 0 ? LoadNormalSM(int2(GTid.x + 1, GTid.y)) : LoadNormalSM(int2(GTid.x - 1, GTid.y));
+	const float3 normalY = (GTid.y & 0x1) == 0 ? LoadNormalSM(int2(GTid.x, GTid.y + 1)) : LoadNormalSM(int2(GTid.x, GTid.y - 1));
+	const float3 normalddx = (GTid.x & 0x1) == 0 ? normalX - normal : normal - normalX;
+	const float3 normalddy = (GTid.y & 0x1) == 0 ? normalY - normal : normal - normalY;
+
+	const float3 posX = (GTid.x & 0x1) == 0 ? LoadPosSM(int2(GTid.x + 1, GTid.y)) : LoadPosSM(int2(GTid.x - 1, GTid.y));
+	const float3 posY = (GTid.y & 0x1) == 0 ? LoadPosSM(int2(GTid.x, GTid.y + 1)) : LoadPosSM(int2(GTid.x, GTid.y - 1));
+	const float3 posddx = (GTid.x & 0x1) == 0 ? posX - pos : pos - posX;
+	const float3 posddy = (GTid.y & 0x1) == 0 ? posY - pos : pos - posY;
+	
+	const float phi = sqrt((invalidX ? 0 : dot(normalddx, normalddx)) + (invalidY ? 0 : dot(normalddy, normalddy)));
+	const float s = sign((invalidX ? 0 : dot(posddx, normalddx)) + (invalidY ? 0 : dot(posddy, normalddy)));
+	const float k = 2.0f * phi * s;
+	
+	return k;
+}
+
 // wi is assumed to be normalized
-half3 MissShading(float3 wi)
+float3 MissShading(float3 wi)
 {
 	Texture2D<half4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
@@ -114,7 +167,7 @@ half3 MissShading(float3 wi)
 	uv.y = (thetaPhi.x - PI_DIV_2) * 0.5f;
 	uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_DIV_PI);
 	
-	half3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
+	float3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 	
 	return color;
 }
@@ -166,7 +219,8 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
-		const RT::MeshInstance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
+		const uint byteOffset = (rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()) * sizeof(RT::MeshInstance);
+		const RT::MeshInstance meshData = g_frameMeshData.Load < RT::MeshInstance > (byteOffset);
 
 		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
@@ -193,13 +247,16 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 		surface.uv = uv;
 		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
-		surface.T = (half) rayQuery.CommittedRayT();
 
 #if USE_RAY_CONES		
-		float ndotwo = saturate(dot(normal, -wi));
-		
 		rayCone.Update(rayQuery.CommittedRayT(), 0);
-		float lambda = rayCone.ComputeLambda(V0.PosL, V1.PosL, V2.PosL, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
+		
+		float3 v0W = meshData.Scale * V0.PosL;
+		float3 v1W = meshData.Scale * V1.PosL;
+		float3 v2W = meshData.Scale * V2.PosL;
+		
+		float ndotwo = dot(normal, -wi);
+		float lambda = rayCone.Lambda(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
 		surface.Lambda = half(lambda);
 #endif	
 		
@@ -316,23 +373,21 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 	Material mat = g_materials[hitInfo.MatID];
 
-	float mipOffset = g_frame.MipBias;
-	//float mipOffset = 0;
-		
 	half3 baseColor = (half3) mat.BaseColorFactor.rgb;
 	if (mat.BaseColorTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
+		float mip = g_frame.MipBias;
 		
 #if USE_RAY_CONES
 		uint w;
 		uint h;
 		g_baseCol.GetDimensions(w, h);
-		mipOffset += RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
+		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
 #endif	
 		
-		baseColor *= g_baseCol.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).rgb;
+		baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
 
 	float metalness = mat.MetallicFactor;
@@ -340,15 +395,16 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
 		METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
+		float mip = g_frame.MipBias;
 
-#if 0	
+#if USE_RAY_CONES
 		uint w;
 		uint h;
 		g_metalnessRoughnessMap.GetDimensions(w, h);
-		mipOffset = RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
-#endif	
-
-		metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).r;
+		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif			
+		
+		metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).r;
 	}
 
 	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
@@ -374,16 +430,17 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	if (mat.EmissiveTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);	
-		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-		
-#if 0	
+		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];		
+		float mip = g_frame.MipBias;
+
+#if USE_RAY_CONES
 		uint w;
 		uint h;
 		g_emissiveMap.GetDimensions(w, h);
-		mipOffset = RT::RayCone::ComputeTextureMipmapOffset(hitInfo.Lambda, w, h);
-#endif
+		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif	
 		
-		L_e *= g_emissiveMap.SampleLevel(g_samLinearClamp, hitInfo.uv, mipOffset).rgb;
+		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
 
 	return L_o + L_e;
@@ -412,7 +469,6 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.ShadingNormal;
-		ret.RayT = hitInfo.T;
 	}
 	else if (isSortedRayValid)
 	{
@@ -428,7 +484,6 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
-		ret.RayT = (half) t;
 	}
 	
 	return ret;
@@ -622,7 +677,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
+	const half2 encodedNormal = g_normal[swizzledDTid];
+	const float3 normal = Math::Encoding::DecodeUnitNormal(encodedNormal);
 	
 	// metallic mask
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -649,27 +705,25 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		wi = BRDF::SampleLambertianBrdf(normal, float2(u0, u1), pdf);
 #else
 		wi = Sampling::UniformSampleHemisphere(float2(u0, u1), pdf);
-		float4 q = Math::Transform::QuaternionFromY(normal);
-		// transform from local space to world space
-		wi = Math::Transform::RotateVector(wi, q);
+		
+		float3 T;
+		float3 B;
+		Math::Transform::revisedONB(normal, T, B);
+		wi = wi.x * T + wi.y * B + wi.z * normal;
 #endif
 	}
 	
 #if USE_RAY_CONES
-	// approximate curvature
-	const int laneIdx = WaveGetLaneIndex();
-	const int neighborX = laneIdx & 0x1 ? max(0, laneIdx - 1) : laneIdx + 1;
-	const int neighborY = laneIdx >= 16 ? max(0, laneIdx - 16) : laneIdx + 16;
-	
-	const float3 dNormaldx = laneIdx & 0x1 ? normal - WaveReadLaneAt(normal, neighborX) : WaveReadLaneAt(normal, neighborX) - normal;
-	const float3 dNormaldy = laneIdx >= 16 ? normal - WaveReadLaneAt(normal, neighborY) : WaveReadLaneAt(normal, neighborY) - normal;
-	
-	// eq. (31) in Ray Tracing Gems 1, ch. 20
-	const float phi = length(dNormaldx + dNormaldy);
+	uint n = uint(asuint16(encodedNormal.y)) << 16 | uint(asuint16(encodedNormal.x));
+	g_sortedOrigin[Gidx].xy = float2(asfloat(n), linearDepth);
+	g_sortedDir[Gidx] = posW;
 
-	RT::RayCone rayCone = RT::RayCone::Init(g_frame.PixelSpreadAngle, phi, linearDepth);
+	GroupMemoryBarrierWithGroupSync();
+	
+	const float k = EstimateLocalCurvature(normal, posW, linearDepth, GTid.xy, isPixelValid);
+	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, k, linearDepth);
 #else
-	RT::RayCone rayCone = RT::RayCone::Init(g_frame.PixelSpreadAngle, 0, linearDepth);
+	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, 0, linearDepth);
 #endif	
 	
 	uint16_t sortedIdx;

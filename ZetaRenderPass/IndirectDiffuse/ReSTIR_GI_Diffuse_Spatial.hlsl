@@ -106,11 +106,21 @@ float NormalWeight(float3 input, float3 sample, float scale)
 	return weight;
 }
 
-void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linearDepth, 
+float RoughnessWeight(float currRoughness, float sampleRoughness)
+{
+	float n = currRoughness * currRoughness * 0.99f + 0.01f;
+	float w = abs(currRoughness - sampleRoughness) / n;
+
+	return saturate(1.0f - w);
+}
+
+void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linearDepth, float roughness,
 	inout DiffuseReservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
@@ -163,8 +173,11 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float w_n = NormalWeight(normal, sampleNormal, biasToleranceScale);
-
-			const float weight = w_z * w_n;
+			
+			float sampleRoughness = g_metalnessRoughness[samplePosSS].y;
+			const float w_r = RoughnessWeight(roughness, sampleRoughness);
+			
+			const float weight = w_z * w_n * w_r;
 			if (weight < 1e-3)
 				continue;
 					
@@ -224,11 +237,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	DiffuseReservoir r = RGI_Diff_Util::ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);
 	
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	float roughness = g_metalnessRoughness[swizzledDTid].y;
+
 //	if (g_local.IsFirstPass || r.M < 2)
-//	{
+	{
 		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, r, rng);
-//	}
+		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, roughness, r, rng);
+	}
 
 	if (g_local.IsFirstPass)
 	{
