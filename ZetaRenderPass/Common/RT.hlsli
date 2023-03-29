@@ -63,12 +63,13 @@ namespace RT
 	}
 
 	// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
-	// and T. Karras1, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
+	// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
 	// Ray Tracing Gems 1, 2019.
-	// Usage (Starting from GBuffer (primary hit)):
+	//
+	// Usage (starting from the GBuffer):
 	//		1. surfaceSpreadAngle = GetSurfaceSpreadAngleFromGBuffer()
 	//		2. RayCone rc = Init()
-	//		3. trace a ray to find the next vertex in path
+	//		3. trace a ray to find the next vertex
 	//		4. rc.Update(hitT, 0)
 	//			4.1 lambda = rc.ComputeLambda(...)
 	//			4.2 mipmapBias = rc.ComputeTextureMipmapOffset(lambda, ...)
@@ -76,7 +77,7 @@ namespace RT
 	//		5. goto 3	
 	struct RayCone
 	{
-		static RayCone Init(float pixelSpreadAngle, float surfaceSpreadAngle, float t)
+		static RayCone InitFromGBuffer(float pixelSpreadAngle, float surfaceSpreadAngle, float t)
 		{
 			RayCone r;
 	
@@ -88,30 +89,25 @@ namespace RT
 		
 		void Update(float t, float surfaceSpreadAngle)
 		{
-			// Width is used for current mipmap calculations
 			this.Width += half(t * this.SpreadAngle);
-			// spread angle for next vertex (not used for current mipmap calculations)
 			this.SpreadAngle += half(surfaceSpreadAngle);
 		}
 	
-		float ComputeLambda(float3 v0, float3 v1, float3 v2,
-			float2 t0, float2 t1, float2 t2, float ndotwo)
+		float Lambda(float3 v0, float3 v1, float3 v2, float2 t0, float2 t1, float2 t2, float ndotwo)
 		{
-			float Pa = length(cross((v1 - v0), (v2 - v0)));
-			float Ta = abs((t1.x - t0.x) * (t2.y - t0.y) - (t2.x - t0.x) * (t1.y - t0.y));
+			float P_a = length(cross((v1 - v0), (v2 - v0)));
+			float T_a = abs((t1.x - t0.x) * (t2.y - t0.y) - (t2.x - t0.x) * (t1.y - t0.y));
 
-			float lambda = Ta * this.Width * this.Width;
-			lambda /= (Pa * ndotwo * ndotwo);
-		
+			float lambda = T_a * this.Width * this.Width;
+			lambda /= (P_a * ndotwo * ndotwo);
+
 			return lambda;
 		}
 
-		static float ComputeTextureMipmapOffset(float lambda, float w, float h)
+		static float TextureMipmapOffset(float lambda, float w, float h)
 		{
-			float wh = w * h;
-			lambda *= wh * wh;
-			
-			return 0.5f * log2(lambda);
+			float mip = lambda * w * h;
+			return 0.5f * log2(mip);
 		}
 		
 		half Width;
