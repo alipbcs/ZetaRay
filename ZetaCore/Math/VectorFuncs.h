@@ -213,4 +213,38 @@ namespace ZetaRay::Math
 
 		return f;
 	}
-}
+
+	ZetaInline float3 __vectorcall storeFloat3(__m128 v) noexcept
+	{
+		float3 f;
+		f.x = _mm_cvtss_f32(v);
+		f.y = _mm_cvtss_f32(_mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(1, 0, 0, 0)));
+		f.z = _mm_cvtss_f32(_mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(2, 0, 0, 0)));
+
+		return f;
+	}
+
+	ZetaInline float4 __vectorcall storeFloat4(__m128 v) noexcept
+	{
+		float4 f;
+		f.x = _mm_cvtss_f32(v);
+		f.y = _mm_cvtss_f32(_mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(1, 0, 0, 0)));
+		f.z = _mm_cvtss_f32(_mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(2, 0, 0, 0)));
+		f.w = _mm_cvtss_f32(_mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(3, 0, 0, 0)));
+
+		return f;
+	}
+
+	ZetaInline __m128 __vectorcall loadFloat3(float3& v) noexcept
+	{
+		// &v does not need to be aligned and the last two elements are set to 0
+		__m128 xy = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&v)));
+		// &v.z does not need to be aligned
+		__m128 z = _mm_load_ss(&v.z);
+		return _mm_insert_ps(xy, z, 0x20);
+	}
+
+	ZetaInline __m128 __vectorcall loadFloat4(float4& v) noexcept
+	{
+		return _mm_loadu_ps(reinterpret_cast<float*>(&v));
+	}}

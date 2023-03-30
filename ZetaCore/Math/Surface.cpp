@@ -96,7 +96,7 @@ void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 
 	if (numCollinearTris)
 	{
-		LOG_UI_WARNING("Mesh had %u/%u collinear triangles. As a result, some vertices might have missing tangents.\n",
+		LOG_UI_WARNING("Mesh had %u/%u collinear triangles, vertex tangents might be missing.\n",
 			numCollinearTris, (uint32_t)indices.size() / 3);
 	}
 }

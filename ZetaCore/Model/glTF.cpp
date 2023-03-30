@@ -47,7 +47,7 @@ namespace
 
 	struct IntemediateInstance
 	{
-		float4x3 LocalTransform;
+		AffineTransformation LocalTransform;
 		int MeshIdx;
 		std::string_view Name;
 		uint64_t ParentID;
@@ -386,14 +386,14 @@ namespace
 
 		if (node.mesh != -1)
 		{
-			float4x4a M;
-			v_float4x4 vM;
+			AffineTransformation transform = AffineTransformation::GetIdentity();
 
 			if (node.matrix.size() == 16)
 			{
-				vM = load(M);
+				float4x4a M(node.matrix.data());
+				v_float4x4 vM = load(M);
 				auto det = store(det3x3(vM));	// last column is ignored
-				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a 0 determinant is invalid.");
+				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
 				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 
 				// RHS transformation matrix M_rhs can be converted to LHS (+Y up) as follows:
@@ -414,39 +414,27 @@ namespace
 				//                  |  u_1  v_1  -w_1 |                  
 				//                = |  u_2  v_2  -w_2 |
 				//                  | -u_3 -v_3   w_3 |
-
-				M = float4x4a(node.matrix.data());
 				M.m[0].z *= -1.0f;
 				M.m[1].z *= -1.0f;
 				M.m[2].x *= -1.0f;
 				M.m[2].y *= -1.0f;
 
 				// convert translation to LHS (translation is not a linear transformation, so the approach above
-				// is incorrect)
+				// doesn't work)
 				M.m[2].w *= -1.0f;
 
-				vM = load(M);
-				vM = transpose(v_float4x4(M));	// tranpose to get a "row" matrix
+				decomposeTRS(vM, transform.Scale, transform.Rotation, transform.Translation);
 			}
 			else
 			{
-				v_float4x4 vS = identity();
-				v_float4x4 vT = identity();
-				v_float4x4 vR = identity();
-
 				if (!node.scale.empty())
 				{
 					Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
-					vS = scale((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
+					transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
 				}
 
 				if (!node.translation.empty())
-				{
-					vT = translate(float4a((float)node.translation[0],
-						(float)node.translation[1],
-						(float)-node.translation[2],
-						0.0f));
-				}
+					transform.Translation = float3((float)node.translation[0], (float)node.translation[1], (float)-node.translation[2]);
 
 				if (!node.rotation.empty())
 				{
@@ -461,25 +449,24 @@ namespace
 					//
 					//float4a q = float4a(-(float)node.rotation[0], -(float)node.rotation[1],
 					//	(float)node.rotation[2], (float)node.rotation[3]);
-					float4a q = float4a(-(float)node.rotation[0], -(float)node.rotation[1],
-						(float)node.rotation[2], (float)node.rotation[3]);
+					transform.Rotation = float4(-(float)node.rotation[0], 
+						-(float)node.rotation[1],
+						(float)node.rotation[2], 
+						(float)node.rotation[3]);
 
-					__m128 vQ = _mm_load_ps(reinterpret_cast<float*>(&q));
-					vR = rotationMatFromQuat(vQ);
+					// check if quaternion is a valid rotation
+					__m128 vV = _mm_loadu_ps(&transform.Rotation.x);
+					__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
+					vLength = _mm_sqrt_ps(vLength);
+					__m128 vOne = _mm_set1_ps(1.0f);
+					__m128 vDiff = _mm_sub_ps(vLength, vOne);
+					float d = _mm_cvtss_f32(abs(vDiff));
+					Check(d < 1e-6f, "Invalid rotation quaternion.");
 				}
-
-				vM = mul(vS, vR);
-				vM = mul(vM, vT);
-
-				auto det = store(det3x3(vM));	// last row is ignored
-				Check(fabsf(det.x) > 1e-8f, "Transformation matrix with a zero determinant is invalid.");
-				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 			}
 
-			M = store(vM);
-
 			instances.emplace_back(IntemediateInstance{
-						.LocalTransform = float4x3(M),
+						.LocalTransform = transform,
 						.MeshIdx = node.mesh,
 						.Name = node.name,
 						.ParentID = parentId

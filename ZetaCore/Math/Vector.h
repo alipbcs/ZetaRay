@@ -227,7 +227,11 @@ namespace ZetaRay::Math
 
 		float length() noexcept
 		{
-			return sqrtf(dot(*this));
+			__m128 vV = _mm_loadu_ps(&this->x);
+			__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
+			vLength = _mm_sqrt_ps(vLength);
+
+			return _mm_cvtss_f32(vLength);
 		}
 
 		constexpr float dot(const float4& other) noexcept

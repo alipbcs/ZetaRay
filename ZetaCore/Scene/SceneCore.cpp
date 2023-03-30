@@ -371,7 +371,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	ReleaseSRWLockExclusive(&m_instanceLock);
 }
 
-int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, float4x3& localTransform,
+int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
 	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept
 {
 	auto& parentLevel = m_sceneGraph[treeLevel - 1];
@@ -532,12 +532,8 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 
 			for (int j = range.Base; j < range.Base + range.Count; j++)
 			{
-				//AffineTransformation& aff = m_sceneGraph[level + 1].m_localTransforms[j];
-
-				//v_float4x4 vLocal = affineTransformation(float4a(aff.Scale), float4a(aff.RotQuat), float4a(aff.Translation));
-				//v_float4x4 newW = mul(vParentTransform, vLocal);
-				
-				v_float4x4 vLocal(m_sceneGraph[level + 1].m_localTransforms[j]);
+				AffineTransformation& tr = m_sceneGraph[level + 1].m_localTransforms[j];
+				v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
 				v_float4x4 newW = mul(vParentTransform, vLocal);
 				v_float4x4 prevW(m_sceneGraph[level + 1].m_toWorlds[j]);
 
@@ -581,7 +577,7 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameA
 {
 	for (int i = 0; i < m_animationOffsets.size(); i++)
 	{
-		v_float4x4 vRes;
+		AffineTransformation vRes;
 
 		// interpolate
 		const Keyframe& kStart = m_keyframes[m_animationOffsets[i].BegOffset];
@@ -591,15 +587,11 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameA
 		// fast path
 		if (t <= kStart.Time + startOffset)
 		{
-			vRes = affineTransformation(float4a(kStart.Transform.Scale),
-				float4a(kStart.Transform.RotQuat),
-				float4a(kStart.Transform.Translation));
+			vRes = kStart.Transform;
 		}
 		else if (t >= kEnd.Time + startOffset)
 		{
-			vRes = affineTransformation(float4a(kEnd.Transform.Scale),
-				float4a(kEnd.Transform.RotQuat),
-				float4a(kEnd.Transform.Translation));
+			vRes = kEnd.Transform;
 		}
 		else
 		{
@@ -644,16 +636,19 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameA
 			const __m128 vTranslateInt = lerp(vTranlate1, vTranlate2, interpolatedT);
 
 			// rotation
-			float4a temp5 = float4a(k1.Transform.RotQuat);
-			float4a temp6 = float4a(k2.Transform.RotQuat);
+			float4a temp5 = float4a(k1.Transform.Rotation);
+			float4a temp6 = float4a(k2.Transform.Rotation);
 			const __m128 vRot1 = _mm_load_ps(reinterpret_cast<float*>(&temp5));
 			const __m128 vRot2 = _mm_load_ps(reinterpret_cast<float*>(&temp6));
 			const __m128 vRotInt = slerp(vRot1, vRot2, interpolatedT);
 
-			vRes = affineTransformation(vScaleInt, vRotInt, vTranslateInt);
+			//vRes = affineTransformation(vScaleInt, vRotInt, vTranslateInt);
+			vRes.Scale = storeFloat3(vScaleInt);
+			vRes.Rotation = storeFloat4(vRotInt);
+			vRes.Translation = storeFloat3(vTranslateInt);
 		}
 
-		animVec.emplace_back(AnimationUpdateOut{ .M = (float4x3)store(vRes), .Offset = m_animationOffsets[i].BegOffset });
+		animVec.emplace_back(AnimationUpdateOut{ .M = vRes, .Offset = m_animationOffsets[i].BegOffset });
 	}
 }
 

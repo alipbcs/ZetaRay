@@ -19,7 +19,7 @@ namespace ZetaRay::Model::glTF::Asset
 
 	struct InstanceDesc
 	{
-		Math::float4x3 LocalTransform;
+		Math::AffineTransformation LocalTransform;
 		int MeshIdx;
 		const char* Name;
 		uint64_t ParentID;

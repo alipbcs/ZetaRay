@@ -503,39 +503,53 @@ namespace ZetaRay::Math
 			_mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
-	ZetaInline v_float4x4 __vectorcall affineTransformation(float4a s, float4a q, float4a t) noexcept
+	ZetaInline v_float4x4 __vectorcall affineTransformation(float3& s, float4& q, float3& t) noexcept
 	{
-		v_float4x4 vS = scale(s);
-		v_float4x4 vR = rotationMatFromQuat(_mm_load_ps(reinterpret_cast<float*>(&q)));
+		v_float4x4 vSRT;
+		v_float4x4 vR = rotationMatFromQuat(loadFloat4(q));
 
-		v_float4x4 vM = mul(vS, vR);
-		vM.vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&t));
+		// since scale matrix is diagonal, matrix multiplication has a simple form
+		const __m128 vS = loadFloat3(s);	// vS[3] = 0
+		vSRT.vRow[0] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(0, 0, 0, 3)), vR.vRow[0]);
+		vSRT.vRow[1] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(1, 1, 1, 3)), vR.vRow[1]);
+		vSRT.vRow[2] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(2, 2, 2, 3)), vR.vRow[2]);
 
-		return vM;
+		vSRT.vRow[3] = loadFloat3(t);
+
+		// SRT_{3,3} = 1.0
+		const __m128 vOne = _mm_set_ps1(1.0f);
+		vSRT.vRow[3] = _mm_blend_ps(vSRT.vRow[3], vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
+
+		return vSRT;
 	}
 
 	ZetaInline v_float4x4 __vectorcall affineTransformation(const __m128 vS, const __m128 vQ, const __m128 vT) noexcept
 	{
-		v_float4x4 vScaleM = scale(vS);
-		v_float4x4 vRotM = rotationMatFromQuat(vQ);
+		v_float4x4 vSRT;
+		v_float4x4 vR = rotationMatFromQuat(vQ);
 
-		v_float4x4 vM = mul(vScaleM, vRotM);
-		vM.vRow[3] = vT;
-		_mm_insert_ps(vM.vRow[3], _mm_set1_ps(1.0f), 0x30);	// set M[3][3] element to 1.0f
+		// since scale matrix is diagonal, matrix multiplication has a simple form
+		vSRT.vRow[0] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(0, 0, 0, 0)), vR.vRow[0]);	// vR.vRow[0].w = 0
+		vSRT.vRow[1] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(1, 1, 1, 0)), vR.vRow[1]);	// vR.vRow[1].w = 0
+		vSRT.vRow[2] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(2, 2, 2, 0)), vR.vRow[2]);	// vR.vRow[2].w = 0
 
-		return vM;
+		// M_{3,3} = 1.0
+		const __m128 vOne = _mm_set_ps1(1.0f);
+		vSRT.vRow[3] = _mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
+
+		return vSRT;
 	}
 
 	// Note: doesn't support negative scaling
 	// TODO test
-	ZetaInline void __vectorcall decomposeTRS(const v_float4x4 vM, float4a& t, float4a& r, float4a& s) noexcept
+	ZetaInline void __vectorcall decomposeTRS(const v_float4x4 vM, float3& s, float4& r, float3& t) noexcept
 	{
 		// Given the transformation matrix M = TRS, M is easily decomposed into T and RS. That just leaves the
 		// RS part.
 		__m128 vT = _mm_insert_ps(vM.vRow[0], vM.vRow[0], 0xc7);	// (m03, 0, 0, 0)
 		vT = _mm_insert_ps(vT, vM.vRow[1], 0xd0);					// (m03, m13, 0, 0)
 		vT = _mm_insert_ps(vT, vM.vRow[2], 0xe0);					// (m03, m13, m23, 0)
-		t = store(vT);
+		t = storeFloat3(vT);
 
 		// When there is scaling, following approach can be used: Columns of every transformation matrix are 
 		// the transformations of (orthogonal) standard basis vectors -- for matrix RS, columns of R give the 
@@ -571,7 +585,7 @@ namespace ZetaRay::Math
 
 		// singular values are the square roots of eigenvalues
 		vS = _mm_sqrt_ps(vS);
-		s = store(vS);
+		s = storeFloat3(vS);
 
 		// solve for R
 		__m128 vInvSDiag = _mm_div_ps(vOne, vS);
@@ -580,7 +594,7 @@ namespace ZetaRay::Math
 		// R = RS * S^-1
 		v_float4x4 vR = mul(vM3x3, vSinv);
 		__m128 vQ = quatFromRotationMat(vR);
-		r = store(vQ);
+		r = storeFloat4(vQ);
 	}
 
 	// Note: doesn't support negative scaling

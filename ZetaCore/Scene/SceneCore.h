@@ -20,16 +20,9 @@ namespace ZetaRay::RT
 
 namespace ZetaRay::Scene
 {
-	struct AffineTransformation
-	{
-		Math::float3 Scale;
-		Math::float4 RotQuat;
-		Math::float3 Translation;
-	};
-
 	struct Keyframe
 	{
-		AffineTransformation Transform;
+		Math::AffineTransformation Transform;
 		float Time;
 	};
 
@@ -189,7 +182,7 @@ namespace ZetaRay::Scene
 
 		ZetaInline TreePos* FindTreePosFromID(uint64_t id) noexcept { return m_IDtoTreePos.find(id); }
 
-		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::float4x3& localTransform,
+		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
 			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept;
 		//void RemoveFromLevel(int idx, int level) noexcept;
 
@@ -198,7 +191,7 @@ namespace ZetaRay::Scene
 
 		struct AnimationUpdateOut
 		{
-			Math::float4x3 M;
+			Math::AffineTransformation M;
 			int Offset;
 		};
 
@@ -239,7 +232,7 @@ namespace ZetaRay::Scene
 			{}
 
 			Util::SmallVector<uint64_t, Support::PoolAllocator> m_IDs;
-			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_localTransforms;
+			Util::SmallVector<Math::AffineTransformation, Support::PoolAllocator> m_localTransforms;
 			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_toWorlds;
 			Util::SmallVector<uint64_t, Support::PoolAllocator> m_meshIDs;
 			Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;

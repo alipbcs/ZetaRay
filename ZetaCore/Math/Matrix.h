@@ -165,4 +165,22 @@ namespace ZetaRay::Math
 		m[1] = float4(M.m[0].y, M.m[1].y, M.m[2].y, M.m[3].y);
 		m[2] = float4(M.m[0].z, M.m[1].z, M.m[2].z, M.m[3].z);
 	}
+
+	struct AffineTransformation
+	{
+		static AffineTransformation GetIdentity() noexcept
+		{
+			AffineTransformation M;
+
+			M.Scale = float3(1.0f, 1.0f, 1.0f);
+			M.Rotation = float4(0.0f, 0.0f, 0.0f, 1.0f);
+			M.Translation = float3(0.0f, 0.0f, 0.0f);
+
+			return M;
+		}
+
+		Math::float3 Scale;
+		Math::float4 Rotation;
+		Math::float3 Translation;
+	};
 }
