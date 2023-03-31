@@ -537,6 +537,32 @@ namespace
 			}
 		}
 	}
+
+	void TotalNumVerticesAndIndices(tinygltf::Model& model, size_t& numVertices, size_t& numIndices) noexcept
+	{
+		numVertices = 0;
+		numIndices = 0;
+
+		for (size_t meshIdx = 0; meshIdx != model.meshes.size(); meshIdx++)
+		{
+			Assert(meshIdx < model.meshes.size(), "out-of-bound access");
+			const auto& mesh = model.meshes[meshIdx];
+			int primIdx = 0;
+
+			for (const auto& prim : mesh.primitives)
+			{
+				glTF::Asset::MeshSubset subset;
+				subset.MeshIdx = (int)meshIdx;
+				subset.MeshPrimIdx = primIdx;
+
+				auto posIt = prim.attributes.find("POSITION");
+				numVertices += model.accessors[posIt->second].count;
+
+				const auto& accessor = model.accessors[prim.indices];
+				numIndices += accessor.count;
+			}
+		}
+	}
 }
 
 // TODO change the relative path
@@ -565,8 +591,13 @@ void glTF::Load(const char* modelRelPath) noexcept
 
 	scene.ReserveScene(sceneID, numMeshes, model.materials.size(), model.nodes.size());
 
+	size_t totalNumVertices;
+	size_t totalNumIndices;
+	TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices);
+	scene.ReserveMeshData(totalNumVertices, totalNumIndices);
+
 	// how many meshes are processed by each worker
-	constexpr size_t MAX_NUM_MESH_WORKERS = 3;
+	constexpr size_t MAX_NUM_MESH_WORKERS = 4;
 	constexpr size_t MIN_MESHES_PER_WORKER = 20;
 	size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
 	size_t meshThreadSizes[MAX_NUM_MESH_WORKERS];
@@ -578,7 +609,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 		MIN_MESHES_PER_WORKER);
 
 	// how many materials are processed by each worker
-	constexpr size_t MAX_NUM_MAT_WORKERS = 3;
+	constexpr size_t MAX_NUM_MAT_WORKERS = 2;
 	constexpr size_t MIN_MATS_PER_WORKER = 20;
 	size_t matThreadOffsets[MAX_NUM_MAT_WORKERS];
 	size_t matThreadSizes[MAX_NUM_MAT_WORKERS];

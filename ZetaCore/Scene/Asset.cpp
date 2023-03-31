@@ -219,6 +219,12 @@ void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indic
 	m_indices.append_range(indices.begin(), indices.end());
 }
 
+void MeshContainer::Reserve(size_t numVertices, size_t numIndices) noexcept
+{
+	m_vertices.reserve(numVertices);
+	m_indices.reserve(numIndices);
+}
+
 void MeshContainer::RebuildBuffers() noexcept
 {
 	Assert(m_vertices.size() > 0, "vertex buffer is empty");

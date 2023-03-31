@@ -95,6 +95,7 @@ namespace ZetaRay::Scene
 
 			return d;
 		}
+		void ReserveMeshData(size_t numVertices, size_t numIndices) noexcept;
 
 		ZetaInline const Core::DefaultHeapBuffer& GetMeshVB() noexcept { return m_meshes.GetVB(); }
 		ZetaInline const Core::DefaultHeapBuffer& GetMeshIB() noexcept { return m_meshes.GetIB(); }

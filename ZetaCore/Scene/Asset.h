@@ -127,6 +127,7 @@ namespace ZetaRay::Scene::Internal
 	struct MeshContainer
 	{
 		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID) noexcept;
+		void Reserve(size_t numVertices, size_t numIndices) noexcept;
 		void RebuildBuffers() noexcept;
 		
 		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept

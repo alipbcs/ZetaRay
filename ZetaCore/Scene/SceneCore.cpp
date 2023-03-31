@@ -210,6 +210,11 @@ void SceneCore::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats,
 	it.Instances.reserve(numNodes);
 }
 
+void SceneCore::ReserveMeshData(size_t numVertices, size_t numIndices) noexcept
+{
+	m_meshes.Reserve(numVertices, numIndices);
+}
+
 void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexcept
 {
 	const uint64_t meshFromSceneID = MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
