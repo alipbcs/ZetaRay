@@ -59,17 +59,17 @@ namespace
 	struct AppData
 	{
 #if defined(_DEBUG)
-		inline static constexpr const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Debug";
-		inline static constexpr const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Debug";
+		inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Debug";
+		inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO\\Debug";
 #else
-		inline static constexpr const char* PSO_CACHE_DIR = "Assets\\PsoCache\\Release";
-		inline static constexpr const char* COMPILED_SHADER_DIR = "Assets\\CSO\\Release";
+		inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Release";
+		inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO\\Release";
 #endif // _DEBUG
 
-		inline static constexpr const char* ASSET_DIR = "Assets";
-		inline static constexpr const char* TOOLS_DIR = "Tools";
-		inline static constexpr const char* DXC_PATH = "Tools\\dxc\\bin\\x64\\dxc.exe";
-		inline static constexpr const char* RENDER_PASS_DIR = "ZetaRenderPass";
+		inline static constexpr const char* ASSET_DIR = "..\\Assets";
+		inline static constexpr const char* TOOLS_DIR = "..\\Tools";
+		inline static constexpr const char* DXC_PATH = "..\\Tools\\dxc\\bin\\x64\\dxc.exe";
+		inline static constexpr const char* RENDER_PASS_DIR = "..\\ZetaRenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
 
@@ -310,7 +310,7 @@ namespace ZetaRay::AppImpl
 		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 
 		// TODO remove hard-coded path
-		io.IniFilename = "temp//imgui.ini";
+		io.IniFilename = "..//temp//imgui.ini";
 
 		io.UserData = &g_app->m_rebuildFontTexDlg;
 		LoadFont();
@@ -963,10 +963,9 @@ namespace ZetaRay
 			g_app->m_timer.GetTotalFrameCount(), GetCurrentThreadId(), logType, msg);
 	}
 
-	void App::Init(Scene::Renderer::Interface& rendererInterface) noexcept
+	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name) noexcept
 	{
 		setlocale(LC_ALL, "C");		// set locale to C
-		SetCurrentDirectoryA("../");
 
 		HINSTANCE instance = GetModuleHandleA(nullptr);
 		CheckWin32(instance);
@@ -977,7 +976,7 @@ namespace ZetaRay
 
 		// create the window
 		AppImpl::CreateAppWindow(instance);
-		SetWindowTextA(g_app->m_hwnd, "ZetaRay");
+		SetWindowTextA(g_app->m_hwnd, name ? name : "ZetaRay");
 
 		// initialize thread pools
 		const int totalNumThreads = g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
@@ -1058,8 +1057,8 @@ namespace ZetaRay
 
 		g_app->m_isInitialized = true;
 
-		LOG_UI(INFO, "Detected %d physical cores...", g_app->m_processorCoreCount);
-		LOG_UI(INFO, "Work area on the primary display monitor is %dx%d...", g_app->m_displayWidth, g_app->m_displayHeight);
+		LOG_UI(INFO, "Detected %d physical cores.", g_app->m_processorCoreCount);
+		LOG_UI(INFO, "Work area on the primary display monitor is %dx%d.", g_app->m_displayWidth, g_app->m_displayHeight);
 	}
 
 	int App::Run() noexcept

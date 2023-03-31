@@ -5,6 +5,7 @@
 #include "../App/Log.h"
 
 #define LOG_TASK_TIMINGS 0
+#define ENABLE_TIMINGS 0
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::App;
@@ -146,8 +147,11 @@ void ThreadPool::PumpUntilEmpty() noexcept
 	Assert(idx != -1, "Thread ID was not found");
 
 	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
-	DeltaTimer timer;
 	Task task;
+
+#if ENABLE_TIMINGS
+	DeltaTimer timer;
+#endif
 
 	// "try_dequeue()" returning false doesn't guarantee that queue is empty
 	while (m_numTasksInQueue.load(std::memory_order_acquire) != 0)
@@ -161,14 +165,21 @@ void ThreadPool::PumpUntilEmpty() noexcept
 			// block if this task depends on other unfinished tasks
 			App::WaitForAdjacentHeadNodes(taskHandle);
 
-#if LOG_TASK_TIMINGS
+#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
 			LOG("_Thread %u started \t%s...\n", tid, task.GetName());
 #endif
-			timer.Start();
-			task.DoTask();
-			timer.End();
 
-#if LOG_TASK_TIMINGS
+#if ENABLE_TIMINGS
+			timer.Start();
+#endif
+
+			task.DoTask();
+
+#if ENABLE_TIMINGS
+			timer.End();
+#endif
+
+#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
 			LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
 #endif
 		
@@ -209,7 +220,9 @@ void ThreadPool::WorkerThread() noexcept
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
+#if ENABLE_TIMINGS
 	DeltaTimer timer;
+#endif
 
 	while (true)
 	{
@@ -229,14 +242,21 @@ void ThreadPool::WorkerThread() noexcept
 		if(task.GetPriority() != TASK_PRIORITY::BACKGRUND)
 			App::WaitForAdjacentHeadNodes(taskHandle);
 
-#if LOG_TASK_TIMINGS
+#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
 		LOG("Thread %u started \t%s...\n", tid, task.GetName());
 #endif		
-		timer.Start();
-		task.DoTask();
-		timer.End();
 
-#if LOG_TASK_TIMINGS
+#if ENABLE_TIMINGS
+		timer.Start();
+#endif		
+
+		task.DoTask();
+
+#if ENABLE_TIMINGS
+		timer.End();
+#endif		
+
+#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
 		LOG("Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
 #endif		
 
