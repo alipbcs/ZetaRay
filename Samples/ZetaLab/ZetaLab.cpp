@@ -36,24 +36,32 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     freopen_s(&fp, "CONOUT$", "w", stdout);
 #endif // _DEBUG
 
+    App::DeltaTimer timer;
+    timer.Start();
+    
     auto rndIntrf = DefaultRenderer::InitAndGetInterface();
     App::Init(rndIntrf);
 
-    App::DeltaTimer timer;
-    timer.Start();
+    timer.End();
+
+    LOG_UI(INFO, "App initialization completed in %u[ms]\n", (uint32_t)timer.DeltaMilli());
 
     // load the gltf model(s)
+    timer.Start();
+
     const char* p = "sponza_v10\\sponza_v10.gltf";
     //const char* p = "CornellBox_v2\\cornell9.gltf";
     //const char* p = "bistro_v6\\bistro_v6.gltf";
     //const char* p = "sponza_new\\sponza_new.gltf";
     //const char* p = "san_miguel\\san_miguel_v3.gltf";
+    //const char* p = "refl_dbg2\\refl_dbg2.gltf";
     Model::glTF::Load(p);
 
-    timer.End();
     App::FlushWorkerThreadPool();
 
-    LOG_UI(INFO, "gltf model loaded in %u[us]\n", (uint32_t)timer.DeltaMicro());
+    timer.End();
+
+    LOG_UI(INFO, "gltf model(s) loaded in %u[ms]\n", (uint32_t)timer.DeltaMilli());
 
     int ret = App::Run();
 

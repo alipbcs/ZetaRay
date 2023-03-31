@@ -85,7 +85,7 @@ namespace ZetaRay::App
 		MsgType Type;
 	};
 
-	void Init(Scene::Renderer::Interface& rendererInterface) noexcept;
+	void Init(Scene::Renderer::Interface& rendererInterface, const char* name = nullptr) noexcept;
 	int Run() noexcept;
 	void Abort() noexcept;
 

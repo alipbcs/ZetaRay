@@ -1,6 +1,0 @@
-add_executable(Sponza WIN32  ${CMAKE_SOURCE_DIR}/Samples/Sponza/Sponza.cpp)
-target_link_libraries(Sponza ZetaCore ZetaRenderer ZetaRenderPass)
-target_include_directories(Sponza BEFORE PRIVATE ${ZETA_CORE_DIR} ${ZETA_RENDERER_DIR} ${ZETA_RENDER_PASS_DIR})
-set_target_properties(Sponza PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})
-set_target_properties(Sponza PROPERTIES FOLDER "Samples")
-set_target_properties(Sponza PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
