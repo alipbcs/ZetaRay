@@ -7,20 +7,8 @@
 #include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
 
-#define JSON_NOEXCEPTION
-#define JSON_NO_IO
-#include <tinyglTF/json.hpp>
-#define TINYGLTF_NOEXCEPTION
-#define TINYGLTF_NO_STB_IMAGE 
-#define TINYGLTF_NO_STB_IMAGE_WRITE 
-#define TINYGLTF_NO_EXTERNAL_IMAGE  
-#define TINYGLTF_NO_INCLUDE_STB_IMAGE   
-#define TINYGLTF_NO_INCLUDE_STB_IMAGE_WRITE    
-#define TINYGLTF_USE_CPP14     
-#define TINYGLTF_NO_INCLUDE_JSON
-#define TINYGLTF_NO_INCLUDE_RAPIDJSON
-#define TINYGLTF_IMPLEMENTATION
-#include <tinyglTF/tiny_gltf.h>
+#define CGLTF_IMPLEMENTATION
+#include <cgltf/cgltf.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Scene;
@@ -35,8 +23,50 @@ using namespace ZetaRay::App;
 // glTF
 //--------------------------------------------------------------------------------------
 
+
 namespace
 {
+	ZetaInline const char* GetErrorMsg(cgltf_result r) noexcept
+	{
+		switch (r)
+		{
+		case cgltf_result_data_too_short:
+			return "cgltf_result_data_too_short";
+		case cgltf_result_unknown_format:
+			return "cgltf_result_unknown_format";
+		case cgltf_result_invalid_json:
+			return "cgltf_result_invalid_json";
+		case cgltf_result_invalid_gltf:
+			return "cgltf_result_invalid_gltf";
+		case cgltf_result_invalid_options:
+			return "cgltf_result_invalid_options";
+		case cgltf_result_file_not_found:
+			return "cgltf_result_file_not_found";
+		case cgltf_result_io_error:
+			return "cgltf_result_io_error";
+		case cgltf_result_out_of_memory:
+			return "cgltf_result_out_of_memory";
+		case cgltf_result_legacy_gltf:
+			return "cgltf_result_legacy_gltf";
+		default:
+			return "unknown error";
+		}
+	}
+
+#ifndef Checkgltf
+#define Checkgltf(expr)																											  \
+	{																														      \
+		cgltf_result r = (expr);																								  \
+		if (r != cgltf_result_success)                                                                                            \
+		{                                                                                                                         \
+			char buff_[256];                                                                                                      \
+			int n_ = stbsp_snprintf(buff_, 256, "cgltf call failed at %s: %d\nError: %s", __FILE__, __LINE__, GetErrorMsg(r));    \
+			ZetaRay::Util::ReportError("Fatal Error", buff_);                                                                     \
+			ZetaRay::Util::DebugBreak();                                                                                          \
+		}                                                                                                                         \
+	}
+#endif
+
 	uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
 	{
 		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
@@ -48,25 +78,22 @@ namespace
 	struct IntemediateInstance
 	{
 		AffineTransformation LocalTransform;
-		int MeshIdx;
-		std::string_view Name;
+		cgltf_mesh* Mesh;
+		const char* Name;
 		uint64_t ParentID;
 	};
 
-	void ProcessPositions(const tinygltf::Model& model, int posIdx, Span<Vertex> vertices) noexcept
+	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
 	{
-		const auto& accessor = model.accessors[posIdx];
-
-		Check(accessor.type == TINYGLTF_TYPE_VEC3, "Invalid type for POSITION attribute.");
-		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT,
+		Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
+		Check(accessor.component_type == cgltf_component_type_r_32f,
 			"Invalid component type for POSITION attribute.");
 
-		const auto& bufferView = model.bufferViews[accessor.bufferView];
-		const int byteStride = accessor.ByteStride(bufferView);
-		Check(byteStride == sizeof(float3), "Invalid stride for POSITION attribute.");
+		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
+		Check(accessor.stride == sizeof(float3), "Invalid stride for POSITION attribute.");
 
-		const auto& buffer = model.buffers[bufferView.buffer];
-		const float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const cgltf_buffer& buffer = *bufferView.buffer;
+		const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
@@ -77,20 +104,17 @@ namespace
 		}
 	}
 
-	void ProcessNormals(const tinygltf::Model& model, int normalIdx, Span<Vertex> vertices) noexcept
+	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
 	{
-		const auto& accessor = model.accessors[normalIdx];
-
-		Check(accessor.type == TINYGLTF_TYPE_VEC3, "Invalid type for NORMAL attribute.");
-		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT,
+		Check(accessor.type == cgltf_type_vec3, "Invalid type for NORMAL attribute.");
+		Check(accessor.component_type == cgltf_component_type_r_32f,
 			"Invalid component type for NORMAL attribute.");
 
-		const auto& bufferView = model.bufferViews[accessor.bufferView];
-		const int byteStride = accessor.ByteStride(bufferView);
-		Check(byteStride == sizeof(float3), "Invalid stride for NORMAL attribute.");
+		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
+		Check(accessor.stride == sizeof(float3), "Invalid stride for NORMAL attribute.");
 
-		const auto& buffer = model.buffers[bufferView.buffer];
-		const float3* start = (float3*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const cgltf_buffer& buffer = *bufferView.buffer;
+		const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
@@ -101,20 +125,17 @@ namespace
 		}
 	}
 
-	void ProcessTexCoords(const tinygltf::Model& model, int texCoord0Idx, Span<Vertex> vertices) noexcept
+	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
 	{
-		const auto& accessor = model.accessors[texCoord0Idx];
-
-		Check(accessor.type == TINYGLTF_TYPE_VEC2, "Invalid type for TEXCOORD_0 attribute.");
-		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT,
+		Check(accessor.type == cgltf_type_vec2, "Invalid type for TEXCOORD_0 attribute.");
+		Check(accessor.component_type == cgltf_component_type_r_32f,
 			"Invalid component type for TEXCOORD_0 attribute.");
 
-		const auto& bufferView = model.bufferViews[accessor.bufferView];
-		const int byteStride = accessor.ByteStride(bufferView);
-		Check(byteStride == sizeof(float2), "Invalid stride for TEXCOORD_0 attribute.");
+		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
+		Check(accessor.stride == sizeof(float2), "Invalid stride for TEXCOORD_0 attribute.");
 
-		const auto& buffer = model.buffers[bufferView.buffer];
-		const float2* start = (float2*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const cgltf_buffer& buffer = *bufferView.buffer;
+		const float2* start = reinterpret_cast<float2*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
@@ -123,19 +144,16 @@ namespace
 		}
 	}
 
-	void ProcessTangents(const tinygltf::Model& model, int tangentIdx, Span<Vertex> vertices) noexcept
+	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
 	{
-		const auto& accessor = model.accessors[tangentIdx];
-
-		Check(accessor.type == TINYGLTF_TYPE_VEC3 || accessor.type == TINYGLTF_TYPE_VEC4, "Invalid type for TANGENT attribute.");
-		Check(accessor.componentType == TINYGLTF_COMPONENT_TYPE_FLOAT,
+		Check(accessor.type == cgltf_type_vec4, "Invalid type for TANGENT attribute.");
+		Check(accessor.component_type == cgltf_component_type_r_32f,
 			"Invalid component type for TANGENT attribute.");
 
-		const auto& bufferView = model.bufferViews[accessor.bufferView];
-		const int byteStride = accessor.ByteStride(bufferView);
+		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
 
-		const auto& buffer = model.buffers[bufferView.buffer];
-		const float4* start = (float4*)(buffer.data.data() + bufferView.byteOffset + accessor.byteOffset);
+		const cgltf_buffer& buffer = *bufferView.buffer;
+		const float4* start = reinterpret_cast<float4*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 
 		for (size_t i = 0; i < accessor.count; i++)
 		{
@@ -146,22 +164,21 @@ namespace
 		}
 	}
 
-	void ProcessIndices(const tinygltf::Model& model, int indicesIdx, Vector<uint32_t, App::ThreadAllocator>& indices) noexcept
+	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Vector<uint32_t, App::ThreadAllocator>& indices) noexcept
 	{
-		const auto& accessor = model.accessors[indicesIdx];
-		Check(accessor.type == TINYGLTF_TYPE_SCALAR, "Invalid index type.");
+		Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
+		Check(accessor.stride != -1, "Invalid index stride.");
+		Check(accessor.count % 3 == 0, "invalid number of indices");
 
-		auto& bufferView = model.bufferViews[accessor.bufferView];
-		const int byteStride = accessor.ByteStride(bufferView);
-		Check(byteStride != -1, "Invalid index stride.");
-
-		auto& buffer = const_cast<tinygltf::Model&>(model).buffers[bufferView.buffer];
+		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
 		indices.reserve(accessor.count);
+		
+		const cgltf_buffer& buffer = *bufferView.buffer;
 
 		// populate the mesh indices
-		uint8_t* curr = buffer.data.data() + bufferView.byteOffset + accessor.byteOffset;
-		Check(accessor.count % 3 == 0, "invalid number of indices");
+		uint8_t* curr = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 		const size_t numFaces = accessor.count / 3;
+		const size_t indexStrideInBytes = accessor.stride;
 
 		for (size_t face = 0; face < numFaces; face++)
 		{
@@ -169,12 +186,12 @@ namespace
 			uint32_t i1 = 0;
 			uint32_t i2 = 0;
 
-			memcpy(&i0, curr, byteStride);
-			curr += byteStride;
-			memcpy(&i1, curr, byteStride);
-			curr += byteStride;
-			memcpy(&i2, curr, byteStride);
-			curr += byteStride;
+			memcpy(&i0, curr, indexStrideInBytes);
+			curr += indexStrideInBytes;
+			memcpy(&i1, curr, indexStrideInBytes);
+			curr += indexStrideInBytes;
+			memcpy(&i2, curr, indexStrideInBytes);
+			curr += indexStrideInBytes;
 
 			indices.push_back(i0);
 			indices.push_back(i2);
@@ -182,215 +199,198 @@ namespace
 		}
 	}
 
-	void ProcessMeshes(uint64_t sceneID, tinygltf::Model& model, size_t offset, size_t size) noexcept
+	void ProcessMeshes(uint64_t sceneID, const cgltf_data& model, size_t offset, size_t size) noexcept
 	{
 		SceneCore& scene = App::GetScene();
 
 		for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
 		{
-			Assert(meshIdx < model.meshes.size(), "out-of-bound access");
-			const auto& mesh = model.meshes[meshIdx];
-			int primIdx = 0;
+			Assert(meshIdx < model.meshes_count, "out-of-bound access");
+			const cgltf_mesh& mesh = model.meshes[meshIdx];
 
 			// fill in the subsets
-			for (const auto& prim : mesh.primitives)
+			for (int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
 			{
+				const cgltf_primitive& prim = mesh.primitives[primIdx];
+
 				glTF::Asset::MeshSubset subset;
 				subset.MeshIdx = (int)meshIdx;
 				subset.MeshPrimIdx = primIdx;
 
-				Check(prim.indices != -1, "index buffer is required.");
-				Check(prim.mode == TINYGLTF_MODE_TRIANGLES, "Non-triangle meshes are not supported.");
+				Check(prim.indices->count > 0, "index buffer is required.");
+				Check(prim.type == cgltf_primitive_type_triangles, "Non-triangle meshes are not supported.");
+				
+				int posIt = -1;
+				int normalIt = -1;
+				int texIt = -1;
+				int tangentIt = -1;
 
-				auto posIt = prim.attributes.find("POSITION");
-
-				// workaround for weird bug when /fsanitize=address is used -- for some
-				// reason "POSITION" becomes "POSITIONsssss"
-				if (posIt == prim.attributes.end())
+				for (int attrib = 0; attrib < prim.attributes_count; attrib++)
 				{
-					for (auto it = prim.attributes.begin(); it != prim.attributes.end(); it++)
-					{
-						if (it->first.starts_with("POSITION"))
-						{
-							posIt = it;
-							break;
-						}
-					}
+					if(strcmp(prim.attributes[attrib].name, "POSITION") == 0)
+						posIt = attrib;
+					else if (strcmp(prim.attributes[attrib].name, "NORMAL") == 0)
+						normalIt = attrib;
+					else if (strcmp(prim.attributes[attrib].name, "TEXCOORD_0") == 0)
+						texIt = attrib;
+					else if (strcmp(prim.attributes[attrib].name, "TANGENT") == 0)
+						tangentIt = attrib;
 				}
-
-				Check(posIt != prim.attributes.end(), "POSITION was not found in the vertex attributes.");
-
-				auto normalit = prim.attributes.find("NORMAL");
-				Check(normalit != prim.attributes.end(), "NORMAL was not found in the vertex attributes.");
-
-				auto texIt = prim.attributes.find("TEXCOORD_0");
-
-				// workaround for weird bug when /fsanitize=address is used -- for some
-				// reason "TEXCOORD_0" becomes "TEXCOORD_0sssss"
-				if (texIt == prim.attributes.end())
-				{
-					for (auto it = prim.attributes.begin(); it != prim.attributes.end(); it++)
-					{
-						if (it->first.starts_with("TEXCOORD_0"))
-						{
-							texIt = it;
-							break;
-						}
-					}
-				}
+				
+				Check(posIt != -1, "POSITION was not found in the vertex attributes.");
+				Check(normalIt != -1, "NORMAL was not found in the vertex attributes.");
 
 				// populate the vertex attributes
-				subset.Vertices.resize(model.accessors[posIt->second].count);
-
-				//const uint64_t meshID = MeshID(sceneID, subset.MeshIdx, subset.MeshPrimIdx);
+				const cgltf_accessor& accessor = *prim.attributes[posIt].data;
+				subset.Vertices.resize(accessor.count);
 
 				// POSITION
-				ProcessPositions(model, posIt->second, subset.Vertices);
+				ProcessPositions(model, *prim.attributes[posIt].data, subset.Vertices);
 
 				// NORMAL
-				ProcessNormals(model, normalit->second, subset.Vertices);
-
-				// TEXCOORD_0
-				if (texIt != prim.attributes.end())
-					ProcessTexCoords(model, texIt->second, subset.Vertices);
+				ProcessNormals(model, *prim.attributes[normalIt].data, subset.Vertices);
 
 				// indices
-				ProcessIndices(model, prim.indices, subset.Indices);
+				ProcessIndices(model, *prim.indices, subset.Indices);
 
-				// TANGENT
-				auto tangentIt = prim.attributes.find("TANGENT");
+				// TEXCOORD_0
+				if (texIt != -1)
+				{
+					ProcessTexCoords(model, *prim.attributes[texIt].data, subset.Vertices);
 
-				// if vertex tangents aren't present, compute them. Make sure the computation happens after 
-				// vertex & index processing
-				if (tangentIt != prim.attributes.end())
-					ProcessTangents(model, tangentIt->second, subset.Vertices);
-				else
-					Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, false);
+					// if vertex tangents aren't present, compute them. Make sure the computation happens after 
+					// vertex & index processing
+					if (tangentIt != -1)
+						ProcessTangents(model, *prim.attributes[tangentIt].data, subset.Vertices);
+					else
+						Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, false);
+				}
 
-				subset.MaterialIdx = prim.material;
+				const int matIdx = (int)(prim.material - model.materials);
+				Assert(matIdx < model.materials_count, "invalid material index.");
+
+				subset.MaterialIdx = matIdx;
 				scene.AddMesh(sceneID, ZetaMove(subset));
-
-				primIdx++;
 			}
 		}
 	}
 
-	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const tinygltf::Model& model,
+	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
 		int offset, int size) noexcept
 	{
-		SceneCore& scene = App::GetScene();
-
-		auto getAlphaMode = [](const std::string& s) noexcept
+		auto getAlphaMode = [](cgltf_alpha_mode m) noexcept
 		{
-			auto ret = Material::ALPHA_MODE::OPAQUE_;
-
-			if (strcmp(s.data(), "MASK") == 0)
-				ret = Material::ALPHA_MODE::MASK;
-			else if (strcmp(s.data(), "BLEND") == 0)
-				ret = Material::ALPHA_MODE::BLEND;
-
-			return ret;
+			switch (m)
+			{
+			case cgltf_alpha_mode_opaque:
+				return Material::ALPHA_MODE::OPAQUE;
+			case cgltf_alpha_mode_mask:
+				return Material::ALPHA_MODE::MASK;
+			case cgltf_alpha_mode_blend:
+				return Material::ALPHA_MODE::BLEND;
+			default:
+				break;
+			}
+			
+			Assert(false, "invalid alpha mode.");
+			return Material::ALPHA_MODE::OPAQUE;
 		};
 
 		for (int m = offset; m != offset + size; m++)
 		{
 			const auto& mat = model.materials[m];
+			Check(mat.has_pbr_metallic_roughness, "material is not supported.");
 
 			glTF::Asset::MaterialDesc desc;
+
 			desc.Index = m;
-			desc.AlphaMode = getAlphaMode(mat.alphaMode);
-			desc.AlphaCuttoff = (float)mat.alphaCutoff;
-			desc.DoubleSided = mat.doubleSided;
+			desc.AlphaMode = getAlphaMode(mat.alpha_mode);
+			desc.AlphaCuttoff = (float)mat.alpha_cutoff;
+			desc.DoubleSided = mat.double_sided;
 
 			// base color map
 			{
-				const int baseColIdx = mat.pbrMetallicRoughness.baseColorTexture.index;
-				if (baseColIdx != -1)
+				const cgltf_texture_view& baseColView = mat.pbr_metallic_roughness.base_color_texture;
+				if (baseColView.texture)
 				{
-					const int imgIdx = model.textures[baseColIdx].source;
-					Check(imgIdx != -1, "Invalid texture index");
-					const std::string& texPath = model.images[imgIdx].uri;
+					Check(baseColView.texture->image, "textureView doesn't point to any image.");
+					const char* texPath = baseColView.texture->image->uri;
 
 					desc.BaseColorTexPath.Reset(App::GetAssetDir());
 					desc.BaseColorTexPath.Append(modelDir.Get());
-					desc.BaseColorTexPath.Append(texPath.data());
+					desc.BaseColorTexPath.Append(texPath);
 				}
 
-				auto& f = mat.pbrMetallicRoughness.baseColorFactor;
-				Check(f.size() == 4, "Invalid BaseColorFactor");
-				desc.BaseColorFactor = float4((float)f[0], (float)f[1], (float)f[2], (float)f[3]);
+				auto& f = mat.pbr_metallic_roughness.base_color_factor;
+				desc.BaseColorFactor = float4(f[0], f[1], f[2], f[3]);
 			}
 
 			// normal map
 			{
-				const int normalTexIdx = mat.normalTexture.index;
-				if (normalTexIdx != -1)
+				const cgltf_texture_view& normalView = mat.normal_texture;
+				if (normalView.texture)
 				{
-					const int imgIdx = model.textures[normalTexIdx].source;
-					Check(imgIdx != -1, "Invalid texture index");
-					const std::string& texPath = model.images[imgIdx].uri;
+					Check(normalView.texture->image, "textureView doesn't point to any image.");
+					const char* texPath = normalView.texture->image->uri;
 
 					desc.NormalTexPath.Reset(App::GetAssetDir());
 					desc.NormalTexPath.Append(modelDir.Get());
-					desc.NormalTexPath.Append(texPath.data());
+					desc.NormalTexPath.Append(texPath);
+					desc.NormalScale = (float)mat.normal_texture.scale;
 				}
-
-				desc.NormalScale = (float)mat.normalTexture.scale;
 			}
 
 			// metalness-roughness map
 			{
-				const int metalnessRoughnessIdx = mat.pbrMetallicRoughness.metallicRoughnessTexture.index;
-				if (metalnessRoughnessIdx != -1)
+				const cgltf_texture_view& metalnessRoughnessView = mat.pbr_metallic_roughness.metallic_roughness_texture;
+				if (metalnessRoughnessView.texture)
 				{
-					const int imgIdx = model.textures[metalnessRoughnessIdx].source;
-					Check(imgIdx != -1, "Invalid texture index");
-					const std::string& texPath = model.images[imgIdx].uri;
+					Check(metalnessRoughnessView.texture->image, "textureView doesn't point to any image.");
+					const char* texPath = metalnessRoughnessView.texture->image->uri;
 
 					desc.MetalnessRoughnessTexPath.Reset(App::GetAssetDir());
 					desc.MetalnessRoughnessTexPath.Append(modelDir.Get());
-					desc.MetalnessRoughnessTexPath.Append(texPath.data());
+					desc.MetalnessRoughnessTexPath.Append(texPath);
 				}
 
-				desc.MetalnessFactor = (float)mat.pbrMetallicRoughness.metallicFactor;
-				desc.RoughnessFactor = (float)mat.pbrMetallicRoughness.roughnessFactor;
+				desc.MetalnessFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
+				desc.RoughnessFactor = (float)mat.pbr_metallic_roughness.roughness_factor;
 			}
 
 			// emissive map
 			{
-				const int emissiveIdx = mat.emissiveTexture.index;
-				if (emissiveIdx != -1)
+				const cgltf_texture_view& emissiveView = mat.emissive_texture;
+				if (emissiveView.texture)
 				{
-					const int imgIdx = model.textures[emissiveIdx].source;
-					Check(imgIdx != -1, "Invalid texture index");
-					const std::string& texPath = model.images[imgIdx].uri;
+					Check(emissiveView.texture->image, "textureView doesn't point to any image.");
+					const char* texPath = emissiveView.texture->image->uri;
 
 					desc.EmissiveTexPath.Reset(App::GetAssetDir());
 					desc.EmissiveTexPath.Append(modelDir.Get());
-					desc.EmissiveTexPath.Append(texPath.data());
+					desc.EmissiveTexPath.Append(texPath);
 				}
 
-				auto& f = mat.emissiveFactor;
-				Check(f.size() == 3, "Invalid emissiveFactor");
+				auto& f = mat.emissive_factor;
 				desc.EmissiveFactor = float3((float)f[0], (float)f[1], (float)f[2]);
 			}
 
+			SceneCore& scene = App::GetScene();
 			scene.AddMaterial(sceneID, ZetaMove(desc));
 		}
 	}
 
-	void ProcessNodeSubtree(const tinygltf::Node& node, uint64_t sceneID, const tinygltf::Model& model, uint64_t parentId,
+	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId,
 		Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
-		if (node.mesh != -1)
+		if (node.mesh)
 		{
 			AffineTransformation transform = AffineTransformation::GetIdentity();
 
-			if (node.matrix.size() == 16)
+			if (node.has_matrix)
 			{
-				float4x4a M(node.matrix.data());
+				float4x4a M(node.matrix);
 				v_float4x4 vM = load(M);
 				auto det = store(det3x3(vM));	// last column is ignored
 				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
@@ -427,16 +427,16 @@ namespace
 			}
 			else
 			{
-				if (!node.scale.empty())
+				if (node.has_scale)
 				{
 					Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
 					transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
 				}
 
-				if (!node.translation.empty())
+				if (node.has_translation)
 					transform.Translation = float3((float)node.translation[0], (float)node.translation[1], (float)-node.translation[2]);
 
-				if (!node.rotation.empty())
+				if (node.has_rotation)
 				{
 					// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
 					// where s = sin(theta/2) and c = cos(theta/2)
@@ -467,99 +467,101 @@ namespace
 
 			instances.emplace_back(IntemediateInstance{
 						.LocalTransform = transform,
-						.MeshIdx = node.mesh,
+						.Mesh = node.mesh,
 						.Name = node.name,
 						.ParentID = parentId
 				});
 
-			// each mesh has at least one primitive and any of those can be designated as the parent instance
-			// note Scene calucaltes instance ID with proper meshPrimitive index, this instance ID is only 
 			// used to establish parent-child relationships
-			currInstanceID = SceneCore::InstanceID(sceneID, node.name.c_str(), node.mesh, 0);
+			const int meshIdx = (int)(node.mesh - model.meshes);
+			Assert(meshIdx < model.meshes_count, "invalid mesh index.");
+			currInstanceID = SceneCore::InstanceID(sceneID, node.name, meshIdx, 0);
 		}
 
-		for (int c : node.children)
+		for (int c = 0; c < node.children_count; c++)
 		{
-			const tinygltf::Node& childNode = model.nodes[c];
+			const cgltf_node& childNode = *node.children[c];
 			ProcessNodeSubtree(childNode, sceneID, model, currInstanceID, instances);
 		}
 	}
 
-	void ProcessNodes(const tinygltf::Model& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
+	void ProcessNodes(const cgltf_data& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
 	{
-		for (int i : model.scenes[model.defaultScene].nodes)
+		for (size_t i = 0; i < model.scene->nodes_count; i++)
 		{
-			const tinygltf::Node& node = model.nodes[i];
+			const cgltf_node& node = *model.scene->nodes[i];
 			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances);
 		}
 	}
 
-	void ProcessInstances(uint64_t sceneID, Span<IntemediateInstance> instances, const tinygltf::Model& model) noexcept
+	void ProcessInstances(uint64_t sceneID, Span<IntemediateInstance> instances, const cgltf_data& model) noexcept
 	{
 		for (auto& instance : instances)
 		{
-			const int meshIdx = instance.MeshIdx;
-			auto& mesh = model.meshes[meshIdx];
-			int meshPrimIdx = 0;
+			cgltf_mesh& mesh = *instance.Mesh;
+			const int meshIdx = (int)(instance.Mesh - model.meshes);
 
-			for (auto& meshPrim : model.meshes[meshIdx].primitives)
+			for(int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
 			{
-				Check(meshPrim.material != -1, "Following mesh doesn't have any materials assigned to it: %s (#primitive %d)",
-					instance.Name.data(), meshIdx);
+				const cgltf_primitive& meshPrim = mesh.primitives[primIdx];
 
-				uint8_t rtInsMask = model.materials[meshPrim.material].emissiveTexture.index != -1 ?
+				Check(meshPrim.material, "Following mesh doesn't have any materials assigned to it: %s (#primitive %d)",
+					instance.Name, meshIdx);
+
+				uint8_t rtInsMask = meshPrim.material->emissive_texture.texture ?
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
 				glTF::Asset::InstanceDesc desc{
 					.LocalTransform = instance.LocalTransform,
 					.MeshIdx = meshIdx,
-					.Name = instance.Name.data(),
+					.Name = instance.Name,
 					.ParentID = instance.ParentID,
-					.MeshPrimIdx = meshPrimIdx,
+					.MeshPrimIdx = primIdx,
 					.RtMeshMode = RT_MESH_MODE::STATIC,
 					.RtInstanceMask = rtInsMask };
 
-				/*
-				if (rtInsMask & RT_AS_SUBGROUP::EMISSIVE)
-				{
-					uint64_t ID = MeshID(sceneID, meshIdx, meshPrimIdx);
-
-					int idx = FindMeshPrim(emissives, ID);
-					Check(idx != -1, "Invalid emissive");
-					desc.Lumen.swap(emissives[idx].Lumens);
-				}
-				*/
+//				if (rtInsMask & RT_AS_SUBGROUP::EMISSIVE)
+//				{
+//					uint64_t ID = MeshID(sceneID, meshIdx, meshPrimIdx);
+//					int idx = FindMeshPrim(emissives, ID);
+//					Check(idx != -1, "Invalid emissive");
+//					desc.Lumen.swap(emissives[idx].Lumens);
+//				}
 
 				SceneCore& scene = App::GetScene();
 				scene.AddInstance(sceneID, ZetaMove(desc));
-
-				meshPrimIdx++;
 			}
 		}
 	}
 
-	void TotalNumVerticesAndIndices(tinygltf::Model& model, size_t& numVertices, size_t& numIndices) noexcept
+	void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices) noexcept
 	{
 		numVertices = 0;
 		numIndices = 0;
 
-		for (size_t meshIdx = 0; meshIdx != model.meshes.size(); meshIdx++)
+		for (size_t meshIdx = 0; meshIdx != model->meshes_count; meshIdx++)
 		{
-			Assert(meshIdx < model.meshes.size(), "out-of-bound access");
-			const auto& mesh = model.meshes[meshIdx];
-			int primIdx = 0;
+			const auto& mesh = model->meshes[meshIdx];
 
-			for (const auto& prim : mesh.primitives)
+			for(size_t primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
 			{
-				glTF::Asset::MeshSubset subset;
-				subset.MeshIdx = (int)meshIdx;
-				subset.MeshPrimIdx = primIdx;
+				const auto& prim = mesh.primitives[primIdx];
 
-				auto posIt = prim.attributes.find("POSITION");
-				numVertices += model.accessors[posIt->second].count;
+				if (prim.type != cgltf_primitive_type_triangles)
+					continue;
 
-				const auto& accessor = model.accessors[prim.indices];
-				numIndices += accessor.count;
+				for (int attrib = 0; attrib < prim.attributes_count; attrib++)
+				{
+					if (strcmp("POSITION", prim.attributes[attrib].name) == 0)
+					{
+						auto& accessor = prim.attributes[attrib].data;
+						numVertices += accessor->count;
+
+						break;
+					}
+				}
+
+				numIndices += prim.indices->count;
 			}
 		}
 	}
@@ -568,28 +570,31 @@ namespace
 // TODO change the relative path
 void glTF::Load(const char* modelRelPath) noexcept
 {
-	tinygltf::TinyGLTF loader;
-	tinygltf::Model model;
-	std::string error;
-	std::string warning;
+	Filesystem::Path jsonPath(App::GetAssetDir());
+	jsonPath.Append(modelRelPath);
 
-	Filesystem::Path fullPath(App::GetAssetDir());
-	fullPath.Append(modelRelPath);
-	std::string s(fullPath.Get());
-	const bool success = loader.LoadASCIIFromFile(&model, &error, &warning, s);
+	// parse json
+	cgltf_options options{};
+	cgltf_data* model = nullptr;
+	Checkgltf(cgltf_parse_file(&options, jsonPath.Get(), &model));
 
-	Check(warning.empty(), "Warning while loading glTF2 model from path %s: %s.", s.c_str(), warning.c_str());
-	Check(error.empty(), "Error while loading glTF2 model from path %s: %s.", s.c_str(), error.c_str());
-	Check(model.defaultScene != -1, "invalid defaultScene value.");
+	// load buffers
+	Check(model->buffers_count == 1, "invalid number of buffers");
+	Filesystem::Path bufferPath(jsonPath.Get());
+	bufferPath.Directory();
+	bufferPath.Append(model->buffers[0].uri);
+	Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
-	const uint64_t sceneID = XXH3_64bits(s.c_str(), s.size());
+	Check(model->scene, "no scene found in glTF file: %s.", jsonPath.Get());
+	const uint64_t sceneID = XXH3_64bits(jsonPath.Get(), jsonPath.Length());
 	SceneCore& scene = App::GetScene();
 
+	// one mesh for each primitive
 	size_t numMeshes = 0;
-	for (const auto& mesh : model.meshes)
-		numMeshes += mesh.primitives.size();
+	for (size_t i = 0; i < model->meshes_count; i++)
+		numMeshes += model->meshes[i].primitives_count;
 
-	scene.ReserveScene(sceneID, numMeshes, model.materials.size(), model.nodes.size());
+	scene.ReserveScene(sceneID, numMeshes, model->materials_count, model->nodes_count);
 
 	size_t totalNumVertices;
 	size_t totalNumIndices;
@@ -602,7 +607,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 	size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
 	size_t meshThreadSizes[MAX_NUM_MESH_WORKERS];
 
-	const size_t meshNumThreads = SubdivideRangeWithMin(model.meshes.size(),
+	const size_t meshNumThreads = SubdivideRangeWithMin(model->meshes_count,
 		MAX_NUM_MESH_WORKERS,
 		meshThreadOffsets,
 		meshThreadSizes,
@@ -614,7 +619,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 	size_t matThreadOffsets[MAX_NUM_MAT_WORKERS];
 	size_t matThreadSizes[MAX_NUM_MAT_WORKERS];
 
-	const size_t matNumThreads = SubdivideRangeWithMin(model.materials.size(),
+	const size_t matNumThreads = SubdivideRangeWithMin(model->materials_count,
 		MAX_NUM_MAT_WORKERS,
 		matThreadOffsets,
 		matThreadSizes,
@@ -623,14 +628,14 @@ void glTF::Load(const char* modelRelPath) noexcept
 	struct ThreadContext
 	{
 		uint64_t SceneID;
-		tinygltf::Model* Model;
+		cgltf_data* Model;
 		size_t* MeshThreadOffsets;
 		size_t* MeshThreadSizes;
 		size_t* MatThreadOffsets;
 		size_t* MatThreadSizes;
 	};
 
-	ThreadContext tc{ .SceneID = sceneID, .Model = &model,
+	ThreadContext tc{ .SceneID = sceneID, .Model = model,
 		.MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
 		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes };
 
@@ -665,11 +670,13 @@ void glTF::Load(const char* modelRelPath) noexcept
 	App::Submit(ZetaMove(ts));
 
 	SmallVector<IntemediateInstance, App::ThreadAllocator> instances;
-	instances.reserve(model.nodes.size());
+	instances.reserve(model->nodes_count);
 
 	// TODO is this necessary?
 	waitObj.Wait();
 
-	ProcessNodes(model, sceneID, instances);
-	ProcessInstances(sceneID, instances, model);
+	ProcessNodes(*model, sceneID, instances);
+	ProcessInstances(sceneID, instances, *model);
+
+	cgltf_free(model);
 }

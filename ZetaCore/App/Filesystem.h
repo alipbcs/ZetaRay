@@ -37,6 +37,7 @@ namespace ZetaRay::App::Filesystem
         Filesystem::Path& Directory() noexcept;
         void Stem(Util::Span<char> buff, size_t* outStrLen = nullptr) const noexcept;
         ZetaInline const char* Get() const noexcept { return m_path.begin(); }
+        ZetaInline size_t Length() const noexcept { return m_path.size(); }
 
     private:
         static constexpr size_t DEFAULT_PATH_LENGTH = 260;

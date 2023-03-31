@@ -2,6 +2,7 @@ include("${CMAKE_INCLUDE_DIR}/Copy.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupAgilitySDK.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupWinPIX.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupxxHash.cmake")
+include("${CMAKE_INCLUDE_DIR}/Setupcgltf.cmake")
 
 add_subdirectory(App)
 add_subdirectory(Core)
@@ -60,6 +61,11 @@ set_target_properties(WinPixEventRuntimeLib PROPERTIES IMPORTED_IMPLIB "${EXTERN
 # xxHash
 # 
 SetupxxHash()
+
+# 
+# cgltf
+# 
+Setupcgltf()
 
 # custom command that copies the dll to the runtime directory
 set(WINPIXEVENT_DLL_PATH "${EXTERNAL_DIR}/WinPixEventRuntime/WinPixEventRuntime.dll")

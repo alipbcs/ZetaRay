@@ -8,7 +8,7 @@
 
 #define JSON_NOEXCEPTION
 #define JSON_NO_IO
-#include <tinyglTF/json.hpp>
+#include <json/json.hpp>
 using json = nlohmann::json;
 
 #include <wrl/client.h>

@@ -30,17 +30,16 @@ namespace ZetaRay::Model::glTF::Asset
 
 	struct MaterialDesc
 	{
-		void Reset() noexcept
+		MaterialDesc() noexcept
 		{
 			Index = -1;
-
 			BaseColorFactor = Math::float4(1.0f, 1.0f, 1.0f, 1.0f);
 			EmissiveFactor = Math::float3(0.0f, 0.0f, 0.0f);
-			MetalnessFactor = 0.0f;
+			MetalnessFactor = 1.0f;
 			RoughnessFactor = 1.0f;
 			NormalScale = 1.0f;
 			AlphaCuttoff = 0.5f;
-			AlphaMode = Material::ALPHA_MODE::OPAQUE_;
+			AlphaMode = Material::ALPHA_MODE::OPAQUE;
 			DoubleSided = false;
 		}
 

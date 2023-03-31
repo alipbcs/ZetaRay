@@ -16,7 +16,7 @@ namespace ZetaRay
         enum class ALPHA_MODE : uint8_t
         {
             // OPAQUE is defined in wingdi.h!
-            OPAQUE_ = 0,
+            OPAQUE = 0,
             MASK,
             BLEND,
             COUNT
