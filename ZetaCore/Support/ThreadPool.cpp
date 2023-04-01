@@ -183,7 +183,7 @@ void ThreadPool::PumpUntilEmpty() noexcept
 			LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
 #endif
 		
-			// signal dependent tasks that this task is finished
+			// signal dependent tasks that this task has finished
 			auto adjacencies = task.GetAdjacencies();
 			if (adjacencies.size() > 0)
 				App::SignalAdjacentTailNodes(adjacencies);

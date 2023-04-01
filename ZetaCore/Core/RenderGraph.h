@@ -37,19 +37,15 @@ namespace ZetaRay::Core
 	//--------------------------------------------------------------------------------------
 
 	// Workflow:
+	// 
 	// 0. BeginFrame()
 	// 1. All the render passes for next frame need to register their resources (RenderGraph::RegisterResource())
 	// and themselves (RenderGraph::RegisterRenderPass())
 	// 2. MoveToPostRegister()
 	// 3. Each render pass calls RenderNode::AddInput() and RenderNode::AddOutput() for 
 	// every resource R that it needs with the expected state. 
-	//		- AddInput adds hash(R) to the node's inputs
-	//		- AddOutput adds hash(R) to the node's outputs. Furthermore, for each of 
-	//		those reources, corresponding RENDERNODE is designated as the producer of that resource.
-	//		This assumes that every resource is produced by exactly one RenderNode.
 	// 4. Barrier
-	// 5. Create the edges of the graph based on the resource dependencies (by 
-	// populating m_adjacentTailNodes for each)
+	// 5. Create the DAG based on the resource dependencies
 	// 6. BuildAndSubmit
 
 	class RenderGraph
@@ -90,11 +86,10 @@ namespace ZetaRay::Core
 		// Transitions into post-registration. At this point there can be no more Register*() calls
 		void MoveToPostRegister() noexcept;
 
-		// Adds an input resource to the node RenderNodeHandle
+		// Adds an input resource to the RenderNodeHandle
 		void AddInput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState) noexcept;
 
-		// Adds an output resource to the RenderNodeHandle. It's assumed that each resource
-		// can be produced by at most one node.
+		// Adds an output resource to the RenderNodeHandle
 		void AddOutput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState) noexcept;
 
 		// Builds the graph and submits the rendering tasks with appropriate order

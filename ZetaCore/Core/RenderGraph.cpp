@@ -340,7 +340,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 			{
 				const int prodHandle = m_frameResources[idx].Producers[prod].Val;
 
-				// workaround for when resource is set as both input and output for some node, otherwise there'd be cycle
+				// workaround for when resource is set as both input and output for some node, otherwise there'd be a cycle
 				if (currNode == prodHandle)
 				{
 					node.Indegree--;
@@ -386,11 +386,13 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 {
 	// Task-level dependency cases:
+	// 
 	// 1. From nodes with batchIdx i to nodes with batchIdx i + 1
 	// 2. From gpuDep(node) to node
 
 	// GPU dependency & unsupported barriers:
-	//  - If C has an unsupported barrier, add a barrier Task immediately before
+	// 
+	//  - If C has an unsupported barrier, add a barrier Task T immediately before
 	// the tasks from batch index B where B = C.batchIdx
 	//  - Remove C's GPU dependency (if any), then add a GPU dependency from T to C
 
@@ -433,7 +435,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 				if (!aggregateNode.HasUnsupportedBarrier && aggregateNode.GpuDepIdx.Val != -1)
 				{
 					uint64_t f = m_aggregateNodes[aggregateNode.GpuDepIdx.Val].CompletionFence;
-					Assert(f != uint64_t(-1), "Gpu hasn't finished executing");
+					Assert(f != uint64_t(-1), "GPU hasn't finished executing");
 
 					if (aggregateNode.IsAsyncCompute)
 						renderer.WaitForDirectQueueOnComputeQueue(f);
@@ -469,7 +471,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 
 		if (node.Indegree == 0)
 		{
-			// batchIdx is zero there are no dependencies
+			// when batchIdx is zero there are no dependencies
 			sorted[currIdx++] = RenderNodeHandle(currNode);
 			node.NodeBatchIdx = 0;
 		}
@@ -513,6 +515,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 	// Producer Handle to sorted array index mapping.
 	// Producer handles were specified using the unsorted index. This maps those
 	// to sorted order as subsequent processing uses the sorted one:
+	// 
 	//		original: [0, 1, 2, 3, 4, 5]
 	//		sorted:   [3, 2, 1, 4, 0, 5]
 	//		mapping:  [4, 2, 1, 0, 3, 5]
@@ -554,15 +557,18 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 	};
 
 	// Workflow:
+	// 
 	// 1. For each input resource R:
-	//		 - if R.state != expected -> add a barrier (e.g. RTV to SRV)
-	//		 - if stateBefore(== R.state) is unsupported -> set hasUnsupportedBarriers
+	// 
+	//		 - if R.state != expected --> add a barrier (e.g. RTV to SRV)
+	//		 - if stateBefore(== R.state) is unsupported --> set hasUnsupportedBarriers
 	//       - if producer is on a different queue, add a gpu sync, but only if an earlier
 	//		   task hasn't synced already (see cases below)
 	//
 	// 2. For each output resource R:
-	//		 - if R.state != expected -> add a barrier (e.g. SRV to UAV)
-	//		 - if stateBefore(== R.state) is unsupported -> set hasUnsupportedBarriers
+	// 
+	//		 - if R.state != expected --> add a barrier (e.g. SRV to UAV)
+	//		 - if stateBefore(== R.state) is unsupported --> set hasUnsupportedBarriers
 
 	// iterate by execution order (i.e. sorted by batch-index)
 	for (int currNode = 0; currNode < numNodes; currNode++)

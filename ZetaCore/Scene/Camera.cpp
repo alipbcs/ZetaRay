@@ -38,7 +38,7 @@ namespace
 		vViewInv.vRow[3] = _mm_setzero_ps();
 
 		v_float4x4 vNewView = transpose(vViewInv);
-		// transforms from view-space to world-space
+		// transforms from view space to world space
 		vViewInv.vRow[3] = vEye;
 		viewInv = store(vViewInv);
 

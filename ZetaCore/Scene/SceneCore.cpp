@@ -350,7 +350,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		//m_IDtoTreePos.emplace(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 		m_IDtoTreePos.insert_or_assign(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
-		// adjust the tree-positions of shifted instances
+		// adjust tree positions of shifted instances
 		for(int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
 		{
 			uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
@@ -383,7 +383,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	auto& currLevel = m_sceneGraph[treeLevel];
 	auto& parentRange = parentLevel.m_subtreeRanges[parentIdx];
 
-	// position to insert at is right next to the parent's rightmost child
+	// position to insert at is right next to parent's rightmost child
 	const int insertIdx = parentRange.Base + parentRange.Count;
 
 	// increment parent's children count
@@ -445,11 +445,11 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 			});
 	}
 
-	// save the starting offset and number of keyframes
+	// save starting offset and number of keyframes
 	const uint32_t currOffset = (uint32_t)m_keyframes.size();
 	m_animationOffsets.emplace_back(currOffset, currOffset + (int)keyframes.size(), tOffset);
 
-	// save the mapping from instance ID to starting offset in keyframe buffer
+	// save  mapping from instance ID to starting offset in keyframe buffer
 	m_animOffsetToInstanceMap.emplace_back(id, currOffset);
 
 	// insertion sort

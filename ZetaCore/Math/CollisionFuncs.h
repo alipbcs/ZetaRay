@@ -82,8 +82,7 @@ namespace ZetaRay::Math
 		return _mm_cvtss_f32(res);
 	}
 
-	// Returns how source "intersects" target (i.e. source contains/intersects/disjoins target). Both
-	// must be in the same coordinate system
+	// Returns how source "intersects" target. Both must be in the same coordinate system
 	ZetaInline COLLISION_TYPE __vectorcall intersectAABBvsAABB(const v_AABB source, const v_AABB target) noexcept
 	{
 		__m128 vMinSource = _mm_sub_ps(source.vCenter, source.vExtents);
@@ -184,7 +183,7 @@ namespace ZetaRay::Math
 		vCenterDistFromPlane = _mm256_fmadd_ps(vCz256, vFrustum.vN_z, vCenterDistFromPlane);
 		vCenterDistFromPlane = _mm256_add_ps(vFrustum.vd, vCenterDistFromPlane);
 
-		// AABB is (at least partially) in the poistive half-space of the plane. It may or may not intersect the plane
+		// AABB is (at least partially) in the poistive half space of the plane. It may or may not intersect the plane
 		__m256 vIntersects1 = _mm256_cmp_ps(vCenterDistFromPlane, _mm256_setzero_ps(), _CMP_GE_OQ);
 		// AABB intersects the plane
 		__m256 vIntersects2 = _mm256_cmp_ps(vLargestProjLengthAlongAxis, abs(vCenterDistFromPlane), _CMP_GE_OQ);
@@ -198,7 +197,6 @@ namespace ZetaRay::Math
 		return intersects ? COLLISION_TYPE::INTERSECTS : COLLISION_TYPE::DISJOINT;
 	}
 
-	// Returns whether given ray and AABB intersect
 	ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const v_AABB& vBox, float& t) noexcept
 	{
 		// An AABB can be described as the intersection of three "slabs", where a slab
@@ -358,10 +356,10 @@ namespace ZetaRay::Math
 		bool insideTri = (q.x >= 0) && (q.x <= 1) && (q.y >= 0) && (q.y <= 1) && (q.x + q.y <= 1.0);
 		bool triBehindRay = (t >= 0);
 
-		// determinant is equal to dot product of triangle normal and (negative) ray 
-		// direction. If it's zero, then the ray was parallel to triangle. Furthermore,
-		// positive determinat means ray hit the front-face of triangle while negative
-		// determinat means ray hit the back-face of it
+		// determinant is equal to the dot product of triangle normal and (negative) ray 
+		// direction. If it's zero, then the ray was parallel to the triangle. Furthermore,
+		// positive determinat means the ray hit the  triangle's frontface while negative
+		// means ray hit the backfacing side
 
 		return insideTri && triBehindRay && (rayTriParralel & 0xf);
 	}
@@ -398,7 +396,7 @@ namespace ZetaRay::Math
 		//		M = (T^-1 * R^T)^T	(rotation matrix is orthogonal, so R^-1 == R^T)
 		//		M = R * (T^-1)^T
 		// 
-		// In summary, inverse-tranpose of M is the same as M except for 4th column being:
+		// In summary, inverse-tranpose of M is the same as M except for the 4th column being:
 		//		[M.row0.Tv, M.row1.Tv, M.row2.Tv, 1]^T
 		// 
 		// with Tv = (-T.x, -T.y, -T.z)

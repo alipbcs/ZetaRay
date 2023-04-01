@@ -143,7 +143,7 @@ void MaterialBuffer::Init(uint64_t id) noexcept
 
 void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
 {
-	// find the first free slot in the buffer (i.e. first-fit)
+	// find first free slot in buffer (i.e. first-fit)
 	DWORD freeIdx = DWORD(-1);
 	int i = 0;
 	for (; i < NUM_MASKS; i++)
@@ -158,10 +158,10 @@ void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
 	freeIdx += i << 6;		// each uint64_t covers 64 slots
 	Assert(freeIdx < NUM_MATERIALS, "Invalid table index.");
 
-	// set the offset in the input material
+	// set offset in input material
 	mat.SetGpuBufferIndex(freeIdx);
 
-	// copy to the GPU buffer
+	// copy to GPU buffer
 	m_buffer.Copy(freeIdx * sizeof(Material), sizeof(Material), reinterpret_cast<void*>(&mat));
 	m_matTable.insert_or_assign(id, mat);
 }

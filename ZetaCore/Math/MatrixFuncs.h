@@ -102,7 +102,7 @@ namespace ZetaRay::Math
 	{
 		// Given M = [a b c], scalar triple product a.(b x c) gives the determinant
 		const __m128 vRow1xRow2 = cross(M.vRow[1], M.vRow[2]);
-		const __m128 vRow0 = _mm_blend_ps(M.vRow[0], _mm_setzero_ps(), _MM_BLEND_XYZW(0, 0, 0, 1));
+		const __m128 vRow0 = _mm_blend_ps(M.vRow[0], _mm_setzero_ps(), V_BLEND_XYZW(0, 0, 0, 1));
 		const __m128 det = _mm_dp_ps(M.vRow[0], vRow1xRow2, 0xff);
 
 		return det;
@@ -166,10 +166,10 @@ namespace ZetaRay::Math
 		const __m128 vZero = _mm_setzero_ps();
 		const __m128 vS = _mm_load_ps(reinterpret_cast<float*>(&f));
 
-		return v_float4x4(_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(1, 0, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 1, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 1, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 0, 1)));
+		return v_float4x4(_mm_blend_ps(vZero, vS, V_BLEND_XYZW(1, 0, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 1, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 0, 1, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
 	ZetaInline v_float4x4 __vectorcall scale(float4a s) noexcept
@@ -178,20 +178,20 @@ namespace ZetaRay::Math
 		const __m128 vZero = _mm_setzero_ps();
 		const __m128 vS = _mm_load_ps(reinterpret_cast<float*>(&s));
 
-		return v_float4x4(_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(1, 0, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 1, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 1, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 0, 1)));
+		return v_float4x4(_mm_blend_ps(vZero, vS, V_BLEND_XYZW(1, 0, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 1, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 0, 1, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
 	ZetaInline v_float4x4 __vectorcall scale(const __m128 vS) noexcept
 	{
 		const __m128 vZero = _mm_setzero_ps();
 
-		return v_float4x4(_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(1, 0, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 1, 0, 0)),
-			_mm_blend_ps(vZero, vS, _MM_BLEND_XYZW(0, 0, 1, 0)),
-			_mm_blend_ps(vZero, _mm_set1_ps(1.0f), _MM_BLEND_XYZW(0, 0, 0, 1)));
+		return v_float4x4(_mm_blend_ps(vZero, vS, V_BLEND_XYZW(1, 0, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 1, 0, 0)),
+			_mm_blend_ps(vZero, vS, V_BLEND_XYZW(0, 0, 1, 0)),
+			_mm_blend_ps(vZero, _mm_set1_ps(1.0f), V_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
 	ZetaInline v_float4x4 __vectorcall rotate(const __m128 vN, float angle) noexcept
@@ -485,10 +485,10 @@ namespace ZetaRay::Math
 		const __m128 vOne = _mm_set_ps1(1.0f);
 		const __m128 vT = _mm_setr_ps(x, y, z, 0.0f);
 
-		return v_float4x4(_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(1, 0, 0, 0)),
-			_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(0, 1, 0, 0)),
-			_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(0, 0, 1, 0)),
-			_mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1)));
+		return v_float4x4(_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(1, 0, 0, 0)),
+			_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(0, 1, 0, 0)),
+			_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(0, 0, 1, 0)),
+			_mm_blend_ps(vT, vOne, V_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
 	ZetaInline v_float4x4 __vectorcall translate(float4a t) noexcept
@@ -497,10 +497,10 @@ namespace ZetaRay::Math
 		const __m128 vOne = _mm_set_ps1(1.0f);
 		const __m128 vT = _mm_load_ps(reinterpret_cast<float*>(&t));
 
-		return v_float4x4(_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(1, 0, 0, 0)),
-			_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(0, 1, 0, 0)),
-			_mm_blend_ps(vZero, vOne, _MM_BLEND_XYZW(0, 0, 1, 0)),
-			_mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1)));
+		return v_float4x4(_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(1, 0, 0, 0)),
+			_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(0, 1, 0, 0)),
+			_mm_blend_ps(vZero, vOne, V_BLEND_XYZW(0, 0, 1, 0)),
+			_mm_blend_ps(vT, vOne, V_BLEND_XYZW(0, 0, 0, 1)));
 	}
 
 	ZetaInline v_float4x4 __vectorcall affineTransformation(float3& s, float4& q, float3& t) noexcept
@@ -518,7 +518,7 @@ namespace ZetaRay::Math
 
 		// SRT_{3,3} = 1.0
 		const __m128 vOne = _mm_set_ps1(1.0f);
-		vSRT.vRow[3] = _mm_blend_ps(vSRT.vRow[3], vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
+		vSRT.vRow[3] = _mm_blend_ps(vSRT.vRow[3], vOne, V_BLEND_XYZW(0, 0, 0, 1));
 
 		return vSRT;
 	}
@@ -535,7 +535,7 @@ namespace ZetaRay::Math
 
 		// M_{3,3} = 1.0
 		const __m128 vOne = _mm_set_ps1(1.0f);
-		vSRT.vRow[3] = _mm_blend_ps(vT, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
+		vSRT.vRow[3] = _mm_blend_ps(vT, vOne, V_BLEND_XYZW(0, 0, 0, 1));
 
 		return vSRT;
 	}
@@ -578,10 +578,10 @@ namespace ZetaRay::Math
 		v_float4x4 vMTxM = mul(vM3x3T, vM3x3);
 
 		// eigenvalues of diagonal matrices are the diagonal entries
-		__m128 vS = _mm_blend_ps(vZero, vMTxM.vRow[0], _MM_BLEND_XYZW(1, 0, 0, 0));
-		vS = _mm_blend_ps(vS, vMTxM.vRow[1], _MM_BLEND_XYZW(0, 1, 0, 0));
-		vS = _mm_blend_ps(vS, vMTxM.vRow[2], _MM_BLEND_XYZW(0, 0, 1, 0));
-		vS = _mm_blend_ps(vS, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));
+		__m128 vS = _mm_blend_ps(vZero, vMTxM.vRow[0], V_BLEND_XYZW(1, 0, 0, 0));
+		vS = _mm_blend_ps(vS, vMTxM.vRow[1], V_BLEND_XYZW(0, 1, 0, 0));
+		vS = _mm_blend_ps(vS, vMTxM.vRow[2], V_BLEND_XYZW(0, 0, 1, 0));
+		vS = _mm_blend_ps(vS, vOne, V_BLEND_XYZW(0, 0, 0, 1));
 
 		// singular values are the square roots of eigenvalues
 		vS = _mm_sqrt_ps(vS);
@@ -604,7 +604,7 @@ namespace ZetaRay::Math
 
 		__m128 vT = vM.vRow[3];
 		const __m128 vZero = _mm_setzero_ps();
-		vT = _mm_blend_ps(vT, vZero, _MM_BLEND_XYZW(0, 0, 0, 1));
+		vT = _mm_blend_ps(vT, vZero, V_BLEND_XYZW(0, 0, 0, 1));
 		t = store(vT);
 
 		v_float4x4 vM3x3 = vM;
@@ -617,9 +617,9 @@ namespace ZetaRay::Math
 		const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
 
 		// eigenvalues of diagonal matrices are the diagonal entries
-		__m128 vS = _mm_blend_ps(vMxMT.vRow[0], vMxMT.vRow[1], _MM_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
-		vS = _mm_blend_ps(vS, vMxMT.vRow[2], _MM_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
-		vS = _mm_blend_ps(vS, vOne, _MM_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
+		__m128 vS = _mm_blend_ps(vMxMT.vRow[0], vMxMT.vRow[1], V_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
+		vS = _mm_blend_ps(vS, vMxMT.vRow[2], V_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
+		vS = _mm_blend_ps(vS, vOne, V_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
 
 		// singular values are the square roots of eigenvalues
 		vS = _mm_sqrt_ps(vS);

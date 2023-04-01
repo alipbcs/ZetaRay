@@ -28,7 +28,7 @@ namespace ZetaRay::Core
 		};
 	}
 
-	// Resources in this heap must be created with D3D12_RESOURCE_STATE_GENERIC_READ and cannot be changed away from this.
+	// "Resources in this heap must be created with D3D12_RESOURCE_STATE_GENERIC_READ and cannot be changed away from this."
 	struct UploadHeapBuffer
 	{
 		friend class GpuMemory;
@@ -64,7 +64,7 @@ namespace ZetaRay::Core
 		Internal::PageHandle PageHandle;
 	};
 
-	// Resources in this heap must be created with D3D12_RESOURCE_STATE_COPY_DEST and cannot be changed away from this.
+	// "Resources in this heap must be created with D3D12_RESOURCE_STATE_COPY_DEST and cannot be changed away from this."
 	struct ReadbackHeapBuffer
 	{
 		ReadbackHeapBuffer() noexcept = default;

@@ -4,7 +4,7 @@
 #include <immintrin.h>	// AVX intrinsics
 
 #define V_SHUFFLE_XYZW(fp0, fp1, fp2, fp3) (((fp3) << 6) | ((fp2) << 4) | ((fp1) << 2) | ((fp0)))
-#define _MM_BLEND_XYZW(fp0, fp1, fp2, fp3) (((fp3) << 3) | ((fp2) << 2) | ((fp1) << 1) | ((fp0)))
+#define V_BLEND_XYZW(fp0, fp1, fp2, fp3) (((fp3) << 3) | ((fp2) << 2) | ((fp1) << 1) | ((fp0)))
 
 namespace ZetaRay::Math
 {

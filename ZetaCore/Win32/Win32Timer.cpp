@@ -70,7 +70,7 @@ void Timer::Tick() noexcept
 	m_delta = (double)m_elapsedCounts / m_counterFreqSec;
 	m_counterFreqSec += (int64_t)m_delta;
 
-	// there are "m_counterFreqSec" counts per second. by keeping tracks
+	// there are "m_counterFreqSec" counts per second. by keeping track
 	// of number of counts we can know when one second has passed. number
 	// of times Tick() was called during that one second is equal to FPS
 	if (m_numCountsInLastSecond >= m_counterFreqSec)

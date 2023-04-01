@@ -21,15 +21,15 @@ namespace ZetaRay::Core
 		ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
 		CommandList* GetCommandList() noexcept;
 
-		// Returns given command allocator back for future resuse, once the specified fence value
-		// has passed on this command queue
+		// Returns the command allocator for future resuse (once the specified fence value
+		// has passed on this command queue)
 		void ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAlloc, uint64_t fenceValueToWaitFor) noexcept;
 		
-		// Releases command list back to the pool of available ones (command list can be safely reused 
+		// Releases command list back to the pool of available ones (command lists can be safely reused 
 		// after submission, unlike command allocator)
 		void ReleaseCommandList(CommandList* context) noexcept;
 
-		// Waits (CPU-side) for the given fence to reach the specified value on this command queue (blocking)
+		// Waits (CPU side) for the given fence to reach the specified value on this command queue (blocking)
 		void WaitForFenceCPU(uint64_t fenceValue) noexcept;
 				
 		uint64_t ExecuteCommandList(CommandList* context) noexcept;

@@ -143,7 +143,7 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
 	Assert(name, "name was NULL");
 	rootSig->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(name), name);
 
-	// calculate the root parameter index for root constants (if any)
+	// calculate root parameter index for root constants (if any)
 	uint32_t u = (1 << m_numParams) - 1;		// set the first NumParams() bits to 1
 	u &= (m_rootCBVBitMap | m_rootSRVBitMap | m_rootUAVBitMap | m_globalsBitMap);
 

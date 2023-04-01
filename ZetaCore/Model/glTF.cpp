@@ -23,7 +23,6 @@ using namespace ZetaRay::App;
 // glTF
 //--------------------------------------------------------------------------------------
 
-
 namespace
 {
 	ZetaInline const char* GetErrorMsg(cgltf_result r) noexcept

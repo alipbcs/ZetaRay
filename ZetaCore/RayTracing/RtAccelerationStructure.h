@@ -79,7 +79,7 @@ namespace ZetaRay::RT
 
 		Core::DefaultHeapBuffer m_framesMeshInstances;
 
-		// CmdList->BuildAS() updates in-place which means shaders from previous frame
+		// CmdList->BuildAS() updates in-place which means shaders from the previous frame
 		// might still be referencing the TLAS when RebuildTLAS is submitted
 		Core::DefaultHeapBuffer m_tlasBuffer;
 		Core::DefaultHeapBuffer m_scratchBuff;

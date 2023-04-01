@@ -129,7 +129,6 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 			true);
 	}
 
-	// Ignoring InitialState ... Buffers are effectively created in state D3D12_RESOURCE_STATE_COMMON
 	m_scratchBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("StaticBLAS_scratch",
 		prebuild.ScratchDataSizeInBytes,
 		D3D12_RESOURCE_STATE_COMMON,
@@ -594,7 +593,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList) noexcept
 	if(!uavBarriers.empty())
 		cmdList.UAVBarrier((UINT)uavBarriers.size(), uavBarriers.begin());
 
-	// delay this reosurce transiton up until all the other build/update commands have been recorded
+	// delay the resource transiton up until all the other build/update commands have been recorded
 	if (scene.m_staleStaticInstances)
 	{
 		m_staticBLAS.CopyCompactionSize(cmdList);
@@ -628,12 +627,12 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		v_float4x4 vM(M);
 
 		// meshes in TLAS go through following transformations:
+		// 
 		// 1. Optional transform during BLAS build
 		// 2. Per-instance transform for each BLAS instance in TLAS
 		//
 		// When accessing triangle data in closest hit shaders, 2nd transform can be accessed
-		// using the ObjectToWorld3x4() intrinsic, but the 1st transform is lost. Here, only 
-		// normals need to be transformed, so just store the rotation.
+		// using the ObjectToWorld3x4() intrinsic, but the 1st transform is lost
 		float4a t;
 		float4a r;
 		float4a s;

@@ -212,7 +212,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 		}
 
 		// try to allocate from existing linked lists with a larger block size
-		// TODO alternatively chunks from smaller block sizes can be coalesced together
+		// TODO alternatively, chunks from smaller block sizes can be coalesced together
 		if (!success)
 		{
 			// TODO instead of returning a larger block directly, break it into chunks (with size
@@ -270,7 +270,7 @@ void DescriptorHeap::Recycle() noexcept
 	if (m_pending.empty())
 		return;
 
-	// TODO Is it necessary to signal compute queue?
+	// TODO Is it necessary to signal the compute queue?
 	if(m_isShaderVisisble)
 		App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal);
 

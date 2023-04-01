@@ -7,7 +7,8 @@ namespace ZetaRay::Core
 	class GraphicsCmdList;
 	class ComputeCmdList;
 
-	// All the scenarios (WIP)
+	// All the needed scenarios
+	// 
 	// 1. Upload heap buffer (read-only, GENERIC_READ)
 	//		a. constant buffer
 	//			I. local -> root CBV -> Set*RootConstantBufferView(GpuVA)
@@ -20,7 +21,7 @@ namespace ZetaRay::Core
 	//						(UAV is not needed)
 	// 
 	// 2. Default heap buffer
-	//		a. strcutured buffer
+	//		a. structured buffer
 	//			I. local -> root SRV -> Set*RootShaderResourceView(GpuVA)
 	//					|
 	//					 -> root UAV -> Set*RootUnorderedAccessView(GpuVA)
@@ -35,7 +36,6 @@ namespace ZetaRay::Core
 	//
 	// In conclusion, root signatures only need root CBV, root SRV, root UAV and root constants.
 	//
-	// 
 	// ASSUMPTION: globals only change once per-frame, which means they should not change
 	// in-between draw/dispatch calls. Begin() marks them as modified, but once they're set,
 	// they can't be modified again.
@@ -97,7 +97,7 @@ namespace ZetaRay::Core
 		// buffer IDs
 		uint64_t m_globals[MAX_NUM_PARAMS];
 
-		// bitmaps indicating the type of each root paramter
+		// bitmaps indicating the type of each root parameter
 		uint32_t m_rootCBVBitMap = 0;
 		uint32_t m_rootSRVBitMap = 0;
 		uint32_t m_rootUAVBitMap = 0;

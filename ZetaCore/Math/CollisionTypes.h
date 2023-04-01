@@ -110,7 +110,7 @@ namespace ZetaRay::Math
 	// View Frustum
 	//--------------------------------------------------------------------------------------
 
-	// A Frustum in view-space, centered at the origin (0, 0, 0), looking down the +z-axis
+	// In view space, centered at the origin (0, 0, 0), looking down the +z-axis
 	struct alignas(16) ViewFrustum
 	{
 		ViewFrustum() noexcept = default;
@@ -125,16 +125,16 @@ namespace ZetaRay::Math
 			float3 n;
 			float d;
 
-			// for all the planes, positive half-space overlaps inside of the frustum
+			// for all the planes, positive half space overlaps inside of the frustum
 
-			// near-plane
+			// near plane
 			{
 				n = float3(0.0f, 0.0f, 1.0f);
 				d = -nearZ;
 				Near = Plane(n, d);
 			}
 
-			// far-plane
+			// far plane
 			{
 				n = float3(0.0f, 0.0f, -1.0f);
 				d = farZ;
@@ -143,7 +143,7 @@ namespace ZetaRay::Math
 
 			float l2Norm = 1.0f / sqrtf(projWndDist * projWndDist + 1.0f);
 
-			// top-plane
+			// top plane
 			{
 				n = float3(0.0f, -projWndDist, 1.0f);
 				n.y *= l2Norm;
@@ -153,7 +153,7 @@ namespace ZetaRay::Math
 				Top = Plane(n, d);
 			}
 
-			// bottom-plane
+			// bottom plane
 			{
 				n = float3(0.0f, projWndDist, 1.0f);
 				n.y *= l2Norm;
@@ -165,7 +165,7 @@ namespace ZetaRay::Math
 
 			l2Norm = 1.0f / sqrtf(projWndDist * projWndDist + aspectRatio * aspectRatio);
 
-			// left-plane
+			// left plane
 			{
 				n = float3(projWndDist, 0.0f, aspectRatio);
 				n.x *= l2Norm;
@@ -175,7 +175,7 @@ namespace ZetaRay::Math
 				Left = Plane(n, d);
 			}
 
-			// right-plane
+			// right plane
 			{
 				n = float3(-projWndDist, 0.0f, aspectRatio);
 				n.x *= l2Norm;

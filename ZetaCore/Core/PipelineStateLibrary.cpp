@@ -95,7 +95,7 @@ void PipelineStateLibrary::DeletePsoLibFile() noexcept
 
 void PipelineStateLibrary::ResetPsoLib(bool forceReset) noexcept
 {
-	// avoid recreating PipelineStateLibrary object if it was reset since the start of program
+	// avoid recreating PipelineStateLibrary object if it's been reset since the start of program
 	if (forceReset || !m_psoWasReset)
 	{
 		auto* device = App::GetRenderer().GetDevice();

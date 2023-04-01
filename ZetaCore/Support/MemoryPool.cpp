@@ -169,7 +169,7 @@ void* MemoryPool::AllocateAligned(size_t size, size_t alignment) noexcept
 		return _aligned_malloc(size, alignment);
 
 	// Given alignment a, at most a - 1 additional bytes are needed, e.g. size = 1, a = 64, 
-	// then 63 more bytes has to be allocated assuming original memory was allocated at an 
+	// then 63 extra bytes has to be allocated assuming original memory was allocated at an 
 	// address that ended with 0x1.
 	// 
 	// Difference between the aligned address and the original address needs to be saved 
@@ -182,6 +182,8 @@ void* MemoryPool::AllocateAligned(size_t size, size_t alignment) noexcept
 	// 
 	// - In the worst case, only 1 byte can be used to store the difference, so alignments up to 
 	// 256 are supported (0 is interpreted as 256).
+	// 
+	// Ref: Jason Gregory, Game Engine Architecture, CRC Press, 2019.
 	const size_t maxNumBytes = size + alignment - 1;
 
 	// Which memory pool does it live in?
@@ -313,7 +315,7 @@ void MemoryPool::Grow(size_t poolIndex) noexcept
 
 	void* newBlock = AllocateNewBlock(chunkSize);
 
-	// copy over the pointers to previous memory blocks to this new array
+	// copy over the pointers to the previous memory blocks to this new array
 	if (m_numMemoryBlocks[poolIndex])
 	{
 		memcpy(newMemoryBlockArray, m_pools[poolIndex], sizeof(void*) * m_numMemoryBlocks[poolIndex]);

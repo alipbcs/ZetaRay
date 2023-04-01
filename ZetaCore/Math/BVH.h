@@ -40,13 +40,8 @@ namespace ZetaRay::Math
 		bool IsBuilt() noexcept { return m_nodes.size() != 0; }
 		void Clear() noexcept;
 
-		// Builds the BVH
 		void Build(Util::Span<BVHInput> instances) noexcept;
-
-		// Updates the BVH for the given instance
 		void Update(Util::Span<BVHUpdateInput> instances) noexcept;
-
-		// Removes given model from the BVH
 		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
 		
 		// Returns ID of instances that at least partially overlap the view frustum. Assumes 
@@ -62,10 +57,10 @@ namespace ZetaRay::Math
 			Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
 
 		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
-		// be in world-space
+		// be in world space
 		uint64_t CastRay(Math::Ray& r) noexcept;
 
-		// Returns the AABB that encompasses the World
+		// Returns the AABB that encompasses the scene
 		Math::AABB GetWorldAABB() noexcept 
 		{
 			Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
@@ -87,7 +82,7 @@ namespace ZetaRay::Math
 			bool IsLeaf() const { return RightChild == -1; }
 
 			// Union AABB of all the child nodes for internal nodes
-			// AABB is also used to distinguish between leaf & internal nodes
+			// also used to distinguish between leaf & internal nodes
 			Math::AABB AABB;
 
 			/*

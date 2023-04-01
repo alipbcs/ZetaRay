@@ -150,7 +150,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 		return currNodeIdx;
 	}
 
-	// axis along which paritioning should be performed
+	// axis along which partitioning should be performed
 	const float* extArr = reinterpret_cast<float*>(&centroidAABB.Extents);
 	int splitAxis = 0;
 	float maxExtent = extArr[0];
@@ -173,7 +173,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 		const float leftMostPlane = reinterpret_cast<float*>(&centroidAABB.Center)[splitAxis] - maxExtent;
 		const float rcpStepSize = NUM_SAH_BINS / (2.0f * maxExtent);
 
-		// assign each instace to one bin
+		// assign each instance to one bin
 		for (int i = base; i < base + count; i++)
 		{
 			const float* center = reinterpret_cast<float*>(&m_instances[i].AABB.Center);
@@ -218,7 +218,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 		float lowestCost = FLT_MAX;
 		const float parentSurfaceArea = computeAABBSurfaceArea(vNodeBox);
 
-		// cost of split along each each split plane
+		// cost of split along each split plane
 		for (int i = 0; i < NUM_SAH_BINS - 1; i++)
 		{
 			const float splitCost = leftCount[i] * leftSurfaceArea[i] / parentSurfaceArea +
@@ -264,7 +264,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 			{
 				float* box1 = reinterpret_cast<float*>(&b1.AABB);
 				float* box2 = reinterpret_cast<float*>(&b2.AABB);
-				return box1[splitAxis] < box2[splitAxis];	// compare AABB centers along the split-axis
+				return box1[splitAxis] < box2[splitAxis];	// compare AABB centers along the split axis
 			});
 
 		splitCount = countDiv2;
@@ -284,8 +284,8 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 {
 	nodeIdx = -1;
 
-	// use a manual stack as it'd be possible to return early when a match is found, whereas
-	// in a recursive call, travel back through the call-chain is required
+	// using a manual stack, we can return early when a match is found, whereas
+	// with a recursive call, travelling back through the call-chain is required
 	constexpr int STACK_SIZE = 64;
 	int stack[STACK_SIZE];
 	int currStackIdx = 0;
@@ -324,7 +324,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 
 		if(Math::intersectAABBvsAABB(vNodeBox, vBox) != COLLISION_TYPE::DISJOINT)
 		{
-			// decide which tree to descent on first
+			// decide which tree to descend on first
 			v_AABB vLeft(m_nodes[currNodeIdx + 1].AABB);
 			v_AABB vRight(m_nodes[node.RightChild].AABB);
 
@@ -339,7 +339,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 			float rightOverlapVolume = m_nodes[node.RightChild].IsLeaf() ? FLT_MAX : 
 				Right.Extents.x * Right.Extents.y * Right.Extents.z;
 
-			// Bigger overlap with the right subtree, descent throught that first
+			// bigger overlap with the right subtree, descend throught that first
 			if (leftOverlapVolume <= rightOverlapVolume)
 			{
 				stack[++currStackIdx] = currNodeIdx + 1;
@@ -396,7 +396,7 @@ void BVH::Update(Span<BVHUpdateInput> instances) noexcept
 			}
 		}
 
-		// Note: when the new AABB and old AABB are disjoint, it would've been better to
+		// Note: when the new AABB and the old AABB are disjoint, it'd be better to
 		// remove and then reinsert the update Node. That requires modifying the range of
 		// all the leaves, which is expensive
 	}
@@ -438,7 +438,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 	constexpr int STACK_SIZE = 64;
 	int stack[STACK_SIZE];
 	int currStackIdx = 0;
-	stack[currStackIdx] = 0;		// insert root
+	stack[currStackIdx] = 0;	// insert root
 	int currNode = -1;
 
 	while (currStackIdx >= 0)
@@ -469,22 +469,6 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 			}
 		}
 	}
-	
-	/*
-	for (size_t i = 0; i < m_instances.size(); i++)
-	{
-		vBox.Reset(m_instances[i].AABB);
-
-		if (m_instances[i].ID == 3326297391030289423)
-		{
-			auto res2 = instersectFrustumVsAABB(vFrustum, vBox);
-			printf("dfgdfg");
-		}
-
-		if (Math::instersectFrustumVsAABB(vFrustum, vBox) != COLLISION_TYPE::DISJOINT)
-			visibleModelIDs.push_back(m_instances[i].ID);
-	}
-	*/
 }
 
 void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
@@ -553,7 +537,7 @@ uint64_t BVH::CastRay(Math::Ray& r) noexcept
  	const __m128 vDirRcp = _mm_div_ps(_mm_set1_ps(1.0f), vRay.vDir);
 	const __m128 vDirIsPos = _mm_cmpge_ps(vRay.vDir, _mm_setzero_ps());
 
-	// can return early if root doesn't intersect the worl AABB
+	// can return early if root doesn't intersect the root AABB
 	if (!Math::intersectRayVsAABB(vRay, vDirRcp, vDirIsPos, vIsParallel, vBox, t))
 		return uint64_t(-1);
 

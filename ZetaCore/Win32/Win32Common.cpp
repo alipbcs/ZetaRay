@@ -31,7 +31,7 @@ uint8_t Common::CheckSIMDSupport(uint8_t query) noexcept
 {
     uint8_t ret = 0;
 
-    // All x64 processors support SSE2 support,
+    // All x64 processors support SSE2,
     // following code checks for SSE3, SSE4, AVX and AVX2 support.
 
     // EAX, EBX, ECX, EDX

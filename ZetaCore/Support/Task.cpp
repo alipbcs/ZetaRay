@@ -208,7 +208,7 @@ void TaskSet::ComputeInOutMask() noexcept
 
 void TaskSet::TopologicalSort() noexcept
 {
-	// at each itertation, points to remaining elements that have an indegree of 0
+	// at each itertation, points to remaining elements that have an indegree of zero
 	uint64_t currMask = m_rootMask;
 	size_t currIdx = 0;	
 	int sorted[MAX_NUM_TASKS];
@@ -242,7 +242,7 @@ void TaskSet::TopologicalSort() noexcept
 			tails &= ~(1llu << tailIdx);
 		}
 
-		// save the new position for current nodes
+		// save the new position for the current node
 		sorted[currIdx++] = zeroIndegreeIdx;
 
 		// remove current node

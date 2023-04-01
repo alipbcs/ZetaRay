@@ -9,7 +9,7 @@ namespace ZetaRay::Math
 	void ComputeMeshTangentVectors(Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices,
 		bool rhsIndices = false) noexcept;
 
-	// Returns barrycentric-coordinates (u, v, w) of point p relative to triangle v0v1v2 (ordered clockwise)
+	// Returns barrycentric coordinates (u, v, w) of point p relative to triangle v0v1v2 (ordered clockwise)
 	// such that p = V0 + v(V1 - V0) + w(V2 - V0) or alternatively,
 	//           p = uV0 + vV1 + wV2
 	ZetaInline __m128 __vectorcall computeBarryCoords(const __m128 v0, const __m128 v1, const __m128 v2, const __m128 p) noexcept

@@ -18,11 +18,8 @@ namespace ZetaRay::Core
 
 		void Init(const char* name) noexcept;
 		
-		// Warning: Shouldn't be called while the GPU is still referencing the contained PSOs
+		// Warning: shouldn't be called while the GPU is still referencing the contained PSOs
 		void ClearAndFlushToDisk() noexcept;
-
-		// Warning: Calling Reload for RenderPasses that have more than one instance will lead
-		// to use-after-free bug
 		void Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO) noexcept;
 
 		ID3D12PipelineState* GetGraphicsPSO(uint64_t nameID,
@@ -46,7 +43,7 @@ namespace ZetaRay::Core
 			ID3D12PipelineState* PSO;
 		};
 
-		// Following functions need to be synhronized across threads. This is assumed
+		// following functions need to be synhronized across threads. This is assumed
 		// to be done by the caller
 		ID3D12PipelineState* Find(uint64_t key) noexcept;
 		void InsertPSOAndKeepSorted(Entry e) noexcept;
