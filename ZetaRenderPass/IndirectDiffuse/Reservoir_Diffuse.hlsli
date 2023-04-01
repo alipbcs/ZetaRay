@@ -9,7 +9,8 @@
 #define INVALID_RAY_T -1
 #define INCLUDE_COSINE_TERM_IN_TARGET 0
 #define MAX_TEMPORAL_M 10
-#define MAX_SPATIAL_M 100
+#define MAX_SPATIAL_M 50
+#define MAX_METALNESS 0.1f
 
 struct DiffuseSample
 {

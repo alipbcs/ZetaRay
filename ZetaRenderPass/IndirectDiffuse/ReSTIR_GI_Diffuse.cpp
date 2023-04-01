@@ -21,7 +21,7 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 {
 	// root constants
 	m_rootSig.InitAsConstants(0,		// root idx
-		NUM_CONSTS,						// num-DWORDs
+		NUM_CONSTS,						// num DWORDs
 		1,								// register
 		0);								// register space
 
@@ -128,19 +128,26 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
 
-	memset(&m_cbTemporal, 0, sizeof(m_cbTemporal));
-	memset(&m_cbSpatial, 0, sizeof(m_cbSpatial));
-	m_cbTemporal.DoTemporalResampling = true;
-	m_cbTemporal.PdfCorrection = m_cbSpatial.PdfCorrection = true;
-	m_cbSpatial.NormalExp = DefaultParamVals::NormalExp;
-	m_cbTemporal.FrameCounter = 0;
-	m_cbTemporal.CheckerboardTracing = true;
+	memset(&m_cbRGITemporal, 0, sizeof(m_cbRGITemporal));
+	memset(&m_cbRGISpatial, 0, sizeof(m_cbRGISpatial));
+	memset(&m_cbDNSRTemporal, 0, sizeof(m_cbDNSRTemporal));
+	memset(&m_cbDNSRSpatial, 0, sizeof(m_cbDNSRSpatial));
+
+	m_cbRGITemporal.DoTemporalResampling = true;
+	m_cbRGITemporal.PdfCorrection = m_cbRGISpatial.PdfCorrection = true;
+	m_cbRGITemporal.FrameCounter = 0;
+	m_cbRGITemporal.CheckerboardTracing = true;
+	m_cbRGISpatial.NormalExp = DefaultParamVals::RGINormalExp;
+	m_cbRGISpatial.DoSpatialResampling = true;
+	m_cbDNSRTemporal.IsTemporalCacheValid = false;
+	m_cbDNSRTemporal.MaxTspp = m_cbDNSRSpatial.MaxTspp = DefaultParamVals::DNSRMaxTSPP;
+	m_cbDNSRSpatial.NormalExp = DefaultParamVals::EdgeStoppingNormalExp;
 
 	ParamVariant normalExp;
 	normalExp.InitFloat("Renderer", "ReSTIR_GI_Diffuse", "NormalExp",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::NormalExpCallback),
-		DefaultParamVals::NormalExp,		// val	
-		1.0f,								// min
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::RGINormalExpCallback),
+		m_cbRGISpatial.NormalExp,			// val	
+		1e-1f,								// min
 		8.0f,								// max
 		1.0f);								// step
 	App::AddParam(normalExp);
@@ -161,22 +168,49 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 
 	ParamVariant doSpatial;
 	doSpatial.InitBool("Renderer", "ReSTIR_GI_Diffuse", "SpatialResampling",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoSpatialResamplingCallback), m_doSpatialResampling);
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoSpatialResamplingCallback), m_cbRGISpatial.DoSpatialResampling);
 	App::AddParam(doSpatial);
 
 	ParamVariant pdfCorrection;
 	pdfCorrection.InitBool("Renderer", "ReSTIR_GI_Diffuse", "PdfCorrection",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::PdfCorrectionCallback), m_cbRGITemporal.PdfCorrection);
 	App::AddParam(pdfCorrection);
 
 	ParamVariant checkerboard;
 	checkerboard.InitBool("Renderer", "ReSTIR_GI_Diffuse", "CheckerboardTracing",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::CheckerboardTracingCallback), m_cbTemporal.CheckerboardTracing);
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::CheckerboardTracingCallback), m_cbRGITemporal.CheckerboardTracing);
 	App::AddParam(checkerboard);
 
-	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadTemporalPass));
-	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadSpatialPass));
-	//App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadValidationPass));
+	ParamVariant maxTSPP;
+	maxTSPP.InitInt("Renderer", "DiffuseDNSR", "MaxTSPP", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback),
+		DefaultParamVals::DNSRMaxTSPP,	// val
+		1,								// min
+		32,								// max
+		1);								// step
+	App::AddParam(maxTSPP);
+
+	ParamVariant dnsrNormalExp;
+	dnsrNormalExp.InitFloat("Renderer", "DiffuseDNSR", "NormalExp", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRNormalExpCallback),
+		m_cbDNSRSpatial.NormalExp,		// val
+		1.0f,							// min
+		64.0f,							// max
+		1.0f);							// step
+	App::AddParam(dnsrNormalExp);
+
+	ParamVariant numSpatialFilterPasses;
+	numSpatialFilterPasses.InitInt("Renderer", "DiffuseDNSR", "#SpatialFilterPasses",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRNumSpatialPassesCallback),
+		DefaultParamVals::DNSRNumSpatialPasses,		// val	
+		0,											// min
+		3,											// max
+		1);											// step
+	App::AddParam(numSpatialFilterPasses);
+
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadRGITemporalPass));
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadRGISpatialPass));
+	App::AddShaderReloadHandler("ReSTIR_GI_Diffuse_Validation", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadValidationPass));
+	App::AddShaderReloadHandler("DiffuseDNSR_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass));
+	App::AddShaderReloadHandler("DiffuseDNSR_SpatialFilter", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass));
 
 	m_isTemporalReservoirValid = false;
 }
@@ -198,6 +232,7 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 			m_spatialReservoirs[i].ReservoirA.Reset();
 			m_spatialReservoirs[i].ReservoirB.Reset();
 			m_spatialReservoirs[i].ReservoirC.Reset();
+			m_temporalCache[i].Reset();
 		}
 
 		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
@@ -210,6 +245,8 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 void ReSTIR_GI_Diffuse::OnWindowResized() noexcept
 {
 	CreateOutputs();
+	m_cbDNSRTemporal.IsTemporalCacheValid = false;
+	m_cbRGITemporal.IsTemporalReservoirValid = false;
 }
 
 void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
@@ -246,12 +283,12 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-		m_cbTemporal.DispatchDimX = (uint16_t)dispatchDimX;
-		m_cbTemporal.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbTemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
-		m_cbTemporal.NumGroupsInTile = RGI_DIFF_TEMPORAL_TILE_WIDTH * m_cbTemporal.DispatchDimY;
-		m_cbTemporal.SampleIndex = (uint16_t)m_sampleIdx;
-		m_cbTemporal.FrameCounter = m_internalCounter;
+		m_cbRGITemporal.DispatchDimX = (uint16_t)dispatchDimX;
+		m_cbRGITemporal.DispatchDimY = (uint16_t)dispatchDimY;
+		m_cbRGITemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
+		m_cbRGITemporal.NumGroupsInTile = RGI_DIFF_TEMPORAL_TILE_WIDTH * m_cbRGITemporal.DispatchDimY;
+		m_cbRGITemporal.SampleIndex = (uint16_t)m_sampleIdx;
+		m_cbRGITemporal.FrameCounter = m_internalCounter;
 
 		auto srvAIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV;
 		auto srvBIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV;
@@ -260,14 +297,14 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		auto uavBIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_B_UAV : DESC_TABLE::TEMPORAL_RESERVOIR_0_B_UAV;
 		auto uavCIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_C_UAV : DESC_TABLE::TEMPORAL_RESERVOIR_0_C_UAV;
 
-		m_cbTemporal.PrevTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-		m_cbTemporal.PrevTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-		m_cbTemporal.PrevTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
-		m_cbTemporal.CurrTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-		m_cbTemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
-		m_cbTemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+		m_cbRGITemporal.PrevTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+		m_cbRGITemporal.PrevTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
+		m_cbRGITemporal.PrevTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
+		m_cbRGITemporal.CurrTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+		m_cbRGITemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+		m_cbRGITemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 
-		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Temporal) / sizeof(DWORD), &m_cbTemporal);
+		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Temporal) / sizeof(DWORD), &m_cbRGITemporal);
 		m_rootSig.End(computeCmdList);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -279,16 +316,15 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 	}
 
 	// spatial resampling
-	if (m_doSpatialResampling)
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_SPATIAL_GROUP_DIM_X);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_PASS]);
 
-		m_cbSpatial.DispatchDimX = (uint16_t)dispatchDimX;
-		m_cbSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbSpatial.NumGroupsInTile = RGI_DIFF_SPATIAL_TILE_WIDTH * m_cbSpatial.DispatchDimY;
+		m_cbRGISpatial.DispatchDimX = (uint16_t)dispatchDimX;
+		m_cbRGISpatial.DispatchDimY = (uint16_t)dispatchDimY;
+		m_cbRGISpatial.NumGroupsInTile = RGI_DIFF_SPATIAL_TILE_WIDTH * m_cbRGISpatial.DispatchDimY;
 
 		{
 			// record the timestamp prior to execution
@@ -297,30 +333,30 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Spatial_1");
 
 			// transition temporal reservoir into read state
-			D3D12_RESOURCE_BARRIER barrier0 = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+			D3D12_RESOURCE_BARRIER barriers[6];
+			int curr = 0;
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			D3D12_RESOURCE_BARRIER barrier1 = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			D3D12_RESOURCE_BARRIER barrier2 = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			// transition spatial reservoir 0 into write state
-			D3D12_RESOURCE_BARRIER barrier3 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.GetResource(),
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.GetResource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			D3D12_RESOURCE_BARRIER barrier4 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.GetResource(),
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.GetResource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			D3D12_RESOURCE_BARRIER barrier5 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.GetResource(),
+			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.GetResource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-			D3D12_RESOURCE_BARRIER inBarriers[] = { barrier0, barrier1, barrier2, barrier3, barrier4, barrier5 };
-			computeCmdList.ResourceBarrier(inBarriers, ZetaArrayLen(inBarriers));
-
-			m_cbSpatial.IsFirstPass = true;
+			Assert(curr == ZetaArrayLen(barriers), "bug");
+			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 			auto srvAIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV;
 			auto srvBIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV;
@@ -329,14 +365,15 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			auto uavBIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_B_UAV;
 			auto uavCIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_C_UAV;
 
-			m_cbSpatial.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-			m_cbSpatial.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-			m_cbSpatial.InputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
-			m_cbSpatial.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-			m_cbSpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
-			m_cbSpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+			m_cbRGISpatial.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+			m_cbRGISpatial.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
+			m_cbRGISpatial.InputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
+			m_cbRGISpatial.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+			m_cbRGISpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+			m_cbRGISpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+			m_cbRGISpatial.IsFirstPass = true;
 
-			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbSpatial);
+			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbRGISpatial);
 			m_rootSig.End(computeCmdList);
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -367,8 +404,6 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			D3D12_RESOURCE_BARRIER inBarriers[] = { barrier0, barrier1, barrier2 };
 			computeCmdList.ResourceBarrier(inBarriers, ZetaArrayLen(inBarriers));
 
-			m_cbSpatial.IsFirstPass = false;
-
 			auto srvAIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_A_SRV;
 			auto srvBIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_B_SRV;
 			auto srvCIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_C_SRV;
@@ -376,14 +411,15 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			auto uavBIdx = DESC_TABLE::SPATIAL_RESERVOIR_1_B_UAV;
 			auto uavCIdx = DESC_TABLE::SPATIAL_RESERVOIR_1_C_UAV;
 
-			m_cbSpatial.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-			m_cbSpatial.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-			m_cbSpatial.InputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
-			m_cbSpatial.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-			m_cbSpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
-			m_cbSpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+			m_cbRGISpatial.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+			m_cbRGISpatial.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
+			m_cbRGISpatial.InputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
+			m_cbRGISpatial.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+			m_cbRGISpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+			m_cbRGISpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+			m_cbRGISpatial.IsFirstPass = false;
 
-			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbSpatial);
+			m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Spatial) / sizeof(DWORD), &m_cbRGISpatial);
 			m_rootSig.End(computeCmdList);
 
 			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -395,33 +431,146 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		}
 	}
 
+	const int initialDNSRTemporalIdx = m_currDNSRTemporalIdx;
+
+	// denoiser temporal pass
+	{
+		computeCmdList.PIXBeginEvent("DiffuseDNSR_Temporal");
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DiffuseDNSR_Temporal");
+
+		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::DIFFUSE_DNSR_TEMPORAL]);
+
+		const int temporalCacheSRV = m_currDNSRTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
+		const int temporalCacheUAV = m_currDNSRTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
+
+		m_cbDNSRTemporal.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_1_A_SRV);
+		m_cbDNSRTemporal.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_1_B_SRV);
+		m_cbDNSRTemporal.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
+		m_cbDNSRTemporal.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
+		m_cbDNSRTemporal.IsTemporalCacheValid = m_isTemporalReservoirValid;
+
+		m_rootSig.SetRootConstants(0, sizeof(cbDiffuseDNSRTemporal) / sizeof(DWORD), &m_cbDNSRTemporal);
+		m_rootSig.End(computeCmdList);
+
+		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X),
+			(uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y),
+			1);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+		computeCmdList.PIXEndEvent();
+	}
+
+	// denoiser spatial filter
+	{
+		computeCmdList.PIXBeginEvent("DiffuseDNSR_SpatialFilter");
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DiffuseDNSR_SpatialFilter");
+
+		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DIFFUSE_DNSR_SPATIAL]);
+
+		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X);
+		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y);
+
+		m_cbDNSRSpatial.DispatchDimX = (uint16_t)dispatchDimX;
+		m_cbDNSRSpatial.DispatchDimY = (uint16_t)dispatchDimY;
+		m_cbDNSRSpatial.NumGroupsInTile = DiffuseDNSR_SPATIAL_TILE_WIDTH * m_cbDNSRSpatial.DispatchDimY;
+		m_cbDNSRSpatial.NumPasses = (uint16_t)m_numDNSRSpatialFilterPasses;
+
+		for (int i = 0; i < m_numDNSRSpatialFilterPasses; i++)
+		{
+			D3D12_RESOURCE_BARRIER barriers[2];
+			barriers[0] = Direct3DHelper::TransitionBarrier(m_temporalCache[1 - m_currDNSRTemporalIdx].GetResource(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			barriers[1] = Direct3DHelper::TransitionBarrier(m_temporalCache[m_currDNSRTemporalIdx].GetResource(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+			
+			// swap temporal caches
+			m_currDNSRTemporalIdx = 1 - m_currDNSRTemporalIdx;
+
+			uint32_t prevTemporalCacheSRV = m_currDNSRTemporalIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
+				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
+			uint32_t nextTemporalCacheUAV = m_currDNSRTemporalIdx == 1 ? (uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
+				(uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
+
+			m_cbDNSRSpatial.TemporalCacheInDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(prevTemporalCacheSRV);
+			m_cbDNSRSpatial.TemporalCacheOutDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(nextTemporalCacheUAV);
+			//m_cbSpatialFilter.Step = 1 << (m_numSpatialFilterPasses - 1 - i);
+			//m_cbSpatialFilter.FilterRadiusScale = (float)(1 << (m_numSpatialFilterPasses - 1 - i));
+			m_cbDNSRSpatial.FilterRadiusScale = (float)(1 << i);
+			m_cbDNSRSpatial.CurrPass = (uint16_t)i;
+
+			m_rootSig.SetRootConstants(0, sizeof(m_cbDNSRSpatial) / sizeof(DWORD), &m_cbDNSRSpatial);
+			m_rootSig.End(computeCmdList);
+
+			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+		}
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+		computeCmdList.PIXEndEvent();
+	}
+
+	// restore the initial state
+
 	// [hack] render graph is unaware of renderpass-internal transitions. Restore the initial state to avoid
 	// render graph and actual state getting out of sync
-	D3D12_RESOURCE_BARRIER barrierA = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	{
+		D3D12_RESOURCE_BARRIER restoreBarriers[3 + 2];
+		int curr = 0;
 
-	D3D12_RESOURCE_BARRIER barrierB = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		// temporal reservoirs
+		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	D3D12_RESOURCE_BARRIER barrierC = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
-		D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	D3D12_RESOURCE_BARRIER outBarriers[] = { barrierA, barrierB, barrierC };
-	computeCmdList.ResourceBarrier(outBarriers, ZetaArrayLen(outBarriers));
+		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		// dnsr temporal cache
+		if (initialDNSRTemporalIdx != m_currDNSRTemporalIdx)
+		{
+			restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalCache[initialDNSRTemporalIdx].GetResource(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+			restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalCache[1 - initialDNSRTemporalIdx].GetResource(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
+
+		computeCmdList.ResourceBarrier(restoreBarriers, curr);
+	}
+
+	// when there's no spatial filtering
+	m_currDNSRTemporalIdx = m_numDNSRSpatialFilterPasses == 0 ? 1 - m_currDNSRTemporalIdx : m_currDNSRTemporalIdx;
 
 	if (!m_isTemporalReservoirValid)
-		m_isTemporalReservoirValid = !m_cbTemporal.CheckerboardTracing ? true : m_sampleIdx >= 2;
+		m_isTemporalReservoirValid = !m_cbRGITemporal.CheckerboardTracing ? true : m_sampleIdx >= 2;
 
 	m_currTemporalReservoirIdx = 1 - m_currTemporalReservoirIdx;
 	m_validationFrame = m_validationFrame < m_validationPeriod ? m_validationFrame + 1 : 0;
 	m_internalCounter = isTraceFrame ? m_internalCounter + 1 : m_internalCounter;
 
 	// 1. don't advance the sample index if this frame was validation
-	// 2. if checkerboarding, advance the sample index every other tracing frame
-	if(isTraceFrame && (!m_cbTemporal.CheckerboardTracing || (m_internalCounter & 0x1)))
+	// 2. when checkerboarding, advance the sample index every other tracing frame
+	if(isTraceFrame && (!m_cbRGITemporal.CheckerboardTracing || (m_internalCounter & 0x1)))
 		m_sampleIdx = (m_sampleIdx + 1) & 31;
 }
 
@@ -470,23 +619,29 @@ void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
 			DESC_TABLE::SPATIAL_RESERVOIR_1_B_SRV, DESC_TABLE::SPATIAL_RESERVOIR_1_B_UAV);
 		func(m_spatialReservoirs[1].ReservoirC, ResourceFormats::RESERVOIR_C, "SpatialReservoir_1_C",
 			DESC_TABLE::SPATIAL_RESERVOIR_1_C_SRV, DESC_TABLE::SPATIAL_RESERVOIR_1_C_UAV);
+
+		// denoiser temporal cache
+		func(m_temporalCache[0], ResourceFormats::DNSR_TEMPORAL_CACHE, "DiffuseDNSR_TEMPORAL_CACHE_A",
+			DESC_TABLE::TEMPORAL_CACHE_A_SRV, DESC_TABLE::TEMPORAL_CACHE_A_UAV);
+		func(m_temporalCache[1], ResourceFormats::DNSR_TEMPORAL_CACHE, "DiffuseDNSR_TEMPORAL_CACHE_B",
+			DESC_TABLE::TEMPORAL_CACHE_B_SRV, DESC_TABLE::TEMPORAL_CACHE_B_UAV);
 	}
 }
 
 void ReSTIR_GI_Diffuse::DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbTemporal.DoTemporalResampling = p.GetBool();
+	m_cbRGITemporal.DoTemporalResampling = p.GetBool();
 }
 
 void ReSTIR_GI_Diffuse::DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept
 {
-	m_doSpatialResampling = p.GetBool();
+	m_cbRGISpatial.DoSpatialResampling = p.GetBool();
 }
 
 void ReSTIR_GI_Diffuse::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbTemporal.PdfCorrection = p.GetBool();
-	m_cbSpatial.PdfCorrection = p.GetBool();
+	m_cbRGITemporal.PdfCorrection = p.GetBool();
+	m_cbRGISpatial.PdfCorrection = p.GetBool();
 }
 
 void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p) noexcept
@@ -494,17 +649,33 @@ void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p)
 	m_validationPeriod = p.GetInt().m_val;
 }
 
-void ReSTIR_GI_Diffuse::NormalExpCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::RGINormalExpCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbSpatial.NormalExp = p.GetFloat().m_val;
+	m_cbRGISpatial.NormalExp = p.GetFloat().m_val;
 }
 
 void ReSTIR_GI_Diffuse::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbTemporal.CheckerboardTracing = p.GetBool();
+	m_cbRGITemporal.CheckerboardTracing = p.GetBool();
 }
 
-void ReSTIR_GI_Diffuse::ReloadTemporalPass() noexcept
+void ReSTIR_GI_Diffuse::DNSRNumSpatialPassesCallback(const ParamVariant& p) noexcept
+{
+	m_numDNSRSpatialFilterPasses = p.GetInt().m_val;
+}
+
+void ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbDNSRTemporal.MaxTspp = (uint16_t)p.GetInt().m_val;
+	m_cbDNSRSpatial.MaxTspp = (uint16_t)p.GetInt().m_val;
+}
+
+void ReSTIR_GI_Diffuse::DNSRNormalExpCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbDNSRSpatial.NormalExp = p.GetFloat().m_val;
+}
+
+void ReSTIR_GI_Diffuse::ReloadRGITemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
@@ -512,7 +683,7 @@ void ReSTIR_GI_Diffuse::ReloadTemporalPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI_Diffuse::ReloadSpatialPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadRGISpatialPass() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_PASS;
 
@@ -528,3 +699,18 @@ void ReSTIR_GI_Diffuse::ReloadValidationPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
+void ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass() noexcept
+{
+	const int i = (int)SHADERS::DIFFUSE_DNSR_TEMPORAL;
+
+	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\DiffuseDNSR_Temporal.hlsl", true);
+	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+}
+
+void ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass() noexcept
+{
+	const int i = (int)SHADERS::DIFFUSE_DNSR_SPATIAL;
+
+	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\DiffuseDNSR_SpatialFilter.hlsl", true);
+	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+}

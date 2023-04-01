@@ -25,6 +25,7 @@ namespace ZetaRay::RenderPass
 			PREV_TEMPORAL_RESERVOIR_A,
 			PREV_TEMPORAL_RESERVOIR_B,
 			PREV_TEMPORAL_RESERVOIR_C,
+			PREV_DNSR_TEMPORAL_CACHE,
 			COUNT
 		};
 
@@ -36,6 +37,8 @@ namespace ZetaRay::RenderPass
 			SPATIAL_RESERVOIR_A,
 			SPATIAL_RESERVOIR_B,
 			SPATIAL_RESERVOIR_C,
+			DNSR_TEMPORAL_CACHE_PRE_SPATIAL,
+			DNSR_TEMPORAL_CACHE_POST_SPATIAL,
 			COUNT
 		};
 
@@ -57,6 +60,8 @@ namespace ZetaRay::RenderPass
 				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirB;
 			case SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C:
 				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirC;
+			case SHADER_IN_RES::PREV_DNSR_TEMPORAL_CACHE:
+				return m_temporalCache[1 - m_currDNSRTemporalIdx];
 			}
 
 			Assert(false, "Unreachable case.");
@@ -79,6 +84,14 @@ namespace ZetaRay::RenderPass
 				return m_spatialReservoirs[1].ReservoirB;
 			case SHADER_OUT_RES::SPATIAL_RESERVOIR_C:
 				return m_spatialReservoirs[1].ReservoirC;
+			case SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_PRE_SPATIAL:
+				return m_temporalCache[m_currDNSRTemporalIdx];
+			case SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL:
+				// ping ponging even number of times
+				if((m_numDNSRSpatialFilterPasses & 0x1) == 0)
+					return m_temporalCache[m_currDNSRTemporalIdx];
+				
+				return m_temporalCache[1 - m_currDNSRTemporalIdx];
 			}
 
 			Assert(false, "Unreachable case.");
@@ -112,14 +125,17 @@ namespace ZetaRay::RenderPass
 
 		Reservoir m_temporalReservoirs[2];
 		Reservoir m_spatialReservoirs[2];
+		Core::Texture m_temporalCache[2];
 		int m_currTemporalReservoirIdx = 0;
 		bool m_isTemporalReservoirValid = false;
+		int m_currDNSRTemporalIdx = 0;
 
 		struct ResourceFormats
 		{
 			static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_FLOAT;
 			static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
 			static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R16G16_FLOAT;
+			static constexpr DXGI_FORMAT DNSR_TEMPORAL_CACHE = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		};
 
 		enum class DESC_TABLE
@@ -152,6 +168,11 @@ namespace ZetaRay::RenderPass
 			SPATIAL_RESERVOIR_1_B_UAV,
 			SPATIAL_RESERVOIR_1_C_UAV,
 			//
+			TEMPORAL_CACHE_A_SRV,
+			TEMPORAL_CACHE_A_UAV,
+			TEMPORAL_CACHE_B_SRV,
+			TEMPORAL_CACHE_B_UAV,
+			//
 			COUNT
 		};
 
@@ -159,31 +180,40 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr float NormalExp = 2.0f;
-			static constexpr int ValidationPeriod = 0;
+			static constexpr float RGINormalExp = 1.5f;
+			static constexpr float EdgeStoppingNormalExp = 2.0f;
+			static constexpr int ValidationPeriod = 5;
+			static constexpr int DNSRNumSpatialPasses = 1;
+			static constexpr int DNSRMaxTSPP = 32;
 		};
 
-		cb_RGI_Diff_Temporal m_cbTemporal;
-		cb_RGI_Diff_Spatial m_cbSpatial;
-		bool m_doSpatialResampling = true;
+		cb_RGI_Diff_Temporal m_cbRGITemporal;
+		cb_RGI_Diff_Spatial m_cbRGISpatial;
+		cbDiffuseDNSRTemporal m_cbDNSRTemporal;
+		cbDiffuseDNSRSpatial m_cbDNSRSpatial;
 		int m_validationPeriod = 0;
 		int m_validationFrame = 1;
 		int m_sampleIdx = 0;
 		uint32_t m_internalCounter = 0;
+		int m_numDNSRSpatialFilterPasses = DefaultParamVals::DNSRNumSpatialPasses;
 
 		void DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept;
 		void DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept;
 		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
-		void MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
 		void ValidationPeriodCallback(const Support::ParamVariant& p) noexcept;
-		void NormalExpCallback(const Support::ParamVariant& p) noexcept;
+		void RGINormalExpCallback(const Support::ParamVariant& p) noexcept;
 		void CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRNumSpatialPassesCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRNormalExpCallback(const Support::ParamVariant& p) noexcept;
 
 		enum class SHADERS
 		{
 			TEMPORAL_PASS,
 			SPATIAL_PASS,
 			VALIDATION,
+			DIFFUSE_DNSR_TEMPORAL,
+			DIFFUSE_DNSR_SPATIAL,
 			COUNT
 		};
 
@@ -191,12 +221,15 @@ namespace ZetaRay::RenderPass
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
 			"ReSTIR_GI_Diffuse_Temporal_cs.cso", 
 			"ReSTIR_GI_Diffuse_Spatial_cs.cso", 
-			"ReSTIR_GI_Diffuse_Validation_cs.cso" 
-		};
+			"ReSTIR_GI_Diffuse_Validation_cs.cso",
+			"DiffuseDNSR_Temporal_cs.cso",
+			"DiffuseDNSR_SpatialFilter_cs.cso" };
 
 		// shader reload
-		void ReloadTemporalPass() noexcept;
-		void ReloadSpatialPass() noexcept;
+		void ReloadRGITemporalPass() noexcept;
+		void ReloadRGISpatialPass() noexcept;
 		void ReloadValidationPass() noexcept;
+		void ReloadDNSRTemporalPass() noexcept;
+		void ReloadDNSRSpatialPass() noexcept;
 	};
 }

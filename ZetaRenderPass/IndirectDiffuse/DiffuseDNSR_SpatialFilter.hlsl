@@ -1,4 +1,4 @@
-#include "DiffuseDNSR_Common.h"
+#include "Reservoir_Diffuse.hlsli"
 #include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
@@ -53,11 +53,8 @@ static const float k_gaussian[] =
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbDiffuseDNSRSpatial> g_local : register(b0);
-ConstantBuffer<cbFrameConstants> g_frame : register(b1);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t0, space0);
-StructuredBuffer<uint> g_scramblingTile : register(t1, space0);
-StructuredBuffer<uint> g_rankingTile : register(t2, space0);
+ConstantBuffer<cbFrameConstants> g_frame : register(b0);
+ConstantBuffer<cbDiffuseDNSRSpatial> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Edge-stopping functions and other helpers
@@ -275,6 +272,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	// skip sky pixels
 	if (depth == 0.0)
+		return;
+
+	// skip metallic surfaces
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	float metalness = g_metalnessRoughness[DTid.xy].x;
+	if (metalness > MAX_METALNESS)
 		return;
 
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];

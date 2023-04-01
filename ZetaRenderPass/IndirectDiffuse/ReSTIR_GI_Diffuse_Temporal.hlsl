@@ -503,7 +503,7 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 	return weights;
 }
 
-void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 	inout DiffuseReservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -575,7 +575,6 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 		
 		DiffuseReservoir prevReservoir = RGI_Diff_Util::ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx,
 			g_local.PrevTemporalReservoir_B_DescHeapIdx, g_local.PrevTemporalReservoir_C_DescHeapIdx);
-
 		
 		// TODO following seems the logical thing to do, but for some it causes a strange 
 		// bug where surface illumination slowly pulsates between light and dark over time
@@ -607,7 +606,7 @@ void SampleTemporalReservoirAndResample(uint2 DTid, float3 posW, float3 normal, 
 	}
 }
 
-DiffuseReservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf, 
+DiffuseReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf,
 	DiffuseSample s, bool isSampleValid, inout RNG rng)
 {
 	DiffuseReservoir r = DiffuseReservoir::Init();
@@ -626,7 +625,7 @@ DiffuseReservoir DoTemporalResampling(uint2 DTid, float3 posW, float3 normal, fl
 	}
 	
 	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
-		SampleTemporalReservoirAndResample(DTid, posW, normal, linearDepth, r, rng);
+		TemporalResample(DTid, posW, normal, linearDepth, r, rng);
 	
 	return r;
 }
@@ -685,10 +684,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float m = g_metalnessRoughness[swizzledDTid].r;
 	
-	// skip metals
+	// skip metallic surfaces
 	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 	// add a small threshold
-	isPixelValid &= (m <= 0.1f);
+	isPixelValid &= (m <= MAX_METALNESS);
 
 	// sample the cosine-weighted hemisphere above pos
 	float3 wi = INVALID_RAY_DIR;
@@ -743,10 +742,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// resampling
 	if (isPixelValid)
 	{
+		DiffuseReservoir r = DiffuseReservoir::Init();
+
 		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
 						
 		//const float cosTheta = saturate(pdf * PI);
-		DiffuseReservoir r = DoTemporalResampling(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
+		r = UpdateAndResample(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
 		
 		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
 		// Need further investigation to figure out the cause. Following seems to mitigate
@@ -762,12 +763,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 			r = DiffuseReservoir::Init();
 		
 		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
-			g_local.CurrTemporalReservoir_C_DescHeapIdx);
-	}
-	else if (isWithinScreenBounds)
-	{
-		DiffuseReservoir r = DiffuseReservoir::Init();
-		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
-			g_local.CurrTemporalReservoir_C_DescHeapIdx);
+		g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 }

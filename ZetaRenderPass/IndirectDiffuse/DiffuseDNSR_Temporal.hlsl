@@ -1,9 +1,8 @@
-#include "DiffuseDNSR_Common.h"
+#include "Reservoir_Diffuse.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 
@@ -11,17 +10,14 @@
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbDiffuseDNSRTemporal> g_local : register(b0);
-ConstantBuffer<cbFrameConstants> g_frame : register(b1);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t0, space0);
-StructuredBuffer<uint> g_scramblingTile : register(t1, space0);
-StructuredBuffer<uint> g_rankingTile : register(t2, space0);
+ConstantBuffer<cbFrameConstants> g_frame : register(b0);
+ConstantBuffer<cbDiffuseDNSRTemporal> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
+float4 GeometricTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
 {
 	float3 prevPos[4];
 	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
@@ -44,7 +40,7 @@ float4 ComputeGeometricConsistency(float4 prevDepths, float2 prevUVs[4], float3 
 	
 	return weights;
 }
-
+/*
 float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 {
 	float4 weights = float4(dot(prevNormals[0], currNormal),
@@ -58,6 +54,7 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 	
 	return weights;
 }
+*/
 
 // resample history using a 2x2 bilinear filter with custom weights
 void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth ,float2 currUV, 
@@ -114,7 +111,7 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
 	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
 	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
-	const float4 geoWeights = ComputeGeometricConsistency(prevDepths, prevUVs, currNormal, currPos, linearDepth);
+	const float4 geoWeights = GeometricTest(prevDepths, prevUVs, currNormal, currPos, linearDepth);
 	
 	// weight must be zero for out-of-bound samples
 	const float4 isInBounds = float4(Math::IsWithinBoundsExc(topLeft, screenDim),
@@ -175,7 +172,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	const float3 wi = normalize(r.SamplePos - pos);
 	
 	const float3 noisySignal = r.Li * r.GetW() * saturate(dot(wi, normal));
-	//const float3 noisySignal = r.R.Li * r.GetW();
+	//const float3 noisySignal = r.Li * r.GetW();
 
 	// TODO come up with a better way to incorporate reservoir data into denoiser -- the following
 	// approach prevents convergence for more complicated geometry
@@ -183,7 +180,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	// TODO improve, temporal lag is still noticeable
 	float tsppAdjustment = saturate(r.M / MAX_TEMPORAL_M);
 	tsppAdjustment *= tsppAdjustment;
-	//tspp = max(1, round(half(tspp) * tsppAdjustment));
+	tspp = round(float(tspp) * tsppAdjustment);
 #endif
 	
 	// use linear weights rather than exponential weights, which comparatively give a higher weight 
@@ -218,6 +215,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	if (depth == 0.0)
 		return;
 
+	// skip metallic surfaces
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	float metalness = g_metalnessRoughness[DTid.xy].x;
+	if (metalness > MAX_METALNESS)
+		return;
+	
 	// current frame's normals
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 currNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[DTid.xy].xy);

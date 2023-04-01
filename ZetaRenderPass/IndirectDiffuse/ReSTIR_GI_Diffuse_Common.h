@@ -15,6 +15,15 @@
 #define RGI_DIFF_SPATIAL_TILE_WIDTH 16
 #define RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH 4
 
+#define DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X 16
+#define DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y 16
+
+#define DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X 8
+#define DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y 8
+
+#define DiffuseDNSR_SPATIAL_TILE_WIDTH 8
+#define DiffuseDNSR_SPATIAL_LOG2_TILE_WIDTH 3
+
 struct cb_RGI_Diff_Temporal
 {
 	uint32_t FrameCounter;
@@ -52,7 +61,40 @@ struct cb_RGI_Diff_Spatial
 	uint16_t NumGroupsInTile;
 	uint16_t PdfCorrection;
 	uint16_t IsFirstPass;
-	uint16_t pad;
+	uint16_t DoSpatialResampling;
+};
+
+struct cbDiffuseDNSRTemporal
+{
+	uint16_t MaxTspp;
+	uint16_t IsTemporalCacheValid;
+
+	uint32_t InputReservoir_A_DescHeapIdx;
+	uint32_t InputReservoir_B_DescHeapIdx;
+
+	// previous temporal cache
+	// Texture2D<half4>: (color, tspp)
+	uint32_t PrevTemporalCacheDescHeapIdx;
+
+	// current temporal cache
+	// RWTexture2D<half4>: (color, tspp)
+	uint32_t CurrTemporalCacheDescHeapIdx;
+};
+
+struct cbDiffuseDNSRSpatial
+{
+	float NormalExp;
+	float FilterRadiusScale;
+
+	uint16_t CurrPass;
+	uint16_t NumPasses;
+	uint16_t DispatchDimX;
+	uint16_t DispatchDimY;
+	uint16_t NumGroupsInTile;  // == TileWidth * DispatchDimY
+	uint16_t MaxTspp;
+
+	uint32_t TemporalCacheInDescHeapIdx;
+	uint32_t TemporalCacheOutDescHeapIdx;
 };
 
 #endif

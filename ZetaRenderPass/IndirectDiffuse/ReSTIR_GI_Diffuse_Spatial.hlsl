@@ -12,7 +12,7 @@
 #define SAMPLE_RADIUS_1ST 28
 #define SAMPLE_RADIUS_2ND 16
 
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
 
 static const float2 k_halton[16] =
 {
@@ -83,30 +83,25 @@ uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
 	return swizzledDTid;
 }
 
-float GeometryWeight(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float linearDepth, float scale)
+float GeometricHeuristic(float sampleDepth, float3 samplePos, float3 currNormal, 
+	float3 currPos, float linearDepth, float scale)
 {
-	float planeDist = dot(currNormal, samplePos - currPos);
-	
+	float planeDist = dot(currNormal, samplePos - currPos);	
 	// lower the tolerance as more samples are accumulated
-	//float tolerance = g_local.MaxPlaneDist * scale;
-	//float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-4f));
-	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth * scale;
 	
 	return weight;
 }
 
-float NormalWeight(float3 input, float3 sample, float scale)
+float NormalHeuristic(float3 normal, float3 neighborNormal)
 {
-	float cosTheta = dot(input, sample);
-	float angle = Math::ArcCos(cosTheta);
-	// tolerance angle becomes narrower as more samples are accumulated
-	float tolerance = 0.08726646 + 0.27925268 * scale; // == [5.0, 16.0] degrees 
-	float weight = pow(saturate((tolerance - angle) / tolerance), g_local.NormalExp);
+	// normals within ~20 degrees 
+	float weight = abs(dot(normal, neighborNormal)) >= 0.93f;
 	
 	return weight;
 }
 
-float RoughnessWeight(float currRoughness, float sampleRoughness)
+float RoughnessHeuristic(float currRoughness, float sampleRoughness)
 {
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
 	float w = abs(currRoughness - sampleRoughness) / n;
@@ -124,11 +119,8 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
+	const float biasToleranceScale = max(1 - mScale, 0.2f);
 	const float searchRadius = g_local.IsFirstPass ? SAMPLE_RADIUS_1ST : SAMPLE_RADIUS_2ND;
-
-	//float biasToleranceScale = 1.0 - mScale * 0.5;
-	float biasToleranceScale = max(1.0 - mScale * mScale, 0.5);
-	biasToleranceScale = g_local.IsFirstPass ? biasToleranceScale : biasToleranceScale * 2.0f;
 	
 	const float u0 = rng.RandUniform();
 	const float theta = u0 * TWO_PI;
@@ -144,11 +136,11 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 	for (int i = 0; i < numIterations; i++)
 	{
 		// rotate sample sequence
-		float2 sampleLocalXZ = k_halton[baseOffset + i];
+		float2 sampleLocalXZ = k_halton[baseOffset + i] * searchRadius;
 		float2 rotatedXZ;
 		rotatedXZ.x = dot(sampleLocalXZ, float2(cosTheta, -sinTheta));
 		rotatedXZ.y = dot(sampleLocalXZ, float2(sinTheta, cosTheta));
-		float2 relativeSamplePos = rotatedXZ * searchRadius;
+		float2 relativeSamplePos = rotatedXZ;
 		const float2 relSamplePosAbs = abs(relativeSamplePos);
 			
 		// make sure sampled pixel isn't pixel itself
@@ -169,20 +161,32 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.CurrViewInv);
-			const float w_z = GeometryWeight(sampleDepth, samplePosW, normal, posW, linearDepth, biasToleranceScale);
+			const float w_z = GeometricHeuristic(sampleDepth, samplePosW, normal, posW, linearDepth, 
+				biasToleranceScale);
 					
+			// for some reason normals-based heuristic adds a lot of bias
+#if 0
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
-			const float w_n = NormalWeight(normal, sampleNormal, biasToleranceScale);
+			const float w_n = NormalHeuristic(normal, sampleNormal);
+#else
+			const float w_n = 1.0;
+#endif
 			
 			float sampleRoughness = g_metalnessRoughness[samplePosSS].y;
-			const float w_r = RoughnessWeight(roughness, sampleRoughness);
+			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
+
+			float sampleMetalness = g_metalnessRoughness[samplePosSS].x;
+			const float w_m = sampleMetalness <= MAX_METALNESS;
 			
-			const float weight = w_z * w_n * w_r;
+			const float weight = w_z * w_n * w_r * w_m;
+
 			if (weight < 1e-3)
 				continue;
-					
-			DiffuseReservoir neighborReservoir = RGI_Diff_Util::ReadInputReservoir(samplePosSS, g_local.InputReservoir_A_DescHeapIdx,
-				g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);
+
+			DiffuseReservoir neighborReservoir = RGI_Diff_Util::ReadInputReservoir(samplePosSS, 
+				g_local.InputReservoir_A_DescHeapIdx,
+				g_local.InputReservoir_B_DescHeapIdx, 
+				g_local.InputReservoir_C_DescHeapIdx);
 
 			float jacobianDet = 1.0f;
 			const float3 x1_q = samplePosW;
@@ -193,8 +197,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			if (g_local.PdfCorrection)
 				jacobianDet = RGI_Diff_Util::JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, neighborReservoir);
 	
-			float mm = g_local.IsFirstPass ? MAX_SPATIAL_M : MAX_SPATIAL_M * 8;
-			r.Combine(neighborReservoir, wi, normal, mm, weight, jacobianDet, rng);
+			r.Combine(neighborReservoir, wi, normal, MAX_SPATIAL_M, weight, jacobianDet, rng);
 		}
 	}	
 }
@@ -239,12 +242,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float roughness = g_metalnessRoughness[swizzledDTid].y;
+	float2 mr = g_metalnessRoughness[swizzledDTid];
 
+	if (mr.x > MAX_METALNESS)
+		return;
+		
 //	if (g_local.IsFirstPass || r.M < 2)
+	if (g_local.DoSpatialResampling)
 	{
 		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, roughness, r, rng);
+		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, mr.y, r, rng);
 	}
 
 	if (g_local.IsFirstPass)

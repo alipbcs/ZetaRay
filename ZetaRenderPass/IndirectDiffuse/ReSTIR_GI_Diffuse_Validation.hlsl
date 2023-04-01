@@ -399,7 +399,7 @@ DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currL
 			g_frame.PrevViewInv);
 	
 	const float planeDist = dot(currNormal, prevPos - currPos);
-	const bool isDisoccluded = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
+	const bool isDisoccluded = abs(planeDist) > DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
 	
 	if (isDisoccluded)
 	{
@@ -428,9 +428,10 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 	dt2 *= dt2;
 	const float relativeRayTChange = saturate(dt2 / max(currHitDist, g_frame.RayOffset));
 	
-	const float sl = Math::Color::LuminanceFromLinearRGB(s.Lo);
-	const float rl = Math::Color::LuminanceFromLinearRGB(r.Li);
-	const float relativeRadianceChange = sl == 0.0 ? saturate(abs(sl - rl)) : saturate(abs(sl - rl) / max(sl, 1e-4));
+	const float sampleLum = Math::Color::LuminanceFromLinearRGB(s.Lo);
+	const float reservoirLum = Math::Color::LuminanceFromLinearRGB(r.Li);
+	const float relativeRadianceChange = sampleLum == 0.0 ? saturate(abs(sampleLum - reservoirLum)) : 
+		saturate(abs(sampleLum - reservoirLum) / max(sampleLum, 1e-4));
 	
 	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
 	{
@@ -451,7 +452,7 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 	else
 	{
 		const float sourcePdf = ONE_DIV_TWO_PI;
-		const float risWeight = sl / sourcePdf;
+		const float risWeight = sampleLum / sourcePdf;
 
 		r.SamplePos = s.Pos;
 		r.SampleNormal = s.Normal;
@@ -520,15 +521,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// skip metals
 	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 	// add a small threshold
-	reservoirValid &= (m <= 0.1f);
+	reservoirValid &= (m <= MAX_METALNESS);
+
+	// validate the reservoirs from two frames ago
+	const bool tracedLastFrame = g_local.CheckerboardTracing ?
+		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_local.FrameCounter & 0x1) :
+		true;
 
 	DiffuseReservoir r = SampleTemporalReservoir(swizzledDTid, posW, linearDepth, normal);
 	
 	// skip tracing if reservoir's sample is invalid
-	bool isReservoirSampleInvalid = r.SamplePos.x == INVALID_SAMPLE_POS.x && 
-		r.SamplePos.y == INVALID_SAMPLE_POS.y && 
-		r.SamplePos.z == INVALID_SAMPLE_POS.z;
-	const bool needValidation = reservoirValid && !isReservoirSampleInvalid;
+	bool isReservoirEmpty = r.M == 0;
+	const bool needValidation = reservoirValid && !isReservoirEmpty &&
+		(!g_local.CheckerboardTracing || !tracedLastFrame);
 	
 	const float3 wi = needValidation ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
 	
