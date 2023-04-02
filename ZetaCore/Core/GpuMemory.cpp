@@ -638,7 +638,7 @@ namespace ZetaRay::Core::Internal
 				m_directCmdList->SetName("ResourceUploadBatch");
 			}
 
-			constexpr int MAX_NUM_SUBRESOURCES = 20;
+			constexpr int MAX_NUM_SUBRESOURCES = 12;
 			Assert(MAX_NUM_SUBRESOURCES >= numSubresources, "MAX_NUM_SUBRESOURCES is too small");
 
 			D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout[MAX_NUM_SUBRESOURCES];
@@ -647,7 +647,7 @@ namespace ZetaRay::Core::Internal
 
 			auto destDesc = resource->GetDesc();
 			// As buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded size. Using subresRowSize[0]
-			// as the copy size could lead to access violations since size of data pointed to by subresData can be smaller
+			// as the copy size could lead to access violations since size of the data pointed to by subresData is probably smaller
 			Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "This functions is for uploading textures.");
 
 			// required size of an intermediate buffer that is to be used to initialize this resource
@@ -728,14 +728,13 @@ namespace ZetaRay::Core::Internal
 				m_directCmdList->SetName("ResourceUploadBatch");
 			}
 
+			// Note: GetCopyableFootprints() returns the padded size, which led to FindPageForAlloc() always
+			// allocating a new page if even there were available-to-reuse pages
 			// required size of a buffer which is to be used to initialize this resource
-			const uint64_t uploadSize = Direct3DHelper::GetRequiredIntermediateSize(resource, 0, 1);
-
-			D3D12_HEAP_PROPERTIES heapProps = Direct3DHelper::UploadHeapProp();
-			D3D12_RESOURCE_DESC resDesc = Direct3DHelper::BufferResourceDesc(uploadSize);
+			//const uint64_t uploadSize = Direct3DHelper::GetRequiredIntermediateSize(resource, 0, 1);
 
 			// Create a scratch buffer
-			UploadHeapBuffer scratchBuff = uploadHeap.GetBuffer(threadIdx, uploadSize);
+			UploadHeapBuffer scratchBuff = uploadHeap.GetBuffer(threadIdx, sizeInBytes);
 			scratchBuff.Copy(0, sizeInBytes, data);
 
 			// Submit resource copy to command list
