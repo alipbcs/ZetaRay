@@ -130,24 +130,6 @@ namespace ZetaRay::Math
 			: vRow{ row0, row1, row2, row3 }
 		{}
 
-		explicit v_float4x4(float4x4a& M) noexcept
-		{
-			vRow[0] = _mm_load_ps(reinterpret_cast<float*>(&M.m[0]));
-			vRow[1] = _mm_load_ps(reinterpret_cast<float*>(&M.m[1]));
-			vRow[2] = _mm_load_ps(reinterpret_cast<float*>(&M.m[2]));
-			vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&M.m[3]));
-		}
-
-		explicit v_float4x4(float4x3& M) noexcept
-		{
-			float4x4a temp(M);
-
-			vRow[0] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[0]));
-			vRow[1] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[1]));
-			vRow[2] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[2]));
-			vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[3]));
-		}
-
 		__m128 vRow[4];
 	};
 

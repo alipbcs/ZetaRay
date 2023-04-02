@@ -508,7 +508,7 @@ void SceneCore::RebuildBVH() noexcept
 			// find this intantce's Mesh
 			const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
 			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
-			v_float4x4 vM(m_sceneGraph[level].m_toWorlds[i]);
+			v_float4x4 vM = load(m_sceneGraph[level].m_toWorlds[i]);
 
 			// transform AABB to world space
 			vBox = transform(vM, vBox);
@@ -532,7 +532,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 	{
 		for (int i = 0; i < m_sceneGraph[level].m_subtreeRanges.size(); i++)
 		{
-			v_float4x4 vParentTransform(m_sceneGraph[level].m_toWorlds[i]);
+			v_float4x4 vParentTransform = load(m_sceneGraph[level].m_toWorlds[i]);
 			const auto& range = m_sceneGraph[level].m_subtreeRanges[i];
 
 			for (int j = range.Base; j < range.Base + range.Count; j++)
@@ -540,7 +540,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 				AffineTransformation& tr = m_sceneGraph[level + 1].m_localTransforms[j];
 				v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
 				v_float4x4 newW = mul(vParentTransform, vLocal);
-				v_float4x4 prevW(m_sceneGraph[level + 1].m_toWorlds[j]);
+				v_float4x4 prevW = load(m_sceneGraph[level + 1].m_toWorlds[j]);
 
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))
 				{

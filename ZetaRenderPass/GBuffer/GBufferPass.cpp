@@ -561,7 +561,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		const Camera& cam = App::GetCamera();
 		const float aspectRatio = float(m_depthPyramidMip0DimX) / m_depthPyramidMip0DimY;
 		v_float4x4 vP = perspectiveReverseZ(aspectRatio, cam.GetFOV(), cam.GetNearZ());
-		v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
+		v_float4x4 vCurrV = load(const_cast<float4x4a&>(cam.GetCurrView()));
 		v_float4x4 vVP = mul(vCurrV, vP);
 
 		localCB.ViewProj = store(vVP);

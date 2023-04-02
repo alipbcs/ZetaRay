@@ -624,7 +624,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 	auto addTLASInstance = [&frameInstanceData, &currInstance](const TriangleMesh& mesh, const Material& mat, float4x3& M) noexcept
 	{
-		v_float4x4 vM(M);
+		v_float4x4 vM = load(M);
 
 		// meshes in TLAS go through following transformations:
 		// 

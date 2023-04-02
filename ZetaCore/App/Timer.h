@@ -76,6 +76,7 @@ namespace ZetaRay::App
 		void End() noexcept;
 		double DeltaMicro() noexcept;
 		double DeltaMilli() noexcept;
+		double DeltaNano() noexcept;
 
 	private:
 		// frequency of the counter. Units are counts/sec

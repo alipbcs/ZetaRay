@@ -109,6 +109,14 @@ void DeltaTimer::End() noexcept
 	m_end = currCount.QuadPart;
 }
 
+double DeltaTimer::DeltaNano() noexcept
+{
+	// convert to microseconds before dividing to avoid precision loss
+	// https://docs.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
+	int64_t elapsedMicro = 1'000'000'000 * (m_end - m_start);
+	return (double)elapsedMicro / m_counterFreqSec;
+}
+
 double DeltaTimer::DeltaMicro() noexcept
 {
 	// convert to microseconds before dividing to avoid precision loss
