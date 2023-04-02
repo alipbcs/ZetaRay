@@ -35,6 +35,21 @@ namespace ZetaRay::Math
 		return vAxisAngle;
 	}
 
+	ZetaInline void __vectorcall quatToAxisAngle(__m128 vQuat, float3& axis, float& angle)
+	{
+		float4a quat = store(vQuat);
+		angle = 2.0f * acosf(quat.w);
+		axis = float3(quat.x, quat.y, quat.z);
+		axis.normalize();
+	}
+
+	ZetaInline void __vectorcall quatToAxisAngle(float4a& quat, float3& axis, float& angle)
+	{
+		angle = 2.0f * acosf(quat.w);
+		axis = float3(quat.x, quat.y, quat.z);
+		axis.normalize();
+	}
+
 	// Multiplies two given quaternions
 	ZetaInline __m128 __vectorcall mulQuat(const __m128 vP, const __m128 vQ) noexcept
 	{

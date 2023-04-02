@@ -235,6 +235,13 @@ namespace ZetaRay::Math
 		return f;
 	}
 
+	ZetaInline __m128 __vectorcall load(float4a& v) noexcept
+	{
+		__m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
+
+		return vV;
+	}
+
 	ZetaInline __m128 __vectorcall loadFloat3(float3& v) noexcept
 	{
 		// &v does not need to be aligned and the last two elements are set to 0

@@ -24,6 +24,34 @@ TEST_CASE("3x3 Determinant")
 	CHECK(fabsf(d.x - 1.0f) < 1e-6);
 }
 
+TEST_CASE("TRS Decomposition")
+{
+	float3 scaleFactor = float3(1.5f, 2.0f, 1.0f);
+	float theta = 0.610865238;
+
+	v_float4x4 vS = scale(scaleFactor.x, scaleFactor.y, scaleFactor.z);
+	v_float4x4 vR = rotateZ(theta);
+	v_float4x4 vSR = mul(vS, vR);
+
+	float4a s;
+	float4a r;
+	float4a t;
+	decomposeSRT(vSR, s, r, t);
+
+	CHECK(fabsf(s.x - 1.5f) < 1e-6f);
+	CHECK(fabsf(s.y - 2.0f) < 1e-6f);
+	CHECK(fabsf(s.z - 1.0f) < 1e-6f);
+
+	float3 axis2;
+	float theta2;
+	quatToAxisAngle(r, axis2, theta2);
+
+	CHECK(fabsf(axis2.x - 0) < 1e-6f);
+	CHECK(fabsf(axis2.y - 0) < 1e-6f);
+	CHECK(fabsf(axis2.z - 1) < 1e-6f);
+	CHECK(fabsf(theta2 - theta) < 1e-6f);
+}
+
 TEST_CASE("AABBvsAABB")
 {
 	int unused;
