@@ -58,13 +58,14 @@ if(MSVC)
     add_compile_options(/W4)
     # enable intrinsic functions
     add_compile_options(/Oi)
-    add_compile_options(/Ob1)
+    add_compile_options("$<$<CONFIG:DEBUG>:/Ob1>")
     # disable RTTI
     add_compile_options(/GR-)
     # fast floating point
     add_compile_options(/fp:fast)
     # standards conformance
     add_compile_options(/permissive-)
+    add_compile_options(/arch:AVX2)
 endif()
 
 # 
