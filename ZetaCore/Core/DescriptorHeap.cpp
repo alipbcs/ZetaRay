@@ -131,10 +131,9 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
 	m_freeDescCount = numDescriptors;
 
 	if (isShaderVisible)
-	{
 		m_baseGPUHandle = m_heap->GetGPUDescriptorHandleForHeapStart();
-		CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
-	}
+	
+	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 }
 
 void DescriptorHeap::Shutdown() noexcept
