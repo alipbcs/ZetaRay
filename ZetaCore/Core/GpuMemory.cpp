@@ -1071,25 +1071,6 @@ void Texture::Reset(bool guardDestruction) noexcept
 	m_resource = nullptr;
 }
 
-void Texture::GetAllocationInfo(size_t* size, size_t* alignment) noexcept
-{
-	if (!size && !alignment)
-		return;
-
-	ID3D12Device* d = nullptr;
-	CheckHR(m_resource->GetDevice(IID_PPV_ARGS(&d)));
-
-	auto desc = m_resource->GetDesc();
-	D3D12_RESOURCE_ALLOCATION_INFO info = d->GetResourceAllocationInfo(0, 1, &desc);
-	d->Release();
-
-	if (size)
-		*size = info.SizeInBytes;
-
-	if (alignment)
-		*alignment = info.Alignment;
-}
-
 //--------------------------------------------------------------------------------------
 // GpuMemory
 //--------------------------------------------------------------------------------------

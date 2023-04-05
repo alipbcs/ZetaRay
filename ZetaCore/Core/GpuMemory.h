@@ -111,21 +111,25 @@ namespace ZetaRay::Core
 
 		void Reset() noexcept;
 		ZetaInline bool IsInitialized() const noexcept { return m_resource != nullptr; }
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
-		ZetaInline D3D12_RESOURCE_DESC GetDesc() const { return m_resource->GetDesc(); }
-		ZetaInline uint64_t GetPathID() const { return m_pathID; }
-
-		void GetAllocationInfo(size_t* size = nullptr, size_t* alignment = nullptr) const
-		{
-			if (!size && !alignment)
-				return;
-
-			if (size)
-				*size = m_resource->GetDesc().Width;
-
-			if (alignment)
-				*alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const
+		{ 
+			Assert(m_resource, "Buffer hasn't been initialized.");
+			return m_resource->GetGPUVirtualAddress();
+		}
+		ZetaInline ID3D12Resource* GetResource() 
+		{ 
+			Assert(m_resource, "Buffer hasn't been initialized.");
+			return m_resource.Get();
+		}
+		ZetaInline D3D12_RESOURCE_DESC GetDesc() const 
+		{ 
+			Assert(m_resource, "Buffer hasn't been initialized.");
+			return m_resource->GetDesc();
+		}
+		ZetaInline uint64_t GetPathID() const 
+		{ 
+			Assert(m_resource, "Buffer hasn't been initialized.");
+			return m_pathID;
 		}
 
 	private:
@@ -147,10 +151,26 @@ namespace ZetaRay::Core
 		ZetaInline bool IsInitialized() const { return m_pathID != -1; }
 		void Reset(bool guardDestruction = true) noexcept;
 
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
-		ZetaInline uint64_t GetPathID() const { return m_pathID; }
-		void GetAllocationInfo(size_t* size = nullptr, size_t* alignment = nullptr) noexcept;
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const 
+		{ 
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_resource->GetGPUVirtualAddress();
+		}
+		ZetaInline ID3D12Resource* GetResource() 
+		{ 
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_resource.Get(); 
+		}
+		ZetaInline uint64_t GetPathID() const 
+		{ 
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_pathID;
+		}
+		D3D12_RESOURCE_DESC GetDesc() const 
+		{
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_resource->GetDesc(); 
+		}
 
 	private:
 		uint64_t m_pathID = uint64_t(-1);

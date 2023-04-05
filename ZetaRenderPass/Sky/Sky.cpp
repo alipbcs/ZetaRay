@@ -105,7 +105,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 
 	if (b)
 	{
-		Assert(!m_voxelGrid.GetResource(), "This should be NULL");
+		Assert(!m_voxelGrid.IsInitialized(), "This should be NULL");
 
 		CreateVoxelGrid();
 

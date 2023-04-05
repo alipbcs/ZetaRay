@@ -121,7 +121,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
 
 	// allocate a new buffer only if this is the first time or the old one isn't large enough
-	if (!m_blasBuffer.GetResource() || m_blasBuffer.GetDesc().Width < prebuild.ResultDataMaxSizeInBytes)
+	if (!m_blasBuffer.IsInitialized() || m_blasBuffer.GetDesc().Width < prebuild.ResultDataMaxSizeInBytes)
 	{
 		m_blasBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("StaticBLAS",
 			prebuild.ResultDataMaxSizeInBytes,
@@ -468,7 +468,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 	device->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &prebuildInfo);
 	Assert(prebuildInfo.ResultDataMaxSizeInBytes != 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
 
-	if (!m_tlasBuffer.GetResource() || m_tlasBuffer.GetDesc().Width < prebuildInfo.ResultDataMaxSizeInBytes)
+	if (!m_tlasBuffer.IsInitialized() || m_tlasBuffer.GetDesc().Width < prebuildInfo.ResultDataMaxSizeInBytes)
 	{
 		// previous TLAS is released automatically with proper fence
 		m_tlasBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBuffer("TLAS",
@@ -477,7 +477,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 			true);
 	}
 
-	if (!m_scratchBuff.GetResource() || m_scratchBuff.GetDesc().Width < prebuildInfo.ScratchDataSizeInBytes)
+	if (!m_scratchBuff.IsInitialized() || m_scratchBuff.GetDesc().Width < prebuildInfo.ScratchDataSizeInBytes)
 	{
 		m_scratchBuff = App::GetRenderer().GetGpuMemory().GetDefaultHeapBuffer("TLAS_scratch",
 			prebuildInfo.ScratchDataSizeInBytes,
