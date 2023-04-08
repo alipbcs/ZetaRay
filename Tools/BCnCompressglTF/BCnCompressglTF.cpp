@@ -304,15 +304,6 @@ int main(int argc, char* argv[])
 
 	json data = json::parse(file.data(), file.data() + file.size(), nullptr, false);
 
-    SmallVector<int, Support::ArenaAllocator> textures(arena);
-    textures.reserve(data["textures"].size());
-
-    for (auto& tex : data["textures"])
-    {
-        int imgIdx = tex["source"];
-        textures.push_back(imgIdx);
-    }
-
     SmallVector<Filesystem::Path, Support::ArenaAllocator> imagePaths(arena);
     imagePaths.resize(data["images"].size());
 
@@ -338,8 +329,9 @@ int main(int argc, char* argv[])
     {
         if (mat.contains("normalTexture"))
         {
-            int texIdx = mat["normalTexture"]["index"];
-            normalMaps.push_back(texIdx);
+            const int texIdx = mat["normalTexture"]["index"];
+            const int imgIdx = data["textures"][texIdx]["source"];
+            normalMaps.push_back(imgIdx);
         }
     }
 
@@ -361,14 +353,16 @@ int main(int argc, char* argv[])
             
             if (pbr.contains("baseColorTexture"))
             {
-                int texIdx = pbr["baseColorTexture"]["index"];
-                baseColorMaps.push_back(texIdx);
+                const int texIdx = pbr["baseColorTexture"]["index"];
+                const int imgIdx = data["textures"][texIdx]["source"];
+                baseColorMaps.push_back(imgIdx);
             }
 
             if (pbr.contains("metallicRoughnessTexture"))
             {
-                int texIdx = pbr["metallicRoughnessTexture"]["index"];
-                metalnessRoughnessMaps.push_back(texIdx);
+                const int texIdx = pbr["metallicRoughnessTexture"]["index"];
+                const int imgIdx = data["textures"][texIdx]["source"];
+                metalnessRoughnessMaps.push_back(imgIdx);
             }
         }
     }
@@ -378,8 +372,9 @@ int main(int argc, char* argv[])
     {
         if (mat.contains("emissiveTexture"))
         {
-            int texIdx = mat["emissiveTexture"]["index"];
-            emissiveMaps.push_back(texIdx);
+            const int texIdx = mat["emissiveTexture"]["index"];
+            const int imgIdx = data["textures"][texIdx]["source"];
+            emissiveMaps.push_back(imgIdx);
         }
     }
 
@@ -389,7 +384,7 @@ int main(int argc, char* argv[])
         #base-color textures: %llu\n\
         #normal-map textures: %llu\n\
         #metalness-roughness textures: %llu\n\
-        #emissive textures: %llu\n", imagePaths.size(), textures.size(), baseColorMaps.size(), normalMaps.size(),
+        #emissive textures: %llu\n", imagePaths.size(), data["textures"].size(), baseColorMaps.size(), normalMaps.size(),
         metalnessRoughnessMaps.size(), emissiveMaps.size());
    
     ComPtr<ID3D11Device> device;
