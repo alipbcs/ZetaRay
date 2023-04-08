@@ -252,22 +252,26 @@ namespace Math
 		
 		float3 TangentSpaceToWorldSpace(float2 bumpNormal2, float3 tangentW, float3 normalW, float scale)
 		{
-		    // graham-schmidt normalization
+			float3 bumpNormal = float3(2.0f * bumpNormal2 - 1.0f, 0.0f);
+			bumpNormal.z = sqrt(1.0f - saturate(dot(bumpNormal, bumpNormal)));
+			float3 scaledBumpNormal = bumpNormal * float3(scale, scale, 1.0f);
+			
+			// invalid scale or bump, normalize() leads to NaN
+			if (dot(scaledBumpNormal, scaledBumpNormal) < 1e-6f)
+				return normalW;
+			
+			scaledBumpNormal = normalize(scaledBumpNormal);
+
+		    // graham-schmidt orthogonalization
 			normalW = normalize(normalW);
 			tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
 
-			// TBN coordiante system
+			// change-of-coordinate transformation from TBN to world space
 			float3 bitangentW = cross(normalW, tangentW);
 			float3x3 TangentSpaceToWorld = float3x3(tangentW, bitangentW, normalW);
 
-			float3 bumpNormal = float3(2.0f * bumpNormal2 - 1.0f, 0.0f);
-			bumpNormal.z = sqrt(saturate(1.0f - dot(bumpNormal, bumpNormal)));
-			// scaledNormal = normalize<sampled normal texture value> * 2.0 - 1.0) * vec3(<normal scale>, <normal scale>, 1.0.
-			float3 scaledBumpNormal = normalize(bumpNormal * float3(scale, scale, 1.0f));
-
-			return mul(bumpNormal, TangentSpaceToWorld);
+			return mul(scaledBumpNormal, TangentSpaceToWorld);
 		}
-
 		float3 TangentSpaceToWorldSpace(float3 bumpNormal, float3 tangentW, float3 normalW, float scale)
 		{
 			// graham-schmidt normalization

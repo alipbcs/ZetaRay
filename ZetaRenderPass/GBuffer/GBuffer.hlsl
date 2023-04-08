@@ -145,10 +145,9 @@ PS_OUT mainPS(VSOut psin)
 	if (mat.NormalTexture != -1 && abs(dot(psin.TangentW, psin.TangentW)) > 1e-6)
 	{
 		NORMAL_MAP g_normalMap = ResourceDescriptorHeap[g_frame.NormalMapsDescHeapOffset + mat.NormalTexture];
-		float2 bumpNormal = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
-		//float3 bumpNormal = g_normalMap.Sample(g_samAnisotropicWrap, psin.TexUV);
-		
-		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bumpNormal, psin.TangentW, psin.NormalW, mat.NormalScale);
+		float2 bump2 = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
+	
+		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, mat.NormalScale);
 		
 		if (mat.IsDoubleSided())
 		{
