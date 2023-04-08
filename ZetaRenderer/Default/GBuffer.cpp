@@ -47,24 +47,21 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR];
 
-		for (int i = 0; i < 2; i++)
-		{
-			StackStr(name, n, "GBuffer_BaseColor_%d", i);
+		data.BaseColor = ZetaMove(gpuMem.GetTexture2D("GBuffer_BaseColor",
+			width, height,
+			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
+			D3D12_RESOURCE_STATE_COMMON,
+			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			1,
+			&clearValue));
 
-			data.BaseColor[i] = ZetaMove(gpuMem.GetTexture2D(name, 
-				width, height,
-				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
-				D3D12_RESOURCE_STATE_COMMON,
-				TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
-				1,
-				&clearValue));
+		// RTV
+		Direct3DHelper::CreateRTV(data.BaseColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DHelper::CreateRTV(data.BaseColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 
-			// RTV
-			Direct3DHelper::CreateRTV(data.BaseColor[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
-
-			// SRV
-			Direct3DHelper::CreateTexture2DSRV(data.BaseColor[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
-		}
+		// SRV
+		Direct3DHelper::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DHelper::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 	}
 
 	// normal
@@ -100,7 +97,7 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 
 		for (int i = 0; i < 2; i++)
 		{
-			StackStr(name, n, "GBuffer_Metalness-Roughness_%d", i);
+			StackStr(name, n, "GBuffer_Metalness_Roughness_%d", i);
 
 			data.MetalnessRoughness[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
 				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS],
@@ -207,7 +204,6 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 
 	for (int i = 0; i < 2; i++)
 	{
-		data.BaseColor[i].Reset();
 		data.Normal[i].Reset();
 		data.DepthBuffer[i].Reset();
 		data.MetalnessRoughness[i].Reset();
@@ -216,6 +212,7 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 		data.DSVDescTable[i].Reset();
 	}
 	
+	data.BaseColor.Reset();
 	data.EmissiveColor.Reset();
 	data.MotionVec.Reset();
 }
@@ -310,12 +307,12 @@ void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
 	// register current and previous frame's gbuffers
 	for (int i = 0; i < 2; i++)
 	{
-		renderGraph.RegisterResource(data.BaseColor[i].GetResource(), data.BaseColor[i].GetPathID());
 		renderGraph.RegisterResource(data.Normal[i].GetResource(), data.Normal[i].GetPathID());
-		renderGraph.RegisterResource(data.MetalnessRoughness[i].GetResource(), data.MetalnessRoughness[i].GetPathID());
 		renderGraph.RegisterResource(data.DepthBuffer[i].GetResource(), data.DepthBuffer[i].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		renderGraph.RegisterResource(data.MetalnessRoughness[i].GetResource(), data.MetalnessRoughness[i].GetPathID());
 	}
 
+	renderGraph.RegisterResource(data.BaseColor.GetResource(), data.BaseColor.GetPathID());
 	renderGraph.RegisterResource(data.MotionVec.GetResource(), data.MotionVec.GetPathID());
 	renderGraph.RegisterResource(data.EmissiveColor.GetResource(), data.EmissiveColor.GetPathID());
 
@@ -331,7 +328,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
 	// writable to avoid a Transition
 
-	renderGraph.AddOutput(data.ClearHandle, data.BaseColor[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.MetalnessRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -342,7 +339,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	// make the GBufferPass dependent on Clear
 	renderGraph.AddInput(data.GBuffPassHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.MetalnessRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);

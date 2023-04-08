@@ -120,7 +120,7 @@ void ThreadPool::Enqueue(Task&& t) noexcept
 	Assert(idx != -1, "Thread ID was not found");
 
 	bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[idx], ZetaMove(t));
-	Check(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
+	Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 
 	m_numTasksToFinishTarget.fetch_add(1, std::memory_order_relaxed);
 	m_numTasksInQueue.fetch_add(1, std::memory_order_release);
@@ -138,7 +138,7 @@ void ThreadPool::Enqueue(TaskSet&& ts) noexcept
 	Assert(idx != -1, "Thread ID was not found");
 
 	bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], std::make_move_iterator(tasks.data()), tasks.size());
-	Check(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
+	Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 }
 
 void ThreadPool::PumpUntilEmpty() noexcept

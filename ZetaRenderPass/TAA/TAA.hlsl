@@ -75,14 +75,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
-	RWTexture2D<half4> g_antiAliased = ResourceDescriptorHeap[g_local.CurrOutputDescHeapIdx];
-	Texture2D<half4> g_currSignal = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
+	RWTexture2D<float4> g_antiAliased = ResourceDescriptorHeap[g_local.CurrOutputDescHeapIdx];
+	Texture2D<float4> g_currSignal = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	
-	const half3 currColor = g_currSignal[DTid.xy].rgb;
+	const float3 currColor = g_currSignal[DTid.xy].rgb;
 		
 	if (!g_local.TemporalIsValid || depth == 0.0)
 	{
-		g_antiAliased[DTid.xy] = half4(currColor, 1.0);
+		g_antiAliased[DTid.xy].rgb = currColor;
 		return;
 	}
 	
@@ -143,7 +143,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
 
 #if DEPTH_DILATION
-	const half2 motionVec = g_motionVector[DTid.xy + closestDepthAddress];
+	const float2 motionVec = g_motionVector[DTid.xy + closestDepthAddress];
 #else
 	const float2 motionVec = g_motionVector[DTid.xy];
 #endif
@@ -155,7 +155,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	// no history sample was available
 	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 	{
-		g_antiAliased[DTid.xy] = half4(reconstructed, 0.0h);
+		g_antiAliased[DTid.xy].rgb = reconstructed;
 		return;
 	}
 
@@ -180,14 +180,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	// inverse-luminance filtering
 	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(reconstructed)));
 	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(clippedHistory)));
-	
-//	float3 result = (currWeight * reconstructed + (1.0f - g_local.BlendWeight) * clippedPrevSample) / max(currWeight + prevWeight, 1e-4);
 	float3 result = (currWeight * reconstructed + histWeight * clippedHistory) / (currWeight + histWeight);
-//	float3 result = g_local.BlendWeight * reconstructed + (1.0f - g_local.BlendWeight) * clippedPrevSample;
 	
 	// TODO on rare occasions, result can be NaN. figure out what's causing it
 	// temporay solution in the meantime -- NaN propagation is avoided at least
 	result = isnan(result.x) ? reconstructed : result;
 	
-	g_antiAliased[DTid.xy] = half4(result, 1);
+	g_antiAliased[DTid.xy].rgb = result;
 }

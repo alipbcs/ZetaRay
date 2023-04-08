@@ -3,6 +3,7 @@
 #include "../Support/FrameMemory.h"
 #include "../Utility/SynchronizedView.h"
 #include "../App/Timer.h"
+#include "../App/Common.h"
 #include "../Support/Param.h"
 #include "../Support/Stat.h"
 #include "../Utility/HashTable.h"
@@ -964,6 +965,7 @@ namespace ZetaRay
 		return -1;
 	}
 
+	// TODO remove
 	void RejoinBackgroundMemPoolsToWorkers() noexcept
 	{
 		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
@@ -999,6 +1001,9 @@ namespace ZetaRay
 
 	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name) noexcept
 	{
+		// check AVX2 support
+		Check(Common::CheckSIMDSupport() & SIMD_Intrinsic::AVX2, "AVX2 is not supported.");
+
 		setlocale(LC_ALL, "C");		// set locale to C
 
 		HINSTANCE instance = GetModuleHandleA(nullptr);

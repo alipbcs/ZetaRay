@@ -16,5 +16,5 @@ namespace ZetaRay::App::Common
     int WideToCharStr(const wchar_t* wideStr, Util::Span<char> str) noexcept;
     int CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept;
 
-    uint8_t CheckSIMDSupport(uint8_t query) noexcept;
+    uint8_t CheckSIMDSupport() noexcept;
 }

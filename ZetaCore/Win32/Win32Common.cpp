@@ -27,7 +27,7 @@ int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
     return size;
 }
 
-uint8_t Common::CheckSIMDSupport(uint8_t query) noexcept
+uint8_t Common::CheckSIMDSupport() noexcept
 {
     uint8_t ret = 0;
 
@@ -39,24 +39,16 @@ uint8_t Common::CheckSIMDSupport(uint8_t query) noexcept
     __cpuid(cpuInfo, 1);
 
     if ((cpuInfo[2] & (0x1 | (1 << 9))) == (0x1 | (1 << 9)))
-    {
         ret |= SIMD_Intrinsic::SSE3;
-    }
     if ((cpuInfo[2] & ((1 << 20) | (1 << 19))) == ((1 << 20) | (1 << 19)))
-    {
         ret |= SIMD_Intrinsic::SSE4;
-    }
     if (cpuInfo[2] & (1 << 28))
-    {
         ret |= SIMD_Intrinsic::AVX;
-    }
 
     memset(cpuInfo, 0, 4 * sizeof(0));
     __cpuid(cpuInfo, 0x7);
     if (cpuInfo[1] & (1 << 5))
-    {
         ret |= SIMD_Intrinsic::AVX2;
-    }
 
     return ret;
 }
