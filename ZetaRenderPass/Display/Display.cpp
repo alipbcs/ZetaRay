@@ -55,9 +55,9 @@ void DisplayPass::Init() noexcept
 	s_rpObjs.Init("Display", m_rootSig, samplers.size(), samplers.data(), flags);
 	CreatePSO();
 
+	memset(&m_cbLocal, 0, sizeof(m_cbLocal));
 	m_cbLocal.DisplayOption = (int)DisplayOption::DEFAULT;
-	m_cbLocal.Tonemapper = (int)Tonemapper::UE4_FILMIC;
-	m_cbLocal.VisualizeOcclusion = false;
+	m_cbLocal.Tonemapper = (int)Tonemapper::NEUTRAL;
 
 	ParamVariant p1;
 	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeDisplayOptionCallback),
@@ -112,17 +112,8 @@ void DisplayPass::Render(CommandList& cmdList) noexcept
 	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 	directCmdList.SetPipelineState(m_pso);
 
-	Assert(m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING] > 0, "Gpu Desc Idx hasn't been set.");
-	Assert(m_gpuDescs[(int)SHADER_IN_GPU_DESC::EXPOSURE] > 0, "Gpu Desc Idx hasn't been set.");
-	m_cbLocal.InputDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::FINAL_LIGHTING];
-	m_cbLocal.ExposureDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::EXPOSURE];
-	m_cbLocal.DenoiserTemporalCacheDescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::DENOISER_TEMPORAL_CACHE];
-	m_cbLocal.TemporalReservoir_A_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_A];
-	m_cbLocal.TemporalReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_B];
-	m_cbLocal.TemporalReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_TEMPORAL_RESERVOIR_C];
-	m_cbLocal.SpatialReservoir_A_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_A];
-	m_cbLocal.SpatialReservoir_B_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_B];
-	m_cbLocal.SpatialReservoir_C_DescHeapIdx = m_gpuDescs[(int)SHADER_IN_GPU_DESC::ReSTIR_GI_SPATIAL_RESERVOIR_C];
+	Assert(m_cbLocal.InputDescHeapIdx > 0, "Gpu Desc Idx hasn't been set.");
+	Assert(m_cbLocal.ExposureDescHeapIdx > 0, "Gpu Desc Idx hasn't been set.");
 	m_cbLocal.LUTDescHeapIdx = m_lutSRV.GPUDesciptorHeapIndex(0);
 	m_rootSig.SetRootConstants(0, sizeof(cbDisplayPass) / sizeof(DWORD), &m_cbLocal);
 	m_rootSig.End(directCmdList);

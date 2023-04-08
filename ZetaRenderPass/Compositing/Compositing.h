@@ -3,6 +3,7 @@
 #include "../RenderPass.h"
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
+#include <Core/DescriptorHeap.h>
 #include "Compositing_Common.h"
 
 namespace ZetaRay::Core
@@ -21,52 +22,68 @@ namespace ZetaRay::RenderPass
 	{
 		enum class SHADER_IN_GPU_DESC
 		{
-			HDR_LIGHT_ACCUM,
-			DENOISED_L_IND,
+			DIFFUSE_DNSR_CACHE,
+			SPECULAR_DNSR_CACHE,
 			INSCATTERING,
-			RESERVOIR_A,
-			RESERVOIR_B,
 			SUN_SHADOW,
+			COUNT
+		};
+
+		enum class SHADER_OUT_RES
+		{
+			COMPOSITED,
+			DoF_GATHER,
+			DoF_FILTERED,
 			COUNT
 		};
 
 		Compositing() noexcept;
 		~Compositing() noexcept;
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_pso != nullptr; }
+		void Init(bool dof = false) noexcept;
+		bool IsInitialized() noexcept { return m_psos[0] != nullptr; }
 		void Reset() noexcept;
-		void SetInscatteringEnablement(bool b) { m_localCB.AccumulateInscattering = b; }
-		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_localCB.VoxelGridNearZ = zNear, m_localCB.VoxelGridFarZ = zFar; }
-		void SetVoxelGridMappingExp(float p) noexcept { m_localCB.DepthMappingExp = p; }
+		void SetInscatteringEnablement(bool b) { m_cbComposit.AccumulateInscattering = b; }
+		void SetDoFEnablement(bool b) noexcept;
+		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
+		void SetVoxelGridMappingExp(float p) noexcept { m_cbComposit.DepthMappingExp = p; }
+		void SetRoughnessCutoff(float c) noexcept { m_cbComposit.RoughnessCutoff = c; }
 		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept
 		{
 			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 
 			switch (i)
 			{
-			case SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM:
-				m_localCB.HDRLightAccumDescHeapIdx = descHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::DENOISED_L_IND:
-				m_localCB.DenoiserTemporalCacheDescHeapIdx = descHeapIdx;
-				break;
+			case SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE:
+				m_cbComposit.DiffuseDNSRCacheDescHeapIdx = descHeapIdx;
+				return;
 			case SHADER_IN_GPU_DESC::INSCATTERING:
-				m_localCB.InscatteringDescHeapIdx = descHeapIdx;
-				break;			
-			case SHADER_IN_GPU_DESC::RESERVOIR_A:
-				m_localCB.InputReservoir_A_DescHeapIdx = descHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::RESERVOIR_B:
-				m_localCB.InputReservoir_B_DescHeapIdx = descHeapIdx;
-				break;
+				m_cbComposit.InscatteringDescHeapIdx = descHeapIdx;
+				return;
 			case SHADER_IN_GPU_DESC::SUN_SHADOW:
-				m_localCB.SunShadowDescHeapIdx = descHeapIdx;
-				break;
+				m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
+				return;
+			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
+				m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
+				return;
 			default:
-				break;
+				Assert(false, "unreachable case.");
+				return;
 			}
 		}
+		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
+		{
+			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
+
+			if (i == SHADER_OUT_RES::DoF_GATHER)
+				return m_dofGather;
+
+			if (i == SHADER_OUT_RES::DoF_FILTERED && (m_numGaussianPasses & 0x1) == 0)
+				return m_dofGather;
+
+			return m_hdrLightAccum;
+		}
+		void OnWindowResized() noexcept;
 		void Render(Core::CommandList& cmdList) noexcept;
 
 	private:
@@ -79,28 +96,59 @@ namespace ZetaRay::RenderPass
 		RpObjects s_rpObjs;
 		Core::RootSignature m_rootSig;
 
-		inline static constexpr const char* COMPILED_CS[] = { "Compositing_cs.cso" };
-		ID3D12PipelineState* m_pso = nullptr;
-		
-		cbCompositing m_localCB{};
-
-		struct Params
+		struct ResourceFormats
 		{
-			enum Options
-			{
-				ALL,
-				DIRECT,
-				INDIRECT_DIFFUSE,
-				COUNT
-			};
-
-			inline static const char* RenderOptions[] = { "Direct+Indirect", "Direct", "IndirectDiffuse" };
-			static_assert(Options::COUNT == ZetaArrayLen(RenderOptions), "enum <-> strings mismatch.");
+			static constexpr DXGI_FORMAT LIGHT_ACCUM = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		};
 
-		void UseRawIndirectDiffuseCallback(const Support::ParamVariant& p) noexcept;
-		void ChangeLightingOptionCallback(const Support::ParamVariant& p) noexcept;
+		enum class DESC_TABLE
+		{
+			LIGHT_ACCUM_SRV,
+			LIGHT_ACCUM_UAV,
+			DoF_GATHER_SRV,
+			DoF_GATHER_UAV,
+			COUNT
+		};
 
-		void ReloadShader() noexcept;
+		enum class SHADERS
+		{
+			COMPOSIT,
+			DoF_GATHER,
+			DoF_GAUSSIAN_FILTER,
+			COUNT
+		};
+
+		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
+
+		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+			"Compositing_cs.cso",
+			"DoF_Gather_cs.cso",
+			"DoF_GaussianFilter_cs.cso"
+		};
+		
+		Core::Texture m_hdrLightAccum;
+		Core::Texture m_dofGather;
+		Core::DescriptorTable m_descTable; 
+		cbCompositing m_cbComposit;
+		cbDoF m_cbDoF;
+		cbGaussianFilter m_cbGaussian;
+		int m_numGaussianPasses = 2;
+		bool m_dof = false;
+
+		void CreateLightAccumTex() noexcept;
+		void CreateDoFResources() noexcept;
+		void SetDirectLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetIndirectDiffuseingEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetIndirectSpecularingEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void FocusDistCallback(const Support::ParamVariant& p) noexcept;
+		void FStopCallback(const Support::ParamVariant& p) noexcept;
+		void FocalLengthCallback(const Support::ParamVariant& p) noexcept;
+		void BlurRadiusCallback(const Support::ParamVariant& p) noexcept;
+		void RadiusScaleCallback(const Support::ParamVariant& p) noexcept;
+		void MinLumToFilterCallback(const Support::ParamVariant& p) noexcept;
+		void NumGaussianPassesCallback(const Support::ParamVariant& p) noexcept;
+
+		void ReloadCompsiting() noexcept;
+		void ReloadDoF() noexcept;
 	};
 }

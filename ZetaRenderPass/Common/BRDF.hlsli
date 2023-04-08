@@ -1,28 +1,26 @@
 // Refs:
 // 1. M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2016.
 // 2. E. Heitz, "Understanding the Masking-Shadowing Function in Microfacet-Based BRDFs," Journal of Computer Graphics Techniques, 2014.
-// 3. Walter et al., "Microfacet Models for Refraction through Rough Surfaces," in EGSR'07, 2007.
+// 3. B. Walter, S.R. Marschner1, H. Li, K.E. Torrance, "Microfacet Models for Refraction through Rough Surfaces," in EGSR'07, 2007.
 // 4. J. Boksansky, "Crash Course in BRDF Implementation," 2021. [Online]. Available: https://boksajak.github.io/blog/BRDF.
 //
-// In microfacet models, a macrosurface BRDF is designed to match
-// the aggregate behavior of visible micorsurfaces that constitute that macrosurface.
+// In microfacet models, a macrosurface BRDF is designed to match the aggregate behavior of 
+// visible micorsurfaces that constitute that macrosurface. Microsurfaces can be statistically 
+// described by a normal distribution function (NDF), a shadowing-masking function (G) and a 
+// microsurface BRDF that describes how each microsurface scatters light. Commonly, a perfect 
+// specular (mirror) BRDF is assumed for microsurfaces. Furthermore, product of NDF and G gives 
+// visible area of each microsurface.
 //
-// Microsurfaces can be statistically described by a normal distribution function (NDF),
-// a shadowing-masking function (G) and a microsurface BRDF that describes how 
-// each microsurface scatters light. Commonly, a perfect specular (mirror) BRDF is 
-// assumed for microsurfaces. Furthermore, product of NDF and G gives visible area of 
-// each microsurface.
-//
-// Therefore, macrosurface BRDF is the integral of contributions of scatterd lights
-// from individual visible microsurfaces where each microsurface scatters light 
-// according to its microsurface BRDF (assumed to be perfect mirror). 	
+// Therefore, macrosurface BRDF is the integral of contributions of scatterd lights from 
+// individual visible microsurfaces where each microsurface scatters light according to its 
+// microsurface BRDF (assumed to be perfect mirror). 	
 //
 // Solving above gives the macrosruface BRDF as:
 //		f(p, wi, wo) = (F(wo, h) * NDF(h) * G(wi, wo, h)) / (4 * |n.wi| * |n.wo|)
 //
-//		where h is the half vector: h = normalize(wi + wo)
+//		where h is the half vector = normalize(wi + wo)
 //
-// Finally, a choice for NDF and G functions needs to be made (G is dependant on chosen NDF).
+// Finally, a choice for NDF and G functions needs to be made (G is dependent on chosen NDF).
 // Here GGX normal distribution with height-correlated Smith shadowing-masking function
 // is used.
 
@@ -37,23 +35,18 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 	// Fresnel
 	//--------------------------------------------------------------------------------------
-	// Note: original Schlick's approximation:
+	// Note: Schlick's original approximation:
 	//		R(theta) = R0 + (1 - R0)(1 - cos(theta))^5
-	// Gives reflectivity for a given wavlength (a scalar) given the following assumptions:
-	//	1. Surface is dielectric
-	//	2. eta1 (incoming material) < eta2 (outgoing material) (from less dense to denser)
+	// Gives reflectivity for a given wavelength (a scalar) given the following assumptions:
+	//	1. Surface is dielectric.
+	//	2. eta1 (incoming material) < eta2 (outgoing material) (from less dense to denser).
+	//
 	//	Also when eta1 > eta2, total internal reflection needs to be accounted for, which
 	//	happens at incident angle arcsin(eta2 / eta1)
-	// 
-	//	To account for wavelength dependance of reflectance, a RGB value is used.
-	//	Side note: F0 is approximated as:
-	//		F0 = lerp(float3(0.04f, 0.04f, 0.04f), baseColor, metalneess);
-	//		Due to 0.04 factor for RGB channels when material is dielectric, does
-	//		that mean wavelentgh dependance for them is igonore?
 	//--------------------------------------------------------------------------------------
-	float3 FresnelSchlick(float3 F0, float hdotwo)
+	float3 FresnelSchlick(float3 F0, float whdotwo)
 	{
-		float tmp = 1.0f - hdotwo;
+		float tmp = 1.0f - whdotwo;
 		return F0 + (1.0f - F0) * tmp * tmp * tmp * tmp * tmp;
 	}
 
@@ -62,7 +55,6 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 	float GGX(float ndotwh, float alphaSq)
 	{
-		ndotwh = max(ndotwh, 0.00001f);
 		float denom = ndotwh * ndotwh * (alphaSq - 1.0f) + 1.0f;
 		return alphaSq / (PI * denom * denom);
 	}
@@ -70,7 +62,7 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 	// Smith Geometry Masking Functions
 	//--------------------------------------------------------------------------------------
-	// G1(wo or wi) is masking function
+	// G1(wo or wi) is the masking function
 	// theta (outgoing direction)	= wi or wo
 	// costheta						= ndotwi or ndotwo
 	// a(costheta, alpha)			= costheta / (alpha * sqrt(1 - costheta * costheta))
@@ -84,7 +76,7 @@ namespace BRDF
 	}
 
 	// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
-	// G2 is shadowing-masking function
+	// G2 is the shadowing-masking function
 	// (4.0 * ndotl * ndotv) is moved from BRDF to G2 since it can be simplified
 	// G2			= 1 / (1 + SmithG1ForGGX(theta = v) + SmithG1ForGGX(theta = l))
 	// Returns		= G2 / (4.0 * ndotl * ndotv)
@@ -102,144 +94,7 @@ namespace BRDF
 		float G1wi = SmithG1ForGGX(alphaSq, ndotwi);
 		float G1wo = SmithG1ForGGX(alphaSq, ndotwo);
 
-		return G1wo / (G1wi + G1wo - G1wi * G1wo);
-	}
-
-	//	Conventions
-	//
-	//	float3 *BRDF(...)			-> computes BRDF * ndtol (ndtol is not part of BRDF, but including it here from 
-	//								scattering eq. simplifies calculations)
-	//	float3 Sample*Brdf(...)		-> returns PDF of given sample
-	//	float *BrdfDivPdf(...)		-> When using Monte Carlor estimation for estimating scattering integral, BRDF needs to be sampled
-	//								e.g. computing throughput for path integral. Resulting term brdf_sample / pdf sometimes
-	//								can be simplified since some terms appear in both BRDF and its pdf.
-	//
-	//	Sampling methods returns samples in a local coord. sys. L where surface normal is z = (0, 0, 1). So
-	//	returned sample has to be transformed into a coordinate system where shading normal is
-	//	mapped to z = (0, 0, 1). There are a few ways to do that:
-	//	1. Build a change of coordinate matrix M with basis vectors x', y', z' where:
-	//			z' = shading normal
-	//			x', y' = any two vetors that form a orhtonormal coords system with z'
-	//
-	//	   Assuming shading normal is in world space, Inv(M) goes from world space to L.
-	//
-	//	2. Use a rotation matrix with axis cross(shading normal, z) and theta = arccos(dot(shading normal, z))
-	//
-	//	3. Use a quaternion rotation operator q (shading normal, 0) q* with q = (axis * sin(0.5 * theta), cos(0.5 * theta))
-	//	Using approach described here http://lolengine.net/blog/2013/09/18/beautiful-maths-quaternion-from-vectors, 
-	//	computing trigonometric functions can be replaced with simpler terms.
-
-	//--------------------------------------------------------------------------------------
-	// Utitlity structure that contains all the surface-related data
-	//--------------------------------------------------------------------------------------
-
-	struct SurfaceInteraction
-	{
-		// BRDF is a function of pair of directions w_i and w_o that indicates how incoming light from 
-		// direction w_i is scattered towards direction w_o (both w_i and w_o point out from the surface).
-		// Filling the related information for BRDF computation is done in two step where following functions
-		// fills the members that only depend on w_o
-		static SurfaceInteraction InitPartial(float3 sn, float roughness, float metalness,
-			float3 wo, float3 baseColor)
-		{
-			SurfaceInteraction si;
-			
-			si.wo = wo;
-			si.shadingNormal = sn;
-			//this.geometricNormal = gn;
-			si.ndotwo = clamp(dot(sn, wo), 0.00001f, 1.0f);
-			si.alpha = roughness * roughness;
-			si.alphaSq = max(0.00001f, si.alpha * si.alpha);
-			si.diffuseReflectance = baseColor * (1.0f - metalness);
-			si.F0 = lerp(float3(0.04f, 0.04f, 0.04f), baseColor, metalness);
-			
-			return si;
-		}
-	
-		// Completes computation of SurfaceInteractionData after wi has become known
-		void InitComplete(float3 wi)
-		{
-			wh = normalize(wi + wo);
-			ndotwi = clamp(dot(shadingNormal, wi), 0.00001f, 1.0f);
-			whdotwo = saturate(dot(wh, wo)); // == hdotwi
-			ndotwh = saturate(dot(shadingNormal, wh));
-			//surfaceInteraction.wiAndwoInSameHemisphere = 
-			//	dot(surfaceInteraction.geometricNormal, wi) *
-			//	dot(surfaceInteraction.geometricNormal, surfaceInteraction.wo) > 0 ? true : false;
-			F = FresnelSchlick(F0, whdotwo);
-		}
-	
-		float3 shadingNormal;
-		//float3 geometricNormal;
-	
-		// Apparently artists work with an "interface" value of roughness
-		// that is perceptively linear i.e. what's in a roughness texture. That
-		// value needs to be remapped to alpha values that's used in BRDF equations,
-		// since (artist) roughness != alpha. Literature suggests alpha = (artist) roughness^2,
-		// which means artists are setting square root of alpha.
-		//float roughness;
-		float alpha;
-	
-		// various equations (GGX, lambda, ...) have alpha squared in them, which can be precalculated
-		float alphaSq;
-	
-		float3 wo;
-		float3 wh;
-		float ndotwi; // wi is either sampled by BRDF sampling methods or directly provided
-		float ndotwo;
-		float whdotwo;
-		float ndotwh;
-		float3 diffuseReflectance;
-		float3 F0;
-		float3 F;
-		bool wiAndwoInSameHemisphere;
-	};
-
-	//--------------------------------------------------------------------------------------
-	// Lambertian
-	//--------------------------------------------------------------------------------------
-
-	float3 LambertianBRDF(float3 diffuseReflectance, float ndotwi)
-	{
-		return diffuseReflectance * (ndotwi * ONE_DIV_PI);
-	}
-
-	half3 LambertianBRDF(half3 diffuseReflectance, half3 ndotwi)
-	{
-		return diffuseReflectance * ndotwi * half(ONE_DIV_PI);
-	}
-
-	float3 LambertianBrdfDivPdf(SurfaceInteraction surfaceInteraction)
-	{
-		return surfaceInteraction.diffuseReflectance;
-	}
-
-	float3 SampleLambertianBrdf(in float3 shadingNormal, in float2 u, out float pdf)
-	{
-		// build rotation quaternion that maps shading normal to y = (0, 1, 0)
-	//	float3 snCrossY = float3(shadingNormal.z, 0.0f, -shadingNormal.x);
-	//	float4 q = float4(snCrossY, 1.0f + dot(shadingNormal, float3(0.0f, 1.0f, 0.0f)));
-		float4 q = Math::Transform::QuaternionFromY(shadingNormal);
-	
-		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
-
-		// transform wh from local space to world space
-		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
-	
-		return wiWorld;
-	}
-	
-	//--------------------------------------------------------------------------------------
-	// Specular Microfacet Model
-	//--------------------------------------------------------------------------------------
-
-	float3 SpecularBRDFGGXSmith(SurfaceInteraction surfaceInteraction)
-	{
-		float NDF = GGX(surfaceInteraction.ndotwh, surfaceInteraction.alphaSq);
-		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surfaceInteraction.alphaSq,
-			surfaceInteraction.ndotwi, surfaceInteraction.ndotwo);
-
-		return surfaceInteraction.F * NDF * G2Div4NdotLNdotV * surfaceInteraction.ndotwi;
+		return G1wi / (G1wi + G1wo - G1wi * G1wo);
 	}
 
 	// Ref: E. Heitz, "Sampling the GGX Distribution of VisibleNormals," Journal of Computer Graphics Techniques, 2018.
@@ -275,48 +130,174 @@ namespace BRDF
 	
 		return Ne;
 	}
-
-	// Evaluates distribution of visible normals eq.
-	//		vndf = GGX(wh) * hdotwi * G1(ndotwo) / ndotwo
-	// after correcting for change of dist. from wh to wi, it becomes
-	//		vndf * 1 / 4 * hdotwi
-	// Note: "Importance Sampling Microfacet-Based BSDFs using the Distribution of Visible Normals" eq (2) 
-	// specifies that G1 is a function of wi and wh, but Smith G1 is computed w.r.t. ndotwo. As
-	// explained in page 68, "masking function depends only on the variable a = 1 / alpha * tan(theta_0), 
-	// where tan(theta_0) is the slope of the outgoing direction."
-	// theta_0 is depicted in figure 3, as the angle between surface normal (0, 0, 1) and outgoing direction (view)
-	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surfaceInteraction)
+	
+	// Approximates how closely specular lobe dominant direction is aligned with reflected
+	// direction. Dominant direction tends to shift away from reflected direction as roughness
+	// or view angle increases (off-specular peak).
+	// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
+	float SpecularBRDFGGXSmithDominantFactor(float whDotwo, float roughness)
 	{
-		float NDF = GGX(surfaceInteraction.ndotwh, max(0.00001f, surfaceInteraction.alphaSq));
-		float G1 = SmithG1ForGGX(surfaceInteraction.alphaSq, surfaceInteraction.ndotwo);
+		float a = 0.298475f * log(39.4115f - 39.0029f * roughness);
+		float f = pow(1 - whDotwo, 10.8649f) * (1 - a) + a;
+		
+		return f;
+	}
+	
+	//--------------------------------------------------------------------------------------
+	// Utitlity structure that contains all the surface-related data
+	//--------------------------------------------------------------------------------------
 
-		float pdf = (NDF * G1) / (4.0f * saturate(surfaceInteraction.ndotwo));
+	struct SurfaceInteraction
+	{
+		// BRDF(w_i, w_o) indicates how incoming light from direction w_i is scattered towards direction 
+		// w_o (both w_i and w_o point out from the surface). Filling the related data for BRDF computations 
+		// is done in two steps as w_i isn't usually known until later on
+		
+		static SurfaceInteraction InitPartial(float3 sn, float roughness, float3 wo)
+		{
+			SurfaceInteraction si;
+			
+			si.wo = wo;
+			si.shadingNormal = sn;
+			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
+			si.alpha = roughness * roughness;
+			si.alphaSq = max(1e-5f, si.alpha * si.alpha);
+			
+			return si;
+		}
+			
+		void InitComplete(float3 wi, float3 baseColor, float metalness)
+		{
+			float3 wh = normalize(wi + this.wo);	
+			this.ndotwh = saturate(dot(this.shadingNormal, wh));			
+			this.ndotwi = saturate(dot(this.shadingNormal, wi));
+			
+			this.diffuseReflectance = baseColor * (1.0f - metalness);
+			
+			float3 F0 = lerp(0.04f.xxx, baseColor, metalness);
+			this.whdotwo = saturate(dot(wh, this.wo)); // == whdotwi
+			this.F = FresnelSchlick(F0, this.whdotwo);
+		}
+	
+		float3 shadingNormal;
+	
+		// Apparently artists work with an "interface" value of roughness that is perceptively linear 
+		// i.e. what's in a roughness texture. That value needs to be remapped to the alpha value 
+		// that's used in BRDF equations as (artist) roughness != alpha. Literature suggests 
+		// alpha = (artist) roughness^2, which means artists are setting the square root of alpha.
+		//float roughness;
+		float alpha;
+	
+		// various equations (GGX, lambda, etc) contain the alpha squared term, precalculate it beforehand
+		float alphaSq;
+	
+		float3 wo;
+		float ndotwi; // wi is either sampled by BRDF sampling methods or directly provided
+		float ndotwo;
+		float ndotwh;
+		float whdotwo;
+		float3 diffuseReflectance;
+		float3 F;
+	};
+
+	//--------------------------------------------------------------------------------------
+	// Lambertian
+	//--------------------------------------------------------------------------------------
+
+	float3 LambertianBRDF(float3 diffuseReflectance, float ndotwi)
+	{
+		return diffuseReflectance * (ndotwi * ONE_DIV_PI);
+	}
+
+	half3 LambertianBRDF(half3 diffuseReflectance, half3 ndotwi)
+	{
+		return diffuseReflectance * ndotwi * half(ONE_DIV_PI);
+	}
+
+//	float3 LambertianBrdfDivPdf(SurfaceInteraction surface)
+//	{
+//		return surface.diffuseReflectance;
+//	}
+
+	float3 SampleLambertianBrdf(float3 shadingNormal, float2 u, out float pdf)
+	{
+		// build rotation quaternion that maps y = (0, 1, 0) to the shading normal
+		float4 q = Math::Transform::QuaternionFromY(shadingNormal);
+		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+
+		// transform wi from local space to world space
+		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
+	
+		return wiWorld;
+	}
+	
+	//--------------------------------------------------------------------------------------
+	// Specular Microfacet Model
+	//--------------------------------------------------------------------------------------
+
+	float3 SpecularBRDFGGXSmith(SurfaceInteraction surface)
+	{
+		float NDF = GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surface.alphaSq, surface.ndotwi, surface.ndotwo);
+
+		return surface.F * NDF * G2Div4NdotLNdotV * surface.ndotwi;
+	}
+
+	// Evaluates distribution of visible normals (given outgoing dir. wo):
+	//		vndf(wh) = GGX(wh) * hdotwo * G1(ndotwo) / ndotwo
+	// after correction for change of variable from wh to wi, it becomes
+	//		vndf(wi) = vndf(wh) * 1 / (4 * hdotwi)
+	//               = GGX(wh) * G1(ndotwo) / (4 * ndotwo)
+	// Note that hdotwo = hdotwi.
+	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surface)
+	{
+		float NDF = GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float G1 = SmithG1ForGGX(surface.alphaSq, surface.ndotwo);
+
+		float pdf = (NDF * G1) / (4.0f * saturate(surface.ndotwo));
 	
 		return pdf;
 	}
 
-	// samples BRDF and fills out rest of SurfaceInteractionData
-	float3 SampleSpecularBRDFGGXSmith(SurfaceInteraction surfaceInteraction, float2 u)
-	{
-		// build rotation quaternion for transforming shading normal to z = (0, 0, 1)
-		float3 snCrossZ = float3(surfaceInteraction.shadingNormal.y, -surfaceInteraction.shadingNormal.x, 0.0f);
-		float4 q = float4(snCrossZ, 1.0f + dot(surfaceInteraction.shadingNormal, float3(0.0f, 0.0f, 1.0f)));
-		float3 woLocal = Math::Transform::RotateVector(surfaceInteraction.wo, q);
-	
-		float3 whLocal = SampleGGXVNDF(woLocal, surfaceInteraction.alpha, surfaceInteraction.alpha, u);
-
-		// transform wh from local space to world space
-		float4 qReverse = q * float4(-1.0f, -1.0f, -1.0f, 1.0f);
-		float3 whWorld = Math::Transform::RotateVector(whLocal, qReverse);
-		float3 wi = reflect(-surfaceInteraction.wo, whWorld);
+	float3 SampleSpecularBRDFGGXSmith(SurfaceInteraction surface, float2 u)
+	{		
+		// build an orthonormal coord. system C around the surface normal such that it points towards +Z
+		float3 b1;
+		float3 b2;
+		Math::Transform::revisedONB(surface.shadingNormal, b1, b2);
+		
+		// transform wo from world space to C
+		// M = [b1 b2 n] goes from C to world space, so we need its inverse. Since
+		// M is an orthogonal matrix, its inverse is just its tranpose
+		float3x3 worldToLocal = float3x3(b1, b2, surface.shadingNormal);
+		float3 woLocalLH = mul(worldToLocal, surface.wo);
+		
+		// Transformations between the VNDF space (right handed with +Z as up) and C (left handed with 
+		// +Z as up) can be performed using the following:
+		//
+		//			         | 1  0  0 |                                   
+		//		 T_VndfToC = | 0 -1  0 |,	 T_CToVndf = (T_VndfToC)^-1 = (T_VndfToC)^T = T_VndfToC
+		//                   | 0  0  1 | 
+		float3 woLocalRH = float3(woLocalLH.x, -woLocalLH.y, woLocalLH.z);
+		float3 whLocalRH = SampleGGXVNDF(woLocalRH, surface.alpha, surface.alpha, u);
+		
+		// now reverse the transformations in a LIFO order
+		float3 whLocalLH = float3(whLocalRH.x, -whLocalRH.y, whLocalRH.z);
+		float3 whWorld = whLocalLH.x * b1 + whLocalLH.y * b2 + whLocalLH.z * surface.shadingNormal;
+		
+		// reflect wo about the plane with normal wh (each microsurface is a perfect mirror)
+		float3 wi = reflect(-surface.wo, whWorld);
 	
 		return wi;
 	}
-
-	float3 SpecularBRDFGGXSmithDivPdf(SurfaceInteraction surfaceInteraction)
+	
+	// When VNDF is used for sampling the incident direction (wi), the expression 
+	//		f(wi, wo) * cos(theta) / Pdf(wi)
+	//
+	// is simplified to F * G2 / G1.
+	float3 SpecularBRDFGGXSmithDivPdf(SurfaceInteraction surface)
 	{
-		return surfaceInteraction.F * SmithHeightCorrelatedG2OverG1(surfaceInteraction.alphaSq,
-		surfaceInteraction.ndotwi, surfaceInteraction.ndotwo);
+		return surface.F * SmithHeightCorrelatedG2OverG1(surface.alphaSq, surface.ndotwi, surface.ndotwo);
 	}
 
 	//--------------------------------------------------------------------------------------
@@ -324,7 +305,7 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 
 	// Computes combined (diffuse + specular BRDF) * ndotwi at given surface point
-	float3 ComputeSurfaceBRDF(SurfaceInteraction surfaceInteration)
+	float3 ComputeSurfaceBRDF(SurfaceInteraction surface)
 	{
 		// For reflection to be non-zero, wi and wo have to be in the same
 		// hemisphere w.r.t. geometric normal of point being shaded. Otherwise, either
@@ -338,11 +319,11 @@ namespace BRDF
 		//	if (!surfaceInteration.wiAndwoInSameHemisphere)
 		//		return float3(0.0f, 0.0f, 0.0f);
 	
-		if (surfaceInteration.ndotwi <= 0.0f || surfaceInteration.ndotwo <= 0.0f)
-			return float3(0.0f, 0.0f, 0.0f);
+		if (surface.ndotwi <= 0.0f || surface.ndotwo <= 0.0f)
+			return 0.0.xxx;
 	
-		float3 specularBrdf = SpecularBRDFGGXSmith(surfaceInteration);
-		float3 diffuseBrdf = (1.0f.xxx - surfaceInteration.F) * LambertianBRDF(surfaceInteration.diffuseReflectance, surfaceInteration.ndotwi);
+		float3 specularBrdf = SpecularBRDFGGXSmith(surface);
+		float3 diffuseBrdf = (1.0f.xxx - surface.F) * LambertianBRDF(surface.diffuseReflectance, surface.ndotwi);
 
 		return diffuseBrdf + specularBrdf;
 	}

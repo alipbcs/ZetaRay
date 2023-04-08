@@ -30,13 +30,18 @@ namespace ZetaRay::RenderPass
 		{
 			FINAL_LIGHTING,
 			EXPOSURE,
-			DENOISER_TEMPORAL_CACHE,
-			ReSTIR_GI_TEMPORAL_RESERVOIR_A,
-			ReSTIR_GI_TEMPORAL_RESERVOIR_B,
-			ReSTIR_GI_TEMPORAL_RESERVOIR_C,
-			ReSTIR_GI_SPATIAL_RESERVOIR_A,
-			ReSTIR_GI_SPATIAL_RESERVOIR_B,
-			ReSTIR_GI_SPATIAL_RESERVOIR_C,
+			DIFFUSE_DNSR_CACHE,
+			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_A,
+			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B,
+			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A,
+			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B,
+			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
+			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
+			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
+			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
+			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
+			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
+			SPECULAR_DNSR_CACHE,
 			COUNT
 		};
 
@@ -54,7 +59,53 @@ namespace ZetaRay::RenderPass
 		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t dechHeapIdx) noexcept
 		{
 			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
-			m_gpuDescs[(int)i] = dechHeapIdx;
+			switch (i)
+			{
+			case SHADER_IN_GPU_DESC::FINAL_LIGHTING:
+				m_cbLocal.InputDescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::EXPOSURE:
+				m_cbLocal.ExposureDescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE:
+				m_cbLocal.DiffuseDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_A:
+				m_cbLocal.DiffuseTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B:
+				m_cbLocal.DiffuseTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A:
+				m_cbLocal.DiffuseSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B:
+				m_cbLocal.DiffuseSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A:
+				m_cbLocal.SpecularTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B:
+				m_cbLocal.SpecularTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D:
+				m_cbLocal.SpecularTemporalReservoir_D_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A:
+				m_cbLocal.SpecularSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B:
+				m_cbLocal.SpecularSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D:
+				m_cbLocal.SpecularSpatialReservoir_D_DescHeapIdx = dechHeapIdx;
+				break;
+			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
+				m_cbLocal.SpecularDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
+				break;
+			default:
+				break;
+			}
 		}
 		void Render(Core::CommandList& cmdList) noexcept;
 
@@ -75,15 +126,15 @@ namespace ZetaRay::RenderPass
 		Core::Texture m_lut;
 		Core::DescriptorTable m_lutSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
-		uint32_t m_gpuDescs[(int)SHADER_IN_GPU_DESC::COUNT] = { 0 };
 
 		cbDisplayPass m_cbLocal;
 
 		struct Params
 		{
 			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
-				"MetalnessRoughness", "Depth", "STAD_TemporalCache", "ReSTIR_GI_TemporalReservoir", 
-				"ReSTIR_GI_SpatialReservoir"};
+				"MetalnessRoughness", "Emissive", "Depth", "ExposureHeatmap", "DiffuseDNSR", "ReSTIR_GI_Diffuse_Temporal", 
+				"ReSTIR_GI_Diffuse_Spatial", "ReSTIR_GI_Specular_Temporal", "ReSTIR_GI_Specular_Spatial",
+				"SpecularDNSR"};
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
 			inline static const char* Tonemappers[] = { "None", "ACESFilmic", "UE4Filmic", "Neutral" };

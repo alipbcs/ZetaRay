@@ -83,7 +83,7 @@ void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData
 		data.Fsr2Pass.Init();
 }
 
-void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data, 
+void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
 	const LightData& lightData) noexcept
 {
 	if (settings.AntiAliasing == AA::NATIVE_TAA)
@@ -92,7 +92,7 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
 		data.Fsr2Pass.OnWindowResized();
 
 	data.AutoExposurePass.OnWindowResized();
-	
+
 	UpdateWndDependentDescriptors(settings, data, lightData);
 }
 
@@ -122,14 +122,14 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 	data.DisplayPass.SetCpuDescriptor(DisplayPass::SHADER_IN_CPU_DESC::RTV, backBuffRTV);
 
 	const Texture& exposureTex = data.AutoExposurePass.GetOutput(AutoExposure::SHADER_OUT_RES::EXPOSURE);
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::EXPOSURE, 
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::EXPOSURE,
 		data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)PostProcessData::DESC_TABLE_CONST::EXPOSURE_SRV));
 
 	data.GuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::DEPTH_BUFFER, gbuffData.DSVDescTable[outIdx].CPUHandle(0));
 	data.GuiPass.SetCPUDescriptor(GuiPass::SHADER_IN_CPU_DESC::RTV, backBuffRTV);
 
 	// Auto Exposure
-	data.AutoExposurePass.SetDescriptor(AutoExposure::SHADER_IN_DESC::COMPOSITED, 
+	data.AutoExposurePass.SetDescriptor(AutoExposure::SHADER_IN_DESC::COMPOSITED,
 		data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
 
 	// TAA
@@ -142,9 +142,9 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
 	}
 	// FSR2
-	else if(settings.AntiAliasing == AA::FSR2)
+	else if (settings.AntiAliasing == AA::FSR2)
 	{
-		Core::Texture& composited = !settings.DoF ? 
+		Core::Texture& composited = !settings.DoF ?
 			const_cast<Core::Texture&>(lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED)) :
 			const_cast<Core::Texture&>(lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED));
 
@@ -157,7 +157,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
 	}
 	else
-	{ 
+	{
 		// Display
 		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING,
 			data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
@@ -179,6 +179,29 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 	// denoised indirect diffuse
 	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE,
 		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::DIFFUSE_DNSR_TEMPORAL_CACHE));
+
+	// indirect specular reservoirs
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_A));
+
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_B));
+
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_D));
+
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_A));
+
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_B));
+
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_D));
+
+	// denoised indirect specular
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
+		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
 
 	data.GuiPass.Update();
 }
@@ -245,7 +268,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
 	const LightData& lightData, const RayTracerData& rayTracerData, RenderGraph& renderGraph) noexcept
 {
-	const Core::Texture& composited = !settings.DoF ? 
+	const Core::Texture& composited = !settings.DoF ?
 		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED) :
 		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED);
 
@@ -294,7 +317,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 		renderGraph.AddInput(data.Fsr2Handle,
 			composited.GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-		
+
 		renderGraph.AddInput(data.Fsr2Handle,
 			gbuffData.MotionVec.GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -315,7 +338,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 			upscaled.GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
-	
+
 	// Auto Exposure
 	{
 		renderGraph.AddInput(data.AutoExposureHandle,
@@ -362,6 +385,36 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 		// denoised indirect diffuse
 		renderGraph.AddInput(data.DisplayHandle,
 			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		// indirect specular reservoirs
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D).GetPathID(),
+			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+		// denoised indirect specular
+		renderGraph.AddInput(data.DisplayHandle,
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
 

@@ -75,13 +75,14 @@ namespace Math
 	
 	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
 	// input in [-1, 1] and output in [0, PI]
-	float ArcCos(float x)
+	template<typename T>
+	T ArcCos(T x)
 	{
-		float xAbs = abs(x);
-		float res = ((-0.0206453f * xAbs + 0.0764532f) * xAbs + -0.21271f) * xAbs + 1.57075f;
+		T xAbs = abs(x);
+		T res = ((-0.0206453f * xAbs + 0.0764532f) * xAbs + -0.21271f) * xAbs + 1.57075f;
 		res *= sqrt(1.0f - xAbs);
 
-		return (x >= 0) ? res : PI - res;
+		return select((x >= 0), res, PI - res);
 	}
 	
 	float3 SphericalToCartesian(float r, float cosTheta, float phi)
@@ -100,9 +101,9 @@ namespace Math
 		// x = sin(theta) * cos(phi)
 		// y = cos(theta)
 		// z = sin(theta) * sin(phi)
-		thetaPhi.x = ArcCos(w.y); // [-PI, +PI]
-		thetaPhi.y = atan2(w.z, w.x);
-		thetaPhi.y = thetaPhi.y < 0.0f ? thetaPhi.y + PI : thetaPhi.y; // [0, 2 * PI]
+		thetaPhi.x = ArcCos(w.y);
+		thetaPhi.y = atan2(w.z, w.x); // [-PI, +PI]
+		thetaPhi.y += PI; // [0, 2 * PI]
 		
 		return thetaPhi;
 	}
@@ -183,7 +184,7 @@ namespace Math
 		template<typename FVec>
 		FVec LinearDepthFromNDC(FVec zNDC, float near)
 		{
-			return near / zNDC;
+			return select(zNDC == 0.0f, FLT_MAX, near / zNDC);
 		}
 		
 		float2 NDCFromUV(float2 uv)
@@ -272,91 +273,36 @@ namespace Math
 
 			return mul(scaledBumpNormal, TangentSpaceToWorld);
 		}
-		float3 TangentSpaceToWorldSpace(float3 bumpNormal, float3 tangentW, float3 normalW, float scale)
-		{
-			// graham-schmidt normalization
-			normalW = normalize(normalW);
-			tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
-
-			// TBN coordiante system
-			float3 bitangentW = cross(normalW, tangentW);
-			float3x3 TangentSpaceToWorld = float3x3(tangentW, bitangentW, normalW);
-
-			bumpNormal = 2.0f * bumpNormal - 1.0f;
-			// scaledNormal = normalize<sampled normal texture value> * 2.0 - 1.0) * vec3(<normal scale>, <normal scale>, 1.0.
-			float3 scaledBumpNormal = normalize(bumpNormal * float3(scale, scale, 1.0f));
-
-			return mul(bumpNormal, TangentSpaceToWorld);
-		}
 		
-		// Reference: https://blog.selfshadow.com/2011/10/17/perp-vectors/
-		// returns a vector that is perpendicular to u (assumed to be normalized)
-		float3 GetPerpendicularVector(float3 u)
+		// Ref: T. Duff, J. Burgess, P. Christensen, C. Hery, A. Kensler, M. Liani, 
+		// R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
+		// Note: modified to return an orthonormal TBN basis in a left-handed system where N = n_Lhs
+		void revisedONB(float3 n_ws, out float3 b1, out float3 b2)
 		{
-			float3 a = abs(u);
-
-			uint xm = ((a.x - a.y) < 0 && (a.x - a.z) < 0) ? 1 : 0;
-			uint ym = (a.y - a.z) < 0 ? (1 ^ xm) : 0;
-			uint zm = 1 ^ (xm | ym);
-
-			return cross(u, float3(xm, ym, zm));
-		}
-		
-		// Quaternion that rotates u to v
-		float4 QuaternionFromVectors(float3 u, float3 v)
-		{
-			float unormvorm = sqrt(dot(u, u) * dot(v, v));
-			float udotv = dot(u, v);
-			float4 q;
-	
-			if (unormvorm - udotv > 1e-6 * unormvorm)
+			// LHS to RHS with +Z up
+			float3 n = float3(n_ws.x, n_ws.z, n_ws.y);
+			
+			if (n.z < 0.0f)
 			{
-				float3 imaginary = cross(v, u);
-				float real = udotv + unormvorm;
-		
-				q = normalize(float4(imaginary, real));
+				const float a = 1.0f / (1.0f - n.z);
+				const float b = n.x * n.y * a;
+				b1 = float3(b, -n.y, n.y * n.y * a - 1.0f);
+				b2 = float3(1.0f - n.x * n.x * a, n.x, -b);
 			}
 			else
 			{
-				float3 p = GetPerpendicularVector(normalize(u));
-
-				// rotate 180/2 = 90 degrees
-				q = float4(p, 0.0f);
-		
-				// p is already normalized so no need to normalize q
+				const float a = 1.0f / (1.0f + n.z);
+				const float b = -n.x * n.y * a;
+				b1 = float3(b, -n.y, 1.0f - n.y * n.y * a);
+				b2 = float3(1.0f - n.x * n.x * a, -n.x, b);
 			}
-	
-			return q;
+			
+			// for b1 & b2:
+			// 1. transform from RHS to LHS with
+			// 2. reorder b1 & b2 to match LHS orientation
 		}
 
-		// Quaternion that rotates u to v
-		// u and v are assumed to be normalized
-		float4 QuaternionFromUnitVectors(float3 u, float3 v)
-		{
-			float udotv = dot(u, v);
-			float4 q;
-	
-			// u == -v is a singularity
-			if (udotv < 1.0f - 1e-6)
-			{
-				float3 imaginary = cross(v, u);
-				float real = udotv + 1.0f;
-				q = normalize(float4(imaginary, real));
-			}
-			else
-			{
-				float3 p = GetPerpendicularVector(u);
-
-				// rotate 180/2 = 90 degrees
-				q = float4(p, 0.0f);
-		
-				// p is already normalized, so no need to normalize q
-			}
-	
-			return q;
-		}
-
-		// Quaternion that rotates Y to u
+		// Quaternion that rotates +Y to u
 		// u is assumed to be normalized
 		float4 QuaternionFromY(float3 u)
 		{
@@ -373,7 +319,105 @@ namespace Math
 			}
 			else
 			{
-				// rotate 180/2 = 90 degrees around X-axis (Z-axis works too since both are perperndicular to Y)
+				// rotate 180 degrees around the X-axis (Z-axis works too since both are orthogonal to Y)
+				//
+				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+				// where
+				//		n = (1, 0, 0)
+				//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
+				q = float4(1.0f, 0.0f, 0.0f, 0.0f);
+		
+				// no need to normalize q
+			}
+	
+			return q;
+		}
+		
+		// Quaternion that rotates u to +Y
+		// u is assumed to be normalized
+		float4 QuaternionToY(float3 u)
+		{
+			float4 q;
+			float real = 1.0f + u.z;
+	
+			// u = (0, 0, -1) is a singularity
+			if (real > 1e-6)
+			{
+				// build rotation quaternion that maps u to z = (0, 0, 1)
+				float3 yCrossU = float3(-u.z, 0.0f, u.x);
+				q = float4(yCrossU, real);
+				q = normalize(q);
+			}
+			else
+			{
+				// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+				//
+				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+				// where
+				//		n = (1, 0, 0)
+				//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
+				q = float4(1.0f, 0.0f, 0.0f, 0.0f);
+		
+				// no need to normalize q
+			}
+	
+			return q;
+		}
+		
+		// Quaternion that rotates +Z to u
+		// u is assumed to be normalized
+		float4 QuaternionFromZ(float3 u)
+		{
+			float4 q;
+			float real = 1.0f + u.z;
+	
+			// u = (0, 0, -1) is a singularity
+			if (real > 1e-6)
+			{
+				// build rotation quaternion that maps z = (0, 0, 1) to u
+				float3 zCrossU = float3(-u.y, u.x, 0);
+				q = float4(zCrossU, real);
+				q = normalize(q);
+			}
+			else
+			{
+				// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+				//
+				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+				// where
+				//		n = (1, 0, 0)
+				//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
+				q = float4(1.0f, 0.0f, 0.0f, 0.0f);
+		
+				// no need to normalize q
+			}
+	
+			return q;
+		}
+		
+		// Quaternion that rotates u to +Z
+		// u is assumed to be normalized
+		float4 QuaternionToZ(float3 u)
+		{
+			float4 q;
+			float real = 1.0f + u.z;
+	
+			// u = (0, 0, -1) is a singularity
+			if (real > 1e-6)
+			{
+				// build rotation quaternion that maps u to z = (0, 0, 1)
+				float3 uCrossZ = float3(u.y, -u.x, 0);
+				q = float4(uCrossZ, real);
+				q = normalize(q);
+			}
+			else
+			{
+				// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+				//
+				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+				// where
+				//		n = (1, 0, 0)
+				//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
 				q = float4(1.0f, 0.0f, 0.0f, 0.0f);
 		
 				// no need to normalize q
@@ -442,7 +486,7 @@ namespace Math
 			n.xy += select(n.xy >= 0.0f, -t, t);
 	
 			return normalize(n);
-		}		
+		}
 	}
 
 	namespace Color
@@ -482,7 +526,7 @@ namespace Math
 		float3 LinearToYCbCr(float3 x)
 		{
 			float3x3 M = float3x3(0.2126, 0.7152, 0.0722,
-								  -0.1146, -0.3854, 0.5, 
+								  -0.1146, -0.3854, 0.5,
 								  0.5, -0.4542, -0.0458);
 			return mul(M, x);
 		}

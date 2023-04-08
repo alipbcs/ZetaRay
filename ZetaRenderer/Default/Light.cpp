@@ -16,16 +16,15 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	data.HdrLightAccumRTV = renderer.GetRtvDescriptorHeap().Allocate(1);
 	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_CONST::COUNT);
 
-	CreateHDRLightAccumTex(data);
-
 	// sun shadow
 	data.SunShadowPass.Init();
 
 	// compositing
 	data.CompositingPass.Init();
+	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
 
 	// sky dome
-	data.SkyDomePass.Init(LightData::HDR_LIGHT_ACCUM_FORMAT);
+	data.SkyDomePass.Init(lightAccum.GetDesc().Format);
 
 	// inscattering + sku-view lut
 	data.SkyPass.Init(LightData::SKY_LUT_WIDTH, LightData::SKY_LUT_HEIGHT, settings.Inscattering);
@@ -34,6 +33,9 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	Direct3DHelper::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
 		data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV));
 
+	// RTV
+	Direct3DHelper::CreateRTV(lightAccum, data.HdrLightAccumRTV.CPUHandle(0));
+
 	if (settings.Inscattering)
 	{
 		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
@@ -41,34 +43,13 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	}
 }
 
-void Light::CreateHDRLightAccumTex(LightData& data) noexcept
-{
-	auto& renderer = App::GetRenderer();
-	auto* device = renderer.GetDevice();
-	auto& gpuMem = renderer.GetGpuMemory();
-	const int width = renderer.GetRenderWidth();
-	const int height = renderer.GetRenderHeight();
-
-	D3D12_CLEAR_VALUE clearValue = {};
-	memset(clearValue.Color, 0, sizeof(float) * 4);
-	clearValue.Format = LightData::HDR_LIGHT_ACCUM_FORMAT;
-
-	data.HdrLightAccumTex = ZetaMove(gpuMem.GetTexture2D("Light/HDRLightAccum",
-		width, height,
-		LightData::HDR_LIGHT_ACCUM_FORMAT,
-		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_RENDER_TARGET | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS, 1, &clearValue));
-
-	// RTV
-	Direct3DHelper::CreateRTV(data.HdrLightAccumTex, data.HdrLightAccumRTV.CPUHandle(0));
-
-	// UAV
-	Direct3DHelper::CreateTexture2DUAV(data.HdrLightAccumTex, data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_UAV));
-}
-
 void Light::OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept
 {
-	Light::CreateHDRLightAccumTex(data);
+	data.CompositingPass.OnWindowResized();
+
+	// RTV
+	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
+	Direct3DHelper::CreateRTV(lightAccum, data.HdrLightAccumRTV.CPUHandle(0));
 
 	if (data.SunShadowPass.IsInitialized())
 		data.SunShadowPass.OnWindowResized();
@@ -84,7 +65,6 @@ void Light::Shutdown(LightData& data) noexcept
 	//data.EmissiveTriangles.free_memory();
 	data.HdrLightAccumRTV.Reset();
 	data.GpuDescTable.Reset();
-	data.HdrLightAccumTex.Reset();
 	data.CompositingPass.Reset();
 	data.SunShadowPass.Reset();
 	data.SkyDomePass.Reset();
@@ -111,18 +91,17 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 	data.SkyDomePass.SetDescriptor(SkyDome::SHADER_IN_DESC::DEPTH_BUFFER,
 		gbuffData.DSVDescTable[currOutIdx].CPUHandle(0));
 
-	data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::HDR_LIGHT_ACCUM,
-		data.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_UAV));
-
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 
 	if (tlas.IsInitialized())
 	{
-		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_A,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_A));
+		// indirect diffuse
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE,
+			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::DIFFUSE_DNSR_TEMPORAL_CACHE));
 
-		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::RESERVOIR_B,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPATIAL_RESERVOIR_B));
+		// indirect specular
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
+			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
 
 		// sun shadow temporal cache changes every frame
 		data.SunShadowGpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
@@ -137,6 +116,9 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 //			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex(0));
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
 			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
+
+		// make sure compistor and indirect specular have matching roughness cutoffs
+		data.CompositingPass.SetRoughnessCutoff(rayTracerData.ReSTIR_GI_SpecularPass.GetRoughnessCutoff());
 
 		if (settings.Inscattering)
 		{
@@ -154,19 +136,26 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 		}
 		else
 			data.CompositingPass.SetInscatteringEnablement(false);
-
-		if (settings.IndirectDiffuseDenoiser != Settings::DENOISER::NONE)
-		{
-			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DENOISED_L_IND,
-				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::STAD_TEMPORAL_CACHE));
-		}
 	}
 }
 
 void Light::Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData,
 	RenderGraph& renderGraph) noexcept
 {
-	renderGraph.RegisterResource(data.HdrLightAccumTex.GetResource(), data.HdrLightAccumTex.GetPathID());
+	Core::Texture& lightAccum = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED));
+	renderGraph.RegisterResource(lightAccum.GetResource(), lightAccum.GetPathID());
+
+	// dof
+	if (settings.DoF)
+	{
+		Core::Texture& dofGather = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_GATHER));
+		renderGraph.RegisterResource(dofGather.GetResource(), dofGather.GetPathID());
+
+		// due to pingponging, these two might be the same
+		Core::Texture& dofFiltered = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED));
+		if(dofFiltered.GetPathID() != dofGather.GetPathID())
+			renderGraph.RegisterResource(dofFiltered.GetResource(), dofFiltered.GetPathID());
+	}
 
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 	const bool isTLASbuilt = tlas.IsInitialized();
@@ -296,13 +285,13 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
 		renderGraph.AddOutput(lightData.SkyDomeHandle,
-			lightData.HdrLightAccumTex.GetPathID(),
+			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED).GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
 
 	// compositing
 	renderGraph.AddInput(lightData.CompositingHandle,
-		gbuffData.BaseColor[outIdx].GetPathID(),
+		gbuffData.BaseColor.GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 	renderGraph.AddInput(lightData.CompositingHandle,
@@ -319,6 +308,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 
 	if (isTLASbuilt)
 	{
+		// sun shadows
 		renderGraph.AddInput(lightData.CompositingHandle,
 			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -327,12 +317,14 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+		// indirect diffuse
 		renderGraph.AddInput(lightData.CompositingHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+		// indirect specular
 		renderGraph.AddInput(lightData.CompositingHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// inscattering
@@ -342,19 +334,22 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 				lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		}
-
-		// denoised indirect diffuse
-		if (settings.IndirectDiffuseDenoiser == Settings::DENOISER::STAD)
-		{
-			renderGraph.AddInput(lightData.CompositingHandle,
-				rayTracerData.DiffuseDNSRPass.GetOutput(DiffuseDNSR::SHADER_OUT_RES::SPATIAL_FILTER_OUT).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-		}
 	}
 
 	renderGraph.AddOutput(lightData.CompositingHandle, 
-		lightData.HdrLightAccumTex.GetPathID(),
+		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED).GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+	if (settings.DoF)
+	{
+		renderGraph.AddOutput(lightData.CompositingHandle,
+			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_GATHER).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		renderGraph.AddOutput(lightData.CompositingHandle,
+			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED).GetPathID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	}
 }
 
 

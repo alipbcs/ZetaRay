@@ -4,12 +4,12 @@ add_subdirectory(AutoExposure)
 add_subdirectory(Common)
 add_subdirectory(Clear)
 add_subdirectory(Compositing)
-add_subdirectory(Denoiser)
 add_subdirectory(Display)
 add_subdirectory(FSR2)
 add_subdirectory(GBuffer)
 add_subdirectory(GUI)
 add_subdirectory(IndirectDiffuse)
+add_subdirectory(IndirectSpecular)
 add_subdirectory(Sky)
 add_subdirectory(SunShadow)
 add_subdirectory(TAA)
@@ -27,8 +27,8 @@ set(RENDERPASS_SRC
     ${RP_GBUFFER_SRC} 
     ${RP_GUI_SRC} 
     ${RP_IND_DIFF_SRC} 
+    ${RP_IND_SPEC_SRC}
     ${RP_SKY_SRC} 
-    ${RP_DENOISER_SRC} 
     ${RP_SUN_SRC} 
     ${RP_TAA_SRC})
         

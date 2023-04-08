@@ -5,7 +5,8 @@
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/RT.hlsli"
-#include "../IndirectDiffuse/Reservoir.hlsli"
+#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
+#include "../IndirectSpecular/Reservoir_Specular.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
 //--------------------------------------------------------------------------------------
@@ -16,7 +17,7 @@ ConstantBuffer<cbCompositing> g_local : register(b0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 
 //--------------------------------------------------------------------------------------
-// Pixel Shader
+// Helper Functions
 //--------------------------------------------------------------------------------------
 
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr, float3 posW, float3 wo)
@@ -38,13 +39,10 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
 		
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal,
-		mr.y, mr.x, wo, baseColor.rgb);
-	
-	surface.InitComplete(-g_frame.SunDir);
-	
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);	
+	surface.InitComplete(-g_frame.SunDir, baseColor.rgb, mr.x);
 	float3 f = BRDF::ComputeSurfaceBRDF(surface);
-
+	
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
 	const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
@@ -60,13 +58,25 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 
 	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::EMISSIVE_COLOR];
-	half3 L_e = g_emissiveColor[DTid].rgb;
+	float3 L_e = g_emissiveColor[DTid].rgb;
 	L_i += L_e;
 
 	return L_i;
 }
 
-[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, THREAD_GROUP_SIZE_Z)]
+float CoC(float linearDepth)
+{
+	float f = g_local.FocalLength / 1000.0f; // convert from mm to meters
+	float numerator = f * f * abs(linearDepth - g_local.FocusDepth);
+	float denom = g_local.FStop * linearDepth * (g_local.FocusDepth - f);
+	return abs(numerator / denom) * 1000;
+}
+
+//--------------------------------------------------------------------------------------
+// Main
+//--------------------------------------------------------------------------------------
+
+[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -101,45 +111,29 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const half2 mr = g_metalnessRoughness[DTid.xy];
-	
-	if (!g_local.SkipLighting && !g_local.DisplayIndirectDiffuseOnly)
+	const float2 mr = g_metalnessRoughness[DTid.xy];
+
+	if (g_local.DirectLighting)
 		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);
 	
-	if (!g_local.SkipLighting && !g_local.DisplayDirectLightingOnly)
+	if (g_local.IndirectDiffuse && mr.x <= MAX_METALNESS)
 	{
-		Reservoir r = PartialReadInputReservoir(DTid.xy, g_local.InputReservoir_A_DescHeapIdx,
-				g_local.InputReservoir_B_DescHeapIdx);
-
-		const float3 wi = normalize(r.SamplePos - posW);
-		float3 diffuseReflectance = baseColor * (1.0f - mr.x);
+		float3 f = baseColor * ONE_DIV_PI;
 	
-		// TODO account for Fresnel during denoising
-#if 0
-			float3 F0 = lerp(0.04f.xxx, baseColor, mr.x);
-			float3 wh = normalize(wi + wo);
-			float whdotwo = saturate(dot(wh, wo)); // == hdotwi
-			float3 F = BRDF::FresnelSchlick(F0, whdotwo);
-			float3 f = (1.0f.xxx - F) * diffuseReflectance * ONE_DIV_PI;
-#endif
-
-		float3 f = diffuseReflectance * ONE_DIV_PI;
-		float3 integratedLiXndotwi = r.Li * r.GetW();
-	
-		if (!g_local.UseRawIndirectDiffuse)
-		{
-			Texture2D<half4> g_temporalCache = ResourceDescriptorHeap[g_local.DenoiserTemporalCacheDescHeapIdx];
-			half3 integratedVals = g_temporalCache[DTid.xy].rgb;
-			integratedLiXndotwi = integratedVals;
-		}
-		else
-			integratedLiXndotwi *= saturate(dot(wi, normal));
-	
-		color += integratedLiXndotwi * f;
+		Texture2D<half4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
+		float3 integratedVals = g_diffuseTemporalCache[DTid.xy].rgb;
+		color += integratedVals * f;
 		//color = f * 10;
 	}
 	
-	if (!g_local.SkipLighting && g_local.AccumulateInscattering)
+	if (g_local.IndirectSpecular && mr.y < g_local.RoughnessCutoff)
+	{
+		Texture2D<half4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
+		float3 integratedVals = g_specularTemporalCache[DTid.xy].rgb;
+		color += integratedVals;
+	}
+	
+	if (g_local.AccumulateInscattering)
 	{
 		if (linearDepth > 1e-4f)
 		{
@@ -158,7 +152,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 			color += inscattering;
 		}
 	}
+
+	const float coc = CoC(linearDepth);
 	
-	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.HDRLightAccumDescHeapIdx];
-	g_hdrLightAccum[DTid.xy].rgb = color;
+	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
+	g_hdrLightAccum[DTid.xy] = float4(color, coc);
 }

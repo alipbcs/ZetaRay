@@ -92,7 +92,7 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
-		float m_cameraAcceleration = 40.0f;
+		float m_cameraAcceleration = 100.0f;
 
 		Timer m_timer;
 		RendererCore m_renderer;
@@ -1080,10 +1080,12 @@ namespace ZetaRay
 		// initialize camera
 		g_app->m_frameMotion.Reset();
 
-		g_app->m_camera.Init(float3(0.0f, 1.0f, 0.0f), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.5f, true, float3(0.0f, 0.0f, 1.0f), false);
+		//g_app->m_camera.Init(float3(0.0f, 1.0f, 0.0f), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.5f, true, float3(0.0f, 0.0f, 1.0f), false);
 		//g_app->m_camera.Init(float3(-35.75f, 5.4f, 17.275f), App::GetRenderer().GetAspectRatio(),
 		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.931f, -0.139f, 0.339f), false);
+		g_app->m_camera.Init(float3(-30.663, 4.176, 33.364), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.722f, -0.682f, 0.115f), false);
 		//g_app->m_camera.Init(float3(7.605f, 1.058, -7.162), App::GetRenderer().GetAspectRatio(),
 		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.841f, -0.191f, 0.506f), false);
 
