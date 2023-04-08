@@ -178,7 +178,8 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			float sampleMetalness = g_metalnessRoughness[samplePosSS].x;
 			const float w_m = sampleMetalness <= MAX_METALNESS;
 			
-			const float weight = w_z * w_n * w_r * w_m;
+			//const float weight = w_z * w_n * w_r * w_m;
+			const float weight = w_z * w_r * w_m;
 
 			if (weight < 1e-3)
 				continue;

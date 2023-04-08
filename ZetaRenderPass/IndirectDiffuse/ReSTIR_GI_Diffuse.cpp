@@ -593,31 +593,31 @@ void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
 
 	{
 		// temporal reservoirs
-		func(m_temporalReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "TemporalReservoir_0_A",
+		func(m_temporalReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "Diff_TemporalReservoir_0_A",
 			DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_0_A_UAV);
-		func(m_temporalReservoirs[0].ReservoirB, ResourceFormats::RESERVOIR_B, "TemporalReservoir_0_B",
+		func(m_temporalReservoirs[0].ReservoirB, ResourceFormats::RESERVOIR_B, "Diff_TemporalReservoir_0_B",
 			DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_0_B_UAV);
-		func(m_temporalReservoirs[0].ReservoirC, ResourceFormats::RESERVOIR_C, "TemporalReservoir_0_C",
+		func(m_temporalReservoirs[0].ReservoirC, ResourceFormats::RESERVOIR_C, "Diff_TemporalReservoir_0_C",
 			DESC_TABLE::TEMPORAL_RESERVOIR_0_C_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_0_C_UAV);
-		func(m_temporalReservoirs[1].ReservoirA, ResourceFormats::RESERVOIR_A, "TemporalReservoir_1_A",
+		func(m_temporalReservoirs[1].ReservoirA, ResourceFormats::RESERVOIR_A, "Diff_TemporalReservoir_1_A",
 			DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_1_A_UAV);
-		func(m_temporalReservoirs[1].ReservoirB, ResourceFormats::RESERVOIR_B, "TemporalReservoir_1_B",
+		func(m_temporalReservoirs[1].ReservoirB, ResourceFormats::RESERVOIR_B, "Diff_TemporalReservoir_1_B",
 			DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_1_B_UAV);
-		func(m_temporalReservoirs[1].ReservoirC, ResourceFormats::RESERVOIR_C, "TemporalReservoir_1_C",
+		func(m_temporalReservoirs[1].ReservoirC, ResourceFormats::RESERVOIR_C, "Diff_TemporalReservoir_1_C",
 			DESC_TABLE::TEMPORAL_RESERVOIR_1_C_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_1_C_UAV);
 
 		// spatial reservoirs
-		func(m_spatialReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "SpatialReservoir_0_A",
+		func(m_spatialReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "Diff_SpatialReservoir_0_A",
 			DESC_TABLE::SPATIAL_RESERVOIR_0_A_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_A_UAV, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		func(m_spatialReservoirs[0].ReservoirB, ResourceFormats::RESERVOIR_B, "SpatialReservoir_0_B",
+		func(m_spatialReservoirs[0].ReservoirB, ResourceFormats::RESERVOIR_B, "Diff_SpatialReservoir_0_B",
 			DESC_TABLE::SPATIAL_RESERVOIR_0_B_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_B_UAV, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		func(m_spatialReservoirs[0].ReservoirC, ResourceFormats::RESERVOIR_C, "SpatialReservoir_0_C",
+		func(m_spatialReservoirs[0].ReservoirC, ResourceFormats::RESERVOIR_C, "Diff_SpatialReservoir_0_C",
 			DESC_TABLE::SPATIAL_RESERVOIR_0_C_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_C_UAV, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		func(m_spatialReservoirs[1].ReservoirA, ResourceFormats::RESERVOIR_A, "SpatialReservoir_1_A",
+		func(m_spatialReservoirs[1].ReservoirA, ResourceFormats::RESERVOIR_A, "Diff_SpatialReservoir_1_A",
 			DESC_TABLE::SPATIAL_RESERVOIR_1_A_SRV, DESC_TABLE::SPATIAL_RESERVOIR_1_A_UAV);
-		func(m_spatialReservoirs[1].ReservoirB, ResourceFormats::RESERVOIR_B, "SpatialReservoir_1_B",
+		func(m_spatialReservoirs[1].ReservoirB, ResourceFormats::RESERVOIR_B, "Diff_SpatialReservoir_1_B",
 			DESC_TABLE::SPATIAL_RESERVOIR_1_B_SRV, DESC_TABLE::SPATIAL_RESERVOIR_1_B_UAV);
-		func(m_spatialReservoirs[1].ReservoirC, ResourceFormats::RESERVOIR_C, "SpatialReservoir_1_C",
+		func(m_spatialReservoirs[1].ReservoirC, ResourceFormats::RESERVOIR_C, "Diff_SpatialReservoir_1_C",
 			DESC_TABLE::SPATIAL_RESERVOIR_1_C_SRV, DESC_TABLE::SPATIAL_RESERVOIR_1_C_UAV);
 
 		// denoiser temporal cache

@@ -552,7 +552,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 									       offset.x * offset.y);
 	
 	float4 weights = geoWeights * bilinearWeights;
-	weights *= weights > 1e-4;
+	weights *= weights > 1e-3;
 	float weightSum = dot(1, weights);
 	
 	if(weightSum < 1e-4)

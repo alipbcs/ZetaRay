@@ -126,6 +126,8 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 	
 	//float4 weights = geoWeights * normalWeights * bilinearWeights * isInBounds;
 	float4 weights = geoWeights * bilinearWeights * isInBounds;
+	// zero out samples with very low weights to avoid bright spots
+	weights *= weights > 1e-3f;
 	const float weightSum = dot(1.0f, weights);
 
 	if (1e-6f < weightSum)

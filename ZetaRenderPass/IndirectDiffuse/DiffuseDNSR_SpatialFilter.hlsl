@@ -219,7 +219,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 #if WORLD_SPACE_SAMPLING
 	s = min(s, 0.75f);
 #else
-	s = min(s, 0.01f);
+	s = min(s, 0.05f);
 #endif
 	
 	filtered = lerp(filtered, centerColor, s);
