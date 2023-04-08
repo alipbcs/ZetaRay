@@ -1135,8 +1135,9 @@ void GpuMemory::SubmitResourceCopies() noexcept
 
 void GpuMemory::Recycle() noexcept
 {
-	CheckHR(m_fenceDirect->Signal(m_nextFenceVal));
-	CheckHR(m_fenceCompute->Signal(m_nextFenceVal));
+	auto& renderer = App::GetRenderer();
+	renderer.SignalDirectQueue(m_fenceDirect.Get(), m_nextFenceVal);
+	renderer.SignalComputeQueue(m_fenceCompute.Get(), m_nextFenceVal);
 
 	const uint64_t completedFenceValDir = m_fenceDirect->GetCompletedValue();
 	const uint64_t completedFenceValCompute = m_fenceCompute->GetCompletedValue();
@@ -1163,7 +1164,7 @@ void GpuMemory::Recycle() noexcept
 		{
 			m_threadContext[i].UploadHeap->Recycle();
 			m_threadContext[i].DefaultHeap->Recycle();			// TODO move to a background task
-			m_threadContext[i].UploadHeap->GarbageCollect();	// lanches a background task
+			m_threadContext[i].UploadHeap->GarbageCollect();	// launches a background task
 			m_threadContext[i].ResUploader->Recycle();
 		}
 
