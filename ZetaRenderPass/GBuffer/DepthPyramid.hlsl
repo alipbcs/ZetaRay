@@ -27,8 +27,9 @@ AF4 SpdLoadSourceImage(ASU2 p, AU1 slice)
 {
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const int2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	p = clamp(p, 0, renderDim - 1);
-	float depth = g_currDepth[p];
+	//p = clamp(p, 0, renderDim - 1);
+	bool inScreen = p.x >= 0 && p.x < g_frame.RenderWidth && p.y >= 0 && p.y < g_frame.RenderHeight;
+	float depth = inScreen ? g_currDepth[p] : 0.0;
 		
 	return depth.xxxx;
 }

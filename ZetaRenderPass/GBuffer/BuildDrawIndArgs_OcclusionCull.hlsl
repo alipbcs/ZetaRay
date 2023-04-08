@@ -61,12 +61,12 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		float3(ext.x, -ext.y, -ext.z),
 		float3(ext.x, -ext.y, ext.z),
 		float3(ext.x, ext.y, -ext.z),
-		float3(ext.x, ext.y, ext.z)
+		ext
 	};
 	
 	float2 minPosUV = 1.xx;
 	float2 maxPosUV = 0.xx;
-	float maxZ = -FLT_MAX;
+	float maxZ_NDC = 0;
 	float3 nearestCorner = -FLT_MAX.xxx;
 	
 	[unroll]
@@ -81,17 +81,20 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		minPosUV = min(minPosUV, uv);
 		maxPosUV = max(maxPosUV, uv);
 		
-		if (maxZ < posH.z)
+		if (posH.z > maxZ_NDC)
 		{
-			maxZ = posH.z;
+			maxZ_NDC = posH.z;
 			nearestCorner = boxCorner;
 		}
 	}
 	
-	maxZ = saturate(maxZ);
-	
+#if 0	
 	const float2 aabbScreen = (maxPosUV - minPosUV) * float2(g_local.DepthPyramidMip0DimX, g_local.DepthPyramidMip0DimY);
 	float mip = ceil(log2(max(aabbScreen.x, aabbScreen.y)));
+#else
+	const float2 aabbScreen = (maxPosUV - minPosUV) * float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	float mip = max(ceil(log2(max(aabbScreen.x, aabbScreen.y))) - 1, 0);
+#endif
 	
 	float prevMip = max(mip - 1, 0);
 	float2 scale = exp2(-prevMip);
@@ -109,7 +112,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	aabbCornersScreen[3] = float2(maxPosUV.x, minPosUV.y);
 	
 	Texture2D<float> g_depthPyramid = ResourceDescriptorHeap[g_local.DepthPyramidSrvDescHeapIdx];
-	float minFootprintZ = 1.0f;
+	float minFootprintZ = FLT_MAX;
 	
 	[unroll]
 	for (int j = 0; j < 4; j++)
@@ -123,7 +126,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float3 cameraBasisZ = float3(g_frame.CurrView._m02, g_frame.CurrView._m12, g_frame.CurrView._m22);
 	const bool cornerCase = (dot(cameraBasisZ, normalize(nearestCorner - g_frame.CameraPos)) <= 1e-5f) && 
 		(mip >= g_local.NumDepthPyramidMips - 3);
-	const bool isVisible = (minFootprintZ <= maxZ + g_local.DepthThresh) || cornerCase;
+	const bool isVisible = (minFootprintZ <= maxZ_NDC + g_local.DepthThresh) || cornerCase;
 #else
 	bool isVisible = (minFootprintZ <= maxZ + 1e-3f);
 #endif

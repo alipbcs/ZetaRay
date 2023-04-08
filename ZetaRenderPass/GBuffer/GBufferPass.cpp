@@ -646,6 +646,8 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		}
 
 		// record a copy that copies the counter to a cpu-readable buffer
+		// PIX warns that following is not needed, yet the debug layer gives and error
+		// that STATE_INDIRECT_ARGUMENT is invalid for copy!
 		directCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_STATE_COPY_SOURCE);
