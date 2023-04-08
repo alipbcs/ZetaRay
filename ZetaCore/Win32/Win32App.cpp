@@ -136,6 +136,8 @@ namespace
 		SmallVector<LogMessage, FrameAllocator> m_frameLogs;
 
 		fastdelegate::FastDelegate0<> m_rebuildFontTexDlg;
+
+		bool m_issueResize = false;
 	};
 
 	AppData* g_app = nullptr;
@@ -928,6 +930,25 @@ namespace ZetaRay::AppImpl
 	{
 		g_app->m_cameraAcceleration = p.GetFloat().m_val;
 	}
+
+	void ResizeIfQueued() noexcept
+	{
+		if (g_app->m_issueResize)
+		{
+			if (g_app->m_upscaleFactor == 1.5f)
+				g_app->m_upscaleFactor = 1.0f;
+			else
+				g_app->m_upscaleFactor = 1.5f;
+
+			const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
+			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
+
+			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+			g_app->m_scene.OnWindowSizeChanged();
+
+			g_app->m_issueResize = false;
+		}
+	}
 }
 
 namespace ZetaRay
@@ -943,7 +964,6 @@ namespace ZetaRay
 		return -1;
 	}
 
-	// TODO remove
 	void RejoinBackgroundMemPoolsToWorkers() noexcept
 	{
 		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
@@ -1056,7 +1076,11 @@ namespace ZetaRay
 		g_app->m_frameMotion.Reset();
 
 		g_app->m_camera.Init(float3(0.0f, 1.0f, 0.0f), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.0f, 0.0f, 1.0f), false);
+			Math::DegreeToRadians(75.0f), 0.5f, true, float3(0.0f, 0.0f, 1.0f), false);
+		//g_app->m_camera.Init(float3(-35.75f, 5.4f, 17.275f), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.931f, -0.139f, 0.339f), false);
+		//g_app->m_camera.Init(float3(7.605f, 1.058, -7.162), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.841f, -0.191f, 0.506f), false);
 
 		// scene can now be initialized
 		g_app->m_scene.Init(rendererInterface);
@@ -1111,6 +1135,7 @@ namespace ZetaRay
 			// game loop
 			g_app->m_renderer.BeginFrame();
 			g_app->m_timer.Tick();
+			AppImpl::ResizeIfQueued();
 
 			// at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
 			g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
@@ -1387,19 +1412,10 @@ namespace ZetaRay
 	{
 		const float oldScaleFactor = g_app->m_upscaleFactor;
 
-		if (e)
-			g_app->m_upscaleFactor = 1.5f;
-		else
-			g_app->m_upscaleFactor = 1.0f;
-
-		if (oldScaleFactor == g_app->m_upscaleFactor)
-			return;
-
-		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
-		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
-
-		g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
-		g_app->m_scene.OnWindowSizeChanged();
+		if (e && oldScaleFactor == 1.0)
+			g_app->m_issueResize = true;
+		else if (!e && oldScaleFactor == 1.5f)
+			g_app->m_issueResize = true;
 	}
 
 	void App::LockStdOut() noexcept

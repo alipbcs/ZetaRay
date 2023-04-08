@@ -52,8 +52,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 
 	// camera
 	const Camera& cam = App::GetCamera();
-	v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
-	v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
+	v_float4x4 vCurrV = load(const_cast<float4x4a&>(cam.GetCurrView()));
+	v_float4x4 vP = load(const_cast<float4x4a&>(cam.GetCurrProj()));
 	v_float4x4 vVP = mul(vCurrV, vP);
 
 	frameConsts.CameraPos = cam.GetPos();
@@ -78,7 +78,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	// env. map SRV
 	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
-	const size_t sizeInBytes = Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	constexpr size_t sizeInBytes = Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	if (!frameConstsBuff.IsInitialized())
 	{
@@ -101,18 +101,6 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 
 namespace ZetaRay::DefaultRenderer
 {
-	void SetIndierctDiffuseDenoiser(const ParamVariant& p) noexcept
-	{
-		const int e = p.GetEnum().m_curr;
-		Assert(e < (int)DENOISER::COUNT, "invalid enum value");
-		const DENOISER u = (DENOISER)e;
-
-		if (u == DENOISER::NONE)
-			g_data->m_settings.IndirectDiffuseDenoiser = DENOISER::NONE;
-		else if (u == DENOISER::STAD)
-			g_data->m_settings.IndirectDiffuseDenoiser = DENOISER::STAD;
-	}
-
 	void SetInscatteringEnablement(const ParamVariant& p) noexcept
 	{
 		g_data->m_settings.Inscattering = p.GetBool();
@@ -124,49 +112,28 @@ namespace ZetaRay::DefaultRenderer
 		Assert(e < (int)AA::COUNT, "invalid enum value");
 		const AA u = (AA)e;
 
+		if (u == g_data->m_settings.AntiAliasing)
+			return;
+
 		if (u == AA::NATIVE)
 		{
-			// following order is important
-			g_data->m_settings.AntiAliasing = AA::NATIVE;
-
-			if (g_data->m_postProcessorData.Fsr2Pass.IsInitialized())
-				g_data->m_postProcessorData.Fsr2Pass.Reset();
-
-			if (g_data->m_postProcessorData.TaaPass.IsInitialized())
-				g_data->m_postProcessorData.TaaPass.Reset();
-
 			App::SetUpscalingEnablement(false);
+			g_data->PendingAA = AA::NATIVE;
 		}
 		else if (u == AA::POINT)
 		{
-			// following order is important
-			g_data->m_settings.AntiAliasing = AA::POINT;
-
-			if (g_data->m_postProcessorData.Fsr2Pass.IsInitialized())
-				g_data->m_postProcessorData.Fsr2Pass.Reset();
-
-			if (g_data->m_postProcessorData.TaaPass.IsInitialized())
-				g_data->m_postProcessorData.TaaPass.Reset();
-
 			App::SetUpscalingEnablement(true);
+			g_data->PendingAA = AA::POINT;
 		}
 		else if (u == AA::FSR2)
 		{
-			// following order is important
-			if (g_data->m_postProcessorData.TaaPass.IsInitialized())
-				g_data->m_postProcessorData.TaaPass.Reset();
-
 			App::SetUpscalingEnablement(true);
-			g_data->m_settings.AntiAliasing = AA::FSR2;
+			g_data->PendingAA = AA::FSR2;
 		}
 		else if (u == AA::NATIVE_TAA)
 		{
-			// following order is important
-			if (g_data->m_postProcessorData.Fsr2Pass.IsInitialized())
-				g_data->m_postProcessorData.Fsr2Pass.Reset();
-
 			App::SetUpscalingEnablement(false);
-			g_data->m_settings.AntiAliasing = AA::NATIVE_TAA;
+			g_data->PendingAA = AA::NATIVE_TAA;
 		}
 	}
 
@@ -225,7 +192,7 @@ namespace ZetaRay::DefaultRenderer
 	void ModifygForPhaseHG(const ParamVariant& p) noexcept
 	{
 		g_data->m_frameConstants.g = p.GetFloat().m_val;
-	}
+	}	
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -235,8 +202,8 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_renderGraph.Reset();
 
 		const Camera& cam = App::GetCamera();
-		v_float4x4 vCurrV(const_cast<float4x4a&>(cam.GetCurrView()));
-		v_float4x4 vP(const_cast<float4x4a&>(cam.GetCurrProj()));
+		v_float4x4 vCurrV = load(const_cast<float4x4a&>(cam.GetCurrView()));
+		v_float4x4 vP = load(const_cast<float4x4a&>(cam.GetCurrProj()));
 		v_float4x4 vVP = mul(vCurrV, vP);
 
 		// for 1st frame
@@ -301,20 +268,14 @@ namespace ZetaRay::DefaultRenderer
 
 		// render settings
 		{
-			//ParamVariant enableDenoiser;
-			//enableDenoiser.InitEnum("Renderer", "Settings", "IndirectDiffuseDenoiser",
-			//	fastdelegate::MakeDelegate(this, &SceneRenderer::SetIndierctDiffuseDenoiser),
-			//	Denoisers, ZetaArrayLen(Denoisers), (int)DENOISER::STAD);
-			//App::AddParam(enableDenoiser);
-
 			ParamVariant enableInscattering;
-			enableInscattering.InitBool("Renderer", "General", "Inscattering",
+			enableInscattering.InitBool("Renderer", "Lighting", "Inscattering",
 				fastdelegate::FastDelegate1(&DefaultRenderer::SetInscatteringEnablement),
 				g_data->m_settings.Inscattering);
 			App::AddParam(enableInscattering);
 
 			ParamVariant p6;
-			p6.InitEnum("Renderer", "General", "Upscaling/AA", 
+			p6.InitEnum("Renderer", "AntiAliasing", "AA/Upscale", 
 				fastdelegate::FastDelegate1(&DefaultRenderer::SetAA),
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);
@@ -342,7 +303,7 @@ namespace ZetaRay::DefaultRenderer
 				fastdelegate::FastDelegate1(&DefaultRenderer::ModifySunLux),
 				g_data->m_frameConstants.SunIlluminance,
 				1.0f,
-				500.0f,
+				100.0f,
 				1.0f);
 			App::AddParam(p2);
 
@@ -370,7 +331,7 @@ namespace ZetaRay::DefaultRenderer
 				g_data->m_frameConstants.RayleighSigmaSScale,
 				0.0f,
 				10.0f,
-				3.0f);
+				1e-3f);
 			App::AddParam(p1);
 
 			ParamVariant p2;
@@ -397,7 +358,7 @@ namespace ZetaRay::DefaultRenderer
 				g_data->m_frameConstants.OzoneSigmaAScale,
 				0.0f,
 				10.0f,
-				3.0f);
+				1e-4f);
 			App::AddParam(p4);
 
 			ParamVariant p6;
@@ -419,6 +380,8 @@ namespace ZetaRay::DefaultRenderer
 
 	void Update(TaskSet& ts) noexcept
 	{
+		g_data->m_settings.AntiAliasing = g_data->PendingAA;
+
 		auto h0 = ts.EmplaceTask("SceneRenderer::GBuff", []()
 			{
 				GBuffer::Update(g_data->m_gbuffData);
