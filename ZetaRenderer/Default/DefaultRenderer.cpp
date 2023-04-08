@@ -192,7 +192,13 @@ namespace ZetaRay::DefaultRenderer
 	void ModifygForPhaseHG(const ParamVariant& p) noexcept
 	{
 		g_data->m_frameConstants.g = p.GetFloat().m_val;
-	}	
+	}
+
+	void SetDoFEnablement(const ParamVariant& p) noexcept
+	{
+		g_data->m_settings.DoF = p.GetBool();
+		g_data->m_lightData.CompositingPass.SetDoFEnablement(g_data->m_settings.DoF);
+	}
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -275,14 +281,14 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(enableInscattering);
 
 			ParamVariant p6;
-			p6.InitEnum("Renderer", "AntiAliasing", "AA/Upscale", 
+			p6.InitEnum("Renderer", "AntiAliasing", "AA/Upscale",
 				fastdelegate::FastDelegate1(&DefaultRenderer::SetAA),
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);
 		}
 
 		ParamVariant rayOffset;
-		rayOffset.InitFloat("Renderer", "SunShadow", "RayOffset", 
+		rayOffset.InitFloat("Renderer", "SunShadow", "RayOffset",
 			fastdelegate::FastDelegate1(&DefaultRenderer::RayOffset),
 			Defaults::RAY_T_OFFSET,
 			1e-4f,
@@ -376,6 +382,11 @@ namespace ZetaRay::DefaultRenderer
 				0.2f);
 			App::AddParam(p7);
 		}
+
+		ParamVariant p7;
+		p7.InitBool("Renderer", "DoF", "Enable", fastdelegate::FastDelegate1(&DefaultRenderer::SetDoFEnablement),
+			g_data->m_settings.DoF);
+		App::AddParam(p7);
 	}
 
 	void Update(TaskSet& ts) noexcept
@@ -390,8 +401,8 @@ namespace ZetaRay::DefaultRenderer
 		auto h1 = ts.EmplaceTask("SceneRenderer::RT_Post", []()
 			{
 				RayTracer::Update(g_data->m_settings, g_data->m_raytracerData);
-				PostProcessor::Update(g_data->m_settings, g_data->m_gbuffData, g_data->m_lightData,
-					g_data->m_raytracerData, g_data->m_postProcessorData);
+				PostProcessor::Update(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
+					g_data->m_lightData, g_data->m_raytracerData);
 			});
 
 		auto h2 = ts.EmplaceTask("SceneRenderer::Light_FrameConsts", []()
@@ -401,7 +412,7 @@ namespace ZetaRay::DefaultRenderer
 			});
 
 		auto h3 = ts.EmplaceTask("SceneRenderer::RenderGraph", []()
-			{		
+			{
 				g_data->m_renderGraph.BeginFrame();
 
 				GBuffer::Register(g_data->m_gbuffData, g_data->m_renderGraph);
@@ -412,12 +423,12 @@ namespace ZetaRay::DefaultRenderer
 				g_data->m_renderGraph.MoveToPostRegister();
 
 				GBuffer::DeclareAdjacencies(g_data->m_gbuffData, g_data->m_lightData, g_data->m_renderGraph);
-				Light::DeclareAdjacencies(g_data->m_settings, g_data->m_lightData, g_data->m_gbuffData, 
+				Light::DeclareAdjacencies(g_data->m_settings, g_data->m_lightData, g_data->m_gbuffData,
 					g_data->m_raytracerData, g_data->m_renderGraph);
-				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData, 
+				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData,
 					g_data->m_renderGraph);
-				PostProcessor::DeclareAdjacencies(g_data->m_settings, g_data->m_gbuffData, g_data->m_lightData,
-					g_data->m_raytracerData, g_data->m_postProcessorData, g_data->m_renderGraph);
+				PostProcessor::DeclareAdjacencies(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
+					g_data->m_lightData, g_data->m_raytracerData, g_data->m_renderGraph);
 			});
 
 		// RenderGraph should go last
@@ -437,7 +448,7 @@ namespace ZetaRay::DefaultRenderer
 		Light::Shutdown(g_data->m_lightData);
 		RayTracer::Shutdown(g_data->m_raytracerData);
 		PostProcessor::Shutdown(g_data->m_postProcessorData);
-		
+
 		g_data->m_frameConstantsBuff.Reset();
 		g_data->m_renderGraph.Shutdown();
 

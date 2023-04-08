@@ -35,4 +35,20 @@ struct cbCompositing
 	uint32_t SunShadowDescHeapIdx;
 };
 
+struct cbDoF
+{
+	uint32_t GatherUAVDescHeapIdx;
+	uint32_t CompositedSRVDescHeapIdx;
+	float RadiusScale;
+	float MaxBlurRadius;
+	float MinLumToFilter;
+	uint32_t IsGaussianFilterEnabled;
+};
+
+struct cbGaussianFilter
+{
+	uint32_t GatherSrvDescHeapIdx;
+	uint32_t FilteredUavDescHeapIdx;
+};
+
 #endif // COMPOSITING_H

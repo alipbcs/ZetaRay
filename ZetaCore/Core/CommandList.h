@@ -72,6 +72,13 @@ namespace ZetaRay::Core
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
 		}
 
+		ZetaInline void UAVBarrier(ID3D12Resource* res) noexcept
+		{
+			D3D12_RESOURCE_BARRIER barriers[1];
+			barriers[0] = Direct3DHelper::UAVBarrier(res);
+			m_cmdList->ResourceBarrier(1, barriers);
+		}
+
 		ZetaInline void UAVBarrier(UINT numBarriers, D3D12_RESOURCE_BARRIER* barriers) noexcept
 		{
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
