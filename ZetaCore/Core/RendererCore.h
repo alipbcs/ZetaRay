@@ -33,6 +33,7 @@ namespace ZetaRay::Core
 		void Init(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept;
 		void Shutdown() noexcept;
 		void OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept;
+		void WaitForSwapChainWaitableObject() noexcept;
 		void BeginFrame() noexcept;
 		void SubmitResourceCopies() noexcept;
 		void EndFrame(Support::TaskSet& endFrameTS) noexcept;

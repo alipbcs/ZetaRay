@@ -26,6 +26,7 @@
 #include <ImGui/imnodes.h>
 
 using namespace ZetaRay::App;
+using namespace ZetaRay::App::Common;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
@@ -1064,130 +1065,134 @@ namespace ZetaRay
 	int App::Run() noexcept
 	{
 		MSG msg = {};
+		bool success = false;
 
-		while (msg.message != WM_QUIT)
+		while (true)
 		{
+			if(g_app->m_isActive && success)
+				g_app->m_renderer.WaitForSwapChainWaitableObject();
+
 			// process messages
-			if (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
+			while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
 			{
+				if(msg.message == WM_QUIT)
+					return (int)msg.wParam;
+
 				TranslateMessage(&msg);
 				DispatchMessageA(&msg);
 			}
-			// game loop
-			else
+
+			if (!g_app->m_isActive)
 			{
-				if (!g_app->m_isActive)
-				{
-					Sleep(16);
-					continue;
-				}
-
-				// help out while there are (non-background) unfinished tasks from the previous frame
-				bool success = g_app->m_workerThreadPool.TryFlush();
-
-				// don't block the message-handling thread
-				if (!success)
-					continue;
-
-				// begin frame
-				g_app->m_renderer.BeginFrame();
-				g_app->m_timer.Tick();
-
-				// at this point, all worker tasks from the previous frame are done (GPU may still be executing those though)
-				g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
-
-				if (g_app->m_timer.GetTotalFrameCount() > 1)
-				{
-					g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
-					memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
-					g_app->m_frameMemory.Reset();		// set the offset to 0; essentially freeing the memory
-				}
-
-				// TODO remove
-				// background tasks are not necessarily done 
-				if (g_app->m_backgroundThreadPool.AreAllTasksFinished())
-					RejoinBackgroundMemPoolsToWorkers();
-
-				// update app
-				{
-					TaskSet appTS;
-
-					appTS.EmplaceTask("AppUpdates", []()
-						{
-							AppImpl::ApplyParamUpdates();
-						});
-
-					appTS.Sort();
-					appTS.Finalize();
-					Submit(ZetaMove(appTS));
-				}
-
-				// update scene
-				{
-					TaskSet sceneTS;
-					TaskSet sceneRendererTS;
-					AppImpl::Update(sceneTS, sceneRendererTS);
-
-					auto h0 = sceneRendererTS.EmplaceTask("ResourceUploadSubmission", []()
-						{
-							g_app->m_renderer.SubmitResourceCopies();
-						});
-
-					// make sure resource submission runs after everything else
-					sceneRendererTS.AddIncomingEdgeFromAll(h0);
-
-					sceneTS.Sort();
-					sceneRendererTS.Sort();
-
-					// sceneRendererTS has to run after sceneTS. this may seem sequential but
-					// each taskset is spawning more tasks (which can potentially run in parallel)
-					sceneTS.ConnectTo(sceneRendererTS);
-
-					sceneTS.Finalize();
-					sceneRendererTS.Finalize();
-
-					Submit(ZetaMove(sceneTS));
-					Submit(ZetaMove(sceneRendererTS));
-				}
-
-				// help out as long as updates are not finished before moving to rendering
-				success = false;
-				while (!success)
-					success = g_app->m_workerThreadPool.TryFlush();
-
-				g_app->m_frameMotion.Reset();
-
-				// render
-				{
-					TaskSet renderTS;
-					TaskSet endFrameTS;
-
-					g_app->m_scene.Render(renderTS);
-					renderTS.Sort();
-
-					// end frame
-					{
-						g_app->m_renderer.EndFrame(endFrameTS);
-
-						endFrameTS.EmplaceTask("Scene::Recycle", []()
-							{
-								g_app->m_scene.Recycle();
-							});
-
-						endFrameTS.Sort();
-					}
-
-					renderTS.ConnectTo(endFrameTS);
-
-					renderTS.Finalize();
-					endFrameTS.Finalize();
-
-					Submit(ZetaMove(renderTS));
-					Submit(ZetaMove(endFrameTS));
-				}
-
-				g_app->m_workerThreadPool.PumpUntilEmpty();
+				Sleep(16);
+				continue;
 			}
+
+			// help out while there are (non-background) unfinished tasks from previous frame
+			success = g_app->m_workerThreadPool.TryFlush();
+
+			// don't block the message-handling thread
+			if (!success)
+				continue;
+
+			// game loop
+			g_app->m_renderer.BeginFrame();
+			g_app->m_timer.Tick();
+
+			// at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
+			g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
+
+			if (g_app->m_timer.GetTotalFrameCount() > 1)
+			{
+				g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
+				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				g_app->m_frameMemory.Reset();		// set the offset to 0, essentially freeing the memory
+			}
+
+			// TODO remove
+			// background tasks are not necessarily done 
+			if (g_app->m_backgroundThreadPool.AreAllTasksFinished())
+				RejoinBackgroundMemPoolsToWorkers();
+
+			// update app
+			{
+				TaskSet appTS;
+
+				appTS.EmplaceTask("AppUpdates", []()
+					{
+						AppImpl::ApplyParamUpdates();
+					});
+
+				appTS.Sort();
+				appTS.Finalize();
+				Submit(ZetaMove(appTS));
+			}
+
+			// update scene
+			{
+				TaskSet sceneTS;
+				TaskSet sceneRendererTS;
+				AppImpl::Update(sceneTS, sceneRendererTS);
+
+				auto h0 = sceneRendererTS.EmplaceTask("ResourceUploadSubmission", []()
+					{
+						g_app->m_renderer.SubmitResourceCopies();
+					});
+
+				// make sure resource submission runs after everything else
+				sceneRendererTS.AddIncomingEdgeFromAll(h0);
+
+				sceneTS.Sort();
+				sceneRendererTS.Sort();
+
+				// sceneRendererTS has to run after sceneTS. this may seem sequential but
+				// each taskset is spawning more tasks (which can potentially run in parallel)
+				sceneTS.ConnectTo(sceneRendererTS);
+
+				sceneTS.Finalize();
+				sceneRendererTS.Finalize();
+
+				Submit(ZetaMove(sceneTS));
+				Submit(ZetaMove(sceneRendererTS));
+			}
+
+			// help out as long as updates are not finished before moving to rendering
+			success = false;
+			while (!success)
+				success = g_app->m_workerThreadPool.TryFlush();
+
+			g_app->m_frameMotion.Reset();
+
+			// render
+			{
+				TaskSet renderTS;
+				TaskSet endFrameTS;
+
+				g_app->m_scene.Render(renderTS);
+				renderTS.Sort();
+
+				// end frame
+				{
+					g_app->m_renderer.EndFrame(endFrameTS);
+
+					endFrameTS.EmplaceTask("Scene::Recycle", []()
+						{
+							g_app->m_scene.Recycle();
+						});
+
+					endFrameTS.Sort();
+				}
+
+				renderTS.ConnectTo(endFrameTS);
+
+				renderTS.Finalize();
+				endFrameTS.Finalize();
+
+				Submit(ZetaMove(renderTS));
+				Submit(ZetaMove(endFrameTS));
+			}
+
+			g_app->m_workerThreadPool.PumpUntilEmpty();
 		}
 
 		return (int)msg.wParam;

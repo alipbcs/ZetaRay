@@ -108,7 +108,7 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
 {
 	// if the backbuffers already exist, resize them
-	if (m_backBuffers[0].GetResource())
+	if (m_backBuffers[0].IsInitialized())
 	{
 		for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 			m_backBuffers[i].Reset(false);
@@ -223,11 +223,14 @@ void RendererCore::OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHei
 	m_renderScissor.bottom = m_renderHeight;
 }
 
-void RendererCore::BeginFrame() noexcept
+void RendererCore::WaitForSwapChainWaitableObject() noexcept
 {
 	// blocks until eariliest queued present is completed
 	WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 16);
+}
 
+void RendererCore::BeginFrame() noexcept
+{
 	if (App::GetTimer().GetTotalFrameCount() > 0)
 		m_gpuMemory.BeginFrame();
 	
@@ -238,8 +241,10 @@ void RendererCore::SubmitResourceCopies() noexcept
 {
 	m_gpuMemory.SubmitResourceCopies();
 
-	App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetNumFreeDescriptors(), m_rtvDescHeap.GetHeapSize());
-	App::AddFrameStat("Renderer", "Gpu Desc. Heap", m_cbvSrvUavDescHeapGpu.GetNumFreeDescriptors(), m_cbvSrvUavDescHeapGpu.GetHeapSize());
+	App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetHeapSize() - m_rtvDescHeap.GetNumFreeDescriptors(), 
+		m_rtvDescHeap.GetHeapSize());
+	App::AddFrameStat("Renderer", "Gpu Desc. Heap", m_cbvSrvUavDescHeapGpu.GetHeapSize() - m_cbvSrvUavDescHeapGpu.GetNumFreeDescriptors(), 
+		m_cbvSrvUavDescHeapGpu.GetHeapSize());
 }
 
 void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
