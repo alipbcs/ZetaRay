@@ -190,11 +190,13 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 
 	if (count > m_blockSize)
 	{
-		Assert(m_nextHeapIdx + count < m_totalHeapSize, "out of free space in the descriptor heap.");
+		Assert(m_nextHeapIdx + count < m_totalHeapSize, "out of free space in descriptor heap.");
 
 		heapOffset = m_nextHeapIdx;
 		arrayOffset = uint32_t(-1);
 		m_nextHeapIdx += count;
+
+		m_freeDescCount -= count;
 	}
 	else
 	{
@@ -203,9 +205,9 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 
 		bool success = true;
 
+		// build a new linked list
 		if (m_heads[listIdx].Head == uint32_t(-1))
 		{
-			// build a new linked list
 			m_heads[listIdx].Entries.clear();
 			success = AllocateNewBlock(listIdx);
 		}
@@ -235,9 +237,9 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 
 		heapOffset = e.HeapOffset;
 		arrayOffset = currHeadIdx;
+		
+		m_freeDescCount -= DescTableSizeFromListIndex(listIdx);
 	}
-
-	m_freeDescCount -= count;
 
 	ReleaseSRWLockExclusive(&m_lock);
 
@@ -271,7 +273,7 @@ void DescriptorHeap::Recycle() noexcept
 
 	// TODO Is it necessary to signal the compute queue?
 	if(m_isShaderVisisble)
-		App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal);
+		App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal++);
 
 	const uint64_t completedFenceVal = m_fence->GetCompletedValue();
 
@@ -301,7 +303,7 @@ void DescriptorHeap::Recycle() noexcept
 			// to grow indefinitely. To avoid that, attempt to reuse the previous array position instead
 			// of appending to the end. Note that when a new block is added, SmallVector is cleared first 
 			// and unbounded growth is avoided.
-			if (internalVal != uint32_t(-1) &&
+			if (internalVal != uint32_t(-1) && internalVal < m_heads[listIdx].Entries.size() &&
 				m_heads[listIdx].Entries[internalVal].HeapOffset == offset)
 			{
 				Assert(m_heads[listIdx].Entries[internalVal].Next == uint32_t(-1), "these must match.");
