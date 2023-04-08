@@ -18,6 +18,7 @@ namespace ZetaRay::RenderPass
 			COLOR,
 			DEPTH,
 			MOTION_VECTOR,
+			EXPOSURE,
 			COUNT
 		};
 
@@ -47,6 +48,9 @@ namespace ZetaRay::RenderPass
 				break;
 			case SHADER_IN_RES::MOTION_VECTOR:
 				m_inputResources[(int)SHADER_IN_RES::MOTION_VECTOR] = res;
+				break;
+			case SHADER_IN_RES::EXPOSURE:
+				m_inputResources[(int)SHADER_IN_RES::EXPOSURE] = res;
 				break;
 			default:
 				break;

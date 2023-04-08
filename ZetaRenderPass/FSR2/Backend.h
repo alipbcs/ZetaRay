@@ -16,6 +16,7 @@ namespace ZetaRay::RenderPass::FSR2_Internal
 		ID3D12Resource* DepthBuffer;
 		ID3D12Resource* Color;
 		ID3D12Resource* MotionVectors;
+		ID3D12Resource* Exposure;
 	};
 
 	void Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight) noexcept;

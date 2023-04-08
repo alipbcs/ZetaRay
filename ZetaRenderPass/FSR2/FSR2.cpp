@@ -68,6 +68,7 @@ void FSR2Pass::Render(CommandList& cmdList) noexcept
 	Assert(m_inputResources[(int)SHADER_IN_RES::COLOR], "Color input res hasn't been set.");
 	Assert(m_inputResources[(int)SHADER_IN_RES::DEPTH], "Depth buffer res hasn't been set.");
 	Assert(m_inputResources[(int)SHADER_IN_RES::MOTION_VECTOR], "Motion vectors res hasn't been set.");
+	Assert(m_inputResources[(int)SHADER_IN_RES::EXPOSURE], "Exposure res hasn't been set.");
 
 	computeCmdList.PIXBeginEvent("FSR2");
 
@@ -75,6 +76,7 @@ void FSR2Pass::Render(CommandList& cmdList) noexcept
 	params.Color = m_inputResources[(int)SHADER_IN_RES::COLOR];
 	params.DepthBuffer = m_inputResources[(int)SHADER_IN_RES::DEPTH];
 	params.MotionVectors = m_inputResources[(int)SHADER_IN_RES::MOTION_VECTOR];
+	params.Exposure = m_inputResources[(int)SHADER_IN_RES::EXPOSURE];
 
 	FSR2_Internal::Dispatch(cmdList, params);
 
