@@ -105,7 +105,7 @@ namespace ZetaRay::Scene
 		//
 		// Material
 		//
-		void AddMaterial(uint64_t sceneID, Model::glTF::Asset::MaterialDesc&& mat) noexcept;
+		void AddMaterial(uint64_t sceneID, Model::glTF::Asset::MaterialDesc&& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
 		ZetaInline Material GetMaterial(uint64_t id) noexcept
 		{
 			AcquireSRWLockShared(&m_matLock);
@@ -256,7 +256,7 @@ namespace ZetaRay::Scene
 			Util::SmallVector<uint64_t> Instances;
 		};
 
-		Util::HashTable<SceneMetadata> m_sceneMetadata;
+		//Util::HashTable<SceneMetadata> m_sceneMetadata;
 
 		uint32_t m_numStaticInstances = 0;
 		uint32_t m_numDynamicInstances = 0;

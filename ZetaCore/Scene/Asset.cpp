@@ -32,7 +32,7 @@ void TexSRVDescriptorTable::Init(uint64_t id) noexcept
 	s.InsertOrAssingDescriptorTable(id, m_descTable);
 }
 
-uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noexcept
+uint32_t TexSRVDescriptorTable::Add(Core::Texture&& tex, uint64_t id) noexcept
 {
 	// if the texture already exists, just increase the ref count and return it
 	if (auto it = m_cache.find(id); it != nullptr)
@@ -43,9 +43,6 @@ uint32_t TexSRVDescriptorTable::Add(const Filesystem::Path& p, uint64_t id) noex
 
 		return offset;
 	}
-
-	// create the texture
-	Texture tex = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p.Get());
 
 	// find the first free slot in the table
 	DWORD freeSlot = DWORD(-1);
@@ -134,11 +131,8 @@ void TexSRVDescriptorTable::Clear() noexcept
 
 void MaterialBuffer::Init(uint64_t id) noexcept
 {
-	constexpr size_t s = NUM_MATERIALS * sizeof(Material);
-	m_buffer = App::GetRenderer().GetGpuMemory().GetUploadHeapBuffer(s);
-
-	auto& r = App::GetRenderer().GetSharedShaderResources();
-	r.InsertOrAssingUploadHeapBuffer(id, m_buffer);
+	Assert(k_bufferID == -1, "This ID shouldn't be reassigned to after the first time.");
+	k_bufferID = id;
 }
 
 void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
@@ -156,14 +150,47 @@ void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
 	m_inUseBitset[i] |= (1llu << freeIdx);		// set the slot to occupied
 
 	freeIdx += i << 6;		// each uint64_t covers 64 slots
-	Assert(freeIdx < NUM_MATERIALS, "Invalid table index.");
+	Assert(freeIdx < MAX_NUM_MATERIALS, "Invalid table index.");
 
 	// set offset in input material
 	mat.SetGpuBufferIndex(freeIdx);
-
-	// copy to GPU buffer
-	m_buffer.Copy(freeIdx * sizeof(Material), sizeof(Material), reinterpret_cast<void*>(&mat));
 	m_matTable.insert_or_assign(id, mat);
+
+	m_stale = true;
+}
+
+void MaterialBuffer::UpdateGPUBufferIfStale() noexcept
+{
+	if (!m_stale)
+		return;
+
+	Assert(!m_matTable.empty(), "Stale flag is set, yet there aren't any materials.");
+
+	auto it = m_matTable.begin_it();
+
+	SmallVector<Material, FrameAllocator> buffer;
+	buffer.resize(m_matTable.size());
+
+	while (it != m_matTable.end_it())
+	{
+		const uint32_t indexInBuffer = it->Val.GpuBufferIndex();
+		buffer[indexInBuffer] = it->Val;
+
+		it = m_matTable.next_it(it);
+	}
+
+	auto& renderer = App::GetRenderer();
+
+	m_buffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("MaterialBuffer",
+		buffer.size() * sizeof(Material), 
+		D3D12_RESOURCE_STATE_COMMON, 
+		false,
+		buffer.data());
+
+	auto& r = renderer.GetSharedShaderResources();
+	r.InsertOrAssignDefaultHeapBuffer(k_bufferID, m_buffer);
+
+	m_stale = false;
 }
 
 void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept

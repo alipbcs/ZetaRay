@@ -9,6 +9,7 @@
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Scene::Internal;
 using namespace ZetaRay::Model;
+using namespace ZetaRay::Model::glTF::Asset;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
@@ -30,6 +31,32 @@ namespace
 		uint64_t matFromSceneID = XXH3_64bits(str, n);
 
 		return matFromSceneID;
+	}
+
+	// assumes images is sorted
+	ZetaInline int FindImage(uint64_t key, int beg, int end, Span<DDSImage> images) noexcept
+	{
+		int mid = end >> 1;
+
+		while (true)
+		{
+			if (end - beg <= 2)
+				break;
+
+			if (images[mid].ID < key)
+				beg = mid + 1;
+			else
+				end = mid + 1;
+
+			mid = beg + ((end - beg) >> 1);
+		}
+
+		if (images[beg].ID == key)
+			return beg;
+		else if (images[mid].ID == key)
+			return mid;
+
+		return -1;
 	}
 }
 
@@ -132,6 +159,8 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 				m_meshes.RebuildBuffers();
 			});
 	}
+	
+	m_matBuffer.UpdateGPUBufferIfStale();
 
 	m_rendererInterface.Update(sceneRendererTS);
 }
@@ -185,29 +214,19 @@ void SceneCore::Shutdown() noexcept
 	m_emissiveTableOffsetToID.free();
 
 	m_prevToWorlds.free_memory();
-	m_sceneMetadata.free();
+	//m_sceneMetadata.free();
 	m_sceneGraph.free_memory();
 	m_IDtoTreePos.free();
 
 	m_rendererInterface.Shutdown();
 }
 
-//AABB SceneCore::GetWorldAABB() noexcept
-//{
-//	// BVH hasn't been built yet
-//	// TODO replace with something less hacky
-//	if (!m_bvh.IsBuilt())
-//		return Math::AABB(Math::float3(0.0f, 0.0f, 0.0f), Math::float3(2000.0f, 2000.0f, 2000.0f));
-//
-//	return m_bvh.GetWorldAABB();
-//}
-
 void SceneCore::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, size_t numNodes) noexcept
 {
-	auto& it = m_sceneMetadata[sceneID];
-	it.MaterialIDs.reserve(numMats);
-	it.Meshes.reserve(numMeshes);
-	it.Instances.reserve(numNodes);
+	//auto& it = m_sceneMetadata[sceneID];
+	//it.MaterialIDs.reserve(numMats);
+	//it.Meshes.reserve(numMeshes);
+	//it.Instances.reserve(numNodes);
 }
 
 void SceneCore::ReserveMeshData(size_t numVertices, size_t numIndices) noexcept
@@ -223,13 +242,13 @@ void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexce
 	AcquireSRWLockExclusive(&m_meshLock);
 
 	// remember from which gltf scene this mesh came from
-	m_sceneMetadata[sceneID].Meshes.push_back(meshFromSceneID);
+	//m_sceneMetadata[sceneID].Meshes.push_back(meshFromSceneID);
 	m_meshes.Add(meshFromSceneID, mesh.Vertices, mesh.Indices, matFromSceneID);
 
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDesc) noexcept
+void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDesc, Span<glTF::Asset::DDSImage> ddsImages) noexcept
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -244,68 +263,68 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
-	auto addTex = [](const Filesystem::Path& p, TexSRVDescriptorTable& table, uint32_t& tableOffset) noexcept -> uint64_t
+	auto addTex = [](uint64_t ID, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
 	{
-		if (!p.IsEmpty())
-		{
-			const uint64_t id = XXH3_64bits(p.Get(), strlen(p.Get()));
-			tableOffset = table.Add(p, id);
-
-			return id;
-		}
-
-		return uint64_t(-1);
+		int idx = FindImage(ID, 0, (int)ddsImages.size(), ddsImages);
+		Assert(idx != -1, "Image not found.");
+		Assert(ddsImages[idx].ID == ID, "Invalid binary search.");
+			
+		Assert(ddsImages[idx].T.IsInitialized(), "Texture hasn't been initialized.");
+		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
 	};
 
-	// TODO critical section is rather long, which can limit scalibility
 	AcquireSRWLockExclusive(&m_matLock);
 
-	// load the texture from disk, create a srv descriptor for it and add it to the corresponding descriptor table
 	{
 		uint32_t tableOffset = uint32_t(-1);	// i.e. index in GPU descriptor table
-		const uint64_t texID = addTex(matDesc.BaseColorTexPath, m_baseColorDescTable, tableOffset);
-		if (texID != uint64_t(-1))
+		
+		if (matDesc.BaseColorTexPath != uint64_t(-1))
 		{
-			m_baseColTableOffsetToID[tableOffset] = texID;
-			mat.BaseColorTexture = tableOffset;
+			addTex(matDesc.BaseColorTexPath, m_baseColorDescTable, tableOffset, ddsImages);
+			m_baseColTableOffsetToID[tableOffset] = matDesc.BaseColorTexPath;
 		}
+		
+		mat.BaseColorTexture = tableOffset;
 	}
 
 	{
 		uint32_t tableOffset = uint32_t(-1);
-		const uint64_t texID = addTex(matDesc.NormalTexPath, m_normalDescTable, tableOffset);
-		if (texID != uint64_t(-1))
+		if (matDesc.NormalTexPath != uint64_t(-1))
 		{
-			m_normalTableOffsetToID[tableOffset] = texID;
-			mat.NormalTexture = tableOffset;
+			addTex(matDesc.NormalTexPath, m_normalDescTable, tableOffset, ddsImages);
+			m_normalTableOffsetToID[tableOffset] = matDesc.NormalTexPath;
 		}
+		
+		mat.NormalTexture = tableOffset;
 	}
 
 	{
 		uint32_t tableOffset = uint32_t(-1);
-		const uint64_t texID = addTex(matDesc.MetalnessRoughnessTexPath, m_metalnessRoughnessDescTable, tableOffset);
-		if (texID != uint64_t(-1))
+		if (matDesc.MetalnessRoughnessTexPath != uint64_t(-1))
 		{
-			m_metalnessRougnessrTableOffsetToID[tableOffset] = texID;
-			mat.MetalnessRoughnessTexture = tableOffset;
+			addTex(matDesc.MetalnessRoughnessTexPath, m_metalnessRoughnessDescTable, tableOffset, ddsImages);
+			m_metalnessRougnessrTableOffsetToID[tableOffset] = matDesc.MetalnessRoughnessTexPath;
 		}
+		
+		mat.MetalnessRoughnessTexture = tableOffset;
 	}
 
 	{
 		uint32_t tableOffset = uint32_t(-1);
-		const uint64_t texID = addTex(matDesc.EmissiveTexPath, m_emissiveDescTable, tableOffset);
-		if (texID != uint64_t(-1))
+		if (matDesc.EmissiveTexPath != uint64_t(-1))
 		{
-			m_emissiveTableOffsetToID[tableOffset] = texID;
-			mat.EmissiveTexture = tableOffset;
+			addTex(matDesc.EmissiveTexPath, m_emissiveDescTable, tableOffset, ddsImages);
+			m_emissiveTableOffsetToID[tableOffset] = matDesc.EmissiveTexPath;
 		}
+		
+		mat.EmissiveTexture = tableOffset;
 	}
 
 	// add it to the GPU material buffer, which offsets into descriptor tables above
 	m_matBuffer.Add(matFromSceneID, mat);
 
 	// remember from which glTF scene this material came from
-	m_sceneMetadata[sceneID].MaterialIDs.push_back(matFromSceneID);
+	//m_sceneMetadata[sceneID].MaterialIDs.push_back(matFromSceneID);
 
 	ReleaseSRWLockExclusive(&m_matLock);
 }
@@ -315,10 +334,9 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	const uint64_t meshID = MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
 	const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
 
-	//std::unique_lock<std::shared_mutex> lock(m_instanceMtx);
 	AcquireSRWLockExclusive(&m_instanceLock);
 
-	m_sceneMetadata[sceneID].Instances.push_back(instanceID);
+	//m_sceneMetadata[sceneID].Instances.push_back(instanceID);
 
 	if (instance.RtMeshMode == RT_MESH_MODE::STATIC)
 	{

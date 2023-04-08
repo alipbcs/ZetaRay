@@ -6,6 +6,10 @@
 #include "../Scene/SceneCore.h"
 #include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
+#include "../Core/RendererCore.h"
+#include "../Core/GpuMemory.h"
+#include "../App/Log.h"
+#include <algorithm>
 
 #define CGLTF_IMPLEMENTATION
 #include <cgltf/cgltf.h>
@@ -18,6 +22,7 @@ using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Model;
 using namespace ZetaRay::App;
+using namespace ZetaRay::Model::glTF::Asset;
 
 //--------------------------------------------------------------------------------------
 // glTF
@@ -274,8 +279,33 @@ namespace
 		}
 	}
 
+	void LoadDDSImages(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
+		size_t offset, size_t size, Span<DDSImage> ddsImages) noexcept
+	{
+		char ext[8];
+
+		for (size_t m = offset; m != offset + size; m++)
+		{
+			const cgltf_image& image = model.images[m];
+			if (image.uri)
+			{
+				Filesystem::Path p(App::GetAssetDir());
+				p.Append(modelDir.Get());
+				p.Append(image.uri);
+
+				p.Extension(ext);
+				if (strcmp(ext, "dds") != 0)
+					continue;
+
+				const uint64_t id = XXH3_64bits(p.Get(), p.Length());
+				Texture tex = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p.Get());
+				ddsImages[m] = DDSImage{ .T = ZetaMove(tex), .ID = id };
+			}
+		}
+	}
+
 	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-		int offset, int size) noexcept
+		int offset, int size, Span<DDSImage> ddsImages) noexcept
 	{
 		auto getAlphaMode = [](cgltf_alpha_mode m) noexcept
 		{
@@ -313,11 +343,12 @@ namespace
 				if (baseColView.texture)
 				{
 					Check(baseColView.texture->image, "textureView doesn't point to any image.");
-					const char* texPath = baseColView.texture->image->uri;
 
-					desc.BaseColorTexPath.Reset(App::GetAssetDir());
-					desc.BaseColorTexPath.Append(modelDir.Get());
-					desc.BaseColorTexPath.Append(texPath);
+					Filesystem::Path p(App::GetAssetDir());
+					p.Append(modelDir.Get());
+					p.Append(baseColView.texture->image->uri);
+
+					desc.BaseColorTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
 
 				auto& f = mat.pbr_metallic_roughness.base_color_factor;
@@ -332,9 +363,11 @@ namespace
 					Check(normalView.texture->image, "textureView doesn't point to any image.");
 					const char* texPath = normalView.texture->image->uri;
 
-					desc.NormalTexPath.Reset(App::GetAssetDir());
-					desc.NormalTexPath.Append(modelDir.Get());
-					desc.NormalTexPath.Append(texPath);
+					Filesystem::Path p(App::GetAssetDir());
+					p.Append(modelDir.Get());
+					p.Append(normalView.texture->image->uri);
+					desc.NormalTexPath = XXH3_64bits(p.Get(), p.Length());
+
 					desc.NormalScale = (float)mat.normal_texture.scale;
 				}
 			}
@@ -345,11 +378,11 @@ namespace
 				if (metalnessRoughnessView.texture)
 				{
 					Check(metalnessRoughnessView.texture->image, "textureView doesn't point to any image.");
-					const char* texPath = metalnessRoughnessView.texture->image->uri;
 
-					desc.MetalnessRoughnessTexPath.Reset(App::GetAssetDir());
-					desc.MetalnessRoughnessTexPath.Append(modelDir.Get());
-					desc.MetalnessRoughnessTexPath.Append(texPath);
+					Filesystem::Path p(App::GetAssetDir());
+					p.Append(modelDir.Get());
+					p.Append(metalnessRoughnessView.texture->image->uri);
+					desc.MetalnessRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
 
 				desc.MetalnessFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
@@ -364,9 +397,10 @@ namespace
 					Check(emissiveView.texture->image, "textureView doesn't point to any image.");
 					const char* texPath = emissiveView.texture->image->uri;
 
-					desc.EmissiveTexPath.Reset(App::GetAssetDir());
-					desc.EmissiveTexPath.Append(modelDir.Get());
-					desc.EmissiveTexPath.Append(texPath);
+					Filesystem::Path p(App::GetAssetDir());
+					p.Append(modelDir.Get());
+					p.Append(emissiveView.texture->image->uri);
+					desc.EmissiveTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
 
 				auto& f = mat.emissive_factor;
@@ -374,7 +408,7 @@ namespace
 			}
 
 			SceneCore& scene = App::GetScene();
-			scene.AddMaterial(sceneID, ZetaMove(desc));
+			scene.AddMaterial(sceneID, ZetaMove(desc), ddsImages);
 		}
 	}
 
@@ -595,10 +629,15 @@ void glTF::Load(const char* modelRelPath) noexcept
 
 	scene.ReserveScene(sceneID, numMeshes, model->materials_count, model->nodes_count);
 
+	// figure out total number of vertices & indices
 	size_t totalNumVertices;
 	size_t totalNumIndices;
 	TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices);
 	scene.ReserveMeshData(totalNumVertices, totalNumIndices);
+
+	// figure out all the unique textures that need to be loaded from disk
+	SmallVector<DDSImage> ddsImages;
+	ddsImages.resize(model->images_count);
 
 	// how many meshes are processed by each worker
 	constexpr size_t MAX_NUM_MESH_WORKERS = 4;
@@ -611,6 +650,18 @@ void glTF::Load(const char* modelRelPath) noexcept
 		meshThreadOffsets,
 		meshThreadSizes,
 		MIN_MESHES_PER_WORKER);
+
+	// how many images are processed by each worker
+	constexpr size_t MAX_NUM_IMAGE_WORKERS = 4;
+	constexpr size_t MIN_IMAGES_PER_WORKER = 15;
+	size_t imgThreadOffsets[MAX_NUM_IMAGE_WORKERS];
+	size_t imgThreadSizes[MAX_NUM_IMAGE_WORKERS];
+
+	const size_t imgNumThreads = SubdivideRangeWithMin(model->images_count,
+		MAX_NUM_IMAGE_WORKERS,
+		imgThreadOffsets,
+		imgThreadSizes,
+		MIN_IMAGES_PER_WORKER);
 
 	// how many materials are processed by each worker
 	constexpr size_t MAX_NUM_MAT_WORKERS = 2;
@@ -632,11 +683,14 @@ void glTF::Load(const char* modelRelPath) noexcept
 		size_t* MeshThreadSizes;
 		size_t* MatThreadOffsets;
 		size_t* MatThreadSizes;
+		size_t* ImgThreadOffsets;
+		size_t* ImgThreadSizes;
 	};
 
 	ThreadContext tc{ .SceneID = sceneID, .Model = model,
 		.MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
-		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes };
+		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes,
+		.ImgThreadOffsets = imgThreadOffsets, .ImgThreadSizes = imgThreadSizes };
 
 	TaskSet ts;
 
@@ -650,17 +704,47 @@ void glTF::Load(const char* modelRelPath) noexcept
 			});
 	}
 
-	for (size_t i = 0; i < matNumThreads; i++)
+	TaskSet::TaskHandle imgTasks[MAX_NUM_IMAGE_WORKERS];
+	for (size_t i = 0; i < imgNumThreads; i++)
 	{
-		StackStr(tname, n, "gltf::ProcessMats_%d", i);
+		StackStr(tname, n, "gltf::ProcessImg_%d", i);
+		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index/");
 
-		ts.EmplaceTask(tname, [&modelRelPath, &tc, rangeIdx = i]()
+		imgTasks[i] = ts.EmplaceTask(tname, [&modelRelPath, &ddsImages, &tc, rangeIdx = i]()
 			{
 				Filesystem::Path parent(modelRelPath);
 				parent.ToParent();
 
-				ProcessMaterials(tc.SceneID, parent, *tc.Model, (int)tc.MatThreadOffsets[rangeIdx], (int)tc.MatThreadSizes[rangeIdx]);
+				LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
 			});
+	}
+
+	TaskSet::TaskHandle sortTask = ts.EmplaceTask("gltf::Sort", [&ddsImages]()
+		{
+			std::sort(ddsImages.begin(), ddsImages.end(), [](const DDSImage& lhs, const DDSImage& rhs)
+				{
+					return lhs.ID < rhs.ID;
+				});
+		});
+
+	// sort after all images are loaded
+	for (size_t i = 0; i < imgNumThreads; i++)
+		ts.AddOutgoingEdge(imgTasks[i], sortTask);
+
+	for (size_t i = 0; i < matNumThreads; i++)
+	{
+		StackStr(tname, n, "gltf::ProcessMats_%d", i);
+
+		auto h = ts.EmplaceTask(tname, [&modelRelPath, &ddsImages, &tc, rangeIdx = i]()
+			{
+				Filesystem::Path parent(modelRelPath);
+				parent.ToParent();
+
+				ProcessMaterials(tc.SceneID, parent, *tc.Model, (int)tc.MatThreadOffsets[rangeIdx], (int)tc.MatThreadSizes[rangeIdx], ddsImages);
+			});
+
+		// make sure processing materials starts after textures are loaded
+		ts.AddOutgoingEdge(sortTask, h);
 	}
 
 	WaitObject waitObj;
@@ -671,7 +755,6 @@ void glTF::Load(const char* modelRelPath) noexcept
 	SmallVector<IntemediateInstance, App::ThreadAllocator> instances;
 	instances.reserve(model->nodes_count);
 
-	// TODO is this necessary?
 	waitObj.Wait();
 
 	ProcessNodes(*model, sceneID, instances);

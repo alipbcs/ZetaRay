@@ -23,17 +23,18 @@ namespace ZetaRay
         };
         
         Material()
+            : MetallicFactor(1.0f),
+            RoughnessFactor(1.0f),
+            NormalScale(1.0f),
+            AlphaCuttoff(0.5f),
+            BaseColorTexture(uint32_t(-1)),
+            MetalnessRoughnessTexture(uint32_t(-1)),
+            NormalTexture(uint32_t(-1)),
+            EmissiveTexture(uint32_t(-1)),
+            Packed(0),
+            BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
+            EmissiveFactor(0.0f, 0.0f, 0.0f)
         {
-            BaseColorFactor = float4_(1.0f, 1.0f, 1.0f, 1.0f);
-            MetallicFactor = 1.0f;
-            RoughnessFactor = 1.0f;
-            NormalScale = 1.0f;
-            AlphaCuttoff = 0.5f;
-            BaseColorTexture = uint32_t(-1);
-            MetalnessRoughnessTexture = uint32_t(-1);
-            NormalTexture = uint32_t(-1);
-            EmissiveTexture = uint32_t(-1);
-            Packed = 0;
         }
 
         void SetGpuBufferIndex(uint32_t idx)

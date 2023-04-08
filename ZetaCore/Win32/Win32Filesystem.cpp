@@ -148,6 +148,40 @@ void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
         *outStrLen = s - 1;
 }
 
+void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const noexcept
+{
+    const size_t len = strlen(m_path.begin());
+
+    char* beg = const_cast<char*>(m_path.begin());
+    char* curr = beg + len - 1;
+
+    size_t start = size_t(-1);
+    size_t end = size_t(-1);
+
+    // figure out the first ., e.g. a.b.c -> a
+    while (curr >= beg && *curr != '.')
+        curr--;
+
+    if (curr < beg)
+    {
+        if (outStrLen)
+            *outStrLen = 0;
+
+        return;
+    }
+
+    size_t s = beg + len - 1 - curr;
+    Check(buff.size() >= s + 1, "provided buffer is too small");
+
+    if (s > 1)
+        memcpy(buff.data(), curr + 1, s);
+
+    buff.data()[s] = '\0';
+
+    if (outStrLen)
+        *outStrLen = s;
+}
+
 //--------------------------------------------------------------------------------------
 // Functions
 //--------------------------------------------------------------------------------------

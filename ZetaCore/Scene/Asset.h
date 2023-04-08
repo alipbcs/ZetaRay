@@ -31,7 +31,7 @@ namespace ZetaRay::Scene::Internal
 
 		// Returns offset of the given texture in the desc. table. The texture is then loaded from
 		// the disk. "id" is hash of the texture path
-		uint32_t Add(const App::Filesystem::Path& p, uint64_t id) noexcept;
+		uint32_t Add(Core::Texture&& tex, uint64_t id) noexcept;
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		void Clear() noexcept;
@@ -80,9 +80,9 @@ namespace ZetaRay::Scene::Internal
 
 		void Init(uint64_t id) noexcept;
 
-		// Allocates an entry for the given material and copies it to the GPU buffer. Index to the allocated entry
-		// is also set
+		// Allocates an entry for the given material. Index to the allocated entry is also set
 		void Add(uint64_t id, Material& mat) noexcept;
+		void UpdateGPUBufferIfStale() noexcept;
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		// returns a copy since references to elements are not stable
@@ -109,15 +109,18 @@ namespace ZetaRay::Scene::Internal
 		Util::SmallVector<ToBeRemoved> m_pending;
 
 	private:
-		static constexpr int NUM_MATERIALS = 2048;
-		static constexpr int NUM_MASKS = NUM_MATERIALS >> 6;
-		static_assert(NUM_MASKS * 64 == NUM_MATERIALS, "these must match.");
+		static constexpr int MAX_NUM_MATERIALS = 2048;
+		static constexpr int NUM_MASKS = MAX_NUM_MATERIALS >> 6;
+		static_assert(NUM_MASKS * 64 == MAX_NUM_MATERIALS, "these must match.");
 		uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
 
-		Core::UploadHeapBuffer m_buffer;
+		Core::DefaultHeapBuffer m_buffer;
 			
 		// references to elements are not stable
 		Util::HashTable<Material> m_matTable;
+
+		uint64_t k_bufferID = uint64_t (-1);
+		bool m_stale = false;
 	};
 
 	//--------------------------------------------------------------------------------------
