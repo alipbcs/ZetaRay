@@ -81,9 +81,9 @@ namespace ZetaRay::RenderPass
 		Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
 
 		int m_currShader = -1;
-		static constexpr float m_dbgWndWidthPct = 0.19;
+		static constexpr float m_dbgWndWidthPct = 0.2;
 		static constexpr float m_dbgWndHeightPct = 1.0;
-		static constexpr float m_logWndWidthPct = 0.4f;
+		static constexpr float m_logWndWidthPct = 1 - m_dbgWndWidthPct;
 		static constexpr float m_logWndHeightPct = 0.21f;
 		bool m_isFullScreen = false;
 		bool m_showRenderGraph = false;

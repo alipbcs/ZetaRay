@@ -684,7 +684,7 @@ void GuiPass::RenderLogWindow() noexcept
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 
-	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove))
+	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
 	{
 		const float wndWidth = m_logWndWidthPct * displayWidth;
 		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
@@ -885,16 +885,17 @@ void GuiPass::GpuTimingsTab() noexcept
 	if (m_cachedTimings.empty())
 		return;
 
-	const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
-	ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_RowBg | ImGuiTableFlags_BordersOuter | 
-		ImGuiTableFlags_BordersV | ImGuiTableFlags_Resizable | ImGuiTableFlags_Reorderable | ImGuiTableFlags_Hideable;
+	const ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | ImGuiTableFlags_RowBg | 
+		ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_Hideable;
 
 	// When using ScrollX or ScrollY we need to specify a size for our table container!
 	// Otherwise by default the table will fit all available space, like a BeginChild() call.
+	const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
 	ImVec2 outer_size = ImVec2(0.0f, TEXT_BASE_HEIGHT * 11);
 	if (ImGui::BeginTable("table_scrolly", 2, flags, outer_size))
 	{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
+
 		ImGui::TableSetupColumn("RenderPass", ImGuiTableColumnFlags_None);
 		ImGui::TableSetupColumn("Delta (ms)", ImGuiTableColumnFlags_None);
 		ImGui::TableHeadersRow();
@@ -910,7 +911,7 @@ void GuiPass::GpuTimingsTab() noexcept
 			ImGui::Text("%s", m_cachedTimings[row].Name);
 
 			ImGui::TableSetColumnIndex(1);
-			ImGui::Text("%.4f", (float)m_cachedTimings[row].Delta);
+			ImGui::Text("%.3f", (float)m_cachedTimings[row].Delta);
 		}
 
 		ImGui::EndTable();
@@ -921,10 +922,10 @@ void GuiPass::ShaderReloadTab() noexcept
 {
 	auto reloadHandlers = App::GetShaderReloadHandlers();
 
-	ImGui::Text("Select a shader to reload:");
+	ImGui::Text("Select a shader to reload");
 
 	// TODO m_currShader becomes invalid when there's been a change in reloadHandlers 
-	if (ImGui::BeginCombo("shader", m_currShader >= 0 ? reloadHandlers.View()[m_currShader].Name : "None", 0))
+	if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? reloadHandlers.View()[m_currShader].Name : "None", 0))
 	{
 		int i = 0;
 
@@ -932,9 +933,7 @@ void GuiPass::ShaderReloadTab() noexcept
 		{
 			bool selected = (m_currShader == i);
 			if (ImGui::Selectable(handler.Name, selected))
-			{
 				m_currShader = i;
-			}
 
 			if(selected)
 				ImGui::SetItemDefaultFocus();
@@ -948,9 +947,7 @@ void GuiPass::ShaderReloadTab() noexcept
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(4 / 7.0f, 0.8f, 0.8f));
 
 	if (ImGui::Button("Reload") && m_currShader != -1)
-	{
 		reloadHandlers.View()[m_currShader].Dlg();
-	}
 
 	ImGui::PopStyleColor();
 }

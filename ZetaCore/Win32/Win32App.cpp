@@ -155,12 +155,23 @@ namespace ZetaRay::AppImpl
 		auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
 		CheckWin32(fpGetFont);
 
-		FontSpan f = fpGetFont(FONT_TYPE::SEGOE_UI);
-		Assert(f.Data, "font was not found.");
+		constexpr auto fontType = FONT_TYPE::ROBOTO_REGULAR;
+		FontSpan f = fpGetFont(fontType);
+		Check(f.Data, "font was not found.");
 
-		constexpr float fontSizePixels96 = 13.6f;
+		float fontSizePixels96;
+
+		if constexpr (fontType == FONT_TYPE::SEGOE_UI)
+			fontSizePixels96 = 13.8f;
+		else if constexpr (fontType == FONT_TYPE::ROBOTO_REGULAR)
+			fontSizePixels96 = 12.8f;
+		else if constexpr (fontType == FONT_TYPE::DOMINE_MEDIUM)
+			fontSizePixels96 = 12.0f;
+		else
+			fontSizePixels96 = 13.6f;
+
 		const float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
-		io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, fontSizePixelsDPI);
+		ImFont* font = io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, fontSizePixelsDPI);
 
 		FreeLibrary(fontLib);
 
@@ -305,6 +316,7 @@ namespace ZetaRay::AppImpl
 		style.FrameRounding = 12.0f;
 		style.GrabRounding = style.FrameRounding;
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
+
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 
 		ImGuiIO& io = ImGui::GetIO();
@@ -931,6 +943,7 @@ namespace ZetaRay
 		return -1;
 	}
 
+	// TODO remove
 	void RejoinBackgroundMemPoolsToWorkers() noexcept
 	{
 		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
@@ -1069,13 +1082,13 @@ namespace ZetaRay
 
 		while (true)
 		{
-			if(g_app->m_isActive && success)
+			if (g_app->m_isActive && success)
 				g_app->m_renderer.WaitForSwapChainWaitableObject();
 
 			// process messages
 			while (PeekMessageA(&msg, nullptr, 0, 0, PM_REMOVE))
 			{
-				if(msg.message == WM_QUIT)
+				if (msg.message == WM_QUIT)
 					return (int)msg.wParam;
 
 				TranslateMessage(&msg);
