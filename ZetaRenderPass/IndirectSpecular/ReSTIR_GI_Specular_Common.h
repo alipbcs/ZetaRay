@@ -6,6 +6,9 @@
 #define RGI_SPEC_TEMPORAL_GROUP_DIM_X 8
 #define RGI_SPEC_TEMPORAL_GROUP_DIM_Y 8
 
+#define RGI_SPEC_TEMPORAL_TILE_WIDTH 16
+#define RGI_SPEC_TEMPORAL_LOG2_TILE_WIDTH 4
+
 #define RGI_SPEC_SPATIAL_GROUP_DIM_X 32
 #define RGI_SPEC_SPATIAL_GROUP_DIM_Y 32
 
@@ -14,6 +17,9 @@
 
 #define SPECULAR_DNSR_GROUP_DIM_X 8
 #define SPECULAR_DNSR_GROUP_DIM_Y 8
+
+#define ESTIMATE_CURVATURE_GROUP_DIM_X 8
+#define ESTIMATE_CURVATURE_GROUP_DIM_Y 8
 
 struct cb_RGI_Spec_Temporal
 {
@@ -26,6 +32,8 @@ struct cb_RGI_Spec_Temporal
 	uint32_t CurrTemporalReservoir_B_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_C_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_D_DescHeapIdx;
+	
+	uint32_t CurvatureSRVDescHeapIdx;
 
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
@@ -34,7 +42,7 @@ struct cb_RGI_Spec_Temporal
 	uint16_t PdfCorrection;
 	uint16_t SampleIndex;
 	uint16_t CheckerboardTracing;
-	uint16_t pad;
+	uint16_t NumGroupsInTile;
 	float RoughnessCutoff;
 	uint32_t M_max;
 	float MinRoughnessResample;
@@ -61,7 +69,6 @@ struct cb_RGI_Spec_Spatial
 
 	uint32_t OutputReservoir_A_DescHeapIdx;
 	uint32_t OutputReservoir_B_DescHeapIdx;
-	uint32_t OutputReservoir_C_DescHeapIdx;
 	uint32_t OutputReservoir_D_DescHeapIdx;
 
 	uint16_t NumGroupsInTile;
@@ -72,7 +79,6 @@ struct cbDNSR
 {
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputReservoir_B_DescHeapIdx;
-	uint32_t InputReservoir_C_DescHeapIdx;
 	uint32_t InputReservoir_D_DescHeapIdx;
 
 	uint32_t PrevTemporalCacheDescHeapIdx;
@@ -83,6 +89,11 @@ struct cbDNSR
 	uint16_t IsTemporalCacheValid;
 	uint16_t MaxTSPP;
 	uint16_t CatmullRom;
+};
+
+struct cbCurvature
+{
+	uint32_t OutputUAVDescHeapIdx;
 };
 
 #endif

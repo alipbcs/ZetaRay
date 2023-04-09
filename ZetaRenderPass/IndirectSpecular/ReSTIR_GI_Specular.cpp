@@ -136,12 +136,13 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbTemporal.M_max = DefaultParamVals::TemporalM_max;
 	m_cbTemporal.MinRoughnessResample = m_cbSpatial.MinRoughnessResample = DefaultParamVals::MinRoughnessResample;
 	m_cbTemporal.HitDistSigmaScale = DefaultParamVals::TemporalHitDistSigmaScale;
+	m_cbTemporal.CheckerboardTracing = false;
 	m_cbSpatial.HitDistSigmaScale = DefaultParamVals::SpatialHitDistSigmaScale;
 	m_cbSpatial.DoSpatialResampling = true;
 	m_cbSpatial.Radius = DefaultParamVals::SpatialResampleRadius;
 	m_cbSpatial.M_max = DefaultParamVals::SpatialM_max;
 	m_cbSpatial.NumIterations = DefaultParamVals::SpatialResampleNumIter;
-	m_cbDNSR.Denoise = true;
+	m_cbDNSR.Denoise = false;
 	m_cbDNSR.MaxTSPP = DefaultParamVals::DNSRTspp;
 	m_cbDNSR.RoughnessCutoff = m_cbTemporal.RoughnessCutoff;
 	m_cbDNSR.CatmullRom = false;
@@ -261,10 +262,10 @@ void ReSTIR_GI_Specular::Init() noexcept
 		1);								// step
 	App::AddParam(tspp);
 
-	//ParamVariant checkerboarding;
-	//checkerboarding.InitBool("Renderer", "ReSTIR_GI_Specular", "CheckerboardTrace",
-	//	fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::CheckerboardingCallback), m_cbTemporal.CheckerboardTracing);
-	//App::AddParam(checkerboarding);
+	ParamVariant checkerboarding;
+	checkerboarding.InitBool("Renderer", "ReSTIR_GI_Specular", "CheckerboardTrace",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::CheckerboardingCallback), m_cbTemporal.CheckerboardTracing);
+	App::AddParam(checkerboarding);
 
 	App::AddShaderReloadHandler("ReSTIR_GI_Specular_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadTemporalPass));
 	App::AddShaderReloadHandler("ReSTIR_GI_Specular_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadSpatialPass));
@@ -316,6 +317,37 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 	const int w = renderer.GetRenderWidth();
 	const int h = renderer.GetRenderHeight();
 
+	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+
+	// estimate curvature
+	{
+		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, ESTIMATE_CURVATURE_GROUP_DIM_X);
+		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, ESTIMATE_CURVATURE_GROUP_DIM_Y);
+
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateCurvature");
+
+		computeCmdList.PIXBeginEvent("EstimateCurvature");
+		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_CURVAURE]);
+
+		computeCmdList.ResourceBarrier(m_curvature.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		cbCurvature cb;
+		cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_UAV);
+
+		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_Temporal) / sizeof(DWORD), &m_cbTemporal);
+		m_rootSig.End(computeCmdList);
+
+		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+		cmdList.PIXEndEvent();
+	}
+
 	// Temporal resampling
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_SPEC_TEMPORAL_GROUP_DIM_X);
@@ -327,12 +359,15 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		computeCmdList.PIXBeginEvent("ReSTIR_GI_Specular_Temporal");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_RESAMPLE]);
 
-		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		computeCmdList.ResourceBarrier(m_curvature.GetResource(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 		m_cbTemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbTemporal.DispatchDimY = (uint16_t)dispatchDimY;
 		m_cbTemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
 		m_cbTemporal.SampleIndex = (uint16_t)m_sampleIdx;
+		m_cbTemporal.NumGroupsInTile = RGI_SPEC_TEMPORAL_TILE_WIDTH * m_cbTemporal.DispatchDimY;
 
 		auto srvAIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV;
 		auto srvBIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV;
@@ -405,7 +440,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		auto srvDIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_D_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_D_SRV;
 		auto uavAIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_A_UAV;
 		auto uavBIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_B_UAV;
-		auto uavCIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_C_UAV;
 		auto uavDIdx = DESC_TABLE::SPATIAL_RESERVOIR_0_D_UAV;
 
 		m_cbSpatial.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
@@ -414,7 +448,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbSpatial.InputReservoir_D_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDIdx);
 		m_cbSpatial.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
 		m_cbSpatial.OutputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
-		m_cbSpatial.OutputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 		m_cbSpatial.OutputReservoir_D_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDIdx);
 
 		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_Spatial) / sizeof(DWORD), &m_cbSpatial);
@@ -437,7 +470,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.PIXBeginEvent("SpecularDNSR");
 
-		D3D12_RESOURCE_BARRIER barriers[4];
+		D3D12_RESOURCE_BARRIER barriers[3];
 		int i = 0;
 
 		// transition spatial reservoir into read state
@@ -445,9 +478,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirC.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
@@ -462,7 +492,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 		m_cbDNSR.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_0_A_SRV);
 		m_cbDNSR.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_0_B_SRV);
-		m_cbDNSR.InputReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_0_C_SRV);
 		m_cbDNSR.InputReservoir_D_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_0_D_SRV);
 		m_cbDNSR.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvIdx);
 		m_cbDNSR.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavIdx);
@@ -484,7 +513,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 	// [hack] render graph is unaware of renderpass-internal transitions. Restore the initial state to avoid
 	// render graph and actual state getting out of sync
 	{
-		D3D12_RESOURCE_BARRIER outBarriers[8];
+		D3D12_RESOURCE_BARRIER outBarriers[4 + 3];
 		int curr = 0;
 
 		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
@@ -508,9 +537,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirC.GetResource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
@@ -548,6 +574,7 @@ void ReSTIR_GI_Specular::CreateOutputs() noexcept
 		Direct3DHelper::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
 	};
 
+	// reservoir
 	{
 		// temporal reservoirs
 		func(m_temporalReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "Spec_TemporalReservoir_0_A",
@@ -572,17 +599,22 @@ void ReSTIR_GI_Specular::CreateOutputs() noexcept
 			DESC_TABLE::SPATIAL_RESERVOIR_0_A_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_A_UAV);
 		func(m_spatialReservoir.ReservoirB, ResourceFormats::RESERVOIR_B, "Spec_SpatialReservoir_B",
 			DESC_TABLE::SPATIAL_RESERVOIR_0_B_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_B_UAV);
-		func(m_spatialReservoir.ReservoirC, ResourceFormats::RESERVOIR_C, "Spec_SpatialReservoir_C",
-			DESC_TABLE::SPATIAL_RESERVOIR_0_C_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_C_UAV);
 		func(m_spatialReservoir.ReservoirD, ResourceFormats::RESERVOIR_D, "Spec_SpatialReservoir_D",
 			DESC_TABLE::SPATIAL_RESERVOIR_0_D_SRV, DESC_TABLE::SPATIAL_RESERVOIR_0_D_UAV);
 	}
 
+	// denoiser cache
 	{
 		func(m_dnsrTemporalCache[0], ResourceFormats::DNSR_TEMPORAL_CACHE, "SpecularDNSR_0",
 			DESC_TABLE::DNSR_TEMPORAL_CACHE_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_0_UAV);
 		func(m_dnsrTemporalCache[1], ResourceFormats::DNSR_TEMPORAL_CACHE, "SpecularDNSR_1",
 			DESC_TABLE::DNSR_TEMPORAL_CACHE_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_1_UAV);
+	}
+
+	// curvature
+	{
+		func(m_curvature, ResourceFormats::CURVATURE, "Curvature",
+			DESC_TABLE::CURVATURE_SRV, DESC_TABLE::CURVATURE_UAV);
 	}
 }
 

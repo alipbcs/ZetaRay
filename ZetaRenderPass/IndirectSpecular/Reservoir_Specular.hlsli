@@ -7,7 +7,6 @@
 
 #define INVALID_SAMPLE_POS 32768.xxx
 #define INVALID_SAMPLE_NORMAL 32768.xx
-#define BRDF_COS_THETA_SCALE 1
 
 struct SpecularSample
 {
@@ -29,11 +28,12 @@ struct SpecularReservoir
 		res.M = 0;
 		res.w_sum = 0.0f;
 		res.BrdfCosTheta = 0.0.xxx;
+		res.W = 0.0;
 		
 		return res;
 	}
 	
-	static SpecularReservoir Init(float3 samplePos, float w_sum, float3 Li, float M, half2 sampleNormal, float3 brdfCosTheta)
+	static SpecularReservoir Init(float3 samplePos, float w_sum, float3 Li, float M, half2 sampleNormal, float3 brdfCosTheta, float W)
 	{
 		SpecularReservoir res;
 		
@@ -43,20 +43,11 @@ struct SpecularReservoir
 		res.M = M;
 		res.w_sum = w_sum;
 		res.BrdfCosTheta = brdfCosTheta;
+		res.W = W;
 		
 		return res;
 	}
-	
-	float3 LoadBrdfCosTheta()
-	{
-		return this.BrdfCosTheta / BRDF_COS_THETA_SCALE;
-	}
-	
-	void StoreBrdfCosTheta(float3 brdfCosTheta)
-	{
-		this.BrdfCosTheta = brdfCosTheta * BRDF_COS_THETA_SCALE;
-	}
-	
+		
 	SpecularSample GetSample()
 	{
 		SpecularSample s;
@@ -68,15 +59,13 @@ struct SpecularReservoir
 	
 	float ComputeW()
 	{
-		float3 brdfCostheta = LoadBrdfCosTheta();
-		return this.w_sum / max(1e-6, this.M * Math::Color::LuminanceFromLinearRGB(this.Li * brdfCostheta));
+		return this.w_sum / max(1e-6, this.M * Math::Color::LuminanceFromLinearRGB(this.Li * this.BrdfCosTheta));
 	}
 	
 	float3 EvaluateRISEstimate()
 	{
-		float3 brdfCostheta = LoadBrdfCosTheta();
-		float W = this.w_sum / max(1e-6, this.M * Math::Color::LuminanceFromLinearRGB(this.Li * brdfCostheta));
-		return this.Li * brdfCostheta * W;
+		float W = this.w_sum / max(1e-6, this.M * Math::Color::LuminanceFromLinearRGB(this.Li * this.BrdfCosTheta));
+		return this.Li * this.BrdfCosTheta * W;
 	}
 	
 	bool Update(float w, SpecularSample s, float3 brdfCosTheta, inout RNG rng)
@@ -89,7 +78,7 @@ struct SpecularReservoir
 			this.SamplePos = s.Pos;
 			this.SampleNormal = s.Normal;
 			this.Li = s.Lo;
-			StoreBrdfCosTheta(brdfCosTheta); 
+			this.BrdfCosTheta = brdfCosTheta;
 			
 			return true;
 		}
@@ -97,7 +86,7 @@ struct SpecularReservoir
 		return false;
 	}
 	
-	void Combine(SpecularReservoir r, float M_max, float weight, float jacobianDet, float3 brdfCostheta_r, 
+	void Combine(SpecularReservoir r, float M_max, float weight, float jacobianDet, float3 brdfCostheta_r,
 		inout RNG rng)
 	{
 		float clampedM = min(r.M, M_max);
@@ -109,8 +98,7 @@ struct SpecularReservoir
 
 		float p_q = Math::Color::LuminanceFromLinearRGB(r.Li * brdfCostheta_r);
 		float p_q_corrected = p_q / jacobianDet;
-		float W = r.ComputeW();
-		float neighborRISweight = p_q_corrected * W * weightedM;
+		float neighborRISweight = p_q_corrected * r.W * weightedM;
 		
 		float prevM = this.M;
 		
@@ -128,6 +116,7 @@ struct SpecularReservoir
 	float w_sum;
 	float M;
 	float3 BrdfCosTheta;
+	float W;
 };
 
 namespace RGI_Spec_Util
@@ -152,7 +141,7 @@ namespace RGI_Spec_Util
 		float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj, inout float reflectionRayT)
 	{
 		// Ref: https://phys.libretexts.org/Bookshelves/University_Physics/Book%3A_University_Physics_(OpenStax)/University_Physics_III_-_Optics_and_Modern_Physics_(OpenStax)/02%3A_Geometric_Optics_and_Image_Formation/2.03%3A_Spherical_Mirrors
-		// A spherical mirror has radius of curvature R = 1 / k where k denotes curvature. Then:
+		// For a spherical mirror radius of curvature R = 1 / k where k denotes curvature. Then:
 		//		1 / d_o + 1 / d_i = 2 / R
 		//		1 / d_o + 1 / d_i = 2k
 		// 
@@ -165,7 +154,7 @@ namespace RGI_Spec_Util
 		// Replacing into above gives
 		//		t_i = t_o / (1 - 2 k ndotw_o t_o)
 		//
-		// Note as a convention, the mirror equation assumes convex and concave surfaces have negative and positive
+		// Note that as a convention, the mirror equation assumes convex and concave surfaces have negative and positive
 		// radius of curvatures respectively.
 	
 		float sampleRayT = length(reservoirSamplePos - posW);
@@ -202,9 +191,10 @@ namespace RGI_Spec_Util
 		return brdfCostheta;
 	}
 	
+	// skips sample position and normal
 	SpecularReservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputDIdx)
 	{
-		Texture2D<half4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
@@ -212,12 +202,31 @@ namespace RGI_Spec_Util
 		const float3 Li = g_reservoir_B[DTid].rgb;
 		const float M = g_reservoir_B[DTid].w;
 		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
-		SpecularReservoir r = SpecularReservoir::Init(0.0.xxx, w_sum, Li, M, 0.0.xx, brdfCostheta);
+		SpecularReservoir r = SpecularReservoir::Init(0.0.xxx, w_sum, Li, M, 0.0.xx, brdfCostheta, 0.0);
 
 		return r;
 	}
 
+	// skips w_sum and BrdfCosTheta
 	SpecularReservoir PartialReadReservoir_Reuse(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputCIdx, uint inputDIdx)
+	{
+		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
+		Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
+		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
+
+		const float3 pos = g_reservoir_A[DTid].xyz;
+		const float3 Li = g_reservoir_B[DTid].rgb;
+		const float M = g_reservoir_B[DTid].w;
+		const half2 normal = g_reservoir_C[DTid];
+		const float W = g_reservoir_D[DTid].a;
+		SpecularReservoir r = SpecularReservoir::Init(pos, 0.0, Li, M, normal, 0.0.xxx, W);
+
+		return r;
+	}
+
+	// skips W
+	SpecularReservoir PartialReadReservoir_NoW(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputCIdx, uint inputDIdx)
 	{
 		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
@@ -230,11 +239,23 @@ namespace RGI_Spec_Util
 		const float M = g_reservoir_B[DTid].w;
 		const half2 normal = g_reservoir_C[DTid];
 		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
-		SpecularReservoir r = SpecularReservoir::Init(pos, w_sum, Li, M, normal, brdfCostheta);
+		SpecularReservoir r = SpecularReservoir::Init(pos, w_sum, Li, M, normal, brdfCostheta, 0);
 
 		return r;
 	}
-
+	
+	// skips sample normal and W
+	void PartialWriteReservoir_NoNormalW(uint2 DTid, SpecularReservoir r, uint outputAIdx, uint outputBIdx, uint outputDIdx)
+	{
+		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
+		RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
+		RWTexture2D<half4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
+	
+		g_outReservoir_A[DTid] = float4(r.SamplePos, r.w_sum);
+		g_outReservoir_B[DTid] = half4(r.Li, r.M);
+		g_outReservoir_D[DTid].rgb = half3(r.BrdfCosTheta);
+	}
+	
 	void WriteReservoir(uint2 DTid, SpecularReservoir r, uint outputAIdx, uint outputBIdx, uint outputCIdx, uint outputDIdx)
 	{
 		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
@@ -242,10 +263,13 @@ namespace RGI_Spec_Util
 		RWTexture2D<half2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 		RWTexture2D<half4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
 	
+		// clamp W to about maximum value possible with 16-bit floats
+		const float W = min(r.ComputeW(), 65472);
+		
 		g_outReservoir_A[DTid] = float4(r.SamplePos, r.w_sum);
 		g_outReservoir_B[DTid] = half4(r.Li, r.M);
 		g_outReservoir_C[DTid] = r.SampleNormal;
-		g_outReservoir_D[DTid].rgb = half3(r.BrdfCosTheta);
+		g_outReservoir_D[DTid] = half4(r.BrdfCosTheta, W);
 	}
 }
 

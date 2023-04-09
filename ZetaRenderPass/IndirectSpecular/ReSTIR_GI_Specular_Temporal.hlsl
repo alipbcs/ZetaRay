@@ -9,9 +9,8 @@
 #include "../Common/RT.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
+#define THREAD_GROUP_SWIZZLING 1
 #define INVALID_RAY_DIR 0.xxx
-#define NUM_BINS 8
-#define RAY_BINNING 0
 #define USE_RAY_CONES 1
 #define RAY_CONE_K1 1.0f
 #define RAY_CONE_K2 0.0f
@@ -49,25 +48,45 @@ struct HitSurface
 #endif
 };
 
-groupshared half3 g_normalDepth[RGI_SPEC_TEMPORAL_GROUP_DIM_Y][RGI_SPEC_TEMPORAL_GROUP_DIM_X];
-groupshared float3 g_pos[RGI_SPEC_TEMPORAL_GROUP_DIM_Y][RGI_SPEC_TEMPORAL_GROUP_DIM_X];
-
-#if RAY_BINNING
 static const uint16_t2 GroupDim = uint16_t2(RGI_SPEC_TEMPORAL_GROUP_DIM_X, RGI_SPEC_TEMPORAL_GROUP_DIM_Y);
-
-groupshared uint g_binOffset[NUM_BINS];
-groupshared uint g_binIndex[NUM_BINS];
-groupshared float3 g_sortedOrigin[RGI_SPEC_TEMPORAL_GROUP_DIM_X * RGI_SPEC_TEMPORAL_GROUP_DIM_Y];
-groupshared float3 g_sortedDir[RGI_SPEC_TEMPORAL_GROUP_DIM_X * RGI_SPEC_TEMPORAL_GROUP_DIM_Y];
-#endif
 
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-float2 SignNotZero(float2 v)
+uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
 {
-	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
+#if THREAD_GROUP_SWIZZLING
+	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
+	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
+	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
+
+	// TileWidth is a power of 2 for all tiles except possibly the last one
+	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_SPEC_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
+	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
+
+	uint16_t2 groupIDinTile;
+	if (groupIDFlattened >= numGroupsInFullTiles)
+	{
+		// DispatchDimX & NumGroupsInTile
+		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_SPEC_TEMPORAL_TILE_WIDTH * numFullTiles;
+		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
+	}
+	else
+	{
+		groupIDinTile = uint16_t2(
+			groupIDinTileFlattened & (RGI_SPEC_TEMPORAL_TILE_WIDTH - 1),
+			groupIDinTileFlattened >> RGI_SPEC_TEMPORAL_LOG2_TILE_WIDTH);
+	}
+
+	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_SPEC_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
+	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
+	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
+#else
+	const uint16_t2 swizzledDTid = (uint16_t2) DTid.xy;
+#endif
+	
+	return swizzledDTid;
 }
 
 // wi is assumed to be normalized
@@ -93,9 +112,9 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	// protect against self-intersection
 	float3 adjustedOrigin = pos + normal * 5e-3f;
 
-	RayQuery < RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
@@ -116,10 +135,18 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
+bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface, out bool isRayValid)
 {
-	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+	// skip invalid rays
+	if (dot(wi - INVALID_RAY_DIR, 1) == 0.0f)
+	{
+		isRayValid = false;
+		return false;
+	}
+
+	isRayValid = true;
+
+	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = pos;
@@ -168,7 +195,7 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 #if USE_RAY_CONES		
 		rayCone.Update(rayQuery.CommittedRayT(), 0);
 		
-		// just need to apply scale transformation, rotation and translation 
+		// just need to apply the scale transformation, rotation and translation 
 		// preserve area
 		float3 v0W = meshData.Scale * V0.PosL;
 		float3 v1W = meshData.Scale * V1.PosL;
@@ -178,101 +205,11 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 		float lambda = rayCone.Lambda(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
 		surface.Lambda = half(lambda);
 #endif	
+		
 		return true;
 	}
 
 	return false;
-}
-
-bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSurface hitInfo, 
-	out bool isRayValid, out uint16_t sortedIdx)
-{
-#if RAY_BINNING
-	//
-	// ray-binning: find the number of directions that fall into each bin
-	//
-
-	// Ref: Cigolle et al, "Survey of Efficient Representations for Independent Unit Vectors," Journal of Computer Graphics Techniques, 2014.
-	float2 proj = dir.xz / (abs(dir.x) + abs(dir.y) + abs(dir.z));
-	proj = (dir.y <= 0.0f) ? ((1.0f - abs(proj.yx)) * SignNotZero(proj)) : proj;
-
-	const bool xGt0 = proj.x >= 0.0f;
-	const bool yGt0 = proj.y >= 0.0f;
-	const bool upper = abs(proj.x) + abs(proj.y) >= 0.0f;
-
-	bool isInBin[NUM_BINS];
-	isInBin[0] = xGt0 && yGt0 && upper;
-	isInBin[1] = xGt0 && yGt0 && !upper;
-	isInBin[2] = xGt0 && !yGt0 && upper;
-	isInBin[3] = xGt0 && !yGt0 && !upper;
-	isInBin[4] = !xGt0 && yGt0 && upper;
-	isInBin[5] = !xGt0 && yGt0 && !upper;
-	isInBin[6] = !xGt0 && !yGt0 && upper;
-	isInBin[7] = !xGt0 && !yGt0 && !upper;
-
-	uint16_t laneBin = 0;
-
-	[unroll]
-	for (uint16_t i = 1; i < NUM_BINS; i++)
-		laneBin += i * isInBin[i];
-
-	uint16_t waveBinSize[NUM_BINS];
-	waveBinSize[0] = (uint16_t) WaveActiveCountBits(isInBin[0]);
-	waveBinSize[1] = (uint16_t) WaveActiveCountBits(isInBin[1]);
-	waveBinSize[2] = (uint16_t) WaveActiveCountBits(isInBin[2]);
-	waveBinSize[3] = (uint16_t) WaveActiveCountBits(isInBin[3]);
-	waveBinSize[4] = (uint16_t) WaveActiveCountBits(isInBin[4]);
-	waveBinSize[5] = (uint16_t) WaveActiveCountBits(isInBin[5]);
-	waveBinSize[6] = (uint16_t) WaveActiveCountBits(isInBin[6]);
-	waveBinSize[7] = (uint16_t) WaveActiveCountBits(isInBin[7]);
-
-	const uint laneIdx = WaveGetLaneIndex();
-	uint16_t prefixSum = laneIdx < NUM_BINS ? waveBinSize[laneIdx] : 0;
-
-	if (laneIdx < NUM_BINS - 1)
-	{
-		prefixSum = WavePrefixSum(prefixSum);
-		InterlockedAdd(g_binOffset[laneIdx + 1], (uint) prefixSum); // g_binOffset[0] is 0
-	}
-
-	GroupMemoryBarrierWithGroupSync();
-
-	// all the offsets are now known, sort them
-
-	uint idxInBin;
-	InterlockedAdd(g_binIndex[laneBin], 1, idxInBin);
-
-	const uint idx = g_binOffset[laneBin] + idxInBin;
-	g_sortedOrigin[idx] = origin;
-	g_sortedDir[idx].xyz = dir;
-
-#if USE_RAY_CONES
-	g_sortedRayCones[idx] = rayCone;
-#endif
-
-	sortedIdx = (uint16_t) idx;
-
-	GroupMemoryBarrierWithGroupSync();
-
-	float3 newOrigin = g_sortedOrigin[Gidx];
-	float3 newDir = g_sortedDir[Gidx].xyz;
-	
-#else	
-	float3 newOrigin = origin;
-	float3 newDir = dir;
-#endif	
-
-	// skip invalid rays
-	if (dot(newDir - INVALID_RAY_DIR, 1) == 0.0f)
-	{
-		isRayValid = false;
-		return false;
-	}
-
-	isRayValid = true;
-	bool hit = FindClosestHit(newOrigin, newDir, rayCone, hitInfo);
-
-	return hit;
 }
 
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
@@ -355,19 +292,18 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-SpecularSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, 
-	RT::RayCone rayCone, out uint16_t sortedIdx)
+SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone)
 {
 	SpecularSample ret;
 		
-	// protect against self-intersection
+	// TODO find a better way to protect against self-intersection
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
 	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
 	
 	// trace a ray along wi to find closest surface point
-	bool isSortedRayValid;
+	bool isRayValid;
 	HitSurface hitInfo;
-	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isSortedRayValid, sortedIdx);
+	bool hit = FindClosestHit(adjustedOrigin, wi, rayCone, hitInfo, isRayValid);
 
 	// incident radiance from closest hit point
 	ret.Lo = 0.0.xxx;
@@ -380,81 +316,19 @@ SpecularSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, 
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.Normal;
 	}
-	else if (isSortedRayValid)
+	else if (isRayValid)
 	{
-#if RAY_BINNING
-		// figure out the sorted direction
-		float3 newDir = g_sortedDir[Gidx];
-#else
-		float3 newDir = wi;
-#endif
-		ret.Lo = MissShading(newDir);
+		ret.Lo = MissShading(wi);
 		
 		// account for transmittance
 		float3 temp = posW; // make a copy to avoid accumulating floating-point error
 		temp.y += g_frame.PlanetRadius;
-		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
-		ret.Pos = posW + t * newDir;
+		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, wi);
+		ret.Pos = posW + t * wi;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
 	}
 	
 	return ret;
-}
-
-float3 PackSample(half2 normal, float3 Li)
-{
-	uint3 r;
-	half3 Lih = half3(Li);
-	
-	r.x = asuint16(Lih.r) | (uint(asuint16(Lih.g)) << 16);
-	r.y = asuint16(Lih.b);
-	r.z = asuint16(normal.x) | (uint(asuint16(normal.y)) << 16);
-	
-	return asfloat(r);
-}
-
-void UnpackSample(float3 packed, out half2 normal, out float3 Li)
-{
-	uint3 packedU = asuint(packed);
-	
-	uint16_t3 packedLi = uint16_t3(packedU.x & 0xffff, packedU.x >> 16, packedU.y & 0xffff);
-	Li = float3(asfloat16(packedLi));
-	
-	uint16_t2 packedNormal = uint16_t2(packedU.z & 0xffff, packedU.z >> 16);
-	normal = asfloat16(packedNormal);
-}
-
-// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
-// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
-// Ray Tracing Gems 1, 2019.
-float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 GTid)
-{
-	const float depthX = (GTid.x & 0x1) == 0 ? g_normalDepth[GTid.y][GTid.x + 1].z : g_normalDepth[GTid.y][GTid.x - 1].z;
-	const float depthY = (GTid.y & 0x1) == 0 ? g_normalDepth[GTid.y + 1][GTid.x].z : g_normalDepth[GTid.y - 1][GTid.x].z;
-	
-	const float maxDepthDiscontinuity = 0.005f;
-	const bool invalidX = abs(linearDepth - depthX) >= maxDepthDiscontinuity * linearDepth;
-	const bool invalidY = abs(linearDepth - depthY) >= maxDepthDiscontinuity * linearDepth;
-	
-	const float3 normalX = (GTid.x & 0x1) == 0 ? 
-		Math::Encoding::DecodeUnitNormal(g_normalDepth[GTid.y][GTid.x + 1].xy) : 
-		Math::Encoding::DecodeUnitNormal(g_normalDepth[GTid.y][GTid.x - 1].xy);
-	const float3 normalY = (GTid.y & 0x1) == 0 ? 
-		Math::Encoding::DecodeUnitNormal(g_normalDepth[GTid.y + 1][GTid.x].xy) : 
-		Math::Encoding::DecodeUnitNormal(g_normalDepth[GTid.y - 1][GTid.x].xy);
-	const float3 normalddx = (GTid.x & 0x1) == 0 ? normalX - normal : normal - normalX;
-	const float3 normalddy = (GTid.y & 0x1) == 0 ? normalY - normal : normal - normalY;
-
-	const float3 posX = (GTid.x & 0x1) == 0 ? g_pos[GTid.y][GTid.x + 1] : g_pos[GTid.y][GTid.x - 1];
-	const float3 posY = (GTid.y & 0x1) == 0 ? g_pos[GTid.y + 1][GTid.x] : g_pos[GTid.y - 1][GTid.x];
-	const float3 posddx = (GTid.x & 0x1) == 0 ? posX - pos : pos - posX;
-	const float3 posddy = (GTid.y & 0x1) == 0 ? posY - pos : pos - posY;
-	
-	const float phi = sqrt((invalidX ? 0 : dot(normalddx, normalddx)) + (invalidY ? 0 : dot(normalddy, normalddy)));
-	const float s = sign((invalidX ? 0 : dot(posddx, normalddx)) + (invalidY ? 0 : dot(posddy, normalddy)));
-	const float k = 2.0f * phi * s;
-	
-	return k;
 }
 
 float4 PlaneHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos, float linearDepth)
@@ -481,7 +355,7 @@ float RayTHeuristic(float3 reservoirSamplePos, float3 posW, float sampleRayT)
 float GetTemporalM(float3 posW, float rayT, float localCurvature, float linearDepth)
 {
 	// smaller RIS weight during temporal resampling when 
-	// 1. reflection is closer to the ray origin
+	// 1. reflection is closer to ray origin
 	// 2. surface is curved
 	float d = length(posW);
 	float f = rayT / max(rayT + d, 1e-6f);
@@ -500,6 +374,7 @@ float GetTemporalM(float3 posW, float rayT, float localCurvature, float linearDe
 	return M;
 }
 
+// Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
 float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness)
 {
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
@@ -523,17 +398,6 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, r.SamplePos, localCurvature, linearDepth, 
 		g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);
 	
-	// TODO under checkerboarding virtual motion vectors are unknown, figure out a way to reconstruct them
-	// from neighbors -- following breaks for curved surfaces
-#if 0
-	const int laneIdx = WaveGetLaneIndex();
-	const int neighborLane = (DTid.x + DTid.y & 0x3) == 0 ?
-		((DTid.y & 0x1) == 0 ? laneIdx + 1 : laneIdx + RGI_SPEC_TEMPORAL_GROUP_DIM_X) :
-		((DTid.y & 0x1) == 0 ? laneIdx - 1 : laneIdx - RGI_SPEC_TEMPORAL_GROUP_DIM_X);
-	
-	prevUV = emptyReservoir ? WaveReadLaneAt(prevUV, neighborLane) : prevUV;
-#endif
-	
 	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 		return;
 
@@ -547,7 +411,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	const uint2 offsets[4] = { uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 1) };	
 	float4 weights = 1.0.xxxx;
 	
-	// screen bounds check
+	// screen-bounds check
 	[unroll]
 	for (int prevIdx = 0; prevIdx < 4; prevIdx++)
 	{
@@ -567,7 +431,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	[unroll]
 	for (int posIdx = 0; posIdx < 4; posIdx++)
 	{
-		float2 prevUV = topLeftTexelUV + offsets[posIdx] * float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
+		float2 prevUV = topLeftTexelUV + offsets[posIdx] / renderDim;
 		prevPos[posIdx] = Math::Transform::WorldPosFromUV(prevUV, 
 			prevDepths[posIdx], 
 			g_frame.TanHalfFOV, 
@@ -591,7 +455,12 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	const float currRayT = length(r.SamplePos - posW);
 	float4 rayTWeights = 0.0.xxxx;
 	
-	SpecularReservoir prevReservoirs[4];
+	Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_A_DescHeapIdx];
+	Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_B_DescHeapIdx];
+	Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_C_DescHeapIdx];
+	Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_D_DescHeapIdx];
+	// defer reading the rest of reservoir data to relieve register pressure
+	float3 prevReservoirSamplePos[4];
 
 	[unroll]
 	for (int resIdx = 0; resIdx < 4; resIdx++)
@@ -600,13 +469,9 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		if (weights[resIdx] == 0.0f)
 			continue;
 
-		prevReservoirs[resIdx] = RGI_Spec_Util::PartialReadReservoir_Reuse(prevPixel,
-			g_local.PrevTemporalReservoir_A_DescHeapIdx,
-			g_local.PrevTemporalReservoir_B_DescHeapIdx,
-			g_local.PrevTemporalReservoir_C_DescHeapIdx,
-			g_local.PrevTemporalReservoir_D_DescHeapIdx);
+		prevReservoirSamplePos[resIdx] = g_reservoir_A[prevPixel].xyz;
 		
-		const float3 distToNeighborSample = posW - prevReservoirs[resIdx].SamplePos;
+		const float3 distToNeighborSample = posW - prevReservoirSamplePos[resIdx];
 		const float sampleRayT = length(distToNeighborSample);
 
 		// TODO hit-distance weight leads to temporal artifacts for curved surfaces
@@ -637,16 +502,25 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		if (weights[k] == 0.0f)
 			continue;
 
+		const uint2 prevPixel = uint2(topLeft) + offsets[k];
+		
+		SpecularReservoir prev;
+		prev.SamplePos = prevReservoirSamplePos[k];
+		prev.Li = g_reservoir_B[prevPixel].rgb;
+		prev.M = g_reservoir_B[prevPixel].w;
+		prev.W = g_reservoir_D[prevPixel].a;
+		prev.SampleNormal = g_reservoir_C[prevPixel];
+		
 		// q -> reused path, r -> current pixel's path
-		const float3 secondToFirst_r = posW - prevReservoirs[k].SamplePos;
+		const float3 secondToFirst_r = posW - prev.SamplePos;
 		const float3 wi = normalize(-secondToFirst_r);
-		float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, surface);
+		const float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, surface);
 		float jacobianDet = 1.0f;
 
 		if (g_local.PdfCorrection)
-			jacobianDet = RGI_Spec_Util::JacobianDeterminant(prevPos[k], prevReservoirs[k].SamplePos, wi, secondToFirst_r, prevReservoirs[k]);
+			jacobianDet = RGI_Spec_Util::JacobianDeterminant(prevPos[k], prev.SamplePos, wi, secondToFirst_r, prev);
 
-		r.Combine(prevReservoirs[k], temporalM, weights[k], jacobianDet, brdfCostheta_r, rng);
+		r.Combine(prev, temporalM, weights[k], jacobianDet, brdfCostheta_r, rng);
 	}
 }
 
@@ -679,36 +553,26 @@ SpecularReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, floa
 // Main
 //--------------------------------------------------------------------------------------
 
-[WaveSize(32)]
 [numthreads(RGI_SPEC_TEMPORAL_GROUP_DIM_X, RGI_SPEC_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
-	// this lane should still participates in non-trace computations
-	const bool isWithinScreenBounds = DTid.x < g_frame.RenderWidth && DTid.y < g_frame.RenderHeight;
+	// swizzle thread groups for better L2-cache behavior
+	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
+	const uint2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
 
-#if RAY_BINNING
-	if (Gidx < NUM_BINS)
-	{
-		g_binOffset[Gidx] = 0;
-		g_binIndex[Gidx] = 0;
-	}
+	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
+		return;
 
-	GroupMemoryBarrierWithGroupSync();
-#endif	
-	
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float depth = g_depth[DTid.xy];
+	const float depth = g_depth[swizzledDTid.xy];
 
-	// can't early exit due to ray binning
-	bool isPixelValid = isWithinScreenBounds && (depth > 0);
-	bool traceThisFrame = g_local.CheckerboardTracing ?
-		((DTid.x + DTid.y) & 0x1) == (g_frame.FrameNum & 0x1) :
-		true;
-	
+	if(depth == 0)
+		return;
+		
 	// reconstruct position from depth buffer
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
+	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid.xy,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -717,18 +581,20 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const half2 encodedNormal = isPixelValid ? g_normal[DTid.xy] : 0.0.xx;
-	const float3 normal = Math::Encoding::DecodeUnitNormal(encodedNormal);
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid.xy]);
 		
 	// roughness and metallic mask
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = isPixelValid ? g_metalnessRoughness[DTid.xy] : 0.0.xx;
+	const float2 mr = g_metalnessRoughness[swizzledDTid.xy];
 
 	// roughness cutoff
 	const bool roughnessBelowThresh = mr.y <= g_local.RoughnessCutoff;
-	traceThisFrame = isPixelValid && roughnessBelowThresh && (traceThisFrame || (mr.y <= g_local.MinRoughnessResample));
+	if(!roughnessBelowThresh)
+		return;
 	
+	const bool traceThisFrame = true;
+
 	// sample the incident direction using the distribution of visible normals (VNDF)
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
@@ -737,19 +603,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	if (traceThisFrame)
 	{
 		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, g_local.SampleIndex, 4);
+			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 4);
 		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
-			DTid.x, DTid.y, g_local.SampleIndex, 5);
+			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 5);
 
 		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, float2(u0, u1));
 	}
 	
-	g_normalDepth[GTid.y][GTid.x] = half3(encodedNormal, linearDepth);
-	g_pos[GTid.y][GTid.x] = posW;
-
-	GroupMemoryBarrierWithGroupSync();
-	
-	const float k = isPixelValid ? EstimateLocalCurvature(normal, posW, linearDepth, GTid.xy) : 0.0f;
+	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];	
+	const float k = g_curvature[swizzledDTid.xy];
 	
 #if USE_RAY_CONES
 	const float phi = RAY_CONE_K1 * k + RAY_CONE_K2;
@@ -758,38 +620,23 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, 0, linearDepth);
 #endif	
 	
-	uint16_t sortedIdx;
-	SpecularSample tracedSample = Li(DTid.xy, Gidx, posW, normal, wi, linearDepth, rayCone, sortedIdx);
-	
-#if RAY_BINNING
-	// reuse the shared memory for ray binning
-	g_sortedOrigin[Gidx] = RGI_Spec_Util::PackSample(tracedSample.Normal, tracedSample.Lo, tracedSample.RayT);
-	g_sortedDir[Gidx] = tracedSample.Pos;
-	
-	GroupMemoryBarrierWithGroupSync();
-
-	// retrieve the non-sorted vals
-	RGI_Spec_Util::UnpackSample(g_sortedOrigin[sortedIdx], tracedSample.Normal, tracedSample.Lo, tracedSample.RayT);
-	tracedSample.Pos = g_sortedDir[sortedIdx].xyz;
-#endif	
+	SpecularSample tracedSample = Li(posW, normal, wi, linearDepth, rayCone);
 	
 	// resampling
-	if (isPixelValid)
-	{
-		// base color is needed for Fresnel
-		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-			GBUFFER_OFFSET::BASE_COLOR];
-		const float3 baseColor = g_baseColor[DTid.xy].rgb;
+
+	// base color is needed for Fresnel
+	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::BASE_COLOR];
+	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
 		
-		surface.InitComplete(wi, baseColor, mr.x);
+	surface.InitComplete(wi, baseColor, mr.x);
 		
-		RNG rng = RNG::Init(DTid.xy, g_frame.FrameNum, renderDim);
-		SpecularReservoir r = UpdateAndResample(DTid.xy, posW, normal, linearDepth, tracedSample, surface,
-			baseColor, mr.x, mr.y, traceThisFrame, k, rng);
+	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
+	SpecularReservoir r = UpdateAndResample(swizzledDTid.xy, posW, normal, linearDepth, tracedSample, surface,
+		baseColor, mr.x, mr.y, traceThisFrame, k, rng);
 		
-		RGI_Spec_Util::WriteReservoir(DTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
-				g_local.CurrTemporalReservoir_B_DescHeapIdx,
-				g_local.CurrTemporalReservoir_C_DescHeapIdx,
-				g_local.CurrTemporalReservoir_D_DescHeapIdx);
-	}
+	RGI_Spec_Util::WriteReservoir(swizzledDTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
+			g_local.CurrTemporalReservoir_B_DescHeapIdx,
+			g_local.CurrTemporalReservoir_C_DescHeapIdx,
+			g_local.CurrTemporalReservoir_D_DescHeapIdx);
 }

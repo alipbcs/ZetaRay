@@ -38,7 +38,6 @@ namespace ZetaRay::RenderPass
 			TEMPORAL_RESERVOIR_D,
 			SPATIAL_RESERVOIR_A,
 			SPATIAL_RESERVOIR_B,
-			SPATIAL_RESERVOIR_C,
 			SPATIAL_RESERVOIR_D,
 			CURR_DNSR_CACHE,
 			COUNT
@@ -89,8 +88,6 @@ namespace ZetaRay::RenderPass
 				return m_spatialReservoir.ReservoirA;
 			case SHADER_OUT_RES::SPATIAL_RESERVOIR_B:
 				return m_spatialReservoir.ReservoirB;
-			case SHADER_OUT_RES::SPATIAL_RESERVOIR_C:
-				return m_spatialReservoir.ReservoirC;
 			case SHADER_OUT_RES::SPATIAL_RESERVOIR_D:
 				return m_spatialReservoir.ReservoirD;
 			case SHADER_OUT_RES::CURR_DNSR_CACHE:
@@ -133,6 +130,7 @@ namespace ZetaRay::RenderPass
 		Reservoir m_temporalReservoirs[2];
 		Reservoir m_spatialReservoir;
 		Core::Texture m_dnsrTemporalCache[2];
+		Core::Texture m_curvature;
 		int m_currTemporalReservoirIdx = 0;
 		bool m_isTemporalReservoirValid = false;
 
@@ -143,6 +141,7 @@ namespace ZetaRay::RenderPass
 			static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R16G16_FLOAT;
 			static constexpr DXGI_FORMAT RESERVOIR_D = DXGI_FORMAT_R16G16B16A16_FLOAT;
 			static constexpr DXGI_FORMAT DNSR_TEMPORAL_CACHE = DXGI_FORMAT_R16G16B16A16_FLOAT;
+			static constexpr DXGI_FORMAT CURVATURE = DXGI_FORMAT_R16_FLOAT;
 		};
 
 		enum class DESC_TABLE
@@ -167,17 +166,21 @@ namespace ZetaRay::RenderPass
 			//
 			SPATIAL_RESERVOIR_0_A_SRV,
 			SPATIAL_RESERVOIR_0_B_SRV,
-			SPATIAL_RESERVOIR_0_C_SRV,
+			//SPATIAL_RESERVOIR_0_C_SRV,
 			SPATIAL_RESERVOIR_0_D_SRV,
 			SPATIAL_RESERVOIR_0_A_UAV,
 			SPATIAL_RESERVOIR_0_B_UAV,
-			SPATIAL_RESERVOIR_0_C_UAV,
+			//SPATIAL_RESERVOIR_0_C_UAV,
 			SPATIAL_RESERVOIR_0_D_UAV,
 			//
 			DNSR_TEMPORAL_CACHE_0_SRV,
 			DNSR_TEMPORAL_CACHE_1_SRV,
 			DNSR_TEMPORAL_CACHE_0_UAV,
 			DNSR_TEMPORAL_CACHE_1_UAV,
+			//
+			CURVATURE_SRV,
+			CURVATURE_UAV,
+			///
 			COUNT
 		};
 
@@ -223,6 +226,7 @@ namespace ZetaRay::RenderPass
 			TEMPORAL_RESAMPLE,
 			SPATIAL_RESAMPLE,
 			DNSR,
+			ESTIMATE_CURVAURE,
 			COUNT
 		};
 
@@ -231,7 +235,8 @@ namespace ZetaRay::RenderPass
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
 			"ReSTIR_GI_Specular_Temporal_cs.cso", 
 			"ReSTIR_GI_Specular_Spatial_cs.cso",
-			"SpecularDNSR_Temporal_cs.cso"
+			"SpecularDNSR_Temporal_cs.cso",
+			"EstimateCurvature_cs.cso"
 		};
 
 		// shader reload

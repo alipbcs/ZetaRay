@@ -165,7 +165,6 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D);
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A);
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_C);
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D);
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE);
 		}
@@ -353,10 +352,6 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 
 			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
 				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,

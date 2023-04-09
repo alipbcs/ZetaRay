@@ -364,10 +364,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
-	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Reuse(DTid.xy,
+	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Shading(DTid.xy,
 				g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx,
-				g_local.InputReservoir_C_DescHeapIdx,
 				g_local.InputReservoir_D_DescHeapIdx);
 
 	const float3 wi = normalize(r.SamplePos - posW);

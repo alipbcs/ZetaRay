@@ -105,7 +105,7 @@ float NormalHeuristic(float3 input, float3 sample, float alpha)
 	return weight;
 }
 
-// helps with high frequency roughness textures
+// helps with high-frequency roughness textures
 // Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
 float RoughnessWeight(float currRoughness, float sampleRoughness)
 {
@@ -224,9 +224,8 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 
 void WriteReservoir(uint2 DTid, SpecularReservoir r)
 {
-	RGI_Spec_Util::WriteReservoir(DTid, r, g_local.OutputReservoir_A_DescHeapIdx,
+	RGI_Spec_Util::PartialWriteReservoir_NoNormalW(DTid, r, g_local.OutputReservoir_A_DescHeapIdx,
 			g_local.OutputReservoir_B_DescHeapIdx,
-			g_local.OutputReservoir_C_DescHeapIdx,
 			g_local.OutputReservoir_D_DescHeapIdx);
 }
 
@@ -261,7 +260,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	if (mr.y > g_local.RoughnessCutoff)
 		return;
 
-	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Reuse(swizzledDTid,
+	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_NoW(swizzledDTid,
 			g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx,
 			g_local.InputReservoir_C_DescHeapIdx,
