@@ -137,7 +137,7 @@ namespace RGI_Spec_Util
 		return jacobianDet;
 	}
 	
-	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::SurfaceInteraction surface, float3 reservoirSamplePos,
+	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::SurfaceInteraction surface, float sampleRayT,
 		float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj, inout float reflectionRayT)
 	{
 		// Ref: https://phys.libretexts.org/Bookshelves/University_Physics/Book%3A_University_Physics_(OpenStax)/University_Physics_III_-_Optics_and_Modern_Physics_(OpenStax)/02%3A_Geometric_Optics_and_Image_Formation/2.03%3A_Spherical_Mirrors
@@ -157,7 +157,6 @@ namespace RGI_Spec_Util
 		// Note that as a convention, the mirror equation assumes convex and concave surfaces have negative and positive
 		// radius of curvatures respectively.
 	
-		float sampleRayT = length(reservoirSamplePos - posW);
 		float pixelWidth = 2.0 * tanHalfFOV * linearDepth / max(surface.ndotwo, 1e-4);
 	
 		// curvature computation above uses the opposite signs

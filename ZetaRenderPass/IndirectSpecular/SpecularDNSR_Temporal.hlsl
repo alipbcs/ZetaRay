@@ -171,9 +171,10 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 posW, float3 normal, float 
 	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
 	// reverse reproject current pixel
+	float currRayT = length(samplePos - posW);
 	float relectionRayT;
-	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, samplePos, localCurvature, linearDepth,
-		g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
+	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature, 
+		linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
 
 	//	p0-----------p1
 	//	|-------------|
@@ -278,9 +279,10 @@ void SampleTemporalCache_CatmullRom(uint2 DTid, float3 posW, float3 normal, floa
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
 	// reverse reproject current pixel
+	float currRayT = length(samplePos - posW);
 	float relectionRayT;
-	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, samplePos, localCurvature, linearDepth,
-		g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
+	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature, 
+		linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
 
 	if (!Math::IsWithinBoundsExc(prevUV, 1.0f.xx))
 	{

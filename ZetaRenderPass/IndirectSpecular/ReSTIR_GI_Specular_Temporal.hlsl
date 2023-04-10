@@ -385,26 +385,28 @@ float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness)
 	return w;
 }
 
-void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, BRDF::SurfaceInteraction surface,
-	float3 baseColor, float isMetallic, float roughness, float localCurvature, inout SpecularReservoir r, inout RNG rng)
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float isMetallic, 
+	float roughness, BRDF::SurfaceInteraction surface, float localCurvature, bool tracedThisFrame,
+	inout SpecularReservoir r, inout RNG rng)
 {
 	if (roughness <= g_local.MinRoughnessResample)
 		return;
 	
-	const bool emptyReservoir = r.M == 0;
+	const float currRayT = length(r.SamplePos - posW);
 	
 	// reverse reproject current pixel
 	float reflectionRayT;
-	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, r.SamplePos, localCurvature, linearDepth, 
-		g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);
-	
+	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature, 
+			linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);	
+	prevUV = g_local.CheckerboardTracing && tracedThisFrame ? FLT_MAX.xx : prevUV;
+		
 	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
 		return;
 
 	// combine 2x2 neighborhood reservoirs around reprojected pixel
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 f = prevUV * renderDim;
-	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
+	const float2 topLeft = floor(f - 0.5f);
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
 
@@ -452,7 +454,6 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		return;
 
 	// hit-distance heuristic
-	const float currRayT = length(r.SamplePos - posW);
 	float4 rayTWeights = 0.0.xxxx;
 	
 	Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_A_DescHeapIdx];
@@ -483,8 +484,8 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
 	
-	rayTWeights = emptyReservoir ? 1.0.xxxx : rayTWeights;
-	weights *= rayTWeights * bilinearWeights;
+	rayTWeights = !tracedThisFrame ? 1.0.xxxx : rayTWeights;
+	
 	weights *= weights > 1e-4;
 	const float weightSum = dot(1, weights);
 	
@@ -494,7 +495,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	weights /= weightSum;
 	
 	// smaller RIS weight when hit distance is small (sharper reflections)
-	const float temporalM = emptyReservoir ? g_local.M_max : GetTemporalM(posW, currRayT, localCurvature, linearDepth);
+	const float temporalM = !tracedThisFrame ? g_local.M_max : GetTemporalM(posW, currRayT, localCurvature, linearDepth);
 		
 	[unroll]
 	for (int k = 0; k < 4; k++)
@@ -524,9 +525,9 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	}
 }
 
-SpecularReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, SpecularSample s,
-	BRDF::SurfaceInteraction surface, float3 baseColor, float isMetallic, float roughness, bool isSampleValid, 
-	float localCurvature, inout RNG rng)
+SpecularReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
+	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, float isMetallic, float roughness, 
+	bool isSampleValid, float localCurvature, inout RNG rng)
 {
 	// initialize the reservoir with the newly traced sample
 	SpecularReservoir r = SpecularReservoir::Init();
@@ -544,7 +545,10 @@ SpecularReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, floa
 	}
 		
 	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
-		TemporalResample(DTid, posW, normal, linearDepth, surface, baseColor, isMetallic, roughness, localCurvature, r, rng);
+	{
+		TemporalResample(DTid, posW, normal, linearDepth, baseColor, isMetallic, roughness, 
+			surface, localCurvature, isSampleValid, r, rng);
+	}
 	
 	return r;
 }
@@ -593,7 +597,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	if(!roughnessBelowThresh)
 		return;
 	
-	const bool traceThisFrame = true;
+	bool traceThisFrame = g_local.CheckerboardTracing ?
+		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_frame.FrameNum & 0x1) :
+		true;
+
+	// always trace if surface is mirror like
+	traceThisFrame = roughnessBelowThresh && (traceThisFrame || (mr.y <= g_local.MinRoughnessResample));
 
 	// sample the incident direction using the distribution of visible normals (VNDF)
 	const float3 wo = normalize(g_frame.CameraPos - posW);
