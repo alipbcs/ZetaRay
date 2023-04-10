@@ -730,9 +730,7 @@ namespace ZetaRay::AppImpl
 		for (auto& p : g_app->m_paramsUpdates)
 		{
 			if (p.Op == ParamUpdate::OP_TYPE::ADD)
-			{
 				g_app->m_params.push_back(p.P);
-			}
 			else if (p.Op == ParamUpdate::OP_TYPE::REMOVE)
 			{
 				size_t i = 0;
@@ -748,9 +746,10 @@ namespace ZetaRay::AppImpl
 					i++;
 				}
 
-				Assert(found, "parmeter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
-				g_app->m_params.erase(i);
-			}
+				Assert(found, "parameter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
+				if(found)
+					g_app->m_params.erase(i);
+			}		
 		}
 
 		g_app->m_paramsUpdates.clear();
