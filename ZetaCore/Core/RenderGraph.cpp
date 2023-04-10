@@ -776,6 +776,8 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 	ImNodes::BeginNodeEditor();
 
+	ImNodes::PushColorStyle(ImNodesCol_TitleBarSelected, IM_COL32(81, 48, 204, 255));
+
 	int batchSize[MAX_NUM_RENDER_PASSES];
 	memset(batchSize, 0, sizeof(int) * MAX_NUM_RENDER_PASSES);
 
@@ -808,6 +810,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 	int currBatchOutputPin = 0;
 	currBatchIdx = 0;
 	int idxInBatch = 0;
+	int numBarriersInBatch = 0;
 
 	for (int currNode = 0; currNode < numNodes; currNode++)
 	{
@@ -823,15 +826,22 @@ void RenderGraph::DebugDrawGraph() noexcept
 			currBatchInputPin = 0;
 			currBatchOutputPin = 0;
 			idxInBatch = 0;
+			numBarriersInBatch = 0;
 		}
 
 		Assert(currBatchIdx >= 0 && currBatchIdx < numBatches, "out-of-bound access");
 
+		if (m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
+			ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(21, 133, 41, 255));
+		else
+			ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(155, 21, 41, 255));
+
 		ImNodes::BeginNode(currNode);
 
 		ImNodes::BeginNodeTitleBar();
-		ImGui::Text("\t%d. %s, Batch: %d, (GPU dep %d)\n", currNode, m_renderNodes[currNode].Name,
-			m_renderNodes[currNode].NodeBatchIdx, m_renderNodes[currNode].GpuDepSourceIdx.Val);
+		ImGui::Text("\t%d. %s, Batch: %d, (GPU dep %d) %s", currNode, m_renderNodes[currNode].Name,
+			m_renderNodes[currNode].NodeBatchIdx, m_renderNodes[currNode].GpuDepSourceIdx.Val, 
+			m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE ? "[Async Compute]" : "");
 		ImNodes::EndNodeTitleBar();
 
 		for (auto b : m_renderNodes[currNode].Barriers)
@@ -869,12 +879,15 @@ void RenderGraph::DebugDrawGraph() noexcept
 		}
 				
 		ImNodes::EndNode();
+		ImNodes::PopColorStyle();
 
 		if (needsReorder)
 		{
-			const float x = currBatchIdx * 280.0f;
-			const float y = 50.0f + idxInBatch++ * (50.0f + m_renderNodes[currNode].Barriers.size() * 50.0f);
+			const float x = currBatchIdx * 350.0f;
+			const float y = 50.0f + idxInBatch++ * 75.0f + numBarriersInBatch * 60.0f;
 			ImNodes::SetNodeEditorSpacePos(currNode, ImVec2(x, y));
+
+			numBarriersInBatch += (int)m_renderNodes[currNode].Barriers.size();
 		}
 			//ImNodes::SetNodeScreenSpacePos(currNode, ImVec2(currBatchIdx * 400.0f, 50.0f + idxInBatch++ * 150.0f));
 			//ImNodes::SetNodeGridSpacePos(currNode, ImVec2(currBatchIdx * 400.0f, 50.0f + idxInBatch++ * 150.0f));
@@ -921,6 +934,8 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 		idxInBatch++;
 	}
+
+	ImNodes::PopColorStyle();
 
 	ImNodes::MiniMap(0.3f, ImNodesMiniMapLocation_BottomRight);
 	ImNodes::EndNodeEditor();
