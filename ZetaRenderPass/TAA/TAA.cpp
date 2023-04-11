@@ -90,8 +90,6 @@ void TAA::Reset() noexcept
 		m_antiAliased[1].Reset();
 
 		m_descTable.Reset();
-
-		m_isTemporalTexValid = false;
 	}
 }
 

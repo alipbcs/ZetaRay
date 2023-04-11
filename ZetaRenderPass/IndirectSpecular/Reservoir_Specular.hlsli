@@ -13,7 +13,6 @@ struct SpecularSample
 	float3 Pos;
 	float3 Lo;
 	half2 Normal;
-	half RayT;
 };
 
 struct SpecularReservoir

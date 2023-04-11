@@ -34,26 +34,26 @@ struct VSOut
 
 struct PS_OUT
 {
-	half4 BaseColor : SV_Target0;
+	float3 BaseColor : SV_Target0;
 	half2 Normal : SV_Target1;
-	half2 MetallicRoughness : SV_Target2;
-	half2 MotionVec : SV_Target3;
-	half4 Emissive : SV_Target4;
+	float2 MetallicRoughness : SV_Target2;
+	float2 MotionVec : SV_Target3;
+	float3 Emissive : SV_Target4;
 };
 
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-PS_OUT PackGBuffer(half4 baseColor, half3 emissive, float3 sn, half metalness, half roughness,
-	half2 motionVec)
+PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness, float roughness,
+	float2 motionVec)
 {
 	PS_OUT psout;
 	
-	psout.BaseColor = baseColor;
-	psout.Emissive = half4(emissive, 1);
+	psout.BaseColor.rgb = baseColor;
+	psout.Emissive.rgb = emissive;
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
-	psout.MetallicRoughness = half2(metalness, roughness);
+	psout.MetallicRoughness = float2(metalness, roughness);
 	psout.MotionVec = motionVec;
 
 	return psout;
@@ -118,21 +118,20 @@ PS_OUT mainPS(VSOut psin)
 {
 	Material mat = g_materials[psin.MatID];
 		
-	half4 baseColor = half4(mat.BaseColorFactor);
-	half3 emissiveColor = half3(mat.EmissiveFactor);
+	float3 baseColor = mat.BaseColorFactor.rgb;
+	float3 emissiveColor = mat.EmissiveFactor;
 	float3 shadingNormal = psin.NormalW * mat.NormalScale;
-	half metalness = half(mat.MetallicFactor);
-	half roughness = half(mat.RoughnessFactor);
+	float metalness = mat.MetallicFactor;
+	float roughness = mat.RoughnessFactor;
 
 	if (mat.BaseColorTexture != -1)
 	{
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture];
-		half4 baseColorSample = g_baseCol.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
+		float4 baseColorSample = g_baseCol.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 	
 		clip(baseColorSample.w - mat.AlphaCuttoff);
 	
-		baseColor *= baseColorSample;
-		baseColor.w = 1.0h;
+		baseColor *= baseColorSample.rgb;
 	}
 	// [hack]
 //	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
@@ -162,7 +161,7 @@ PS_OUT mainPS(VSOut psin)
 		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture;
 		
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		half2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
+		float2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 
 		metalness *= mr.x;
 		roughness *= mr.y;
@@ -198,7 +197,7 @@ PS_OUT mainPS(VSOut psin)
 							shadingNormal,
 							metalness,
 							roughness,
-	                        half2(motionVecTS));
+	                        motionVecTS);
 
 //	psout.Normal = float4(psin.NormalW * mat.NormalScale, psout.Albedo.a - mat.AlphaCuttoff);
 //	psout.Normal = float3(0.5f * psin.NormalW * mat.NormalScale + 0.5f);
