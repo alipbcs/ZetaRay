@@ -337,7 +337,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		cbCurvature cb;
 		cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_UAV);
 
-		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_Temporal) / sizeof(DWORD), &m_cbTemporal);
+		m_rootSig.SetRootConstants(0, sizeof(cbCurvature) / sizeof(DWORD), &cb);
 		m_rootSig.End(computeCmdList);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -386,6 +386,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbTemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 		m_cbTemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 		m_cbTemporal.CurrTemporalReservoir_D_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDIdx);
+		m_cbTemporal.CurvatureSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_SRV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_Temporal) / sizeof(DWORD), &m_cbTemporal);
 		m_rootSig.End(computeCmdList);
@@ -496,6 +497,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbDNSR.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvIdx);
 		m_cbDNSR.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavIdx);
 		m_cbDNSR.IsTemporalCacheValid = m_isTemporalReservoirValid;
+		m_cbDNSR.CurvatureSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_SRV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cbDNSR) / sizeof(DWORD), &m_cbDNSR);
 		m_rootSig.End(computeCmdList);

@@ -385,23 +385,41 @@ float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness)
 	return w;
 }
 
-void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float isMetallic, 
-	float roughness, BRDF::SurfaceInteraction surface, float localCurvature, bool tracedThisFrame,
-	inout SpecularReservoir r, inout RNG rng)
+SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 normal, float linearDepth,
+	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, float isMetallic, float roughness, 
+	bool tracedThisFrame, float localCurvature, inout RNG rng)
 {
+	// initialize the reservoir with the newly traced sample
+	SpecularReservoir r = SpecularReservoir::Init();
+
+	if (tracedThisFrame)
+	{
+		const float3 brdfCosthetaDivPdf = BRDF::SpecularBRDFGGXSmithDivPdf(surface);
+		const float3 brdfCostheta = BRDF::SpecularBRDFGGXSmith(surface);
+		
+		// target = Li(-wi) * BRDF(wi, wo) * |ndotwi|
+		// source = Pdf(wi)
+		const float risWeight = Math::Color::LuminanceFromLinearRGB(s.Lo * brdfCosthetaDivPdf);
+	
+		r.Update(risWeight, s, brdfCostheta, rng);
+	}
+		
+	if (!g_local.DoTemporalResampling || !g_local.IsTemporalReservoirValid)
+		return r;
+
 	if (roughness <= g_local.MinRoughnessResample)
-		return;
+		return r;
 	
 	const float currRayT = length(r.SamplePos - posW);
-	
+
 	// reverse reproject current pixel
 	float reflectionRayT;
-	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature, 
-			linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);	
+	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature,
+			linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);
 	prevUV = g_local.CheckerboardTracing && tracedThisFrame ? FLT_MAX.xx : prevUV;
-		
+			
 	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
-		return;
+		return r;
 
 	// combine 2x2 neighborhood reservoirs around reprojected pixel
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -410,7 +428,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
 
-	const uint2 offsets[4] = { uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 1) };	
+	const uint2 offsets[4] = { uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 1) };
 	float4 weights = 1.0.xxxx;
 	
 	// screen-bounds check
@@ -434,9 +452,9 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	for (int posIdx = 0; posIdx < 4; posIdx++)
 	{
 		float2 prevUV = topLeftTexelUV + offsets[posIdx] / renderDim;
-		prevPos[posIdx] = Math::Transform::WorldPosFromUV(prevUV, 
-			prevDepths[posIdx], 
-			g_frame.TanHalfFOV, 
+		prevPos[posIdx] = Math::Transform::WorldPosFromUV(prevUV,
+			prevDepths[posIdx],
+			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
 			g_frame.PrevViewInv);
 	}
@@ -451,7 +469,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	weights *= RoughnessHeuristic(roughness, prevRoughnesses);
 	
 	if (dot(1, weights) < 1e-4)
-		return;
+		return r;
 
 	// hit-distance heuristic
 	float4 rayTWeights = 0.0.xxxx;
@@ -490,7 +508,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	const float weightSum = dot(1, weights);
 	
 	if (weightSum < 1e-4)
-		return;
+		return r;
 	
 	weights /= weightSum;
 	
@@ -499,7 +517,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		
 	[unroll]
 	for (int k = 0; k < 4; k++)
-	{	
+	{
 		if (weights[k] == 0.0f)
 			continue;
 
@@ -522,32 +540,6 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 			jacobianDet = RGI_Spec_Util::JacobianDeterminant(prevPos[k], prev.SamplePos, wi, secondToFirst_r, prev);
 
 		r.Combine(prev, temporalM, weights[k], jacobianDet, brdfCostheta_r, rng);
-	}
-}
-
-SpecularReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
-	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, float isMetallic, float roughness, 
-	bool isSampleValid, float localCurvature, inout RNG rng)
-{
-	// initialize the reservoir with the newly traced sample
-	SpecularReservoir r = SpecularReservoir::Init();
-
-	if (isSampleValid)
-	{
-		const float3 brdfCosthetaDivPdf = BRDF::SpecularBRDFGGXSmithDivPdf(surface);
-		const float3 brdfCostheta = BRDF::SpecularBRDFGGXSmith(surface);
-		
-		// target = Li(-wi) * BRDF(wi, wo) * |ndotwi|
-		// source = Pdf(wi)
-		const float risWeight = Math::Color::LuminanceFromLinearRGB(s.Lo * brdfCosthetaDivPdf);
-	
-		r.Update(risWeight, s, brdfCostheta, rng);
-	}
-		
-	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
-	{
-		TemporalResample(DTid, posW, normal, linearDepth, baseColor, isMetallic, roughness, 
-			surface, localCurvature, isSampleValid, r, rng);
 	}
 	
 	return r;
@@ -619,9 +611,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, float2(u0, u1));
 	}
 	
-	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];	
-	const float k = g_curvature[swizzledDTid.xy];
-	
+	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
+	float k = g_curvature[swizzledDTid.xy];
+	// having a nonzero curvature for flat surfaces helps with reducing temporal artifacts
+	k = max(0.02, k);
+		
 #if USE_RAY_CONES
 	const float phi = RAY_CONE_K1 * k + RAY_CONE_K2;
 	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, phi, linearDepth);
@@ -641,7 +635,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	surface.InitComplete(wi, baseColor, mr.x);
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
-	SpecularReservoir r = UpdateAndResample(swizzledDTid.xy, posW, normal, linearDepth, tracedSample, surface,
+	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,
 		baseColor, mr.x, mr.y, traceThisFrame, k, rng);
 		
 	RGI_Spec_Util::WriteReservoir(swizzledDTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,

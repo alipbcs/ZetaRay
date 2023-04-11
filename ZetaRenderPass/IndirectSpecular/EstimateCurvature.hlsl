@@ -20,8 +20,8 @@ ConstantBuffer<cbCurvature> g_local : register(b1);
 // Globals
 //--------------------------------------------------------------------------------------
 
-groupshared half3 g_normalDepth[RGI_SPEC_TEMPORAL_GROUP_DIM_Y][RGI_SPEC_TEMPORAL_GROUP_DIM_X];
-groupshared float3 g_pos[RGI_SPEC_TEMPORAL_GROUP_DIM_Y][RGI_SPEC_TEMPORAL_GROUP_DIM_X];
+groupshared half3 g_normalDepth[ESTIMATE_CURVATURE_GROUP_DIM_Y][ESTIMATE_CURVATURE_GROUP_DIM_X];
+groupshared float3 g_pos[ESTIMATE_CURVATURE_GROUP_DIM_Y][ESTIMATE_CURVATURE_GROUP_DIM_X];
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -58,25 +58,6 @@ float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 
 	const float k = 2.0f * phi * s;
 	
 	return k;
-}
-
-float2 FindNearestPrevUV(int2 GTid, float2 prevUV, float linearDepth)
-{
-	g_pos[GTid.y][GTid.x] = float3(prevUV, linearDepth);
-	
-	GroupMemoryBarrierWithGroupSync();
-
-	float3 left = g_pos[GTid.y][max(GTid.x - 1, 0)];
-	float3 right = g_pos[GTid.y][min(GTid.x + 1, RGI_SPEC_TEMPORAL_GROUP_DIM_X - 1)];
-	float3 up = g_pos[max(GTid.y - 1, 0)][GTid.x];
-	float3 down = g_pos[min(GTid.y + 1, RGI_SPEC_TEMPORAL_GROUP_DIM_Y - 1)][GTid.x];
-	
-	float3 closest = left;
-	closest = right.z < closest.z ? right : closest;
-	closest = up.z < closest.z ? up : closest;
-	closest = down.z < closest.z ? down : closest;
-	
-	return closest.xy;
 }
 
 //--------------------------------------------------------------------------------------
