@@ -643,7 +643,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
 		instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
 		instance.Rotation = float4(r.x, r.y, r.z, r.w);
-		instance.Scale = float3(s.x, s.y, s.z);
+		instance.Scale = half3(s.x, s.y, s.z);
 
 		frameInstanceData[currInstance++] = instance;
 	};

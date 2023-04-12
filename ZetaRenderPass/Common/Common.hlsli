@@ -11,7 +11,7 @@ struct Vertex
 
 namespace Common
 {
-	// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
+	// Samples texture with Catmull-Rom filtering, using 5 texture fetches instead of 16.
 	// Ref: https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
 	template<typename T>
 	float3 SampleTextureCatmullRom_5Tap(Texture2D<T> tex, SamplerState linearSampler, float2 uv, float2 texSize)

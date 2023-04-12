@@ -57,7 +57,7 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 */
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth ,float2 currUV, 
+void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
 	inout uint tspp, out float3 color)
 {
 	// pixel position for this thread
