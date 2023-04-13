@@ -219,6 +219,12 @@ namespace ZetaRay::Core
 			m_cmdList->SetPipelineState(pipelineState);
 		}
 
+		ZetaInline void SetPipelineState1(ID3D12StateObject* rtPSO) noexcept
+		{
+			Assert(rtPSO, "rtPSO was NULL");
+			m_cmdList->SetPipelineState1(rtPSO);
+		}
+
 		ZetaInline void Dispatch(UINT threadGroupCountX, UINT threadGroupCountY, UINT threadGroupCountZ) noexcept
 		{
 			m_cmdList->Dispatch(threadGroupCountX, threadGroupCountY, threadGroupCountZ);
@@ -249,6 +255,32 @@ namespace ZetaRay::Core
 			UINT64 countBufferOffset) noexcept
 		{
 			m_cmdList->ExecuteIndirect(cmdSig, maxCmdCount, argBuffer, argBufferOffset, countBuffer, countBufferOffset);
+		}
+
+		ZetaInline void DispatchRays(D3D12_GPU_VIRTUAL_ADDRESS rayGenAddr, UINT64 rayGenSizeInBytes,
+			D3D12_GPU_VIRTUAL_ADDRESS missTableAddr, UINT64 missTableSizeInBytes, UINT64 missTableStrideInBytes,
+			D3D12_GPU_VIRTUAL_ADDRESS hitTableAddr, UINT64 hitTableSizeInBytes, UINT64 hitTableStrideInBytes,
+			UINT width,
+			UINT height,
+			UINT depth = 1) noexcept
+		{
+			D3D12_DISPATCH_RAYS_DESC desc;
+			desc.RayGenerationShaderRecord.StartAddress = rayGenAddr;
+			desc.RayGenerationShaderRecord.SizeInBytes = rayGenSizeInBytes;
+			desc.MissShaderTable.StartAddress = missTableAddr;
+			desc.MissShaderTable.SizeInBytes = missTableSizeInBytes;
+			desc.MissShaderTable.StrideInBytes = missTableStrideInBytes;
+			desc.HitGroupTable.StartAddress = hitTableAddr;
+			desc.HitGroupTable.SizeInBytes = hitTableSizeInBytes;
+			desc.HitGroupTable.StrideInBytes = hitTableStrideInBytes;
+			desc.CallableShaderTable.StartAddress = 0;
+			desc.CallableShaderTable.SizeInBytes = 0;
+			desc.CallableShaderTable.StrideInBytes = 0;
+			desc.Width = width;
+			desc.Height = height;
+			desc.Depth = depth;
+
+			m_cmdList->DispatchRays(&desc);
 		}
 	};
 
