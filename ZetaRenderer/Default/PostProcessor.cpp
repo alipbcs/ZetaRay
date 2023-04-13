@@ -181,27 +181,27 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::DIFFUSE_DNSR_TEMPORAL_CACHE));
 
 	// indirect specular reservoirs
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_A));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_A));
 
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_B));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_B));
 
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_D));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_TEMPORAL_RESERVOIR_D));
 
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_A));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_A));
 
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_B));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_B));
 
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_D));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_SPATIAL_RESERVOIR_D));
 
 	// denoised indirect specular
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
-		rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
+	//data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
+	//	rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
 
 	data.GuiPass.Update();
 }
@@ -388,34 +388,34 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		// indirect specular reservoirs
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
 		// denoised indirect specular
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		//renderGraph.AddInput(data.DisplayHandle,
+		//	rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
+		//	D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 	}
 
 	// backbuffer

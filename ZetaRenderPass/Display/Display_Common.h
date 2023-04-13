@@ -15,9 +15,9 @@ enum class DisplayOption
 	DIFFUSE_DNSR,
 	ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR,
 	ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR,
-	ReSTIR_GI_SPECULAR_TEMPORAL,
-	ReSTIR_GI_SPECULAR_SPATIAL,
-	SPECULAR_DNSR,
+	//ReSTIR_GI_SPECULAR_TEMPORAL,
+	//ReSTIR_GI_SPECULAR_SPATIAL,
+	//SPECULAR_DNSR,
 	COUNT
 };
 
@@ -44,13 +44,13 @@ struct cbDisplayPass
 	uint32_t DiffuseTemporalReservoir_B_DescHeapIdx;
 	uint32_t DiffuseSpatialReservoir_A_DescHeapIdx;
 	uint32_t DiffuseSpatialReservoir_B_DescHeapIdx;
-	uint32_t SpecularTemporalReservoir_A_DescHeapIdx;
-	uint32_t SpecularTemporalReservoir_B_DescHeapIdx;
-	uint32_t SpecularTemporalReservoir_D_DescHeapIdx;
-	uint32_t SpecularSpatialReservoir_A_DescHeapIdx;
-	uint32_t SpecularSpatialReservoir_B_DescHeapIdx;
-	uint32_t SpecularSpatialReservoir_D_DescHeapIdx;
-	uint32_t SpecularDNSRTemporalCacheDescHeapIdx;
+	//uint32_t SpecularTemporalReservoir_A_DescHeapIdx;
+	//uint32_t SpecularTemporalReservoir_B_DescHeapIdx;
+	//uint32_t SpecularTemporalReservoir_D_DescHeapIdx;
+	//uint32_t SpecularSpatialReservoir_A_DescHeapIdx;
+	//uint32_t SpecularSpatialReservoir_B_DescHeapIdx;
+	//uint32_t SpecularSpatialReservoir_D_DescHeapIdx;
+	//uint32_t SpecularDNSRTemporalCacheDescHeapIdx;
 	uint32_t LUTDescHeapIdx;
 };
 

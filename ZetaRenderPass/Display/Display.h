@@ -35,13 +35,13 @@ namespace ZetaRay::RenderPass
 			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B,
 			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A,
 			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B,
-			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
-			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
-			ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
-			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
-			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
-			ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
-			SPECULAR_DNSR_CACHE,
+			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
+			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
+			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
+			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
+			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
+			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
+			//SPECULAR_DNSR_CACHE,
 			COUNT
 		};
 
@@ -82,27 +82,27 @@ namespace ZetaRay::RenderPass
 			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B:
 				m_cbLocal.DiffuseSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
 				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A:
-				m_cbLocal.SpecularTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B:
-				m_cbLocal.SpecularTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D:
-				m_cbLocal.SpecularTemporalReservoir_D_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A:
-				m_cbLocal.SpecularSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B:
-				m_cbLocal.SpecularSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D:
-				m_cbLocal.SpecularSpatialReservoir_D_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
-				m_cbLocal.SpecularDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
-				break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A:
+			//	m_cbLocal.SpecularTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B:
+			//	m_cbLocal.SpecularTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D:
+			//	m_cbLocal.SpecularTemporalReservoir_D_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A:
+			//	m_cbLocal.SpecularSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B:
+			//	m_cbLocal.SpecularSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D:
+			//	m_cbLocal.SpecularSpatialReservoir_D_DescHeapIdx = dechHeapIdx;
+			//	break;
+			//case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
+			//	m_cbLocal.SpecularDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
+			//	break;
 			default:
 				break;
 			}
@@ -133,8 +133,7 @@ namespace ZetaRay::RenderPass
 		{
 			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
 				"MetalnessRoughness", "Emissive", "Depth", "ExposureHeatmap", "DiffuseDNSR", "ReSTIR_GI_Diffuse_Temporal", 
-				"ReSTIR_GI_Diffuse_Spatial", "ReSTIR_GI_Specular_Temporal", "ReSTIR_GI_Specular_Spatial",
-				"SpecularDNSR"};
+				"ReSTIR_GI_Diffuse_Spatial"};
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
 			inline static const char* Tonemappers[] = { "None", "ACESFilmic", "UE4Filmic", "Neutral" };

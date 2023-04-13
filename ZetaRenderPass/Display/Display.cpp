@@ -9,6 +9,7 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 //--------------------------------------------------------------------------------------
 // DisplayPass
@@ -78,7 +79,8 @@ void DisplayPass::Init() noexcept
 
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
-	m_lut = renderer.GetGpuMemory().GetTexture3DFromDisk(p.Get());
+	auto err = renderer.GetGpuMemory().GetTexture3DFromDisk(p.Get(), m_lut);
+	Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture in path %s: %d", p.Get(), err);
 
 	m_lutSRV = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
 	Direct3DHelper::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
