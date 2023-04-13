@@ -14,7 +14,7 @@ ConstantBuffer<cbGBuffer> g_local : register(b1);
 StructuredBuffer<MeshInstance> g_meshes : register(t0);
 StructuredBuffer<Vertex> g_sceneVertices : register(t1);
 StructuredBuffer<uint> g_sceneIndices : register(t2);
-StructuredBuffer<Material> g_materials : register(t3);
+ByteAddressBuffer g_materials : register(t3);
 
 //--------------------------------------------------------------------------------------
 // Helper structs
@@ -23,9 +23,8 @@ StructuredBuffer<Material> g_materials : register(t3);
 struct VSOut
 {
 	float4 PosSS : SV_Position;
-	float4 PosH : POSH;
-	float3 PosW : POSW;
-	float4 PosHPrev : POS_PREV;
+	float3 PosH : POSH;
+	float3 PosHPrev : POSH_PREV;
 	float3 NormalW : NORMAL;
 	float2 TexUV : TEXUV;
 	float3 TangentW : TANGENT;
@@ -51,10 +50,12 @@ PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness
 	PS_OUT psout;
 	
 	psout.BaseColor.rgb = baseColor;
-	psout.Emissive.rgb = emissive;
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
 	psout.MetallicRoughness = float2(metalness, roughness);
 	psout.MotionVec = motionVec;
+	
+	if(dot(emissive, 1) != 0)
+		psout.Emissive.rgb = emissive;
 
 	return psout;
 }
@@ -82,10 +83,9 @@ VSOut mainVS(uint vtxID : SV_VertexID)
 	// (W^T)^-1 = (g_instance.CurrWorld)^-1
 	float3x3 worldInvT = Math::Inverse(((float3x3) mesh.CurrWorld));
 	
-	vsout.PosW = posW;
 	vsout.PosSS = posH;
-	vsout.PosH = posH;
-	vsout.PosHPrev = prevPosH;
+	vsout.PosH = posH.xyw;
+	vsout.PosHPrev = prevPosH.xyw;
 	vsout.NormalW = mul(vtx.NormalL, worldInvT);
 	vsout.TexUV = vtx.TexUV;
 	vsout.TangentW = mul((float3x3) mesh.CurrWorld, vtx.TangentU);
@@ -116,7 +116,8 @@ float3 GetCheckerboardColor(float2 uv)
 
 PS_OUT mainPS(VSOut psin)
 {
-	Material mat = g_materials[psin.MatID];
+	const uint byteOffset = psin.MatID * sizeof(Material);
+	const Material mat = g_materials.Load<Material>(byteOffset);
 		
 	float3 baseColor = mat.BaseColorFactor.rgb;
 	float3 emissiveColor = mat.EmissiveFactor;
@@ -146,14 +147,7 @@ PS_OUT mainPS(VSOut psin)
 		NORMAL_MAP g_normalMap = ResourceDescriptorHeap[g_frame.NormalMapsDescHeapOffset + mat.NormalTexture];
 		float2 bump2 = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 	
-		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, mat.NormalScale);
-		
-		if (mat.IsDoubleSided())
-		{
-			const float3 toEye = g_frame.CameraPos - psin.PosW;
-			if (dot(shadingNormal, toEye) < 0)
-				shadingNormal *= -1;
-		}
+		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, mat.NormalScale);		
 	}
 	
 	if (mat.MetalnessRoughnessTexture != -1)
@@ -174,10 +168,10 @@ PS_OUT mainPS(VSOut psin)
 	}
 	
 	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
-	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.w;
+	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.z;
 	prevUnjitteredPosNDC -= g_frame.PrevCameraJitter;
 
-	float2 currUnjitteredPosNDC = psin.PosH.xy / psin.PosH.w;
+	float2 currUnjitteredPosNDC = psin.PosH.xy / psin.PosH.z;
 	currUnjitteredPosNDC -= g_frame.CurrCameraJitter;
 
 	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
@@ -192,6 +186,17 @@ PS_OUT mainPS(VSOut psin)
 //	float3 B = ddy(psin.PosW);
 //	float3 geometricNormal = normalize(cross(T, B));
 
+	if (mat.IsDoubleSided())
+	{
+		const float3 normalV = mul((float3x3) g_frame.CurrView, shadingNormal);
+		float3 posV = float3(currUnjitteredPosNDC, psin.PosH.z);
+		posV.x *= g_frame.TanHalfFOV * g_frame.AspectRatio * psin.PosH.z;
+		posV.y *= g_frame.TanHalfFOV * psin.PosH.z;
+		
+		if (dot(normalV, -posV) < 0)
+			shadingNormal *= -1;
+	}
+	
 	PS_OUT psout = PackGBuffer(baseColor,
 							emissiveColor,
 							shadingNormal,
@@ -199,8 +204,5 @@ PS_OUT mainPS(VSOut psin)
 							roughness,
 	                        motionVecTS);
 
-//	psout.Normal = float4(psin.NormalW * mat.NormalScale, psout.Albedo.a - mat.AlphaCuttoff);
-//	psout.Normal = float3(0.5f * psin.NormalW * mat.NormalScale + 0.5f);
-			
 	return psout;
 }
