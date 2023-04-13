@@ -1,13 +1,16 @@
 #pragma once
 
 #include "Common.h"
-#include <immintrin.h>	// AVX intrinsics
 
 #define V_SHUFFLE_XYZW(fp0, fp1, fp2, fp3) (((fp3) << 6) | ((fp2) << 4) | ((fp1) << 2) | ((fp0)))
 #define V_BLEND_XYZW(fp0, fp1, fp2, fp3) (((fp3) << 3) | ((fp2) << 2) | ((fp1) << 1) | ((fp0)))
 
 namespace ZetaRay::Math
 {
+	struct half2;
+	struct half3;
+	struct half4;
+
 	struct float2
 	{
 		constexpr float2() noexcept = default;
@@ -21,6 +24,8 @@ namespace ZetaRay::Math
 			: x(x),
 			y(y)
 		{}
+
+		float2(const half2& h) noexcept;
 
 		constexpr float2& operator+=(const float2& other) noexcept
 		{
@@ -84,6 +89,8 @@ namespace ZetaRay::Math
 			y(xy.y),
 			z(z)
 		{}
+
+		float3(const half3& h) noexcept;
 
 		constexpr float3& operator+=(const float3& other) noexcept
 		{
@@ -184,6 +191,8 @@ namespace ZetaRay::Math
 			z(zw.x),
 			w(zw.y)
 		{}
+
+		float4(const half4& h) noexcept;
 
 		constexpr float4& operator+=(const float4& other) noexcept
 		{
@@ -296,7 +305,15 @@ namespace ZetaRay::Math
 		float w;
 	};
 
-	using half = uint16_t;
+	struct half
+	{
+		half() noexcept = default;
+		half(float f)
+			: x(FloatToHalf(f))
+		{}
+
+		uint16_t x;
+	};
 
 	struct half2
 	{
@@ -304,7 +321,7 @@ namespace ZetaRay::Math
 
 		explicit half2(float f) noexcept
 		{
-			half h = FloatToHalf(f);
+			uint16_t h = FloatToHalf(f);
 			x = h;
 			y = h;
 		}
@@ -314,8 +331,13 @@ namespace ZetaRay::Math
 			y(FloatToHalf(fy))
 		{}
 
-		half x;
-		half y;
+		half2(float2 f)
+			: x(FloatToHalf(f.x)),
+			y(FloatToHalf(f.y))
+		{}
+
+		uint16_t x;
+		uint16_t y;
 	};
 
 	struct half3
@@ -324,7 +346,7 @@ namespace ZetaRay::Math
 
 		explicit half3(float f) noexcept
 		{
-			half h = FloatToHalf(f);
+			uint16_t h = FloatToHalf(f);
 			x = h;
 			y = h;
 			z = h;
@@ -336,9 +358,36 @@ namespace ZetaRay::Math
 			z(FloatToHalf(fz))
 		{}
 
-		half x;
-		half y;
-		half z;
+		half3(float3 f) noexcept
+		{
+			// &v does not need to be aligned and the last two elements are set to 0
+			__m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&f)));
+			// &v.z does not need to be aligned
+			__m128 vZ = _mm_load_ss(&f.z);
+			__m128 vF = _mm_insert_ps(vXY, vZ, 0x20);
+
+			__m128i vH = _mm_cvtps_ph(vF, 0);
+			vH = _mm_unpacklo_epi16(vH, _mm_castps_si128(_mm_setzero_ps()));
+
+			x = static_cast<uint16_t>(_mm_cvtsi128_si32(vH));
+			y = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x1)));
+			z = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x2)));
+		}
+
+		half3(float4a f) noexcept
+		{
+			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
+			vH = _mm_unpacklo_epi16(vH, _mm_castps_si128(_mm_setzero_ps()));
+
+			x = static_cast<uint16_t>(_mm_cvtsi128_si32(vH));
+			y = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x1)));
+			z = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x2)));
+		}
+
+		uint16_t x;
+		uint16_t y;
+		uint16_t z;
 	};
 
 	struct half4
@@ -347,7 +396,7 @@ namespace ZetaRay::Math
 
 		explicit half4(float f) noexcept
 		{
-			half h = FloatToHalf(f);
+			uint16_t h = FloatToHalf(f);
 			x = h;
 			y = h;
 			z = h;
@@ -361,11 +410,53 @@ namespace ZetaRay::Math
 			w(FloatToHalf(fw))
 		{}
 
-		half x;
-		half y;
-		half z;
-		half w;
+		half4(float4 f) noexcept
+		{
+			__m128 vF = _mm_loadu_ps(reinterpret_cast<float*>(&f));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
+			vH = _mm_unpacklo_epi16(vH, _mm_castps_si128(_mm_setzero_ps()));
+
+			x = static_cast<uint16_t>(_mm_cvtsi128_si32(vH));
+			y = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x1)));
+			z = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x2)));
+			w = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x3)));
+		}
+
+		half4(float4a f) noexcept
+		{
+			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
+			vH = _mm_unpacklo_epi16(vH, _mm_castps_si128(_mm_setzero_ps()));
+
+			x = static_cast<uint16_t>(_mm_cvtsi128_si32(vH));
+			y = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x1)));
+			z = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x2)));
+			w = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x3)));
+		}
+
+		uint16_t x;
+		uint16_t y;
+		uint16_t z;
+		uint16_t w;
 	};
+
+	inline float2::float2(const half2& h) noexcept
+		: x(HalfToFloat(h.x)),
+		y(HalfToFloat(h.y))
+	{}
+
+	inline float3::float3(const half3& h) noexcept
+		: x(HalfToFloat(h.x)),
+		y(HalfToFloat(h.y)),
+		z(HalfToFloat(h.z))
+	{}
+
+	inline float4::float4(const half4& h) noexcept
+		: x(HalfToFloat(h.x)),
+		y(HalfToFloat(h.y)),
+		z(HalfToFloat(h.z)),
+		w(HalfToFloat(h.w))
+	{}
 
 	//--------------------------------------------------------------------------------------
 	// Operator Overloading

@@ -1001,7 +1001,9 @@ namespace ZetaRay
 	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name) noexcept
 	{
 		// check AVX2 support
-		Check(Common::CheckSIMDSupport() & SIMD_Intrinsic::AVX2, "AVX2 is not supported.");
+		const auto supported = Common::CheckSIMDSupport();
+		Check(supported & SIMD_Intrinsic::AVX2, "AVX2 is not supported.");
+		Check(supported & SIMD_Intrinsic::F16C, "F16C is not supported.");
 
 		setlocale(LC_ALL, "C");		// set locale to C
 

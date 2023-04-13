@@ -32,7 +32,7 @@ uint8_t Common::CheckSIMDSupport() noexcept
     uint8_t ret = 0;
 
     // All x64 processors support SSE2,
-    // following code checks for SSE3, SSE4, AVX and AVX2 support.
+    // following code checks for SSE3, SSE4, AVX, F16C and AVX2 support
 
     // EAX, EBX, ECX, EDX
     int cpuInfo[4] = { 0 };
@@ -44,6 +44,8 @@ uint8_t Common::CheckSIMDSupport() noexcept
         ret |= SIMD_Intrinsic::SSE4;
     if (cpuInfo[2] & (1 << 28))
         ret |= SIMD_Intrinsic::AVX;
+    if (cpuInfo[2] & (1 << 29))
+        ret |= SIMD_Intrinsic::F16C;
 
     memset(cpuInfo, 0, 4 * sizeof(0));
     __cpuid(cpuInfo, 0x7);

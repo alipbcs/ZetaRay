@@ -4,6 +4,7 @@
 #include <math.h>
 #include <float.h>
 #include <string.h>
+#include <immintrin.h>	// AVX intrinsics
 
 namespace ZetaRay::Math
 {
@@ -117,29 +118,18 @@ namespace ZetaRay::Math
 		size_t* sizes,
 		size_t minNumElems = 0) noexcept;
 
-	// Ref: https://github.com/zeux/meshoptimizer/blob/master/src/meshoptimizer.h
-	inline uint16_t FloatToHalf(float v)
+	// Ref: https://walbourn.github.io/directxmath-f16c-and-fma/
+	ZetaInline float HalfToFloat(uint16_t Value)
 	{
-		//union { float f; uint32_t ui; } u = { v };
-		//uint32_t ui = u.ui;
-		uint32_t ui;
-		memcpy(&ui, &v, sizeof(float));
+		__m128i V1 = _mm_cvtsi32_si128(static_cast<uint32_t>(Value));
+		__m128 V2 = _mm_cvtph_ps(V1);
+		return _mm_cvtss_f32(V2);
+	}
 
-		int s = (ui >> 16) & 0x8000;
-		int em = ui & 0x7fffffff;
-
-		/* bias exponent and round to nearest; 112 is relative exponent bias (127-15) */
-		int h = (em - (112 << 23) + (1 << 12)) >> 13;
-
-		/* underflow: flush to zero; 113 encodes exponent -14 */
-		h = (em < (113 << 23)) ? 0 : h;
-
-		/* overflow: infinity; 143 encodes exponent 16 */
-		h = (em >= (143 << 23)) ? 0x7c00 : h;
-
-		/* NaN; note that we convert all types of NaN to qNaN */
-		h = (em > (255 << 23)) ? 0x7e00 : h;
-
-		return (uint16_t)(s | h);
+	ZetaInline uint16_t FloatToHalf(float Value)
+	{
+		__m128 V1 = _mm_set_ss(Value);
+		__m128i V2 = _mm_cvtps_ph(V1, 0);
+		return static_cast<uint16_t>(_mm_cvtsi128_si32(V2));
 	}
 }

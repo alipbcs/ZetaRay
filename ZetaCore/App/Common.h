@@ -11,6 +11,7 @@ namespace ZetaRay::App::Common
         constexpr uint8_t SSE4 = 0x2;
         constexpr uint8_t AVX = 0x4;
         constexpr uint8_t AVX2 = 0x8;
+        constexpr uint8_t F16C = 0xf;
     };
 
     int WideToCharStr(const wchar_t* wideStr, Util::Span<char> str) noexcept;
