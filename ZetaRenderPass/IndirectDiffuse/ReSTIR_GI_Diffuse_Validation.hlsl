@@ -27,7 +27,7 @@ static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_D
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Diff_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
+ByteAddressBuffer g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
@@ -285,7 +285,8 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
 		return 0.0.xxx;
 
-	Material mat = g_materials[hitInfo.MatID];
+	const uint byteOffset = hitInfo.MatID * sizeof(Material);
+	const Material mat = g_materials.Load<Material>(byteOffset);
 
 	float3 baseColor = mat.BaseColorFactor.rgb;
 	if (mat.BaseColorTexture != -1)

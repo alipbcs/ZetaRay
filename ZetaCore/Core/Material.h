@@ -64,12 +64,12 @@ namespace ZetaRay
             return Packed & (1 << 30);
         }
 
-        float4_ BaseColorFactor;
-        float3_ EmissiveFactor;
-        float MetallicFactor;
-        float RoughnessFactor;
-        float NormalScale;
-        float AlphaCuttoff;
+        half4_ BaseColorFactor;
+        half3_ EmissiveFactor;
+        half_ MetallicFactor;
+        half_ RoughnessFactor;
+        half_ NormalScale;
+        half_ AlphaCuttoff;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture;
         uint32_t MetalnessRoughnessTexture;
@@ -81,11 +81,6 @@ namespace ZetaRay
     };
 #ifdef __cplusplus
 }
-#endif
-
-#ifdef __cplusplus
-// Ref: https://developer.nvidia.com/content/understanding-structured-buffer-performance
-static_assert((sizeof(ZetaRay::Material)& (16 - 1)) == 0);
 #endif
 
 #ifndef __cplusplus

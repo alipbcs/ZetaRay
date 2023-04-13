@@ -27,7 +27,7 @@ static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_D
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Diff_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
+ByteAddressBuffer g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
@@ -368,13 +368,14 @@ bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSur
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
 	float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.ShadingNormal);
-
 	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
+	
+	const uint byteOffset = hitInfo.MatID * sizeof(Material);
+	const Material mat = g_materials.Load<Material>(byteOffset);
 	float3 L_o = 0.0.xxx;
 
 	if (isUnoccluded)
 	{
-		Material mat = g_materials[hitInfo.MatID];
 
 		half3 baseColor = (half3) mat.BaseColorFactor.rgb;
 		if (mat.BaseColorTexture != -1)
@@ -425,7 +426,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
 		float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
-		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 	
 		L_o = brdf * tr * g_frame.SunIlluminance;
 	}

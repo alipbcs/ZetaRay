@@ -34,7 +34,6 @@ namespace
 		}
 		else if (t == RT_MESH_MODE::FULL_DYNAMIC)
 			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
-
 		else if (t == RT_MESH_MODE::PRIMARY)
 		{
 			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
@@ -642,8 +641,8 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		instance.MatID = (uint16_t)mat.GpuBufferIndex();
 		instance.BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
 		instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
-		instance.Rotation = float4(r.x, r.y, r.z, r.w);
-		instance.Scale = half3(s.x, s.y, s.z);
+		instance.Rotation = half4(r);
+		instance.Scale = half3(s);
 
 		frameInstanceData[currInstance++] = instance;
 	};

@@ -42,12 +42,6 @@ static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DI
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Diff_Spatial> g_local : register(b1);
-RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
-StructuredBuffer<uint> g_scramblingTile : register(t4);
-StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<uint> g_frameMeshData : register(t6);
 
 //--------------------------------------------------------------------------------------
 // Helper functions

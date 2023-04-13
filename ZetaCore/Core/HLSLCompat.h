@@ -14,6 +14,7 @@
 	#define half_ ZetaRay::Math::half
 	#define half2_ ZetaRay::Math::half2
 	#define half3_ ZetaRay::Math::half3
+	#define half4_ ZetaRay::Math::half4
 	#define	uint4_(x) uint32_t x[4]
 #else
 	#define float2_ float2
@@ -27,6 +28,7 @@
 	#define half_ half
 	#define half2_ half2
 	#define half3_ half3
+	#define half4_ half4
 	#define uint4_(x) uint4 x
 #endif
 

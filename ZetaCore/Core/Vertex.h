@@ -19,8 +19,8 @@ namespace ZetaRay::Core
 		{}
 
 		Math::float3 Position;
-		Math::float3 Normal;
+		Math::half3 Normal;
 		Math::float2 TexUV;
-		Math::float3 Tangent;
+		Math::half3 Tangent;
 	};
 }

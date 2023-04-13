@@ -11,8 +11,11 @@ using namespace ZetaRay::Math;
 
 void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices) noexcept
 {
-	for (auto& v : vertices)
-		v.Tangent = float3(0.0f, 0.0f, 0.0f);
+	float3* tangents = new float3[vertices.size()];
+	memset(tangents, 0, sizeof(float3) * vertices.size());
+
+//	for (auto& v : vertices)
+//		v.Tangent = half3(0.0f, 0.0f, 0.0f);
 
 	// Given triangle with vertices v0, v1, v2 (in clockwise order) and corresponding texture coords
 	// (u0, v0), (u1, v1) and (u2, v2) we have:
@@ -80,18 +83,21 @@ void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 
 		T *= oneDivDet;
 
-		vertices[i0].Tangent += T;
-		vertices[i1].Tangent += T;
-		vertices[i2].Tangent += T;
+		tangents[i0] += T;
+		tangents[i1] += T;
+		tangents[i2] += T;
 	}
 
 	// Gram–Schmidt Orthonormalization
 	// assumes vertex normala are normalized
-	for (auto& vertex : vertices)
+	for(size_t i = 0; i < vertices.size(); i++)
 	{
-		float3 tangProjectedOnNormal = vertex.Normal.dot(vertex.Tangent) * vertex.Normal;
-		vertex.Tangent -= tangProjectedOnNormal;
-		vertex.Tangent.normalize();
+		float3 n = float3(vertices[i].Normal);
+		float3 tangProjectedOnNormal = n.dot(tangents[i]) * n;
+		tangents[i] -= tangProjectedOnNormal;
+		tangents[i].normalize();
+
+		vertices[i].Tangent = half3(tangents[i]);
 	}
 
 	if (numCollinearTris)
@@ -99,6 +105,8 @@ void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 		LOG_UI_WARNING("Mesh had %u/%u collinear triangles, vertex tangents might be missing.\n",
 			numCollinearTris, (uint32_t)indices.size() / 3);
 	}
+
+	delete[] tangents;
 }
 
 //void Math::MergeBoundingBoxes(BoundingBox& out, const BoundingBox& b1, const BoundingBox& b2) noexcept

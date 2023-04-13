@@ -254,19 +254,19 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
 
 	Material mat;
-	mat.BaseColorFactor = matDesc.BaseColorFactor;
-	mat.EmissiveFactor = matDesc.EmissiveFactor;
-	mat.AlphaCuttoff = matDesc.AlphaCuttoff;
-	mat.MetallicFactor = matDesc.MetalnessFactor;
-	mat.NormalScale = matDesc.NormalScale;
-	mat.RoughnessFactor = matDesc.RoughnessFactor;
+	mat.BaseColorFactor = half4(matDesc.BaseColorFactor);
+	mat.EmissiveFactor = half3(matDesc.EmissiveFactor);
+	mat.AlphaCuttoff = half(matDesc.AlphaCuttoff);
+	mat.MetallicFactor = half(matDesc.MetalnessFactor);
+	mat.NormalScale = half(matDesc.NormalScale);
+	mat.RoughnessFactor = half(matDesc.RoughnessFactor);
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
 	auto addTex = [](uint64_t ID, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
 	{
 		int idx = FindImage(ID, 0, (int)ddsImages.size(), ddsImages);
-		Assert(idx != -1, "Image not found.");
+		Check(idx != -1, "Image not found.");
 		Assert(ddsImages[idx].ID == ID, "Invalid binary search.");
 			
 		Assert(ddsImages[idx].T.IsInitialized(), "Texture hasn't been initialized.");

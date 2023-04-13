@@ -22,7 +22,7 @@ namespace ZetaRay
 		{
 			uint32_t BaseVtxOffset;
 			uint32_t BaseIdxOffset;
-			float4_ Rotation;
+			half4_ Rotation;
 			half3_ Scale;
 			uint16_t MatID;
 		};
