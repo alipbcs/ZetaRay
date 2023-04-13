@@ -404,7 +404,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 
 	int currInstance = 0;
 
-	// identity transform for BLAS instance
+	// identity transform for static BLAS instance
 	if(scene.m_numStaticInstances)
 	{
 		memset(&instance.Transform, 0, 12 * sizeof(float));

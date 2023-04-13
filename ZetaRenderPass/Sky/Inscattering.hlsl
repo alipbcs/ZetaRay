@@ -44,8 +44,9 @@ float GetVoxelLinearDepth(uint voxelZ)
 float EvaluateVisibility(float3 pos, float3 wi)
 {
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
-			 RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-			 RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
+		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
+		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 		
 	RayDesc ray;
 	ray.Origin = pos;
