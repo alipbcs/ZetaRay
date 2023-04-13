@@ -26,6 +26,18 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::Core::Direct3DHelper
 {
+    enum class LOAD_DDS_RESULT
+    {
+        SUCCESS,
+        FILE_NOT_FOUND,
+        INVALID_DDS,
+        INVALID_DDS_HEADER,
+        MEM_ALLOC_FAILED,
+        FILE_TOO_BIG,
+        UNKNOWN,
+        COUNT
+    };
+
     struct DDS_HEADER;
 
     inline D3D12_HEAP_PROPERTIES UploadHeapProp() noexcept
@@ -277,7 +289,7 @@ namespace ZetaRay::Core::Direct3DHelper
         }
     }
 
-    void LoadDDSFromFile(const char* path,
+    LOAD_DDS_RESULT LoadDDSFromFile(const char* path,
         Util::Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources,
         DXGI_FORMAT& format,
         std::unique_ptr<uint8_t[]>& ddsData,

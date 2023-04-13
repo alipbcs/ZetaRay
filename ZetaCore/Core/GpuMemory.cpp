@@ -13,6 +13,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 namespace ZetaRay::Core::Internal
 {
@@ -1419,7 +1420,7 @@ Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t hei
 	return Texture(ZetaMove(name), ZetaMove(texture));
 }
 
-Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexcept
 {
 	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
@@ -1430,32 +1431,27 @@ Texture GpuMemory::GetTexture2DFromDisk(const char* p) noexcept
 	DXGI_FORMAT format;
 
 	auto* device = App::GetRenderer().GetDevice();
-	Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+	auto errCode = Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+
+	if (errCode != LOAD_DDS_RESULT::SUCCESS)
+		return errCode;
 
 	// not allowed to be RT or Depth-Stencil
-	Texture tex = GetTexture2D(p, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+	t = GetTexture2D(p, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
 	const int idx = GetIndexForThread();
 
 	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
-		tex.GetResource(),
+		t.GetResource(),
 		0,
 		subresources.begin(),
 		(uint32_t)subresources.size(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	/*
-		resourceUpload.Transition(
-			*texture,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-	*/
-
-	return tex;
+	return errCode;
 }
 
-Texture GpuMemory::GetTexture3DFromDisk(const char* p) noexcept
+LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* p, Texture& t) noexcept
 {
 	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
@@ -1466,29 +1462,24 @@ Texture GpuMemory::GetTexture3DFromDisk(const char* p) noexcept
 	DXGI_FORMAT format;
 
 	auto* device = App::GetRenderer().GetDevice();
-	Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+	auto errCode = Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+
+	if (errCode != LOAD_DDS_RESULT::SUCCESS)
+		return errCode;
 
 	// not allowed to be RT or Depth-Stencil
-	Texture tex = GetTexture3D(p, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+	t = GetTexture3D(p, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
 	const int idx = GetIndexForThread();
 
 	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
-		tex.GetResource(),
+		t.GetResource(),
 		0,
 		subresources.begin(),
 		(uint32_t)subresources.size(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	/*
-		resourceUpload.Transition(
-			*texture,
-			D3D12_RESOURCE_STATE_COPY_DEST,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-	*/
-
-	return tex;
+	return errCode;
 }
 
 Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,

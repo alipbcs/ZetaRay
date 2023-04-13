@@ -585,13 +585,10 @@ namespace
             twidth, theight, tdepth, skipMip, subresources));
     }
 
-    HRESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, const DDS_HEADER** header,
+    LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, const DDS_HEADER** header,
         const uint8_t** bitData, size_t* bitSize) noexcept
     {
-        if (!header || !bitData || !bitSize)
-        {
-            return E_POINTER;
-        }
+        Assert(header && bitData && bitSize, "invalid args.");
 
         // open the file
         HANDLE hFile = CreateFileA(fileName,
@@ -602,11 +599,12 @@ namespace
             FILE_ATTRIBUTE_NORMAL,
             nullptr);
 
-        CheckWin32(hFile != INVALID_HANDLE_VALUE);
-
         if (hFile == INVALID_HANDLE_VALUE)
         {
-            return HRESULT_FROM_WIN32(GetLastError());
+            if (GetLastError() == ERROR_FILE_NOT_FOUND)
+                return LOAD_DDS_RESULT::FILE_NOT_FOUND;
+
+            return LOAD_DDS_RESULT::UNKNOWN;
         }
 
         // Get the file size
@@ -614,21 +612,22 @@ namespace
         if (!GetFileInformationByHandleEx(hFile, FileStandardInfo, &fileInfo, sizeof(fileInfo)))
         {
             CloseHandle(hFile);
-            return HRESULT_FROM_WIN32(GetLastError());
+            CheckWin32(false);
+            return LOAD_DDS_RESULT::UNKNOWN;
         }
 
         // File is too big for 32-bit allocation, so reject read
         if (fileInfo.EndOfFile.HighPart > 0)
         {
             CloseHandle(hFile);
-            return E_FAIL;
+            return LOAD_DDS_RESULT::FILE_TOO_BIG;
         }
 
         // Need at least enough data to fill the header and magic number to be a valid DDS
         if (fileInfo.EndOfFile.LowPart < (sizeof(DDS_HEADER) + sizeof(uint32_t)))
         {
             CloseHandle(hFile);
-            return E_FAIL;
+            return LOAD_DDS_RESULT::INVALID_DDS;
         }
 
         // create enough space for the file data
@@ -636,21 +635,22 @@ namespace
         if (!ddsData)
         {
             CloseHandle(hFile);
-            return E_OUTOFMEMORY;
+            return LOAD_DDS_RESULT::MEM_ALLOC_FAILED;
         }
 
         // read the data in
         DWORD BytesRead = 0;
         if (!ReadFile(hFile, ddsData.get(), fileInfo.EndOfFile.LowPart, &BytesRead, nullptr))
         {
+            CheckWin32(false);
             CloseHandle(hFile);
-            return HRESULT_FROM_WIN32(GetLastError());
+            return LOAD_DDS_RESULT::UNKNOWN;
         }
 
         if (BytesRead < fileInfo.EndOfFile.LowPart)
         {
             CloseHandle(hFile);
-            return E_FAIL;
+            return LOAD_DDS_RESULT::UNKNOWN;
         }
 
         // DDS files always start with the same magic number ("DDS ")
@@ -658,7 +658,7 @@ namespace
         if (dwMagicNumber != DDS_MAGIC)
         {
             CloseHandle(hFile);
-            return E_FAIL;
+            return LOAD_DDS_RESULT::INVALID_DDS_HEADER;
         }
 
         auto hdr = reinterpret_cast<const DDS_HEADER*>(ddsData.get() + sizeof(uint32_t));
@@ -667,7 +667,7 @@ namespace
         if (hdr->size != sizeof(DDS_HEADER) || hdr->ddspf.size != sizeof(DDS_PIXELFORMAT))
         {
             CloseHandle(hFile);
-            return E_FAIL;
+            return LOAD_DDS_RESULT::INVALID_DDS_HEADER;
         }
 
         // Check for DX10 extension
@@ -679,7 +679,7 @@ namespace
             if (fileInfo.EndOfFile.LowPart < (sizeof(DDS_HEADER) + sizeof(uint32_t) + sizeof(DDS_HEADER_DXT10)))
             {
                 CloseHandle(hFile);
-                return E_FAIL;
+                return LOAD_DDS_RESULT::INVALID_DDS_HEADER;
             }
 
             bDXT10Header = true;
@@ -693,7 +693,7 @@ namespace
 
         CloseHandle(hFile);
 
-        return S_OK;
+        return LOAD_DDS_RESULT::SUCCESS;
     }
 }
 
@@ -1011,7 +1011,7 @@ UINT64 Direct3DHelper::GetRequiredIntermediateSize(ID3D12Resource* destinationRe
     return requiredSize;
 }
 
-void Direct3DHelper::LoadDDSFromFile(const char* path,
+LOAD_DDS_RESULT Direct3DHelper::LoadDDSFromFile(const char* path,
     Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources,
     DXGI_FORMAT& format, 
     std::unique_ptr<uint8_t[]>& ddsData,
@@ -1027,8 +1027,13 @@ void Direct3DHelper::LoadDDSFromFile(const char* path,
     const uint8_t* bitData = nullptr;
     size_t bitSize = 0;
 
-    CheckHR(LoadTextureDataFromFile(path, ddsData, &header, &bitData, &bitSize));
+    auto res = LoadTextureDataFromFile(path, ddsData, &header, &bitData, &bitSize);
+    if (res != LOAD_DDS_RESULT::SUCCESS)
+        return res;
+
     FillSubresourceData(header, subresources, bitData, bitSize, width, height, depth, mipCount, format);
+
+    return LOAD_DDS_RESULT::SUCCESS;
 }
 
 D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DHelper::GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,

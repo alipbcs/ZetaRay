@@ -1,9 +1,8 @@
 #pragma once
 
-#include "Device.h"
+#include "Direct3DHelpers.h"
 #include "../Utility/Error.h"
 #include "../Utility/SmallVector.h"
-#include "../App/App.h"
 #include <memory>
 
 namespace ZetaRay::Core
@@ -231,8 +230,8 @@ namespace ZetaRay::Core
 			DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
 			uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
 
-		Texture GetTexture2DFromDisk(const char* p) noexcept;
-		Texture GetTexture3DFromDisk(const char* p) noexcept;
+		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture2DFromDisk(const char* p, Texture& t) noexcept;
+		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture3DFromDisk(const char* p, Texture& t) noexcept;
 		Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
 			D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0) noexcept;
 

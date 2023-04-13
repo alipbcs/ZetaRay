@@ -23,6 +23,7 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::Model;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Model::glTF::Asset;
+using namespace ZetaRay::Core::Direct3DHelper;
 
 //--------------------------------------------------------------------------------------
 // glTF
@@ -125,7 +126,7 @@ namespace
 			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[i].Normal = float3(curr->x, curr->y, -curr->z);
+			vertices[i].Normal = half3(curr->x, curr->y, -curr->z);
 		}
 	}
 
@@ -164,7 +165,7 @@ namespace
 			const float4* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[i].Tangent = float3(curr->x, curr->y, -curr->z);
+			vertices[i].Tangent = half3(curr->x, curr->y, -curr->z);
 		}
 	}
 
@@ -298,7 +299,20 @@ namespace
 					continue;
 
 				const uint64_t id = XXH3_64bits(p.Get(), p.Length());
-				Texture tex = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p.Get());
+				Texture tex;
+				auto err = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p.Get(), tex);
+
+				if (err != LOAD_DDS_RESULT::SUCCESS)
+				{
+					if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
+					{
+						LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but no textures referred to it, skipping...\n", p.Get());
+						continue;
+					}
+					else
+						Check(false, "Error while loading DDS texture in path %s: %d", p.Get(), err);
+				}
+
 				ddsImages[m] = DDSImage{ .T = ZetaMove(tex), .ID = id };
 			}
 		}
@@ -652,7 +666,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 		MIN_MESHES_PER_WORKER);
 
 	// how many images are processed by each worker
-	constexpr size_t MAX_NUM_IMAGE_WORKERS = 4;
+	constexpr size_t MAX_NUM_IMAGE_WORKERS = 5;
 	constexpr size_t MIN_IMAGES_PER_WORKER = 15;
 	size_t imgThreadOffsets[MAX_NUM_IMAGE_WORKERS];
 	size_t imgThreadSizes[MAX_NUM_IMAGE_WORKERS];
