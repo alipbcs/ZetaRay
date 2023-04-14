@@ -422,7 +422,7 @@ namespace
 			}
 
 			SceneCore& scene = App::GetScene();
-			scene.AddMaterial(sceneID, ZetaMove(desc), ddsImages);
+			scene.AddMaterial(sceneID, desc, ddsImages);
 		}
 	}
 

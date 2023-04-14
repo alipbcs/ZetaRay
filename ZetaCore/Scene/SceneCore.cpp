@@ -248,7 +248,7 @@ void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexce
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDesc, Span<glTF::Asset::DDSImage> ddsImages) noexcept
+void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& matDesc, Span<glTF::Asset::DDSImage> ddsImages) noexcept
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -263,11 +263,10 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
-	auto addTex = [](uint64_t ID, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
+	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
 	{
 		int idx = FindImage(ID, 0, (int)ddsImages.size(), ddsImages);
-		Check(idx != -1, "Image not found.");
-		Assert(ddsImages[idx].ID == ID, "Invalid binary search.");
+		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
 			
 		Assert(ddsImages[idx].T.IsInitialized(), "Texture hasn't been initialized.");
 		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
@@ -280,7 +279,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 		
 		if (matDesc.BaseColorTexPath != uint64_t(-1))
 		{
-			addTex(matDesc.BaseColorTexPath, m_baseColorDescTable, tableOffset, ddsImages);
+			addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
 			m_baseColTableOffsetToID[tableOffset] = matDesc.BaseColorTexPath;
 		}
 		
@@ -291,7 +290,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 		uint32_t tableOffset = uint32_t(-1);
 		if (matDesc.NormalTexPath != uint64_t(-1))
 		{
-			addTex(matDesc.NormalTexPath, m_normalDescTable, tableOffset, ddsImages);
+			addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
 			m_normalTableOffsetToID[tableOffset] = matDesc.NormalTexPath;
 		}
 		
@@ -302,7 +301,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 		uint32_t tableOffset = uint32_t(-1);
 		if (matDesc.MetalnessRoughnessTexPath != uint64_t(-1))
 		{
-			addTex(matDesc.MetalnessRoughnessTexPath, m_metalnessRoughnessDescTable, tableOffset, ddsImages);
+			addTex(matDesc.MetalnessRoughnessTexPath, "MetallicRoughnessMap", m_metalnessRoughnessDescTable, tableOffset, ddsImages);
 			m_metalnessRougnessrTableOffsetToID[tableOffset] = matDesc.MetalnessRoughnessTexPath;
 		}
 		
@@ -313,7 +312,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, glTF::Asset::MaterialDesc&& matDes
 		uint32_t tableOffset = uint32_t(-1);
 		if (matDesc.EmissiveTexPath != uint64_t(-1))
 		{
-			addTex(matDesc.EmissiveTexPath, m_emissiveDescTable, tableOffset, ddsImages);
+			addTex(matDesc.EmissiveTexPath, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
 			m_emissiveTableOffsetToID[tableOffset] = matDesc.EmissiveTexPath;
 		}
 		

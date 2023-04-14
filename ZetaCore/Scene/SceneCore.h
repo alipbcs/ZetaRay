@@ -105,7 +105,7 @@ namespace ZetaRay::Scene
 		//
 		// Material
 		//
-		void AddMaterial(uint64_t sceneID, Model::glTF::Asset::MaterialDesc&& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
+		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
 		ZetaInline Material GetMaterial(uint64_t id) noexcept
 		{
 			AcquireSRWLockShared(&m_matLock);
