@@ -100,8 +100,6 @@ namespace ZetaRay::RenderPass
 
 		void Render(Core::CommandList& cmdList) noexcept;
 
-		//static constexpr int q = sizeof(ZetaRay::RT::MeshInstance);
-
 	private:
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 8;
@@ -197,6 +195,9 @@ namespace ZetaRay::RenderPass
 			static constexpr int SpatialResampleRadius = 16;
 			static constexpr int SpatialResampleNumIter = 10;
 			static constexpr int DNSRTspp = 32;
+			static constexpr float DNSRHitDistSigmaScale = 0.8f;
+			static constexpr float DNSRViewAngleExp = 0.5f;
+			static constexpr float DNSRRoughnessExpScale = 0.8f;
 		};
 
 		cb_RGI_Spec_Temporal m_cbTemporal;
@@ -219,7 +220,8 @@ namespace ZetaRay::RenderPass
 		void CheckerboardingCallback(const Support::ParamVariant& p) noexcept;
 		void DoDenoisingCallback(const Support::ParamVariant& p) noexcept;
 		void TsppCallback(const Support::ParamVariant& p) noexcept;
-		void TextureFilterCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRViewAngleExpCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRRoughnessExpScaleCallback(const Support::ParamVariant& p) noexcept;
 
 		enum class SHADERS
 		{

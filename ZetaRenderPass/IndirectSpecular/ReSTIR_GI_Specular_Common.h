@@ -83,12 +83,15 @@ struct cbDNSR
 
 	uint32_t PrevTemporalCacheDescHeapIdx;
 	uint32_t CurrTemporalCacheDescHeapIdx;
+	uint32_t CurvatureSRVDescHeapIdx;
+	
 	float RoughnessCutoff;
-
+	float ViewAngleExp;
+	float RoughnessExpScale;
 	uint16_t Denoise;
 	uint16_t IsTemporalCacheValid;
 	uint16_t MaxTSPP;
-	uint16_t CatmullRom;
+	uint16_t pad;
 };
 
 struct cbCurvature

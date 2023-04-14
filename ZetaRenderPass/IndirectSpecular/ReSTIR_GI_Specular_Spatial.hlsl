@@ -36,11 +36,6 @@ static const float2 k_samples[16] =
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Spec_Spatial> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
-StructuredBuffer<uint> g_scramblingTile : register(t4);
-StructuredBuffer<uint> g_rankingTile : register(t5);
-StructuredBuffer<uint> g_frameMeshData : register(t6);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -109,7 +104,7 @@ float NormalHeuristic(float3 input, float3 sample, float alpha)
 // Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
 float RoughnessWeight(float currRoughness, float sampleRoughness)
 {
-	float n = currRoughness * currRoughness * 0.99f + 0.01f;
+	float n = currRoughness * currRoughness * 0.99f + 5e-3f;
 	float w = abs(currRoughness - sampleRoughness) / n;
 	w  = saturate(1.0f - w);
 	w *= sampleRoughness <= g_local.RoughnessCutoff;
@@ -191,11 +186,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			
 			const float sampleRoughnes = g_metalnessRoughness[samplePosSS].y;
 			const float w_r = RoughnessWeight(roughness, sampleRoughnes);
-			
-			float weight = w_z * w_n * w_r;
-			if (weight < 1e-4)
-				continue;
-					
+								
 			SpecularReservoir neighbor = RGI_Spec_Util::PartialReadReservoir_Reuse(samplePosSS,
 				g_local.InputReservoir_A_DescHeapIdx,
 				g_local.InputReservoir_B_DescHeapIdx,
@@ -204,9 +195,9 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 
 			const float sampleRayT = length(neighbor.SamplePos - posW);
 			const float w_t = RayTHeuristic(rayT, sampleRayT);
-			weight *= w_t;
 
-			if (weight < 1e-4)
+			float weight = w_z * w_n * w_r * w_t;
+			if (weight <= 1e-3)
 				continue;
 			
 			const float3 secondToFirst_r = posW - neighbor.SamplePos;

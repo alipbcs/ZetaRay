@@ -142,10 +142,11 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbSpatial.Radius = DefaultParamVals::SpatialResampleRadius;
 	m_cbSpatial.M_max = DefaultParamVals::SpatialM_max;
 	m_cbSpatial.NumIterations = DefaultParamVals::SpatialResampleNumIter;
-	m_cbDNSR.Denoise = false;
+	m_cbDNSR.Denoise = true;
 	m_cbDNSR.MaxTSPP = DefaultParamVals::DNSRTspp;
 	m_cbDNSR.RoughnessCutoff = m_cbTemporal.RoughnessCutoff;
-	m_cbDNSR.CatmullRom = false;
+	m_cbDNSR.RoughnessExpScale = DefaultParamVals::DNSRRoughnessExpScale;
+	m_cbDNSR.ViewAngleExp = DefaultParamVals::DNSRViewAngleExp;
 
 	//ParamVariant normalExp;
 	//normalExp.InitFloat("Renderer", "ReSTIR_GI_Specular", "NormalExp",
@@ -248,19 +249,32 @@ void ReSTIR_GI_Specular::Init() noexcept
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoDenoisingCallback), m_cbDNSR.Denoise);
 	App::AddParam(denoise);
 
-	ParamVariant catmullRom;
-	catmullRom.InitBool("Renderer", "SpecularDNSR", "Catmull-Rom Filtering",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::TextureFilterCallback), m_cbDNSR.CatmullRom);
-	App::AddParam(catmullRom);
-
 	ParamVariant tspp;
-	tspp.InitInt("Renderer", "SpecularDNSR", "TSPP",
+	tspp.InitInt("Renderer", "SpecularDNSR", "MaxTSPP",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::TsppCallback),
 		m_cbDNSR.MaxTSPP,				// val	
 		1,								// min
 		32,								// max
 		1);								// step
 	App::AddParam(tspp);
+
+	ParamVariant viewAngleExp;
+	viewAngleExp.InitFloat("Renderer", "SpecularDNSR", "ViewAngleExp",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRViewAngleExpCallback),
+		m_cbDNSR.ViewAngleExp,			// val	
+		0.1f,							// min
+		1.0f,							// max
+		1e-2f);							// step
+	App::AddParam(viewAngleExp);
+
+	ParamVariant roughnessExp;
+	roughnessExp.InitFloat("Renderer", "SpecularDNSR", "RoughnessExpScale",
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRRoughnessExpScaleCallback),
+		m_cbDNSR.RoughnessExpScale,		// val	
+		0.1f,							// min
+		1.0f,							// max
+		1e-2f);							// step
+	App::AddParam(roughnessExp);
 
 	ParamVariant checkerboarding;
 	checkerboarding.InitBool("Renderer", "ReSTIR_GI_Specular", "CheckerboardTrace",
@@ -640,9 +654,14 @@ void ReSTIR_GI_Specular::TsppCallback(const Support::ParamVariant& p) noexcept
 	m_cbDNSR.MaxTSPP = (uint16_t)p.GetInt().m_val;
 }
 
-void ReSTIR_GI_Specular::TextureFilterCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Specular::DNSRViewAngleExpCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbDNSR.CatmullRom = p.GetBool();
+	m_cbDNSR.ViewAngleExp = p.GetFloat().m_val;
+}
+
+void ZetaRay::RenderPass::ReSTIR_GI_Specular::DNSRRoughnessExpScaleCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbDNSR.RoughnessExpScale = p.GetFloat().m_val;
 }
 
 void ReSTIR_GI_Specular::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept

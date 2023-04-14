@@ -196,9 +196,11 @@ namespace RGI_Spec_Util
 		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
+		const float4 resB = g_reservoir_B[DTid];
+		
 		const float w_sum = g_reservoir_A[DTid].w;
-		const float3 Li = g_reservoir_B[DTid].rgb;
-		const float M = g_reservoir_B[DTid].w;
+		const float3 Li = resB.rgb;
+		const float M = resB.w;
 		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
 		SpecularReservoir r = SpecularReservoir::Init(0.0.xxx, w_sum, Li, M, 0.0.xx, brdfCostheta, 0.0);
 
@@ -213,9 +215,11 @@ namespace RGI_Spec_Util
 		Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
+		const float4 resB = g_reservoir_B[DTid];
+		
 		const float3 pos = g_reservoir_A[DTid].xyz;
-		const float3 Li = g_reservoir_B[DTid].rgb;
-		const float M = g_reservoir_B[DTid].w;
+		const float3 Li = resB.rgb;
+		const float M = resB.w;
 		const half2 normal = g_reservoir_C[DTid];
 		const float W = g_reservoir_D[DTid].a;
 		SpecularReservoir r = SpecularReservoir::Init(pos, 0.0, Li, M, normal, 0.0.xxx, W);
@@ -231,13 +235,36 @@ namespace RGI_Spec_Util
 		Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
-		const float3 pos = g_reservoir_A[DTid].xyz;
-		const float w_sum = g_reservoir_A[DTid].w;
-		const float3 Li = g_reservoir_B[DTid].rgb;
-		const float M = g_reservoir_B[DTid].w;
+		const float4 resA = g_reservoir_A[DTid];
+		const float4 resB = g_reservoir_B[DTid];
+				
+		const float3 pos = resA.xyz;
+		const float w_sum = resA.w;
+		const float3 Li = resB.rgb;
+		const float M = resB.w;
 		const half2 normal = g_reservoir_C[DTid];
 		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
 		SpecularReservoir r = SpecularReservoir::Init(pos, w_sum, Li, M, normal, brdfCostheta, 0);
+
+		return r;
+	}
+	
+	// skips normal and w_sum
+	SpecularReservoir PartialReadReservoir_Denoise(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputDIdx)
+	{
+		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
+		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
+
+		const float4 resA = g_reservoir_A[DTid];
+		const float4 resB = g_reservoir_B[DTid];
+
+		const float3 pos = resA.xyz;
+		const float w_sum = resA.w;
+		const float3 Li = resB.rgb;
+		const float M = resB.w;
+		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
+		SpecularReservoir r = SpecularReservoir::Init(pos, w_sum, Li, M, 0.0.xx, brdfCostheta, 0.0);
 
 		return r;
 	}
@@ -246,28 +273,28 @@ namespace RGI_Spec_Util
 	void PartialWriteReservoir_NoNormalW(uint2 DTid, SpecularReservoir r, uint outputAIdx, uint outputBIdx, uint outputDIdx)
 	{
 		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
-		RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
-		RWTexture2D<half4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
+		RWTexture2D<float4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
+		RWTexture2D<float4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
 	
 		g_outReservoir_A[DTid] = float4(r.SamplePos, r.w_sum);
-		g_outReservoir_B[DTid] = half4(r.Li, r.M);
-		g_outReservoir_D[DTid].rgb = half3(r.BrdfCosTheta);
+		g_outReservoir_B[DTid] = float4(r.Li, r.M);
+		g_outReservoir_D[DTid].rgb = r.BrdfCosTheta;
 	}
 	
 	void WriteReservoir(uint2 DTid, SpecularReservoir r, uint outputAIdx, uint outputBIdx, uint outputCIdx, uint outputDIdx)
 	{
 		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
-		RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
+		RWTexture2D<float4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
 		RWTexture2D<half2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
-		RWTexture2D<half4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
+		RWTexture2D<float4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
 	
 		// clamp W to about maximum value possible with 16-bit floats
 		const float W = min(r.ComputeW(), 65472);
 		
 		g_outReservoir_A[DTid] = float4(r.SamplePos, r.w_sum);
-		g_outReservoir_B[DTid] = half4(r.Li, r.M);
+		g_outReservoir_B[DTid] = float4(r.Li, r.M);
 		g_outReservoir_C[DTid] = r.SampleNormal;
-		g_outReservoir_D[DTid] = half4(r.BrdfCosTheta, W);
+		g_outReservoir_D[DTid] = float4(r.BrdfCosTheta, W);
 	}
 }
 

@@ -24,7 +24,7 @@
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Spec_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
+ByteAddressBuffer g_materials : register(t1);
 StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
 StructuredBuffer<uint> g_scramblingTile : register(t4);
 StructuredBuffer<uint> g_rankingTile : register(t5);
@@ -136,17 +136,8 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface, out bool isRayValid)
+bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
 {
-	// skip invalid rays
-	if (dot(wi - INVALID_RAY_DIR, 1) == 0.0f)
-	{
-		isRayValid = false;
-		return false;
-	}
-
-	isRayValid = true;
-
 	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
@@ -216,7 +207,8 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
 	const float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.Normal);
-	const Material mat = g_materials[hitInfo.MatID];
+	const uint byteOffset = hitInfo.MatID * sizeof(Material);
+	const Material mat = g_materials.Load<Material>(byteOffset);
 
 	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
 	float3 L_o = 0.0.xxx;
@@ -271,7 +263,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	
 		const float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
 		const float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
-		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+			sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 	
 		L_o = brdf * tr * g_frame.SunIlluminance;
 	}
@@ -299,18 +291,19 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone)
 {
 	SpecularSample ret;
+	ret.Lo = 0.0.xxx;
+	
+	// skip invalid rays
+	if (dot(wi - INVALID_RAY_DIR, 1) == 0.0f)
+		return ret;
 		
 	// TODO find a better way to protect against self-intersection
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
 	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
 	
 	// trace a ray along wi to find closest surface point
-	bool isRayValid;
 	HitSurface hitInfo;
-	bool hit = FindClosestHit(adjustedOrigin, wi, rayCone, hitInfo, isRayValid);
-
-	// incident radiance from closest hit point
-	ret.Lo = 0.0.xxx;
+	bool hit = FindClosestHit(adjustedOrigin, wi, rayCone, hitInfo);
 
 	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
 	// return the incoming sky radiance
@@ -320,7 +313,7 @@ SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.Normal;
 	}
-	else if (isRayValid)
+	else
 	{
 		ret.Lo = MissShading(wi);
 		
@@ -347,9 +340,8 @@ float4 PlaneHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos
 	return weights;
 }
 
-float RayTHeuristic(float3 reservoirSamplePos, float3 posW, float sampleRayT)
+float RayTHeuristic(float currRayT, float sampleRayT)
 {
-	float currRayT = length(reservoirSamplePos - posW);
 	float relativeDiff = saturate(abs(currRayT - sampleRayT) / max(g_local.HitDistSigmaScale * currRayT, 1e-4));
 	float w = 1.0 - relativeDiff;
 	
@@ -498,7 +490,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		const float sampleRayT = length(distToNeighborSample);
 
 		// TODO hit-distance weight leads to temporal artifacts for curved surfaces
-		rayTWeights[resIdx] = localCurvature != 0.0 ? 1.0f : RayTHeuristic(r.SamplePos, posW, sampleRayT);
+		rayTWeights[resIdx] = localCurvature != 0.0 ? 1.0f : RayTHeuristic(currRayT, sampleRayT);
 	}
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
