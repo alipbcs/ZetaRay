@@ -233,6 +233,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		}
 
 		float metalness = mat.MetallicFactor;
+		float roughness = mat.RoughnessFactor;
 		if (mat.MetalnessRoughnessTexture != -1)
 		{
 			uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
@@ -245,15 +246,17 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			g_metalnessRoughnessMap.GetDimensions(w, h);
 			mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
 #endif			
-			metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).r;
+			float2 mr = g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip);
+			metalness *= mr.x;
+			roughness *= mr.y;
 		}
 
-		const float ndotWi = saturate(dot(normal, -g_frame.SunDir));
-
-		// assume the surface is Lambertian
-		const float3 diffuseReflectance = baseColor * (1.0f - metalness);
-		const float3 brdf = BRDF::LambertianBRDF(diffuseReflectance, ndotWi);
-
+		BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, roughness, wo);
+		surface.InitComplete(-g_frame.SunDir, baseColor.rgb, metalness);
+		float3 brdf = BRDF::ComputeSurfaceBRDF(surface);	
+		// fireflies!!
+		brdf = clamp(brdf, 0, 0.35);
+		
 		const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 		const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
 		const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
@@ -348,7 +351,7 @@ float RayTHeuristic(float currRayT, float sampleRayT)
 	return w;
 }
 
-float GetTemporalM(float3 posW, float rayT, float localCurvature, float linearDepth)
+float GetTemporalM(float3 posW, float rayT, float curvature, float linearDepth, float ndotwo)
 {
 	// smaller RIS weight during temporal resampling when 
 	// 1. reflection is closer to ray origin
@@ -358,7 +361,7 @@ float GetTemporalM(float3 posW, float rayT, float localCurvature, float linearDe
 	
 	// TODO roughness can be considered as well
 	const float maxCurvature = 0.1f;
-	float curvedMScale = saturate(maxCurvature - abs(localCurvature)) / maxCurvature;
+	float curvedMScale = saturate(maxCurvature - abs(curvature)) / maxCurvature;
 	curvedMScale *= curvedMScale;
 	curvedMScale *= curvedMScale;
 	curvedMScale = min(0.2, curvedMScale);
@@ -509,7 +512,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	weights /= weightSum;
 	
 	// smaller RIS weight when hit distance is small (sharper reflections)
-	const float temporalM = !tracedThisFrame ? g_local.M_max : GetTemporalM(posW, currRayT, localCurvature, linearDepth);
+	const float temporalM = !tracedThisFrame ? g_local.M_max : 
+		GetTemporalM(posW, currRayT, localCurvature, linearDepth, surface.ndotwo);
 		
 	[unroll]
 	for (int k = 0; k < 4; k++)
@@ -609,6 +613,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
 	float k = g_curvature[swizzledDTid.xy];
+	k = (k > 1e-3) * pow((1 + linearDepth) / linearDepth, 4);
 	// having a nonzero curvature for flat surfaces helps with reducing temporal artifacts
 	k = max(0.02, k);
 		
