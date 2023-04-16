@@ -13,7 +13,6 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::App
 {
-	struct ThreadAllocator;
 	struct FrameAllocator;
 }
 
@@ -26,7 +25,13 @@ namespace ZetaRay::Util
 	struct RSynchronizedView;
 
 	template<typename T>
+	struct RSynchronizedVariable;
+
+	template<typename T>
 	struct RWSynchronizedView;
+
+	template<typename T>
+	struct RWSynchronizedVariable;
 
 	template<typename T>
 	struct Span;
@@ -90,8 +95,6 @@ namespace ZetaRay::App
 	void Abort() noexcept;
 
 	void* AllocateFromFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
-	void* AllocateFromMemoryPool(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
-	void FreeMemoryPool(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 
 	int RegisterTask() noexcept;
 	void TaskFinalizedCallback(int handle, int indegree) noexcept;
@@ -122,11 +125,11 @@ namespace ZetaRay::App
 
 	void AddParam(Support::ParamVariant& p) noexcept;
 	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::ParamVariant, Support::SystemAllocator>> GetParams() noexcept;
+	Util::RWSynchronizedVariable<Util::Span<Support::ParamVariant>> GetParams() noexcept;
 
 	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
 	void RemoveShaderReloadHandler(const char* name) noexcept;
-	Util::RSynchronizedView<Util::Vector<ShaderReloadHandler, App::ThreadAllocator>> GetShaderReloadHandlers() noexcept;
+	Util::RSynchronizedVariable<Util::Span<ShaderReloadHandler>> GetShaderReloadHandlers() noexcept;
 
 	// these could be implemented as template functions, but then the implementation has to be in the header,
 	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
@@ -136,7 +139,7 @@ namespace ZetaRay::App
 	void AddFrameStat(const char* group, const char* name, float f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
 	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
-	Util::RWSynchronizedView<Util::Vector<Support::Stat, App::FrameAllocator>> GetStats() noexcept;
+	Util::RWSynchronizedVariable<Util::Span<Support::Stat>> GetStats() noexcept;
 	Util::Span<float> GetFrameTimeHistory() noexcept;
 
 	const char* GetPSOCacheDir() noexcept;
@@ -150,20 +153,7 @@ namespace ZetaRay::App
 	void UnlockStdOut() noexcept;
 
 	void Log(const char* msg, LogMessage::MsgType t) noexcept;
-	Util::RSynchronizedView<Util::Vector<App::LogMessage, App::FrameAllocator>> GetFrameLogs() noexcept;
-
-	struct ThreadAllocator
-	{
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
-		{
-			return App::AllocateFromMemoryPool(size, alignment);
-		}
-
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept
-		{
-			App::FreeMemoryPool(mem, size, alignment);
-		}
-	};
+	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> GetFrameLogs() noexcept;
 
 	struct FrameAllocator
 	{

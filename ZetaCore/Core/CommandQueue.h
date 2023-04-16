@@ -56,7 +56,7 @@ namespace ZetaRay::Core
 			uint64_t FenceToWaitFor;
 		};
 
-		Util::SmallVector<ReleasedCmdAlloc, App::ThreadAllocator> m_cmdAllocPool;
+		Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
 
 		struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
 		{

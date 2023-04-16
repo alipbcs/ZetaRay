@@ -52,8 +52,8 @@ void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 	CreatePSO();
 
 	// create the sphere mesh
-	SmallVector<Vertex, App::ThreadAllocator> vertices;
-	SmallVector<uint32_t, App::ThreadAllocator> indices;
+	SmallVector<Vertex> vertices;
+	SmallVector<uint32_t> indices;
 //	float worldRadius = App::GetScene().GetWorldAABB().Extents.length();
 	float worldRadius = 6360.0f;
 

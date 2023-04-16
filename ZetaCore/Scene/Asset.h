@@ -148,8 +148,8 @@ namespace ZetaRay::Scene::Internal
 
 	private:
 		Util::HashTable<Model::TriangleMesh> m_meshes;
-		Util::SmallVector<Core::Vertex, App::ThreadAllocator> m_vertices;
-		Util::SmallVector<uint32_t, App::ThreadAllocator> m_indices;
+		Util::SmallVector<Core::Vertex> m_vertices;
+		Util::SmallVector<uint32_t> m_indices;
 
 		Core::DefaultHeapBuffer m_vertexBuffer;
 		Core::DefaultHeapBuffer m_indexBuffer;

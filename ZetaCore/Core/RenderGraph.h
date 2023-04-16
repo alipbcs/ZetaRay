@@ -176,7 +176,7 @@ namespace ZetaRay::Core
 
 		// make sure this doesn't get reset between frames as some states carry over to the
 		// next frame. Producers should be reset though
-		Util::SmallVector<ResourceMetadata, App::ThreadAllocator> m_frameResources;
+		Util::SmallVector<ResourceMetadata> m_frameResources;
 		int m_prevFramesNumResources = 0;
 
 		std::atomic_int32_t m_currResIdx = 0;

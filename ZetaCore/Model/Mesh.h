@@ -72,17 +72,17 @@ namespace ZetaRay::Model
 		//void ComputeBox(Vector<VertexPosNormalTexTangent>& vertices, Vector<uint16_t>& indices, 
 		//	Math::float3 size) noexcept;
 
-		void ComputeSphere(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeSphere(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float diameter, size_t tessellation) noexcept;
-		void ComputeCylinder(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeCylinder(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept;
-		void ComputeCone(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeCone(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float diameter, float height, size_t tessellation) noexcept;
-		void ComputeTorus(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeTorus(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float diameter, float thickness, size_t tessellation) noexcept;
-		void ComputeTeapot(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeTeapot(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float size, size_t tessellation) noexcept;
-		void ComputeGrid(Util::Vector<Core::Vertex, App::ThreadAllocator>& vertices, Util::Vector<uint32_t, App::ThreadAllocator>& indices,
+		void ComputeGrid(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
 			float width, float depth, uint32_t m, uint32_t n) noexcept;
 	}
 }

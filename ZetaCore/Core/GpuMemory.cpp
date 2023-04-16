@@ -1422,7 +1422,7 @@ Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t hei
 
 LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexcept
 {
-	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
+	SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
 	uint32_t width;
 	uint32_t height;
@@ -1453,7 +1453,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexc
 
 LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* p, Texture& t) noexcept
 {
-	SmallVector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator, 10> subresources;
+	SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
 	uint32_t width;
 	uint32_t height;

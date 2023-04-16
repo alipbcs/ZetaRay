@@ -102,7 +102,6 @@ namespace
 		Camera m_camera;
 
 		THREAD_ID_TYPE alignas(64) m_threadIDs[MAX_NUM_THREADS];
-		MemoryPool m_memoryPools[MAX_NUM_THREADS];
 		RNG m_rng;
 		FrameMemory m_frameMemory;
 		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
@@ -111,7 +110,7 @@ namespace
 		SmallVector<ParamVariant> m_params;
 		SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
 
-		SmallVector<ShaderReloadHandler, ThreadAllocator> m_shaderReloadHandlers;
+		SmallVector<ShaderReloadHandler> m_shaderReloadHandlers;
 		SmallVector<Stat, FrameAllocator> m_frameStats;
 		FrameTime m_frameTime;
 
@@ -366,17 +365,6 @@ namespace ZetaRay::AppImpl
 		//g_app->m_frameStats.emplace_back("Frame", "FrameTime Avg.", (float) movingAvg);
 		g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
 		g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
-
-		/*
-		printf("----------------------\n");
-
-		for (int i = 0; i < g_app->m_processorCoreCount; i++)
-		{
-			printf("Thread %d: %llu kb\n", i, g_app->m_threadContexts[i].MemPool.TotalSize() / 1024);
-		}
-
-		printf("----------------------\n\n");
-		*/
 	}
 
 	void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
@@ -714,10 +702,6 @@ namespace ZetaRay::AppImpl
 		g_app->m_workerThreadPool.Shutdown();
 		g_app->m_backgroundThreadPool.Shutdown();
 
-		// TODO fix
-		//for (int i = 0; i < m_processorCoreCount; i++)
-		//	m_threadMemPools[i].Clear();
-
 		delete g_app;
 		g_app = nullptr;
 	}
@@ -955,24 +939,15 @@ namespace ZetaRay
 {
 	ZetaInline int GetThreadIdx() noexcept
 	{
+		const THREAD_ID_TYPE id = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+
 		for (int i = 0; i < g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
 		{
-			if (g_app->m_threadIDs[i] == std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
+			if (g_app->m_threadIDs[i] == id)
 				return i;
 		}
 
 		return -1;
-	}
-
-	// TODO remove
-	void RejoinBackgroundMemPoolsToWorkers() noexcept
-	{
-		for (int i = 0; i < AppData::NUM_BACKGROUND_THREADS; i++)
-		{
-			int sourceThreadIdx = g_app->m_processorCoreCount + i;
-			int destThreadIdx = g_app->m_rng.GetUniformUintBounded(g_app->m_processorCoreCount);
-			g_app->m_memoryPools[sourceThreadIdx].MoveTo(g_app->m_memoryPools[destThreadIdx]);
-		}
 	}
 
 	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
@@ -1037,26 +1012,19 @@ namespace ZetaRay
 		// initialize memory pools. has to happen after the thread pool creation
 
 		// main thread
-		g_app->m_memoryPools[0].Init();
 		g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
 		// worker threads
 		auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
 
 		for (int i = 0; i < workerThreadIDs.size(); i++)
-		{
 			g_app->m_threadIDs[i + 1] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(workerThreadIDs[i]);
-			g_app->m_memoryPools[i + 1].Init();
-		}
 
 		// background threads
 		auto backgroundThreadIDs = g_app->m_backgroundThreadPool.ThreadIDs();
 
 		for (int i = 0; i < backgroundThreadIDs.size(); i++)
-		{
 			g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
-			g_app->m_memoryPools[workerThreadIDs.size() + 1 + i].Init();
-		}
 
 		uint64_t seed = std::bit_cast<uint64_t, void*>(g_app);
 		g_app->m_rng = RNG(seed);
@@ -1083,12 +1051,10 @@ namespace ZetaRay
 
 		//g_app->m_camera.Init(float3(0.0f, 1.0f, 0.0f), App::GetRenderer().GetAspectRatio(),
 		//	Math::DegreeToRadians(75.0f), 0.5f, true, float3(0.0f, 0.0f, 1.0f), false);
-		//g_app->m_camera.Init(float3(-35.75f, 5.4f, 17.275f), App::GetRenderer().GetAspectRatio(),
-		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.931f, -0.139f, 0.339f), false);
-		g_app->m_camera.Init(float3(-30.663, 4.176, 33.364), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.722f, -0.682f, 0.115f), false);
-		//g_app->m_camera.Init(float3(7.605f, 1.058, -7.162), App::GetRenderer().GetAspectRatio(),
-		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.841f, -0.191f, 0.506f), false);
+		//g_app->m_camera.Init(float3(-14.181, 2.996, 2.516), App::GetRenderer().GetAspectRatio(),
+		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.949f, -0.208f, 0.237f), false);
+		g_app->m_camera.Init(float3(-22.285, 3.262, 40.438), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.989f, -0.139f, -0.051f), false);
 
 		// scene can now be initialized
 		g_app->m_scene.Init(rendererInterface);
@@ -1154,11 +1120,6 @@ namespace ZetaRay
 				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
 				g_app->m_frameMemory.Reset();		// set the offset to 0, essentially freeing the memory
 			}
-
-			// TODO remove
-			// background tasks are not necessarily done 
-			if (g_app->m_backgroundThreadPool.AreAllTasksFinished())
-				RejoinBackgroundMemPoolsToWorkers();
 
 			// update app
 			{
@@ -1293,26 +1254,6 @@ namespace ZetaRay
 		block.Offset = startOffset + size;
 
 		return reinterpret_cast<void*>(ret);
-	}
-
-	void* App::AllocateFromMemoryPool(size_t size, size_t alignment) noexcept
-	{
-		//return malloc(size);
-
-		const int idx = GetThreadIdx();
-		Assert(idx != -1, "thread idx was not found");
-		void* mem = g_app->m_memoryPools[idx].AllocateAligned(size, alignment);
-
-		return mem;
-	}
-
-	void App::FreeMemoryPool(void* mem, size_t size, size_t alignment) noexcept
-	{
-		//free(mem);
-
-		const int idx = GetThreadIdx();
-		Assert(idx != -1, "thread idx was not found");
-		g_app->m_memoryPools[idx].FreeAligned(mem, size, alignment);
 	}
 
 	int App::RegisterTask() noexcept
@@ -1453,19 +1394,19 @@ namespace ZetaRay
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedView<Vector<ParamVariant>> App::GetParams() noexcept
+	RWSynchronizedVariable<Span<ParamVariant>> App::GetParams() noexcept
 	{
-		return RWSynchronizedView<Vector<ParamVariant>>(g_app->m_params, g_app->m_paramUpdateLock);
+		return RWSynchronizedVariable<Span<ParamVariant>>(g_app->m_params, g_app->m_paramUpdateLock);
 	}
 
-	RSynchronizedView<Vector<ShaderReloadHandler, ThreadAllocator>> App::GetShaderReloadHandlers() noexcept
+	RSynchronizedVariable<Span<ShaderReloadHandler>> App::GetShaderReloadHandlers() noexcept
 	{
-		return RSynchronizedView<Vector<ShaderReloadHandler, ThreadAllocator>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
+		return RSynchronizedVariable<Span<ShaderReloadHandler>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
 	}
 
-	RWSynchronizedView<Vector<Stat, FrameAllocator>> App::GetStats() noexcept
+	RWSynchronizedVariable<Span<Stat>> App::GetStats() noexcept
 	{
-		return RWSynchronizedView<Vector<Stat, FrameAllocator>>(g_app->m_frameStats, g_app->m_statsLock);
+		return RWSynchronizedVariable<Span<Stat>>(g_app->m_frameStats, g_app->m_statsLock);
 	}
 
 	void App::AddParam(ParamVariant& p) noexcept
@@ -1572,8 +1513,8 @@ namespace ZetaRay
 		ReleaseSRWLockExclusive(&g_app->m_logLock);
 	}
 
-	Util::RSynchronizedView<Util::Vector<App::LogMessage, App::FrameAllocator>> App::GetFrameLogs() noexcept
+	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> App::GetFrameLogs() noexcept
 	{
-		return RSynchronizedView<Vector<LogMessage, FrameAllocator>>(g_app->m_frameLogs, g_app->m_logLock);;
+		return RSynchronizedVariable<Span<LogMessage>>(g_app->m_frameLogs, g_app->m_logLock);;
 	}
 }

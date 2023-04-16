@@ -290,7 +290,7 @@ namespace ZetaRay::Core::Direct3DHelper
     }
 
     LOAD_DDS_RESULT LoadDDSFromFile(const char* path,
-        Util::Vector<D3D12_SUBRESOURCE_DATA, App::ThreadAllocator>& subresources,
+        Util::Vector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator>& subresources,
         DXGI_FORMAT& format,
         std::unique_ptr<uint8_t[]>& ddsData,
         uint32_t& width,

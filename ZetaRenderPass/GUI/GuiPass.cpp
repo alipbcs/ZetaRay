@@ -25,7 +25,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Vector<ParamVariant>& params, size_t offset, size_t count) noexcept
+	void AddParamRange(Span<ParamVariant> params, size_t offset, size_t count) noexcept
 	{
 		for (size_t p = offset; p < offset + count; p++)
 		{
@@ -581,7 +581,7 @@ void GuiPass::RenderProfiler() noexcept
 		if (m_showRenderGraph)
 			RenderRenderGraph();
 
-		auto& stats = App::GetStats().View();
+		Span<Support::Stat> stats = App::GetStats().Variable();
 
 		auto func = [](Stat& s)
 		{
@@ -677,7 +677,7 @@ void GuiPass::RenderRenderGraph() noexcept
 void GuiPass::RenderLogWindow() noexcept
 {
 	{
-		auto& frameLogs = App::GetFrameLogs().View();
+		auto frameLogs = App::GetFrameLogs().Variable();
 		m_logs.append_range(frameLogs.begin(), frameLogs.end());
 	}
 
@@ -783,7 +783,7 @@ void GuiPass::CameraTab() noexcept
 void GuiPass::ParameterTab() noexcept
 {
 	auto paramsView = App::GetParams();
-	auto& params = paramsView.View();
+	Span<ParamVariant> params = paramsView.Variable();
 	char currGroup[ParamVariant::MAX_GROUP_LEN];
 
 	ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
@@ -921,15 +921,16 @@ void GuiPass::GpuTimingsTab() noexcept
 void GuiPass::ShaderReloadTab() noexcept
 {
 	auto reloadHandlers = App::GetShaderReloadHandlers();
+	Span<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
 
 	ImGui::Text("Select a shader to reload");
 
 	// TODO m_currShader becomes invalid when there's been a change in reloadHandlers 
-	if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? reloadHandlers.View()[m_currShader].Name : "None", 0))
+	if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? handlers[m_currShader].Name : "None", 0))
 	{
 		int i = 0;
 
-		for (auto& handler : reloadHandlers.View())
+		for (auto& handler : handlers)
 		{
 			bool selected = (m_currShader == i);
 			if (ImGui::Selectable(handler.Name, selected))
@@ -947,7 +948,7 @@ void GuiPass::ShaderReloadTab() noexcept
 	ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(4 / 7.0f, 0.8f, 0.8f));
 
 	if (ImGui::Button("Reload") && m_currShader != -1)
-		reloadHandlers.View()[m_currShader].Dlg();
+		handlers[m_currShader].Dlg();
 
 	ImGui::PopStyleColor();
 }
