@@ -1,3 +1,7 @@
+// Refs:
+// 1. D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
+// 2. D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
+
 #include "ReSTIR_GI_Specular_Common.h"
 #include "Reservoir_Specular.hlsli"
 #include "../Common/GBuffers.hlsli"
@@ -20,24 +24,22 @@ ConstantBuffer<cbDNSR> g_local : register(b1);
 //--------------------------------------------------------------------------------------
 
 // output range is [0, +inf)
-// Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
 float Parallax(float3 currPos, float3 prevPos, float3 currCamPos, float3 prevCamPos)
 {
 	float3 v1 = normalize(currPos - currCamPos);
-	float3 v2 = normalize(prevPos - prevCamPos); 
+	float3 v2 = normalize(prevPos - prevCamPos);
 	
 	// theta is the angle between v1 & v2
 	float cosTheta = saturate(dot(v1, v2));
 	float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
 	
 	float p = sinTheta / max(1e-6f, cosTheta);
-	p = pow(p, 0.2f);	
+	p = pow(p, 0.2f);
 	p *= p >= 1e-4;
 	
 	return p;
 }
 
-// Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
 float Reactivity(float roughness, float whDotWo, float parallax)
 {
 	// More weight given to recent samples when 
@@ -117,7 +119,6 @@ float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float alpha)
 }
 
 // helps with high frequency roughness textures
-// Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
 float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 {
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
@@ -129,17 +130,20 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
-	BRDF::SurfaceInteraction surface, float localCurvature, float3 samplePos, inout uint tspp, out float3 color, 
-	out float prevSurfaceLinearDepth)
+void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
+	out float tspp, out float3 color, out float prevLinearDepth, out float2 prevUV)
 {
+	color = 0.0.xxx;
+	tspp = 0.0;
+	prevLinearDepth = FLT_MAX;
+	
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
 	// reverse reproject current pixel
-	float currRayT = length(samplePos - posW);
-	float relectionRayT;
-	float2 prevUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, localCurvature, 
-		linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
+	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
+	const half2 motionVec = g_motionVector[DTid];
+	const float2 currUV = (DTid + 0.5f) / renderDim;
+	prevUV = currUV - motionVec;
 
 	//	p0-----------p1
 	//	|-------------|
@@ -180,12 +184,12 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 	const float4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	
-	float3 prevNormals[4];			
+	float3 prevNormals[4];
 	prevNormals[0] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
 	prevNormals[1] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
 	prevNormals[2] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));	
-	weights *= NormalWeight(prevNormals, normal, surface.alpha);
+	prevNormals[3] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	weights *= NormalWeight(prevNormals, normal, roughness * roughness);
 
 	// roughness weight
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
@@ -198,8 +202,8 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
 	
-	prevSurfaceLinearDepth = Math::Transform::LinearDepthFromNDC(dot(bilinearWeights, prevDepthsNDC), g_frame.CameraNear);
-	
+	prevLinearDepth = Math::Transform::LinearDepthFromNDC(dot(bilinearWeights, prevDepthsNDC), g_frame.CameraNear);
+
 	weights *= bilinearWeights;
 	const float weightSum = dot(1.0f, weights);
 
@@ -231,38 +235,30 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 				histColor[1] * weights[1] +
 				histColor[2] * weights[2] +
 				histColor[3] * weights[3];
-	}			
+	}
 }
 
-void Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float linearDepth, float prevSurfaceLinearDepth, 
-	float roughness, float2 uv, inout uint tspp, inout float3 histColor)
+float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float linearDepth, float roughness, 
+	BRDF::SurfaceInteraction surface, float surfaceTspp, float3 surfaceColor, float prevLinearDepth, float2 prevUV)
 {
-	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
-	const half2 motionVec = g_motionVector[DTid.xy];
-	const float2 prevSurfaceUV = uv - motionVec;
-	
-	const float3 prevSurfacePos = Math::Transform::WorldPosFromUV(prevSurfaceUV,
-		prevSurfaceLinearDepth,
+	// adjust accumulation speed base on "reactivity" -- more reactive means higher weight
+	// given to recent samples and vice versa
+	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
+	const float3 prevSurfacePos = Math::Transform::WorldPosFromUV(prevUV,
+		prevLinearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.PrevViewInv);
-	
-	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
+
 	const float parallax = Parallax(posW, prevSurfacePos, g_frame.CameraPos, prevCameraPos);
-	
-	const float3 wi = normalize(r.SamplePos - posW);
-	const float3 wo = normalize(g_frame.CameraPos - posW);
-	const float3 wh = normalize(wi + wo);
-	const float whDotWo = saturate(dot(wh, wo));
-	float f = Reactivity(roughness, whDotWo, parallax);
-	
-	float maxTspp = clamp((1 - f) * g_local.MaxTSPP, 1, g_local.MaxTSPP);
-	tspp = min(tspp + 1, maxTspp);
+	float f = Reactivity(roughness, surface.whdotwo, parallax);
 
 	// accumulate
-	const float accSpeed = 1.0f / (1.0f + tspp);
 	const float3 signal = r.EvaluateRISEstimate();
-	histColor = lerp(histColor, signal, accSpeed);	
+	float currTspp = clamp((1 - f) * g_local.MaxTSPP, 1, g_local.MaxTSPP);
+	float3 currColor = lerp(surfaceColor, signal, 1.0f / (1.0f + currTspp));
+	
+	return float4(currColor, currTspp);
 }
 
 //--------------------------------------------------------------------------------------
@@ -291,10 +287,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	if (mr.y > g_local.RoughnessCutoff)
 		return;
 
-	uint tspp = 0;
-	float3 color = 0.0f.xxx;
-	float prevSurfaceLinearDepth = 0.0f;
+	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Denoise(DTid.xy,
+				g_local.InputReservoir_A_DescHeapIdx,
+				g_local.InputReservoir_B_DescHeapIdx,
+				g_local.InputReservoir_D_DescHeapIdx);
 	
+	RWTexture2D<float4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
+	
+	if (!g_local.IsTemporalCacheValid || !g_local.Denoise)
+	{
+		float3 color = r.EvaluateRISEstimate();
+		g_nextTemporalCache[DTid.xy].xyzw = float4(color, 0);
+		
+		return;
+	}
+
 	// current frame's normals
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
@@ -305,34 +312,24 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 
 	const float3 posW = Math::Transform::WorldPosFromUV(uv,
 		linearDepth,
-		g_frame.TanHalfFOV, 
+		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv);
-	
-	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
-	const float k = g_curvature[DTid.xy];
 	
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
-	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Denoise(DTid.xy,
-				g_local.InputReservoir_A_DescHeapIdx,
-				g_local.InputReservoir_B_DescHeapIdx,
-				g_local.InputReservoir_D_DescHeapIdx);
-
 	const float3 wi = normalize(r.SamplePos - posW);
 	surface.InitComplete(wi, 0.0.xxx, mr.x);
-	
-	if (g_local.IsTemporalCacheValid && g_local.Denoise)
-	{
-		SampleTemporalCache(DTid.xy, posW, normal, linearDepth, uv, mr.y, surface, k, r.SamplePos, 
-			tspp, color, prevSurfaceLinearDepth);
-		
-		Integrate(DTid.xy, GTid.xy, r, posW, linearDepth, prevSurfaceLinearDepth, mr.y, uv, tspp, color);
-	}
-	else
-		color = r.EvaluateRISEstimate();
-	
-	RWTexture2D<float4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
-	g_nextTemporalCache[DTid.xy].xyzw = float4(color, tspp);
+
+	float3 color;
+	float prevLinearDepth;
+	float tspp;
+	float2 prevUV;
+	SampleTemporalCache_Surface(DTid.xy, posW, normal, linearDepth, uv, mr.y, tspp, color, prevLinearDepth, prevUV);
+
+	float4 integrated = Integrate(DTid.xy, GTid.xy, r, posW, linearDepth, mr.y, surface, tspp, color, 
+		prevLinearDepth, prevUV);
+
+	g_nextTemporalCache[DTid.xy].xyzw = integrated;
 }
