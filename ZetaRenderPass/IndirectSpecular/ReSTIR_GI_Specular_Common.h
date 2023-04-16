@@ -88,6 +88,7 @@ struct cbDNSR
 	float RoughnessCutoff;
 	float ViewAngleExp;
 	float RoughnessExpScale;
+	float MinRoughnessResample;
 	uint16_t Denoise;
 	uint16_t IsTemporalCacheValid;
 	uint16_t MaxTSPP;

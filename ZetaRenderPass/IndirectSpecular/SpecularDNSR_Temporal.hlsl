@@ -40,7 +40,7 @@ float Parallax(float3 currPos, float3 prevPos, float3 currCamPos, float3 prevCam
 	return p;
 }
 
-float Reactivity(float roughness, float whDotWo, float parallax)
+float Reactivity(float roughness, float ndotwo, float parallax)
 {
 	// More weight given to recent samples when 
 	//     1. parallax is high (more significant viewing angle changes)
@@ -62,7 +62,7 @@ float Reactivity(float roughness, float whDotWo, float parallax)
 	// sensitivity to parallax becomes exponentially higher as:
 	//  - whDotWo approaches 0 (grazing angles)
 	//  - roughness goes down
-	float a = saturate(1.0f - whDotWo);
+	float a = saturate(1.0f - ndotwo);
 	a = pow(a, g_local.ViewAngleExp);
 	float b = 1.1f + roughness * roughness;
 	float parallaxSensitivity = (b + a) / (b - a); // range in [1, +inf)
@@ -125,13 +125,18 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 	float4 w = abs(currRoughness - prevRoughness) / n;
 	w = saturate(1.0f - w);
 	w *= prevRoughness <= g_local.RoughnessCutoff;
+	bool4 b1 = prevRoughness < g_local.MinRoughnessResample;
+	bool4 b2 = currRoughness < g_local.MinRoughnessResample;
+	// don't take roughness into account when there's a sudden change
+	w = select(w, 1.0.xxxx, b1 ^ b2);
 	
 	return w;
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
 void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
-	out float tspp, out float3 color, out float prevLinearDepth, out float2 prevUV)
+	BRDF::SurfaceInteraction surface, float3 samplePos, float curvature, out float tspp, out float3 color, out float prevLinearDepth, 
+	out float2 prevUV)
 {
 	color = 0.0.xxx;
 	tspp = 0.0;
@@ -139,12 +144,20 @@ void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float l
 	
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
-	// reverse reproject current pixel
+	// reverse reproject using surface motion
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
 	const half2 motionVec = g_motionVector[DTid];
 	const float2 currUV = (DTid + 0.5f) / renderDim;
-	prevUV = currUV - motionVec;
+	float2 prevSurfaceUV = currUV - motionVec;
 
+	// reverse reproject using virtual motion
+	float currRayT = length(samplePos - posW);
+	float relectionRayT;
+	float2 prevVirtualUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, curvature,
+		linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
+
+	prevUV = roughness < g_local.MinRoughnessResample ? prevVirtualUV : prevSurfaceUV;
+	
 	//	p0-----------p1
 	//	|-------------|
 	//	|--prev-------|
@@ -205,9 +218,10 @@ void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float l
 	prevLinearDepth = Math::Transform::LinearDepthFromNDC(dot(bilinearWeights, prevDepthsNDC), g_frame.CameraNear);
 
 	weights *= bilinearWeights;
+	weights *= weights > 1e-3f;
 	const float weightSum = dot(1.0f, weights);
 
-	if (weightSum < 1e-5f)
+	if (weightSum < 1e-4f)
 		return;
 	
 	// uniformly distribute the weight over the consistent samples
@@ -251,11 +265,16 @@ float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float 
 		g_frame.PrevViewInv);
 
 	const float parallax = Parallax(posW, prevSurfacePos, g_frame.CameraPos, prevCameraPos);
+	// 2nd argument to following is supposed to be ndotwo, but for some reason using the half vector
+	// results in noticeably lower temporal lag
 	float f = Reactivity(roughness, surface.whdotwo, parallax);
 
 	// accumulate
 	const float3 signal = r.EvaluateRISEstimate();
-	float currTspp = clamp((1 - f) * g_local.MaxTSPP, 1, g_local.MaxTSPP);
+	const float maxTspp = roughness >= g_local.MinRoughnessResample ? 
+		g_local.MaxTSPP : 
+		smoothstep(0, 1, roughness / g_local.MinRoughnessResample) * 3;
+	float currTspp = clamp((1 - f) * maxTspp, 1, maxTspp);
 	float3 currColor = lerp(surfaceColor, signal, 1.0f / (1.0f + currTspp));
 	
 	return float4(currColor, currTspp);
@@ -322,11 +341,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float3 wi = normalize(r.SamplePos - posW);
 	surface.InitComplete(wi, 0.0.xxx, mr.x);
 
+	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
+	const float k = g_curvature[DTid.xy];
+
 	float3 color;
 	float prevLinearDepth;
 	float tspp;
 	float2 prevUV;
-	SampleTemporalCache_Surface(DTid.xy, posW, normal, linearDepth, uv, mr.y, tspp, color, prevLinearDepth, prevUV);
+	SampleTemporalCache_Surface(DTid.xy, posW, normal, linearDepth, uv, mr.y, surface, r.SamplePos, 
+		k, tspp, color, prevLinearDepth, prevUV);
 
 	float4 integrated = Integrate(DTid.xy, GTid.xy, r, posW, linearDepth, mr.y, surface, tspp, color, 
 		prevLinearDepth, prevUV);

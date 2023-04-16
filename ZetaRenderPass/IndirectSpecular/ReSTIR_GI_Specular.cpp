@@ -134,7 +134,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbTemporal.PdfCorrection = m_cbSpatial.PdfCorrection = true;
 	m_cbTemporal.RoughnessCutoff = m_cbSpatial.RoughnessCutoff = DefaultParamVals::RoughnessCutoff;
 	m_cbTemporal.M_max = DefaultParamVals::TemporalM_max;
-	m_cbTemporal.MinRoughnessResample = m_cbSpatial.MinRoughnessResample = DefaultParamVals::MinRoughnessResample;
+	m_cbTemporal.MinRoughnessResample = m_cbSpatial.MinRoughnessResample = m_cbDNSR.MinRoughnessResample = DefaultParamVals::MinRoughnessResample;
 	m_cbTemporal.HitDistSigmaScale = DefaultParamVals::TemporalHitDistSigmaScale;
 	m_cbTemporal.CheckerboardTracing = false;
 	m_cbSpatial.HitDistSigmaScale = DefaultParamVals::SpatialHitDistSigmaScale;
@@ -696,6 +696,7 @@ void ReSTIR_GI_Specular::MinRoughnessResample(const Support::ParamVariant& p) no
 {
 	m_cbTemporal.MinRoughnessResample = p.GetFloat().m_val;
 	m_cbSpatial.MinRoughnessResample = p.GetFloat().m_val;
+	m_cbDNSR.MinRoughnessResample = p.GetFloat().m_val;
 }
 
 void ReSTIR_GI_Specular::TemporalHistDistSigmaScaleCallback(const Support::ParamVariant& p) noexcept

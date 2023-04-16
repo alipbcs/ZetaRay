@@ -135,12 +135,12 @@ namespace BRDF
 	// direction. Dominant direction tends to shift away from reflected direction as roughness
 	// or view angle increases (off-specular peak).
 	// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
-	float SpecularBRDFGGXSmithDominantFactor(float whDotwo, float roughness)
+	float SpecularBRDFGGXSmithDominantFactor(float ndotwo, float roughness)
 	{
 		float a = 0.298475f * log(39.4115f - 39.0029f * roughness);
-		float f = pow(1 - whDotwo, 10.8649f) * (1 - a) + a;
+		float f = pow(1 - ndotwo, 10.8649f) * (1 - a) + a;
 		
-		return f;
+		return saturate(f);
 	}
 	
 	//--------------------------------------------------------------------------------------

@@ -165,7 +165,7 @@ namespace RGI_Spec_Util
 	
 		// interpolate between virtual motion and surface motion using GGX dominant factor
 		// Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
-		float factor = BRDF::SpecularBRDFGGXSmithDominantFactor(surface.whdotwo, roughness);
+		float factor = BRDF::SpecularBRDFGGXSmithDominantFactor(surface.ndotwo, roughness);
 		float3 virtualPos = posW - surface.wo * reflectionRayT * factor;
 	
 		float4 virtualPosNDC = mul(prevViewProj, float4(virtualPos, 1.0f));
