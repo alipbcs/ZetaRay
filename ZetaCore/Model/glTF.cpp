@@ -9,6 +9,7 @@
 #include "../Core/RendererCore.h"
 #include "../Core/GpuMemory.h"
 #include "../App/Log.h"
+#include "../Support/ThreadSafeMemoryArena.h"
 #include <algorithm>
 
 #define CGLTF_IMPLEMENTATION
@@ -169,7 +170,8 @@ namespace
 		}
 	}
 
-	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Vector<uint32_t, App::ThreadAllocator>& indices) noexcept
+	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, 
+		Vector<uint32_t, Support::ThreadSafeArenaAllocator>& indices) noexcept
 	{
 		Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
 		Check(accessor.stride != -1, "Invalid index stride.");
@@ -204,7 +206,7 @@ namespace
 		}
 	}
 
-	void ProcessMeshes(uint64_t sceneID, const cgltf_data& model, size_t offset, size_t size) noexcept
+	void ProcessMeshes(uint64_t sceneID, const cgltf_data& model, size_t offset, size_t size, ThreadSafeMemoryArena& arena) noexcept
 	{
 		SceneCore& scene = App::GetScene();
 
@@ -218,7 +220,7 @@ namespace
 			{
 				const cgltf_primitive& prim = mesh.primitives[primIdx];
 
-				glTF::Asset::MeshSubset subset;
+				glTF::Asset::MeshSubset subset(arena);
 				subset.MeshIdx = (int)meshIdx;
 				subset.MeshPrimIdx = primIdx;
 
@@ -427,7 +429,7 @@ namespace
 	}
 
 	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId,
-		Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
+		Vector<IntemediateInstance, Support::ThreadSafeArenaAllocator>& instances) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -532,7 +534,7 @@ namespace
 		}
 	}
 
-	void ProcessNodes(const cgltf_data& model, uint64_t sceneID, Vector<IntemediateInstance, App::ThreadAllocator>& instances) noexcept
+	void ProcessNodes(const cgltf_data& model, uint64_t sceneID, Vector<IntemediateInstance, Support::ThreadSafeArenaAllocator>& instances) noexcept
 	{
 		for (size_t i = 0; i < model.scene->nodes_count; i++)
 		{
@@ -689,6 +691,12 @@ void glTF::Load(const char* modelRelPath) noexcept
 		matThreadSizes,
 		MIN_MATS_PER_WORKER);
 
+	const auto bufferSizeInBytes = Filesystem::GetFileSize(bufferPath.Get());
+	const auto avgMemPerWorker = Math::CeilUnsignedIntDiv(bufferSizeInBytes, App::GetNumWorkerThreads());
+	auto avgMemPerWorkerMB = Math::CeilUnsignedIntDiv(avgMemPerWorker, 1024 * 1024);
+	avgMemPerWorkerMB = Math::NextPow2(avgMemPerWorkerMB);
+	ThreadSafeMemoryArena arena(avgMemPerWorkerMB * 1024 * 1024);
+
 	struct ThreadContext
 	{
 		uint64_t SceneID;
@@ -699,12 +707,14 @@ void glTF::Load(const char* modelRelPath) noexcept
 		size_t* MatThreadSizes;
 		size_t* ImgThreadOffsets;
 		size_t* ImgThreadSizes;
+		ThreadSafeMemoryArena* Arena;
 	};
 
 	ThreadContext tc{ .SceneID = sceneID, .Model = model,
 		.MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
 		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes,
-		.ImgThreadOffsets = imgThreadOffsets, .ImgThreadSizes = imgThreadSizes };
+		.ImgThreadOffsets = imgThreadOffsets, .ImgThreadSizes = imgThreadSizes,
+		.Arena = &arena};
 
 	TaskSet ts;
 
@@ -714,7 +724,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 
 		ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
 			{
-				ProcessMeshes(tc.SceneID, *tc.Model, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx]);
+				ProcessMeshes(tc.SceneID, *tc.Model, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx], *tc.Arena);
 			});
 	}
 
@@ -766,7 +776,7 @@ void glTF::Load(const char* modelRelPath) noexcept
 	ts.Finalize(&waitObj);
 	App::Submit(ZetaMove(ts));
 
-	SmallVector<IntemediateInstance, App::ThreadAllocator> instances;
+	SmallVector<IntemediateInstance, Support::ThreadSafeArenaAllocator> instances(arena);
 	instances.reserve(model->nodes_count);
 
 	waitObj.Wait();

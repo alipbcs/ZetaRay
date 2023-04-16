@@ -6,13 +6,19 @@
 #include "../App/Filesystem.h"
 #include "../Core/Material.h"
 #include "../Model/Mesh.h"
+#include "../Support/ThreadSafeMemoryArena.h"
 
 namespace ZetaRay::Model::glTF::Asset
 {
 	struct MeshSubset
 	{
-		Util::SmallVector<Core::Vertex, App::ThreadAllocator> Vertices;
-		Util::SmallVector<uint32_t, App::ThreadAllocator> Indices;
+		MeshSubset(Support::ThreadSafeMemoryArena& arena) noexcept
+			: Vertices(arena),
+			Indices(arena)
+		{}
+
+		Util::SmallVector<Core::Vertex, Support::ThreadSafeArenaAllocator> Vertices;
+		Util::SmallVector<uint32_t, Support::ThreadSafeArenaAllocator> Indices;
 		int MaterialIdx;
 		int MeshIdx;
 		int MeshPrimIdx;

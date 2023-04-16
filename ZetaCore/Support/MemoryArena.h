@@ -7,7 +7,7 @@ namespace ZetaRay::Support
 	class MemoryArena
 	{
 	public:
-		explicit MemoryArena(size_t blockSize = 64 * 1024 * 1024) noexcept;
+		explicit MemoryArena(size_t blockSize = 64 * 1024) noexcept;
 		~MemoryArena() noexcept = default;
 
 		MemoryArena(MemoryArena&&) noexcept;
