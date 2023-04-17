@@ -628,7 +628,7 @@ void GuiPass::RenderProfiler() noexcept
 	{
 		auto frameTimeHist = App::GetFrameTimeHistory();
 
-		float max_ = -1.0f;
+		float max_ = 0.0f;
 		for (auto f : frameTimeHist)
 			max_ = Math::Max(max_, f);
 

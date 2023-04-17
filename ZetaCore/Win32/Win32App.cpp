@@ -335,27 +335,22 @@ namespace ZetaRay::AppImpl
 	{
 		g_app->m_frameStats.free_memory();
 
-		const float frameTimeMs = (float)(g_app->m_timer.GetElapsedTime() * 1000.0);
+		const float frameTimeMs = g_app->m_timer.GetTotalFrameCount() > 1 ?
+			(float)(g_app->m_timer.GetElapsedTime() * 1000.0f) : 
+			0.0f;
 
 		auto& frameStats = g_app->m_frameTime;
-		frameStats.NextFramHistIdx = (frameStats.NextFramHistIdx < 59) ? frameStats.NextFramHistIdx + 1 : frameStats.NextFramHistIdx;
-		Assert(frameStats.NextFramHistIdx >= 0 && frameStats.NextFramHistIdx < 60, "bug");
 
-		// shift left
-		float temp[FrameTime::HIST_LEN];
-		memcpy(temp, frameStats.FrameTimeHist + 1, sizeof(float) * (FrameTime::HIST_LEN - 1));
-		memcpy(frameStats.FrameTimeHist, temp, sizeof(float) * (FrameTime::HIST_LEN - 1));
-		frameStats.FrameTimeHist[frameStats.NextFramHistIdx] = frameTimeMs;
+		if (frameStats.NextFramHistIdx < frameStats.HIST_LEN)
+			frameStats.FrameTimeHist[frameStats.NextFramHistIdx++] = frameTimeMs;
+		else
+		{
+			// shift left
+			for (int i = 0; i < frameStats.HIST_LEN - 1; i++)
+				frameStats.FrameTimeHist[i] = frameStats.FrameTimeHist[i + 1];
 
-		// compute moving average
-		/*
-		double movingAvg = 0.0f;
-		for (int i = 0; i <= frameStats.NextFramHistIdx; i++)
-			movingAvg += frameStats.FrameTimeHist[i];
-
-		constexpr double oneDivSize = 1.0 / 60.0;
-		movingAvg *= oneDivSize;
-		*/
+			frameStats.FrameTimeHist[frameStats.HIST_LEN - 1] = frameTimeMs;
+		}
 
 		DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo = {};
 		CheckHR(g_app->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
