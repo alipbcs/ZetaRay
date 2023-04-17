@@ -153,7 +153,7 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr float DepthThresh = 8e-3f;
+			static constexpr float DepthThresh = 1e-4f;
 		};
 
 		void DepthThreshCallback(const Support::ParamVariant& p) noexcept;

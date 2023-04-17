@@ -196,6 +196,7 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data) noexcept
 {
 	GBuffer::CreateGBuffers(data);
+	data.GBuffPass.OnWindowResized();
 }
 
 void GBuffer::Shutdown(GBufferData& data) noexcept

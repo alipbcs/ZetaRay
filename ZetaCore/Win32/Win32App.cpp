@@ -1044,12 +1044,8 @@ namespace ZetaRay
 		// initialize camera
 		g_app->m_frameMotion.Reset();
 
-		//g_app->m_camera.Init(float3(0.0f, 1.0f, 0.0f), App::GetRenderer().GetAspectRatio(),
-		//	Math::DegreeToRadians(75.0f), 0.5f, true, float3(0.0f, 0.0f, 1.0f), false);
-		//g_app->m_camera.Init(float3(-14.181, 2.996, 2.516), App::GetRenderer().GetAspectRatio(),
-		//	Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.949f, -0.208f, 0.237f), false);
-		g_app->m_camera.Init(float3(-22.285, 3.262, 40.438), App::GetRenderer().GetAspectRatio(),
-			Math::DegreeToRadians(75.0f), 0.1f, true, float3(0.989f, -0.139f, -0.051f), false);
+		g_app->m_camera.Init(float3(-0.245, 1.322, -4.043), App::GetRenderer().GetAspectRatio(),
+			Math::DegreeToRadians(75.0f), 0.2f, true, float3(0, 0, 1), false);
 
 		// scene can now be initialized
 		g_app->m_scene.Init(rendererInterface);

@@ -170,7 +170,7 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs) noexcept
 
 	ParamVariant depthThresh;
 	depthThresh.InitFloat("Renderer", "OcclusionCulling", "DepthThresh", fastdelegate::MakeDelegate(this, &GBufferPass::DepthThreshCallback),
-		DefaultParamVals::DepthThresh,			// val	
+		m_occlusionTestDepthThresh,				// val	
 		1e-3f,									// min
 		1e-1f,									// max
 		1e-2f);									// step
@@ -483,8 +483,8 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::DEPTH_PYRAMID]);
 		m_rootSig.SetRootUAV(9, m_spdCounter.GetGpuVA());
 
-		const int width = (int)Math::NextPow2(renderer.GetRenderWidth());
-		const int height = (int)Math::NextPow2(renderer.GetRenderHeight());
+		const int width = renderer.GetRenderWidth();
+		const int height = renderer.GetRenderHeight();
 
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(width, 64);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(height, 64);
@@ -755,8 +755,8 @@ void GBufferPass::CreateDepthPyramid() noexcept
 {
 	auto& renderer = App::GetRenderer();
 
-	const int width = (int)Math::NextPow2(renderer.GetRenderWidth());
-	const int height = (int)Math::NextPow2(renderer.GetRenderHeight());
+	const int width = renderer.GetRenderWidth();
+	const int height = renderer.GetRenderHeight();
 
 	m_depthPyramidMip0DimX = width >> 1;
 	m_depthPyramidMip0DimY = height >> 1;

@@ -67,7 +67,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	float2 minPosUV = 1.xx;
 	float2 maxPosUV = 0.xx;
 	float maxZ_NDC = 0;
-	float3 nearestCorner = -FLT_MAX.xxx;
+	bool behindNearPlane = false;
 	
 	[unroll]
 	for (int i = 0; i < 8; i++)
@@ -80,19 +80,15 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		float2 uv = Math::Transform::UVFromNDC(posH.xy);
 		minPosUV = min(minPosUV, uv);
 		maxPosUV = max(maxPosUV, uv);
-		
-		if (posH.z > maxZ_NDC)
-		{
-			maxZ_NDC = posH.z;
-			nearestCorner = boxCorner;
-		}
+		behindNearPlane = behindNearPlane || (posH.w <= g_frame.CameraNear);
+		maxZ_NDC = max(maxZ_NDC, posH.z);
 	}
 	
 #if 0	
 	const float2 aabbScreen = (maxPosUV - minPosUV) * float2(g_local.DepthPyramidMip0DimX, g_local.DepthPyramidMip0DimY);
 	float mip = ceil(log2(max(aabbScreen.x, aabbScreen.y)));
 #else
-	const float2 aabbScreen = (maxPosUV - minPosUV) * float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float2 aabbScreen = floor((maxPosUV - minPosUV) * float2(g_frame.RenderWidth, g_frame.RenderHeight));
 	float mip = max(ceil(log2(max(aabbScreen.x, aabbScreen.y))) - 1, 0);
 #endif
 	
@@ -121,16 +117,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		minFootprintZ = min(minFootprintZ, sampleZ);
 	}
 
-	// attempt to handle the corner case
-#if 1
-	const float3 cameraBasisZ = float3(g_frame.CurrViewInv._m02, g_frame.CurrViewInv._m12, g_frame.CurrViewInv._m22);
-	const bool cornerCase = (dot(cameraBasisZ, normalize(nearestCorner - g_frame.CameraPos)) <= 1e-5f) && 
-		(mip >= g_local.NumDepthPyramidMips - 3);
-	const bool isVisible = (minFootprintZ <= maxZ_NDC + g_local.DepthThresh) || cornerCase;
-#else
-	bool isVisible = (minFootprintZ <= maxZ + 1e-3f);
-#endif
-	
+	const bool isVisible = (minFootprintZ <= maxZ_NDC + g_local.DepthThresh) || behindNearPlane;	
 	const bool needsDraw = !wasVisibleLastFrame && isVisible;
 	const uint numToDrawInWave = WaveActiveCountBits(needsDraw);
 	
