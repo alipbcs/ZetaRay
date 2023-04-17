@@ -184,13 +184,13 @@ void GBufferPass::Reset() noexcept
 	if (m_graphicsPso[0])
 	{
 		s_rpObjs.Clear();
-		memset(m_graphicsPso, 0, sizeof(ID3D12PipelineState*) * ZetaArrayLen(m_graphicsPso));
+		//memset(m_graphicsPso, 0, sizeof(ID3D12PipelineState*) * ZetaArrayLen(m_graphicsPso));
 	}
 
 	m_meshInstances.Reset();
 	m_indirectDrawArgs.Reset();
 	m_zeroBuffer.Reset();
-	m_maxNumDrawCallsSoFar = 0;
+	//m_maxNumDrawCallsSoFar = 0;
 	m_depthPyramid.Reset();
 	m_readbackBuff.Reset();
 	m_visibilityBuffer.Reset();

@@ -36,8 +36,7 @@ DisplayPass::DisplayPass() noexcept
 
 DisplayPass::~DisplayPass() noexcept
 {
-	if (m_pso)
-		s_rpObjs.Clear();
+	Reset();
 }
 
 void DisplayPass::Init() noexcept
@@ -95,7 +94,7 @@ void DisplayPass::Reset() noexcept
 	//App::RemoveParam("Renderer", "Display", "KeyValue");
 	//App::RemoveParam("Renderer", "Settings", "Tonemapping");
 
-	App::RemoveShaderReloadHandler("Display");
+	//App::RemoveShaderReloadHandler("Display");
 }
 
 void DisplayPass::Render(CommandList& cmdList) noexcept

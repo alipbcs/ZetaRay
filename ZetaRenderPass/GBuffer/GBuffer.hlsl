@@ -121,7 +121,7 @@ PS_OUT mainPS(VSOut psin)
 		
 	float3 baseColor = mat.BaseColorFactor.rgb;
 	float3 emissiveColor = mat.EmissiveFactor;
-	float3 shadingNormal = psin.NormalW * mat.NormalScale;
+	float3 shadingNormal = psin.NormalW;
 	float metalness = mat.MetallicFactor;
 	float roughness = mat.RoughnessFactor;
 
@@ -192,7 +192,7 @@ PS_OUT mainPS(VSOut psin)
 		float3 posV = float3(currUnjitteredPosNDC, psin.PosH.z);
 		posV.x *= g_frame.TanHalfFOV * g_frame.AspectRatio * psin.PosH.z;
 		posV.y *= g_frame.TanHalfFOV * psin.PosH.z;
-		
+	
 		if (dot(normalV, -posV) < 0)
 			shadingNormal *= -1;
 	}

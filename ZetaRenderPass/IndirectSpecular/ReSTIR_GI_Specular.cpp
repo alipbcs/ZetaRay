@@ -307,8 +307,8 @@ void ReSTIR_GI_Specular::Reset() noexcept
 			//m_spatialReservoirs[i].ReservoirC.Reset();
 		}
 
-		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-			m_psos[i] = nullptr;
+		//for (int i = 0; i < ZetaArrayLen(m_psos); i++)
+		//	m_psos[i] = nullptr;
 
 		m_descTable.Reset();
 	}

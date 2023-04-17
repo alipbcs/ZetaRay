@@ -81,15 +81,11 @@ void TAA::Reset() noexcept
 		App::RemoveParam("Renderer", "TAA", "BlendWeight");
 		App::RemoveShaderReloadHandler("TAA");
 
-	#ifdef _DEBUG
-		memset(m_inputDesc, 0, (int)SHADER_IN_DESC::COUNT * sizeof(uint32_t));
-		m_pso = nullptr;
-	#endif // _DEBUG
-
 		m_antiAliased[0].Reset();
 		m_antiAliased[1].Reset();
 
 		m_descTable.Reset();
+		m_pso = nullptr;
 	}
 }
 

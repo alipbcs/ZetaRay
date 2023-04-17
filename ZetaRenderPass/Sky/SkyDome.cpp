@@ -88,13 +88,13 @@ void SkyDome::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		App::RemoveShaderReloadHandler("SkyDome");
+		//App::RemoveShaderReloadHandler("SkyDome");
 		s_rpObjs.Clear();
 	}
 
 	m_domeIndexBuffer.Reset();
 	m_domeVertexBuffer.Reset();
-	m_pso = nullptr;
+	//m_pso = nullptr;
 }
 
 void SkyDome::Render(CommandList& cmdList) noexcept

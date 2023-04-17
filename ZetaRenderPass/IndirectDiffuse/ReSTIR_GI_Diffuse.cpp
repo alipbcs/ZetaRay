@@ -219,8 +219,8 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal");
-		App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial");
+		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal");
+		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial");
 		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Validation");
 		s_rpObjs.Clear();
 		
@@ -235,8 +235,8 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 			m_temporalCache[i].Reset();
 		}
 
-		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-			m_psos[i] = nullptr;
+		//for (int i = 0; i < ZetaArrayLen(m_psos); i++)
+		//	m_psos[i] = nullptr;
 
 		m_descTable.Reset();
 	}

@@ -123,7 +123,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	// attempt to handle the corner case
 #if 1
-	const float3 cameraBasisZ = float3(g_frame.CurrView._m02, g_frame.CurrView._m12, g_frame.CurrView._m22);
+	const float3 cameraBasisZ = float3(g_frame.CurrViewInv._m02, g_frame.CurrViewInv._m12, g_frame.CurrViewInv._m22);
 	const bool cornerCase = (dot(cameraBasisZ, normalize(nearestCorner - g_frame.CameraPos)) <= 1e-5f) && 
 		(mip >= g_local.NumDepthPyramidMips - 3);
 	const bool isVisible = (minFootprintZ <= maxZ_NDC + g_local.DepthThresh) || cornerCase;

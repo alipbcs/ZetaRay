@@ -86,7 +86,7 @@ void Sky::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		App::RemoveShaderReloadHandler("SkyViewLUT");
+		//App::RemoveShaderReloadHandler("SkyViewLUT");
 		s_rpObjs.Clear();
 
 		m_descTable.Reset();
