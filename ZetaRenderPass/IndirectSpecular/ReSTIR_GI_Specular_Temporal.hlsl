@@ -612,13 +612,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	}
 	
 	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
-	float k = g_curvature[swizzledDTid.xy];
-	k = (k > 1e-3) * pow((1 + linearDepth) / linearDepth, 4);
+	float localCurvature = g_curvature[swizzledDTid.xy];
+	float adjustedLocalCurvature = (localCurvature > 1e-3) * pow((1 + linearDepth) / linearDepth, 4);
 	// having a nonzero curvature for flat surfaces helps with reducing temporal artifacts
-	k = max(0.02, k);
+	adjustedLocalCurvature = max(0.02, adjustedLocalCurvature);
 		
 #if USE_RAY_CONES
-	const float phi = RAY_CONE_K1 * k + RAY_CONE_K2;
+	const float phi = RAY_CONE_K1 * localCurvature + RAY_CONE_K2;
 	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, phi, linearDepth);
 #else
 	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, 0, linearDepth);
@@ -637,7 +637,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,
-		baseColor, mr.x, mr.y, traceThisFrame, k, rng);
+		baseColor, mr.x, mr.y, traceThisFrame, adjustedLocalCurvature, rng);
 		
 	RGI_Spec_Util::WriteReservoir(swizzledDTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx,
