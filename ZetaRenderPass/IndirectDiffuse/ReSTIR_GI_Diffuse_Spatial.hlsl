@@ -9,8 +9,8 @@
 // following two have a noticeable impact on both quality and performance -- lower
 // values can lead to low-frequency noise but is more cache friendly, whereas
 // higher values lead to cache thrashing but get rid of the noise
-#define SAMPLE_RADIUS_1ST 28
-#define SAMPLE_RADIUS_2ND 16
+#define SAMPLE_RADIUS_1ST 44
+#define SAMPLE_RADIUS_2ND 12
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
 

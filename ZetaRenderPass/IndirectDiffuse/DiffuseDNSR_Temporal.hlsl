@@ -4,7 +4,7 @@
 #include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.08f
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -40,8 +40,8 @@ float4 GeometricTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, fl
 	
 	return weights;
 }
-/*
-float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
+
+float4 NormalTest(float3 prevNormals[4], float3 currNormal)
 {
 	float4 weights = float4(dot(prevNormals[0], currNormal),
 	                        dot(prevNormals[1], currNormal),
@@ -49,12 +49,11 @@ float4 ComputeNormalConsistency(float3 prevNormals[4], float3 currNormal)
 	                        dot(prevNormals[3], currNormal));
 
 	// adjust tolerance of difference; scale > 1 causes tests to be less stringent and vice versa
-	weights = saturate(g_local.BilinearNormalScale * weights);
-	weights = pow(weights, g_local.BilinearNormalExp);
+	weights = saturate(1 * weights);
+	weights = pow(weights, 8);
 	
 	return weights;
 }
-*/
 
 // resample history using a 2x2 bilinear filter with custom weights
 void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
@@ -83,23 +82,21 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / screenDim;
 		
-	/*
 	// previous frame's normals
 	GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 
 	// w (0, 0)		z (1,0)
 	// x (0, 1)		y (1, 1)
-	const float4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	const half4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+	const half4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	float3 prevNormals[4];
 			
-	prevNormals[0] = DecodeUnitNormal(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 		
-	const float4 normalWeights = ComputeNormalConsistency(prevNormals, currNormal);
-	*/
+	const float4 normalWeights = NormalTest(prevNormals, currNormal);
 	
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -124,13 +121,13 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
 	
-	//float4 weights = geoWeights * normalWeights * bilinearWeights * isInBounds;
-	float4 weights = geoWeights * bilinearWeights * isInBounds;
+	float4 weights = geoWeights * normalWeights * bilinearWeights * isInBounds;
+	//float4 weights = geoWeights * bilinearWeights * isInBounds;
 	// zero out samples with very low weights to avoid bright spots
 	weights *= weights > 1e-3f;
 	const float weightSum = dot(1.0f, weights);
 
-	if (1e-6f < weightSum)
+	if (1e-4f < weightSum)
 	{
 		// uniformly distribute the weight over the consistent samples
 		weights *= rcp(weightSum);
