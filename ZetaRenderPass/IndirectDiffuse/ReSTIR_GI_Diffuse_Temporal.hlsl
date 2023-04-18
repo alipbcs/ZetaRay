@@ -13,7 +13,6 @@
 #define NUM_BINS 8
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
-#define COSINE_WEIGHTED_SAMPLING 0
 #define USE_RAY_CONES 0
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 #define RAY_OFFSET_VIEW_DIST_START 30.0
@@ -99,59 +98,6 @@ uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
 float2 SignNotZero(float2 v)
 {
 	return float2((v.x >= 0.0) ? 1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
-}
-
-float3 LoadNormalSM(int2 GTid)
-{
-	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
-	uint v = asuint(g_sortedOrigin[Gidx].x);
-
-	half2 encoded = half2(asfloat16(uint16_t(v.x & 0xff)), asfloat16(uint16_t(v.x >> 16)));
-	return Math::Encoding::DecodeUnitNormal(encoded);
-}
-
-float LoadLinearDepthSM(int2 GTid)
-{
-	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
-	return g_sortedOrigin[Gidx].y;
-}
-
-float3 LoadPosSM(int2 GTid)
-{
-	int Gidx = GTid.y * RGI_DIFF_TEMPORAL_GROUP_DIM_X + GTid.x;
-	return g_sortedDir[Gidx].y;
-}
-
-// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
-// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
-// Ray Tracing Gems 1, 2019.
-float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 GTid, bool isValid)
-{
-	if (!isValid)
-		return 0.0f;
-	
-	const float depthX = (GTid.x & 0x1) == 0 ? LoadLinearDepthSM(int2(GTid.x + 1, GTid.y)) : LoadLinearDepthSM(int2(GTid.x - 1, GTid.y));
-	const float depthY = (GTid.x & 0x1) == 0 ? LoadLinearDepthSM(int2(GTid.x, GTid.y + 1)) : LoadLinearDepthSM(int2(GTid.x, GTid.y - 1));
-	
-	const float maxDepthDiscontinuity = 0.005f;
-	const bool invalidX = abs(linearDepth - depthX) >= maxDepthDiscontinuity * linearDepth;
-	const bool invalidY = abs(linearDepth - depthY) >= maxDepthDiscontinuity * linearDepth;
-	
-	const float3 normalX = (GTid.x & 0x1) == 0 ? LoadNormalSM(int2(GTid.x + 1, GTid.y)) : LoadNormalSM(int2(GTid.x - 1, GTid.y));
-	const float3 normalY = (GTid.y & 0x1) == 0 ? LoadNormalSM(int2(GTid.x, GTid.y + 1)) : LoadNormalSM(int2(GTid.x, GTid.y - 1));
-	const float3 normalddx = (GTid.x & 0x1) == 0 ? normalX - normal : normal - normalX;
-	const float3 normalddy = (GTid.y & 0x1) == 0 ? normalY - normal : normal - normalY;
-
-	const float3 posX = (GTid.x & 0x1) == 0 ? LoadPosSM(int2(GTid.x + 1, GTid.y)) : LoadPosSM(int2(GTid.x - 1, GTid.y));
-	const float3 posY = (GTid.y & 0x1) == 0 ? LoadPosSM(int2(GTid.x, GTid.y + 1)) : LoadPosSM(int2(GTid.x, GTid.y - 1));
-	const float3 posddx = (GTid.x & 0x1) == 0 ? posX - pos : pos - posX;
-	const float3 posddy = (GTid.y & 0x1) == 0 ? posY - pos : pos - posY;
-	
-	const float phi = sqrt((invalidX ? 0 : dot(normalddx, normalddx)) + (invalidY ? 0 : dot(normalddy, normalddy)));
-	const float s = sign((invalidX ? 0 : dot(posddx, normalddx)) + (invalidY ? 0 : dot(posddy, normalddy)));
-	const float k = 2.0f * phi * s;
-	
-	return k;
 }
 
 // wi is assumed to be normalized
@@ -368,16 +314,15 @@ bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSur
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
 	float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.ShadingNormal);
-	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
-	
 	const uint byteOffset = hitInfo.MatID * sizeof(Material);
 	const Material mat = g_materials.Load<Material>(byteOffset);
+
+	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);	
 	float3 L_o = 0.0.xxx;
 
 	if (isUnoccluded)
 	{
-
-		half3 baseColor = (half3) mat.BaseColorFactor.rgb;
+		float3 baseColor = mat.BaseColorFactor.rgb;
 		if (mat.BaseColorTexture != -1)
 		{
 			uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
@@ -385,12 +330,11 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			float mip = g_frame.MipBias;
 		
 #if USE_RAY_CONES
-		uint w;
-		uint h;
-		g_baseCol.GetDimensions(w, h);
-		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
-#endif	
-		
+			uint w;
+			uint h;
+			g_baseCol.GetDimensions(w, h);
+			mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif			
 			baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 		}
 
@@ -402,12 +346,11 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			float mip = g_frame.MipBias;
 
 #if USE_RAY_CONES
-		uint w;
-		uint h;
-		g_metalnessRoughnessMap.GetDimensions(w, h);
-		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
-#endif			
-		
+			uint w;
+			uint h;
+			g_metalnessRoughnessMap.GetDimensions(w, h);
+			mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif				
 			metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).r;
 		}
 
@@ -445,7 +388,6 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		g_emissiveMap.GetDimensions(w, h);
 		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
 #endif	
-		
 		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
 

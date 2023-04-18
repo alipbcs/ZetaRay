@@ -281,55 +281,81 @@ bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out boo
 float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
 	float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.ShadingNormal);
-
-	if (!EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal))
-		return 0.0.xxx;
-
 	const uint byteOffset = hitInfo.MatID * sizeof(Material);
-	const Material mat = g_materials.Load<Material>(byteOffset);
+	const Material mat = g_materials.Load < Material > (byteOffset);
 
-	float3 baseColor = mat.BaseColorFactor.rgb;
-	if (mat.BaseColorTexture != -1)
+	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
+	float3 L_o = 0.0.xxx;
+
+	if (isUnoccluded)
 	{
-		uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
-		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
-		baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).rgb;
-	}
+		float3 baseColor = mat.BaseColorFactor.rgb;
+		if (mat.BaseColorTexture != -1)
+		{
+			uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
+			BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
+			float mip = g_frame.MipBias;
+		
+#if USE_RAY_CONES
+			uint w;
+			uint h;
+			g_baseCol.GetDimensions(w, h);
+			mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif			
+			baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
+		}
 
-	float metalness = mat.MetallicFactor;
-	if (mat.MetalnessRoughnessTexture != -1)
-	{
-		uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
-		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
-		metalness *= g_metallicRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).r;
-	}
+		float metalness = mat.MetallicFactor;
+		if (mat.MetalnessRoughnessTexture != -1)
+		{
+			uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
+			METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
+			float mip = g_frame.MipBias;
 
-	float ndotWi = saturate(dot(normal, -g_frame.SunDir));
+#if USE_RAY_CONES
+			uint w;
+			uint h;
+			g_metalnessRoughnessMap.GetDimensions(w, h);
+			mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif				
+			metalness *= g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).r;
+		}
 
-	// assume the surface is Lambertian
-	float3 diffuseReflectance = baseColor * (1.0f - metalness);
-	float3 brdf = BRDF::LambertianBRDF(diffuseReflectance, ndotWi);
+		float ndotWi = saturate(dot(normal, -g_frame.SunDir));
 
-	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
-	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
-	const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
+		// assume the surface is Lambertian
+		float3 diffuseReflectance = baseColor * (1.0f - metalness);
+		float3 brdf = BRDF::LambertianBRDF(diffuseReflectance, ndotWi);
 
-	float3 posW = hitInfo.Pos;
-	posW.y += g_frame.PlanetRadius;
+		const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
+		const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
+		const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
+
+		float3 posW = hitInfo.Pos;
+		posW.y += g_frame.PlanetRadius;
 	
-	float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
-	float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
-		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
+		float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
+		sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 	
-	float3 L_o = brdf * tr * g_frame.SunIlluminance;
+		L_o = brdf * tr * g_frame.SunIlluminance;
+	}
+	
 	float3 L_e = mat.EmissiveFactor;
 
 	if (mat.EmissiveTexture != -1)
 	{
 		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);
-		
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, 0.0f).rgb;
+		float mip = g_frame.MipBias;
+
+#if USE_RAY_CONES
+		uint w;
+		uint h;
+		g_emissiveMap.GetDimensions(w, h);
+		mip += g_frame.MipBias + RT::RayCone::TextureMipmapOffset(hitInfo.Lambda, w, h);
+#endif	
+		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
 
 	return L_o + L_e;
