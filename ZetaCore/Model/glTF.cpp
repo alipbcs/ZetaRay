@@ -617,25 +617,22 @@ namespace
 }
 
 // TODO change the relative path
-void glTF::Load(const char* modelRelPath) noexcept
+void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 {
-	Filesystem::Path jsonPath(App::GetAssetDir());
-	jsonPath.Append(modelRelPath);
-
 	// parse json
 	cgltf_options options{};
 	cgltf_data* model = nullptr;
-	Checkgltf(cgltf_parse_file(&options, jsonPath.Get(), &model));
+	Checkgltf(cgltf_parse_file(&options, pathToglTF.Get(), &model));
 
 	// load buffers
 	Check(model->buffers_count == 1, "invalid number of buffers");
-	Filesystem::Path bufferPath(jsonPath.Get());
+	Filesystem::Path bufferPath(pathToglTF.Get());
 	bufferPath.Directory();
 	bufferPath.Append(model->buffers[0].uri);
 	Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
-	Check(model->scene, "no scene found in glTF file: %s.", jsonPath.Get());
-	const uint64_t sceneID = XXH3_64bits(jsonPath.Get(), jsonPath.Length());
+	Check(model->scene, "no scene found in glTF file: %s.", pathToglTF.Get());
+	const uint64_t sceneID = XXH3_64bits(pathToglTF.Get(), pathToglTF.Length());
 	SceneCore& scene = App::GetScene();
 
 	// one mesh for each primitive
@@ -734,9 +731,9 @@ void glTF::Load(const char* modelRelPath) noexcept
 		StackStr(tname, n, "gltf::ProcessImg_%d", i);
 		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index/");
 
-		imgTasks[i] = ts.EmplaceTask(tname, [&modelRelPath, &ddsImages, &tc, rangeIdx = i]()
+		imgTasks[i] = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
 			{
-				Filesystem::Path parent(modelRelPath);
+				Filesystem::Path parent(pathToglTF.Get());
 				parent.ToParent();
 
 				LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
@@ -759,9 +756,9 @@ void glTF::Load(const char* modelRelPath) noexcept
 	{
 		StackStr(tname, n, "gltf::ProcessMats_%d", i);
 
-		auto h = ts.EmplaceTask(tname, [&modelRelPath, &ddsImages, &tc, rangeIdx = i]()
+		auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
 			{
-				Filesystem::Path parent(modelRelPath);
+				Filesystem::Path parent(pathToglTF.Get());
 				parent.ToParent();
 
 				ProcessMaterials(tc.SceneID, parent, *tc.Model, (int)tc.MatThreadOffsets[rangeIdx], (int)tc.MatThreadSizes[rangeIdx], ddsImages);

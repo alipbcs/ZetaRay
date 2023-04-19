@@ -7,6 +7,7 @@
 #include <Scene/SceneCore.h>
 #include <Model/glTF.h>
 #include <Default/DefaultRenderer.h>
+#include <App/Filesystem.h>
 
 #ifdef _DEBUG
 #include <fcntl.h>
@@ -26,7 +27,7 @@ extern "C"
     _declspec(dllexport) extern const char8_t* D3D12SDKPath = u8".\\D3D12\\";
 }
 
-int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ LPWSTR lpCmdLine, _In_ int nCmdShow)
+int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PSTR lpCmdLine, _In_ int nCmdShow)
 {
 #ifdef _DEBUG
     AllocConsole();
@@ -36,36 +37,34 @@ int WINAPI wWinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, 
     freopen_s(&fp, "CONOUT$", "w", stdout);
 #endif // _DEBUG
 
-    App::DeltaTimer timer;
-    timer.Start();
-    
-    auto rndIntrf = DefaultRenderer::InitAndGetInterface();
-    App::Init(rndIntrf);
+    Check(strlen(lpCmdLine), "Usage: ZetaLab <path-to-gltf>\n");
 
-    timer.End();
+    {
+        App::Filesystem::Path path(App::GetAssetDir());
+        path.Append(lpCmdLine);
+        Check(App::Filesystem::Exists(path.Get()), "Provided path was not found: %s\nExiting...\n", lpCmdLine);
 
-    LOG_UI(INFO, "App initialization completed in %u[ms]\n", (uint32_t)timer.DeltaMilli());
+        App::DeltaTimer timer;
+        timer.Start();
 
-    // load the gltf model(s)
-    timer.Start();
+        auto rndIntrf = DefaultRenderer::InitAndGetInterface();
+        App::Init(rndIntrf);
 
-    //const char* p = "sponza_v10\\sponza_v10.gltf";
-    //const char* p = "CornellBox_v2\\cornell9.gltf";
-    //const char* p = "bistro_v6\\bistro_v6.gltf";
-    //const char* p = "san_miguel\\san_miguel_v3.gltf";
-    const char* p = "refl_dbg2\\refl_dbg3.gltf";
-    Model::glTF::Load(p);
+        timer.End();
 
-    //const char* p = "sponza_new\\sponza_new.gltf";
-    //const char* p1 = "PKG_A_Curtains\\NewSponza_Curtains_glTF.gltf";
-    //Model::glTF::Load(p);
-    //Model::glTF::Load(p1);
+        LOG_UI(INFO, "App initialization completed in %u[ms]\n", (uint32_t)timer.DeltaMilli());
 
-    App::FlushWorkerThreadPool();
+        // load the gltf model(s)
+        timer.Start();
 
-    timer.End();
+        Model::glTF::Load(path);
 
-    LOG_UI(INFO, "gltf model(s) loaded in %u[ms]\n", (uint32_t)timer.DeltaMilli());
+        App::FlushWorkerThreadPool();
+
+        timer.End();
+
+        LOG_UI(INFO, "gltf model(s) loaded in %u[ms]\n", (uint32_t)timer.DeltaMilli());
+    }
 
     int ret = App::Run();
 
