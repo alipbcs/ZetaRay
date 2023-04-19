@@ -135,11 +135,10 @@ PS_OUT mainPS(VSOut psin)
 		baseColor *= baseColorSample.rgb;
 	}
 	// [hack]
-//	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
-//	{
-//		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
-//		baseColor.w = 1.0h;
-//	}
+	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
+	{
+		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
+	}
 
 	// avoid normal mapping if tangent = (0, 0, 0), which results in NaN
 	if (mat.NormalTexture != -1 && abs(dot(psin.TangentW, psin.TangentW)) > 1e-6)

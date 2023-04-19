@@ -468,19 +468,19 @@ void GuiPass::RenderSettings() noexcept
 		ImGuiCond_Always);
 
 	//if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
-	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		InfoTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		CameraTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_None))
 	{
 		ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
 		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))

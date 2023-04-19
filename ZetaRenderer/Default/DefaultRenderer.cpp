@@ -218,7 +218,8 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
 		g_data->m_frameConstants.RayOffset = 3e-2f;
 
-		g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
+		//g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
+		g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
 		//g_data->m_frameConstants.SunDir = float3(0.6169695854187012, -0.6370740532875061, -0.4620445668697357);
 		g_data->m_frameConstants.SunDir.normalize();
 		//g_data->m_frameConstants.SunIlluminance = 50.0f;

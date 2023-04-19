@@ -92,7 +92,7 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
-		float m_cameraAcceleration = 100.0f;
+		float m_cameraAcceleration = 40.0f;
 
 		Timer m_timer;
 		RendererCore m_renderer;
