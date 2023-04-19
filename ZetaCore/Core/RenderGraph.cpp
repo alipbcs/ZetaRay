@@ -718,7 +718,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 			// if there's an async. compute task in this batch that has unsupported barriers,
 			// then that task's going to sync with the direct queue immediately before execution,
 			// which supersedes any other gpu fence in that batch
-			bool gpuFenceSuperfluous = !asyncComputeNodes.empty() && m_aggregateNodes.back().HasUnsupportedBarrier;
+			const bool gpuFenceSuperfluous = !asyncComputeNodes.empty() && m_aggregateNodes.back().HasUnsupportedBarrier;
 			bool hasGpuFence = false;
 
 			for (auto n : nonAsyncComputeNodes)
@@ -728,8 +728,21 @@ void RenderGraph::JoinRenderNodes() noexcept
 					break;
 			}
 
-			if (!hasGpuFence || !gpuFenceSuperfluous)
-				m_aggregateNodes.emplace_back(false);
+			// following was wrong, it seems (!!) the intention was to join (non-async) nodes from
+			// this batch with the previous non-async aggregate node (from the last batch), when there isn't 
+			// a gpu dependency, but failed to consider the case that the last aggregate node is an async compute one
+			// from the CURRENT batch. 
+			// 
+			//if (!hasGpuFence || !gpuFenceSuperfluous)
+				//m_aggregateNodes.emplace_back(false);
+			// 
+			// Correct if condition could be
+			//if (!hasGpuFence || !gpuFenceSuperfluous && asyncComputeNodes.empty())
+			// 
+			// but joining nodes from different batches requires more thought. Also the false condition 
+			// had never been triggered (a new aggreagae was always emplaced)
+
+			m_aggregateNodes.emplace_back(false);
 
 			for (auto n : nonAsyncComputeNodes)
 			{
