@@ -49,7 +49,7 @@ namespace ZetaRay::DefaultRenderer
 		bool Inscattering = false;
 		bool DoF = false;
 		// Note match with default PendingAA
-		Settings::AA AntiAliasing = Settings::AA::NATIVE;
+		Settings::AA AntiAliasing = Settings::AA::NATIVE_TAA;
 	};
 
 	struct alignas(64) GBufferData
@@ -217,7 +217,7 @@ namespace ZetaRay::DefaultRenderer
 		RayTracerData m_raytracerData;
 
 		// Note match with default RenderSettings
-		Settings::AA PendingAA = Settings::AA::NATIVE;
+		Settings::AA PendingAA = Settings::AA::NATIVE_TAA;
 	};
 
 	struct Defaults
