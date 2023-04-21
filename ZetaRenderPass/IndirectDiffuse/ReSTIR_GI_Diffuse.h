@@ -181,10 +181,14 @@ namespace ZetaRay::RenderPass
 		struct DefaultParamVals
 		{
 			static constexpr float RGINormalExp = 1.5f;
-			static constexpr float EdgeStoppingNormalExp = 2.0f;
+			static constexpr float EdgeStoppingNormalExp = 8.0f;
+			static constexpr int RGIMinSpatialRadius = 15;
+			static constexpr int RGIMaxSpatialRadius = 42;
 			static constexpr int ValidationPeriod = 5;
 			static constexpr int DNSRNumSpatialPasses = 1;
 			static constexpr int DNSRMaxTSPP = 32;
+			static constexpr int DNSRMinFilterRadius = 12;
+			static constexpr int DNSRMaxFilterRadius = 64;
 		};
 
 		cb_RGI_Diff_Temporal m_cbRGITemporal;
@@ -202,10 +206,14 @@ namespace ZetaRay::RenderPass
 		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
 		void ValidationPeriodCallback(const Support::ParamVariant& p) noexcept;
 		void RGINormalExpCallback(const Support::ParamVariant& p) noexcept;
+		void RGIMinRadiusCallback(const Support::ParamVariant& p) noexcept;
+		void RGIMaxRadiusCallback(const Support::ParamVariant& p) noexcept;
 		void CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept;
 		void DNSRNumSpatialPassesCallback(const Support::ParamVariant& p) noexcept;
 		void DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept;
 		void DNSRNormalExpCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRMinFilterRadiusCallback(const Support::ParamVariant& p) noexcept;
+		void DNSRMaxFilterRadiusCallback(const Support::ParamVariant& p) noexcept;
 
 		enum class SHADERS
 		{

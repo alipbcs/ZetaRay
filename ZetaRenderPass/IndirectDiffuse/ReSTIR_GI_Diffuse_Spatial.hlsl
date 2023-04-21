@@ -6,12 +6,6 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
-// following two have a noticeable impact on both quality and performance -- lower
-// values can lead to low-frequency noise but is more cache friendly, whereas
-// higher values lead to cache thrashing but get rid of the noise
-#define SAMPLE_RADIUS_1ST 44
-#define SAMPLE_RADIUS_2ND 12
-
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
 
 static const float2 k_halton[16] =
@@ -114,7 +108,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
 	const float biasToleranceScale = max(1 - mScale, 0.2f);
-	const float searchRadius = g_local.IsFirstPass ? SAMPLE_RADIUS_1ST : SAMPLE_RADIUS_2ND;
+	const float searchRadius = g_local.IsFirstPass ? g_local.Radius1st : g_local.Radius2nd;
 	
 	const float u0 = rng.RandUniform();
 	const float theta = u0 * TWO_PI;
