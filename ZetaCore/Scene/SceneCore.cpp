@@ -110,8 +110,11 @@ void SceneCore::Init(Renderer::Interface& rendererInterface) noexcept
 
 	CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
-	//m_sceneRenderer.Init();
 	m_rendererInterface.Init();
+
+	// allocate a slot for the default material
+	Material defaultMat;
+	m_matBuffer.Add(DEFAULT_MATERIAL, defaultMat);
 }
 
 void SceneCore::OnWindowSizeChanged() noexcept
@@ -237,7 +240,7 @@ void SceneCore::ReserveMeshData(size_t numVertices, size_t numIndices) noexcept
 void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexcept
 {
 	const uint64_t meshFromSceneID = MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
-	const uint64_t matFromSceneID = MaterialID(sceneID, mesh.MaterialIdx);
+	const uint64_t matFromSceneID = mesh.MaterialIdx != -1 ? MaterialID(sceneID, mesh.MaterialIdx) : DEFAULT_MATERIAL;
 
 	AcquireSRWLockExclusive(&m_meshLock);
 
@@ -252,6 +255,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
+	Check(matFromSceneID != DEFAULT_MATERIAL, "This material ID is reserved.");
 
 	Material mat;
 	mat.BaseColorFactor = half4(matDesc.BaseColorFactor);
@@ -267,8 +271,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	{
 		int idx = FindImage(ID, 0, (int)ddsImages.size(), ddsImages);
 		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
-			
-		Assert(ddsImages[idx].T.IsInitialized(), "Texture hasn't been initialized.");
+
 		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
 	};
 
@@ -335,8 +338,6 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 
 	AcquireSRWLockExclusive(&m_instanceLock);
 
-	//m_sceneMetadata[sceneID].Instances.push_back(instanceID);
-
 	if (instance.RtMeshMode == RT_MESH_MODE::STATIC)
 	{
 		m_numStaticInstances++;
@@ -352,7 +353,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	if (instance.ParentID != ROOT_ID)
 	{
 		TreePos* p = FindTreePosFromID(instance.ParentID);
-		Assert(p, "instance with ID %llu was not found in the scene-graph.", instance.ParentID);
+		Assert(p, "instance with ID %llu was not found in the scene graph.", instance.ParentID);
 
 		treeLevel = p->Level + 1;
 		parentIdx = p->Offset;
@@ -372,7 +373,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		{
 			uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
 			TreePos* p = m_IDtoTreePos.find(insID);
-			Assert(p, "instance with ID %llu was not found in the scene-graph.", insID);
+			Assert(p, "instance with ID %llu was not found in the scene graph.", insID);
 
 			// shift the tree poistion to right
 			p->Offset++;
@@ -396,11 +397,14 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
 	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept
 {
+	while(treeLevel >= m_sceneGraph.size())
+		m_sceneGraph.emplace_back(m_memoryPool);
+
 	auto& parentLevel = m_sceneGraph[treeLevel - 1];
 	auto& currLevel = m_sceneGraph[treeLevel];
 	auto& parentRange = parentLevel.m_subtreeRanges[parentIdx];
 
-	// position to insert at is right next to parent's rightmost child
+	// insert position is right next to parent's rightmost child
 	const int insertIdx = parentRange.Base + parentRange.Count;
 
 	// increment parent's children count
@@ -408,35 +412,26 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 
 	// append it to the end, then keep swapping it back until it's at insertIdx
 	auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-	(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
-	{
-		vec.emplace_back(T(ZetaForward(args)...));
-		for (int i = (int)vec.size() - 1; i != insertIdx; --i)
-			std::swap(vec[i], vec[i - 1]);
-	};
+		(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
+		{
+			vec.emplace_back(T(ZetaForward(args)...));
 
-	//float4a s;
-	//float4a q;
-	//float4a t;
-	//decomposeAffine(v_float4x4(localTransform), s, q, t);
-	//AffineTransformation affine{ 
-	//	.Scale = float3(s.x, s.y, s.z), 
-	//	.RotQuat = float4(q.x, q.y, q.z, q.w), 
-	//	.Translation = float3(t.x, t.y, t.z)};
+			for (int i = (int)vec.size() - 1; i != insertIdx; --i)
+				std::swap(vec[i], vec[i - 1]);
+		};
 
-	// TODO check whether m_toWorlds needs to be included
 	float4x3 I = float4x3(store(identity()));
 
 	rearrange(currLevel.m_IDs, insertIdx, id);
 	rearrange(currLevel.m_localTransforms, insertIdx, localTransform);
 	rearrange(currLevel.m_toWorlds, insertIdx, I);
 	rearrange(currLevel.m_meshIDs, insertIdx, meshID);
-	rearrange(currLevel.m_subtreeRanges, insertIdx, 0, 0);
-	rearrange(currLevel.m_parendIndices, insertIdx, parentIdx);
+	const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
+	rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
 	// set rebuild flag to true for any instance that is added for the first time
 	rearrange(currLevel.m_rtFlags, insertIdx, SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0));
 
-	// shift base offset of all the parent's right-siblings to right by one
+	// shift base offset of parent's right siblings to right by one
 	for (int siblingIdx = parentIdx + 1; siblingIdx != parentLevel.m_subtreeRanges.size(); siblingIdx++)
 		parentLevel.m_subtreeRanges[siblingIdx].Base++;
 

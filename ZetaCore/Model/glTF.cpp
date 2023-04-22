@@ -273,10 +273,7 @@ namespace
 						Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, false);
 				}
 
-				const int matIdx = (int)(prim.material - model.materials);
-				Assert(matIdx < model.materials_count, "invalid material index.");
-
-				subset.MaterialIdx = matIdx;
+				subset.MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1;
 				scene.AddMesh(sceneID, ZetaMove(subset));
 			}
 		}
@@ -554,10 +551,7 @@ namespace
 			{
 				const cgltf_primitive& meshPrim = mesh.primitives[primIdx];
 
-				Check(meshPrim.material, "Following mesh doesn't have any materials assigned to it: %s (#primitive %d)",
-					instance.Name, meshIdx);
-
-				uint8_t rtInsMask = meshPrim.material->emissive_texture.texture ?
+				uint8_t rtInsMask = meshPrim.material && meshPrim.material->emissive_texture.texture ?
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
 				glTF::Asset::InstanceDesc desc{
@@ -623,6 +617,8 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 	cgltf_options options{};
 	cgltf_data* model = nullptr;
 	Checkgltf(cgltf_parse_file(&options, pathToglTF.Get(), &model));
+
+	Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
 	// load buffers
 	Check(model->buffers_count == 1, "invalid number of buffers");

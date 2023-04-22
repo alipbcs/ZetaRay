@@ -44,6 +44,8 @@ uint32_t TexSRVDescriptorTable::Add(Core::Texture&& tex, uint64_t id) noexcept
 		return offset;
 	}
 
+	Assert(tex.IsInitialized(), "Texture hasn't been initialized.");
+
 	// find the first free slot in the table
 	DWORD freeSlot = DWORD(-1);
 	int i = 0;

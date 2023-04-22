@@ -170,6 +170,7 @@ namespace ZetaRay::Scene
 		static constexpr uint32_t NORMAL_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t METALNESS_ROUGHNESS_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t EMISSIVE_DESC_TABLE_SIZE = 64;
+		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
 
 		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
 		// by order of declaration and destroyed in reverse order"
@@ -228,7 +229,6 @@ namespace ZetaRay::Scene
 				m_toWorlds(mp),
 				m_meshIDs(mp),
 				m_subtreeRanges(mp),
-				m_parendIndices(mp),
 				m_rtFlags(mp)
 			{}
 
@@ -237,7 +237,6 @@ namespace ZetaRay::Scene
 			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_toWorlds;
 			Util::SmallVector<uint64_t, Support::PoolAllocator> m_meshIDs;
 			Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;
-			Util::SmallVector<int, Support::PoolAllocator> m_parendIndices;
 			// first six bits encode MeshInstanceFlags, last two bits indicate RT_MESH_MODE
 			Util::SmallVector<uint8_t, Support::PoolAllocator> m_rtFlags;
 		};
