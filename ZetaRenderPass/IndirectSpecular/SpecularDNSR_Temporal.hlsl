@@ -113,7 +113,6 @@ float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float alpha)
 	float scale = alpha / (1.0 + alpha);
 	float tolerance = 0.08726646 + 0.27925268 * scale; // == [5.0, 16.0] degrees 
 	float4 weight = saturate((tolerance - angle) / tolerance);
-	//weight *= weight;
 	
 	return weight;
 }
@@ -134,7 +133,7 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
+void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
 	BRDF::SurfaceInteraction surface, float3 samplePos, float curvature, out float tspp, out float3 color, out float prevLinearDepth, 
 	out float2 prevUV)
 {
@@ -156,7 +155,7 @@ void SampleTemporalCache_Surface(uint2 DTid, float3 posW, float3 normal, float l
 	float2 prevVirtualUV = RGI_Spec_Util::VirtualMotionReproject(posW, roughness, surface, currRayT, curvature,
 		linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, relectionRayT);
 
-	prevUV = roughness < g_local.MinRoughnessResample ? prevVirtualUV : prevSurfaceUV;
+	prevUV = roughness < 0.1f ? prevVirtualUV : prevSurfaceUV;
 	
 	//	p0-----------p1
 	//	|-------------|
@@ -273,8 +272,8 @@ float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float 
 	const float3 signal = r.EvaluateRISEstimate();
 	const float maxTspp = roughness >= g_local.MinRoughnessResample ? 
 		g_local.MaxTSPP : 
-		smoothstep(0, 1, roughness / g_local.MinRoughnessResample) * 3;
-	float currTspp = clamp((1 - f) * maxTspp, 1, maxTspp);
+		smoothstep(0, 1, roughness / g_local.MinRoughnessResample) * 6;
+	float currTspp = clamp((1 - f) * maxTspp, 0, maxTspp);
 	float3 currColor = lerp(surfaceColor, signal, 1.0f / (1.0f + currTspp));
 	
 	return float4(currColor, currTspp);
@@ -342,14 +341,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	surface.InitComplete(wi, 0.0.xxx, mr.x);
 
 	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
-	const float k = g_curvature[DTid.xy];
+	const float localCurvature = g_curvature[DTid.xy];
 
 	float3 color;
 	float prevLinearDepth;
 	float tspp;
 	float2 prevUV;
-	SampleTemporalCache_Surface(DTid.xy, posW, normal, linearDepth, uv, mr.y, surface, r.SamplePos, 
-		k, tspp, color, prevLinearDepth, prevUV);
+	SampleTemporalCache(DTid.xy, posW, normal, linearDepth, uv, mr.y, surface, r.SamplePos, 
+		localCurvature, tspp, color, prevLinearDepth, prevUV);
 
 	float4 integrated = Integrate(DTid.xy, GTid.xy, r, posW, linearDepth, mr.y, surface, tspp, color, 
 		prevLinearDepth, prevUV);

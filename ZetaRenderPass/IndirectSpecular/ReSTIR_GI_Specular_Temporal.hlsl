@@ -394,7 +394,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	if (tracedThisFrame)
 	{
 		const float3 brdfCosthetaDivPdf = BRDF::SpecularBRDFGGXSmithDivPdf(surface);
-		const float3 brdfCostheta = BRDF::SpecularBRDFGGXSmith(surface);
+		const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface);
 		
 		// target = Li(-wi) * BRDF(wi, wo) * |ndotwi|
 		// source = Pdf(wi)

@@ -281,6 +281,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+	surface.diffuseReflectance = baseColor * (1.0f - mr.x);
 		
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
 	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, mr.y, mr.x, r, rng);
