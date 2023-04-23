@@ -1,9 +1,25 @@
+# build files
 /.vs
 /.vscode
-docs/
 build/
 bin/
-External/
+
+# assets
+Assets/*
+!Assets/CornellBox
+!Assets/Font
+!Assets/LUT
+!Assets/Samplers
+
+# external libs
+External/*
+!External/concurrentqueue
+!External/FastDelegate
+!External/FSR2
+!External/ImGui
+!External/stb
+
+# misc
+docs/
 Tools/dxc
-Assets/
 temp/
