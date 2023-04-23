@@ -60,6 +60,7 @@ namespace
 {
 	struct AppData
 	{
+		inline static constexpr const char* PSO_CACHE_PARENT = "..\\Assets\\PsoCache";
 #if defined(_DEBUG)
 		inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Debug";
 		inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO\\Debug";
@@ -976,6 +977,10 @@ namespace ZetaRay
 		Check(supported & SIMD_Intrinsic::F16C, "F16C is not supported.");
 
 		setlocale(LC_ALL, "C");		// set locale to C
+
+		// create PSO cache directories
+		Filesystem::CreateDirectoryIfNotExists(AppData::PSO_CACHE_PARENT);
+		Filesystem::CreateDirectoryIfNotExists(AppData::PSO_CACHE_DIR);
 
 		HINSTANCE instance = GetModuleHandleA(nullptr);
 		CheckWin32(instance);

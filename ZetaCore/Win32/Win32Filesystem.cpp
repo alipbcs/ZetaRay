@@ -341,11 +341,11 @@ void Filesystem::CreateDirectoryIfNotExists(const char* path) noexcept
         {
             if (err == ERROR_PATH_NOT_FOUND)
             {
-                Check(false, "Failed to create directory path %s: \
+                Check(false, "Failed to create directory in path %s: \
                     One or more intermediate directories do not exist.\n", path)
             }
             else
-                Check(false, "Failed to create directory path %s\n", path);
+                Check(false, "Failed to create directory in path %s\n", path);
         }
     }
 }
