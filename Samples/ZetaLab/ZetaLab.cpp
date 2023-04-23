@@ -40,8 +40,7 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
     Check(strlen(lpCmdLine), "Usage: ZetaLab <path-to-gltf>\n");
 
     {
-        App::Filesystem::Path path(App::GetAssetDir());
-        path.Append(lpCmdLine);
+        App::Filesystem::Path path(lpCmdLine);
         Check(App::Filesystem::Exists(path.Get()), "Provided path was not found: %s\nExiting...\n", lpCmdLine);
 
         App::DeltaTimer timer;

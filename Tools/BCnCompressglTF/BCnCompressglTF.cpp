@@ -206,7 +206,7 @@ namespace
         }
     }
 
-    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath, bool makeBackup) noexcept
+    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath) noexcept
     {
         std::string s;
         char filename[MAX_PATH];
@@ -236,44 +236,35 @@ namespace
             img["uri"] = newPath.Get();
         }
         
-        // make a backup
-        if (makeBackup)
-        {
-            gltfPath.Stem(filename, &fnLen);
+        gltfPath.Stem(filename, &fnLen);
 
-            Check(fnLen + 13 < ZetaArrayLen(filename), "buffer is too small.");
-            filename[fnLen] = '_';
-            filename[fnLen + 1] = 'b';
-            filename[fnLen + 2] = 'a';
-            filename[fnLen + 3] = 'c';
-            filename[fnLen + 4] = 'k';
-            filename[fnLen + 5] = 'u';
-            filename[fnLen + 6] = 'p';
-            filename[fnLen + 7] = '.';
-            filename[fnLen + 8] = 'g';
-            filename[fnLen + 9] = 'l';
-            filename[fnLen + 10] = 't';
-            filename[fnLen + 11] = 'f';
-            filename[fnLen + 12] = '\0';
+        Check(fnLen + 10 < ZetaArrayLen(filename), "buffer is too small.");
+        filename[fnLen] = '_';
+        filename[fnLen + 1] = 'z';
+        filename[fnLen + 2] = 'e';
+        filename[fnLen + 3] = 't';
+        filename[fnLen + 4] = 'a';
+        filename[fnLen + 5] = '.';
+        filename[fnLen + 6] = 'g';
+        filename[fnLen + 7] = 'l';
+        filename[fnLen + 8] = 't';
+        filename[fnLen + 9] = 'f';
+        filename[fnLen + 10] = '\0';
 
-            Filesystem::Path backupPath(gltfPath.Get());
-            backupPath.Directory().Append(filename);
-
-            if (!Filesystem::Copy(gltfPath.Get(), backupPath.Get()))
-                printf("Warning: Copy failed as following destination path already exists: %s\n", backupPath.Get());
-        }
+        Filesystem::Path convertedPath(gltfPath.Get());
+        convertedPath.Directory().Append(filename);
 
         s = data.dump(4);
         uint8_t* str = reinterpret_cast<uint8_t*>(s.data());
-        Filesystem::WriteToFile(gltfPath.Get(), str, (uint32_t)s.size());   // overwrites the old one
+        Filesystem::WriteToFile(convertedPath.Get(), str, (uint32_t)s.size());
     }
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2 || argc > 4)
+    if (argc < 2 || argc > 3)
     {
-        printf("Usage: BCnCompressglTF <path-to-glTF> -y -n\n");
+        printf("Usage: BCnCompressglTF <path-to-glTF> -y\n");
         return 0;
     }
 
@@ -285,14 +276,11 @@ int main(int argc, char* argv[])
     }
 
     bool forceOverwrite = false;
-    bool backup = true;
 
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "-y") == 0)
             forceOverwrite = true;
-        else if (strcmp(argv[i], "-n") == 0)
-            backup = false;
     }
 
     printf("Compressing textures for %s...\n", argv[1]);
@@ -399,7 +387,7 @@ int main(int argc, char* argv[])
     ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), false, forceOverwrite);
     ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), true, forceOverwrite);
 
-    ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath, backup);
+    ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
 
 	return 0;
 }
