@@ -1,0 +1,7 @@
+Tools/BCnCompressglTF/DirectXTex/Shaders/Compiled/* linguist-vendored
+Tools/BCnCompressglTF/DirectXTex/** linguist-vendored
+Tools/BCnCompressglTF/TexConv/** linguist-vendored
+External/** linguist-vendored
+Assets/** linguist-vendored
+ZetaRenderPass\Common\ffx_a.h -linguist-vendored
+ZetaRenderPass\Common\ffx_spd.h -linguist-vendored
