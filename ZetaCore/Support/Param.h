@@ -59,16 +59,7 @@ namespace ZetaRay::Support
 			m_yaw = yaw;
 		}
 
-		Math::float3 GetDir() noexcept
-		{
-			// x = sin(theta) * cos(phi)
-			// y = cos(theta)
-			// z = sin(theta) * sin(phi)
-			Math::float3 dir;
-			dir.x = sinf(m_pitch) * cosf(m_yaw);
-			dir.y = cosf(m_pitch);
-			dir.z = sinf(m_pitch) * sinf(m_yaw);
-		}
+		Math::float3 GetDir() noexcept;
 
 		float m_pitch;		// angle of rotation around the x-axis (radians)
 		float m_yaw;		// angle of rotation around the y-axis (radians)

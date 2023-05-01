@@ -38,7 +38,7 @@ VSOut mainVS(VSIn vsin)
 {
 	VSOut vsout;
 
-	// transform to view-space so that sphere is aligned with the view axes		
+	// transform to view space so that sky dome is aligned with view axes		
 	float3 posV = mul((float3x3) g_frame.CurrView, vsin.PosL);
 	vsout.PosSS = mul(float4(posV, 1.0f), g_frame.CurrProj);
 	// force z value to be on the far plane
@@ -65,7 +65,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	rayOrigin.y += g_frame.PlanetRadius;
 	float3 color = 0.0f.xxx;
 
-	// a circle that is supposed to be sun
+	// a disk that's supposed to be the sun
 	if (dot(-w, g_frame.SunDir) >= g_frame.SunCosAngularRadius)
 	{
 		float t;
@@ -74,32 +74,24 @@ float4 mainPS(VSOut psin) : SV_Target
 		if (!intersectedPlanet)
 			color = g_frame.SunIlluminance;
 	}
-	// sample the sky texture otherwise
+	// sample the sky texture
 	else
 	{
 #if USE_ENVIRONMENT_MAP == 1
-		// x = sin(theta) * cos(phi)
-		// y = cos(theta)
-		// z = sin(theta) * sin(phi)
-		float phi = atan2(w.z, w.x); // [-PI, PI]
-		phi += PI;                   // [0, 2PI]
-	
-		float theta = Math::ArcCos(w.y);
+		float2 thetaPhi = Math::SphericalFromCartesian(w);
 		
-		const float u = phi * ONE_DIV_TWO_PI;
-		float v = theta * ONE_DIV_PI;
+		const float u = thetaPhi.y * ONE_DIV_TWO_PI;
+		float v = thetaPhi.x * ONE_DIV_PI;
 		
 #if NON_LINEAR_LATITUDE == 1				
-		float s = theta >= PI_DIV_2 ? 1.0f : -1.0f;
-		v = (theta - PI_DIV_2) * 0.5f;
+		float s = thetaPhi.x >= PI_DIV_2 ? 1.0f : -1.0f;
+		v = (thetaPhi.x - PI_DIV_2) * 0.5f;
 		v = 0.5f + s * sqrt(abs(v) * ONE_DIV_PI);
-#endif
-		
+#endif	
 		Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 		color = g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);		
 #else
-		
-		// in-scattered lighting
+		// inscattered lighting
 		float3 Ls = Volumetric::EstimateLs(g_frame.PlanetRadius, rayOrigin, w, g_frame.SunDir, g_frame.AtmosphereAltitude, g_frame.g,
 			sigma_s_rayleigh, g_frame.MieSigmaS, sigma_t_mie, sigma_a_ozone, 32);
 	

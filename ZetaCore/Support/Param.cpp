@@ -4,6 +4,7 @@
 #include <string.h>
 
 using namespace ZetaRay::Support;
+using namespace ZetaRay::Math;
 
 void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
 	fastdelegate::FastDelegate1<const ParamVariant&> dlg) noexcept
@@ -227,4 +228,7 @@ void ParamVariant::SetEnum(int v) noexcept
 	m_dlg(*this);
 }
 
-
+float3 UnitDirParam::GetDir() noexcept
+{
+	return Math::SphericalToCartesian(m_pitch, m_yaw);
+}

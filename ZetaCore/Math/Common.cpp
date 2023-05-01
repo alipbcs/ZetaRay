@@ -26,18 +26,20 @@ void Math::SphericalFromCartesian(const float3& w, float& theta, float& phi) noe
 {
 	// x = sin(theta) * cos(phi)
 	// y = cos(theta)
-	// z = sin(theta) * sin(phi)
-	theta = acosf(w.y);							// [0, PI]
-	phi = atan2f(w.z, w.x);				
-	phi = phi < 0.0f ? phi + Math::PI : phi;	// [0, 2 * PI]
+	// z = -sin(theta) * sin(phi)
+	theta = acosf(w.y);								// [0, PI]
+	// phi is measured clockwise from the x-axis and atan2f uses the sign to figure out the quadrant
+	phi = atan2f(-w.z, w.x);
+	phi = phi < 0.0f ? phi + Math::TWO_PI : phi;	// [0, 2 * PI]
 }
 
 float3 Math::SphericalToCartesian(float theta, float phi) noexcept
 {
 	// x = sin(theta) * cos(phi)
 	// y = cos(theta)
-	// z = sin(theta) * sin(phi)
-	return float3(sinf(theta) * cosf(phi), cosf(theta), sinf(theta) * sinf(phi));
+	// z = -sin(theta) * sin(phi)
+	float sinTheta = sinf(theta);
+	return float3(sinTheta * cosf(phi), cosf(theta), -sinTheta * sinf(phi));
 }
 
 size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, size_t* offsets, size_t* sizes, size_t minNumElems) noexcept

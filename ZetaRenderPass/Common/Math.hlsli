@@ -85,13 +85,10 @@ namespace Math
 		return select((x >= 0), res, PI - res);
 	}
 	
-	float3 SphericalToCartesian(float r, float cosTheta, float phi)
+	float3 SphericalToCartesian(float r, float theta, float phi)
 	{
-		float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
-		float cosPhi = cos(phi);
-		float sinPhi = sqrt(1.0f - cosPhi * cosPhi);
-	
-		return float3(r * sinTheta * cosPhi, r * cosTheta, r * sinTheta * sinPhi);
+		float sinTheta = sin(theta);
+		return float3(r * sinTheta * cos(phi), r * cos(theta), -r * sinTheta * sin(phi));
 	}
 
 	float2 SphericalFromCartesian(float3 w)
@@ -100,10 +97,11 @@ namespace Math
 		
 		// x = sin(theta) * cos(phi)
 		// y = cos(theta)
-		// z = sin(theta) * sin(phi)
+		// z = -sin(theta) * sin(phi)
 		thetaPhi.x = ArcCos(w.y);
-		thetaPhi.y = atan2(w.z, w.x); // [-PI, +PI]
-		thetaPhi.y += PI; // [0, 2 * PI]
+		// phi is measured clockwise from the x-axis and atan2 uses the sign to figure out the quadrant
+		thetaPhi.y = atan2(-w.z, w.x);									// [-PI, +PI]
+		thetaPhi.y = thetaPhi.y < 0 ? thetaPhi.y + TWO_PI : thetaPhi.y; // [0, 2 * PI]
 		
 		return thetaPhi;
 	}

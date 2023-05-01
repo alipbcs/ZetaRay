@@ -23,10 +23,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	if (DTid.x >= g_local.LutWidth || DTid.y >= g_local.LutHeight)
 		return;
 	
-	// reverse the direction to uv conversion in sky dome
 	float phi = ((float) DTid.x / (float) g_local.LutWidth);
 	phi *= TWO_PI;
-	phi -= PI;
 	
 	float v = ((float) DTid.y / (float) g_local.LutHeight);
 
@@ -43,10 +41,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	float theta = v * PI;
 #endif
 
-	// x = sin(theta) * cos(phi)
-	// y = cos(theta)
-	// z = sin(theta) * sin(phi)
-	float3 w = float3(sin(theta) * cos(phi), cos(theta), sin(theta) * sin(phi));
+	float3 w = Math::SphericalToCartesian(1, theta, phi);
 	
 	const float3 sigma_s_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
