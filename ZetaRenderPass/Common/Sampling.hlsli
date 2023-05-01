@@ -104,10 +104,10 @@ namespace Sampling
 
 		const float x = cos(phi) * sinTheta;
 		const float y = sin(phi) * sinTheta;
-		const float z = sqrt(1.0f - u.x); // == cos(theta)
+		const float z = sqrt(1.0f - u.x); // = cos(theta)
 	
 		// w.r.t. solid angle
-		pdf = y * ONE_DIV_PI;
+		pdf = z * ONE_DIV_PI; // = cos(theta) / PI
 	
 		return float3(x, y, z);
 	}
