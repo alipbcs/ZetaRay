@@ -12,8 +12,10 @@ using namespace ZetaRay::Util;
 Task::Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 	: m_priority(p)
 {
+#if USE_TASK_NAMES == 1
 	int n = stbsp_snprintf(m_name, MAX_NAME_LENGTH, "Frame %u | %s", App::GetTimer().GetTotalFrameCount(), name);
-	//Assert(n < MAX_NAME_LENGTH, "not enough space in buffer");
+	Assert(n < MAX_NAME_LENGTH, "not enough space in buffer");
+#endif
 
 	m_dlg = ZetaMove(f);
 
@@ -36,8 +38,10 @@ Task::Task(Task&& other) noexcept
 	m_priority = other.m_priority;
 	other.m_signalHandle = -1;
 
+#if USE_TASK_NAMES == 1
 	memcpy(m_name, other.m_name, MAX_NAME_LENGTH);
 	memset(other.m_name, '\0', MAX_NAME_LENGTH);
+#endif
 
 	//m_indegreeAtomic.store(other.m_indegreeAtomic.load(std::memory_order_relaxed));
 	//m_blockFlag.store(false, std::memory_order_relaxed);
@@ -55,8 +59,10 @@ Task& Task::operator=(Task&& other) noexcept
 	m_priority = other.m_priority;
 	other.m_signalHandle = -1;
 
+#if USE_TASK_NAMES == 1
 	memcpy(m_name, other.m_name, MAX_NAME_LENGTH);
 	memset(other.m_name, '\0', MAX_NAME_LENGTH);
+#endif
 
 	//m_indegreeAtomic.store(other.m_indegreeAtomic.load(std::memory_order_relaxed));
 	//m_blockFlag.store(false, std::memory_order_relaxed);
@@ -69,8 +75,11 @@ void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 	m_priority = p;
 	Check(m_signalHandle == -1, "Reinitialization is not allowed.");
 
+#if USE_TASK_NAMES == 1
 	int n = stbsp_snprintf(m_name, MAX_NAME_LENGTH, "Frame %llu | %s", App::GetTimer().GetTotalFrameCount(), name);
 	Assert(n < MAX_NAME_LENGTH, "not enough space in buffer");
+#endif
+
 	m_indegree = 0;
 	//m_blockFlag.store(true, std::memory_order_relaxed);
 	//m_indegreeAtomic.store(0, std::memory_order_relaxed);
