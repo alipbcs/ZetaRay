@@ -4,7 +4,8 @@
 #include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.08f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA_BILINEAR 0.08f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA_CR 0.01f
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -34,11 +35,20 @@ float4 GeometricTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, fl
 		dot(currNormal, prevPos[2] - currPos),
 		dot(currNormal, prevPos[3] - currPos));
 	
-//	float4 weights = saturate(1 - abs(planeDist) / g_local.MaxPlaneDist);
-	//float4 weights = planeDist <= g_local.MaxPlaneDist;
-	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA_BILINEAR * linearDepth;
 	
 	return weights;
+}
+
+float GeometricTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
+{
+	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
+		g_frame.PrevViewInv);
+	
+	float planeDist = dot(currNormal, prevPos - currPos);
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA_CR * linearDepth;
+	
+	return weight;
 }
 
 float4 NormalTest(float3 prevNormals[4], float3 currNormal)
@@ -55,28 +65,16 @@ float4 NormalTest(float3 prevNormals[4], float3 currNormal)
 	return weights;
 }
 
-// resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
-	inout uint tspp, out float3 color)
+void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, float2 prevUV,
+	inout float tspp, out float3 color)
 {
-	// pixel position for this thread
-	// reminder: pixel positions are 0.5, 1.5, 2.5, ...
-	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-
-	// compute pixel position corresponding to current pixel in previous frame (in texture space)
-	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
-	const half2 motionVec = g_motionVector[DTid.xy];
-	const float2 prevUV = currUV - motionVec;
-
-	if (any(abs(prevUV) - prevUV))
-		return;
-	
-	// offset of prevPixelPos from surrounding pixels
+	// offset of history pos from surrounding pixels
 	//	p0-----------p1
 	//	|-------------|
 	//	|--prev-------|
 	//	|-------------|
 	//	p2-----------p3
+	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 f = prevUV * screenDim;
 	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
 	const float2 offset = f - (topLeft + 0.5f);
@@ -129,7 +127,7 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 
 	if (1e-4f < weightSum)
 	{
-		// uniformly distribute the weight over the consistent samples
+		// uniformly distribute the weight over the valid samples
 		weights *= rcp(weightSum);
 
 		// tspp
@@ -159,8 +157,94 @@ void SampleTemporalCache(uint2 DTid, float3 currPos, float3 currNormal, float li
 					colorHistSamples[1] * weights[1] +
 					colorHistSamples[2] * weights[2] +
 					colorHistSamples[3] * weights[3];
-		}		
+		}
 	}
+}
+
+bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, float2 prevUV,
+	inout float tspp, out float3 color)
+{
+	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	
+	float2 samplePos = prevUV * screenDim;
+	float2 texPos1 = floor(samplePos - 0.5f) + 0.5f;
+	float2 f = samplePos - texPos1;
+	float2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
+	float2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
+	float2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
+	float2 w3 = f * f * (-0.5f + 0.5f * f);
+
+	float2 w12 = w1 + w2;
+	float2 offset12 = w2 / (w1 + w2);
+
+	float2 texPos0 = texPos1 - 1;
+	float2 texPos3 = texPos1 + 2;
+	float2 texPos12 = texPos1 + offset12;
+
+	texPos0 /= screenDim;
+	texPos3 /= screenDim;
+	texPos12 /= screenDim;
+
+	float2 prevUVs[5];
+	prevUVs[0] = float2(texPos12.x, texPos0.y);
+	prevUVs[1] = float2(texPos0.x, texPos12.y);
+	prevUVs[2] = float2(texPos12.x, texPos12.y);
+	prevUVs[3] = float2(texPos3.x, texPos12.y);
+	prevUVs[4] = float2(texPos12.x, texPos3.y);
+
+	// previous frame's depth
+	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	float prevDepths[5];
+	
+	[unroll]
+	for (int i = 0; i < 5; i++)
+	{
+		float prevDepth = g_prevDepth.SampleLevel(g_samLinearClamp, prevUVs[i], 0.0f);
+		prevDepths[i] = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
+	}
+		
+	float weights[5];
+	
+	[unroll]
+	for (int j = 0; j < 5; j++)
+	{
+		float isInBounds = all(prevUVs[j] <= 1.0.xx) && all(prevUVs[j] >= 0.0f);
+		float geoWeight = GeometricTest(prevDepths[j], prevUVs[j], currNormal, currPos, linearDepth);
+		weights[j] = isInBounds * geoWeight;
+	}
+
+	bool allValid = weights[0] > 1e-3f;
+	
+	[unroll]
+	for (int k = 1; k < 5; k++)
+		allValid = allValid && (weights[k] > 1e-3f);
+	
+	if (allValid)
+	{
+		Texture2D<float4> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheDescHeapIdx];
+		
+		float4 results[5];
+		results[0] = g_prevTemporalCache.SampleLevel(g_samLinearClamp, prevUVs[0], 0.0f) * w12.x * w0.y;
+
+		results[1] = g_prevTemporalCache.SampleLevel(g_samLinearClamp, prevUVs[1], 0.0f) * w0.x * w12.y;
+		results[2] = g_prevTemporalCache.SampleLevel(g_samLinearClamp, prevUVs[2], 0.0f) * w12.x * w12.y;
+		results[3] = g_prevTemporalCache.SampleLevel(g_samLinearClamp, prevUVs[3], 0.0f) * w3.x * w12.y;
+
+		results[4] = g_prevTemporalCache.SampleLevel(g_samLinearClamp, prevUVs[4], 0.0f) * w12.x * w3.y;
+
+		tspp = results[0].w * weights[0] +
+			results[1].w * weights[1] +
+			results[2].w * weights[2] +
+			results[3].w * weights[3] +
+			results[4].w * weights[4];
+		
+		tspp = max(1, tspp);
+		color = results[0].rgb + results[1].rgb + results[2].rgb + results[3].rgb + results[4].rgb;
+		
+		return true;
+	}
+	
+	return false;
 }
 
 void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout float3 color)
@@ -187,7 +271,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	const float accumulationSpeed = 1.0f / (1.0f + tspp);
 
 	// accumulate
-	color = lerp(color, noisySignal, accumulationSpeed);	
+	color = lerp(color, noisySignal, accumulationSpeed);
 
 	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
 	tspp = min(tspp + 1, g_local.MaxTspp);
@@ -204,7 +288,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
 		return;
 	
-	uint tspp = 0;
+	float tspp = 0;
 	float3 color = 0.0f.xxx;
 
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -232,13 +316,25 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.CurrViewInv);
 	
-	// sample temporal cache using a bilinear tap with custom weights
-	if (g_local.IsTemporalCacheValid)
-		SampleTemporalCache(DTid.xy, currPos, currNormal, currLinearDepth, currUV, tspp, color);
+	// compute pixel position corresponding to current pixel in previous frame (in texture space)
+	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
+	const float2 motionVec = g_motionVector[DTid.xy];
+	const float2 prevUV = currUV - motionVec;
+	const bool motionVecValid = all(prevUV >= 0.0f) && all(prevUV <= 1.0f);
+
+	if (g_local.IsTemporalCacheValid && motionVecValid)
+	{
+		// try to use Catmull-Rom filtering first
+		bool success = SampleTemporalCache_CatmullRom(DTid.xy, currPos, currNormal, currLinearDepth, currUV, prevUV, tspp, color);
+		
+		// if it failed, then resample history using a bilinear filter with custom weights
+		if (!success)
+			SampleTemporalCache_Bilinear(DTid.xy, currPos, currNormal, currLinearDepth, currUV, prevUV, tspp, color);
+	}
 
 	// integrate history and current frame
 	Integrate(DTid.xy, currPos, currNormal, tspp, color);
 
 	RWTexture2D<float4> g_nextTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheDescHeapIdx];
-	g_nextTemporalCache[DTid.xy].xyzw = float4(color, tspp);
+	g_nextTemporalCache[DTid.xy] = float4(color, tspp);
 }
