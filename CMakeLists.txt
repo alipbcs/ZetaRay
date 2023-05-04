@@ -6,7 +6,7 @@ include("${CMAKE_INCLUDE_DIR}/SetupDXC.cmake")
 
 project(ZetaRay
     LANGUAGES CXX
-    DESCRIPTION "A Physically-Based Hybrid Raster-Raytraced Renderer in DirectX 12")
+    DESCRIPTION "A Physically-Based Real-Time Renderer in Direct3D 12")
 
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_TOOLS "Build tools" ON)

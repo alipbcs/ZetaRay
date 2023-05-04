@@ -95,7 +95,6 @@ add_dependencies(FONT CopyFontDLL)
 # 
 # link against all the external libraries
 # 
-# set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib)
 set(LIBS d3d12 dxgi dxguid DX12AgilitySDK WinPixEventRuntimeLib FONT)
 target_link_libraries(ZetaCore debug ${LIBS} dbghelp)
 target_link_libraries(ZetaCore optimized ${LIBS})
