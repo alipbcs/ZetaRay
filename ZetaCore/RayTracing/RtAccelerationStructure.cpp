@@ -42,6 +42,11 @@ namespace
 
 		return f;
 	}
+
+	struct BLASTransform
+	{
+		float M[3][4];
+	};
 }
 
 //--------------------------------------------------------------------------------------
@@ -55,12 +60,10 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	if (scene.m_numStaticInstances == 0)
 		return;
 
-	FillMeshTransformBufferForBuild();
-
 	SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::FrameAllocator> mesheDescs;
 	mesheDescs.resize(scene.m_numStaticInstances);
 
-	const int transfromMatSize = sizeof(float) * 12;
+	constexpr int transfromMatSize = sizeof(BLASTransform);
 	int currInstance = 0;
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
@@ -158,10 +161,9 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 void StaticBLAS::FillMeshTransformBufferForBuild() noexcept
 {
 	SceneCore& scene = App::GetScene();
-	const int transfromMatSize = sizeof(float) * 12;
 
-	m_perMeshTransformForBuild = App::GetRenderer().GetGpuMemory().GetUploadHeapBuffer(
-		transfromMatSize * scene.m_numStaticInstances, D3D12_RAYTRACING_TRANSFORM3X4_BYTE_ALIGNMENT);
+	SmallVector<BLASTransform, App::FrameAllocator> transforms;
+	transforms.resize(scene.m_numStaticInstances);
 
 	int currInstance = 0;
 
@@ -169,7 +171,6 @@ void StaticBLAS::FillMeshTransformBufferForBuild() noexcept
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
 		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
-		float t[3][4];
 
 		for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
 		{
@@ -181,15 +182,18 @@ void StaticBLAS::FillMeshTransformBufferForBuild() noexcept
 
 				for (int j = 0; j < 4; j++)
 				{
-					t[0][j] = M.m[j].x;
-					t[1][j] = M.m[j].y;
-					t[2][j] = M.m[j].z;
+					transforms[currInstance].M[0][j] = M.m[j].x;
+					transforms[currInstance].M[1][j] = M.m[j].y;
+					transforms[currInstance].M[2][j] = M.m[j].z;
 				}
 
-				m_perMeshTransformForBuild.Copy(transfromMatSize * currInstance++, transfromMatSize, t);
+				currInstance++;
 			}
 		}
 	}
+
+	m_perMeshTransformForBuild = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit("StaticBLASTransform",
+		sizeof(BLASTransform) * scene.m_numStaticInstances, D3D12_RESOURCE_STATE_COMMON, false, transforms.data());
 }
 
 void StaticBLAS::CopyCompactionSize(ComputeCmdList& cmdList) noexcept
@@ -236,6 +240,7 @@ void StaticBLAS::CompactionCompletedCallback() noexcept
 	m_blasBuffer = ZetaMove(m_compactedBlasBuffer);
 	m_postBuildInfoReadback.Reset();
 	m_postBuildInfo.Reset();
+	m_perMeshTransformForBuild.Reset();
 }
 
 void StaticBLAS::Clear() noexcept
@@ -378,21 +383,21 @@ void TLAS::Render(CommandList& cmdList) noexcept
 
 	computeCmdList.PIXBeginEvent("TLAS_Build");
 	RebuildOrUpdateBLASes(computeCmdList);
+	RebuildTLASInstances(computeCmdList);
 	RebuildTLAS(computeCmdList);
 	computeCmdList.PIXEndEvent();
 }
 
-void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
+void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
 
 	const int numInstances = (int)m_dynamicBLASes.size() + (scene.m_numStaticInstances > 0);
 	if (numInstances == 0)
-		return; 
+		return;
 
-	m_tlasInstanceBuff = App::GetRenderer().GetGpuMemory().GetUploadHeapBuffer(
-		sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances,
-		D3D12_RAYTRACING_INSTANCE_DESCS_BYTE_ALIGNMENT);
+	SmallVector<D3D12_RAYTRACING_INSTANCE_DESC, App::FrameAllocator, 8> tlasInstances;
+	tlasInstances.resize(numInstances);
 
 	D3D12_RAYTRACING_INSTANCE_DESC instance;
 	instance.InstanceID = 0;
@@ -404,14 +409,14 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 	int currInstance = 0;
 
 	// identity transform for static BLAS instance
-	if(scene.m_numStaticInstances)
+	if (scene.m_numStaticInstances)
 	{
-		memset(&instance.Transform, 0, 12 * sizeof(float));
+		memset(&instance.Transform, 0, sizeof(BLASTransform));
 		instance.Transform[0][0] = 1.0f;
 		instance.Transform[1][1] = 1.0f;
 		instance.Transform[2][2] = 1.0f;
 
-		m_tlasInstanceBuff.Copy(currInstance++, sizeof(D3D12_RAYTRACING_INSTANCE_DESC), &instance);
+		tlasInstances[currInstance++] = instance;
 	}
 
 	const int numStaticInstances = scene.m_numStaticInstances;
@@ -435,7 +440,7 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 				instance.InstanceMask = flags.InstanceMask;
 				instance.InstanceContributionToHitGroupIndex = 0;
 				// force all the meshes to be opaque for now
-				instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;		
+				instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;
 				instance.AccelerationStructure = m_dynamicBLASes[Math::Max(currInstance - 1, 0)].m_blasBuffer.GetGpuVA();
 
 				auto& M = currTreeLevel.m_toWorlds[i];
@@ -447,12 +452,38 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
 					instance.Transform[2][j] = M.m[j].z;
 				}
 
-				m_tlasInstanceBuff.Copy(currInstance++ * sizeof(D3D12_RAYTRACING_INSTANCE_DESC), sizeof(instance), &instance);
+				tlasInstances[currInstance++] = instance;
 			}
 		}
 	}
 
 	Assert(currInstance == numInstances, "bug");
+
+	auto& gpuMem = App::GetRenderer().GetGpuMemory();
+
+	m_tlasInstanceBuff = gpuMem.GetDefaultHeapBuffer("TLASInstances",
+		sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances, D3D12_RESOURCE_STATE_COMMON, false);
+
+	const size_t sizeInBytes = sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances;
+	UploadHeapBuffer scratchBuff = gpuMem.GetUploadHeapBuffer(sizeInBytes);
+	scratchBuff.Copy(0, sizeInBytes, tlasInstances.data());
+
+	cmdList.CopyBufferRegion(m_tlasInstanceBuff.GetResource(),
+		0,
+		scratchBuff.GetResource(),
+		scratchBuff.GetOffset(),
+		sizeInBytes);
+
+	cmdList.ResourceBarrier(m_tlasInstanceBuff.GetResource(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+}
+
+void TLAS::RebuildTLAS(ComputeCmdList& cmdList) noexcept
+{
+	SceneCore& scene = App::GetScene();
+
+	const int numInstances = (int)m_dynamicBLASes.size() + (scene.m_numStaticInstances > 0);
+	if (numInstances == 0)
+		return;
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
 	buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_TOP_LEVEL;
@@ -704,6 +735,16 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 	// register the shared resources
 	auto& r = App::GetRenderer().GetSharedShaderResources();
 	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
+}
+
+void TLAS::BuildStaticBLASTransforms() noexcept
+{
+	SceneCore& scene = App::GetScene();
+
+	if (!scene.m_staleStaticInstances)
+		return;
+
+	m_staticBLAS.FillMeshTransformBufferForBuild();
 }
 
 int TLAS::FindDynamicBLAS(uint64_t key) noexcept

@@ -83,6 +83,7 @@ void RayTracer::Update(const RenderSettings& settings, RayTracerData& data) noex
 {
 	UpdateDescriptors(settings, data);
 
+	data.RtAS.BuildStaticBLASTransforms();
 	data.RtAS.BuildFrameMeshInstanceData();
 
 	// TODO doesn't need to be called each frame

@@ -32,8 +32,8 @@ namespace ZetaRay::RT
 		Core::DefaultHeapBuffer m_postBuildInfo;
 		Core::ReadbackHeapBuffer m_postBuildInfoReadback;
 
-		// each element contain a 3x4 transformation matrix
-		Core::UploadHeapBuffer m_perMeshTransformForBuild;
+		// each element containa a 3x4 affine transformation matrix
+		Core::DefaultHeapBuffer m_perMeshTransformForBuild;
 	};
 
 	struct DynamicBLAS
@@ -66,11 +66,13 @@ namespace ZetaRay::RT
 	{
 		void Render(Core::CommandList& cmdList) noexcept;
 		void BuildFrameMeshInstanceData() noexcept;
+		void BuildStaticBLASTransforms() noexcept;
 		Core::DefaultHeapBuffer& GetTLAS() noexcept { return m_tlasBuffer;  };
 		void Clear() noexcept;
 
 	private:
 		void RebuildTLAS(Core::ComputeCmdList& cmdList) noexcept;
+		void RebuildTLASInstances(Core::ComputeCmdList& cmdList) noexcept;
 		void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList) noexcept;
 		int FindDynamicBLAS(uint64_t id) noexcept;
 
@@ -83,7 +85,7 @@ namespace ZetaRay::RT
 		// might still be referencing the TLAS when RebuildTLAS is submitted
 		Core::DefaultHeapBuffer m_tlasBuffer;
 		Core::DefaultHeapBuffer m_scratchBuff;
-		Core::UploadHeapBuffer m_tlasInstanceBuff;
+		Core::DefaultHeapBuffer m_tlasInstanceBuff;
 
 		uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
 	};
