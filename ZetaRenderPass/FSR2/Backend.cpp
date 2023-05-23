@@ -905,7 +905,7 @@ FfxResourceDescription FSR2_Internal::Fsr2GetResourceDescription(FfxFsr2Interfac
 {
 	Assert(resource.internalIndex < FFX_FSR2_RESOURCE_IDENTIFIER_COUNT, "Unknown resource idx");
 
-	FfxResourceDescription ret;
+	FfxResourceDescription ret{};
 
 	if (resource.internalIndex == FFX_FSR2_RESOURCE_IDENTIFIER_INPUT_COLOR)
 	{
