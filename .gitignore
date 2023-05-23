@@ -18,6 +18,7 @@ External/*
 !External/FSR2
 !External/ImGui
 !External/stb
+!External/json
 
 # misc
 docs/
