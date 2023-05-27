@@ -198,7 +198,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		DiffuseReservoir r = RGI_Diff_Util::PartialReadInputReservoir(ss, g_local.DiffuseTemporalReservoir_A_DescHeapIdx,
 				g_local.DiffuseTemporalReservoir_B_DescHeapIdx);
 
-		display = r.Li * r.GetW() * ONE_DIV_PI;
+		display = r.Li * r.GetW() * ONE_OVER_PI;
 			
 		if (g_local.VisualizeOcclusion)
 			display = display * 0.1 + float3(r.M <= 1, 0, 0);
@@ -208,7 +208,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		DiffuseReservoir r = RGI_Diff_Util::PartialReadInputReservoir(int2(psin.PosSS.xy), g_local.DiffuseSpatialReservoir_A_DescHeapIdx,
 				g_local.DiffuseSpatialReservoir_B_DescHeapIdx);
 
-		display = r.Li * r.GetW() * ONE_DIV_PI;
+		display = r.Li * r.GetW() * ONE_OVER_PI;
 		
 		if (g_local.VisualizeOcclusion)
 			display = display * 0.1 + float3(r.M == 1, 0, 0);

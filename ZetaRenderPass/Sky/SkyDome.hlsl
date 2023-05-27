@@ -80,13 +80,13 @@ float4 mainPS(VSOut psin) : SV_Target
 #if USE_ENVIRONMENT_MAP == 1
 		float2 thetaPhi = Math::SphericalFromCartesian(w);
 		
-		const float u = thetaPhi.y * ONE_DIV_TWO_PI;
-		float v = thetaPhi.x * ONE_DIV_PI;
+		const float u = thetaPhi.y * ONE_OVER_2_PI;
+		float v = thetaPhi.x * ONE_OVER_PI;
 		
 #if NON_LINEAR_LATITUDE == 1				
-		float s = thetaPhi.x >= PI_DIV_2 ? 1.0f : -1.0f;
-		v = (thetaPhi.x - PI_DIV_2) * 0.5f;
-		v = 0.5f + s * sqrt(abs(v) * ONE_DIV_PI);
+		float s = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
+		v = (thetaPhi.x - PI_OVER_2) * 0.5f;
+		v = 0.5f + s * sqrt(abs(v) * ONE_OVER_PI);
 #endif	
 		Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 		color = g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);		

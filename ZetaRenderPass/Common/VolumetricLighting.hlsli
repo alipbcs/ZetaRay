@@ -45,7 +45,7 @@ namespace Volumetric
 		float g2 = g * g;
 		float denom = (1 - g2) / (1 + g2 - 2 * g * cosTheta);
 	
-		return ONE_DIV_FOUR_PI * g2 / (denom * sqrt(denom));
+		return ONE_OVER_4_PI * g2 / (denom * sqrt(denom));
 	}
 
 	// An approximation Henyey–Greenstein phase function that is faster to compute
@@ -54,7 +54,7 @@ namespace Volumetric
 		float k = 1.55f * g - 0.55f * g * g * g;
 		float denom = 1.0f - k * cosTheta;
 	
-		return ONE_DIV_FOUR_PI * (1.0f - k * k) / (denom * denom);
+		return ONE_OVER_4_PI * (1.0f - k * k) / (denom * denom);
 	}
 
 	//--------------------------------------------------------------------------------------

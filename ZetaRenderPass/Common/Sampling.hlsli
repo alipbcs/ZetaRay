@@ -91,7 +91,7 @@ namespace Sampling
 		const float z = u.x;
 	
 		// w.r.t. solid angle
-		pdf = ONE_DIV_TWO_PI;
+		pdf = ONE_OVER_2_PI;
 		
 		return float3(x, y, z);
 	}
@@ -107,7 +107,7 @@ namespace Sampling
 		const float z = sqrt(1.0f - u.x); // = cos(theta)
 	
 		// w.r.t. solid angle
-		pdf = z * ONE_DIV_PI; // = cos(theta) / PI
+		pdf = z * ONE_OVER_PI; // = cos(theta) / PI
 	
 		return float3(x, y, z);
 	}
@@ -132,7 +132,7 @@ namespace Sampling
 		const float z = cosTheta;
 
 		// w.r.t. solid angle
-		pdf = ONE_DIV_TWO_PI * rcp(1.0f - cosThetaMax);
+		pdf = ONE_OVER_2_PI * rcp(1.0f - cosThetaMax);
 	
 		return float3(x, y, z);
 	}
@@ -158,12 +158,12 @@ namespace Sampling
 		if (a * a > b * b)
 		{
 			r = a;
-			phi = PI_DIV_4 * (b / a);
+			phi = PI_OVER_4 * (b / a);
 		}
 		else
 		{
 			r = b;
-			phi = PI_DIV_2 - PI_DIV_4 * (a / b);
+			phi = PI_OVER_2 - PI_OVER_4 * (a / b);
 		}
 	
 		return float2(r * cos(phi), r * sin(phi));
@@ -182,7 +182,7 @@ namespace Sampling
 		// Compute phi in the first quadrant (branchless, except for the
 		// division-by-zero test), using sign(u) to map the result to the
 		// correct quadrant below.
-		float phi = (r == 0) ? 0 : PI_DIV_4 * ((abs(u1) - abs(u0)) / r + 1.0f);
+		float phi = (r == 0) ? 0 : PI_OVER_4 * ((abs(u1) - abs(u0)) / r + 1.0f);
 		float f = r * sqrt(2.0f - r * r);
 		float x = f * sign(u0) * cos(phi);
 		float y = f * sign(u1) * sin(phi);

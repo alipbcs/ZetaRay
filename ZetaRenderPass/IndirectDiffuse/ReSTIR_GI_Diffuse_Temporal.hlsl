@@ -106,12 +106,12 @@ float3 MissShading(float3 wi)
 	Texture2D<half4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
 	
 	float2 thetaPhi = Math::SphericalFromCartesian(wi);
-	float2 uv = float2(thetaPhi.y * ONE_DIV_TWO_PI, thetaPhi.x * ONE_DIV_PI);
+	float2 uv = float2(thetaPhi.y * ONE_OVER_2_PI, thetaPhi.x * ONE_OVER_PI);
 
 	// undo non-linear sampling
-	float s = thetaPhi.x >= PI_DIV_2 ? 1.0f : -1.0f;
-	uv.y = (thetaPhi.x - PI_DIV_2) * 0.5f;
-	uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_DIV_PI);
+	float s = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
+	uv.y = (thetaPhi.x - PI_OVER_2) * 0.5f;
+	uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_OVER_PI);
 	
 	float3 color = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 	

@@ -36,7 +36,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	// Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
 	float s = v >= 0.5f ? 1.0f : -1.0f;
 	float a = v - 0.5f;
-	float theta = a * a * TWO_PI * s + PI_DIV_2;
+	float theta = a * a * TWO_PI * s + PI_OVER_2;
 #else
 	float theta = v * PI;
 #endif

@@ -206,12 +206,12 @@ namespace BRDF
 
 	float3 LambertianBRDF(float3 diffuseReflectance, float ndotwi)
 	{
-		return diffuseReflectance * (ndotwi * ONE_DIV_PI);
+		return diffuseReflectance * (ndotwi * ONE_OVER_PI);
 	}
 
 	half3 LambertianBRDF(half3 diffuseReflectance, half3 ndotwi)
 	{
-		return diffuseReflectance * ndotwi * half(ONE_DIV_PI);
+		return diffuseReflectance * ndotwi * half(ONE_OVER_PI);
 	}
 
 //	float3 LambertianBrdfDivPdf(SurfaceInteraction surface)

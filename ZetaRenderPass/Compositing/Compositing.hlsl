@@ -118,12 +118,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	
 	if (g_local.IndirectDiffuse && mr.x <= MAX_METALNESS)
 	{
-		float3 f = baseColor * ONE_DIV_PI;
+		float3 f = baseColor * ONE_OVER_PI;
 	
 		Texture2D<half4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
 		float3 integratedVals = g_diffuseTemporalCache[DTid.xy].rgb;
 		color += integratedVals * f;
-		//color = f * 10;
 	}
 	
 	if (g_local.IndirectSpecular && mr.y < g_local.RoughnessCutoff)
