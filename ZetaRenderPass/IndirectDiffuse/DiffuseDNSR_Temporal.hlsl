@@ -4,8 +4,9 @@
 #include "../Common/BRDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 
-#define DISOCCLUSION_TEST_RELATIVE_DELTA_BILINEAR 0.08f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA_BILINEAR 0.005f
 #define DISOCCLUSION_TEST_RELATIVE_DELTA_CR 0.01f
+#define DISOCCLUSION_TEST_NORMAL_EXP 8
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -58,9 +59,8 @@ float4 NormalTest(float3 prevNormals[4], float3 currNormal)
 	                        dot(prevNormals[2], currNormal),
 	                        dot(prevNormals[3], currNormal));
 
-	// adjust tolerance of difference; scale > 1 causes tests to be less stringent and vice versa
 	weights = saturate(1 * weights);
-	weights = pow(weights, 8);
+	weights = pow(weights, DISOCCLUSION_TEST_NORMAL_EXP);
 	
 	return weights;
 }
@@ -195,14 +195,14 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float prevDepths[5];
-	
+		
 	[unroll]
 	for (int i = 0; i < 5; i++)
 	{
 		float prevDepth = g_prevDepth.SampleLevel(g_samLinearClamp, prevUVs[i], 0.0f);
 		prevDepths[i] = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
 	}
-		
+	
 	float weights[5];
 	
 	[unroll]
@@ -255,7 +255,6 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	const float3 wi = normalize(r.SamplePos - pos);
 	
 	const float3 noisySignal = r.Li * r.GetW() * saturate(dot(wi, normal));
-	//const float3 noisySignal = r.Li * r.GetW();
 
 	// TODO come up with a better way to incorporate reservoir data into denoiser -- the following
 	// approach prevents convergence for more complicated geometry
@@ -273,7 +272,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 	// accumulate
 	color = lerp(color, noisySignal, accumulationSpeed);
 
-	// don't accumulate more than MaxTspp temporal samples (temporal lag <-> noise tradeoff)
+	// don't accumulate more than MaxTspp temporal samples (temporal lag vs noise tradeoff)
 	tspp = min(tspp + 1, g_local.MaxTspp);
 }
 
