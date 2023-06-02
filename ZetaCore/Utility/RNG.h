@@ -5,8 +5,31 @@
 
 namespace ZetaRay::Util
 {
-    // Source: PCG (https://www.pcg-random.org/)
-    // "PCG is a family of simple fast space-efficient statistically good algorithms for random number generation."
+    // Following is based on: https://github.com/mmp/pbrt-v3/blob/master/src/core/rng.h
+    // 
+    // pbrt source code is Copyright(c) 1998-2016
+    //                    Matt Pharr, Greg Humphreys, and Wenzel Jakob.
+    // Redistribution and use in source and binary forms, with or without
+    // modification, are permitted provided that the following conditions are
+    // met:
+    //  - Redistributions of source code must retain the above copyright
+    //    notice, this list of conditions and the following disclaimer.
+    //  - Redistributions in binary form must reproduce the above copyright
+    //    notice, this list of conditions and the following disclaimer in the
+    //    documentation and/or other materials provided with the distribution.
+    // 
+    // THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS
+    // IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED
+    // TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A
+    // PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT
+    // HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL,
+    // SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT
+    // LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+    // DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+    // THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+    // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+    // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+ 
     struct RNG
     {
         // Seeds the rng. stream ID specifies which sequence to use
@@ -44,31 +67,11 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed number, r, where 0 <= r < bound
+        // See https://www.pcg-random.org for more info
         uint32_t GetUniformUintBounded(uint32_t bound) noexcept
         {
-            // To avoid bias, we need to make the range of the RNG a multiple of
-            // bound, which we do by dropping output less than a threshold.
-            // A naive scheme to calculate the threshold would be to do
-            //
-            //     uint32_t threshold = 0x100000000ull % bound;
-            //
-            // but 64-bit div/mod is slower than 32-bit div/mod (especially on
-            // 32-bit platforms).  In essence, we do
-            //
-            //     uint32_t threshold = (0x100000000ull-bound) % bound;
-            //
-            // because this version will calculate the same modulus, but the LHS
-            // value is less than 2^32.
-
             uint32_t threshold = (~bound + 1u) % bound;
 
-            // Uniformity guarantees that this loop will terminate.  In practice, it
-            // should usually terminate quickly; on average (assuming all bounds are
-            // equally likely), 82.25% of the time, we can expect it to require just
-            // one iteration.  In the worst case, someone passes a bound of 2^31 + 1
-            // (i.e., 2147483649), which invalidates almost 50% of the range.  In 
-            // practice, bounds are typically small and only a tiny amount of the range
-            // is eliminated.
             for (;;) 
             {
                 uint32_t r = GetUniformUint();
