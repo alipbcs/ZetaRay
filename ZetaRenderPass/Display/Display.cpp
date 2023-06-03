@@ -58,6 +58,7 @@ void DisplayPass::Init() noexcept
 	memset(&m_cbLocal, 0, sizeof(m_cbLocal));
 	m_cbLocal.DisplayOption = (int)DisplayOption::DEFAULT;
 	m_cbLocal.Tonemapper = (int)Tonemapper::NEUTRAL;
+	m_cbLocal.Saturation = 1.0f;
 
 	ParamVariant p1;
 	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeDisplayOptionCallback),
@@ -69,10 +70,10 @@ void DisplayPass::Init() noexcept
 		Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
 	App::AddParam(p2);
 
-	ParamVariant p6;
-	p6.InitBool("Renderer", "Display", "VisualizeOcclusion", fastdelegate::MakeDelegate(this, &DisplayPass::VisualizeOcclusionCallback),
-		false);
-	App::AddParam(p6);
+	ParamVariant p7;
+	p7.InitFloat("Renderer", "Display", "Saturation", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeSaturationCallback), 
+		1, 0, 1.5, 1e-2);
+	App::AddParam(p7);
 
 	App::AddShaderReloadHandler("Display", fastdelegate::MakeDelegate(this, &DisplayPass::ReloadShaders));
 
@@ -155,11 +156,6 @@ void DisplayPass::CreatePSO() noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
-void DisplayPass::VisualizeOcclusionCallback(const ParamVariant& p) noexcept
-{
-	m_cbLocal.VisualizeOcclusion = p.GetBool();
-}
-
 void DisplayPass::ChangeDisplayOptionCallback(const ParamVariant& p) noexcept
 {
 	m_cbLocal.DisplayOption = (uint16_t)p.GetEnum().m_curr;
@@ -168,6 +164,11 @@ void DisplayPass::ChangeDisplayOptionCallback(const ParamVariant& p) noexcept
 void DisplayPass::ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbLocal.Tonemapper = (uint16_t)p.GetEnum().m_curr;
+}
+
+void DisplayPass::ChangeSaturationCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbLocal.Saturation = p.GetFloat().m_val;
 }
 
 void DisplayPass::ReloadShaders() noexcept

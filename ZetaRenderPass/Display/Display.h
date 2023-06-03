@@ -136,16 +136,16 @@ namespace ZetaRay::RenderPass
 				"ReSTIR_GI_Diffuse_Spatial"};
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
-			inline static const char* Tonemappers[] = { "None", "ACESFilmic", "UE4Filmic", "Neutral" };
+			inline static const char* Tonemappers[] = { "None", "ACESFitted", "Neutral" };
 			static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
 		};
 
 		void CreatePSO() noexcept;
 
 		// parameter callbacks
-		void VisualizeOcclusionCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeDisplayOptionCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept;
+		void ChangeSaturationCallback(const Support::ParamVariant& p) noexcept;
 
 		void ReloadShaders() noexcept;
 	};

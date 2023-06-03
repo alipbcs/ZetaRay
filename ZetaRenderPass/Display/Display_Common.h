@@ -25,8 +25,7 @@ enum class DisplayOption
 enum class Tonemapper
 {
 	NONE,
-	ACES_FILMIC,
-	UE4_FILMIC,
+	ACES_FITTED,
 	NEUTRAL,
 	COUNT
 };
@@ -35,8 +34,8 @@ struct cbDisplayPass
 {
 	uint16_t DisplayOption;
 	uint16_t Tonemapper;
-	uint16_t VisualizeOcclusion;
-	uint16_t pad;
+	//uint16_t VisualizeOcclusion;
+	//uint16_t pad;
 
 	uint32_t InputDescHeapIdx;
 	uint32_t ExposureDescHeapIdx;
@@ -53,6 +52,8 @@ struct cbDisplayPass
 	//uint32_t SpecularSpatialReservoir_D_DescHeapIdx;
 	//uint32_t SpecularDNSRTemporalCacheDescHeapIdx;
 	uint32_t LUTDescHeapIdx;
+
+	float Saturation;
 };
 
 #endif // FINAL_PASS_H

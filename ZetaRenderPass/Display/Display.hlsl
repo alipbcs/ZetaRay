@@ -28,54 +28,44 @@ struct VSOut
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-// Ref: https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-float3 ACESFilm(float3 x)
+// Ref: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
+
+// sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
+static const float3x3 ACESInputMat =
 {
-	float a = 2.51f;
-	float b = 0.03f;
-	float c = 2.43f;
-	float d = 0.59f;
-	float e = 0.14f;
-	return saturate((x * (a * x + b)) / (x * (c * x + d) + e));
+	{ 0.59719, 0.35458, 0.04823 },
+	{ 0.07600, 0.90834, 0.01566 },
+	{ 0.02840, 0.13383, 0.83777 }
+};
+
+// ODT_SAT => XYZ => D60_2_D65 => sRGB
+static const float3x3 ACESOutputMat =
+{
+	{ 1.60475, -0.53108, -0.07367 },
+	{ -0.10208, 1.10813, -0.00605 },
+	{ -0.00327, -0.07276, 1.07602 }
+};
+
+float3 RRTAndODTFit(float3 v)
+{
+	float3 a = v * (v + 0.0245786f) - 0.000090537f;
+	float3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
+	return a / b;
 }
 
-// Ref: https://gist.github.com/da-molchanov/85b95ab3f20fa4eb5624f9b3b959a0ee
-// Copyright 2021 Dmitry Molchanov and Julia Molchanova
-// This code is licensed under the MIT license
-float3 UE4Filmic(float3 linearColor)
+float3 ACESFitted(float3 color)
 {
-	// This multiplier corresponds to "ExposureCompensation=1" and disabled auto exposure
-	static const float ExposureMultiplier = 1.4;
+	color = mul(ACESInputMat, color);
 
-	static const float3x3 PRE_TONEMAPPING_TRANSFORM =
-	{
-		0.575961650, 0.344143820, 0.079952030,
-		0.070806820, 0.827392350, 0.101774690,
-		0.028035252, 0.131523770, 0.840242300
-	};
-	static const float3x3 EXPOSED_PRE_TONEMAPPING_TRANSFORM = ExposureMultiplier * PRE_TONEMAPPING_TRANSFORM;
-	static const float3x3 POST_TONEMAPPING_TRANSFORM =
-	{
-		1.666954300, -0.601741150, -0.065202855,
-		-0.106835220, 1.237778600, -0.130948950,
-		-0.004142626, -0.087411870, 1.091555000
-	};
+    // Apply RRT and ODT
+	color = RRTAndODTFit(color);
 
-	// Transform color spaces, perform blue correction and pre desaturation
-	float3 WorkingColor = mul(EXPOSED_PRE_TONEMAPPING_TRANSFORM, linearColor);
+	color = mul(ACESOutputMat, color);
 
-	// Apply tonemapping curve
-	// Narkowicz 2016, "ACES Filmic Tone Mapping Curve"
-	// https://knarkowicz.wordpress.com/2016/01/06/aces-filmic-tone-mapping-curve/
-	static const float a = 2.51;
-	static const float b = 0.03;
-	static const float c = 2.43;
-	static const float d = 0.59;
-	static const float e = 0.14;
-	WorkingColor = saturate((WorkingColor * (a * WorkingColor + b)) / (WorkingColor * (c * WorkingColor + d) + e));
+    // Clamp to [0, 1]
+	color = saturate(color);
 
-	// Transform color spaces, apply blue correction and post desaturation
-	return mul(POST_TONEMAPPING_TRANSFORM, WorkingColor);
+	return color;
 }
 
 // Ref: https://github.com/h3r2tic/tony-mc-mapface
@@ -136,12 +126,13 @@ float4 mainPS(VSOut psin) : SV_Target
 	
 	float3 display = exposedColor;
 	
-	if (g_local.Tonemapper == (int) Tonemapper::ACES_FILMIC)
-		display = ACESFilm(exposedColor);
-	else if (g_local.Tonemapper == (int) Tonemapper::UE4_FILMIC)
-		display = UE4Filmic(exposedColor);
+	if (g_local.Tonemapper == (int) Tonemapper::ACES_FITTED)
+		display = ACESFitted(exposedColor);
 	else if (g_local.Tonemapper == (int) Tonemapper::NEUTRAL)
 		display = tony_mc_mapface(exposedColor);
+
+	float3 desaturation = Math::Color::LuminanceFromLinearRGB(display);
+	display = lerp(desaturation, display, g_local.Saturation);
 		
 	if (g_local.DisplayOption == (int) DisplayOption::DEPTH)
 	{
@@ -206,8 +197,8 @@ float4 mainPS(VSOut psin) : SV_Target
 
 		display = r.Li * r.GetW() * ONE_OVER_PI;
 			
-		if (g_local.VisualizeOcclusion)
-			display = display * 0.1 + float3(r.M <= 1, 0, 0);
+//		if (g_local.VisualizeOcclusion)
+//			display = display * 0.1 + float3(r.M <= 1, 0, 0);
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR)
 	{
@@ -216,8 +207,8 @@ float4 mainPS(VSOut psin) : SV_Target
 
 		display = r.Li * r.GetW() * ONE_OVER_PI;
 		
-		if (g_local.VisualizeOcclusion)
-			display = display * 0.1 + float3(r.M == 1, 0, 0);
+//		if (g_local.VisualizeOcclusion)
+//			display = display * 0.1 + float3(r.M == 1, 0, 0);
 	}
 #if 0
 	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_SPECULAR_TEMPORAL)
