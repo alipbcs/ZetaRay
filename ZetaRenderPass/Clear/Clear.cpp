@@ -40,5 +40,9 @@ void ClearPass::Clear(CommandList& cmdList) noexcept
 	constexpr float clearVal = 0.0f;
 	directCmdList.ClearDepthStencilView(m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER], D3D12_CLEAR_FLAG_DEPTH, clearVal);
 
+	if (m_descriptors[SHADER_IN_DESC::CURVATURE].ptr)
+		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::CURVATURE],
+			0.0f, 0.0f, 0.0f, 0.0f);
+
 	directCmdList.PIXEndEvent();
 }

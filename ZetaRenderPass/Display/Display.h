@@ -132,7 +132,7 @@ namespace ZetaRay::RenderPass
 		struct Params
 		{
 			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
-				"MetalnessRoughness", "Emissive", "Depth", "ExposureHeatmap", "DiffuseDNSR", "ReSTIR_GI_Diffuse_Temporal", 
+				"MetalnessRoughness", "Emissive", "Depth", "Curvature", "ExposureHeatmap", "DiffuseDNSR", "ReSTIR_GI_Diffuse_Temporal", 
 				"ReSTIR_GI_Diffuse_Spatial"};
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 

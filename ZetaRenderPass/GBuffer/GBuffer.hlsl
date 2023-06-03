@@ -38,6 +38,7 @@ struct PS_OUT
 	float2 MetallicRoughness : SV_Target2;
 	float2 MotionVec : SV_Target3;
 	float3 Emissive : SV_Target4;
+	float Curvature : SV_Target5;
 };
 
 //--------------------------------------------------------------------------------------
@@ -45,18 +46,25 @@ struct PS_OUT
 //--------------------------------------------------------------------------------------
 
 PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness, float roughness,
-	float2 motionVec)
+	float2 motionVec, float localCurvature)
 {
 	PS_OUT psout;
 	
-	psout.BaseColor.rgb = baseColor;
+	if(dot(baseColor, 1) != 0)
+		psout.BaseColor = baseColor;
+	
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
-	psout.MetallicRoughness = float2(metalness, roughness);
 	psout.MotionVec = motionVec;
 	
-	if(dot(emissive, 1) != 0)
-		psout.Emissive.rgb = emissive;
+	if(metalness != 0 || roughness != 0)
+		psout.MetallicRoughness = float2(metalness, roughness);
+	
+	if (dot(emissive, 1) != 0)
+		psout.Emissive = emissive;
 
+	if (localCurvature != 0)
+		psout.Curvature = localCurvature;
+	
 	return psout;
 }
 
@@ -177,9 +185,18 @@ PS_OUT mainPS(VSOut psin)
 	float2 prevPosTS = Math::Transform::UVFromNDC(prevUnjitteredPosNDC);
 	float2 currPosTS = Math::Transform::UVFromNDC(currUnjitteredPosNDC);
 	float2 motionVecTS = currPosTS - prevPosTS;
-
+	
+	float3 posV = float3(currUnjitteredPosNDC, psin.PosH.z);
+	posV.x *= g_frame.TanHalfFOV * g_frame.AspectRatio * psin.PosH.z;
+	posV.y *= g_frame.TanHalfFOV * psin.PosH.z;
+	float3 posW = mul(g_frame.CurrViewInv, float4(posV, 1.0f));
+	
 	// eq. (31) in Ray Tracing Gems 1, ch. 20
-	//float phi = length(ddx(shadingNormal) + ddy(shadingNormal));
+	float3 dNdX = ddx(shadingNormal);
+	float3 dNdY = ddy(shadingNormal);
+	float phi = length(dNdX + dNdY);
+	float s = sign(dot(ddx(posW), dNdX) + dot(ddy(posW), dNdY));
+	float k = 2.0f * phi * s;
 	
 //	float3 T = ddx(psin.PosW);
 //	float3 B = ddy(psin.PosW);
@@ -188,9 +205,6 @@ PS_OUT mainPS(VSOut psin)
 	if (mat.IsDoubleSided())
 	{
 		const float3 normalV = mul((float3x3) g_frame.CurrView, shadingNormal);
-		float3 posV = float3(currUnjitteredPosNDC, psin.PosH.z);
-		posV.x *= g_frame.TanHalfFOV * g_frame.AspectRatio * psin.PosH.z;
-		posV.y *= g_frame.TanHalfFOV * psin.PosH.z;
 	
 		if (dot(normalV, -posV) < 0)
 			shadingNormal *= -1;
@@ -201,7 +215,8 @@ PS_OUT mainPS(VSOut psin)
 							shadingNormal,
 							metalness,
 							roughness,
-	                        motionVecTS);
+	                        motionVecTS, 
+							k);
 
 	return psout;
 }

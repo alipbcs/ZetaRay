@@ -352,6 +352,10 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 
 	// Display
 	renderGraph.AddInput(data.DisplayHandle,
+		gbuffData.Curvature.GetPathID(),
+		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+	renderGraph.AddInput(data.DisplayHandle,
 		exposureTex.GetPathID(),
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 

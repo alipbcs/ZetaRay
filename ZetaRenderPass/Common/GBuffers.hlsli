@@ -8,6 +8,7 @@ enum GBUFFER_OFFSET
     METALNESS_ROUGHNESS,
     MOTION_VECTOR,
 	EMISSIVE_COLOR,
+	CURVATURE,
     DEPTH
 };
 
@@ -17,5 +18,6 @@ enum GBUFFER_OFFSET
 #define GBUFFER_MOTION_VECTOR Texture2D<half2> 
 #define GBUFFER_EMISSIVE_COLOR Texture2D<half4>
 #define GBUFFER_DEPTH Texture2D<float> 
+#define GBUFFER_CURVATURE Texture2D<float> 
 
 #endif

@@ -398,11 +398,13 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			renderer.GetRenderViewport(),
 			renderer.GetRenderViewport(),
 			renderer.GetRenderViewport(),
+			renderer.GetRenderViewport(),
 			renderer.GetRenderViewport()
 		};
 
 		D3D12_RECT scissors[(int)SHADER_OUT::COUNT - 1] =
 		{
+			renderer.GetRenderScissor(),
 			renderer.GetRenderScissor(),
 			renderer.GetRenderScissor(),
 			renderer.GetRenderScissor(),

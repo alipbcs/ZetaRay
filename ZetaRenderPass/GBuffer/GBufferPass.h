@@ -64,6 +64,7 @@ namespace ZetaRay::RenderPass
 			GBUFFER_MOTION_VECTOR,
 			GBUFFER_EMISSIVE,
 			GBUFFER_DEPTH,
+			GBUFFER_CURVATURE,
 			COUNT
 		};
 

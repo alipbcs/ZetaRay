@@ -20,6 +20,7 @@ namespace ZetaRay::RenderPass
 			METALNESS_ROUGHNESS,
 			MOTION_VECTOR,
 			EMISSIVE_COLOR,
+			CURVATURE,
 			COUNT
 		};
 

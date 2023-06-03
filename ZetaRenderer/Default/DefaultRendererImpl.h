@@ -61,6 +61,7 @@ namespace ZetaRay::DefaultRenderer
 			GBUFFER_METALNESS_ROUGHNESS,
 			GBUFFER_MOTION_VECTOR,
 			GBUFFER_EMISSIVE_COLOR,
+			GBUFFER_CURVATURE,
 			GBUFFER_DEPTH,
 			COUNT
 		};
@@ -72,6 +73,7 @@ namespace ZetaRay::DefaultRenderer
 			DXGI_FORMAT_R8G8_UNORM,
 			DXGI_FORMAT_R16G16_FLOAT,
 			DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+			DXGI_FORMAT_R16_FLOAT,
 			DXGI_FORMAT_D32_FLOAT
 		};
 
@@ -82,6 +84,7 @@ namespace ZetaRay::DefaultRenderer
 		Core::Texture MotionVec;
 		Core::Texture EmissiveColor;
 		Core::Texture DepthBuffer[2];
+		Core::Texture Curvature;
 
 		Core::DescriptorTable SRVDescTable[2];
 		Core::DescriptorTable RTVDescTable[2];

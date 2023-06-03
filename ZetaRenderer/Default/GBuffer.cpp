@@ -29,7 +29,8 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
-		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR] };
+		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR],
+		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE] };
 
 	data.GBuffPass.Init(rtvFormats);
 }
@@ -41,7 +42,7 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 	const int width = App::GetRenderer().GetRenderWidth();
 	const int height = App::GetRenderer().GetRenderHeight();
 
-	// base-color	
+	// base color	
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
@@ -191,6 +192,28 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 				DXGI_FORMAT_R32_FLOAT);
 		}
 	}
+
+	// curvature
+	{
+		D3D12_CLEAR_VALUE clearValue = {};
+		memset(clearValue.Color, 0, sizeof(float) * 4);
+		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE];
+
+		data.Curvature = ZetaMove(gpuMem.GetTexture2D("GBuffer_Curvature", width, height,
+			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE],
+			D3D12_RESOURCE_STATE_COMMON,
+			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			1,
+			&clearValue));
+
+		// RTV
+		Direct3DHelper::CreateRTV(data.Curvature, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DHelper::CreateRTV(data.Curvature, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+
+		// SRV
+		Direct3DHelper::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DHelper::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+	}
 }
 
 void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data) noexcept
@@ -216,6 +239,7 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 	data.BaseColor.Reset();
 	data.EmissiveColor.Reset();
 	data.MotionVec.Reset();
+	data.Curvature.Reset();
 }
 
 void GBuffer::Update(GBufferData& gbuffData) noexcept
@@ -293,6 +317,8 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::DEPTH_BUFFER,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
+	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::CURVATURE,
+		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_CURVATURE));
 }
 
 void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
@@ -316,6 +342,7 @@ void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
 	renderGraph.RegisterResource(data.BaseColor.GetResource(), data.BaseColor.GetPathID());
 	renderGraph.RegisterResource(data.MotionVec.GetResource(), data.MotionVec.GetPathID());
 	renderGraph.RegisterResource(data.EmissiveColor.GetResource(), data.EmissiveColor.GetPathID());
+	renderGraph.RegisterResource(data.Curvature.GetResource(), data.Curvature.GetPathID());
 
 	// when more than one RenderPass outputs one resource, it's unclear which one should run first.
 	// add a made-up resource so that GBufferPass runs after Clear
@@ -335,6 +362,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.ClearHandle, data.MetalnessRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	renderGraph.AddOutput(data.ClearHandle, data.Curvature.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// make the GBufferPass dependent on Clear
@@ -346,4 +374,5 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.Curvature.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 }
