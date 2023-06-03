@@ -333,35 +333,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-	// estimate curvature
-	{
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, ESTIMATE_CURVATURE_GROUP_DIM_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, ESTIMATE_CURVATURE_GROUP_DIM_Y);
-
-		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateCurvature");
-
-		computeCmdList.PIXBeginEvent("EstimateCurvature");
-		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_CURVAURE]);
-
-		computeCmdList.ResourceBarrier(m_curvature.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		cbCurvature cb;
-		cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_UAV);
-
-		m_rootSig.SetRootConstants(0, sizeof(cbCurvature) / sizeof(DWORD), &cb);
-		m_rootSig.End(computeCmdList);
-
-		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-		// record the timestamp after execution
-		gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-		cmdList.PIXEndEvent();
-	}
-
 	// Temporal resampling
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_SPEC_TEMPORAL_GROUP_DIM_X);
@@ -372,10 +343,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.PIXBeginEvent("ReSTIR_GI_Specular_Temporal");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_RESAMPLE]);
-
-		computeCmdList.ResourceBarrier(m_curvature.GetResource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 		m_cbTemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbTemporal.DispatchDimY = (uint16_t)dispatchDimY;
@@ -400,7 +367,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbTemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 		m_cbTemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
 		m_cbTemporal.CurrTemporalReservoir_D_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDIdx);
-		m_cbTemporal.CurvatureSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_SRV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_Temporal) / sizeof(DWORD), &m_cbTemporal);
 		m_rootSig.End(computeCmdList);
@@ -511,7 +477,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbDNSR.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvIdx);
 		m_cbDNSR.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavIdx);
 		m_cbDNSR.IsTemporalCacheValid = m_isTemporalReservoirValid;
-		m_cbDNSR.CurvatureSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_SRV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cbDNSR) / sizeof(DWORD), &m_cbDNSR);
 		m_rootSig.End(computeCmdList);
@@ -626,12 +591,6 @@ void ReSTIR_GI_Specular::CreateOutputs() noexcept
 		func(m_dnsrTemporalCache[1], ResourceFormats::DNSR_TEMPORAL_CACHE, "SpecularDNSR_1",
 			DESC_TABLE::DNSR_TEMPORAL_CACHE_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_1_UAV);
 	}
-
-	// curvature
-	{
-		func(m_curvature, ResourceFormats::CURVATURE, "Curvature",
-			DESC_TABLE::CURVATURE_SRV, DESC_TABLE::CURVATURE_UAV);
-	}
 }
 
 void ReSTIR_GI_Specular::DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept
@@ -669,11 +628,6 @@ void ReSTIR_GI_Specular::PdfCorrectionCallback(const Support::ParamVariant& p) n
 	m_cbTemporal.PdfCorrection = p.GetBool();
 	m_cbSpatial.PdfCorrection = p.GetBool();
 }
-
-//void ReSTIR_GI_Specular::NormalExpCallback(const Support::ParamVariant& p) noexcept
-//{
-//	m_cbSpatial.NormalExp = p.GetFloat().m_val;
-//}
 
 void ReSTIR_GI_Specular::RoughnessCutoffCallback(const Support::ParamVariant& p) noexcept
 {

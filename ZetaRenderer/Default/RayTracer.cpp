@@ -307,6 +307,10 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				gbuffData.BaseColor.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
+				gbuffData.Curvature.GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
 			// prev. temporal reservoirs
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
 				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A).GetPathID(),

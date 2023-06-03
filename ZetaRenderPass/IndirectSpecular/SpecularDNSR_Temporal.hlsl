@@ -340,7 +340,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float3 wi = normalize(r.SamplePos - posW);
 	surface.InitComplete(wi, 0.0.xxx, mr.x);
 
-	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
+	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 	const float localCurvature = g_curvature[DTid.xy];
 
 	float3 color;

@@ -611,7 +611,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, float2(u0, u1));
 	}
 	
-	Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureSRVDescHeapIdx];
+	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 	float localCurvature = g_curvature[swizzledDTid.xy];
 	float adjustedLocalCurvature = (localCurvature > 1e-3) * pow((1 + linearDepth) / linearDepth, 4);
 	// having a nonzero curvature for flat surfaces helps with reducing temporal artifacts

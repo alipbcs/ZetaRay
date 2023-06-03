@@ -33,8 +33,6 @@ struct cb_RGI_Spec_Temporal
 	uint32_t CurrTemporalReservoir_C_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_D_DescHeapIdx;
 	
-	uint32_t CurvatureSRVDescHeapIdx;
-
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
 	uint16_t IsTemporalReservoirValid;
@@ -83,7 +81,6 @@ struct cbDNSR
 
 	uint32_t PrevTemporalCacheDescHeapIdx;
 	uint32_t CurrTemporalCacheDescHeapIdx;
-	uint32_t CurvatureSRVDescHeapIdx;
 	
 	float RoughnessCutoff;
 	float ViewAngleExp;
