@@ -37,9 +37,9 @@ set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
 	"${IMGUI_DIR}/implot_items.cpp")
 
 # natvis
-set(NATVIS_SRC "${CMAKE_SOURCE_DIR}/natvis/Container.natvis"
-	"${CMAKE_SOURCE_DIR}/natvis/imgui.natvis"
-	"${CMAKE_SOURCE_DIR}/natvis/App.natvis")
+set(NATVIS_SRC "${CMAKE_SOURCE_DIR}/Natvis/Container.natvis"
+	"${CMAKE_SOURCE_DIR}/Natvis/imgui.natvis"
+	"${CMAKE_SOURCE_DIR}/Natvis/App.natvis")
 
 source_group(TREE "${ZETA_CORE_DIR}" FILES ${CORE_SRC})
 source_group(TREE "${CMAKE_SOURCE_DIR}" FILES ${NATVIS_SRC})
