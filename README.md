@@ -1,26 +1,28 @@
 # ZetaRay
+[![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
 A hobby real-time renderer in Direct3D 12, mainly developed for learning and experimenting with the latest research in real-time rendering—with an emphasis on ray tracing. 
 
 This renderer follows a hybrid approach where the primary surface is rasterized, but all the lighting is raytraced by leveraging GPU-accelerated hardware ray tracing.
 
 <div align="center">
-  <img src="images/2.jpg" alt="Sponza" style="zoom:60%"/>
+  <img src="Assets/Images/2.png?raw=true" alt="Sponza" style="zoom:60%"/>
   <p style="text-align: center;"><i>Sponza Atrium rendered by ZetaRay. Model downloaded from <a href="https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html">Intel Samples Library</a>.</i></p>
 </div>
 
 ## Features
 
- - GPU-driven—bindless, indirect drawing with GPU-based occlusion culling.
+ - GPU-driven—bindless, indirect drawing with GPU-based occlusion culling
  - One bounce of indirect illumination using ReSTIR GI [[1](#references)]. Custom spatio-temporal denoisers for each BRDF layer (diffuse & specular) clean up the results.
  - Ray-traced sun soft shadows. A slightly modified FidelityFX denoiser [[2](#references)] is used for denoising.
- - Ray cones for texture MIP selection.
- - Single scattering sky and atmosphere (based on [[3, 4](#references)]).
- - Physically-based materials with roughness, metallic mask, normal and emissive maps.
- - Render graph for automatic resource barrier placement and multi-threaded GPU command list recording and submission ([more details below](#render-graph)).
+ - Ray cones for texture MIP selection
+ - Single scattering sky and atmosphere (based on [[3, 4](#references)])
+ - Physically-based materials with roughness, metallic mask, normal and emissive maps
+ - Render graph for automatic resource barrier placement and multi-threaded GPU command list recording and submission ([more details below](#render-graph))
  - Temporal anti-aliasing (TAA)
  - AMD FSR2 upscaling
  - Auto exposure using luminance histogram
+ - glTF scene loading with the roughness-metalness workflow
 
 ### Render Graph
 
@@ -33,7 +35,7 @@ Furthermore, using multiple command buffers requires a correct submission order�
 A render graph can help with all of the above; by analyzing resource dependencies, a directed acyclic graph (DAG) is formed from which submission order is derived and barriers are automatically placed. Async compute is also supported. Note that inserted barriers only ensure correct usage and may not be optimal. A visualization is shown below.
 
 <div align="center">
-  <img src="images/6.jpg" alt="Render graph" style="zoom:30%"/>
+  <img src="Assets/Images/6.png?raw=true" alt="Render graph" style="zoom:50%"/>
   <p style="text-align: center;"><i>A sample frame render graph.</i></p>
 </div>
 
@@ -59,10 +61,10 @@ Note that glTF scenes need to be preprocessed first by generating mipmaps and co
 > .\BCnCompressglTF <path-to-gltf>
 ```
 The outputs are:
-1. The converted glTF file in the same directory with a `_zeta` suffix (e.g. `myscene.gltf` -> `myscene_zeta.gltf`) 
+1. The converted glTF scene file in the same directory with a `_zeta` suffix (e.g. `myscene.gltf` -> `myscene_zeta.gltf`) 
 2. The compressed textures in the `<path-to-gltf-directory>/compressed` directory.
 
-For convenience, a preprocessed Cornell Box scene is provided ([`Assets/CornellBox_v2/cornell9.gltf`](./Assets/CornellBox/cornell9.gltf)). After building the project, run it as follows:
+For convenience, a preprocessed Cornell Box scene is provided ([`Assets/CornellBox/cornell9.gltf`](./Assets/CornellBox/cornell9.gltf)). After building the project, run it as follows:
 ```bash
 > cd bin
 > .\ZetaLab ..\Assets\CornellBox\cornell9.gltf
@@ -73,15 +75,28 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 ## Screenshots
 
 <div align="center">
-  <img src="images/4.jpg" alt="Render graph" style="zoom:50%"/>
+  <img src="Assets/Images/4.jpg?raw=true" alt="San Miguel" style="zoom:50%"/>
   <p style="text-align: center;"><i>San Miguel 2.0. Downloaded from <a href="https://casual-effects.com/data">Morgan McGuire's Computer Graphics Archive</a>.</i></p>
 
-  <img src="images/3.jpg" alt="Render graph" style="zoom:50%"/>
+  </br>
+
+  <img src="Assets/Images/3.png?raw=true" alt="San Miguel" style="zoom:50%"/>
   <p style="text-align: center;"><i>San Miguel 2.0. Downloaded from <a href="https://casual-effects.com/data">Morgan McGuire's Computer Graphics Archive</a>.</i></p>
 
-  <img src="images/5.jpg" alt="Render graph" style="zoom:50%"/>
-  <p style="text-align: center;"><i>Modified Cornell Box. <a href="https://sketchfab.com/3d-models/cornell-box-original-0d18de8d108c4c9cab1a4405698cc6b6">Original scene</a>
-  by <a href="https://sketchfab.com/t-ly">t-ly</a>.</i></p>
+  </br>
+
+  <img src="Assets/Images/7.png?raw=true" alt="San Miguel" style="zoom:50%"/>
+  <p style="text-align: center;"><i>San Miguel 2.0. Downloaded from <a href="https://casual-effects.com/data">Morgan McGuire's Computer Graphics Archive</a>.</i></p>
+
+  </br>
+
+  <img src="Assets/Images/8.png?raw=true" alt="Sponza" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Sponza Atrium. Model downloaded from <a href="https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html">Intel Samples Library</a>.</i></p>
+
+  </br>
+
+  <img src="Assets/Images/5.png?raw=true" alt="Cornell Box" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Cornell Box. <a href="https://sketchfab.com/3d-models/cornell-box-original-0d18de8d108c4c9cab1a4405698cc6b6">Original scene</a> by <a href="https://sketchfab.com/t-ly">t-ly</a>.</i></p>
 </div>
 
 ## References
@@ -109,4 +124,4 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 
 ## License
 
-This project is licensed under MIT.
+This project is licensed under the MIT License.

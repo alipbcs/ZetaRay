@@ -10,6 +10,7 @@ Assets/*
 !Assets/Font
 !Assets/LUT
 !Assets/Samplers
+!Assets/Images
 
 # external libs
 External/*
