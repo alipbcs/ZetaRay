@@ -7,6 +7,35 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
 
+namespace
+{
+	ZetaInline void InitPipe(HANDLE& readPipe, HANDLE& writePipe)
+	{
+		SECURITY_ATTRIBUTES saAttr;
+		saAttr.nLength = sizeof(SECURITY_ATTRIBUTES);
+		saAttr.bInheritHandle = true;
+		saAttr.lpSecurityDescriptor = nullptr;
+
+		CheckWin32(CreatePipe(&readPipe, &writePipe, &saAttr, 0));
+		CheckWin32(SetHandleInformation(readPipe, HANDLE_FLAG_INHERIT, 0));
+	}
+
+	ZetaInline void ReleasePipe(HANDLE readPipe, HANDLE writePipe)
+	{
+		CloseHandle(writePipe);
+
+		char buffer[512];
+		DWORD numToRead;
+		if (ReadFile(readPipe, buffer, ZetaArrayLen(buffer), &numToRead, nullptr))
+		{
+			if (numToRead)
+				App::Log(buffer, App::LogMessage::WARNING);
+		}
+
+		CloseHandle(readPipe);
+	}
+}
+
 //--------------------------------------------------------------------------------------
 // PipelineStateLibrary
 //--------------------------------------------------------------------------------------
@@ -133,10 +162,17 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #endif // _DEBUG
 
+		HANDLE readPipe;
+		HANDLE writePipe;
+		InitPipe(readPipe, writePipe);
+
 		PROCESS_INFORMATION pi;
 		STARTUPINFO si{};
 		si.cb = sizeof(si);
-		CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &si, &pi));
+		si.hStdOutput = writePipe;
+		si.hStdError = writePipe;
+		si.dwFlags = STARTF_USESTDHANDLES;
+		CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi));
 
 		// TODO following by itself is not enogh to guarantee PSO is not deleted while GPU is still referenceing 
 		// it. But since the calling thread blocks until PSO is compiled and processing for next frame won't 
@@ -150,6 +186,8 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 		WaitForSingleObject(pi.hProcess, INFINITE);
 		CloseHandle(pi.hThread);
 		CloseHandle(pi.hProcess);
+
+		ReleasePipe(readPipe, writePipe);
 	}
 	else
 	{
@@ -174,8 +212,15 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 #endif // _DEBUG
 
 			siVS.cb = sizeof(siVS);
-			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siVS, &piVS));
+			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, CREATE_NO_WINDOW, nullptr, nullptr, &siVS, &piVS));
 		}
+
+		HANDLE readPipe;
+		HANDLE writePipe;
+		InitPipe(readPipe, writePipe);
+		siPS.hStdOutput = writePipe;
+		siPS.hStdError = writePipe;
+		siPS.dwFlags = STARTF_USESTDHANDLES;
 
 		// PS
 		{
@@ -186,7 +231,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 #endif // _DEBUG
 
 			siPS.cb = sizeof(siPS);
-			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, 0, nullptr, nullptr, &siPS, &piPS));
+			CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &siPS, &piPS));
 		}
 
 		HANDLE pis[] = { piVS.hProcess, piPS.hProcess };
@@ -197,6 +242,8 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 
 		CloseHandle(piPS.hThread);
 		CloseHandle(piPS.hProcess);
+
+		ReleasePipe(readPipe, writePipe);
 	}
 }
 
@@ -373,7 +420,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 	Assert(m_psoLibrary, "m_psoLibrary has not been created yet.");
 	HRESULT hr = m_psoLibrary->LoadGraphicsPipeline(nameWide, &psoDesc, IID_PPV_ARGS(&pso));
 
-	// A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
+	// A PSO with the specified name doesnâ€™t exist, or the input desc doesnâ€™t match the data in the library.
 	// Create the PSO and store it in the library for possible future reuse.
 	if (hr == E_INVALIDARG)
 	{
@@ -426,7 +473,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 
 	HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
-	// A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
+	// A PSO with the specified name doesnâ€™t exist, or the input desc doesnâ€™t match the data in the library.
 	// Create the PSO and then store it in the library for next time.
 	if (hr == E_INVALIDARG)
 	{
@@ -472,7 +519,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 
 	HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
-	// A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
+	// A PSO with the specified name doesnâ€™t exist, or the input desc doesnâ€™t match the data in the library.
 	// Create the PSO and then store it in the library for next time.
 	if (hr == E_INVALIDARG)
 	{
