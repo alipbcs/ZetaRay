@@ -87,6 +87,8 @@ namespace ZetaRay::RenderPass
 		static constexpr float m_logWndHeightPct = 0.21f;
 		bool m_isFullScreen = false;
 		bool m_showRenderGraph = false;
+		int m_prevNumLogs = 0;
+		bool m_showLogsWindow = true;
 
 		Util::SmallVector<App::LogMessage> m_logs;
 

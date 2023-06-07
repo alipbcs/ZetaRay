@@ -676,13 +676,15 @@ void GuiPass::RenderRenderGraph() noexcept
 
 void GuiPass::RenderLogWindow() noexcept
 {
-	{
-		auto frameLogs = App::GetFrameLogs().Variable();
-		m_logs.append_range(frameLogs.begin(), frameLogs.end());
-	}
+	auto frameLogs = App::GetFrameLogs().Variable();
+	m_prevNumLogs = (int)m_logs.size();
+	m_logs.append_range(frameLogs.begin(), frameLogs.end());
 
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+
+	if(!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
+		ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
 
 	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
 	{
@@ -703,12 +705,12 @@ void GuiPass::RenderLogWindow() noexcept
 		char* buf;
 		char* buf_end;
 
-		std::partition(m_logs.begin(), m_logs.end(),
-			[](const App::LogMessage& m)
-			{
-				return m.Type == App::LogMessage::INFO;
-			}
-		);
+		//std::partition(m_logs.begin(), m_logs.end(),
+		//	[](const App::LogMessage& m)
+		//	{
+		//		return m.Type == App::LogMessage::INFO;
+		//	}
+		//);
 
 		// TODO consider using ImGuiListClipper
 		for (auto& msg : m_logs)
@@ -727,6 +729,7 @@ void GuiPass::RenderLogWindow() noexcept
 	else
 		ImGui::SetWindowPos(ImVec2(ceilf(m_dbgWndWidthPct * displayWidth), (float)displayHeight), ImGuiCond_Always);
 
+	m_showLogsWindow = !ImGui::IsWindowCollapsed();
 	ImGui::End();
 }
 
@@ -945,12 +948,14 @@ void GuiPass::ShaderReloadTab() noexcept
 		ImGui::EndCombo();
 	}
 
-	ImGui::PushStyleColor(ImGuiCol_ButtonActive, (ImVec4)ImColor::HSV(4 / 7.0f, 0.8f, 0.8f));
+	if(m_currShader == -1)
+		ImGui::BeginDisabled();
 
-	if (ImGui::Button("Reload") && m_currShader != -1)
+	if (ImGui::Button("Reload"))
 		handlers[m_currShader].Dlg();
 
-	ImGui::PopStyleColor();
+	if (m_currShader == -1)
+		ImGui::EndDisabled();
 }
 
 void GuiPass::RebuildFontTex() noexcept
