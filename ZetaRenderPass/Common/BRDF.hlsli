@@ -162,6 +162,7 @@ namespace BRDF
 			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
 			si.alpha = roughness * roughness;
 			si.alphaSq = max(1e-5f, si.alpha * si.alpha);
+			si.DeltaNDF = roughness < 0.01f;
 			
 			return si;
 		}
@@ -198,6 +199,7 @@ namespace BRDF
 		float whdotwo;
 		float3 diffuseReflectance;
 		float3 F;
+		bool DeltaNDF;
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -237,7 +239,7 @@ namespace BRDF
 
 	float3 SpecularBRDFGGXSmith(SurfaceInteraction surface)
 	{
-		float NDF = GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float NDF = surface.DeltaNDF ? surface.ndotwh >= 0.99f : GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
 		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surface.alphaSq, surface.ndotwi, surface.ndotwo);
 
 		return surface.F * NDF * G2Div4NdotLNdotV * surface.ndotwi;
@@ -251,7 +253,7 @@ namespace BRDF
 	// Note that hdotwo = hdotwi.
 	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surface)
 	{
-		float NDF = GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float NDF = surface.DeltaNDF ? surface.ndotwh >= 0.99f : GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
 		float G1 = SmithG1ForGGX(surface.alphaSq, surface.ndotwo);
 
 		float pdf = (NDF * G1) / (4.0f * saturate(surface.ndotwo));
