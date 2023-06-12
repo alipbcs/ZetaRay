@@ -102,10 +102,9 @@ void SunShadow::Init() noexcept
 	CreateResources();
 
 	m_temporalCB.IsTemporalValid = false;
-	m_temporalCB.MaxPlaneDist = DefaultParamVals::MaxPlaneDist;
 	m_spatialCB.EdgeStoppingShadowStdScale = DefaultParamVals::EdgeStoppingShadowStdScale;
 	m_spatialCB.EdgeStoppingNormalExp = DefaultParamVals::EdgeStoppingNormalExp;
-	m_spatialCB.EdgeStoppingMaxPlaneDist = DefaultParamVals::MaxPlaneDist;
+	m_spatialCB.MinFilterVar = 0.0f;
 
 	ParamVariant softShadows;
 	softShadows.InitBool("Renderer", "SunShadow", "SoftShadows",
@@ -117,32 +116,14 @@ void SunShadow::Init() noexcept
 		fastdelegate::MakeDelegate(this, &SunShadow::NumSpatialFilterPassesCallback), m_numSpatialPasses, 0, 3, 1);
 	App::AddParam(numSpatialPasses);
 
-	ParamVariant maxPlaneDist;
-	maxPlaneDist.InitFloat("Renderer", "SunShadow", "EdgeStoppingMaxPlaneDist",
-		fastdelegate::MakeDelegate(this, &SunShadow::MaxPlaneDistCallback),
-		DefaultParamVals::MaxPlaneDist,				// val	
-		0.01f,										// min
-		1.0f,										// max
-		1e-3f);										// step
-	App::AddParam(maxPlaneDist);
-
-	ParamVariant shadowStdScale;
-	shadowStdScale.InitFloat("Renderer", "SunShadow", "EdgeStoppingShadowStdScale",
-		fastdelegate::MakeDelegate(this, &SunShadow::EdgeStoppingNormalExpCallback),
-		DefaultParamVals::EdgeStoppingShadowStdScale,	// val	
-		0.1f,											// min
-		1.0f,											// max
-		0.1f);											// step
-	App::AddParam(shadowStdScale);
-
-	ParamVariant normalExp;
-	normalExp.InitFloat("Renderer", "SunShadow", "EdgeStoppingNormalExp",
-		fastdelegate::MakeDelegate(this, &SunShadow::EdgeStoppingNormalExpCallback),
-		DefaultParamVals::EdgeStoppingNormalExp,	// val	
-		1.0f,										// min
-		64.0f,										// max
-		1.0f);										// step
-	App::AddParam(normalExp);
+	ParamVariant minVar;
+	minVar.InitFloat("Renderer", "SunShadow", "MinFilterVariance",
+		fastdelegate::MakeDelegate(this, &SunShadow::MinFilterVarianceCallback),
+		m_spatialCB.MinFilterVar,					// val	
+		0.0f,										// min
+		8.0f,										// max
+		1e-2f);										// step
+	App::AddParam(minVar);
 
 	//App::AddShaderReloadHandler("SunShadow_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRTemporal));
 	//App::AddShaderReloadHandler("SunShadow_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRSpatial));
@@ -440,15 +421,9 @@ void SunShadow::NumSpatialFilterPassesCallback(const Support::ParamVariant& p) n
 	m_numSpatialPasses = p.GetInt().m_val;
 }
 
-void SunShadow::EdgeStoppingNormalExpCallback(const Support::ParamVariant& p) noexcept
+void SunShadow::MinFilterVarianceCallback(const Support::ParamVariant& p) noexcept
 {
-	m_spatialCB.EdgeStoppingNormalExp = p.GetFloat().m_val;
-}
-
-void SunShadow::MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept
-{
-	m_temporalCB.MaxPlaneDist = p.GetFloat().m_val;
-	m_spatialCB.EdgeStoppingMaxPlaneDist = p.GetFloat().m_val;
+	m_spatialCB.MinFilterVar = p.GetFloat().m_val;
 }
 
 void SunShadow::EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p) noexcept

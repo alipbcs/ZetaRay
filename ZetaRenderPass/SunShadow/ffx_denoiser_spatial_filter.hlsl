@@ -26,8 +26,8 @@ THE SOFTWARE.
 #include "../Common/GBuffers.hlsli"
 #include "SunShadow_Common.h"
 
-#define PLANE_BASED_DEPTH_EDGE_STOP_FN 1
 #define KERNEL_RADIUS 1
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 
 static const unsigned int Width = 2 * KERNEL_RADIUS + 1;
 static const float Kernel1D[Width] = { 0.27901, 0.44198, 0.27901 };
@@ -134,12 +134,10 @@ float FFX_DNSR_Shadows_GetShadowSimilarity(float x1, float x2, float sigma)
 	return exp(-abs(x1 - x2) / (sigma * g_local.EdgeStoppingShadowStdScale));
 }
 
-float FFX_DNSR_Shadows_GetDepthSimilarity(float3 samplePos, float3 currNormal, float3 currPos)
+float FFX_DNSR_Shadows_GetDepthSimilarity(float3 samplePos, float3 currNormal, float3 currPos, float currLinearDepth)
 {
-	float planeDist = dot(currNormal, samplePos - currPos);
-	
-	float tolerance = g_local.EdgeStoppingMaxPlaneDist;
-	float weight = saturate(tolerance - abs(planeDist) / max(tolerance, 1e-6f));
+	float planeDist = dot(currNormal, samplePos - currPos);	
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
 	
 	return weight;
 }
@@ -177,18 +175,18 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 {
     // Load our center sample
 	const float2 shadow_center = g_FFX_DNSR_shared_input[GTid.y][GTid.x];
-	const float3 normal_center = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
+	const float3 currNormal = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
 
 	weight_sum = 1.0f;
 	shadow_sum = shadow_center;
 
-	const float variance = FFX_DNSR_Shadows_FilterVariance(GTid);
+	const float variance = max(FFX_DNSR_Shadows_FilterVariance(GTid), g_local.MinFilterVar);
 	const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
-	const float depth_center = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 pos_center = Math::Transform::WorldPosFromScreenSpace(DTid, 
+	const float3 currPos = Math::Transform::WorldPosFromScreenSpace(DTid, 
         renderDim,
-        depth_center,
+        currLinearDepth,
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio, 
         g_frame.CurrViewInv);
@@ -203,17 +201,17 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 			const int2 gtid_idx = GTid + step;
 			const int2 did_idx = DTid + step;
 
-			float depth_neigh = g_FFX_DNSR_shared_depth[gtid_idx.y][gtid_idx.x];
-			float3 normal_neigh = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
+			float neighborDepth = g_FFX_DNSR_shared_depth[gtid_idx.y][gtid_idx.x];
+			float3 neighborNormal = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
 			float2 shadow_neigh = g_FFX_DNSR_shared_input[gtid_idx.y][gtid_idx.x];
 
-			float sky_pixel_multiplier = ((x == 0 && y == 0) || depth_neigh == 0.0f) ? 0 : 1; // Zero weight for sky pixels
+			float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == 0.0f) ? 0 : 1; // Zero weight for sky pixels
 
             // Fetch our filtering values
-			depth_neigh = Math::Transform::LinearDepthFromNDC(depth_neigh, g_frame.CameraNear);
-			float3 pos_neigh = Math::Transform::WorldPosFromScreenSpace(did_idx,
+			neighborDepth = Math::Transform::LinearDepthFromNDC(neighborDepth, g_frame.CameraNear);
+			float3 posNeighbor = Math::Transform::WorldPosFromScreenSpace(did_idx,
                 renderDim,
-                depth_neigh,
+                neighborDepth,
                 g_frame.TanHalfFOV,
                 g_frame.AspectRatio,
                 g_frame.CurrViewInv);
@@ -221,8 +219,8 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
             // Evaluate the edge-stopping function
 			float w = Kernel[abs(y)][abs(x)]; // kernel weight
 			w *= FFX_DNSR_Shadows_GetShadowSimilarity(shadow_center.x, shadow_neigh.x, std_deviation);
-			w *= FFX_DNSR_Shadows_GetDepthSimilarity(pos_neigh, normal_center, pos_center);
-			w *= FFX_DNSR_Shadows_GetNormalSimilarity(normal_center, normal_neigh, g_local.EdgeStoppingNormalExp);
+			w *= FFX_DNSR_Shadows_GetDepthSimilarity(posNeighbor, currNormal, currPos, currLinearDepth);
+			w *= FFX_DNSR_Shadows_GetNormalSimilarity(currNormal, neighborNormal, g_local.EdgeStoppingNormalExp);
 			w *= sky_pixel_multiplier;
 
             // Accumulate the filtered sample

@@ -120,7 +120,8 @@ namespace ZetaRay::RenderPass
 		};
 
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = 
+		{
 			"SunShadow_cs.cso",
 			"ffx_denoiser_temporal_cs.cso",
 			"ffx_denoiser_spatial_filter_cs.cso"
@@ -129,7 +130,6 @@ namespace ZetaRay::RenderPass
 		struct DefaultParamVals
 		{
 			static constexpr float EdgeStoppingNormalExp = 32.0f;
-			static constexpr float MaxPlaneDist = 0.1f;
 			static constexpr float EdgeStoppingShadowStdScale = 0.5f;
 		};
 
@@ -138,10 +138,8 @@ namespace ZetaRay::RenderPass
 
 		void DoSoftShadowsCallback(const Support::ParamVariant& p) noexcept;
 		void NumSpatialFilterPassesCallback(const Support::ParamVariant& p) noexcept;
-		//void EdgeStoppingDepthSigmaCallback(const Support::ParamVariant& p) noexcept;
-		void EdgeStoppingNormalExpCallback(const Support::ParamVariant& p) noexcept;
-		void MaxPlaneDistCallback(const Support::ParamVariant& p) noexcept;
 		void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p) noexcept;
+		void MinFilterVarianceCallback(const Support::ParamVariant& p) noexcept;
 
 		void ReloadDNSRTemporal() noexcept;
 		void ReloadDNSRSpatial() noexcept;
