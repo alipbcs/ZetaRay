@@ -27,12 +27,12 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_RGI_Diff_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
 ByteAddressBuffer g_materials : register(t1);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t3);
-StructuredBuffer<uint> g_scramblingTile : register(t4);
-StructuredBuffer<uint> g_rankingTile : register(t5);
+ByteAddressBuffer g_owenScrambledSobolSeq : register(t3);
+ByteAddressBuffer g_scramblingTile : register(t4);
+ByteAddressBuffer g_rankingTile : register(t5);
 ByteAddressBuffer g_frameMeshData : register(t6);
 StructuredBuffer<Vertex> g_sceneVertices : register(t7);
-StructuredBuffer<uint> g_sceneIndices : register(t8);
+ByteAddressBuffer g_sceneIndices : register(t8);
 
 //--------------------------------------------------------------------------------------
 // 
@@ -171,9 +171,9 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 
 		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
-		uint i0 = g_sceneIndices[tri] + meshData.BaseVtxOffset;
-		uint i1 = g_sceneIndices[tri + 1] + meshData.BaseVtxOffset;
-		uint i2 = g_sceneIndices[tri + 2] + meshData.BaseVtxOffset;
+		uint i0 = g_sceneIndices.Load<uint>(tri * sizeof(uint)) + meshData.BaseVtxOffset;
+		uint i1 = g_sceneIndices.Load<uint>((tri + 1) * sizeof(uint)) + meshData.BaseVtxOffset;
+		uint i2 = g_sceneIndices.Load<uint>((tri + 2) * sizeof(uint)) + meshData.BaseVtxOffset;
 
 		Vertex V0 = g_sceneVertices[i0];
 		Vertex V1 = g_sceneVertices[i1];

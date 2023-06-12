@@ -211,8 +211,8 @@ namespace Sampling
 	// This is for 32 samples per-pixel
 	// Sample index: frame number % 32
 	// Sample dimension: (0, 1) for the indirect samples and more for additional dimensions
-	float samplerBlueNoiseErrorDistribution(StructuredBuffer<uint> g_owenScrambledSobolSeq,
-		StructuredBuffer<uint> g_rankingTile, StructuredBuffer<uint> g_scramblingTile,
+	float samplerBlueNoiseErrorDistribution(ByteAddressBuffer g_owenScrambledSobolSeq,
+		ByteAddressBuffer g_rankingTile, ByteAddressBuffer g_scramblingTile,
 		int pixel_i, int pixel_j, int sampleIndex, int sampleDimension)
 	{
 		// wrap arguments
@@ -222,13 +222,16 @@ namespace Sampling
 		sampleDimension = sampleDimension & 255;
 
 		// xor index based on optimized ranking
-		int rankedSampleIndex = sampleIndex ^ g_rankingTile[sampleDimension + (pixel_i + pixel_j * 128) * 8];
+		uint idxInBytes = (sampleDimension + (pixel_i + pixel_j * 128) * 8) * sizeof(uint);
+		int rankedSampleIndex = sampleIndex ^ g_rankingTile.Load<uint>(idxInBytes);
 
 		// fetch value in sequence
-		int value = g_owenScrambledSobolSeq[sampleDimension + rankedSampleIndex * 256];
+		idxInBytes = (sampleDimension + rankedSampleIndex * 256) * sizeof(uint);
+		int value = g_owenScrambledSobolSeq.Load<uint>(idxInBytes);
 
 		// If the dimension is optimized, xor sequence value based on optimized scrambling
-		value = value ^ g_scramblingTile[(sampleDimension & 7) + (pixel_i + pixel_j * 128) * 8];
+		idxInBytes = ((sampleDimension & 7) + (pixel_i + pixel_j * 128) * 8) * sizeof(uint);
+		value = value ^ g_scramblingTile.Load<uint>(idxInBytes);
 
 		// convert to float and return
 		float v = (0.5f + value) / 256.0f;

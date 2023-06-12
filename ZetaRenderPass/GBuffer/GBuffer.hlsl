@@ -13,7 +13,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cbGBuffer> g_local : register(b1);
 StructuredBuffer<MeshInstance> g_meshes : register(t0);
 StructuredBuffer<Vertex> g_sceneVertices : register(t1);
-StructuredBuffer<uint> g_sceneIndices : register(t2);
+ByteAddressBuffer g_sceneIndices : register(t2);
 ByteAddressBuffer g_materials : register(t3);
 
 //--------------------------------------------------------------------------------------

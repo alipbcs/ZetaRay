@@ -14,9 +14,9 @@
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cbSunShadow> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
-StructuredBuffer<uint> g_owenScrambledSobolSeq : register(t1);
-StructuredBuffer<uint> g_scramblingTile : register(t2);
-StructuredBuffer<uint> g_rankingTile : register(t3);
+ByteAddressBuffer g_owenScrambledSobolSeq : register(t1);
+ByteAddressBuffer g_scramblingTile : register(t2);
+ByteAddressBuffer g_rankingTile : register(t3);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
