@@ -228,6 +228,7 @@ namespace ZetaRay::DefaultRenderer
 		// 0.5 degrees == 0.0087266 radians 
 		// cos(0.0087266 / 2)
 		g_data->m_frameConstants.SunCosAngularRadius = 0.99998869f;
+		g_data->m_frameConstants.SunSinAngularRadius = sqrtf(1.0f - g_data->m_frameConstants.SunCosAngularRadius * g_data->m_frameConstants.SunCosAngularRadius);
 		g_data->m_frameConstants.AtmosphereAltitude = Defaults::ATMOSPHERE_ALTITUDE;
 		g_data->m_frameConstants.PlanetRadius = Defaults::PLANET_RADIUS;
 		g_data->m_frameConstants.g = Defaults::g;

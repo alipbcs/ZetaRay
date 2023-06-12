@@ -65,14 +65,17 @@ float4 mainPS(VSOut psin) : SV_Target
 	rayOrigin.y += g_frame.PlanetRadius;
 	float3 color = 0.0f.xxx;
 
-	// a disk that's supposed to be the sun
-	if (dot(-w, g_frame.SunDir) >= g_frame.SunCosAngularRadius)
-	{
-		float t;
-		bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, w, t);
+	float3 wTemp = w;
+	// cos(a - b) = cos a cos b + sin a sin b
+	wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - w.y * w.y) * g_frame.SunSinAngularRadius;
 		
-		if (!intersectedPlanet)
-			color = g_frame.SunIlluminance;
+	float t;
+	bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, wTemp, t);
+
+	// a disk that's supposed to be the sun
+	if (dot(-w, g_frame.SunDir) >= g_frame.SunCosAngularRadius && !intersectedPlanet)
+	{
+		color = g_frame.SunIlluminance;
 	}
 	// sample the sky texture
 	else

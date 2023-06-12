@@ -61,7 +61,8 @@ namespace ZetaRay
 		float3_ SunDir;
 		float SunIlluminance;
 		float SunCosAngularRadius;
-		float3_ pad2;
+		float SunSinAngularRadius;
+		float2_ pad2;
 		//
 		// Atmosphere
 		//
