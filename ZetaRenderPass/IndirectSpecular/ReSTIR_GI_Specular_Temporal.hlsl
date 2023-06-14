@@ -585,7 +585,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float2 mr = g_metalnessRoughness[swizzledDTid.xy];
 
 	// roughness cutoff
-	const bool roughnessBelowThresh = mr.y <= g_local.RoughnessCutoff;
+	const bool roughnessBelowThresh = (mr.x > 0.95) || (mr.y <= g_local.RoughnessCutoff);
 	if(!roughnessBelowThresh)
 		return;
 	
