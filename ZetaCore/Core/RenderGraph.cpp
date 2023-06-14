@@ -157,7 +157,34 @@ void RenderGraph::RemoveResource(uint64_t path) noexcept
 	const int pos = FindFrameResource(path, 0, m_prevFramesNumResources);
 
 	if (pos != -1)
+	{
+		m_currResIdx.fetch_sub(1, std::memory_order_relaxed);
 		m_frameResources[pos].Reset();
+	}
+}
+
+void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
+{
+	int numRemoved = 0;
+
+	for (auto p : paths)
+	{
+		int pos = FindFrameResource(p, 0, m_prevFramesNumResources);
+
+		if (pos != -1)
+		{
+			m_frameResources[pos].Reset();
+			numRemoved++;
+		}
+	}
+
+	std::sort(m_frameResources.begin(), m_frameResources.begin() + m_prevFramesNumResources,
+		[](ResourceMetadata& lhs, ResourceMetadata& rhs)
+		{
+			return lhs.ID < rhs.ID;
+		});
+
+	m_currResIdx.fetch_sub(numRemoved, std::memory_order_relaxed);
 }
 
 void RenderGraph::BeginFrame() noexcept

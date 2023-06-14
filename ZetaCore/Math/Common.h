@@ -10,12 +10,11 @@ namespace ZetaRay::Math
 {
 	static constexpr float PI = 3.141592654f;
 	static constexpr float TWO_PI = 6.283185307f;
-	static constexpr float PI_DIV_2 = 1.570796327f;
-	static constexpr float PI_DIV_4 = 0.7853981635f;
-	static constexpr float ONE_DIV_PI = 0.318309886f;
-	static constexpr float ONE_DIV_TWO_PI = 0.159154943f;
-	static constexpr float ONE_DIV_FOUR_PI = 0.079577472f;
-	static constexpr float ONE_DIV_180 = 1.0f / 180.0f;
+	static constexpr float PI_OVER_2 = 1.570796327f;
+	static constexpr float PI_OVER_4 = 0.7853981635f;
+	static constexpr float ONE_OVER_PI = 0.318309886f;
+	static constexpr float ONE_OVER_2_PI = 0.159154943f;
+	static constexpr float ONE_OVER_4_PI = 0.079577472f;
 
 	struct float3;
 
@@ -95,12 +94,12 @@ namespace ZetaRay::Math
 
 	ZetaInline float DegreeToRadians(float d) noexcept
 	{
-		return d * PI * ONE_DIV_180;
+		return d * TWO_PI / 360.0f;
 	}
 
 	ZetaInline float RadiansToDegrees(float r) noexcept
 	{
-		return r * 180.0f * ONE_DIV_PI;
+		return r * 360.0f * ONE_OVER_2_PI;
 	}
 
 	void SphericalFromCartesian(const Math::float3& w, float& theta, float& phi) noexcept;

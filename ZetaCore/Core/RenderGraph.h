@@ -81,7 +81,9 @@ namespace ZetaRay::Core
 			bool isWindowSizeDependent = true) noexcept;
 		
 		// Removes given resource (useful for when resources are recreated)
+		// Note: these have to be called prior to BeginFrame()
 		void RemoveResource(uint64_t path) noexcept;
+		void RemoveResources(Util::Span<uint64_t> paths) noexcept;
 
 		// Transitions into post-registration. At this point there can be no more Register*() calls
 		void MoveToPostRegister() noexcept;

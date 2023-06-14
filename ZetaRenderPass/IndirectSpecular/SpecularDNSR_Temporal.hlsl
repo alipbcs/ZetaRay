@@ -17,7 +17,7 @@
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cbDNSR> g_local : register(b1);
+ConstantBuffer<cb_RGI_Spec_DNSR> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -315,7 +315,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	if (!g_local.IsTemporalCacheValid || !g_local.Denoise)
 	{
 		float3 color = r.EvaluateRISEstimate();
-		g_nextTemporalCache[DTid.xy].xyzw = float4(color, 0);
+		g_nextTemporalCache[DTid.xy].xyz = color;
 		
 		return;
 	}

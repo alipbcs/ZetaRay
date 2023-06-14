@@ -129,7 +129,7 @@ void PrimitiveMesh::ComputeSphere(Vector<Vertex>& vertices, Vector<uint32_t>& in
 	{
 		float v = 1 - float(i) / verticalSegments;
 
-		float latitude = (i * Math::PI / verticalSegments) - Math::PI_DIV_2;
+		float latitude = (i * Math::PI / verticalSegments) - Math::PI_OVER_2;
 		float dy, dxz;
 
 		//XMScalarSinCos(&dy, &dxz, latitude);
@@ -362,7 +362,7 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
 
 		float3 pt = sideOffset - topOffset;
 
-		angle = (i * Math::TWO_PI / tessellation) + Math::PI_DIV_2;
+		angle = (i * Math::TWO_PI / tessellation) + Math::PI_OVER_2;
 		float3 t(sinf(angle), 0.0f, cosf(angle));
 
 		float3 normal = t.cross(topOffset - pt);
@@ -427,7 +427,7 @@ void PrimitiveMesh::ComputeTorus(Vector<Vertex>& vertices, Vector<uint32_t>& ind
 	{
 		float u = float(i) / tessellation;
 
-		float outerAngle = i * Math::TWO_PI / tessellation - Math::PI_DIV_2;
+		float outerAngle = i * Math::TWO_PI / tessellation - Math::PI_OVER_2;
 
 		// Create a transform matrix that will align geometry to
 		// slice perpendicularly though the current ring position.

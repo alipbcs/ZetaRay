@@ -197,7 +197,7 @@ namespace ZetaRay::AppImpl
 	{
 		g_app->m_timer.Pause();
 		g_app->m_isActive = false;
-		SetWindowTextA(g_app->m_hwnd, "ZetaRay (Paused)");
+		SetWindowTextA(g_app->m_hwnd, "ZetaRay (Paused - press 'P' to resume)");
 	}
 
 	void OnDPIChanged(int newDPI, const RECT* newRect) noexcept

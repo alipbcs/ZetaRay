@@ -172,7 +172,7 @@ namespace ZetaRay::Math
 		__m128 c = _mm_or_ps(_mm_set1_ps(PI), sign);  // pi when x >= 0, -pi when x < 0
 		__m128 absx = _mm_andnot_ps(sign, vTheta);  // |x|
 		__m128 rflx = _mm_sub_ps(c, vTheta);
-		__m128 comp = _mm_cmple_ps(absx, _mm_set1_ps(PI_DIV_2));
+		__m128 comp = _mm_cmple_ps(absx, _mm_set1_ps(PI_OVER_2));
 		__m128 select0 = _mm_and_ps(comp, vTheta);
 		__m128 select1 = _mm_andnot_ps(comp, rflx);
 		vTheta = _mm_or_ps(select0, select1);

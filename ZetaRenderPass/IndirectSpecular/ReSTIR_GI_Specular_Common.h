@@ -73,7 +73,7 @@ struct cb_RGI_Spec_Spatial
 	uint16_t DoSpatialResampling;
 };
 
-struct cbDNSR
+struct cb_RGI_Spec_DNSR
 {
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputReservoir_B_DescHeapIdx;

@@ -468,19 +468,19 @@ void GuiPass::RenderSettings() noexcept
 		ImGuiCond_Always);
 
 	//if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
-	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
 	{
 		InfoTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_None))
 	{
 		CameraTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
 		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
@@ -632,9 +632,9 @@ void GuiPass::RenderProfiler() noexcept
 		for (auto f : frameTimeHist)
 			max_ = Math::Max(max_, f);
 
-		if (ImPlot::BeginPlot("Frame Time (ms)", ImVec2(w * 0.9f, 150.0f), ImPlotFlags_NoLegend))
+		if (ImPlot::BeginPlot("Frame Time", ImVec2(w * 0.9f, 150.0f), ImPlotFlags_NoLegend))
 		{
-			ImPlot::SetupAxes("", "", 0, ImPlotAxisFlags_NoHighlight);
+			ImPlot::SetupAxes("Moving Window", "Time (ms)", 0, ImPlotAxisFlags_NoHighlight);
 			ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max_ + 1.0, ImGuiCond_Always);
 			//ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
 			ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.1f, 0.35f, 0.95f, 1.0f));

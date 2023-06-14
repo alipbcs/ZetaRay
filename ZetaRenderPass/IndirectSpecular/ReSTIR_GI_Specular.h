@@ -162,11 +162,9 @@ namespace ZetaRay::RenderPass
 			//
 			SPATIAL_RESERVOIR_0_A_SRV,
 			SPATIAL_RESERVOIR_0_B_SRV,
-			//SPATIAL_RESERVOIR_0_C_SRV,
 			SPATIAL_RESERVOIR_0_D_SRV,
 			SPATIAL_RESERVOIR_0_A_UAV,
 			SPATIAL_RESERVOIR_0_B_UAV,
-			//SPATIAL_RESERVOIR_0_C_UAV,
 			SPATIAL_RESERVOIR_0_D_UAV,
 			//
 			DNSR_TEMPORAL_CACHE_0_SRV,
@@ -197,7 +195,7 @@ namespace ZetaRay::RenderPass
 
 		cb_RGI_Spec_Temporal m_cbTemporal;
 		cb_RGI_Spec_Spatial m_cbSpatial;
-		cbDNSR m_cbDNSR;
+		cb_RGI_Spec_DNSR m_cbDNSR;
 		int m_sampleIdx = 0;
 		uint32_t m_internalCounter = 0;
 

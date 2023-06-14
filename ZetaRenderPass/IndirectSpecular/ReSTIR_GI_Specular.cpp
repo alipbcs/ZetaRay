@@ -148,15 +148,6 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbDNSR.RoughnessExpScale = DefaultParamVals::DNSRRoughnessExpScale;
 	m_cbDNSR.ViewAngleExp = DefaultParamVals::DNSRViewAngleExp;
 
-	//ParamVariant normalExp;
-	//normalExp.InitFloat("Renderer", "ReSTIR_GI_Specular", "NormalExp",
-	//	fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::NormalExpCallback),
-	//	DefaultParamVals::NormalExp,		// val	
-	//	1.0f,								// min
-	//	8.0f,								// max
-	//	1.0f);								// step
-	//App::AddParam(normalExp);
-
 	ParamVariant roughnessCutoff;
 	roughnessCutoff.InitFloat("Renderer", "ReSTIR_GI_Specular", "RoughnessCutoff",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::RoughnessCutoffCallback),
@@ -478,7 +469,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		m_cbDNSR.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavIdx);
 		m_cbDNSR.IsTemporalCacheValid = m_isTemporalReservoirValid;
 
-		m_rootSig.SetRootConstants(0, sizeof(cbDNSR) / sizeof(DWORD), &m_cbDNSR);
+		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Spec_DNSR) / sizeof(DWORD), &m_cbDNSR);
 		m_rootSig.End(computeCmdList);
 
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, SPECULAR_DNSR_GROUP_DIM_X);

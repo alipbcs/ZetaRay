@@ -96,7 +96,6 @@ namespace
 	//
 	// Data
 	//
-
 	struct FSR2_Data
 	{
 		static constexpr uint32_t FLAGS = FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE |

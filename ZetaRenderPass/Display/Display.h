@@ -35,13 +35,6 @@ namespace ZetaRay::RenderPass
 			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B,
 			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A,
 			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B,
-			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A,
-			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B,
-			//ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D,
-			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A,
-			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B,
-			//ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D,
-			//SPECULAR_DNSR_CACHE,
 			COUNT
 		};
 
@@ -82,27 +75,6 @@ namespace ZetaRay::RenderPass
 			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B:
 				m_cbLocal.DiffuseSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
 				break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_A:
-			//	m_cbLocal.SpecularTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_B:
-			//	m_cbLocal.SpecularTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_TEMPORAL_RESERVOIR_D:
-			//	m_cbLocal.SpecularTemporalReservoir_D_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_A:
-			//	m_cbLocal.SpecularSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_B:
-			//	m_cbLocal.SpecularSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::ReSTIR_GI_SPEC_SPATIAL_RESERVOIR_D:
-			//	m_cbLocal.SpecularSpatialReservoir_D_DescHeapIdx = dechHeapIdx;
-			//	break;
-			//case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
-			//	m_cbLocal.SpecularDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
-			//	break;
 			default:
 				break;
 			}
@@ -146,7 +118,5 @@ namespace ZetaRay::RenderPass
 		void ChangeDisplayOptionCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept;
 		void ChangeSaturationCallback(const Support::ParamVariant& p) noexcept;
-
-		void ReloadShaders() noexcept;
 	};
 }

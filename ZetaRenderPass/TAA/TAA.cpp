@@ -69,8 +69,7 @@ void TAA::Init() noexcept
 	App::AddParam(blendWeight);
 
 	m_isTemporalTexValid = false;
-
-	App::AddShaderReloadHandler("TAA", fastdelegate::MakeDelegate(this, &TAA::ReloadShader));
+	//App::AddShaderReloadHandler("TAA", fastdelegate::MakeDelegate(this, &TAA::ReloadShader));
 }
 
 void TAA::Reset() noexcept

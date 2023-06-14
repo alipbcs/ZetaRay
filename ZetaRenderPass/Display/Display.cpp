@@ -75,8 +75,6 @@ void DisplayPass::Init() noexcept
 		1, 0, 1.5, 1e-2);
 	App::AddParam(p7);
 
-	App::AddShaderReloadHandler("Display", fastdelegate::MakeDelegate(this, &DisplayPass::ReloadShaders));
-
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
 	auto err = renderer.GetGpuMemory().GetTexture3DFromDisk(p.Get(), m_lut);
@@ -90,12 +88,6 @@ void DisplayPass::Reset() noexcept
 {
 	if (IsInitialized())
 		s_rpObjs.Clear();
-
-	//App::RemoveParam("Renderer", "Display", "Display");
-	//App::RemoveParam("Renderer", "Display", "KeyValue");
-	//App::RemoveParam("Renderer", "Settings", "Tonemapping");
-
-	//App::RemoveShaderReloadHandler("Display");
 }
 
 void DisplayPass::Render(CommandList& cmdList) noexcept
@@ -169,10 +161,4 @@ void DisplayPass::ChangeTonemapperCallback(const Support::ParamVariant& p) noexc
 void DisplayPass::ChangeSaturationCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbLocal.Saturation = p.GetFloat().m_val;
-}
-
-void DisplayPass::ReloadShaders() noexcept
-{
-	s_rpObjs.m_psoLib.Reload(0, "Display\\Display.hlsl", false);
-	CreatePSO();
 }

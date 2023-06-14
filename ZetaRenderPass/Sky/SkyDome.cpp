@@ -108,7 +108,7 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXBeginEvent("SkyDome");
 
 	// record the timestamp prior to execution
-	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "SkyViewLUT");
+	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "SkyDome");
 
 	Assert(m_descriptors[SHADER_IN_DESC::RTV].ptr > 0, "RTV hasn't been set.");
 	Assert(m_descriptors[SHADER_IN_DESC::DEPTH_BUFFER].ptr > 0, "DSV hasn't been set.");

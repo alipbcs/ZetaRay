@@ -292,8 +292,8 @@ namespace
 				Filesystem::Path p(App::GetAssetDir());
 				p.Append(modelDir.Get());
 				p.Append(image.uri);
-
 				p.Extension(ext);
+
 				if (strcmp(ext, "dds") != 0)
 					continue;
 
@@ -305,7 +305,7 @@ namespace
 				{
 					if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
 					{
-						LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but no textures referred to it, skipping...\n", p.Get());
+						LOG_UI_WARNING("Texture in path %s was present in the glTF scene, but no textures referred to it, skipping...\n", p.Get());
 						continue;
 					}
 					else
