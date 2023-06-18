@@ -301,7 +301,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	float metalness = g_metalnessRoughness[DTid.xy].x;
-	if (metalness > MAX_METALNESS)
+	if (metalness > MAX_METALNESS_DIELECTRIC)
 		return;
 	
 	// current frame's normals

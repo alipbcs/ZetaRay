@@ -635,7 +635,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// skip metallic surfaces
 	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 	// add a small threshold
-	isPixelValid &= (m <= MAX_METALNESS);
+	isPixelValid &= (m <= MAX_METALNESS_DIELECTRIC);
 
 	// sample the cosine-weighted hemisphere above pos
 	float3 wi = INVALID_RAY_DIR;

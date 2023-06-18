@@ -548,7 +548,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// skip metals
 	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 	// add a small threshold
-	reservoirValid &= (m <= MAX_METALNESS);
+	reservoirValid &= (m <= MAX_METALNESS_DIELECTRIC);
 
 	// validate the reservoirs from two frames ago
 	const bool tracedLastFrame = g_local.CheckerboardTracing ?

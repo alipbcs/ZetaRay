@@ -1,6 +1,7 @@
 #include "Reservoir_Diffuse.hlsli"
 #include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
+#include "../Common/BRDF.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../../ZetaCore/Core/Material.h"
 
@@ -164,7 +165,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
 
 			float sampleMetalness = g_metalnessRoughness[samplePosSS].x;
-			const float w_m = sampleMetalness <= MAX_METALNESS;
+			const float w_m = sampleMetalness <= MAX_METALNESS_DIELECTRIC;
 			
 			//const float weight = w_z * w_n * w_r * w_m;
 			const float weight = w_z * w_r * w_m;
@@ -233,7 +234,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	float2 mr = g_metalnessRoughness[swizzledDTid];
 
-	if (mr.x > MAX_METALNESS)
+	if (mr.x > MAX_METALNESS_DIELECTRIC)
 		return;
 		
 //	if (g_local.IsFirstPass || r.M < 2)

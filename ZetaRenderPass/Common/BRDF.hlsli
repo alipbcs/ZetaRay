@@ -30,6 +30,10 @@
 #include "Math.hlsli"
 #include "Sampling.hlsli"
 
+// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
+// use a small threshold
+#define MAX_METALNESS_DIELECTRIC 0.1f
+
 namespace BRDF
 {
 	//--------------------------------------------------------------------------------------

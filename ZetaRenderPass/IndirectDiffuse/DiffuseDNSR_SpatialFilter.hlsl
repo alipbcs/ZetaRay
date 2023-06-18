@@ -4,6 +4,7 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
+#include "../Common/BRDF.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define NUM_SAMPLES 10
@@ -207,7 +208,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	float metalness = g_metalnessRoughness[DTid.xy].x;
-	if (metalness > MAX_METALNESS)
+	if (metalness > MAX_METALNESS_DIELECTRIC)
 		return;
 
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
