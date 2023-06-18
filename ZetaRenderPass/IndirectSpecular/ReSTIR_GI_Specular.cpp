@@ -140,7 +140,6 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbSpatial.HitDistSigmaScale = DefaultParamVals::SpatialHitDistSigmaScale;
 	m_cbSpatial.DoSpatialResampling = true;
 	m_cbSpatial.Radius = DefaultParamVals::SpatialResampleRadius;
-	m_cbSpatial.M_max = DefaultParamVals::SpatialM_max;
 	m_cbSpatial.NumIterations = DefaultParamVals::SpatialResampleNumIter;
 	m_cbDNSR.Denoise = true;
 	m_cbDNSR.MaxTSPP = DefaultParamVals::DNSRTspp;
@@ -149,7 +148,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbDNSR.ViewAngleExp = DefaultParamVals::DNSRViewAngleExp;
 
 	ParamVariant roughnessCutoff;
-	roughnessCutoff.InitFloat("Renderer", "ReSTIR_GI_Specular", "RoughnessCutoff",
+	roughnessCutoff.InitFloat("Renderer", "ReSTIR GI (Specular)", "RoughnessCutoff",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::RoughnessCutoffCallback),
 		DefaultParamVals::RoughnessCutoff,	// val	
 		0.0f,								// min
@@ -158,7 +157,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(roughnessCutoff);
 
 	ParamVariant temporalM;
-	temporalM.InitInt("Renderer", "ReSTIR_GI_Specular", "Temporal M_max",
+	temporalM.InitInt("Renderer", "ReSTIR GI (Specular)", "Temporal M_max",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::MaxTemporalMCallback),
 		m_cbTemporal.M_max,				// val	
 		1,								// min
@@ -166,17 +165,8 @@ void ReSTIR_GI_Specular::Init() noexcept
 		1);								// step
 	App::AddParam(temporalM);
 
-	ParamVariant spatialM;
-	spatialM.InitInt("Renderer", "ReSTIR_GI_Specular", "Spatial M_max",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::MaxSpatialMCallback),
-		m_cbSpatial.M_max,				// val	
-		1,								// min
-		20,								// max
-		1);								// step
-	App::AddParam(spatialM);
-
 	ParamVariant numiter;
-	numiter.InitInt("Renderer", "ReSTIR_GI_Specular", "NumIterations",
+	numiter.InitInt("Renderer", "ReSTIR GI (Specular)", "NumIterations",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::NumIterationsCallback),
 		m_cbSpatial.NumIterations,		// val	
 		1,								// min
@@ -185,7 +175,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(numiter);
 
 	ParamVariant minAlpha;
-	minAlpha.InitFloat("Renderer", "ReSTIR_GI_Specular", "MinRoughnessResample",
+	minAlpha.InitFloat("Renderer", "ReSTIR GI (Specular)", "MinRoughnessResample",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::MinRoughnessResample),
 		m_cbTemporal.MinRoughnessResample,	// val	
 		0.0f,								// min
@@ -194,7 +184,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(minAlpha);
 
 	ParamVariant sigmaScaleTemporal;
-	sigmaScaleTemporal.InitFloat("Renderer", "ReSTIR_GI_Specular", "TemporalHitDistSigmaScale",
+	sigmaScaleTemporal.InitFloat("Renderer", "ReSTIR GI (Specular)", "TemporalHitDistSigmaScale",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::TemporalHistDistSigmaScaleCallback),
 		m_cbTemporal.HitDistSigmaScale,	// val	
 		0.5f,							// min
@@ -203,7 +193,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(sigmaScaleTemporal);
 
 	ParamVariant sigmaScaleSpatial;
-	sigmaScaleSpatial.InitFloat("Renderer", "ReSTIR_GI_Specular", "SpatialHitDistSigmaScale",
+	sigmaScaleSpatial.InitFloat("Renderer", "ReSTIR GI (Specular)", "SpatialHitDistSigmaScale",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::SpatialHistDistSigmaScaleCallback),
 		m_cbSpatial.HitDistSigmaScale,	// val	
 		0.75f,							// min
@@ -212,7 +202,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(sigmaScaleSpatial);
 
 	ParamVariant radius;
-	radius.InitInt("Renderer", "ReSTIR_GI_Specular", "SpatialRadius",
+	radius.InitInt("Renderer", "ReSTIR GI (Specular)", "SpatialRadius",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::SpatialRadiusCallback),
 		m_cbSpatial.Radius,				// val	
 		1,								// min
@@ -221,17 +211,17 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(radius);
 
 	ParamVariant doTemporal;
-	doTemporal.InitBool("Renderer", "ReSTIR_GI_Specular", "TemporalResampling",
+	doTemporal.InitBool("Renderer", "ReSTIR GI (Specular)", "TemporalResampling",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoTemporalResamplingCallback), m_cbTemporal.DoTemporalResampling);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;
-	doSpatial.InitBool("Renderer", "ReSTIR_GI_Specular", "SpatialResampling",
+	doSpatial.InitBool("Renderer", "ReSTIR GI (Specular)", "SpatialResampling",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoSpatialResamplingCallback), m_cbSpatial.DoSpatialResampling);
 	App::AddParam(doSpatial);
 
 	ParamVariant pdfCorrection;
-	pdfCorrection.InitBool("Renderer", "ReSTIR_GI_Specular", "PdfCorrection",
+	pdfCorrection.InitBool("Renderer", "ReSTIR GI (Specular)", "PdfCorrection",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
 	App::AddParam(pdfCorrection);
 
@@ -268,7 +258,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(roughnessExp);
 
 	ParamVariant checkerboarding;
-	checkerboarding.InitBool("Renderer", "ReSTIR_GI_Specular", "CheckerboardTrace",
+	checkerboarding.InitBool("Renderer", "ReSTIR GI (Specular)", "CheckerboardTrace",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::CheckerboardingCallback), m_cbTemporal.CheckerboardTracing);
 	App::AddParam(checkerboarding);
 
@@ -324,7 +314,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-	// Temporal resampling
+	// temporal resampling
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_SPEC_TEMPORAL_GROUP_DIM_X);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_SPEC_TEMPORAL_GROUP_DIM_Y);
@@ -334,6 +324,24 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.PIXBeginEvent("ReSTIR_GI_Specular_Temporal");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_RESAMPLE]);
+
+		D3D12_RESOURCE_BARRIER barriers[4];
+
+		// transition temporal reservoir into write state
+		barriers[0] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[1] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[2] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[3] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirD.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 		m_cbTemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbTemporal.DispatchDimY = (uint16_t)dispatchDimY;
@@ -386,24 +394,32 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.PIXBeginEvent("ReSTIR_GI_Spec_Spatial");
 
-		D3D12_RESOURCE_BARRIER barriers[4];
-		int i = 0;
+		D3D12_RESOURCE_BARRIER barriers[7];
 
 		// transition temporal reservoir into read state
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+		barriers[0] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+		barriers[1] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+		barriers[2] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirD.GetResource(),
+		barriers[3] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirD.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+		// transition spatial reservoirs into write state
+		barriers[4] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirA.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[5] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		barriers[6] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		Assert(i == ZetaArrayLen(barriers), "out-of-bound write");
 		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 		auto srvAIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV;
@@ -443,20 +459,18 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		computeCmdList.PIXBeginEvent("SpecularDNSR");
 
 		D3D12_RESOURCE_BARRIER barriers[3];
-		int i = 0;
 
-		// transition spatial reservoir into read state
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirA.GetResource(),
+		// transition spatial reservoirs into read state
+		barriers[0] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirA.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
+		barriers[1] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[i++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
+		barriers[2] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-		Assert(i == ZetaArrayLen(barriers), "out-of-bound write");
 		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 		auto srvIdx = m_currTemporalReservoirIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_0_SRV : DESC_TABLE::DNSR_TEMPORAL_CACHE_1_SRV;
@@ -480,43 +494,6 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 		gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 		cmdList.PIXEndEvent();
-	}
-
-	// [hack] render graph is unaware of renderpass-internal transitions. Restore the initial state to avoid
-	// render graph and actual state getting out of sync
-	{
-		D3D12_RESOURCE_BARRIER outBarriers[4 + 3];
-		int curr = 0;
-
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirD.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		// transition spatial reservoir into uav state
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirA.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirB.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		outBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoir.ReservoirD.GetResource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		Assert(curr == ZetaArrayLen(outBarriers), "bug");
-		computeCmdList.ResourceBarrier(outBarriers, ZetaArrayLen(outBarriers));
 	}
 
 	m_isTemporalReservoirValid = true;
@@ -630,11 +607,6 @@ void ReSTIR_GI_Specular::RoughnessCutoffCallback(const Support::ParamVariant& p)
 void ReSTIR_GI_Specular::MaxTemporalMCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbTemporal.M_max = p.GetInt().m_val;
-}
-
-void ReSTIR_GI_Specular::MaxSpatialMCallback(const Support::ParamVariant& p) noexcept
-{
-	m_cbSpatial.M_max = (uint16_t)p.GetInt().m_val;
 }
 
 void ReSTIR_GI_Specular::MinRoughnessResample(const Support::ParamVariant& p) noexcept

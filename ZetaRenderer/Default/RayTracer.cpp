@@ -155,18 +155,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
 			};
 
-			registerInputs(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A);
-			registerInputs(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B);
-			registerInputs(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C);
-			registerInputs(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_D);
 			registerInputs(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_DNSR_CACHE);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B);
-			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D);
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE);
 		}
 	}
@@ -311,59 +300,11 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				gbuffData.Curvature.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			// prev. temporal reservoirs
-			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_D).GetPathID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
 			// dnsr
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
 				data.ReSTIR_GI_SpecularPass.GetInput(ReSTIR_GI_Specular::SHADER_IN_RES::PREV_DNSR_CACHE).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			// current temporal reservoirs
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::TEMPORAL_RESERVOIR_D).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			// spatial reservoir
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
-				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::SPATIAL_RESERVOIR_D).GetPathID(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-			// dnsr
 			renderGraph.AddOutput(data.ReSTIR_GI_SpecularHandle,
 				data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

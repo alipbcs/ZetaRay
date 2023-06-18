@@ -6,6 +6,7 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.02f
+#define M_max 15
 
 static const uint16_t2 GroupDim = uint16_t2(RGI_SPEC_SPATIAL_GROUP_DIM_X, RGI_SPEC_SPATIAL_GROUP_DIM_Y);
 
@@ -208,7 +209,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			if (g_local.PdfCorrection)
 				jacobianDet = RGI_Spec_Util::JacobianDeterminant(posW, neighbor.SamplePos, wi, secondToFirst_r, neighbor);
 
-			r.Combine(neighbor, g_local.M_max, weight, jacobianDet, brdfCostheta_r, rng);
+			r.Combine(neighbor, M_max, weight, jacobianDet, brdfCostheta_r, rng);
 		}
 	}	
 }

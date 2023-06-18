@@ -22,23 +22,12 @@ namespace ZetaRay::RenderPass
 	{
 		enum class SHADER_IN_RES
 		{
-			PREV_TEMPORAL_RESERVOIR_A,
-			PREV_TEMPORAL_RESERVOIR_B,
-			PREV_TEMPORAL_RESERVOIR_C,
-			PREV_TEMPORAL_RESERVOIR_D,
 			PREV_DNSR_CACHE,
 			COUNT
 		};
 
 		enum class SHADER_OUT_RES
 		{
-			TEMPORAL_RESERVOIR_A,
-			TEMPORAL_RESERVOIR_B,
-			TEMPORAL_RESERVOIR_C,
-			TEMPORAL_RESERVOIR_D,
-			SPATIAL_RESERVOIR_A,
-			SPATIAL_RESERVOIR_B,
-			SPATIAL_RESERVOIR_D,
 			CURR_DNSR_CACHE,
 			COUNT
 		};
@@ -54,48 +43,14 @@ namespace ZetaRay::RenderPass
 
 		const Core::Texture& GetInput(SHADER_IN_RES i) const noexcept
 		{
-			switch (i)
-			{
-			case SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_A:
-				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirA;
-			case SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_B:
-				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirB;
-			case SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_C:
-				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirC;
-			case SHADER_IN_RES::PREV_TEMPORAL_RESERVOIR_D:
-				return m_temporalReservoirs[1 - m_currTemporalReservoirIdx].ReservoirD;
-			case SHADER_IN_RES::PREV_DNSR_CACHE:
-				return m_dnsrTemporalCache[1 - m_currTemporalReservoirIdx];
-			}
-
-			Assert(false, "Unreachable case.");
-			return m_temporalReservoirs[0].ReservoirC;
+			Assert(i == SHADER_IN_RES::PREV_DNSR_CACHE, "Invalid shader input.");
+			return m_dnsrTemporalCache[1 - m_currTemporalReservoirIdx];
 		}
 
 		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
 		{
-			switch (i)
-			{
-			case SHADER_OUT_RES::TEMPORAL_RESERVOIR_A:
-				return m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA;
-			case SHADER_OUT_RES::TEMPORAL_RESERVOIR_B:
-				return m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB;
-			case SHADER_OUT_RES::TEMPORAL_RESERVOIR_C:
-				return m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC;
-			case SHADER_OUT_RES::TEMPORAL_RESERVOIR_D:
-				return m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirD;
-			case SHADER_OUT_RES::SPATIAL_RESERVOIR_A:
-				return m_spatialReservoir.ReservoirA;
-			case SHADER_OUT_RES::SPATIAL_RESERVOIR_B:
-				return m_spatialReservoir.ReservoirB;
-			case SHADER_OUT_RES::SPATIAL_RESERVOIR_D:
-				return m_spatialReservoir.ReservoirD;
-			case SHADER_OUT_RES::CURR_DNSR_CACHE:
-				return m_dnsrTemporalCache[m_currTemporalReservoirIdx];
-			}
-
-			Assert(false, "Unreachable case.");
-			return m_temporalReservoirs[0].ReservoirC;
+			Assert(i == SHADER_OUT_RES::CURR_DNSR_CACHE, "Invalid shader output.");
+			return m_dnsrTemporalCache[m_currTemporalReservoirIdx];
 		}
 
 		void Render(Core::CommandList& cmdList) noexcept;
@@ -204,7 +159,6 @@ namespace ZetaRay::RenderPass
 		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
 		void RoughnessCutoffCallback(const Support::ParamVariant& p) noexcept;
 		void MaxTemporalMCallback(const Support::ParamVariant& p) noexcept;
-		void MaxSpatialMCallback(const Support::ParamVariant& p) noexcept;
 		void MinRoughnessResample(const Support::ParamVariant& p) noexcept;
 		void TemporalHistDistSigmaScaleCallback(const Support::ParamVariant& p) noexcept;
 		void SpatialHistDistSigmaScaleCallback(const Support::ParamVariant& p) noexcept;

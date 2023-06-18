@@ -53,9 +53,9 @@ struct cb_RGI_Spec_Spatial
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
 	uint16_t NumIterations;
-	uint16_t M_max;
 	uint16_t Radius;
 	uint16_t PdfCorrection;
+	uint16_t pad;
 	float RoughnessCutoff;
 	float HitDistSigmaScale;
 	float MinRoughnessResample;
@@ -90,11 +90,6 @@ struct cb_RGI_Spec_DNSR
 	uint16_t IsTemporalCacheValid;
 	uint16_t MaxTSPP;
 	uint16_t pad;
-};
-
-struct cbCurvature
-{
-	uint32_t OutputUAVDescHeapIdx;
 };
 
 #endif
