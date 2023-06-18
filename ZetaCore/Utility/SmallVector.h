@@ -179,22 +179,21 @@ namespace ZetaRay::Util
 
 		void resize(size_t n) noexcept
 		{
+			static_assert(std::is_default_constructible_v<T>, "T cannot be default constructed.");
+
 			const size_t currCapacity = capacity();
 			const size_t oldSize = size();
 
-			// just adjust the "end" pointer
-			if (n <= currCapacity)
+			// check if current capacity is enough, otherwise just adjust the "end" pointer
+			if (n > currCapacity)
 			{
-				m_end = m_beg + n;
-				return;
+				void* mem = relocate(n);
+				m_beg = reinterpret_cast<T*>(mem);
+				m_last = m_beg + n;
 			}
 
-			void* mem = relocate(n);
-
-			// adjust the pointers
-			m_beg = reinterpret_cast<T*>(mem);
+			// adjust the end pointer
 			m_end = m_beg + n;
-			m_last = m_beg + n;
 
 			// default construct the newly added elements
 			if constexpr (!std::is_trivially_default_constructible_v<T>)
@@ -214,12 +213,17 @@ namespace ZetaRay::Util
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T cannot be copy or move constructed.");
 
 			const size_t oldSize = size();
-			void* mem = relocate(n);
+			const size_t currCapacity = capacity();
+
+			if (n > currCapacity)
+			{
+				void* mem = relocate(n);
+				m_beg = reinterpret_cast<T*>(mem);
+				m_last = m_beg + n;
+			}
 
 			// adjust the pointers
-			m_beg = reinterpret_cast<T*>(mem);
 			m_end = m_beg + n;
-			m_last = m_beg + n;
 
 			T* curr = m_beg + oldSize;
 
