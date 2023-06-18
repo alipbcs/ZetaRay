@@ -1,6 +1,7 @@
 #include <App/Filesystem.h>
 #include <App/Common.h>
 #include <Support/MemoryArena.h>
+#include <algorithm>
 #include "TexConv/texconv.h"
 
 #define STB_IMAGE_IMPLEMENTATION
@@ -257,14 +258,16 @@ namespace
         s = data.dump(4);
         uint8_t* str = reinterpret_cast<uint8_t*>(s.data());
         Filesystem::WriteToFile(convertedPath.Get(), str, (uint32_t)s.size());
+
+        printf("glTF scene file with modified image URIs has been written to %s...\n", convertedPath.Get());
     }
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2 || argc > 3)
+    if (argc < 2 || argc > 4)
     {
-        printf("Usage: BCnCompressglTF <path-to-glTF> -y\n");
+        printf("Usage: BCnCompressglTF <path-to-glTF> [options]\n\nOptions:\n%5s%25s\n%5s%25s\n", "-y", "Force overwrite", "-sv", "Skip validation");
         return 0;
     }
 
@@ -276,11 +279,14 @@ int main(int argc, char* argv[])
     }
 
     bool forceOverwrite = false;
+    bool validate = true;
 
     for (int i = 2; i < argc; i++)
     {
         if (strcmp(argv[i], "-y") == 0)
             forceOverwrite = true;
+        else if (strcmp(argv[i], "-sv") == 0)
+            validate = false;
     }
 
     printf("Compressing textures for %s...\n", argv[1]);
@@ -363,6 +369,49 @@ int main(int argc, char* argv[])
             const int texIdx = mat["emissiveTexture"]["index"];
             const int imgIdx = data["textures"][texIdx]["source"];
             emissiveMaps.push_back(imgIdx);
+        }
+    }
+
+    if (validate)
+    {
+        bool isValid = true;
+        SmallVector<int, Support::ArenaAllocator> intersections(arena);
+        intersections.resize(numMats, -1);
+
+        std::sort(baseColorMaps.begin(), baseColorMaps.end());
+        std::sort(normalMaps.begin(), normalMaps.end());
+        std::sort(metalnessRoughnessMaps.begin(), metalnessRoughnessMaps.end());
+        std::sort(emissiveMaps.begin(), emissiveMaps.end());
+
+        auto checkIntersections = [&data, &intersections, &isValid](SmallVector<int, Support::ArenaAllocator>& vec1,
+            SmallVector<int, Support::ArenaAllocator>& vec2, const char* n1, const char* n2)
+        {
+            std::set_intersection(vec1.begin(), vec1.end(), vec2.begin(), vec2.end(), intersections.begin());
+
+            for (int& i : intersections)
+            {
+                if (i == -1)
+                    break;
+
+                std::string texPath = data["images"][i]["uri"];
+                printf("WARNING: Texture in path %s is used both as a %s map and a %s map...\n", texPath.c_str(), n1, n2);
+
+                i = -1;
+                isValid = false;
+            }
+        };
+
+        checkIntersections(baseColorMaps, normalMaps, "base-color", "normal");
+        checkIntersections(baseColorMaps, metalnessRoughnessMaps, "base-color", "metalness-roughness");
+        checkIntersections(baseColorMaps, emissiveMaps, "base-color", "emissive");
+        checkIntersections(normalMaps, metalnessRoughnessMaps, "normal", "metalness-roughness");
+        checkIntersections(normalMaps, emissiveMaps, "normal", "emissive");
+        checkIntersections(metalnessRoughnessMaps, emissiveMaps, "metalness-roughness", "normal");
+
+        if (!isValid)
+        {
+            printf("glTF validation failed. Exiting...\n");
+            return 0;
         }
     }
 
