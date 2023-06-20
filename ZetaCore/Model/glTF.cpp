@@ -290,7 +290,7 @@ namespace
 			if (image.uri)
 			{
 				Filesystem::Path p(App::GetAssetDir());
-				p.Append(modelDir.Get());
+				p.Append(modelDir.GetView());
 				p.Append(image.uri);
 				p.Extension(ext);
 
@@ -358,7 +358,7 @@ namespace
 					Check(baseColView.texture->image, "textureView doesn't point to any image.");
 
 					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.Get());
+					p.Append(modelDir.GetView());
 					p.Append(baseColView.texture->image->uri);
 
 					desc.BaseColorTexPath = XXH3_64bits(p.Get(), p.Length());
@@ -377,7 +377,7 @@ namespace
 					const char* texPath = normalView.texture->image->uri;
 
 					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.Get());
+					p.Append(modelDir.GetView());
 					p.Append(normalView.texture->image->uri);
 					desc.NormalTexPath = XXH3_64bits(p.Get(), p.Length());
 
@@ -393,7 +393,7 @@ namespace
 					Check(metalnessRoughnessView.texture->image, "textureView doesn't point to any image.");
 
 					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.Get());
+					p.Append(modelDir.GetView());
 					p.Append(metalnessRoughnessView.texture->image->uri);
 					desc.MetalnessRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
@@ -411,7 +411,7 @@ namespace
 					const char* texPath = emissiveView.texture->image->uri;
 
 					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.Get());
+					p.Append(modelDir.GetView());
 					p.Append(emissiveView.texture->image->uri);
 					desc.EmissiveTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
@@ -616,19 +616,19 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 	// parse json
 	cgltf_options options{};
 	cgltf_data* model = nullptr;
-	Checkgltf(cgltf_parse_file(&options, pathToglTF.Get(), &model));
+	Checkgltf(cgltf_parse_file(&options, pathToglTF.GetView().data(), &model));
 
 	Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
 	// load buffers
 	Check(model->buffers_count == 1, "invalid number of buffers");
-	Filesystem::Path bufferPath(pathToglTF.Get());
+	Filesystem::Path bufferPath(pathToglTF.GetView());
 	bufferPath.Directory();
 	bufferPath.Append(model->buffers[0].uri);
 	Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
-	Check(model->scene, "no scene found in glTF file: %s.", pathToglTF.Get());
-	const uint64_t sceneID = XXH3_64bits(pathToglTF.Get(), pathToglTF.Length());
+	Check(model->scene, "no scene found in glTF file: %s.", pathToglTF.GetView());
+	const uint64_t sceneID = XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length());
 	SceneCore& scene = App::GetScene();
 
 	// one mesh for each primitive
@@ -729,7 +729,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 
 		imgTasks[i] = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
 			{
-				Filesystem::Path parent(pathToglTF.Get());
+				Filesystem::Path parent(pathToglTF.GetView());
 				parent.ToParent();
 
 				LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
@@ -754,7 +754,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 
 		auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
 			{
-				Filesystem::Path parent(pathToglTF.Get());
+				Filesystem::Path parent(pathToglTF.GetView());
 				parent.ToParent();
 
 				ProcessMaterials(tc.SceneID, parent, *tc.Model, (int)tc.MatThreadOffsets[rangeIdx], (int)tc.MatThreadSizes[rangeIdx], ddsImages);

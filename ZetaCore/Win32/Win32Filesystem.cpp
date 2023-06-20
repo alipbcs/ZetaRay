@@ -23,8 +23,6 @@ Filesystem::Path::Path(Util::StrView str) noexcept
 
 void Filesystem::Path::Reset(Util::StrView str) noexcept
 {
-    m_path.free_memory();
-
     if (!str.empty())
     {
         const size_t n = str.size();

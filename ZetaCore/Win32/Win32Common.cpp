@@ -12,7 +12,7 @@ int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
 	int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
 	Assert(str.size() > size, "buffer overflow");
 
-	WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, str.data(), size, nullptr, nullptr);
+	WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, str.data(), Math::Min(size, (int)str.size()), nullptr, nullptr);
 
     return size;
 }
@@ -22,7 +22,7 @@ int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
     int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
     Assert(wideStr.size() > size, "buffer overflow");
 
-    MultiByteToWideChar(CP_UTF8, 0, str, -1, wideStr.data(), size);
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, wideStr.data(), Math::Min(size, (int)wideStr.size()));
 
     return size;
 }

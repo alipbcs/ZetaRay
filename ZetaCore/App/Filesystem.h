@@ -32,12 +32,14 @@ namespace ZetaRay::App::Filesystem
 
         ZetaInline bool IsEmpty() const noexcept { return m_path.empty(); }
         void Reset(Util::StrView str) noexcept;
+        ZetaInline void Resize(size_t n) noexcept { m_path.resize(n); };
         Filesystem::Path& Append(Util::StrView str) noexcept;
         Filesystem::Path& ToParent() noexcept;
         Filesystem::Path& Directory() noexcept;
         void Stem(Util::Span<char> buff, size_t* outStrLen = nullptr) const noexcept;
         void Extension(Util::Span<char> buff, size_t* outStrLen = nullptr) const noexcept;
-        ZetaInline const char* Get() const noexcept { return m_path.begin(); }
+        ZetaInline char* Get() noexcept { return m_path.begin(); }
+        ZetaInline Util::StrView GetView() const noexcept { return Util::StrView(m_path.begin(), m_path.size()); }
         ZetaInline size_t Length() const noexcept { return m_path.size(); }
 
     private:

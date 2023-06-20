@@ -134,12 +134,12 @@ namespace
         filename[fnLen + 3] = 's';
         filename[fnLen + 4] = '\0';
 
-        Filesystem::Path compressedPath(outDir.Get());
+        Filesystem::Path compressedPath(outDir.GetView());
         compressedPath.Append(filename);
 
         if (Filesystem::Exists(compressedPath.Get()))
         {
-            printf("Compressed texture already exists in path %s. Skipping...\n", compressedPath.Get());
+            printf("Compressed texture already exists in the path %s. Skipping...\n", compressedPath.Get());
             return true;
         }
 
@@ -152,7 +152,7 @@ namespace
         for (auto tex : textureMaps)
         {
             // URI paths are relative to gltf file
-            Filesystem::Path imgPath(pathToglTF.Get());
+            Filesystem::Path imgPath(pathToglTF.GetView());
             imgPath.Directory();
 
             auto& imgUri = imagePaths[tex];
@@ -178,11 +178,12 @@ namespace
             const char* formatStr = srgb ?
                 (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
                 (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::CMD : TEX_CONV_ARGV_NO_OVERWRITE::CMD);
-            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, outDir.Get(), imgPath.Get());
-            Check(len < sizeof(buff), "Provided buffer is too small.");
+            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, outDir.GetView().data(), imgPath.Get());
+            Check(len < sizeof(buff), "buffer is too small.");
 
             wchar_t wideBuff[1024];
             int n = Common::CharToWideStr(buff, wideBuff);
+            Check(n < ZetaArrayLen(wideBuff), "buffer is too small.");
 
             wchar_t* ptr = wideBuff;
 
@@ -194,12 +195,14 @@ namespace
 
             while (ptr != wideBuff + n)
             {
-                args[currArg++] = ptr;
+                args[currArg] = ptr;
 
-                while (*ptr != ' ' && *ptr != '\0')
+                // spaces are valid for last argument (file path)
+                while ((currArg == numArgs - 1 || *ptr != ' ') && *ptr != '\0')
                     ptr++;
 
                 *ptr++ = '\0';
+                currArg++;
             }
 
             if (TexConv(numArgs, args, device) != 0)
@@ -252,7 +255,7 @@ namespace
         filename[fnLen + 9] = 'f';
         filename[fnLen + 10] = '\0';
 
-        Filesystem::Path convertedPath(gltfPath.Get());
+        Filesystem::Path convertedPath(gltfPath.GetView());
         convertedPath.Directory().Append(filename);
 
         s = data.dump(4);
@@ -260,6 +263,70 @@ namespace
         Filesystem::WriteToFile(convertedPath.Get(), str, (uint32_t)s.size());
 
         printf("glTF scene file with modified image URIs has been written to %s...\n", convertedPath.Get());
+    }
+
+    ZetaInline bool IsASCII(const Filesystem::Path& path) noexcept
+    {
+        auto view = path.GetView();
+
+        for (size_t i = 0; i < path.Length(); i++)
+        {
+            if (view[i] < 0) 
+                return false;
+        }
+
+        return true;
+    }
+
+    void DecodeURI_Inplace(Filesystem::Path& str) noexcept
+    {
+        unsigned char* beg = reinterpret_cast<unsigned char*>(str.Get());
+        const int N = (int)str.Length();
+        int curr = 0;
+        bool needsConversion = false;
+        Filesystem::Path converted;
+        converted.Resize(str.Length());
+
+        auto hexToDecimal = [](unsigned char c)
+        {
+            if (c >= 48 && c <= 57)
+                return c - 48;
+            if (c >= 65 && c <= 70)
+                return c - 65 + 10;
+            if (c >= 97 && c <= 102)
+                return c - 97 + 10;
+
+            return -1;
+        };
+
+        unsigned char* out = reinterpret_cast<unsigned char*>(converted.Get());
+
+        while (curr < N)
+        {
+            unsigned char c = *(beg + curr);
+
+            if (c == '%')
+            {
+                needsConversion = true;
+
+                int d1 = hexToDecimal(*(beg + curr + 1));
+                Check(d1 != -1, "Unrecognized percent-encoding.");
+                int d2 = hexToDecimal(*(beg + curr + 2));
+                Check(d2 != -1, "Unrecognized percent-encoding.");
+
+                unsigned char newC = (unsigned char)((d1 << 4) + d2);
+                *(out++) = newC;
+                curr += 3;
+
+                continue;
+            }
+
+            *(out++) = c;
+            curr++;
+        }
+
+        if(needsConversion)
+            str.Reset(converted.GetView());
     }
 }
 
@@ -274,7 +341,7 @@ int main(int argc, char* argv[])
     Filesystem::Path gltfPath(argv[1]);
     if (!Filesystem::Exists(gltfPath.Get()))
     {
-        printf("Provided path %s was not found. Exiting...\n", gltfPath.Get());
+        printf("No such file found in the path %s\nExiting...\n", gltfPath.Get());
         return 0;
     }
 
@@ -309,7 +376,12 @@ int main(int argc, char* argv[])
         for (auto& img : data["images"])
         {
             s = img["uri"];
-            imagePaths[i++].Reset(StrView(s.data(), s.size()));
+            imagePaths[i].Reset(StrView(s.data(), s.size()));
+
+            if (validate)
+                Check(IsASCII(imagePaths[i]), "Paths with non-ASCII characters are not supported.");
+
+            DecodeURI_Inplace(imagePaths[i++]);
         }
     }
 
@@ -394,7 +466,7 @@ int main(int argc, char* argv[])
                     break;
 
                 std::string texPath = data["images"][i]["uri"];
-                printf("WARNING: Texture in path %s is used both as a %s map and a %s map...\n", texPath.c_str(), n1, n2);
+                printf("WARNING: Following texture is used both as a %s map and a %s map:\n%s", n1, n2, texPath.c_str());
 
                 i = -1;
                 isValid = false;
@@ -426,6 +498,13 @@ int main(int argc, char* argv[])
    
     ComPtr<ID3D11Device> device;
     CreateDevice(device.GetAddressOf());
+
+    // Set locale for output since GetErrorDesc can get localized strings.
+    std::locale::global(std::locale(""));
+
+    // Initialize COM (needed for WIC)
+    auto hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+    Check(hr == S_OK, "CoInitializeEx() failed with code %x.", hr);
 
     Filesystem::Path outDir(gltfPath.Get());
     outDir.Directory().Append(COMPRESSED_DIR_NAME);

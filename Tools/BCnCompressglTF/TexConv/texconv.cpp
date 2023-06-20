@@ -1233,16 +1233,7 @@ int TexConv(int argc, wchar_t* argv[], ID3D11Device* device)
     wchar_t szSuffix[MAX_PATH] = {};
     wchar_t szOutputDir[MAX_PATH] = {};
 
-    // Set locale for output since GetErrorDesc can get localized strings.
-    std::locale::global(std::locale(""));
-
-    // Initialize COM (needed for WIC)
-    HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
-    if (FAILED(hr))
-    {
-        wprintf(L"Failed to initialize COM (%08X%ls)\n", static_cast<unsigned int>(hr), GetErrorDesc(hr));
-        return 1;
-    }
+    HRESULT hr = ERROR_SUCCESS;
 
     // Process command line
     uint64_t dwOptions = 0;
