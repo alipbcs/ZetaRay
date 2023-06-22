@@ -182,8 +182,6 @@ namespace ZetaRay::RenderPass
 		{
 			static constexpr float RGINormalExp = 1.5f;
 			static constexpr float EdgeStoppingNormalExp = 8.0f;
-			static constexpr int RGIMinSpatialRadius = 15;
-			static constexpr int RGIMaxSpatialRadius = 42;
 			static constexpr int ValidationPeriod = 5;
 			static constexpr int DNSRNumSpatialPasses = 1;
 			static constexpr int DNSRMaxTSPP = 32;

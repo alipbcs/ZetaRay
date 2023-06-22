@@ -317,7 +317,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	const uint byteOffset = hitInfo.MatID * sizeof(Material);
 	const Material mat = g_materials.Load<Material>(byteOffset);
 
-	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);	
+	const bool isUnoccluded = dot(-g_frame.SunDir, normal) <= 0 ? false : EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
 	float3 L_o = 0.0.xxx;
 
 	if (isUnoccluded)
@@ -444,8 +444,6 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 		dot(currNormal, histPositions[2] - currPos),
 		dot(currNormal, histPositions[3] - currPos));
 	
-//	float4 weights = saturate(1 - abs(planeDist) / g_local.MaxPlaneDist);
-	//float4 weights = planeDist <= g_local.MaxPlaneDist;
 	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
 	
 	return weights;

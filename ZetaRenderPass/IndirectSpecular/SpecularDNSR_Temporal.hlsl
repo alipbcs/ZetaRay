@@ -126,7 +126,7 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 	w *= prevRoughness <= g_local.RoughnessCutoff;
 	bool4 b1 = prevRoughness < g_local.MinRoughnessResample;
 	bool4 b2 = currRoughness < g_local.MinRoughnessResample;
-	// don't take roughness into account when there's a sudden change
+	// don't take roughness into account when there's been a sudden change
 	w = select(w, 1.0.xxxx, b1 ^ b2);
 	
 	return w;

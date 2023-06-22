@@ -109,7 +109,8 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
 	const float biasToleranceScale = max(1 - mScale, 0.2f);
-	const float searchRadius = g_local.IsFirstPass ? g_local.Radius1st : g_local.Radius2nd;
+	//const float searchRadius = g_local.IsFirstPass ? g_local.Radius1st : g_local.Radius2nd;
+	const float searchRadius = g_local.IsFirstPass ? 15 : 42;
 	
 	const float u0 = rng.RandUniform();
 	const float theta = u0 * TWO_PI;

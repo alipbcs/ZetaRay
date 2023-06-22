@@ -144,8 +144,8 @@ namespace ZetaRay::RenderPass
 			static constexpr int SpatialResampleNumIter = 8;
 			static constexpr int DNSRTspp = 32;
 			static constexpr float DNSRHitDistSigmaScale = 0.8f;
-			static constexpr float DNSRViewAngleExp = 0.5f;
-			static constexpr float DNSRRoughnessExpScale = 0.85f;
+			static constexpr float DNSRViewAngleExp = 0.35f;
+			static constexpr float DNSRRoughnessExpScale = 0.9f;
 		};
 
 		cb_RGI_Spec_Temporal m_cbTemporal;

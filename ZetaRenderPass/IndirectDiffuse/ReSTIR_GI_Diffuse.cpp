@@ -139,25 +139,14 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	m_cbRGITemporal.CheckerboardTracing = true;
 	m_cbRGISpatial.NormalExp = DefaultParamVals::RGINormalExp;
 	m_cbRGISpatial.DoSpatialResampling = true;
-	m_cbRGISpatial.Radius1st = DefaultParamVals::RGIMinSpatialRadius;
-	m_cbRGISpatial.Radius2nd = DefaultParamVals::RGIMaxSpatialRadius;
 	m_cbDNSRTemporal.IsTemporalCacheValid = false;
 	m_cbDNSRTemporal.MaxTspp = m_cbDNSRSpatial.MaxTspp = DefaultParamVals::DNSRMaxTSPP;
 	m_cbDNSRSpatial.NormalExp = DefaultParamVals::EdgeStoppingNormalExp;
 	m_cbDNSRSpatial.MinFilterRadius = DefaultParamVals::DNSRMinFilterRadius;
 	m_cbDNSRSpatial.MaxFilterRadius = DefaultParamVals::DNSRMaxFilterRadius;
 
-	ParamVariant normalExp;
-	normalExp.InitFloat("Renderer", "ReSTIR_GI_Diffuse", "NormalExp",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::RGINormalExpCallback),
-		m_cbRGISpatial.NormalExp,			// val	
-		1e-1f,								// min
-		8.0f,								// max
-		1.0f);								// step
-	App::AddParam(normalExp);
-
 	ParamVariant validationT;
-	validationT.InitInt("Renderer", "ReSTIR_GI_Diffuse", "ValidationPeriod",
+	validationT.InitInt("Renderer", "ReSTIR GI (Diffuse)", "ValidationPeriod",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ValidationPeriodCallback),
 		DefaultParamVals::ValidationPeriod,		// val	
 		0,										// min
@@ -166,59 +155,35 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	App::AddParam(validationT);
 
 	ParamVariant doTemporal;
-	doTemporal.InitBool("Renderer", "ReSTIR_GI_Diffuse", "TemporalResampling",
+	doTemporal.InitBool("Renderer", "ReSTIR GI (Diffuse)", "TemporalResampling",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoTemporalResamplingCallback), true);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;
-	doSpatial.InitBool("Renderer", "ReSTIR_GI_Diffuse", "SpatialResampling",
+	doSpatial.InitBool("Renderer", "ReSTIR GI (Diffuse)", "SpatialResampling",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoSpatialResamplingCallback), m_cbRGISpatial.DoSpatialResampling);
 	App::AddParam(doSpatial);
 
 	ParamVariant pdfCorrection;
-	pdfCorrection.InitBool("Renderer", "ReSTIR_GI_Diffuse", "PdfCorrection",
+	pdfCorrection.InitBool("Renderer", "ReSTIR GI (Diffuse)", "PdfCorrection",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::PdfCorrectionCallback), m_cbRGITemporal.PdfCorrection);
 	App::AddParam(pdfCorrection);
 
 	ParamVariant checkerboard;
-	checkerboard.InitBool("Renderer", "ReSTIR_GI_Diffuse", "CheckerboardTracing",
+	checkerboard.InitBool("Renderer", "ReSTIR GI (Diffuse)", "CheckerboardTracing",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::CheckerboardTracingCallback), m_cbRGITemporal.CheckerboardTracing);
 	App::AddParam(checkerboard);
 
-	ParamVariant minRGIRadius;
-	minRGIRadius.InitInt("Renderer", "ReSTIR_GI_Diffuse", "Radius-1stPass", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::RGIMinRadiusCallback),
-		m_cbRGISpatial.Radius1st,			// val
-		1,									// min
-		32,									// max
-		1);									// step
-	App::AddParam(minRGIRadius);
-
-	ParamVariant maxRGIRadius;
-	maxRGIRadius.InitInt("Renderer", "ReSTIR_GI_Diffuse", "Radius-2ndPass", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::RGIMaxRadiusCallback),
-		m_cbRGISpatial.Radius2nd,			// val
-		1,									// min
-		64,									// max
-		1);									// step
-	App::AddParam(maxRGIRadius);
-
 	ParamVariant maxTSPP;
-	maxTSPP.InitInt("Renderer", "DiffuseDNSR", "MaxTSPP", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback),
+	maxTSPP.InitInt("Renderer", "DiffuseDenoiser", "MaxTSPP", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback),
 		DefaultParamVals::DNSRMaxTSPP,	// val
 		1,								// min
 		32,								// max
 		1);								// step
 	App::AddParam(maxTSPP);
 
-	ParamVariant dnsrNormalExp;
-	dnsrNormalExp.InitFloat("Renderer", "DiffuseDNSR", "NormalExp", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRNormalExpCallback),
-		m_cbDNSRSpatial.NormalExp,		// val
-		1.0f,							// min
-		32.0f,							// max
-		1.0f);							// step
-	App::AddParam(dnsrNormalExp);
-
 	ParamVariant numSpatialFilterPasses;
-	numSpatialFilterPasses.InitInt("Renderer", "DiffuseDNSR", "#SpatialFilterPasses",
+	numSpatialFilterPasses.InitInt("Renderer", "DiffuseDenoiser", "#SpatialFilterPasses",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRNumSpatialPassesCallback),
 		DefaultParamVals::DNSRNumSpatialPasses,		// val	
 		0,											// min
@@ -227,7 +192,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	App::AddParam(numSpatialFilterPasses);
 
 	ParamVariant minDNSRRadius;
-	minDNSRRadius.InitInt("Renderer", "DiffuseDNSR", "MinRadius", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMinFilterRadiusCallback),
+	minDNSRRadius.InitInt("Renderer", "DiffuseDenoiser", "MinRadius", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMinFilterRadiusCallback),
 		m_cbDNSRSpatial.MinFilterRadius,	// val
 		1,									// min
 		32,									// max
@@ -235,7 +200,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	App::AddParam(minDNSRRadius);
 
 	ParamVariant maxDNSRRadius;
-	maxDNSRRadius.InitInt("Renderer", "DiffuseDNSR", "MaxRadius", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMaxFilterRadiusCallback),
+	maxDNSRRadius.InitInt("Renderer", "DiffuseDenoiser", "MaxRadius", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DNSRMaxFilterRadiusCallback),
 		m_cbDNSRSpatial.MaxFilterRadius,	// val
 		1,									// min
 		64,									// max
@@ -298,7 +263,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 	const bool isTraceFrame = m_validationPeriod == 0 || m_validationFrame != 0;
 
-	// Temporal resampling/Validation
+	// temporal resampling/validation
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_TEMPORAL_GROUP_DIM_X);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
@@ -688,16 +653,6 @@ void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p)
 void ReSTIR_GI_Diffuse::RGINormalExpCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbRGISpatial.NormalExp = p.GetFloat().m_val;
-}
-
-void ReSTIR_GI_Diffuse::RGIMinRadiusCallback(const Support::ParamVariant& p) noexcept
-{
-	m_cbRGISpatial.Radius1st = Math::Min(m_cbRGISpatial.Radius2nd, (uint16_t)p.GetInt().m_val);
-}
-
-void ReSTIR_GI_Diffuse::RGIMaxRadiusCallback(const Support::ParamVariant& p) noexcept
-{
-	m_cbRGISpatial.Radius2nd = Math::Max(m_cbRGISpatial.Radius1st, (uint16_t)p.GetInt().m_val);
 }
 
 void ReSTIR_GI_Diffuse::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept

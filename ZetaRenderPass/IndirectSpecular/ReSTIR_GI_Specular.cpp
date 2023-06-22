@@ -136,7 +136,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	m_cbTemporal.M_max = DefaultParamVals::TemporalM_max;
 	m_cbTemporal.MinRoughnessResample = m_cbSpatial.MinRoughnessResample = m_cbDNSR.MinRoughnessResample = DefaultParamVals::MinRoughnessResample;
 	m_cbTemporal.HitDistSigmaScale = DefaultParamVals::TemporalHitDistSigmaScale;
-	m_cbTemporal.CheckerboardTracing = false;
+	m_cbTemporal.CheckerboardTracing = true;
 	m_cbSpatial.HitDistSigmaScale = DefaultParamVals::SpatialHitDistSigmaScale;
 	m_cbSpatial.DoSpatialResampling = true;
 	m_cbSpatial.Radius = DefaultParamVals::SpatialResampleRadius;
@@ -226,12 +226,12 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(pdfCorrection);
 
 	ParamVariant denoise;
-	denoise.InitBool("Renderer", "SpecularDNSR", "Enable",
+	denoise.InitBool("Renderer", "SpecularDenoiser", "Enable",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoDenoisingCallback), m_cbDNSR.Denoise);
 	App::AddParam(denoise);
 
 	ParamVariant tspp;
-	tspp.InitInt("Renderer", "SpecularDNSR", "MaxTSPP",
+	tspp.InitInt("Renderer", "SpecularDenoiser", "MaxTSPP",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::TsppCallback),
 		m_cbDNSR.MaxTSPP,				// val	
 		1,								// min
@@ -240,7 +240,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(tspp);
 
 	ParamVariant viewAngleExp;
-	viewAngleExp.InitFloat("Renderer", "SpecularDNSR", "ViewAngleExp",
+	viewAngleExp.InitFloat("Renderer", "SpecularDenoiser", "ViewAngleExp",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRViewAngleExpCallback),
 		m_cbDNSR.ViewAngleExp,			// val	
 		0.1f,							// min
@@ -249,7 +249,7 @@ void ReSTIR_GI_Specular::Init() noexcept
 	App::AddParam(viewAngleExp);
 
 	ParamVariant roughnessExp;
-	roughnessExp.InitFloat("Renderer", "SpecularDNSR", "RoughnessExpScale",
+	roughnessExp.InitFloat("Renderer", "SpecularDenoiser", "RoughnessExpScale",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRRoughnessExpScaleCallback),
 		m_cbDNSR.RoughnessExpScale,		// val	
 		0.1f,							// min

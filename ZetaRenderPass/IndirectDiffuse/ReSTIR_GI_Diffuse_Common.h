@@ -6,11 +6,11 @@
 #define RGI_DIFF_TEMPORAL_GROUP_DIM_X 16
 #define RGI_DIFF_TEMPORAL_GROUP_DIM_Y 8
 
-#define RGI_DIFF_SPATIAL_GROUP_DIM_X 32
-#define RGI_DIFF_SPATIAL_GROUP_DIM_Y 32
-
 #define RGI_DIFF_TEMPORAL_TILE_WIDTH 16
 #define RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH 4
+
+#define RGI_DIFF_SPATIAL_GROUP_DIM_X 32
+#define RGI_DIFF_SPATIAL_GROUP_DIM_Y 32
 
 #define RGI_DIFF_SPATIAL_TILE_WIDTH 16
 #define RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH 4
@@ -62,8 +62,6 @@ struct cb_RGI_Diff_Spatial
 	uint16_t PdfCorrection;
 	uint16_t IsFirstPass;
 	uint16_t DoSpatialResampling;
-	uint16_t Radius1st;
-	uint16_t Radius2nd;
 };
 
 struct cbDiffuseDNSRTemporal

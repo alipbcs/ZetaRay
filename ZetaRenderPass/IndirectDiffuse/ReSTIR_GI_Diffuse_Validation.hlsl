@@ -284,7 +284,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	const uint byteOffset = hitInfo.MatID * sizeof(Material);
 	const Material mat = g_materials.Load < Material > (byteOffset);
 
-	bool isUnoccluded = EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
+	const bool isUnoccluded = dot(-g_frame.SunDir, normal) <= 0 ? false : EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
 	float3 L_o = 0.0.xxx;
 
 	if (isUnoccluded)
