@@ -271,6 +271,9 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 		for (const auto& instance : frameInstances)
 		{
 			const uint64_t meshID = scene.GetInstanceMeshID(instance.ID);
+			if (meshID == SceneCore::NULL_MESH)
+				continue;
+
 			const TriangleMesh mesh = scene.GetMesh(meshID);
 			const Material mat = scene.GetMaterial(mesh.m_materialID);
 

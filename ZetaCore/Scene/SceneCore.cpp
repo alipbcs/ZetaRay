@@ -322,7 +322,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 		mat.EmissiveTexture = tableOffset;
 	}
 
-	// add it to the GPU material buffer, which offsets into descriptor tables above
+	// add it to GPU material buffer, which offsets into descriptor tables above
 	m_matBuffer.Add(matFromSceneID, mat);
 
 	// remember from which glTF scene this material came from
@@ -333,12 +333,12 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 
 void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instance) noexcept
 {
-	const uint64_t meshID = MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
-	const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
+	const uint64_t meshID = instance.MeshIdx == -1 ? NULL_MESH : MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
+	//const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
 
 	AcquireSRWLockExclusive(&m_instanceLock);
 
-	if (instance.RtMeshMode == RT_MESH_MODE::STATIC)
+	if (instance.RtMeshMode == RT_MESH_MODE::STATIC && meshID != NULL_MESH)
 	{
 		m_numStaticInstances++;
 		m_staleStaticInstances = true;
@@ -359,14 +359,14 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		parentIdx = p->Offset;
 	}
 	
-	const int insertIdx = InsertAtLevel(instanceID, treeLevel, parentIdx, instance.LocalTransform, meshID,
+	const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
 		instance.RtMeshMode, instance.RtInstanceMask);
 
-	// update the instance "dictionary"
+	// update instance "dictionary"
 	{
-		Assert(m_IDtoTreePos.find(instanceID) == nullptr, "instance with id %llu already existed.", instanceID);
+		Assert(m_IDtoTreePos.find(instance.ID) == nullptr, "instance with id %llu already existed.", instance.ID);
 		//m_IDtoTreePos.emplace(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
-		m_IDtoTreePos.insert_or_assign(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
+		m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
 		// adjust tree positions of shifted instances
 		for(int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
@@ -519,6 +519,9 @@ void SceneCore::RebuildBVH() noexcept
 		{
 			// find this intantce's Mesh
 			const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
+			if (meshID == NULL_MESH)
+				continue;
+
 			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
 			v_float4x4 vM = load(m_sceneGraph[level].m_toWorlds[i]);
 
@@ -551,7 +554,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 			{
 				AffineTransformation& tr = m_sceneGraph[level + 1].m_localTransforms[j];
 				v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
-				v_float4x4 newW = mul(vParentTransform, vLocal);
+				v_float4x4 newW = mul(vLocal, vParentTransform);
 				v_float4x4 prevW = load(m_sceneGraph[level + 1].m_toWorlds[j]);
 
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))

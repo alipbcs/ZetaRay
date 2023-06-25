@@ -28,7 +28,7 @@ namespace ZetaRay::Model::glTF::Asset
 	{
 		Math::AffineTransformation LocalTransform;
 		int MeshIdx;
-		const char* Name;
+		uint64_t ID;
 		uint64_t ParentID;
 		int MeshPrimIdx;
 		RT_MESH_MODE RtMeshMode;

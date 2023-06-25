@@ -54,6 +54,8 @@ namespace ZetaRay::Scene
 
 	public:
 		static const uint64_t ROOT_ID = uint64_t(-1);
+		static const uint64_t NULL_MESH = uint64_t(-1);
+
 		static ZetaInline uint64_t InstanceID(uint64_t sceneID, const char* name, int meshIdx, int meshPrimIdx) noexcept
 		{
 			uint64_t nameHash = XXH3_64bits(name, strlen(name));

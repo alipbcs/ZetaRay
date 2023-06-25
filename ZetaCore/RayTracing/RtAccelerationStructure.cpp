@@ -81,6 +81,9 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 			if (flags.MeshMode == RT_MESH_MODE::STATIC)
 			{
 				const uint64_t meshID = currTreeLevel.m_meshIDs[i];
+				if (meshID == SceneCore::NULL_MESH)
+					continue;
+
 				const auto mesh = scene.GetMesh(meshID);
 
 				mesheDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
@@ -174,6 +177,9 @@ void StaticBLAS::FillMeshTransformBufferForBuild() noexcept
 
 		for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
 		{
+			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+				continue;
+
 			uint8_t rtFlag = currTreeLevel.m_rtFlags[i];
 
 			if (Scene::GetRtFlags(rtFlag).MeshMode == RT_MESH_MODE::STATIC)
@@ -432,6 +438,9 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList) noexcept
 		// add one TLAS instance for every dynamic mesh
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
+			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+				continue;
+
 			const auto flags = Scene::GetRtFlags(rtFlagVec[i]);
 
 			if (flags.MeshMode != RT_MESH_MODE::STATIC)
@@ -695,6 +704,9 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		// static meshes
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
+			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+				continue;
+
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
 			const auto mat = scene.GetMaterial(mesh.m_materialID);
 			auto& M = currTreeLevel.m_toWorlds[i];
@@ -706,6 +718,9 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		// dynamic meshes
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
+			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+				continue;
+
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
 			const auto mat = scene.GetMaterial(mesh.m_materialID);
 			auto& M = currTreeLevel.m_toWorlds[i];
@@ -714,8 +729,6 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 				addTLASInstance(mesh, mat, M);
 		}
 	}
-
-	Assert(currInstance == numInstances, "bug");
 
 	const size_t sizeInBytes = numInstances * sizeof(RT::MeshInstance);
 	auto& renderer = App::GetRenderer();

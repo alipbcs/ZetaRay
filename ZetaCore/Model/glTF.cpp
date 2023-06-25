@@ -85,7 +85,7 @@ namespace
 	{
 		AffineTransformation LocalTransform;
 		cgltf_mesh* Mesh;
-		const char* Name;
+		uint64_t ID;
 		uint64_t ParentID;
 	};
 
@@ -425,155 +425,157 @@ namespace
 		}
 	}
 
-	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId,
-		Vector<IntemediateInstance, Support::ThreadSafeArenaAllocator>& instances) noexcept
+	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId) noexcept
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
+		AffineTransformation transform = AffineTransformation::GetIdentity();
+
+		if (node.has_matrix)
+		{
+			float4x4a M(node.matrix);
+			v_float4x4 vM = load(M);
+			auto det = store(det3x3(vM));	// last column/row is ignored
+			Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
+			Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
+			
+			// column-major storage to row-major storage
+			vM = transpose(vM);
+			M = store(vM);
+
+			// RHS transformation matrix M_rhs can be converted to LHS (+Y up) as follows:
+			//
+			//		transform = M_RhsToLhs * M_rhs * M_LhsToRhs
+			// 
+			// where M_RhsToLhs is a change-of-basis transformation matrix and M_LhsToRhs = M_RhsToLhs^-1. 
+			// Replacing in above:
+			//
+			//                  | 1 0  0 |             | 1 0  0 |
+			//		transform = | 0 1  0 | * [u v w] * | 0 1  0 |
+			//                  | 0 0 -1 |             | 0 0 -1 |
+			//
+			//                  | 1 0  0 |                  
+			//                = | 0 1  0 | * [u v -w]
+			//                  | 0 0 -1 |
+			//
+			//                  |  u_1  v_1  -w_1 |                  
+			//                = |  u_2  v_2  -w_2 |
+			//                  | -u_3 -v_3   w_3 |
+			M.m[0].z *= -1.0f;
+			M.m[1].z *= -1.0f;
+			M.m[2].x *= -1.0f;
+			M.m[2].y *= -1.0f;
+
+			// convert translation to LHS
+			M.m[2].w *= -1.0f;
+
+			vM = load(M);
+			decomposeTRS(vM, transform.Scale, transform.Rotation, transform.Translation);
+		}
+		else
+		{
+			if (node.has_scale)
+			{
+				Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
+				transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
+			}
+
+			if (node.has_translation)
+				transform.Translation = float3((float)node.translation[0], (float)node.translation[1], (float)-node.translation[2]);
+
+			if (node.has_rotation)
+			{
+				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+				// where s = sin(theta/2) and c = cos(theta/2)
+				//
+				// In the left-handed coord. system here with +Y as up, n_lhs = (n_x, n_y, -n_z)
+				// and theta_lhs = -theta. Since sin(-a) = -sin(a) and cos(-a) = cos(a) we have:
+				//
+				//		q_lhs = (n_x * -s, n_y * -s, -n_z * -s, c)
+				//			  = (-n_x * s, -n_y * s, n_z * s, c)
+				//
+				transform.Rotation = float4(-(float)node.rotation[0], 
+					-(float)node.rotation[1],
+					(float)node.rotation[2], 
+					(float)node.rotation[3]);
+
+				// check ||quaternion|| = 1
+				__m128 vV = _mm_loadu_ps(&transform.Rotation.x);
+				__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
+				vLength = _mm_sqrt_ps(vLength);
+				__m128 vOne = _mm_set1_ps(1.0f);
+				__m128 vDiff = _mm_sub_ps(vLength, vOne);
+				float d = _mm_cvtss_f32(abs(vDiff));
+				Check(d < 1e-6f, "Invalid rotation quaternion.");
+			}
+		}
+
+		// workaround for nodes without a name
+		const int nodeIdx = (int)(&node - model.nodes);
+		Assert(nodeIdx < model.nodes_count, "invalid node index.");
+		char nodeIdxStr[4] = {};
+		stbsp_snprintf(nodeIdxStr, sizeof(nodeIdx), "%d", nodeIdx);
+		const char* instanceName = node.name ? node.name : nodeIdxStr;
+
 		if (node.mesh)
 		{
-			AffineTransformation transform = AffineTransformation::GetIdentity();
-
-			if (node.has_matrix)
-			{
-				float4x4a M(node.matrix);
-				v_float4x4 vM = load(M);
-				auto det = store(det3x3(vM));	// last column is ignored
-				Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
-				Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
-
-				// RHS transformation matrix M_rhs can be converted to LHS (+Y up) as follows:
-				//
-				//		transform = M_RhsToLhs * M_rhs * M_LhsToRhs
-				// 
-				// where M_RhsToLhs is a change-of-basis transformation matrix and M_LhsToRhs = M_RhsToLhs^-1. 
-				// Replacing in above:
-				//
-				//                  | 1 0  0 |             | 1 0  0 |
-				//		transform = | 0 1  0 | * [u v w] * | 0 1  0 |
-				//                  | 0 0 -1 |             | 0 0 -1 |
-				//
-				//                  | 1 0  0 |                  
-				//                = | 0 1  0 | * [u v -w]
-				//                  | 0 0 -1 |
-				//
-				//                  |  u_1  v_1  -w_1 |                  
-				//                = |  u_2  v_2  -w_2 |
-				//                  | -u_3 -v_3   w_3 |
-				M.m[0].z *= -1.0f;
-				M.m[1].z *= -1.0f;
-				M.m[2].x *= -1.0f;
-				M.m[2].y *= -1.0f;
-
-				// convert translation to LHS (translation is not a linear transformation, so the approach above
-				// doesn't work)
-				M.m[2].w *= -1.0f;
-
-				decomposeTRS(vM, transform.Scale, transform.Rotation, transform.Translation);
-			}
-			else
-			{
-				if (node.has_scale)
-				{
-					Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
-					transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
-				}
-
-				if (node.has_translation)
-					transform.Translation = float3((float)node.translation[0], (float)node.translation[1], (float)-node.translation[2]);
-
-				if (node.has_rotation)
-				{
-					// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
-					// where s = sin(theta/2) and c = cos(theta/2)
-					//
-					// In the left-handed coord. system here with +Y as up, n_lhs = (n_x, n_y, -n_z)
-					// and theta_lhs = -theta. Since sin(-a) = -sin(a) and cos(-a) = cos(a) we have:
-					//
-					//		q_lhs = (n_x * -s, n_y * -s, -n_z * -s, c)
-					//			  = (-n_x * s, -n_y * s, n_z * s, c)
-					//
-					//float4a q = float4a(-(float)node.rotation[0], -(float)node.rotation[1],
-					//	(float)node.rotation[2], (float)node.rotation[3]);
-					transform.Rotation = float4(-(float)node.rotation[0], 
-						-(float)node.rotation[1],
-						(float)node.rotation[2], 
-						(float)node.rotation[3]);
-
-					// check if quaternion is a valid rotation
-					__m128 vV = _mm_loadu_ps(&transform.Rotation.x);
-					__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
-					vLength = _mm_sqrt_ps(vLength);
-					__m128 vOne = _mm_set1_ps(1.0f);
-					__m128 vDiff = _mm_sub_ps(vLength, vOne);
-					float d = _mm_cvtss_f32(abs(vDiff));
-					Check(d < 1e-6f, "Invalid rotation quaternion.");
-				}
-			}
-
-			instances.emplace_back(IntemediateInstance{
-						.LocalTransform = transform,
-						.Mesh = node.mesh,
-						.Name = node.name,
-						.ParentID = parentId
-				});
-
-			// used to establish parent-child relationships
 			const int meshIdx = (int)(node.mesh - model.meshes);
 			Assert(meshIdx < model.meshes_count, "invalid mesh index.");
-			currInstanceID = SceneCore::InstanceID(sceneID, node.name, meshIdx, 0);
+
+			// a seperate instance for each primitive
+			for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
+			{
+				const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
+
+				uint8_t rtInsMask = meshPrim.material && meshPrim.material->emissive_texture.texture ?
+					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
+
+				// parent-child relationships will be w.r.t. the last mesh primitive
+				currInstanceID = SceneCore::InstanceID(sceneID, instanceName, meshIdx, primIdx);
+
+				glTF::Asset::InstanceDesc desc{
+					.LocalTransform = transform,
+						.MeshIdx = meshIdx,
+						.ID = currInstanceID,
+						.ParentID = parentId,
+						.MeshPrimIdx = primIdx,
+						.RtMeshMode = RT_MESH_MODE::STATIC,
+						.RtInstanceMask = rtInsMask };
+
+				SceneCore& scene = App::GetScene();
+				scene.AddInstance(sceneID, ZetaMove(desc));
+			}
+		}
+		else
+		{
+			currInstanceID = SceneCore::InstanceID(sceneID, instanceName, -1, -1);
+
+			glTF::Asset::InstanceDesc desc{
+				.LocalTransform = transform,
+					.MeshIdx = -1,
+					.ID = currInstanceID,
+					.ParentID = parentId,
+					.MeshPrimIdx = -1,
+					.RtMeshMode = RT_MESH_MODE::STATIC,
+					.RtInstanceMask = RT_AS_SUBGROUP::NON_EMISSIVE };
+
+			SceneCore& scene = App::GetScene();
+			scene.AddInstance(sceneID, ZetaMove(desc));
 		}
 
 		for (int c = 0; c < node.children_count; c++)
 		{
 			const cgltf_node& childNode = *node.children[c];
-			ProcessNodeSubtree(childNode, sceneID, model, currInstanceID, instances);
+			ProcessNodeSubtree(childNode, sceneID, model, currInstanceID);
 		}
 	}
 
-	void ProcessNodes(const cgltf_data& model, uint64_t sceneID, Vector<IntemediateInstance, Support::ThreadSafeArenaAllocator>& instances) noexcept
+	void ProcessNodes(const cgltf_data& model, uint64_t sceneID) noexcept
 	{
 		for (size_t i = 0; i < model.scene->nodes_count; i++)
 		{
 			const cgltf_node& node = *model.scene->nodes[i];
-			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID, instances);
-		}
-	}
-
-	void ProcessInstances(uint64_t sceneID, Span<IntemediateInstance> instances, const cgltf_data& model) noexcept
-	{
-		for (auto& instance : instances)
-		{
-			cgltf_mesh& mesh = *instance.Mesh;
-			const int meshIdx = (int)(instance.Mesh - model.meshes);
-
-			for(int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
-			{
-				const cgltf_primitive& meshPrim = mesh.primitives[primIdx];
-
-				uint8_t rtInsMask = meshPrim.material && meshPrim.material->emissive_texture.texture ?
-					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
-
-				glTF::Asset::InstanceDesc desc{
-					.LocalTransform = instance.LocalTransform,
-					.MeshIdx = meshIdx,
-					.Name = instance.Name,
-					.ParentID = instance.ParentID,
-					.MeshPrimIdx = primIdx,
-					.RtMeshMode = RT_MESH_MODE::STATIC,
-					.RtInstanceMask = rtInsMask };
-
-//				if (rtInsMask & RT_AS_SUBGROUP::EMISSIVE)
-//				{
-//					uint64_t ID = MeshID(sceneID, meshIdx, meshPrimIdx);
-//					int idx = FindMeshPrim(emissives, ID);
-//					Check(idx != -1, "Invalid emissive");
-//					desc.Lumen.swap(emissives[idx].Lumens);
-//				}
-
-				SceneCore& scene = App::GetScene();
-				scene.AddInstance(sceneID, ZetaMove(desc));
-			}
+			ProcessNodeSubtree(node, sceneID, model, SceneCore::ROOT_ID);
 		}
 	}
 
@@ -769,13 +771,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 	ts.Finalize(&waitObj);
 	App::Submit(ZetaMove(ts));
 
-	SmallVector<IntemediateInstance, Support::ThreadSafeArenaAllocator> instances(arena);
-	instances.reserve(model->nodes_count);
-
 	waitObj.Wait();
 
-	ProcessNodes(*model, sceneID, instances);
-	ProcessInstances(sceneID, instances, *model);
+	ProcessNodes(*model, sceneID);
 
 	cgltf_free(model);
 }
