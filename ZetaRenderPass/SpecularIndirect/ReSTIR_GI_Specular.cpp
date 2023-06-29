@@ -498,7 +498,7 @@ void ReSTIR_GI_Specular::Render(CommandList& cmdList) noexcept
 
 	m_isTemporalReservoirValid = true;
 	m_currTemporalReservoirIdx = 1 - m_currTemporalReservoirIdx;
-	m_sampleIdx = (m_sampleIdx + 1) & 31;
+	//m_sampleIdx = (m_sampleIdx + 1) & 31;
 	m_internalCounter++;
 
 	// when checkerboarding, advance the sample index every other tracing frame
@@ -645,7 +645,7 @@ void ReSTIR_GI_Specular::ReloadTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_RESAMPLE;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectSpecular\\ReSTIR_GI_Specular_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "SpecularIndirect\\ReSTIR_GI_Specular_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -653,7 +653,7 @@ void ReSTIR_GI_Specular::ReloadSpatialPass() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_RESAMPLE;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectSpecular\\ReSTIR_GI_Specular_Spatial.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "SpecularIndirect\\ReSTIR_GI_Specular_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -661,7 +661,7 @@ void ReSTIR_GI_Specular::ReloadDNSR() noexcept
 {
 	const int i = (int)SHADERS::DNSR;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectSpecular\\SpecularDNSR_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "SpecularIndirect\\SpecularDNSR_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 

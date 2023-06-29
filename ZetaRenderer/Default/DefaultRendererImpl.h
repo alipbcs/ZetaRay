@@ -4,8 +4,9 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#include <IndirectDiffuse/ReSTIR_GI_Diffuse.h>
-#include <IndirectSpecular/ReSTIR_GI_Specular.h>
+#include <DiffuseIndirect/ReSTIR_GI_Diffuse.h>
+#include <SpecularIndirect/ReSTIR_GI_Specular.h>
+#include <DirectIllumination/ReSTIR_DI.h>
 #include <Clear/Clear.h>
 #include <GBuffer/GBufferPass.h>
 #include <SunShadow/SunShadow.h>
@@ -48,6 +49,7 @@ namespace ZetaRay::DefaultRenderer
 	{
 		bool Inscattering = false;
 		bool DoF = false;
+		bool SkyIllumination = true;
 		// Note match with default PendingAA
 		Settings::AA AntiAliasing = Settings::AA::NATIVE_TAA;
 	};
@@ -183,6 +185,9 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::ReSTIR_GI_Specular ReSTIR_GI_SpecularPass;
 		Core::RenderNodeHandle ReSTIR_GI_SpecularHandle;
 
+		RenderPass::ReSTIR_DI ReSTIR_DI_Pass;
+		Core::RenderNodeHandle ReSTIR_DI_Handle;
+
 		// Descriptors
 		enum DESC_TABLE
 		{
@@ -193,13 +198,8 @@ namespace ZetaRay::DefaultRenderer
 			DIFFUSE_SPATIAL_RESERVOIR_A,
 			DIFFUSE_SPATIAL_RESERVOIR_B,
 			DIFFUSE_SPATIAL_RESERVOIR_C,
-			SPECULAR_TEMPORAL_RESERVOIR_A,
-			SPECULAR_TEMPORAL_RESERVOIR_B,
-			SPECULAR_TEMPORAL_RESERVOIR_D,
-			SPECULAR_SPATIAL_RESERVOIR_A,
-			SPECULAR_SPATIAL_RESERVOIR_B,
-			SPECULAR_SPATIAL_RESERVOIR_D,
 			SPECULAR_DNSR_TEMPORAL_CACHE,
+			DIRECT_DNSR_TEMPORAL_CACHE,
 			COUNT
 		};
 
@@ -233,7 +233,7 @@ namespace ZetaRay::DefaultRenderer
 		static constexpr float g = 0.8f;
 		static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;		// km
 		static constexpr float PLANET_RADIUS = 6360.0f;				// km
-		static constexpr float RAY_T_OFFSET = 4e-4;
+		static constexpr float RAY_T_OFFSET = 5e-4;
 	};
 }
 
@@ -245,7 +245,7 @@ using Data = ZetaRay::DefaultRenderer::PrivateData;
 
 namespace ZetaRay::DefaultRenderer::Common
 {
-	void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHeapBuffer& frameConstsBuff, 
+	void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHeapBuffer& frameConstsBuff,
 		const GBufferData& gbuffData, const LightData& lightData) noexcept;
 }
 
@@ -276,11 +276,11 @@ namespace ZetaRay::DefaultRenderer::Light
 	void OnWindowSizeChanged(const RenderSettings& settings, LightData& data) noexcept;
 	void Shutdown(LightData& data) noexcept;
 
-	void Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData, 
+	void Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData,
 		Core::RenderGraph& renderGraph) noexcept;
-	void Update(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData, 
+	void Update(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
 		const RayTracerData& rayTracerData) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData, 
+	void DeclareAdjacencies(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
 		const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph) noexcept;
 }
 
@@ -295,9 +295,9 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 	void Shutdown(RayTracerData& data) noexcept;
 
 	void UpdateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept;
-	void Update(const RenderSettings& settings, RayTracerData& data) noexcept;
+	void Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data) noexcept;
 	void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, RayTracerData& rtData, const GBufferData& gbuffData, 
+	void DeclareAdjacencies(const RenderSettings& settings, RayTracerData& rtData, const GBufferData& gbuffData,
 		Core::RenderGraph& renderGraph) noexcept;
 }
 
@@ -308,7 +308,7 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 namespace ZetaRay::DefaultRenderer::PostProcessor
 {
 	void Init(const RenderSettings& settings, PostProcessData& data, const LightData& lightData) noexcept;
-	void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data, 
+	void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
 		const LightData& lightData) noexcept;
 	void Shutdown(PostProcessData& data) noexcept;
 
@@ -318,6 +318,6 @@ namespace ZetaRay::DefaultRenderer::PostProcessor
 	void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData, const LightData& lightData,
 		const RayTracerData& rayTracerData) noexcept;
 	void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph) noexcept;
-	void DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData, 
+	void DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
 		const LightData& lightData, const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph) noexcept;
 }

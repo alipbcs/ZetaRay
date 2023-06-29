@@ -101,19 +101,19 @@ float4 GeometryWeight(float4 prevDepths, float2 prevUVs[4], float3 currNormal, f
 
 float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float alpha)
 {
-	float4 cosTheta = float4(dot(currNormal, prevNormals[0]),
+	float4 cosTheta = saturate(float4(dot(currNormal, prevNormals[0]),
 		dot(currNormal, prevNormals[1]),
 		dot(currNormal, prevNormals[2]),
-		dot(currNormal, prevNormals[3]));
+		dot(currNormal, prevNormals[3])));
+	
+	float4 weight = cosTheta * cosTheta;
+	weight *= weight;
+	weight *= weight;
+	weight *= weight;
+	weight *= weight;
+	weight *= weight;
+	weight *= weight;
 
-	float4 angle = Math::ArcCos(cosTheta);
-	
-	// tolerance angle becomes narrower based on specular lobe half angle
-	// Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
-	float scale = alpha / (1.0 + alpha);
-	float tolerance = 0.08726646 + 0.27925268 * scale; // == [5.0, 16.0] degrees 
-	float4 weight = saturate((tolerance - angle) / tolerance);
-	
 	return weight;
 }
 
@@ -223,7 +223,7 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 	if (weightSum < 1e-4f)
 		return;
 	
-	// uniformly distribute the weight over the consistent samples
+	// uniformly distribute the weight over the nonzero samples
 	weights *= rcp(weightSum);
 
 	// tspp
@@ -254,7 +254,7 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float linearDepth, float roughness, 
 	BRDF::SurfaceInteraction surface, float surfaceTspp, float3 surfaceColor, float prevLinearDepth, float2 prevUV)
 {
-	// adjust accumulation speed base on "reactivity" -- more reactive means higher weight
+	// adjust accumulation speed based on "reactivity" -- more reactive means higher weight
 	// given to recent samples and vice versa
 	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
 	const float3 prevSurfacePos = Math::Transform::WorldPosFromUV(prevUV,
@@ -264,7 +264,7 @@ float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float 
 		g_frame.PrevViewInv);
 
 	const float parallax = Parallax(posW, prevSurfacePos, g_frame.CameraPos, prevCameraPos);
-	// 2nd argument to following is supposed to be ndotwo, but for some reason using the half vector
+	// TODO 2nd argument to following is supposed to be ndotwo, but for some reason using the half vector
 	// results in noticeably lower temporal lag
 	float f = Reactivity(roughness, surface.whdotwo, parallax);
 
@@ -338,7 +338,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
 	const float3 wi = normalize(r.SamplePos - posW);
-	surface.InitComplete(wi, 0.0.xxx, mr.x);
+	surface.InitComplete(wi, 0.0.xxx, mr.x, normal);
 
 	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 	const float localCurvature = g_curvature[DTid.xy];

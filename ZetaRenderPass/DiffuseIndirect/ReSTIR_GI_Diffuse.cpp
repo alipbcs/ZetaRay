@@ -690,7 +690,7 @@ void ReSTIR_GI_Diffuse::ReloadRGITemporalPass() noexcept
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DiffuseIndirect\\ReSTIR_GI_Diffuse_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -698,7 +698,7 @@ void ReSTIR_GI_Diffuse::ReloadRGISpatialPass() noexcept
 {
 	const int i = (int)SHADERS::SPATIAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Spatial.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DiffuseIndirect\\ReSTIR_GI_Diffuse_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -706,7 +706,7 @@ void ReSTIR_GI_Diffuse::ReloadValidationPass() noexcept
 {
 	const int i = (int)SHADERS::VALIDATION;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\ReSTIR_GI_Diffuse_Validation.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DiffuseIndirect\\ReSTIR_GI_Diffuse_Validation.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -714,7 +714,7 @@ void ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass() noexcept
 {
 	const int i = (int)SHADERS::DIFFUSE_DNSR_TEMPORAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\DiffuseDNSR_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DiffuseIndirect\\DiffuseDNSR_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -722,6 +722,6 @@ void ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass() noexcept
 {
 	const int i = (int)SHADERS::DIFFUSE_DNSR_SPATIAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "IndirectDiffuse\\DiffuseDNSR_SpatialFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DiffuseIndirect\\DiffuseDNSR_SpatialFilter.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

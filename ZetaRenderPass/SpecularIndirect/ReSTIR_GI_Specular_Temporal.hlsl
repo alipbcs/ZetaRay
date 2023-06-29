@@ -54,41 +54,6 @@ static const uint16_t2 GroupDim = uint16_t2(RGI_SPEC_TEMPORAL_GROUP_DIM_X, RGI_S
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
-{
-#if THREAD_GROUP_SWIZZLING
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_SPEC_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		// DispatchDimX & NumGroupsInTile
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_SPEC_TEMPORAL_TILE_WIDTH * numFullTiles;
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-	{
-		groupIDinTile = uint16_t2(
-			groupIDinTileFlattened & (RGI_SPEC_TEMPORAL_TILE_WIDTH - 1),
-			groupIDinTileFlattened >> RGI_SPEC_TEMPORAL_LOG2_TILE_WIDTH);
-	}
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_SPEC_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2) DTid.xy;
-#endif
-	
-	return swizzledDTid;
-}
-
 // wi is assumed to be normalized
 float3 MissShading(float3 wi)
 {
@@ -252,9 +217,9 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		}
 
 		BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, roughness, wo);
-		surface.InitComplete(-g_frame.SunDir, baseColor.rgb, metalness);
+		surface.InitComplete(-g_frame.SunDir, baseColor.rgb, metalness, normal);
 		float3 brdf = BRDF::ComputeSurfaceBRDF(surface);	
-		// fireflies!!
+		// fireflies!
 		brdf = clamp(brdf, 0, 0.35);
 		
 		const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
@@ -351,10 +316,10 @@ float RayTHeuristic(float currRayT, float sampleRayT)
 	return w;
 }
 
-float GetTemporalM(float3 posW, float rayT, float curvature, float linearDepth, float ndotwo)
+float GetTemporalM(float3 posW, float rayT, float curvature, float ndotwo)
 {
 	// smaller RIS weight during temporal resampling when 
-	// 1. reflection is closer to ray origin
+	// 1. reflection is closer to ray origin (sharper reflections)
 	// 2. surface is curved
 	float d = length(posW);
 	float f = rayT / max(rayT + d, 1e-6f);
@@ -495,13 +460,15 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		// TODO hit-distance weight leads to temporal artifacts for curved surfaces
 		rayTWeights[resIdx] = localCurvature != 0.0 ? 1.0f : RayTHeuristic(currRayT, sampleRayT);
 	}
+		
+	rayTWeights = !tracedThisFrame ? 1.0.xxxx : rayTWeights;
+	weights *= rayTWeights;
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
-	
-	rayTWeights = !tracedThisFrame ? 1.0.xxxx : rayTWeights;
+	weights *= bilinearWeights;
 	
 	weights *= weights > 1e-4;
 	const float weightSum = dot(1, weights);
@@ -511,9 +478,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	
 	weights /= weightSum;
 	
-	// smaller RIS weight when hit distance is small (sharper reflections)
 	const float temporalM = !tracedThisFrame ? g_local.M_max : 
-		GetTemporalM(posW, currRayT, localCurvature, linearDepth, surface.ndotwo);
+		GetTemporalM(posW, currRayT, localCurvature, surface.ndotwo);
 		
 	[unroll]
 	for (int k = 0; k < 4; k++)
@@ -533,7 +499,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		// q -> reused path, r -> current pixel's path
 		const float3 secondToFirst_r = posW - prev.SamplePos;
 		const float3 wi = normalize(-secondToFirst_r);
-		const float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, surface);
+		const float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, normal, surface);
 		float jacobianDet = 1.0f;
 
 		if (g_local.PdfCorrection)
@@ -552,9 +518,14 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 [numthreads(RGI_SPEC_TEMPORAL_GROUP_DIM_X, RGI_SPEC_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
+#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, GroupDim, g_local.DispatchDimX,
+		RGI_SPEC_TEMPORAL_TILE_WIDTH, RGI_SPEC_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+#else
+	const uint2 swizzledDTid = DTid.xy;
+#endif
 
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
 		return;
@@ -585,7 +556,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float2 mr = g_metalnessRoughness[swizzledDTid.xy];
 
 	// roughness cutoff
-	const bool roughnessBelowThresh = (mr.x > 0.95) || (mr.y <= g_local.RoughnessCutoff);
+	const bool roughnessBelowThresh = (mr.x > MIN_METALNESS_METAL) || (mr.y <= g_local.RoughnessCutoff);
 	if(!roughnessBelowThresh)
 		return;
 	
@@ -608,7 +579,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 5);
 
-		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, float2(u0, u1));
+		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, normal, float2(u0, u1));
 	}
 	
 	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
@@ -626,14 +597,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	SpecularSample tracedSample = Li(posW, normal, wi, linearDepth, rayCone);
 	
-	// resampling
-
-	// base color is needed for Fresnel
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
 	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
 		
-	surface.InitComplete(wi, baseColor, mr.x);
+	surface.InitComplete(wi, baseColor, mr.x, normal);
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,

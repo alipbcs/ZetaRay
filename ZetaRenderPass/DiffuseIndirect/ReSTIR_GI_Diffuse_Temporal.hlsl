@@ -13,8 +13,7 @@
 #define NUM_BINS 8
 #define THREAD_GROUP_SWIZZLING 1
 #define RAY_BINNING 1
-#define TOLERABLE_RELATIVE_RADIANCE_CHANGE 0.2
-#define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.35
+#define USE_RAY_CONES 0
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 #define RAY_OFFSET_VIEW_DIST_START 30.0
 
@@ -45,6 +44,10 @@ struct HitSurface
 	float2 uv;
 	half2 ShadingNormal;
 	uint16_t MatID;
+
+#if USE_RAY_CONES
+	half Lambda;
+#endif
 };
 
 #if RAY_BINNING
@@ -54,39 +57,13 @@ groupshared float3 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPO
 groupshared float3 g_sortedDir[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 #endif
 
+#if USE_RAY_CONES
+groupshared RT::RayCone g_sortedRayCones[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
+#endif
+
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
-
-uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
-{
-#if THREAD_GROUP_SWIZZLING
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_TEMPORAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_TEMPORAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_TEMPORAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH);
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_TEMPORAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-#endif
-
-	return swizzledDTid;
-}
 
 float2 SignNotZero(float2 v)
 {
@@ -116,9 +93,10 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	// protect against self-intersection
 	float3 adjustedOrigin = pos + normal * 5e-3f;
 
-	RayQuery < RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
@@ -139,7 +117,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
+bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
 {
 	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
@@ -159,7 +137,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 	if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
 	{
 		const uint byteOffset = (rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()) * sizeof(RT::MeshInstance);
-		const RT::MeshInstance meshData = g_frameMeshData.Load<RT::MeshInstance>(byteOffset);
+		const RT::MeshInstance meshData = g_frameMeshData.Load < RT::MeshInstance > (byteOffset);
 
 		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
@@ -173,7 +151,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 		const float2 barry = rayQuery.CommittedTriangleBarycentrics();
 		float2 uv = V0.TexUV + barry.x * (V1.TexUV - V0.TexUV) + barry.y * (V2.TexUV - V0.TexUV);
-		
+
 		float3 normal = V0.NormalL + barry.x * (V1.NormalL - V0.NormalL) + barry.y * (V2.NormalL - V0.NormalL);
 		normal = normalize(normal);
 		normal = Math::Transform::RotateVector(normal, meshData.Rotation);
@@ -181,20 +159,32 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 		// reverse the normal if ray hit the backfacing side
 		if (dot(normal, -rayQuery.WorldRayDirection()) < 0)
 			normal *= -1.0f;
-
+		
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
 		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 
+#if USE_RAY_CONES		
+		rayCone.Update(rayQuery.CommittedRayT(), 0);
+		
+		float3 v0W = meshData.Scale * V0.PosL;
+		float3 v1W = meshData.Scale * V1.PosL;
+		float3 v2W = meshData.Scale * V2.PosL;
+		
+		float ndotwo = dot(normal, -wi);
+		float lambda = rayCone.Lambda(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
+		surface.Lambda = half(lambda);
+#endif	
+		
 		return true;
 	}
 
 	return false;
 }
 
-bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out bool isRayValid, 
-	out uint16_t sortedIdx)
+bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSurface hitInfo,
+	out bool isRayValid, out uint16_t sortedIdx)
 {
 #if RAY_BINNING
 	//
@@ -254,15 +244,28 @@ bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out boo
 	const uint idx = g_binOffset[laneBin] + idxInBin;
 	g_sortedOrigin[idx] = origin;
 	g_sortedDir[idx].xyz = dir;
+
+#if USE_RAY_CONES
+	g_sortedRayCones[idx] = rayCone;
+#endif
+
 	sortedIdx = (uint16_t) idx;
 
 	GroupMemoryBarrierWithGroupSync();
 
 	float3 newOrigin = g_sortedOrigin[Gidx];
 	float3 newDir = g_sortedDir[Gidx].xyz;
+	
+#if USE_RAY_CONES
+	RT::RayCone newRayCone = g_sortedRayCones[Gidx];
+#else
+	RT::RayCone newRayCone = rayCone;
+#endif
+	
 #else	
 	float3 newOrigin = origin;
 	float3 newDir = dir;
+	RT::RayCone newRayCone = rayCone;
 #endif	
 
 	// skip invalid rays
@@ -273,7 +276,7 @@ bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out boo
 	}
 
 	isRayValid = true;
-	bool hit = FindClosestHit(newOrigin, newDir, hitInfo);
+	bool hit = FindClosestHit(newOrigin, newDir, newRayCone, hitInfo);
 
 	return hit;
 }
@@ -282,7 +285,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 {
 	float3 normal = Math::Encoding::DecodeUnitNormal(hitInfo.ShadingNormal);
 	const uint byteOffset = hitInfo.MatID * sizeof(Material);
-	const Material mat = g_materials.Load < Material > (byteOffset);
+	const Material mat = g_materials.Load<Material>(byteOffset);
 
 	const bool isUnoccluded = dot(-g_frame.SunDir, normal) <= 0 ? false : EvaluateVisibility(hitInfo.Pos, -g_frame.SunDir, normal);
 	float3 L_o = 0.0.xxx;
@@ -345,8 +348,8 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 	if (mat.EmissiveTexture != -1)
 	{
-		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);
-		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
+		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);	
+		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];		
 		float mip = g_frame.MipBias;
 
 #if USE_RAY_CONES
@@ -361,31 +364,31 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, out uint16_t sortedIdx)
+DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth,
+	RT::RayCone rayCone, out uint16_t sortedIdx)
 {
 	DiffuseSample ret;
 	
-	// protect against self-intersection
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
 	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
 
 	// trace a ray along wi to find closest surface point
-	bool isRayValid;
+	bool isSortedRayValid;
 	HitSurface hitInfo;
-	bool hit = Trace(Gidx, adjustedOrigin, wi, hitInfo, isRayValid, sortedIdx);
+	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isSortedRayValid, sortedIdx);
 
-	// what's the outgoing radiance from the closest hit point towards wo
+	// what's the incident radiance from the closest hit point
 	ret.Lo = 0.0.xxx;
 
-	// if the ray hit a surface, compute direct lighting at the given surface point, otherise 
-	// returns the incoming radiance from sky
+	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
+	// return the incoming radiance from the sky
 	if (hit)
 	{
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.ShadingNormal;
 	}
-	else if (isRayValid)
+	else if (isSortedRayValid)
 	{
 #if RAY_BINNING
 		float3 newDir = g_sortedDir[Gidx];
@@ -393,7 +396,8 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		float3 newDir = wi;
 #endif
 		ret.Lo = MissShading(newDir);
-		float3 temp = posW;
+		
+		float3 temp = posW;		// make a copy to avoid accumulating floating-point error
 		temp.y += g_frame.PlanetRadius;
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
@@ -403,113 +407,168 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 	return ret;
 }
 
-DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currLinearDepth, float3 currNormal)
+float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos, float linearDepth)
+{
+	float4 planeDist = float4(dot(currNormal, histPositions[0] - currPos),
+		dot(currNormal, histPositions[1] - currPos),
+		dot(currNormal, histPositions[2] - currPos),
+		dot(currNormal, histPositions[3] - currPos));
+	
+	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+	
+	return weights;
+}
+
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
+	inout DiffuseReservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
 	// reverse reproject current pixel
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
-	const half2 motionVec = g_motionVector[DTid];
+	const half2 motionVec = g_motionVector[DTid.xy];
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
 	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
-	{
-		DiffuseReservoir r = DiffuseReservoir::Init();
-		return r;
-	}
+		return;
 
+	// retrieve the 2x2 neighborhood reservoirs around reprojected pixel
+
+	const float2 f = prevUV * renderDim;
+	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
+	const float2 offset = f - (topLeft + 0.5f);
+	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
+	
+	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
+	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
+
+	float2 prevUVs[4];
+	prevUVs[0] = topLeftTexelUV;
+	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
+	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
+	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
 	
-	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-			g_frame.PrevViewInv);
+	float3 prevPos[4];
 	
-	const float planeDist = dot(currNormal, prevPos - currPos);
-	const bool isDisoccluded = abs(planeDist) > DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
-	
-	if (isDisoccluded)
+	[unroll]
+	for (int j = 0; j < 4; j++)
 	{
-		DiffuseReservoir r = DiffuseReservoir::Init();
-		return r;		
+		prevPos[j] = Math::Transform::WorldPosFromUV(prevUVs[j], prevDepths[j], g_frame.TanHalfFOV, g_frame.AspectRatio,
+			g_frame.PrevViewInv);
 	}
 	
-	// nearest neighbor
-	//float2 posSS = prevUV * renderDim;
-	//int2 pixel = round(posSS - 0.5f);
+	const float4 geoWeights = GeometricHeuristic(prevPos, normal, posW, linearDepth);
+	
+	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
+									       offset.x * (1.0f - offset.y),
+									       (1.0f - offset.x) * offset.y,
+									       offset.x * offset.y);
+	
+	float4 weights = geoWeights * bilinearWeights;
+	weights *= weights > 1e-3;
+	float weightSum = dot(1, weights);
+	
+	if(weightSum < 1e-4)
+		return;
+	
+	weights /= weightSum;	// renormalize
+	
+	const uint2 offsets[4] = { uint2(0, 0), uint2(1, 0), uint2(0, 1), uint2(1, 1) };
+	
+	// q -> reused path, r -> current pixel's path
+	const float3 x1_r = posW;
+	
+	[unroll]
+	for (int i = 0; i < 4; i++)
+	{
+		uint2 prevPixel = uint2(topLeft) + offsets[i];
 
-	DiffuseReservoir prevReservoir = RGI_Diff_Util::ReadInputReservoir(g_samPointClamp, prevUV, g_local.PrevTemporalReservoir_A_DescHeapIdx,
-		g_local.PrevTemporalReservoir_B_DescHeapIdx, g_local.PrevTemporalReservoir_C_DescHeapIdx);
+		if (!Math::IsWithinBoundsExc(prevPixel, uint2(renderDim)) || weights[i] == 0.0)
+			continue;
+		
+		DiffuseReservoir prevReservoir = RGI_Diff_Util::ReadInputReservoir(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx,
+			g_local.PrevTemporalReservoir_B_DescHeapIdx, g_local.PrevTemporalReservoir_C_DescHeapIdx);
+		
+		// TODO following seems the logical thing to do, but for some it causes a strange 
+		// bug where surface illumination slowly pulsates between light and dark over time
+#if 0
+		if(prevReservoir.SampleNormal.x == INVALID_SAMPLE_NORMAL.x)
+		{
+			weights[i] = 0;
+			weightSum = dot(1, weights);
+			
+			if(weightSum <= 1e-4)
+				break;
+			
+			weights /= weightSum;
+			
+			continue;
+		}
+#endif		
 
-	return prevReservoir;
+		float jacobianDet = 1.0f;
+		const float3 x1_q = prevPos[i];
+		const float3 x2_q = prevReservoir.SamplePos;
+		const float3 secondToFirst_r = x1_r - x2_q;
+		const float3 wi = normalize(-secondToFirst_r);
+		
+		if (g_local.PdfCorrection)
+			jacobianDet = RGI_Diff_Util::JacobianDeterminant(x1_q, x2_q, wi, secondToFirst_r, prevReservoir);
+		
+		r.Combine(prevReservoir, wi, normal, MAX_TEMPORAL_M, weights[i], jacobianDet, rng);
+	}
 }
 
-void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG rng)
+DiffuseReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf,
+	DiffuseSample s, bool isSampleValid, inout RNG rng)
 {
-	// TODO not sure what's the best way to do this -- there are either 
-	// false positives or false negatives
-	const float3 d = r.SamplePos - posW;
-	const float reservoirHitDist = sqrt(dot(d, d));
-	const float currHitDist = s.RayT;
-	float dt2 = abs(currHitDist - reservoirHitDist);
-	dt2 *= dt2;
-	const float relativeRayTChange = saturate(dt2 / max(currHitDist, g_frame.RayOffset));
-	
-	const float sampleLum = Math::Color::LuminanceFromLinearRGB(s.Lo);
-	const float reservoirLum = Math::Color::LuminanceFromLinearRGB(r.Li);
-	const float relativeRadianceChange = sampleLum == 0.0 ? saturate(abs(sampleLum - reservoirLum)) : 
-		saturate(abs(sampleLum - reservoirLum) / max(sampleLum, 1e-4));
-	
-	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
-	{
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
-	}
-	else if (relativeRayTChange <= TOLERABLE_RELATIVE_RAY_T_CHANGE)
-	{
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
+	DiffuseReservoir r = DiffuseReservoir::Init();
 
-		float adjustment = 1 - smoothstep(TOLERABLE_RELATIVE_RADIANCE_CHANGE, 1, relativeRadianceChange);
-		r.M = half(max(1, r.M * adjustment));
-		r.w_sum *= adjustment;
-	}
-	else
-	{
-		const float sourcePdf = ONE_OVER_2_PI;
-		const float risWeight = sampleLum / sourcePdf;
+	// cosine term in the target cancels out cosine term in the source pdf (i.e. cos(theta) / PI)
+#if (COSINE_WEIGHTED_SAMPLING && INCLUDE_COSINE_TERM_IN_TARGET)
+	sourcePdf = ONE_DIV_PI;
+#endif		
 
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
-		r.M = 1;
-		
-		// following should be the correct thing to do, but for some reason casuses artifacts
-		// TODO investigate
-	#if 0		
-		r.w_sum = risWeight;
-	#else
-		r.w_sum = 0;
-	#endif
+	if (isSampleValid)
+	{
+		const float lum = Math::Color::LuminanceFromLinearRGB(s.Lo);
+		const float risWeight = lum / max(1e-4f, sourcePdf);
+	
+		r.Update(risWeight, s, rng);
 	}
+	
+	if (g_local.DoTemporalResampling && g_local.IsTemporalReservoirValid)
+		TemporalResample(DTid, posW, normal, linearDepth, r, rng);
+	
+	return r;
 }
 
 //--------------------------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------------------------
 
+[WaveSize(32)]
 [numthreads(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
+#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint16_t2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, GroupDim, g_local.DispatchDimX,
+		RGI_DIFF_TEMPORAL_TILE_WIDTH, RGI_DIFF_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+#else
+	const uint2 swizzledDTid = DTid.xy;
+#endif
 
 	// this lane should still participates in non-trace computations
 	const bool isWithinScreenBounds = swizzledDTid.x < g_frame.RenderWidth && swizzledDTid.y < g_frame.RenderHeight;
-
+	const bool traceThisFrame = g_local.CheckerboardTracing ?
+		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_local.FrameCounter & 0x1) :
+		true;
+	
 #if RAY_BINNING
 	if (Gidx < NUM_BINS)
 	{
@@ -523,12 +582,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[swizzledDTid];
 
-	// this lane still participates in non-trace computations
-	bool reservoirValid = isWithinScreenBounds && (depth != 0);
+	// can't early exit due to ray binning
+	bool isPixelValid = isWithinScreenBounds && (depth != 0);
 	
-	// reconstruct position
+	// reconstruct position from depth buffer
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-	
+
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
@@ -538,55 +597,93 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrViewInv);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
-
+	const half2 encodedNormal = g_normal[swizzledDTid];
+	const float3 normal = Math::Encoding::DecodeUnitNormal(encodedNormal);
+	
 	// metallic mask
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float m = g_metalnessRoughness[swizzledDTid].r;
 	
-	// skip metals
+	// skip metallic surfaces
 	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 	// add a small threshold
-	reservoirValid &= (m <= MAX_METALNESS_DIELECTRIC);
+	isPixelValid &= (m < MIN_METALNESS_METAL);
 
-	// validate the reservoirs from two frames ago
-	const bool tracedLastFrame = g_local.CheckerboardTracing ?
-		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_local.FrameCounter & 0x1) :
-		true;
+	// sample the cosine-weighted hemisphere above pos
+	float3 wi = INVALID_RAY_DIR;
+	float pdf;
+	
+	if (isPixelValid && traceThisFrame)
+	{
+		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 0);
+		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 1);
 
-	DiffuseReservoir r = SampleTemporalReservoir(swizzledDTid, posW, linearDepth, normal);
+#if COSINE_WEIGHTED_SAMPLING
+		wi = BRDF::SampleLambertianBrdf(normal, float2(u0, u1), pdf);
+#else
+		wi = Sampling::UniformSampleHemisphere(float2(u0, u1), pdf);
+		
+		float3 T;
+		float3 B;
+		Math::Transform::revisedONB(normal, T, B);
+		wi = wi.x * T + wi.y * B + wi.z * normal;
+#endif
+	}
 	
-	// skip tracing if reservoir's sample is invalid
-	bool isReservoirEmpty = r.M == 0;
-	const bool needValidation = reservoirValid && !isReservoirEmpty &&
-		(!g_local.CheckerboardTracing || !tracedLastFrame);
+#if USE_RAY_CONES
+	uint n = uint(asuint16(encodedNormal.y)) << 16 | uint(asuint16(encodedNormal.x));
+	g_sortedOrigin[Gidx].xy = float2(asfloat(n), linearDepth);
+	g_sortedDir[Gidx] = posW;
+
+	GroupMemoryBarrierWithGroupSync();
 	
-	const float3 wi = needValidation ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
+	const float k = EstimateLocalCurvature(normal, posW, linearDepth, GTid.xy, isPixelValid);
+	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, k, linearDepth);
+#else
+	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, 0, linearDepth);
+#endif	
 	
 	uint16_t sortedIdx;
-	DiffuseSample s = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, sortedIdx);
+	DiffuseSample retSample = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, rayCone, sortedIdx);
 	
 #if RAY_BINNING
-	g_sortedOrigin[Gidx] = RGI_Diff_Util::PackSample(s.Normal, s.Lo, s.RayT);
-	g_sortedDir[Gidx] = s.Pos;
+	g_sortedOrigin[Gidx] = RGI_Diff_Util::PackSample(retSample.Normal, retSample.Lo, retSample.RayT);
+	g_sortedDir[Gidx] = retSample.Pos;
 	
 	GroupMemoryBarrierWithGroupSync();
 
 	// retrieve the non-sorted vals
-	RGI_Diff_Util::UnpackSample(g_sortedOrigin[sortedIdx], s.Normal, s.Lo, s.RayT);
-	s.Pos = g_sortedDir[sortedIdx].xyz;
+	RGI_Diff_Util::UnpackSample(g_sortedOrigin[sortedIdx], retSample.Normal, retSample.Lo, retSample.RayT);
+	retSample.Pos = g_sortedDir[sortedIdx].xyz;
 #endif	
 	
-	if (reservoirValid)
+	// resampling
+	if (isPixelValid)
 	{
-		if (needValidation)
-		{
-			RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-			Validate(s, posW, r, rng);		
-		}
+		DiffuseReservoir r = DiffuseReservoir::Init();
 
+		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
+						
+		//const float cosTheta = saturate(pdf * PI);
+		r = UpdateAndResample(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
+		
+		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
+		// Need further investigation to figure out the cause. Following seems to mitigate
+		// the issue for now with no apparent artifacts
+#if RAY_BINNING
+		if (isnan(r.SamplePos.x) && !traceThisFrame)
+			r = DiffuseReservoir::Init();
+#endif	
+
+		// TODO when sun is at the horizon, there could be NaN propagation -- temporary
+		// fix
+		if (isnan(r.w_sum))
+			r = DiffuseReservoir::Init();
+		
 		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
-			g_local.CurrTemporalReservoir_C_DescHeapIdx);
+		g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 }

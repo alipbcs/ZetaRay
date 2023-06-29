@@ -3,6 +3,7 @@
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../../ZetaCore/Core/Material.h"
+#include "../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.02f
@@ -42,41 +43,6 @@ RaytracingAccelerationStructure g_sceneBVH : register(t0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
-{
-#if THREAD_GROUP_SWIZZLING
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_SPEC_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		// DispatchDimX & NumGroupsInTile
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_SPEC_SPATIAL_TILE_WIDTH * numFullTiles;
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-	{
-		groupIDinTile = uint16_t2(
-			groupIDinTileFlattened & (RGI_SPEC_SPATIAL_TILE_WIDTH - 1),
-			groupIDinTileFlattened >> RGI_SPEC_SPATIAL_LOG2_TILE_WIDTH);
-	}
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_SPEC_SPATIAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-#endif
-	
-	return swizzledDTid;
-}
-
 float PlaneHeuristic(float sampleDepth, float3 samplePos, float3 currNormal, float3 currPos, float linearDepth)
 {
 	float planeDist = dot(currNormal, samplePos - currPos);
@@ -85,9 +51,9 @@ float PlaneHeuristic(float sampleDepth, float3 samplePos, float3 currNormal, flo
 	return weight;
 }
 
-float NormalHeuristic(float3 input, float3 sample, float alpha)
+float NormalHeuristic(float3 normal, float3 sampleNormal, float alpha)
 {
-	float cosTheta = dot(input, sample);
+	float cosTheta = saturate(dot(normal, sampleNormal));
 	float angle = Math::ArcCos(cosTheta);
 	
 	// tolerance angle becomes narrower based on specular lobe half angle
@@ -142,7 +108,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 	const int numIterations = round(smoothstep(0, 1, f) * g_local.NumIterations);
 	
 	// rotate the sample sequence per pixel
-	const float u0 = rng.RandUniform();
+	const float u0 = rng.Uniform();
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);		
@@ -203,7 +169,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			
 			const float3 secondToFirst_r = posW - neighbor.SamplePos;
 			const float3 wi = normalize(-secondToFirst_r);
-			float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, surface);
+			float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, normal, surface);
 			float jacobianDet = 1.0f;
 
 			if (g_local.PdfCorrection)
@@ -228,9 +194,14 @@ void WriteReservoir(uint2 DTid, SpecularReservoir r)
 [numthreads(RGI_SPEC_SPATIAL_GROUP_DIM_X, RGI_SPEC_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
+#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, GroupDim, g_local.DispatchDimX,
+		RGI_SPEC_SPATIAL_TILE_WIDTH, RGI_SPEC_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+#else
+	const uint2 swizzledDTid = DTid.xy;
+#endif
 	
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
 		return;

@@ -4,9 +4,9 @@
 #include "../Common/BRDF.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../../ZetaCore/Core/Material.h"
+#include "../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
-
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
 
 static const float2 k_halton[16] =
@@ -42,36 +42,6 @@ ConstantBuffer<cb_RGI_Diff_Spatial> g_local : register(b1);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-uint16_t2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid)
-{
-#if THREAD_GROUP_SWIZZLING
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / RGI_DIFF_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - RGI_DIFF_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (RGI_DIFF_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH);
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * RGI_DIFF_SPATIAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
-#else
-	const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-#endif
-
-	return swizzledDTid;
-}
-
 float GeometricHeuristic(float sampleDepth, float3 samplePos, float3 currNormal, 
 	float3 currPos, float linearDepth, float scale)
 {
@@ -98,7 +68,7 @@ float RoughnessHeuristic(float currRoughness, float sampleRoughness)
 	return saturate(1.0f - w);
 }
 
-void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linearDepth, float roughness,
+void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDepth, float roughness,
 	inout DiffuseReservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -112,7 +82,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 	//const float searchRadius = g_local.IsFirstPass ? g_local.Radius1st : g_local.Radius2nd;
 	const float searchRadius = g_local.IsFirstPass ? 15 : 42;
 	
-	const float u0 = rng.RandUniform();
+	const float u0 = rng.Uniform();
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
@@ -166,7 +136,7 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
 
 			float sampleMetalness = g_metalnessRoughness[samplePosSS].x;
-			const float w_m = sampleMetalness <= MAX_METALNESS_DIELECTRIC;
+			const float w_m = sampleMetalness < MIN_METALNESS_METAL;
 			
 			//const float weight = w_z * w_n * w_r * w_m;
 			const float weight = w_z * w_r * w_m;
@@ -200,11 +170,16 @@ void DoSpatialResampling(uint16_t2 DTid, float3 posW, float3 normal, float linea
 [numthreads(RGI_DIFF_SPATIAL_GROUP_DIM_X, RGI_DIFF_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
+#if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint16_t2 swizzledDTid = SwizzleThreadGroup(DTid, Gid, GTid);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, GroupDim, g_local.DispatchDimX,
+		RGI_DIFF_SPATIAL_TILE_WIDTH, RGI_DIFF_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+#else
+	const uint2 swizzledDTid = DTid.xy;
+#endif
 	
-	if (!Math::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
 		return;
 	
 	// reconstruct position from depth buffer
@@ -213,6 +188,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
 	// skip sky pixels
 	if (depth == 0.0)
+		return;
+
+	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	float2 mr = g_metalnessRoughness[swizzledDTid];
+
+	if (mr.x >= MIN_METALNESS_METAL)
 		return;
 
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
@@ -230,14 +212,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	DiffuseReservoir r = RGI_Diff_Util::ReadInputReservoir(swizzledDTid, g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx, g_local.InputReservoir_C_DescHeapIdx);
-	
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float2 mr = g_metalnessRoughness[swizzledDTid];
-
-	if (mr.x > MAX_METALNESS_DIELECTRIC)
-		return;
-		
+			
 //	if (g_local.IsFirstPass || r.M < 2)
 	if (g_local.DoSpatialResampling)
 	{

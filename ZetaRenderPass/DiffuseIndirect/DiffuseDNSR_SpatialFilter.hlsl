@@ -5,6 +5,7 @@
 #include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/BRDF.hlsli"
+#include "../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define NUM_SAMPLES 10
@@ -49,13 +50,12 @@ ConstantBuffer<cbDiffuseDNSRSpatial> g_local : register(b1);
 // Edge-stopping functions and other helpers
 //--------------------------------------------------------------------------------------
 
-float EdgeStoppingGeometry(float sampleDepth, float3 samplePos, float3 currNormal, float currLinearDepth,
-	float3 currPos, float scale)
+float EdgeStoppingGeometry(float3 samplePos, float3 centerNormal, float centerLinearDepth, float3 currPos, float scale)
 {
-	float planeDist = dot(currNormal, samplePos - currPos);
+	float planeDist = dot(centerNormal, samplePos - currPos);
 	
 	// lower the tolerance as more samples are accumulated
-	float weight = abs(planeDist) <= PLANE_DIST_RELATIVE_DELTA * currLinearDepth * scale;
+	float weight = abs(planeDist) <= PLANE_DIST_RELATIVE_DELTA * centerLinearDepth * scale;
 
 	return weight;
 }
@@ -90,7 +90,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 	const float3 pos = Math::Transform::WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv);
 
 	RNG rng = RNG::Init(DTid, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
-	const float u0 = rng.RandUniform();
+	const float u0 = rng.Uniform();
 
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
@@ -98,6 +98,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 
 	float3 weightedColor = 0.0.xxx;
 	float weightSum = 0.0f;
+	int numSamples = 0;
 	
 	[unroll]
 	for (int i = 0; i < NUM_SAMPLES; i++)
@@ -131,7 +132,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.CurrViewInv);
-			const float w_z = EdgeStoppingGeometry(sampleDepth, samplePosW, normal, linearDepth, pos, 1);
+			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, pos, 1);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float normalToleranceScale = 1.0f;
@@ -140,18 +141,17 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 			const float3 sampleColor = g_inTemporalCache[samplePosSS].rgb;
 
 			const float weight = w_z * w_n * k_gaussian[i];
-			if (weight < 1e-4)
+			if (weight < 1e-3)
 				continue;
 			
 			weightedColor += weight * sampleColor;
 			weightSum += weight;
+			numSamples++;
 		}
 	}
 	
 	float3 filtered = weightSum > 1e-3 ? weightedColor / weightSum : 0.0.xxx;
-	float s = weightSum > 1e-3 ? accSpeed : 0.0f;	
-	s = min(s, 0.3f);
-	
+	float s = (weightSum > 1e-3) && (numSamples > 0) ? min(accSpeed, 0.3f) : 1.0f;	
 	filtered = lerp(filtered, centerColor, s);
 	
 	return filtered;
@@ -169,34 +169,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint16_t groupIDFlattened = (uint16_t) Gid.y * g_local.DispatchDimX + (uint16_t) Gid.x;
-	const uint16_t tileID = groupIDFlattened / g_local.NumGroupsInTile;
-	const uint16_t groupIDinTileFlattened = groupIDFlattened % g_local.NumGroupsInTile;
-
-	// TileWidth is a power of 2 for all tiles except possibly the last one
-	const uint16_t numFullTiles = g_local.DispatchDimX / DiffuseDNSR_SPATIAL_TILE_WIDTH; // floor(DispatchDimX / TileWidth
-	const uint16_t numGroupsInFullTiles = numFullTiles * g_local.NumGroupsInTile;
-
-	uint16_t2 groupIDinTile;
-	if (groupIDFlattened >= numGroupsInFullTiles)
-	{
-		const uint16_t lastTileDimX = g_local.DispatchDimX - DiffuseDNSR_SPATIAL_TILE_WIDTH * numFullTiles; // DispatchDimX & NumGroupsInTile
-		groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
-	}
-	else
-		groupIDinTile = uint16_t2(groupIDinTileFlattened & (DiffuseDNSR_SPATIAL_TILE_WIDTH - 1), groupIDinTileFlattened >> DiffuseDNSR_SPATIAL_LOG2_TILE_WIDTH);
-
-	const uint16_t swizzledGidFlattened = groupIDinTile.y * g_local.DispatchDimX + tileID * DiffuseDNSR_SPATIAL_TILE_WIDTH + groupIDinTile.x;
-	const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % g_local.DispatchDimX, swizzledGidFlattened / g_local.DispatchDimX);
-	const uint16_t2 swizzledDTid = swizzledGid * GroupDim + (uint16_t2) GTid.xy;
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, GroupDim, g_local.DispatchDimX,
+		DiffuseDNSR_SPATIAL_TILE_WIDTH, DiffuseDNSR_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
 #else
-	const uint16_t2 swizzledDTid = (uint16_t2) DTid.xy;
+	const uint2 swizzledDTid = DTid.xy;
 #endif
 
-	if (!Math::IsWithinBoundsExc(swizzledDTid, uint16_t2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
 		return;
 	
-	// current frame's depth
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_currDepth[swizzledDTid];
 	
@@ -207,14 +188,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	// skip metallic surfaces
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float metalness = g_metalnessRoughness[DTid.xy].x;
-	if (metalness > MAX_METALNESS_DIELECTRIC)
+	float metalness = g_metalnessRoughness[swizzledDTid].x;
+	if (metalness >= MIN_METALNESS_METAL)
 		return;
 
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];
 	float4 integratedVals = g_inTemporalCache[swizzledDTid];
 	
-	// current frame's normal
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid].xy);
 		

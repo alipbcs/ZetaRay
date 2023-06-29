@@ -72,7 +72,7 @@ struct SpecularReservoir
 		this.w_sum += w;
 		this.M += 1;
 		
-		if (rng.RandUniform() < (w / max(1e-6f, this.w_sum)))
+		if (rng.Uniform() < (w / max(1e-6f, this.w_sum)))
 		{
 			this.SamplePos = s.Pos;
 			this.SampleNormal = s.Normal;
@@ -161,7 +161,7 @@ namespace RGI_Spec_Util
 		// curvature computation above uses the opposite signs
 		k *= -1.0f;
 		k *= pixelWidth;
-		reflectionRayT = sampleRayT / (1.0f - 2 * k * sampleRayT * surface.whdotwo); // = 0 when surface is flat
+		reflectionRayT = sampleRayT / (1.0f - 2 * k * sampleRayT * surface.whdotwo);
 	
 		// interpolate between virtual motion and surface motion using GGX dominant factor
 		// Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
@@ -174,11 +174,12 @@ namespace RGI_Spec_Util
 		return prevUV;
 	}
 
-	float3 RecalculateSpecularBRDF(float3 wi, float3 baseColor, float metallicFactor, inout BRDF::SurfaceInteraction surface)
+	float3 RecalculateSpecularBRDF(float3 wi, float3 baseColor, float metallicFactor, float3 shadingNormal, 
+		inout BRDF::SurfaceInteraction surface)
 	{
 		float3 wh = normalize(wi + surface.wo);
-		surface.ndotwh = saturate(dot(surface.shadingNormal, wh));
-		surface.ndotwi = saturate(dot(surface.shadingNormal, wi));
+		surface.ndotwh = saturate(dot(shadingNormal, wh));
+		surface.ndotwi = saturate(dot(shadingNormal, wi));
 			
 		float3 F0 = lerp(0.04f.xxx, baseColor, metallicFactor);
 		surface.whdotwo = saturate(dot(wh, surface.wo)); // = whdotwi

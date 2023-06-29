@@ -33,6 +33,7 @@
 // metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 // use a small threshold
 #define MAX_METALNESS_DIELECTRIC 0.1f
+#define MIN_METALNESS_METAL 0.95f
 
 namespace BRDF
 {
@@ -162,7 +163,6 @@ namespace BRDF
 			SurfaceInteraction si;
 			
 			si.wo = wo;
-			si.shadingNormal = sn;
 			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
 			si.alpha = roughness * roughness;
 			si.alphaSq = max(1e-5f, si.alpha * si.alpha);
@@ -171,11 +171,11 @@ namespace BRDF
 			return si;
 		}
 			
-		void InitComplete(float3 wi, float3 baseColor, float metalness)
+		void InitComplete(float3 wi, float3 baseColor, float metalness, float3 shadingNormal)
 		{
 			float3 wh = normalize(wi + this.wo);	
-			this.ndotwh = saturate(dot(this.shadingNormal, wh));			
-			this.ndotwi = saturate(dot(this.shadingNormal, wi));
+			this.ndotwh = saturate(dot(shadingNormal, wh));			
+			this.ndotwi = saturate(dot(shadingNormal, wi));
 			
 			this.diffuseReflectance = baseColor * (1.0f - metalness);
 			
@@ -183,8 +183,6 @@ namespace BRDF
 			this.whdotwo = saturate(dot(wh, this.wo)); // == whdotwi
 			this.F = FresnelSchlick(F0, this.whdotwo);
 		}
-	
-		float3 shadingNormal;
 	
 		// Apparently artists work with an "interface" value of roughness that is perceptively linear 
 		// i.e. what's in a roughness texture. That value needs to be remapped to the alpha value 
@@ -215,17 +213,13 @@ namespace BRDF
 		return diffuseReflectance * (ndotwi * ONE_OVER_PI);
 	}
 
-	half3 LambertianBRDF(half3 diffuseReflectance, half3 ndotwi)
-	{
-		return diffuseReflectance * ndotwi * half(ONE_OVER_PI);
-	}
-
 //	float3 LambertianBrdfDivPdf(SurfaceInteraction surface)
 //	{
 //		return surface.diffuseReflectance;
 //	}
 
-	float3 SampleLambertianBrdf(float3 shadingNormal, float2 u, out float pdf)
+#if 0
+	float3 SampleLambertianBrdf(float3 normal, float2 u, out float pdf)
 	{
 		// build rotation quaternion that maps y = (0, 1, 0) to the shading normal
 		float4 q = Math::Transform::QuaternionFromY(shadingNormal);
@@ -235,7 +229,20 @@ namespace BRDF
 		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
 	
 		return wiWorld;
+	}	
+#else	
+	float3 SampleLambertianBrdf(float3 normal, float2 u, out float pdf)
+	{
+		float3 wi = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+		
+		float3 T;
+		float3 B;
+		Math::Transform::revisedONB(normal, T, B);
+		wi = wi.x * T + wi.y * B + wi.z * normal;
+		
+		return wi;
 	}
+#endif
 	
 	//--------------------------------------------------------------------------------------
 	// Specular Microfacet Model
@@ -265,17 +272,17 @@ namespace BRDF
 		return pdf;
 	}
 
-	float3 SampleSpecularBRDFGGXSmith(SurfaceInteraction surface, float2 u)
+	float3 SampleSpecularBRDFGGXSmith(SurfaceInteraction surface, float3 shadingNormal, float2 u)
 	{		
 		// build an orthonormal coord. system C around the surface normal such that it points towards +Z
 		float3 b1;
 		float3 b2;
-		Math::Transform::revisedONB(surface.shadingNormal, b1, b2);
+		Math::Transform::revisedONB(shadingNormal, b1, b2);
 		
 		// transform wo from world space to C
 		// M = [b1 b2 n] goes from C to world space, so we need its inverse. Since
 		// M is an orthogonal matrix, its inverse is just its tranpose
-		float3x3 worldToLocal = float3x3(b1, b2, surface.shadingNormal);
+		float3x3 worldToLocal = float3x3(b1, b2, shadingNormal);
 		float3 woLocalLH = mul(worldToLocal, surface.wo);
 		
 		// Transformations between the VNDF space (right handed with +Z as up) and C (left handed with 
@@ -289,7 +296,7 @@ namespace BRDF
 		
 		// now reverse the transformations in a LIFO order
 		float3 whLocalLH = float3(whLocalRH.x, -whLocalRH.y, whLocalRH.z);
-		float3 whWorld = whLocalLH.x * b1 + whLocalLH.y * b2 + whLocalLH.z * surface.shadingNormal;
+		float3 whWorld = whLocalLH.x * b1 + whLocalLH.y * b2 + whLocalLH.z * shadingNormal;
 		
 		// reflect wo about the plane with normal wh (each microsurface is a perfect mirror)
 		float3 wi = reflect(-surface.wo, whWorld);

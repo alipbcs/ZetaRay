@@ -81,6 +81,38 @@ namespace Common
 		swizzledGid = uint2(swizzledGidx % dispatchDim.x, swizzledGidx / dispatchDim.x);
 		swizzledDTid = swizzledGid * groupDim + GTid;
 	}
+	
+	uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid, uint16_t2 groupDim, uint16_t dispatchDimX, uint16_t tileWidth,
+		uint16_t log2TileWidth, uint16_t numGroupsInTile)
+	{
+		const uint16_t groupIDFlattened = (uint16_t) Gid.y * dispatchDimX + (uint16_t) Gid.x;
+		const uint16_t tileID = groupIDFlattened / numGroupsInTile;
+		const uint16_t groupIDinTileFlattened = groupIDFlattened % numGroupsInTile;
+
+		// TileWidth is a power of 2 for all tiles except possibly the last one
+		const uint16_t numFullTiles = dispatchDimX / tileWidth; // floor(DispatchDimX / TileWidth
+		const uint16_t numGroupsInFullTiles = numFullTiles * numGroupsInTile;
+
+		uint16_t2 groupIDinTile;
+		if (groupIDFlattened >= numGroupsInFullTiles)
+		{
+			// DispatchDimX & NumGroupsInTile
+			const uint16_t lastTileDimX = dispatchDimX - tileWidth * numFullTiles;
+			groupIDinTile = uint16_t2(groupIDinTileFlattened % lastTileDimX, groupIDinTileFlattened / lastTileDimX);
+		}
+		else
+		{
+			groupIDinTile = uint16_t2(
+				groupIDinTileFlattened & (tileWidth - 1),
+				groupIDinTileFlattened >> log2TileWidth);
+		}
+
+		const uint16_t swizzledGidFlattened = groupIDinTile.y * dispatchDimX + tileID * tileWidth + groupIDinTile.x;
+		const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % dispatchDimX, swizzledGidFlattened / dispatchDimX);
+		const uint16_t2 swizzledDTid = swizzledGid * groupDim + (uint16_t2) GTid.xy;
+	
+		return swizzledDTid;
+	}
 }
 
 #endif // COMMON_H

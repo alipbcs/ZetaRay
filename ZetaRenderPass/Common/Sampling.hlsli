@@ -31,7 +31,7 @@ struct RNG
 	}
 	
 	// for following samples after initial sample
-	uint RandPcg()
+	uint Pcg()
 	{
 		State = State * 747796405u + 2891336453u;
 		uint word = ((State >> ((State >> 28u) + 4u)) ^ State) * 277803737u;
@@ -44,25 +44,23 @@ struct RNG
 	// sign    exponent      fraction
 	// 9 high-order bits that correspond to sign and exponent are set to 0 and 127 respectively
 	// 23 low-order fraction bits come from a random integer
-	float RandUniform()
+	float Uniform()
 	{
-		uint x = RandPcg();
+		uint x = Pcg();
 		
 		// [1, 2) -> [0, 1)
 		return asfloat(0x3f800000 | (x >> 9)) - 1.0f;
 	}
 			
-	// random uint
-	uint RandUintRange(uint lower, uint upper)
+	uint UintRange(uint lower, uint upper)
 	{
-		uint x = RandPcg();
-		return lower + uint(RandUniform() * float(upper - lower + 1));
+		return lower + uint(Uniform() * float(upper - lower + 1));
 	}
 	
-	float2 RandUniform2D()
+	float2 Uniform2D()
 	{
-		float u0 = RandUniform();
-		float u1 = RandUniform();
+		float u0 = Uniform();
+		float u1 = Uniform();
 		
 		return float2(u0, u1);
 	}

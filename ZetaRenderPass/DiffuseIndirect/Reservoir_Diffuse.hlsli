@@ -70,7 +70,7 @@ struct DiffuseReservoir
 		this.w_sum += w;
 		this.M += 1;
 		
-		if (rng.RandUniform() < (w / max(1e-6f, this.w_sum)))
+		if (rng.Uniform() < (w / max(1e-6f, this.w_sum)))
 		{
 			this.SamplePos = s.Pos;
 			this.SampleNormal = s.Normal;
