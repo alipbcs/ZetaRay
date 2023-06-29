@@ -32,8 +32,7 @@
 
 // metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
 // use a small threshold
-#define MAX_METALNESS_DIELECTRIC 0.1f
-#define MIN_METALNESS_METAL 0.95f
+#define MIN_METALNESS_METAL 0.9f
 
 namespace BRDF
 {

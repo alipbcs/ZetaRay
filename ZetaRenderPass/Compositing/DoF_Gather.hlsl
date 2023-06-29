@@ -15,7 +15,7 @@
 #define GOLDEN_ANGLE 2.39996323
 
 #define MIN_WAVE_SIZE 16
-static const uint MaxNumWaves = (THREAD_GROUP_SIZE_X * THREAD_GROUP_SIZE_Y) / MIN_WAVE_SIZE;
+static const uint MaxNumWaves = (COMPOSITING_THREAD_GROUP_DIM_X * COMPOSITING_THREAD_GROUP_DIM_Y) / MIN_WAVE_SIZE;
 
 groupshared float g_maxLum[MaxNumWaves];
 
@@ -65,7 +65,7 @@ float3 depthOfField(float3 color, uint2 DTid, float depth, float coc)
 // Main
 //--------------------------------------------------------------------------------------
 
-[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, 1)]
+[numthreads(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -81,7 +81,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	float3 color = depthOfField(colorCoC.rgb, DTid.xy, depth, 1);
 	const float lum = Math::Color::LuminanceFromLinearRGB(color.rgb);
 	const float waveMaxLum = WaveActiveMax(lum);
-	const uint numWaves = (THREAD_GROUP_SIZE_X * THREAD_GROUP_SIZE_Y) / WaveGetLaneCount();
+	const uint numWaves = (COMPOSITING_THREAD_GROUP_DIM_X * COMPOSITING_THREAD_GROUP_DIM_Y) / WaveGetLaneCount();
 	const uint wave = Gidx / WaveGetLaneCount();
 	
 	if (WaveIsFirstLane())

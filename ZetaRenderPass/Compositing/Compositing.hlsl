@@ -5,8 +5,6 @@
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/RT.hlsli"
-#include "../IndirectDiffuse/Reservoir_Diffuse.hlsli"
-#include "../IndirectSpecular/Reservoir_Specular.hlsli"
 #include "../Common/VolumetricLighting.hlsli"
 
 //--------------------------------------------------------------------------------------
@@ -20,7 +18,8 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Helper Functions
 //--------------------------------------------------------------------------------------
 
-float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr, float3 posW, float3 wo)
+float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metalness, float3 posW, float3 normal,
+	inout BRDF::SurfaceInteraction surface)
 {
 #if 0
 	Texture2D<uint> g_sunShadowMask = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
@@ -39,8 +38,7 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
 		
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);	
-	surface.InitComplete(-g_frame.SunDir, baseColor.rgb, mr.x);
+	surface.InitComplete(-g_frame.SunDir, baseColor, metalness, normal);
 	float3 f = BRDF::ComputeSurfaceBRDF(surface);
 	
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
@@ -56,12 +54,75 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float3 normal, float2 mr,
 	float3 L_i = (tr * f) * g_frame.SunIlluminance;
 	L_i *= shadowVal;
 
-	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::EMISSIVE_COLOR];
-	float3 L_e = g_emissiveColor[DTid].rgb;
-	L_i += L_e;
-
 	return L_i;
+}
+
+float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal, float3 centerPos, float centerLinearDepth)
+{
+	float3 samplePos = Math::Transform::WorldPosFromUV(sampleUV,
+		sampleLinearDepth,
+		g_frame.TanHalfFOV,
+		g_frame.AspectRatio,
+		g_frame.CurrViewInv);
+	
+	float planeDist = dot(centerNormal, samplePos - centerPos);
+	float weight = abs(planeDist) <= 0.01 * centerLinearDepth;
+	
+	return weight;
+}
+
+// Ref: P. Kozlowski and T. Cheblokov, "ReLAX: A Denoiser Tailored to Work with the ReSTIR Algorithm," GTC, 2021.
+float3 FilterFirefly(Texture2D<float4> g_input, float3 currColor, int2 DTid, int2 GTid, float linearDepth, float3 normal, float3 posW)
+{
+	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+
+	float minLum = FLT_MAX;
+	float maxLum = 0.0;
+	float3 minColor = currColor;
+	float3 maxColor = currColor;
+	float currLum = Math::Color::LuminanceFromLinearRGB(currColor);
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	
+	[unroll]
+	for (int i = -1; i <= 1; i++)
+	{
+		[unroll]
+		for (int j = -1; j <= 1; j++)
+		{
+			if (i == 0 && j == 0)
+				continue;
+			
+			int2 addr = int2(DTid.x + j, DTid.y + i);
+			if (any(addr) < 0 || any(addr >= renderDim))
+				continue;
+			
+			const float neighborLinearDepth = Math::Transform::LinearDepthFromNDC(g_depth[addr], g_frame.CameraNear);
+			if (neighborLinearDepth == FLT_MAX)
+				continue;
+			
+			float2 neighborUV = (addr + 0.5) * rcpRenderDim;
+			if (!GeometryTest(neighborLinearDepth, neighborUV, normal, posW, linearDepth))
+				continue;
+			
+			float3 neighborColor = g_input[addr].rgb;
+			float neighborLum = Math::Color::LuminanceFromLinearRGB(neighborColor);
+
+			if (neighborLum < minLum)
+			{
+				minLum = neighborLum;
+				minColor = neighborColor;
+			}
+			else if (neighborLum > maxLum)
+			{
+				maxLum = neighborLum;
+				maxColor = neighborColor;
+			}
+		}
+	}
+	
+	float3 ret = currLum < minLum ? minColor : (currLum > maxLum ? maxColor : currColor);
+	return ret;
 }
 
 float CoC(float linearDepth)
@@ -76,23 +137,21 @@ float CoC(float linearDepth)
 // Main
 //--------------------------------------------------------------------------------------
 
-[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, 1)]
+[numthreads(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint Gidx : SV_GroupIndex)
 {
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return;
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
-
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+	
 	if (depth == 0.0)
 		return;
 
 	float3 color = 0.0.xxx;
 	
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-		
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
 		uint2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
@@ -113,30 +172,63 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float2 mr = g_metalnessRoughness[DTid.xy];
 
-	if (g_local.DirectLighting)
-		color += SunDirectLighting(DTid.xy, baseColor, normal, mr, posW, wo);
-	
-	if (g_local.IndirectDiffuse && mr.x <= MAX_METALNESS)
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+
+	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::EMISSIVE_COLOR];
+	float3 L_e = g_emissiveColor[DTid.xy].rgb;
+	color += L_e;
+
+	if (g_local.SunLighting)
+		color += SunDirectLighting(DTid.xy, baseColor, mr.x, posW, normal, surface);
+
+	if (g_local.SkyLighting)
 	{
-		float3 f = baseColor * ONE_OVER_PI;
+		Texture2D<float4> g_directDenoised = ResourceDescriptorHeap[g_local.DirectDNSRCacheDescHeapIdx];
+		float3 skyLo = g_directDenoised[DTid.xy].rgb;
+		
+		if (g_local.FireflySuppression)
+			skyLo = FilterFirefly(g_directDenoised, skyLo, DTid.xy, GTid.xy, linearDepth, normal, posW);
+		
+		color += skyLo;
+	}
+
+	const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
+	const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
 	
-		Texture2D<half4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
-		float3 integratedVals = g_diffuseTemporalCache[DTid.xy].rgb;
-		color += integratedVals * f;
+	const bool includeIndDiff = g_local.DiffuseIndirect && mr.x < MIN_METALNESS_METAL;
+	const bool includeIndSpec = g_local.SpecularIndirect && mr.y < g_local.RoughnessCutoff;
+	
+	if (includeIndDiff)
+	{
+		Texture2D<float4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
+		float3 L_indDiff = g_diffuseTemporalCache[DTid.xy].rgb;
+		L_indDiff *= diffuseReflectance;
+		
+		if (includeIndSpec)
+			L_indDiff *= 0.5f;
+		
+		color += L_indDiff;
 	}
 	
-	if (g_local.IndirectSpecular && mr.y < g_local.RoughnessCutoff)
+	if (includeIndSpec)
 	{
-		Texture2D<half4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
-		float3 integratedVals = g_specularTemporalCache[DTid.xy].rgb;
-		color += integratedVals;
+		Texture2D<float4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
+		float3 L_indSpec = g_specularTemporalCache[DTid.xy].rgb;
+
+		// check against diffuse can lead to discontinuities, but diffuse is 
+		// a more low-frequency signal, so sudden changes should be less common
+		if (includeIndDiff && diffuseReflectanceLum > 5e-4)
+			L_indSpec *= 0.5;
+		
+		color += L_indSpec;
 	}
 	
 	if (g_local.AccumulateInscattering)
 	{
 		if (linearDepth > 1e-4f)
 		{
-			float2 posTS = (DTid.xy + 0.5f) / renderDim;
+			float2 posTS = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 			float p = pow(max(linearDepth - g_local.VoxelGridNearZ, 0.0f) / (g_local.VoxelGridFarZ - g_local.VoxelGridNearZ), 1.0f / g_local.DepthMappingExp);
 		
 			//float p = linearDepth / g_local.VoxelGridDepth;

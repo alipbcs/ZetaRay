@@ -49,7 +49,7 @@ namespace ZetaRay::DefaultRenderer
 	{
 		bool Inscattering = false;
 		bool DoF = false;
-		bool SkyIllumination = true;
+		bool SkyIllumination = false;
 		// Note match with default PendingAA
 		Settings::AA AntiAliasing = Settings::AA::NATIVE_TAA;
 	};

@@ -16,7 +16,7 @@ static const float Kernel[2 * Radius + 1] = { 0.27901f, 0.44198f, 0.27901f };
 // NumToLoadPerRowOrColumn = 8 + 2 * R pixel values need to be loaded for the filtering
 // of each row or column where 10 <= NumToLoadPerRowOrColumn <= 16. Note that ALL
 // 16 threads participate in the final computation though
-static const int2 GroupDim = int2(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y);
+static const int2 GroupDim = int2(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y);
 static const int NumToLoadPerRowOrColumn = 8 + Radius * 2;
 
 groupshared float3 g_horizontallyFiltered[NumToLoadPerRowOrColumn][8];
@@ -121,7 +121,7 @@ float3 VerticalPass(uint3 DTid, uint3 GTid)
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(THREAD_GROUP_SIZE_X, THREAD_GROUP_SIZE_Y, 1)]
+[numthreads(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 	Texture2D<float4> g_gather = ResourceDescriptorHeap[g_local.GatherSrvDescHeapIdx];

@@ -37,7 +37,7 @@ Compositing::~Compositing() noexcept
 	Reset();
 }
 
-void Compositing::Init(bool dof) noexcept
+void Compositing::Init(bool dof, bool skyIllum) noexcept
 {
 	auto& renderer = App::GetRenderer();
 	auto samplers = renderer.GetStaticSamplers();
@@ -63,9 +63,11 @@ void Compositing::Init(bool dof) noexcept
 	CreateLightAccumTex();
 
 	m_cbComposit.AccumulateInscattering = false;
-	m_cbComposit.DirectLighting = true;
-	m_cbComposit.IndirectDiffuse = true;
-	m_cbComposit.IndirectSpecular = true;
+	m_cbComposit.SunLighting = true;
+	m_cbComposit.SkyLighting = skyIllum;
+	m_cbComposit.DiffuseIndirect = true;
+	m_cbComposit.SpecularIndirect = true;
+	m_cbComposit.FireflySuppression = false;
 	m_cbComposit.RoughnessCutoff = 1.0f;
 	m_cbComposit.FocusDepth = 5.0f;
 	m_cbComposit.FocalLength = 50;
@@ -74,19 +76,19 @@ void Compositing::Init(bool dof) noexcept
 	m_cbDoF.RadiusScale = 1.6f;
 	m_cbDoF.MinLumToFilter = 1.0f;
 
-	ParamVariant p1;
-	p1.InitBool("Renderer", "Lighting", "DirectLighting", fastdelegate::MakeDelegate(this, &Compositing::SetDirectLightingEnablementCallback),
-		m_cbComposit.DirectLighting);
-	App::AddParam(p1);	
-	
+	ParamVariant p0;
+	p0.InitBool("Renderer", "Lighting", "SunLighting", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
+		m_cbComposit.SunLighting);
+	App::AddParam(p0);	
+
 	ParamVariant p2;
-	p2.InitBool("Renderer", "Lighting", "IndirectDiffuse", fastdelegate::MakeDelegate(this, &Compositing::SetIndirectDiffuseingEnablementCallback),
-		m_cbComposit.IndirectDiffuse);
+	p2.InitBool("Renderer", "Lighting", "DiffuseIndirect", fastdelegate::MakeDelegate(this, &Compositing::SetDiffuseIndirectEnablementCallback),
+		m_cbComposit.DiffuseIndirect);
 	App::AddParam(p2);
 
 	ParamVariant p6;
-	p6.InitBool("Renderer", "Lighting", "IndirectSpecular", fastdelegate::MakeDelegate(this, &Compositing::SetIndirectSpecularingEnablementCallback),
-		m_cbComposit.IndirectSpecular);
+	p6.InitBool("Renderer", "Lighting", "SpecularIndirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
+		m_cbComposit.SpecularIndirect);
 	App::AddParam(p6);
 
 	ParamVariant focusDist;
@@ -152,6 +154,14 @@ void Compositing::Init(bool dof) noexcept
 		1e-3f);								// step
 	App::AddParam(minLumToFilter);
 
+	if (skyIllum)
+	{
+		ParamVariant p7;
+		p7.InitBool("Renderer", "DirectDenoiser", "FireflySuppression", fastdelegate::MakeDelegate(this, &Compositing::FireflySuppressionCallback),
+			m_cbComposit.FireflySuppression);
+		App::AddParam(p7);
+	}
+
 	App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompsiting));
 
 	SetDoFEnablement(dof);
@@ -161,7 +171,6 @@ void Compositing::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		//App::RemoveShaderReloadHandler("Compositing");
 		m_hdrLightAccum.Reset();
 		m_dofGather.Reset();
 		s_rpObjs.Clear();
@@ -184,8 +193,8 @@ void Compositing::Render(CommandList& cmdList) noexcept
 	
 	const int w = App::GetRenderer().GetRenderWidth();
 	const int h = App::GetRenderer().GetRenderHeight();
-	const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, THREAD_GROUP_SIZE_X);
-	const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, THREAD_GROUP_SIZE_Y);
+	const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, COMPOSITING_THREAD_GROUP_DIM_X);
+	const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, COMPOSITING_THREAD_GROUP_DIM_Y);
 	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
 
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
@@ -353,27 +362,40 @@ void Compositing::SetDoFEnablement(bool b) noexcept
 	if (!m_dof)
 	{
 		m_dofGather.Reset();
-		App::RemoveShaderReloadHandler("DoF_Gather");
 		return;
 	}
 
 	CreateDoFResources();
-	App::AddShaderReloadHandler("DoF_Gather", fastdelegate::MakeDelegate(this, &Compositing::ReloadDoF));
 }
 
-void Compositing::SetDirectLightingEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetSkyIllumEnablement(bool b) noexcept
 {
-	m_cbComposit.DirectLighting = p.GetBool();
+	m_cbComposit.SkyLighting = b;
+
+	if (!b)
+		App::RemoveParam("Renderer", "DirectDenoiser", "FireflySuppression");
+	else
+	{
+		ParamVariant p7;
+		p7.InitBool("Renderer", "DirectDenoiser", "FireflySuppression", fastdelegate::MakeDelegate(this, &Compositing::FireflySuppressionCallback),
+			m_cbComposit.FireflySuppression);
+		App::AddParam(p7);
+	}
 }
 
-void Compositing::SetIndirectDiffuseingEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbComposit.IndirectDiffuse = p.GetBool();
+	m_cbComposit.SunLighting = p.GetBool();
 }
 
-void Compositing::SetIndirectSpecularingEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept
 {
-	m_cbComposit.IndirectSpecular = p.GetBool();
+	m_cbComposit.DiffuseIndirect = p.GetBool();
+}
+
+void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbComposit.SpecularIndirect = p.GetBool();
 }
 
 void Compositing::FocusDistCallback(const Support::ParamVariant& p) noexcept
@@ -407,6 +429,11 @@ void Compositing::NumGaussianPassesCallback(const Support::ParamVariant& p) noex
 	m_cbDoF.IsGaussianFilterEnabled = m_numGaussianPasses > 1;
 }
 
+void Compositing::FireflySuppressionCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbComposit.FireflySuppression = p.GetBool();
+}
+
 void Compositing::MinLumToFilterCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbDoF.MinLumToFilter = p.GetFloat().m_val;
@@ -417,13 +444,5 @@ void Compositing::ReloadCompsiting() noexcept
 	const int i = (int)SHADERS::COMPOSIT;
 
 	s_rpObjs.m_psoLib.Reload(0, "Compositing\\Compositing.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
-}
-
-void Compositing::ReloadDoF() noexcept
-{
-	const int i = (int)SHADERS::DoF_GATHER;
-
-	s_rpObjs.m_psoLib.Reload(0, "Compositing\\DoF_Gather.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

@@ -2,6 +2,7 @@
 #include "../Common/Math.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
+#include "../Common/BRDF.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "GBuffer_Common.h"
 
@@ -50,20 +51,12 @@ PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness
 {
 	PS_OUT psout;
 	
-	if(dot(baseColor, 1) != 0)
-		psout.BaseColor = baseColor;
-	
+	psout.BaseColor = baseColor;
 	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
-	psout.MotionVec = motionVec;
-	
-	if(metalness != 0 || roughness != 0)
-		psout.MetallicRoughness = float2(metalness, roughness);
-	
-	if (dot(emissive, 1) != 0)
-		psout.Emissive = emissive;
-
-	if (localCurvature != 0)
-		psout.Curvature = localCurvature;
+	psout.MotionVec = motionVec;	
+	psout.MetallicRoughness = float2(metalness, roughness);
+	psout.Emissive = emissive;
+	psout.Curvature = localCurvature;
 	
 	return psout;
 }
@@ -122,6 +115,16 @@ float3 GetCheckerboardColor(float2 uv)
 	return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
 }
 
+float EncodeMetalness(float metalness, uint baseColorTexture)
+{
+	bool isMetal = metalness >= MIN_METALNESS_METAL;
+	float ret = isMetal ? 0.95 : 0.0f;
+	// remember whether this surface was textured
+	ret += baseColorTexture == -1 ? 0 : 0.05;
+		
+	return ret;
+}
+
 PS_OUT mainPS(VSOut psin)
 {
 	const uint byteOffset = psin.MatID * sizeof(Material);
@@ -168,6 +171,8 @@ PS_OUT mainPS(VSOut psin)
 		roughness *= mr.y;
 	}
 
+	metalness = EncodeMetalness(metalness, mat.BaseColorTexture);
+	
 	if (mat.EmissiveTexture != -1)
 	{
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture];

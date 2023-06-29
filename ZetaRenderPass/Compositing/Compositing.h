@@ -24,6 +24,7 @@ namespace ZetaRay::RenderPass
 		{
 			DIFFUSE_DNSR_CACHE,
 			SPECULAR_DNSR_CACHE,
+			DIRECT_DNSR_CACHE,
 			INSCATTERING,
 			SUN_SHADOW,
 			COUNT
@@ -40,11 +41,12 @@ namespace ZetaRay::RenderPass
 		Compositing() noexcept;
 		~Compositing() noexcept;
 
-		void Init(bool dof = false) noexcept;
+		void Init(bool dof, bool skyIllum) noexcept;
 		bool IsInitialized() noexcept { return m_psos[0] != nullptr; }
 		void Reset() noexcept;
 		void SetInscatteringEnablement(bool b) { m_cbComposit.AccumulateInscattering = b; }
 		void SetDoFEnablement(bool b) noexcept;
+		void SetSkyIllumEnablement(bool b) noexcept;
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_cbComposit.DepthMappingExp = p; }
 		void SetRoughnessCutoff(float c) noexcept { m_cbComposit.RoughnessCutoff = c; }
@@ -65,6 +67,9 @@ namespace ZetaRay::RenderPass
 				return;
 			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
 				m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
+				return;
+			case SHADER_IN_GPU_DESC::DIRECT_DNSR_CACHE:
+				m_cbComposit.DirectDNSRCacheDescHeapIdx = descHeapIdx;
 				return;
 			default:
 				Assert(false, "unreachable case.");
@@ -137,9 +142,9 @@ namespace ZetaRay::RenderPass
 
 		void CreateLightAccumTex() noexcept;
 		void CreateDoFResources() noexcept;
-		void SetDirectLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void SetIndirectDiffuseingEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void SetIndirectSpecularingEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void FocusDistCallback(const Support::ParamVariant& p) noexcept;
 		void FStopCallback(const Support::ParamVariant& p) noexcept;
 		void FocalLengthCallback(const Support::ParamVariant& p) noexcept;
@@ -147,8 +152,8 @@ namespace ZetaRay::RenderPass
 		void RadiusScaleCallback(const Support::ParamVariant& p) noexcept;
 		void MinLumToFilterCallback(const Support::ParamVariant& p) noexcept;
 		void NumGaussianPassesCallback(const Support::ParamVariant& p) noexcept;
+		void FireflySuppressionCallback(const Support::ParamVariant& p) noexcept;
 
 		void ReloadCompsiting() noexcept;
-		void ReloadDoF() noexcept;
 	};
 }

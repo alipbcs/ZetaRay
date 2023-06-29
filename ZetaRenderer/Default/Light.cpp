@@ -20,7 +20,7 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	data.SunShadowPass.Init();
 
 	// compositing
-	data.CompositingPass.Init();
+	data.CompositingPass.Init(false, settings.SkyIllumination);
 	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
 
 	// sky dome
@@ -102,6 +102,13 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 		// indirect specular
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
 			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
+
+		// restir DI
+		if (settings.SkyIllumination)
+		{
+			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DIRECT_DNSR_CACHE,
+				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::DIRECT_DNSR_TEMPORAL_CACHE));
+		}
 
 		// sun shadow temporal cache changes every frame
 		data.SunShadowGpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
@@ -326,6 +333,14 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 		renderGraph.AddInput(lightData.CompositingHandle,
 			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// restir di
+		if (settings.SkyIllumination)
+		{
+			renderGraph.AddInput(lightData.CompositingHandle,
+				rayTracerData.ReSTIR_DI_Pass.GetOutput(ReSTIR_DI::SHADER_OUT_RES::DENOISED).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
 
 		// inscattering
 		if (settings.Inscattering)

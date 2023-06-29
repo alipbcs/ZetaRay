@@ -199,6 +199,12 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_settings.DoF = p.GetBool();
 		g_data->m_lightData.CompositingPass.SetDoFEnablement(g_data->m_settings.DoF);
 	}
+
+	void SetSkyIllumEnablement(const ParamVariant& p) noexcept
+	{
+		g_data->m_settings.SkyIllumination = p.GetBool();
+		g_data->m_lightData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
+	}
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -216,7 +222,7 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.PrevViewProj = store(vVP);
 		g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
 		g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
-		g_data->m_frameConstants.RayOffset = 3e-2f;
+		g_data->m_frameConstants.RayOffset = Defaults::RAY_T_OFFSET;
 
 		//g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
 		g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
@@ -389,6 +395,11 @@ namespace ZetaRay::DefaultRenderer
 		p7.InitBool("Renderer", "DoF", "Enable", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetDoFEnablement),
 			g_data->m_settings.DoF);
 		App::AddParam(p7);
+
+		ParamVariant p8;
+		p8.InitBool("Renderer", "Lighting", "SkyLighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
+			g_data->m_settings.SkyIllumination);
+		App::AddParam(p8);
 	}
 
 	void Update(TaskSet& ts) noexcept
@@ -402,7 +413,7 @@ namespace ZetaRay::DefaultRenderer
 
 		auto h1 = ts.EmplaceTask("SceneRenderer::RT_Post", []()
 			{
-				RayTracer::Update(g_data->m_settings, g_data->m_raytracerData);
+				RayTracer::Update(g_data->m_settings, g_data->m_renderGraph, g_data->m_raytracerData);
 				PostProcessor::Update(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
 					g_data->m_lightData, g_data->m_raytracerData);
 			});
