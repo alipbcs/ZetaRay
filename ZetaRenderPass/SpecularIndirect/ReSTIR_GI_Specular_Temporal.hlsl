@@ -180,7 +180,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 	if (isUnoccluded)
 	{
-		float3 baseColor = mat.BaseColorFactor.rgb;
+		float3 baseColor = Math::Color::UnpackRGB(mat.BaseColorFactor);
 		if (mat.BaseColorTexture != -1)
 		{
 			uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
@@ -197,7 +197,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			//baseColor = mip > 6 ? float3(1, 0, 0) : float3(0, 0.5, 0.5);
 		}
 
-		float metalness = mat.MetallicFactor;
+		float metalness = mat.GetMetalness();
 		float roughness = mat.RoughnessFactor;
 		if (mat.MetalnessRoughnessTexture != -1)
 		{
@@ -236,7 +236,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		L_o = brdf * tr * g_frame.SunIlluminance;
 	}
 	
-	float3 L_e = mat.EmissiveFactor;
+	float3 L_e = Math::Color::UnpackRGB(mat.EmissiveFactorNormalScale);
 
 	if (mat.EmissiveTexture != -1)
 	{

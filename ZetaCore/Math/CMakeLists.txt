@@ -6,6 +6,7 @@ set(MATH_SRC
     "${MATH_DIR}/CollisionTypes.h"
     "${MATH_DIR}/Common.cpp"
     "${MATH_DIR}/Common.h"
+    "${MATH_DIR}/Color.h"
     "${MATH_DIR}/Matrix.h"
     "${MATH_DIR}/MatrixFuncs.h"
     "${MATH_DIR}/Quaternion.h"

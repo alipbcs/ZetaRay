@@ -529,6 +529,36 @@ namespace Math
 								  0.5, -0.4542, -0.0458);
 			return mul(M, x);
 		}
+		
+		float2 UnpackRG(uint rg)
+		{
+			float2 ret;
+			ret.x = float(rg & 0xff) / 255.0f;
+			ret.y = float((rg >> 8) & 0xff) / 255.0f;
+			
+			return ret;
+		}
+		
+		float3 UnpackRGB(uint rgb)
+		{
+			float3 ret;
+			ret.x = float(rgb & 0xff) / 255.0f;
+			ret.y = float((rgb >> 8) & 0xff) / 255.0f;
+			ret.z = float((rgb >> 16) & 0xff) / 255.0f;
+			
+			return ret;
+		}
+
+		float4 UnpackRGBA(uint rgba)
+		{
+			float4 ret;
+			ret.x = float(rgba & 0xff) / 255.0f;
+			ret.y = float((rgba >> 8) & 0xff) / 255.0f;
+			ret.z = float((rgba >> 16) & 0xff) / 255.0f;
+			ret.w = float((rgba >> 24) & 0xff) / 255.0f;
+			
+			return ret;
+		}
 	}
 }
 

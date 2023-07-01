@@ -1,6 +1,7 @@
 #include "SceneCore.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Quaternion.h"
+#include "../Math/Color.h"
 #include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
 #include "../Core/RendererCore.h"
@@ -258,11 +259,9 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	Check(matFromSceneID != DEFAULT_MATERIAL, "This material ID is reserved.");
 
 	Material mat;
-	mat.BaseColorFactor = half4(matDesc.BaseColorFactor);
-	mat.EmissiveFactor = half3(matDesc.EmissiveFactor);
-	mat.AlphaCuttoff = half(matDesc.AlphaCuttoff);
-	mat.MetallicFactor = half(matDesc.MetalnessFactor);
-	mat.NormalScale = half(matDesc.NormalScale);
+	mat.BaseColorFactor = Float4ToRGBA(matDesc.BaseColorFactor);
+	mat.EmissiveFactorNormalScale = Float4ToRGBA(matDesc.EmissiveFactor, matDesc.NormalScale);
+	mat.MetallicFactorAlphaCuttoff = Float2ToRG(matDesc.MetalnessFactor, matDesc.AlphaCuttoff);
 	mat.RoughnessFactor = half(matDesc.RoughnessFactor);
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);

@@ -130,25 +130,24 @@ PS_OUT mainPS(VSOut psin)
 	const uint byteOffset = psin.MatID * sizeof(Material);
 	const Material mat = g_materials.Load<Material>(byteOffset);
 		
-	float3 baseColor = mat.BaseColorFactor.rgb;
-	float3 emissiveColor = mat.EmissiveFactor;
+	float4 baseColor = Math::Color::UnpackRGBA(mat.BaseColorFactor);
+	float4 emissiveColorNormalScale = Math::Color::UnpackRGBA(mat.EmissiveFactorNormalScale);
 	float3 shadingNormal = psin.NormalW;
-	float metalness = mat.MetallicFactor;
+	float2 metalnessAlphaCuttoff = Math::Color::UnpackRG(mat.MetallicFactorAlphaCuttoff);
 	float roughness = mat.RoughnessFactor;
 
 	if (mat.BaseColorTexture != -1)
 	{
 		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture];
 		float4 baseColorSample = g_baseCol.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
+		baseColor *= baseColorSample;
 	
-		clip(baseColorSample.w - mat.AlphaCuttoff);
-	
-		baseColor *= baseColorSample.rgb;
+		clip(baseColor.w - metalnessAlphaCuttoff.y);
 	}
 	// [hack]
-	else if (dot(mat.BaseColorFactor.rgb, 1) == 0)
+	else if (dot(baseColor.rgb, 1) == 0)
 	{
-		baseColor.xyz = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
+		baseColor.rgb = half3(GetCheckerboardColor(psin.TexUV * 300.0f));
 	}
 
 	// avoid normal mapping if tangent = (0, 0, 0), which results in NaN
@@ -157,7 +156,7 @@ PS_OUT mainPS(VSOut psin)
 		NORMAL_MAP g_normalMap = ResourceDescriptorHeap[g_frame.NormalMapsDescHeapOffset + mat.NormalTexture];
 		float2 bump2 = g_normalMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 	
-		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, mat.NormalScale);		
+		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, emissiveColorNormalScale.w);
 	}
 	
 	if (mat.MetalnessRoughnessTexture != -1)
@@ -167,16 +166,16 @@ PS_OUT mainPS(VSOut psin)
 		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
 		float2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 
-		metalness *= mr.x;
+		metalnessAlphaCuttoff.x *= mr.x;
 		roughness *= mr.y;
 	}
 
-	metalness = EncodeMetalness(metalness, mat.BaseColorTexture);
+	metalnessAlphaCuttoff.x = EncodeMetalness(metalnessAlphaCuttoff.x, mat.BaseColorTexture);
 	
 	if (mat.EmissiveTexture != -1)
 	{
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture];
-		emissiveColor *= g_emissiveMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).xyz;
+		emissiveColorNormalScale.rgb *= g_emissiveMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).xyz;
 	}
 	
 	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
@@ -215,10 +214,10 @@ PS_OUT mainPS(VSOut psin)
 			shadingNormal *= -1;
 	}
 	
-	PS_OUT psout = PackGBuffer(baseColor,
-							emissiveColor,
+	PS_OUT psout = PackGBuffer(baseColor.rgb,
+							emissiveColorNormalScale.rgb,
 							shadingNormal,
-							metalness,
+							metalnessAlphaCuttoff.x,
 							roughness,
 	                        motionVecTS, 
 							k);

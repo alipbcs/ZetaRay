@@ -4,6 +4,8 @@
 #include "HLSLCompat.h"
 
 #ifdef __cplusplus
+#include "../Math/Color.h"
+
 namespace ZetaRay
 {
 #endif
@@ -23,17 +25,15 @@ namespace ZetaRay
         };
         
         Material()
-            : MetallicFactor(1.0f),
+            : MetallicFactorAlphaCuttoff(Math::Float2ToRG(1.0f, 0.5f)),
             RoughnessFactor(1.0f),
-            NormalScale(1.0f),
-            AlphaCuttoff(0.5f),
             BaseColorTexture(uint32_t(-1)),
             MetalnessRoughnessTexture(uint32_t(-1)),
             NormalTexture(uint32_t(-1)),
             EmissiveTexture(uint32_t(-1)),
             Packed(0),
-            BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
-            EmissiveFactor(0.0f, 0.0f, 0.0f)
+            BaseColorFactor(Math::Float4ToRGBA(1.0f, 1.0f, 1.0f, 1.0f)),
+            EmissiveFactorNormalScale(Math::Float4ToRGBA(0.0f, 0.0f, 0.0f, 1.0f))
         {
         }
 
@@ -64,12 +64,23 @@ namespace ZetaRay
             return Packed & (1 << 30);
         }
 
-        half4_ BaseColorFactor;
-        half3_ EmissiveFactor;
-        half_ MetallicFactor;
-        half_ RoughnessFactor;
-        half_ NormalScale;
-        half_ AlphaCuttoff;
+        float GetAlphaCuttoff() CONST
+        {
+            return ((MetallicFactorAlphaCuttoff >> 8) & 0xff) / 255.0f;
+        }
+
+        float GetNormalScale() CONST
+        {
+            return ((EmissiveFactorNormalScale >> 24) & 0xff) / 255.0f;
+        }
+
+        float GetMetalness() CONST
+        {
+            return (MetallicFactorAlphaCuttoff & 0xff) / 255.0f;
+        }
+
+        uint32_t BaseColorFactor;
+        uint32_t EmissiveFactorNormalScale;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture;
         uint32_t MetalnessRoughnessTexture;
@@ -78,6 +89,9 @@ namespace ZetaRay
         // last 4 bits encode alpha and double-sided
         // first 28 bits encode material buffer index
         uint32_t Packed;
+
+        uint16_t MetallicFactorAlphaCuttoff;
+        half_ RoughnessFactor;
     };
 #ifdef __cplusplus
 }
