@@ -280,6 +280,7 @@ void ReSTIR_DI::Render(CommandList& cmdList) noexcept
 		m_cbTemporalResample.DispatchDimY = (uint16_t)dispatchDimY;
 		m_cbTemporalResample.NumGroupsInTile = RDI_TEMPORAL_TILE_WIDTH * m_cbTemporalResample.DispatchDimY;
 		m_cbTemporalResample.DoTemporalResampling = m_doTemporalResampling && m_isTemporalReservoirValid;
+		m_cbTemporalResample.SampleIndex = (uint16_t)m_sampleIdx;
 
 		auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV;
 		auto srvBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV;
@@ -450,7 +451,6 @@ void ReSTIR_DI::Render(CommandList& cmdList) noexcept
 
 	m_isTemporalReservoirValid = true;
 	m_currTemporalIdx = 1 - m_currTemporalIdx;
-	m_sampleIdx = (m_sampleIdx + 1) & 31;
 	m_internalCounter++;
 
 	// when checkerboarding, advance the sample index every other tracing frame

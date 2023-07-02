@@ -38,7 +38,7 @@ struct cb_RDI_Temporal
 	uint16_t CheckerboardTracing;
 	uint16_t M_max;
 	uint16_t PrefilterReservoirs;
-	uint16_t pad;
+	uint16_t SampleIndex;
 };
 
 struct cb_RDI_Spatial

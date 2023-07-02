@@ -18,9 +18,15 @@
 #define MAX_RAY_DIR_HEURISTIC_EXP 64.0f
 #define THREAD_GROUP_SWIZZLING 1
 #define MAX_W_SUM 5.0f
+#define MIN_ROUGHNESS_SURFACE_MOTION 0.4
+#define CHECKERBOARD_SORT 0
 
 groupshared float g_firstMoment[WAVE_SIZE];
 groupshared float g_secondMoment[WAVE_SIZE];
+
+#if CHECKERBOARD_SORT
+groupshared uint16_t2 g_dtid[RDI_TEMPORAL_GROUP_DIM_Y * RDI_TEMPORAL_GROUP_DIM_X];
+#endif
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -100,7 +106,7 @@ float ComputeTarget(float3 pos, float3 normal, float linearDepth, float3 wi,
 
 float2 GetSample(uint2 DTid, uint numSamplesPerFrame, uint offset)
 {
-	const uint sampleIdx = (g_frame.FrameNum * numSamplesPerFrame + offset) & 31;
+	const uint sampleIdx = (g_local.SampleIndex * numSamplesPerFrame + offset) & 31;
 	
 	const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 6);
@@ -361,21 +367,32 @@ float GetTemporalM(float roughness, float metalness)
 	return M;
 }
 
-void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float metalness,
-	float roughness, float localCurvature, inout DIReservoir r, inout BRDF::SurfaceInteraction surface, inout RNG rng)
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float metalness, float roughness, 
+	float localCurvature, bool tracedThisFrame, inout DIReservoir r, inout BRDF::SurfaceInteraction surface, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
 	surface.InitComplete(r.wi, baseColor, metalness, normal);
 
 	// reverse reproject current pixel
 	float3 posPlanet = posW;
 	posPlanet.y += g_frame.PlanetRadius;
-	float rayT = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posPlanet, r.wi);
-
-	const float2 prevUV = RDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
+	const float rayT = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posPlanet, r.wi);
+	
+	const float2 prevUV_virtual = RDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
 		g_frame.TanHalfFOV, g_frame.PrevViewProj);
-
-	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	
+	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
+	const float2 motionVec = g_motionVector[DTid.xy];
+	const float2 prevUV_surface = (DTid + 0.5) / renderDim - motionVec;
+	
+	float2 prevUV = roughness > MIN_ROUGHNESS_SURFACE_MOTION ? prevUV_surface : prevUV_virtual;
+		
+	// TODO corner case, not sure why, but following is needed
+	if (g_local.CheckerboardTracing && roughness < MIN_ROUGHNESS_SURFACE_MOTION && baseColorLum <= MAX_LUM_VNDF)
+		prevUV = tracedThisFrame ? FLT_MAX.xx : prevUV;
+	
+	if (any(prevUV > 1.0f.xx) || any(prevUV) < 0)
 		return;
 
 	// combine 2x2 neighborhood reservoirs around reprojected pixel
@@ -434,7 +451,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		
 		const uint2 prevPixel = uint2(topLeft) + offsets[i];
 		prevWi[i] = RDI_Util::PartialReadReservoir_ReuseWi(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx);
-		weights[i] *= dot(abs(r.wi), 1) == 0 ? 1.0f : RayDirHeuristic(r.wi, prevWi[i], roughness);
+		weights[i] *= dot(abs(r.wi), 1) == 0 || !tracedThisFrame ? 1.0f : RayDirHeuristic(r.wi, prevWi[i], roughness);
 	}
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
@@ -484,17 +501,27 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 // Main
 //--------------------------------------------------------------------------------------
 
-[WaveSize(32)]
+[WaveSize(WAVE_SIZE)]
 [numthreads(RDI_TEMPORAL_GROUP_DIM_X, RDI_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(RDI_TEMPORAL_GROUP_DIM_X, RDI_TEMPORAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, RDI_TEMPORAL_TILE_WIDTH, RDI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(RDI_TEMPORAL_GROUP_DIM_X, RDI_TEMPORAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, RDI_TEMPORAL_TILE_WIDTH, RDI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);	
 #else
 	const uint2 swizzledDTid = DTid.xy;
+#endif
+
+#if CHECKERBOARD_SORT
+	g_dtid[Gidx] = uint16_t2(swizzledDTid);
+	int numThreadDiv2 = (RDI_TEMPORAL_GROUP_DIM_X * RDI_TEMPORAL_GROUP_DIM_Y) >> 1;
+	bool inFirstHalf = Gidx < numThreadDiv2;
+	
+	GroupMemoryBarrierWithGroupSync();
+	
+	swizzledDTid = inFirstHalf ? g_dtid[Gidx << 1] : g_dtid[((Gidx - numThreadDiv2) << 1) + 1];
 #endif
 
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
@@ -525,10 +552,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float2 mr = g_metalnessRoughness[swizzledDTid];
 
-//	bool traceThisFrame = g_local.CheckerboardTracing ?
-//		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_frame.FrameNum & 0x1) :
-//		true;
-
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
@@ -539,18 +562,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// generate candidates
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
-	
-	DIReservoir r;
-	
-	if (mr.x > MIN_METALNESS_METAL || baseColorLum < MAX_LUM_VNDF)
-		r = GenerateCandidatesVNDF(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);
-	else
-		r = GenerateCandidatesMIS(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);	
-	
+		
 	// resampling
-	bool skip = mr.y < g_local.MinRoughnessResample && (mr.x > MIN_METALNESS_METAL || baseColorLum < MAX_LUM_VNDF);
+	bool skipResampling = mr.y < g_local.MinRoughnessResample && (mr.x > MIN_METALNESS_METAL || baseColorLum < MAX_LUM_VNDF);
+
+	bool traceThisFrame = g_local.CheckerboardTracing ?
+		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_frame.FrameNum & 0x1) :
+		true;
+
+	// always trace if surface is mirror like
+	traceThisFrame = (traceThisFrame || mr.y < g_local.MinRoughnessResample);
 	
-	if (g_local.DoTemporalResampling && !skip)
+	DIReservoir r = DIReservoir::Init();
+
+	if(traceThisFrame)
+	{
+		if (mr.x >= MIN_METALNESS_METAL || baseColorLum <= MAX_LUM_VNDF)
+			r = GenerateCandidatesVNDF(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);
+		else
+			r = GenerateCandidatesMIS(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);
+	}
+	
+	if (g_local.DoTemporalResampling && !skipResampling)
 	{
 		GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 		float localCurvature = g_curvature[swizzledDTid];
@@ -561,10 +594,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		if (g_local.PrefilterReservoirs)
 			PrefilterOutliers(Gidx, posW, mr.y, linearDepth, r);
 	
-		TemporalResample(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, adjustedLocalCurvature,
+		TemporalResample(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, adjustedLocalCurvature, traceThisFrame,
 			r, surface, rng);
 	}
-	
+
 	RDI_Util::WriteReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx);
 }
