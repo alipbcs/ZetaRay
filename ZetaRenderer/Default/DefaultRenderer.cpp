@@ -7,6 +7,7 @@
 #include <Support/Task.h>
 #include <Support/Param.h>
 #include <Math/MatrixFuncs.h>
+#include <Scene/Camera.h>
 
 namespace
 {

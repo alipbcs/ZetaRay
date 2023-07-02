@@ -1,6 +1,5 @@
 #pragma once
 
-#include "Camera.h"
 #include "../Model/glTFAsset.h"
 #include "../Math/BVH.h"
 #include "Asset.h"

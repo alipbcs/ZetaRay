@@ -6,6 +6,7 @@
 #include <Math/MatrixFuncs.h>
 #include <Model/Mesh.h>
 #include <App/Timer.h>
+#include <Scene/Camera.h>
 #include <Support/Param.h>
 #include <algorithm>
 

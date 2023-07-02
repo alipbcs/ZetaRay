@@ -12,6 +12,7 @@
 #include "../Core/CommandQueue.h"			// just for std::unique_ptr<>
 #include "../Core/SharedShaderResources.h"	// just for std::unique_ptr<>
 #include "../Scene/SceneCore.h"
+#include "../Scene/Camera.h"
 #include "../Support/ThreadPool.h"
 #include "../Utility/RNG.h"
 #include "../Assets/Font/Font.h"
@@ -1392,7 +1393,7 @@ namespace ZetaRay
 
 	RWSynchronizedVariable<Span<ParamVariant>> App::GetParams() noexcept
 	{
-		return RWSynchronizedVariable<Span<ParamVariant>>(g_app->m_params, g_app->m_paramUpdateLock);
+		return RWSynchronizedVariable<Span<ParamVariant>>(g_app->m_params, g_app->m_paramLock);
 	}
 
 	RSynchronizedVariable<Span<ShaderReloadHandler>> App::GetShaderReloadHandlers() noexcept

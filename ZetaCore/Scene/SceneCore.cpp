@@ -5,6 +5,7 @@
 #include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
 #include "../Core/RendererCore.h"
+#include "Camera.h"
 #include <algorithm>
 
 using namespace ZetaRay::Scene;

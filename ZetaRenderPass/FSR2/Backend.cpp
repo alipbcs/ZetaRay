@@ -6,6 +6,7 @@
 #include <Scene/SceneCore.h>
 #include <Support/Task.h>
 #include <algorithm>
+#include <Scene/Camera.h>
 #include <Core/PipelineStateLibrary.h>
 
 #include <FSR2/Include/shaders/ffx_fsr2_resources.h>

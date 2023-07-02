@@ -6,6 +6,7 @@
 #include <Support/Param.h>
 #include <Support/Stat.h>
 #include <Scene/SceneCore.h>
+#include <Scene/Camera.h>
 #include <App/Timer.h>
 #include <Utility/SynchronizedView.h>
 
