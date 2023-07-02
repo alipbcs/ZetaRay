@@ -181,8 +181,10 @@ namespace ZetaRay::Core
 		Util::SmallVector<ResourceMetadata> m_frameResources;
 		int m_prevFramesNumResources = 0;
 
-		std::atomic_int32_t m_currResIdx = 0;
+		std::atomic_int32_t m_lastResIdx = 0;
 		std::atomic_int32_t m_currRenderPassIdx = 0;
+		bool m_inBeginEndBlock = false;
+		bool m_inPreRegister = false;
 
 		//
 		// Nodes

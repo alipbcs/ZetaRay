@@ -140,7 +140,7 @@ void RenderGraph::Reset() noexcept
 		});
 
 	m_prevFramesNumResources = (int)numRemaining;
-	m_currResIdx = (int)numRemaining;
+	m_lastResIdx = (int)numRemaining;
 
 	// reset the render nodes
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
@@ -154,17 +154,23 @@ void RenderGraph::Reset() noexcept
 
 void RenderGraph::RemoveResource(uint64_t path) noexcept
 {
+	Assert(!m_inBeginEndBlock, "Invalid call.");
 	const int pos = FindFrameResource(path, 0, m_prevFramesNumResources);
 
 	if (pos != -1)
 	{
-		m_currResIdx.fetch_sub(1, std::memory_order_relaxed);
+		m_lastResIdx.fetch_sub(1, std::memory_order_relaxed);
 		m_frameResources[pos].Reset();
+
+		// insertion sort
+		for (int i = pos; i < m_prevFramesNumResources; i++)
+			m_frameResources[i] = ZetaMove(m_frameResources[i + 1]);
 	}
 }
 
 void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
 {
+	Assert(!m_inBeginEndBlock, "Invalid call.");
 	int numRemoved = 0;
 
 	for (auto p : paths)
@@ -184,12 +190,13 @@ void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
 			return lhs.ID < rhs.ID;
 		});
 
-	m_currResIdx.fetch_sub(numRemoved, std::memory_order_relaxed);
+	m_lastResIdx.fetch_sub(numRemoved, std::memory_order_relaxed);
 }
 
 void RenderGraph::BeginFrame() noexcept
 {
-	m_prevFramesNumResources = m_currResIdx.load(std::memory_order_relaxed);
+	Assert(!m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
+	m_prevFramesNumResources = m_lastResIdx.load(std::memory_order_relaxed);
 
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	//m_numPassesPrevFrame = numNodes;
@@ -209,6 +216,8 @@ void RenderGraph::BeginFrame() noexcept
 		m_renderNodes[currNode].Reset();
 
 	m_aggregateNodes.free_memory();
+	m_inBeginEndBlock = true;
+	m_inPreRegister = true;
 }
 
 int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
@@ -216,7 +225,7 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
 	if (end - beg == 0)
 		return -1;
 
-	end = (end == -1) ? m_currResIdx.load(std::memory_order_relaxed) : end;
+	end = (end == -1) ? m_lastResIdx.load(std::memory_order_relaxed) : end;
 	int mid = end >> 1;
 
 	while (true)
@@ -243,6 +252,7 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
 RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, 
 	fastdelegate::FastDelegate1<CommandList&> dlg) noexcept
 {
+	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	int h = m_currRenderPassIdx.fetch_add(1, std::memory_order_relaxed);
 	Assert(h < MAX_NUM_RENDER_PASSES, "Number of render passes exceeded MAX_NUM_RENDER_PASSES");
 
@@ -253,6 +263,7 @@ RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_T
 
 void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent) noexcept
 {
+	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
 
 	const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources);
@@ -267,7 +278,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 	}
 
 	// new resource
-	int pos = m_currResIdx.fetch_add(1, std::memory_order_relaxed);
+	int pos = m_lastResIdx.fetch_add(1, std::memory_order_relaxed);
 	Assert(pos < MAX_NUM_RESOURCES, "Number of resources exceeded MAX_NUM_RESOURCES");
 
 	m_frameResources[pos].Reset(path, res, initState, isWindowSizeDependent);
@@ -275,7 +286,8 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 
 void RenderGraph::MoveToPostRegister() noexcept
 {
-	const int numResources = m_currResIdx.load(std::memory_order_relaxed);
+	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
+	const int numResources = m_lastResIdx.load(std::memory_order_relaxed);
 
 	// sort the frame resources so that binary search can be performed
 	std::sort(m_frameResources.begin(), m_frameResources.begin() + numResources,
@@ -297,10 +309,13 @@ void RenderGraph::MoveToPostRegister() noexcept
 		}
 	}
 #endif // _DEBUG
+
+	m_inPreRegister = false;
 }
 
 void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState) noexcept
 {
+	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	Assert(h.IsValid(), "Invalid handle");
 	Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
 	Assert(expectedState & Constants::READ_STATES, "Invalid read state.");
@@ -311,6 +326,7 @@ void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_S
 
 void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState) noexcept
 {
+	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	Assert(h.IsValid(), "Invalid handle");
 	Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
 	Assert(expectedState & Constants::WRITE_STATES, "Invalid write state.");
@@ -332,6 +348,9 @@ void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_
 
 void RenderGraph::Build(TaskSet& ts) noexcept
 {
+	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
+	m_inBeginEndBlock = false;
+
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	Assert(numNodes > 0, "no render nodes");
 
