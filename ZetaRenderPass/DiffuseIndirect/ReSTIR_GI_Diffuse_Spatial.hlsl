@@ -7,7 +7,8 @@
 #include "../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01
+#define MAX_SPATIAL_M 20
 
 static const float2 k_halton[16] =
 {
@@ -80,14 +81,16 @@ void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDep
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
 	const float biasToleranceScale = max(1 - mScale, 0.2f);
 	//const float searchRadius = g_local.IsFirstPass ? g_local.Radius1st : g_local.Radius2nd;
-	const float searchRadius = g_local.IsFirstPass ? 15 : 42;
+	//const float searchRadius = g_local.IsFirstPass ? 42 : 15;
+	const float maxRadius = g_local.IsFirstPass ? 36 : 4;
+	const float searchRadius = 5 + smoothstep(0, 1, max(r.M - 3, 0) / MAX_TEMPORAL_M) * maxRadius;
 	
 	const float u0 = rng.Uniform();
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
 	// number of samples impacts both quality and performance
-	const int numIterations = g_local.IsFirstPass ? 8 : 6;
+	const int numIterations = g_local.IsFirstPass ? 8 : 6;	
 	const float3 x1_r = posW;	// q -> reused path, r -> current pixel's path
 
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
