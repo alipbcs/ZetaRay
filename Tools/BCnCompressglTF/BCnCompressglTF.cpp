@@ -146,7 +146,7 @@ namespace
         return false;
     }
 
-    void ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
+    bool ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
         Span<int> textureMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool srgb, bool forceOverwrite)
     {
         for (auto tex : textureMaps)
@@ -157,6 +157,8 @@ namespace
 
             auto& imgUri = imagePaths[tex];
             imgPath.Append(imgUri.Get());
+            // DirectXTex expects backslashes
+            imgPath.ConvertToBackslashes();
 
             if (!forceOverwrite && CompressedExists(imgPath, outDir))
                 continue;
@@ -205,9 +207,16 @@ namespace
                 currArg++;
             }
 
-            if (TexConv(numArgs, args, device) != 0)
-                return;
+            auto success = TexConv(numArgs, args, device);
+
+            if (success != 0)
+            {
+                printf("TexConv for path %s failed. Exiting...\n", imgPath.Get());
+                return false;
+            }
         }
+
+        return true;
     }
 
     void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath) noexcept
@@ -233,9 +242,10 @@ namespace
             filename[fnLen + 3] = 's';
             filename[fnLen + 4] = '\0';
 
-            // URI paths are relative to gltf file
+            // URI paths are relative to gltf scene file
             Filesystem::Path newPath(compressedDirName);
             newPath.Append(filename);
+            newPath.ConvertToForwardSlashes();
 
             img["uri"] = newPath.Get();
         }
@@ -510,10 +520,14 @@ int main(int argc, char* argv[])
     outDir.Directory().Append(COMPRESSED_DIR_NAME);
     Filesystem::CreateDirectoryIfNotExists(outDir.Get());
 
-    ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), true, forceOverwrite);
-    ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths, device.Get(), false, forceOverwrite);
-    ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), false, forceOverwrite);
-    ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), true, forceOverwrite);
+    if (!ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), true, forceOverwrite))
+        return 0;
+    if (!ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths, device.Get(), false, forceOverwrite))
+        return 0;
+    if (!ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), false, forceOverwrite))
+        return 0;
+    if (!ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), true, forceOverwrite))
+        return 0;
 
     ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
 

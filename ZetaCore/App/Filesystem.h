@@ -41,6 +41,8 @@ namespace ZetaRay::App::Filesystem
         ZetaInline char* Get() noexcept { return m_path.begin(); }
         ZetaInline Util::StrView GetView() const noexcept { return Util::StrView(m_path.begin(), m_path.size()); }
         ZetaInline size_t Length() const noexcept { return m_path.size(); }
+        void ConvertToBackslashes() noexcept;
+        void ConvertToForwardSlashes() noexcept;
 
     private:
         static constexpr size_t DEFAULT_PATH_LENGTH = 260;

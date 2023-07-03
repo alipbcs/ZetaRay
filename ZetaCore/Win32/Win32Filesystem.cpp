@@ -69,10 +69,10 @@ Filesystem::Path& Filesystem::Path::ToParent() noexcept
     char* beg = m_path.begin();
     char* curr = beg + len;
     
-    while (curr >= beg && *curr != '\\')
+    while (curr >= beg && *curr != '\\' && *curr != '/')
         curr--;
 
-    if(*curr == '\\')
+    if(*curr == '\\' || *curr == '/')
         *curr = '\0';
     else
     {
@@ -95,10 +95,10 @@ Filesystem::Path& Filesystem::Path::Directory() noexcept
     char* beg = m_path.begin();
     char* curr = beg + len;
 
-    while (curr >= beg && *curr != '\\')
+    while (curr >= beg && *curr != '\\' && *curr != '/')
         curr--;
 
-    if (*curr == '\\')
+    if (*curr == '\\' || *curr == '/')
         *curr = '\0';
     else
     {
@@ -122,7 +122,7 @@ void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
     char* firstDot = nullptr;
 
     // figure out the first ., e.g. a.b.c -> a
-    while (curr >= beg && *curr != '\\')
+    while (curr >= beg && *curr != '\\' && *curr != '/')
     {
         if (*curr == '.')
             firstDot = curr;
@@ -178,6 +178,30 @@ void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const
 
     if (outStrLen)
         *outStrLen = s;
+}
+
+void Filesystem::Path::ConvertToBackslashes() noexcept
+{
+    const size_t len = strlen(m_path.begin());
+    char* srcData = m_path.begin();
+
+    for (size_t i = 0; i < len; i++)
+    {
+        if (srcData[i] == '/')
+            srcData[i] = '\\';
+    }
+}
+
+void Filesystem::Path::ConvertToForwardSlashes() noexcept
+{
+    const size_t len = strlen(m_path.begin());
+    char* srcData = m_path.begin();
+
+    for (size_t i = 0; i < len; i++)
+    {
+        if (srcData[i] == '\\')
+            srcData[i] = '/';
+    }
 }
 
 //--------------------------------------------------------------------------------------

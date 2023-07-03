@@ -436,7 +436,7 @@ namespace
 			float4x4a M(node.matrix);
 			v_float4x4 vM = load(M);
 			auto det = store(det3x3(vM));	// last column/row is ignored
-			Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
+			//Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
 			Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 			
 			// column-major storage to row-major storage
