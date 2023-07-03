@@ -78,7 +78,7 @@ namespace ZetaRay::Support
 
 		static constexpr int NUM_BLOCKS = MAX_NUM_THREADS * 2;
 		static constexpr int NUM_FRAMES_TO_FREE_DELAY = 10;
-		static constexpr size_t BLOCK_SIZE = 256 * 1024;
+		static constexpr size_t BLOCK_SIZE = 512 * 1024;
 
 		MemoryBlock m_blocks[NUM_BLOCKS];
 	};
