@@ -14,6 +14,7 @@ This renderer follows a hybrid approach where the primary surface is rasterized,
 
  - GPU-driven—bindless, indirect drawing with GPU-based occlusion culling
  - One bounce of indirect illumination using ReSTIR GI [[1](#references)]. Custom spatio-temporal denoisers for each BRDF layer (diffuse & specular) clean up the results.
+ - ReSTIR DI [[5](#references)] for direct lighting from sky
  - Ray-traced sun soft shadows. A slightly modified FidelityFX denoiser [[2](#references)] is used for denoising.
  - Ray cones for texture MIP selection
  - Single scattering sky and atmosphere (based on [[3, 4](#references)])
@@ -100,13 +101,16 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 </div>
 
 ## References
-[**1**] Y. Ouyang, S. Liu, M. Kettunen, M. Pharr and J. Pantaleoni, "ReSTIR GI: Path Resampling for Real-Time Path Tracing," Computer Graphics Forum, 2021.
+[**1**] Y. Ouyang, S. Liu, M. Kettunen, M. Pharr and J. Pantaleoni, "ReSTIR GI: Path Resampling for Real-Time Path Tracing," *Computer Graphics Forum*, 2021.
 
 [**2**] FidelityFX Denoiser, [https://github.com/GPUOpen-Effects/FidelityFX-Denoiser](https://github.com/GPUOpen-Effects/FidelityFX-Denoiser)
 
-[**3**] S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
+[**3**] S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," *Computer Graphics Forum*, 2020.
 
 [**4**] MinimalAtmosphere, [https://github.com/Fewes/MinimalAtmosphere](https://github.com/Fewes/MinimalAtmosphere)
+
+[**5**] B. Bitterli, C. Wyman, M. Pharr, P. Shirley, A. Lefohn and W. Jarosz, "Spatiotemporal reservoir resampling for real-time ray tracing with 
+dynamic direct lighting," *ACM Transactions on Graphics*, 2020.
 
 ## External Libraries
 
