@@ -1,10 +1,10 @@
 #pragma once
 
-#include "../RenderPass.h"
+#include "../../RenderPass.h"
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
-#include "ReSTIR_DI_Common.h"
+#include "SkyDI_Common.h"
 
 namespace ZetaRay::Core
 {
@@ -18,7 +18,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct ReSTIR_DI final
+	struct SkyDI final
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -26,8 +26,8 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		ReSTIR_DI() noexcept;
-		~ReSTIR_DI() noexcept;
+		SkyDI() noexcept;
+		~SkyDI() noexcept;
 
 		void Init() noexcept;
 		bool IsInitialized() const { return m_psos[0] != nullptr; };
@@ -47,9 +47,9 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_SRV = 4;
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 5;
-		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cb_RDI_Temporal) / sizeof(DWORD), 
-			Math::Max(sizeof(cb_RDI_Spatial) / sizeof(DWORD), 
-				Math::Max(sizeof(cb_RDI_DNSR_Temporal) / sizeof(DWORD), sizeof(cb_RDI_DNSR_Spatial) / sizeof(DWORD))));
+		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cb_SkyDI_Temporal) / sizeof(DWORD), 
+			Math::Max(sizeof(cb_SkyDI_Spatial) / sizeof(DWORD), 
+				Math::Max(sizeof(cb_SkyDI_DNSR_Temporal) / sizeof(DWORD), sizeof(cb_SkyDI_DNSR_Spatial) / sizeof(DWORD))));
 
 		RpObjects s_rpObjs;
 
@@ -124,10 +124,10 @@ namespace ZetaRay::RenderPass
 			static constexpr int DNSRTspp_Specular = 20;
 		};
 
-		cb_RDI_Temporal m_cbTemporalResample;
-		cb_RDI_Spatial m_cbSpatialResample;
-		cb_RDI_DNSR_Temporal m_cbDNSRTemporal;
-		cb_RDI_DNSR_Spatial m_cbDNSRSpatial;
+		cb_SkyDI_Temporal m_cbTemporalResample;
+		cb_SkyDI_Spatial m_cbSpatialResample;
+		cb_SkyDI_DNSR_Temporal m_cbDNSRTemporal;
+		cb_SkyDI_DNSR_Spatial m_cbDNSRSpatial;
 		int m_sampleIdx = 0;
 		uint32_t m_internalCounter = 0;
 
@@ -155,10 +155,10 @@ namespace ZetaRay::RenderPass
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
-			"ReSTIR_DI_Temporal_cs.cso", 
-			"ReSTIR_DI_Spatial_cs.cso",
-			"DirectDNSR_Temporal_cs.cso",
-			"DirectDNSR_SpatialFilter_cs.cso"
+			"SkyDI_Temporal_cs.cso", 
+			"SkyDI_Spatial_cs.cso",
+			"SkyDI_DNSR_Temporal_cs.cso",
+			"SkyDI_DNSR_SpatialFilter_cs.cso"
 		};
 
 		// shader reload

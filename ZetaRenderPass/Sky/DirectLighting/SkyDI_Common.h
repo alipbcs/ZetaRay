@@ -1,30 +1,30 @@
-#ifndef RESTIR_DI_COMMON_H
-#define RESTIR_DI_COMMON_H
+#ifndef SKY_DI_COMMON_H
+#define SKY_DI_COMMON_H
 
-#include "../../ZetaCore/Core/HLSLCompat.h"
+#include "../../../ZetaCore/Core/HLSLCompat.h"
 
-#define RDI_TEMPORAL_GROUP_DIM_X 16
-#define RDI_TEMPORAL_GROUP_DIM_Y 8
+#define SKY_DI_TEMPORAL_GROUP_DIM_X 16
+#define SKY_DI_TEMPORAL_GROUP_DIM_Y 8
 
-#define RDI_TEMPORAL_TILE_WIDTH 8
-#define RDI_TEMPORAL_LOG2_TILE_WIDTH 3
+#define SKY_DI_TEMPORAL_TILE_WIDTH 8
+#define SKY_DI_TEMPORAL_LOG2_TILE_WIDTH 3
 
-#define RDI_SPATIAL_GROUP_DIM_X 16
-#define RDI_SPATIAL_GROUP_DIM_Y 16
+#define SKY_DI_SPATIAL_GROUP_DIM_X 16
+#define SKY_DI_SPATIAL_GROUP_DIM_Y 16
 
-#define RDI_SPATIAL_TILE_WIDTH 8
-#define RDI_SPATIAL_LOG2_TILE_WIDTH 3
+#define SKY_DI_SPATIAL_TILE_WIDTH 8
+#define SKY_DI_SPATIAL_LOG2_TILE_WIDTH 3
 
-#define DIRECT_DNSR_TEMPORAL_GROUP_DIM_X 16
-#define DIRECT_DNSR_TEMPORAL_GROUP_DIM_Y 8
+#define SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X 16
+#define SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y 8
 
-#define DIRECT_DNSR_SPATIAL_GROUP_DIM_X 16
-#define DIRECT_DNSR_SPATIAL_GROUP_DIM_Y 16
+#define SKY_DI_DNSR_SPATIAL_GROUP_DIM_X 16
+#define SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y 16
 
-#define DIRECT_DNSR_SPATIAL_TILE_WIDTH 16
-#define DIRECT_DNSR_SPATIAL_LOG2_TILE_WIDTH 4
+#define SKY_DI_DNSR_SPATIAL_TILE_WIDTH 16
+#define SKY_DI_DNSR_SPATIAL_LOG2_TILE_WIDTH 4
 
-struct cb_RDI_Temporal
+struct cb_SkyDI_Temporal
 {
 	uint32_t PrevTemporalReservoir_A_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_A_DescHeapIdx;
@@ -41,7 +41,7 @@ struct cb_RDI_Temporal
 	uint16_t SampleIndex;
 };
 
-struct cb_RDI_Spatial
+struct cb_SkyDI_Spatial
 {
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputReservoir_B_DescHeapIdx;
@@ -55,7 +55,7 @@ struct cb_RDI_Spatial
 	uint16_t CheckerboardTracing;
 };
 
-struct cb_RDI_DNSR_Temporal
+struct cb_SkyDI_DNSR_Temporal
 {
 	uint32_t InputReservoir_A_DescHeapIdx;
 	uint32_t InputRISEstimate_DescHeapIdx;
@@ -72,7 +72,7 @@ struct cb_RDI_DNSR_Temporal
 	uint16_t MaxTSPP_Specular;
 };
 
-struct cb_RDI_DNSR_Spatial
+struct cb_SkyDI_DNSR_Spatial
 {
 	uint32_t CurrTemporalCacheDiffuseDescHeapIdx;
 	uint32_t CurrTemporalCacheSpecularDescHeapIdx;

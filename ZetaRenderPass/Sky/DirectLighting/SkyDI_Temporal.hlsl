@@ -1,12 +1,12 @@
-#include "Reservoir_DI.hlsli"
-#include "../Common/Common.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/BRDF.hlsli"
-#include "../Common/Sampling.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/RT.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
+#include "SkyDI_Reservoir.hlsli"
+#include "../../Common/Common.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/Sampling.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/RT.hlsli"
+#include "../../Common/VolumetricLighting.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 #define RAY_OFFSET_VIEW_DIST_START 30.0
@@ -14,7 +14,6 @@
 #define NUM_RIS_CANDIDATES_MIS 2
 #define NUM_RIS_CANDIDATES_VNDF 1
 #define WAVE_SIZE 32
-#define NUM_WAVES ((RDI_TEMPORAL_GROUP_DIM_X * RDI_TEMPORAL_GROUP_DIM_Y) / MIN_WAVE_SIZE)
 #define MAX_RAY_DIR_HEURISTIC_EXP 64.0f
 #define THREAD_GROUP_SWIZZLING 1
 #define MAX_W_SUM 5.0f
@@ -25,7 +24,7 @@ groupshared float g_firstMoment[WAVE_SIZE];
 groupshared float g_secondMoment[WAVE_SIZE];
 
 #if CHECKERBOARD_SORT
-groupshared uint16_t2 g_dtid[RDI_TEMPORAL_GROUP_DIM_Y * RDI_TEMPORAL_GROUP_DIM_X];
+groupshared uint16_t2 g_dtid[SKY_DI_TEMPORAL_GROUP_DIM_Y * SKY_DI_TEMPORAL_GROUP_DIM_X];
 #endif
 
 //--------------------------------------------------------------------------------------
@@ -33,7 +32,7 @@ groupshared uint16_t2 g_dtid[RDI_TEMPORAL_GROUP_DIM_Y * RDI_TEMPORAL_GROUP_DIM_X
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_RDI_Temporal> g_local : register(b1);
+ConstantBuffer<cb_SkyDI_Temporal> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
 ByteAddressBuffer g_owenScrambledSobolSeq : register(t1);
 ByteAddressBuffer g_scramblingTile : register(t2);
@@ -264,7 +263,7 @@ bool IsLaneActive(uint laneIdx, uint4 activeMask)
 // Note: causes a darkening bias
 bool PrefilterOutliers(uint gidx, float3 posW, float roughness, float linearDepth, inout DIReservoir r)
 {
-	const float N = RDI_TEMPORAL_GROUP_DIM_X * RDI_TEMPORAL_GROUP_DIM_Y;
+	const float N = SKY_DI_TEMPORAL_GROUP_DIM_X * SKY_DI_TEMPORAL_GROUP_DIM_Y;
 	const uint waveIdx = gidx / WaveGetLaneCount();
 	const uint numWaves = N / WaveGetLaneCount();
 	const uint laneIdx = WaveGetLaneIndex();
@@ -379,7 +378,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	posPlanet.y += g_frame.PlanetRadius;
 	const float rayT = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posPlanet, r.wi);
 	
-	const float2 prevUV_virtual = RDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
+	const float2 prevUV_virtual = SkyDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
 		g_frame.TanHalfFOV, g_frame.PrevViewProj);
 	
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
@@ -450,7 +449,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 			continue;
 		
 		const uint2 prevPixel = uint2(topLeft) + offsets[i];
-		prevWi[i] = RDI_Util::PartialReadReservoir_ReuseWi(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx);
+		prevWi[i] = SkyDI_Util::PartialReadReservoir_ReuseWi(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx);
 		weights[i] *= dot(abs(r.wi), 1) == 0 || !tracedThisFrame ? 1.0f : RayDirHeuristic(r.wi, prevWi[i], roughness);
 	}
 	
@@ -476,7 +475,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 			continue;
 
 		const uint2 prevPixel = uint2(topLeft) + offsets[k];	
-		DIReservoir prev = RDI_Util::PartialReadReservoir_ReuseRest(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, prevWi[k]);
+		DIReservoir prev = SkyDI_Util::PartialReadReservoir_ReuseRest(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, prevWi[k]);
 		
 		// recompute BRDF at current pixel given temporal reservoir's sample
 		surface.InitComplete(prev.wi, baseColor, metalness, normal);
@@ -502,21 +501,21 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 //--------------------------------------------------------------------------------------
 
 [WaveSize(WAVE_SIZE)]
-[numthreads(RDI_TEMPORAL_GROUP_DIM_X, RDI_TEMPORAL_GROUP_DIM_Y, 1)]
+[numthreads(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(RDI_TEMPORAL_GROUP_DIM_X, RDI_TEMPORAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, RDI_TEMPORAL_TILE_WIDTH, RDI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);	
+	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, SKY_DI_TEMPORAL_TILE_WIDTH, SKY_DI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
 #else
 	const uint2 swizzledDTid = DTid.xy;
 #endif
 
 #if CHECKERBOARD_SORT
 	g_dtid[Gidx] = uint16_t2(swizzledDTid);
-	int numThreadDiv2 = (RDI_TEMPORAL_GROUP_DIM_X * RDI_TEMPORAL_GROUP_DIM_Y) >> 1;
+	int numThreadDiv2 = (SKY_DI_TEMPORAL_GROUP_DIM_X * SKY_DI_TEMPORAL_GROUP_DIM_Y) >> 1;
 	bool inFirstHalf = Gidx < numThreadDiv2;
 	
 	GroupMemoryBarrierWithGroupSync();
@@ -598,6 +597,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 			r, surface, rng);
 	}
 
-	RDI_Util::WriteReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
+	SkyDI_Util::WriteReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx);
 }

@@ -1,9 +1,9 @@
 #ifndef RESERVOIR_DI_H
 #define RESERVOIR_DI_H
 
-#include "ReSTIR_DI_Common.h"
-#include "../Common/Sampling.hlsli"
-#include "../Common/BRDF.hlsli"
+#include "SkyDI_Common.h"
+#include "../../Common/Sampling.hlsli"
+#include "../../Common/BRDF.hlsli"
 
 #define MAX_LUM_VNDF 1e-2
 
@@ -85,7 +85,7 @@ struct DIReservoir
 	float Target;
 };
 
-namespace RDI_Util
+namespace SkyDI_Util
 {
 	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::SurfaceInteraction surface, float sampleRayT,
 		float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj)

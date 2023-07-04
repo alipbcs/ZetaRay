@@ -6,7 +6,7 @@
 #include <Common/FrameConstants.h>
 #include <DiffuseIndirect/ReSTIR_GI_Diffuse.h>
 #include <SpecularIndirect/ReSTIR_GI_Specular.h>
-#include <DirectIllumination/ReSTIR_DI.h>
+#include <Sky/DirectLighting/SkyDI.h>
 #include <Clear/Clear.h>
 #include <GBuffer/GBufferPass.h>
 #include <SunShadow/SunShadow.h>
@@ -101,7 +101,6 @@ namespace ZetaRay::DefaultRenderer
 
 	struct alignas(64) LightData
 	{
-		static const int MAX_NUM_ENV_LIGHT_PATCHES = 128;
 		static const int SKY_LUT_WIDTH = 256;
 		static const int SKY_LUT_HEIGHT = 128;
 
@@ -185,8 +184,8 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::ReSTIR_GI_Specular ReSTIR_GI_SpecularPass;
 		Core::RenderNodeHandle ReSTIR_GI_SpecularHandle;
 
-		RenderPass::ReSTIR_DI ReSTIR_DI_Pass;
-		Core::RenderNodeHandle ReSTIR_DI_Handle;
+		RenderPass::SkyDI SkyDI_Pass;
+		Core::RenderNodeHandle SkyDI_Handle;
 
 		// Descriptors
 		enum DESC_TABLE
@@ -199,7 +198,7 @@ namespace ZetaRay::DefaultRenderer
 			DIFFUSE_SPATIAL_RESERVOIR_B,
 			DIFFUSE_SPATIAL_RESERVOIR_C,
 			SPECULAR_DNSR_TEMPORAL_CACHE,
-			DIRECT_DNSR_TEMPORAL_CACHE,
+			SKY_DNSR_TEMPORAL_CACHE,
 			COUNT
 		};
 

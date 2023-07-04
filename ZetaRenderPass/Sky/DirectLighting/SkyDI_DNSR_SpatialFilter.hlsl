@@ -1,11 +1,11 @@
-#include "ReSTIR_DI_Common.h"
-#include "Reservoir_DI.hlsli"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/Sampling.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/BRDF.hlsli"
-#include "../Common/Common.hlsli"
+#include "SkyDI_Common.h"
+#include "SkyDI_Reservoir.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/Sampling.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define NUM_SAMPLES 8
@@ -43,7 +43,7 @@ static const float k_gaussian[NUM_SAMPLES] =
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_RDI_DNSR_Spatial> g_local : register(b1);
+ConstantBuffer<cb_SkyDI_DNSR_Spatial> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -285,7 +285,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, float metalne
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(DIRECT_DNSR_SPATIAL_GROUP_DIM_X, DIRECT_DNSR_SPATIAL_GROUP_DIM_Y, 1)]
+[numthreads(SKY_DI_DNSR_SPATIAL_GROUP_DIM_X, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 	if (!g_local.Denoise)
@@ -294,8 +294,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(DIRECT_DNSR_SPATIAL_GROUP_DIM_X, DIRECT_DNSR_SPATIAL_GROUP_DIM_Y), 
-		g_local.DispatchDimX, DIRECT_DNSR_SPATIAL_TILE_WIDTH, DIRECT_DNSR_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(SKY_DI_DNSR_SPATIAL_GROUP_DIM_X, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, SKY_DI_DNSR_SPATIAL_TILE_WIDTH, SKY_DI_DNSR_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
 #else
 	const uint2 swizzledDTid = DTid.xy;
 #endif

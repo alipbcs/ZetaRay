@@ -44,4 +44,25 @@ namespace ZetaRay::Math
 
 		return ret;
 	}
+
+	ZetaInline Math::float3 RGBToFloat3(uint32_t rgb)
+	{
+		Math::float3 ret;
+		ret.x = float(rgb & 0xff) / 255.0f;
+		ret.y = float((rgb >> 8) & 0xff) / 255.0f;
+		ret.z = float((rgb >> 16) & 0xff) / 255.0f;
+
+		return ret;
+	}
+
+	ZetaInline Math::float4 RGBAToFloat4(uint32_t rgba)
+	{
+		Math::float4 ret;
+		ret.x = float(rgba & 0xff) / 255.0f;
+		ret.y = float((rgba >> 8) & 0xff) / 255.0f;
+		ret.z = float((rgba >> 16) & 0xff) / 255.0f;
+		ret.w = float((rgba >> 24) & 0xff) / 255.0f;
+
+		return ret;
+	}
 }

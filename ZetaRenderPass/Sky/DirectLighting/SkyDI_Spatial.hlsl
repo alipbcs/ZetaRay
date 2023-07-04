@@ -1,9 +1,9 @@
-#include "Reservoir_DI.hlsli"
-#include "../Common/Math.hlsli"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/RT.hlsli"
-#include "../Common/Common.hlsli"
+#include "SkyDI_Reservoir.hlsli"
+#include "../../Common/Math.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/RT.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
@@ -32,7 +32,7 @@ static const float2 k_halton[8] =
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_RDI_Spatial> g_local : register(b1);
+ConstantBuffer<cb_SkyDI_Spatial> g_local : register(b1);
 RaytracingAccelerationStructure g_sceneBVH : register(t0);
 
 //--------------------------------------------------------------------------------------
@@ -190,7 +190,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			const float sampleRoughness = g_metalnessRoughness[samplePosSS].y;
 			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
 			
-			DIReservoir neighbor = RDI_Util::PartialReadReservoir_Shading(samplePosSS,
+			DIReservoir neighbor = SkyDI_Util::PartialReadReservoir_Shading(samplePosSS,
 				g_local.InputReservoir_A_DescHeapIdx);
 
 	#if 0
@@ -237,14 +237,14 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(RDI_SPATIAL_GROUP_DIM_X, RDI_SPATIAL_GROUP_DIM_Y, 1)]
+[numthreads(SKY_DI_SPATIAL_GROUP_DIM_X, SKY_DI_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(RDI_SPATIAL_GROUP_DIM_X, RDI_SPATIAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, RDI_SPATIAL_TILE_WIDTH, RDI_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(SKY_DI_SPATIAL_GROUP_DIM_X, SKY_DI_SPATIAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, SKY_DI_SPATIAL_TILE_WIDTH, SKY_DI_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
 #else
 	const uint2 swizzledDTid = DTid.xy;
 #endif
@@ -265,7 +265,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float2 mr = g_metalnessRoughness[swizzledDTid];
 
-	DIReservoir r = RDI_Util::ReadReservoir(swizzledDTid,
+	DIReservoir r = SkyDI_Util::ReadReservoir(swizzledDTid,
 			g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx);
 
@@ -278,7 +278,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	
 	if (!g_local.DoSpatialResampling || skip)
 	{
-		RDI_Util::PartialWriteReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx);
+		SkyDI_Util::PartialWriteReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx);
 		return;
 	}
 
@@ -300,5 +300,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
 	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, mr.x, mr.y, r, rng);
 	
-	RDI_Util::PartialWriteReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx);
+	SkyDI_Util::PartialWriteReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx);
 }

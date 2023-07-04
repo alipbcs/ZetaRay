@@ -1,11 +1,10 @@
-#include "ReSTIR_DI_Common.h"
-#include "Reservoir_DI.hlsli"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/BRDF.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/Common.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
+#include "SkyDI_Reservoir.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/Common.hlsli"
+#include "../../Common/VolumetricLighting.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 #define VIEW_ANGLE_EXP 0.15f
@@ -16,7 +15,7 @@
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_RDI_DNSR_Temporal> g_local : register(b1);
+ConstantBuffer<cb_SkyDI_DNSR_Temporal> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -350,7 +349,7 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 		GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 		const float localCurvature = g_curvature[DTid.xy];
 
-		prevUV = RDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
+		prevUV = SkyDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
 			g_frame.TanHalfFOV, g_frame.PrevViewProj);
 	}
 	
@@ -486,7 +485,7 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(DIRECT_DNSR_TEMPORAL_GROUP_DIM_X, DIRECT_DNSR_TEMPORAL_GROUP_DIM_Y, 1)]
+[numthreads(SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 {
 	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
@@ -521,7 +520,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
-	DIReservoir r = RDI_Util::PartialReadReservoir_Shading(DTid.xy, g_local.InputReservoir_A_DescHeapIdx);
+	DIReservoir r = SkyDI_Util::PartialReadReservoir_Shading(DTid.xy, g_local.InputReservoir_A_DescHeapIdx);
 	surface.InitComplete(r.wi, baseColor, mr.x, normal);
 	
 	if (!g_local.IsTemporalCacheValid || !g_local.Denoise)

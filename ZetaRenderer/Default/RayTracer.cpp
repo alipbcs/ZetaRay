@@ -27,7 +27,7 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data) noexce
 	data.ReSTIR_GI_SpecularPass.Init();
 
 	if(settings.SkyIllumination)
-		data.ReSTIR_DI_Pass.Init();
+		data.SkyDI_Pass.Init();
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept
@@ -36,8 +36,8 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 		data.ReSTIR_GI_DiffusePass.OnWindowResized();
 	if (data.ReSTIR_GI_SpecularPass.IsInitialized())
 		data.ReSTIR_GI_SpecularPass.OnWindowResized();
-	if (data.ReSTIR_DI_Pass.IsInitialized())
-		data.ReSTIR_DI_Pass.OnWindowResized();
+	if (data.SkyDI_Pass.IsInitialized())
+		data.SkyDI_Pass.OnWindowResized();
 }
 
 void RayTracer::Shutdown(RayTracerData& data) noexcept
@@ -47,7 +47,7 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 	data.RtSampler.Clear();
 	data.ReSTIR_GI_DiffusePass.Reset();
 	data.ReSTIR_GI_SpecularPass.Reset();
-	data.ReSTIR_DI_Pass.Reset();
+	data.SkyDI_Pass.Reset();
 }
 
 void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept
@@ -80,26 +80,26 @@ void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData&
 
 	if (settings.SkyIllumination)
 	{
-		auto funcDI = [&data](ReSTIR_DI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
+		auto funcDI = [&data](SkyDI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
 		{
-			const Texture& t = data.ReSTIR_DI_Pass.GetOutput(r);
+			const Texture& t = data.SkyDI_Pass.GetOutput(r);
 			Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
 		};
 
-		funcDI(ReSTIR_DI::SHADER_OUT_RES::DENOISED, RayTracerData::DESC_TABLE::DIRECT_DNSR_TEMPORAL_CACHE);
+		funcDI(SkyDI::SHADER_OUT_RES::DENOISED, RayTracerData::DESC_TABLE::SKY_DNSR_TEMPORAL_CACHE);
 	}
 }
 
 void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data) noexcept
 {
-	if (settings.SkyIllumination && !data.ReSTIR_DI_Pass.IsInitialized())
-		data.ReSTIR_DI_Pass.Init();
-	else if (!settings.SkyIllumination && data.ReSTIR_DI_Pass.IsInitialized())
+	if (settings.SkyIllumination && !data.SkyDI_Pass.IsInitialized())
+		data.SkyDI_Pass.Init();
+	else if (!settings.SkyIllumination && data.SkyDI_Pass.IsInitialized())
 	{
-		uint64_t id = data.ReSTIR_DI_Pass.GetOutput(ReSTIR_DI::SHADER_OUT_RES::DENOISED).GetPathID();
+		uint64_t id = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).GetPathID();
 		renderGraph.RemoveResource(id);
 
-		data.ReSTIR_DI_Pass.Reset();
+		data.SkyDI_Pass.Reset();
 	}
 
 	UpdateDescriptors(settings, data);
@@ -180,20 +180,20 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 			registerOutputs(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE);
 		}
 
-		// restir DI
+		// sky DI
 		if (settings.SkyIllumination)
 		{
-			auto registerOutputs = [&data, &renderGraph](ReSTIR_DI::SHADER_OUT_RES r)
+			auto registerOutputs = [&data, &renderGraph](SkyDI::SHADER_OUT_RES r)
 			{
 				// Direct3D api doesn't accept const pointers
-				Texture& t = const_cast<Texture&>(data.ReSTIR_DI_Pass.GetOutput(r));
+				Texture& t = const_cast<Texture&>(data.SkyDI_Pass.GetOutput(r));
 				renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
 			};
 
-			fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.ReSTIR_DI_Pass, &ReSTIR_DI::Render);
-			data.ReSTIR_DI_Handle = renderGraph.RegisterRenderPass("ReSTIR_DI", RENDER_NODE_TYPE::COMPUTE, dlg2);
+			fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.SkyDI_Pass, &SkyDI::Render);
+			data.SkyDI_Handle = renderGraph.RegisterRenderPass("SkyDI", RENDER_NODE_TYPE::COMPUTE, dlg2);
 
-			registerOutputs(ReSTIR_DI::SHADER_OUT_RES::DENOISED);
+			registerOutputs(SkyDI::SHADER_OUT_RES::DENOISED);
 		}
 	}
 }
@@ -347,46 +347,46 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 
-		// restir DI
+		// sky DI
 		if (settings.SkyIllumination)
 		{
 			// RT-AS
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				data.RtAS.GetTLAS().GetPathID(),
 				D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 			// prev gbuffers
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.Normal[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.DepthBuffer[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.MotionVec.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.BaseColor.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-			renderGraph.AddInput(data.ReSTIR_DI_Handle,
+			renderGraph.AddInput(data.SkyDI_Handle,
 				gbuffData.Curvature.GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			// output reservoirs
-			renderGraph.AddOutput(data.ReSTIR_DI_Handle,
-				data.ReSTIR_DI_Pass.GetOutput(ReSTIR_DI::SHADER_OUT_RES::DENOISED).GetPathID(),
+			renderGraph.AddOutput(data.SkyDI_Handle,
+				data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).GetPathID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 	}
