@@ -80,15 +80,7 @@ namespace
 
 		return meshFromSceneID;
 	}
-
-	struct IntemediateInstance
-	{
-		AffineTransformation LocalTransform;
-		cgltf_mesh* Mesh;
-		uint64_t ID;
-		uint64_t ParentID;
-	};
-
+	
 	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
@@ -200,6 +192,7 @@ namespace
 			memcpy(&i2, curr, indexStrideInBytes);
 			curr += indexStrideInBytes;
 
+			// use a clockwise ordering
 			indices.push_back(i0);
 			indices.push_back(i2);
 			indices.push_back(i1);
@@ -418,6 +411,9 @@ namespace
 
 				auto& f = mat.emissive_factor;
 				desc.EmissiveFactor = float3((float)f[0], (float)f[1], (float)f[2]);
+
+				if (mat.has_emissive_strength)
+					desc.EmissiveStrength = mat.emissive_strength.emissive_strength;
 			}
 
 			SceneCore& scene = App::GetScene();
@@ -527,7 +523,12 @@ namespace
 			{
 				const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
 
-				uint8_t rtInsMask = meshPrim.material && meshPrim.material->emissive_texture.texture ?
+				float oneDotEmissvieFactor = meshPrim.material->emissive_factor[0];
+				oneDotEmissvieFactor += meshPrim.material->emissive_factor[1];
+				oneDotEmissvieFactor += meshPrim.material->emissive_factor[2];
+
+				uint8_t rtInsMask = meshPrim.material && 
+					(meshPrim.material->emissive_texture.texture || oneDotEmissvieFactor > 1e-4f)?
 					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
 
 				// parent-child relationships will be w.r.t. the last mesh primitive

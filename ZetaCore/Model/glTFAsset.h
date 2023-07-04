@@ -50,7 +50,8 @@ namespace ZetaRay::Model::glTF::Asset
 			DoubleSided(false),
 			Index(-1),
 			BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
-			EmissiveFactor(0.0f, 0.0f, 0.0f)
+			EmissiveFactor(0.0f, 0.0f, 0.0f),
+			EmissiveStrength(1.0f)
 		{
 		}
 
@@ -64,6 +65,7 @@ namespace ZetaRay::Model::glTF::Asset
 
 		Math::float4 BaseColorFactor;
 		Math::float3 EmissiveFactor;
+		float EmissiveStrength;
 		float MetalnessFactor;
 		float RoughnessFactor;
 		float NormalScale;

@@ -172,11 +172,16 @@ PS_OUT mainPS(VSOut psin)
 
 	metalnessAlphaCuttoff.x = EncodeMetalness(metalnessAlphaCuttoff.x, mat.BaseColorTexture);
 	
-	if (mat.EmissiveTexture != -1)
+	uint16_t emissiveTex = mat.GetEmissiveTex();
+	float emissiveStrength = mat.GetEmissiveStrength();
+	
+	if (emissiveTex != -1)
 	{
-		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture];
+		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + emissiveTex];
 		emissiveColorNormalScale.rgb *= g_emissiveMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).xyz;
 	}
+	
+	emissiveColorNormalScale.rgb *= emissiveStrength;
 	
 	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
 	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.z;

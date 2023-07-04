@@ -35,7 +35,7 @@ namespace
 		return matFromSceneID;
 	}
 
-	// assumes images is sorted
+	// performs binary search, so assumes input is sorted
 	ZetaInline int FindImage(uint64_t key, int beg, int end, Span<DDSImage> images) noexcept
 	{
 		int mid = end >> 1;
@@ -260,9 +260,9 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	Check(matFromSceneID != DEFAULT_MATERIAL, "This material ID is reserved.");
 
 	Material mat;
-	mat.BaseColorFactor = Float4ToRGBA(matDesc.BaseColorFactor);
-	mat.EmissiveFactorNormalScale = Float4ToRGBA(matDesc.EmissiveFactor, matDesc.NormalScale);
-	mat.MetallicFactorAlphaCuttoff = Float2ToRG(matDesc.MetalnessFactor, matDesc.AlphaCuttoff);
+	mat.BaseColorFactor = Float4ToRGBA8(matDesc.BaseColorFactor);
+	mat.EmissiveFactorNormalScale = Float4ToRGBA8(float4(matDesc.EmissiveFactor, matDesc.NormalScale));
+	mat.MetallicFactorAlphaCuttoff = Float2ToRG8(float2(matDesc.MetalnessFactor, matDesc.AlphaCuttoff));
 	mat.RoughnessFactor = half(matDesc.RoughnessFactor);
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
@@ -319,7 +319,8 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 			m_emissiveTableOffsetToID[tableOffset] = matDesc.EmissiveTexPath;
 		}
 		
-		mat.EmissiveTexture = tableOffset;
+		mat.SetEmissiveTex(tableOffset);
+		mat.SetEmissiveStrength(matDesc.EmissiveStrength);
 	}
 
 	// add it to GPU material buffer, which offsets into descriptor tables above

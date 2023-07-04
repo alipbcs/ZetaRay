@@ -118,16 +118,16 @@ namespace ZetaRay::Math
 		size_t minNumElems = 0) noexcept;
 
 	// Ref: https://walbourn.github.io/directxmath-f16c-and-fma/
-	ZetaInline float HalfToFloat(uint16_t Value)
+	ZetaInline float HalfToFloat(uint16_t value)
 	{
-		__m128i V1 = _mm_cvtsi32_si128(static_cast<uint32_t>(Value));
+		__m128i V1 = _mm_cvtsi32_si128(static_cast<uint32_t>(value));
 		__m128 V2 = _mm_cvtph_ps(V1);
 		return _mm_cvtss_f32(V2);
 	}
 
-	ZetaInline uint16_t FloatToHalf(float Value)
+	ZetaInline uint16_t FloatToHalf(float value)
 	{
-		__m128 V1 = _mm_set_ss(Value);
+		__m128 V1 = _mm_set_ss(value);
 		__m128i V2 = _mm_cvtps_ph(V1, 0);
 		return static_cast<uint16_t>(_mm_cvtsi128_si32(V2));
 	}

@@ -25,16 +25,17 @@ namespace ZetaRay
         };
         
         Material()
-            : MetallicFactorAlphaCuttoff(Math::Float2ToRG(1.0f, 0.5f)),
+            : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
             RoughnessFactor(1.0f),
             BaseColorTexture(uint32_t(-1)),
             MetalnessRoughnessTexture(uint32_t(-1)),
             NormalTexture(uint32_t(-1)),
-            EmissiveTexture(uint32_t(-1)),
+            EmissiveTexture_Strength(uint32_t(-1)),
             Packed(0),
-            BaseColorFactor(Math::Float4ToRGBA(1.0f, 1.0f, 1.0f, 1.0f)),
-            EmissiveFactorNormalScale(Math::Float4ToRGBA(0.0f, 0.0f, 0.0f, 1.0f))
+            BaseColorFactor(Math::Float4ToRGBA8(Math::float4(1.0f, 1.0f, 1.0f, 1.0f))),
+            EmissiveFactorNormalScale(Math::Float4ToRGBA8(Math::float4(0.0f, 0.0f, 0.0f, 1.0f)))
         {
+            SetEmissiveStrength(1.0f);
         }
 
         void SetGpuBufferIndex(uint32_t idx)
@@ -57,8 +58,7 @@ namespace ZetaRay
         {
             return Packed & 0x0fffffff;
         }
-
-#endif // __cplusplus
+#endif
         bool IsDoubleSided() CONST
         {
             return Packed & (1 << 30);
@@ -79,14 +79,39 @@ namespace ZetaRay
             return (MetallicFactorAlphaCuttoff & 0xff) / 255.0f;
         }
 
+        uint16_t GetEmissiveTex() CONST
+        {
+            return uint16_t(EmissiveTexture_Strength & 0xffff);
+        }
+
+#ifdef __cplusplus
+        void SetEmissiveTex(uint32_t idx)
+        {
+            Assert(idx == -1 || idx < UINT16_MAX, "Invalid emissive index.");
+            EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
+        }
+
+        void SetEmissiveStrength(float s)
+        {
+            Math::half h(s);
+            EmissiveTexture_Strength = (uint32_t(h.x) << 16) | (EmissiveTexture_Strength & 0xffff);
+        }
+
+#else
+        half GetEmissiveStrength()
+        {
+            return asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
+        }
+#endif // __cplusplus
+
         uint32_t BaseColorFactor;
         uint32_t EmissiveFactorNormalScale;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture;
         uint32_t MetalnessRoughnessTexture;
-        uint32_t EmissiveTexture;
+        uint32_t EmissiveTexture_Strength;
 
-        // last 4 bits encode alpha and double-sided
+        // last 4 bits encode alpha and double sided
         // first 28 bits encode material buffer index
         uint32_t Packed;
 

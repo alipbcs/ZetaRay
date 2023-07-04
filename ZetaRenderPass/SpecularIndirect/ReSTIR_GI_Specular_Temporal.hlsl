@@ -75,6 +75,9 @@ float3 MissShading(float3 wi)
 
 bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 {
+	if (wi.y < 0)
+		return false;
+
 	// protect against self-intersection
 	float3 adjustedOrigin = pos + normal * 5e-3f;
 
@@ -238,10 +241,12 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	}
 	
 	float3 L_e = Math::Color::UnpackRGB(mat.EmissiveFactorNormalScale);
+	uint16_t emissiveTex = mat.GetEmissiveTex();
+	float emissiveStrength = mat.GetEmissiveStrength();
 
-	if (mat.EmissiveTexture != -1)
+	if (emissiveTex != -1)
 	{
-		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + mat.EmissiveTexture);
+		uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + emissiveTex);
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
 		float mip = g_frame.MipBias;
 		
@@ -254,7 +259,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
 
-	return L_o + L_e;
+	return L_o + L_e * emissiveStrength;
 }
 
 bool Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone, out SpecularSample ret)

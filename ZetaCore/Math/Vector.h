@@ -308,7 +308,7 @@ namespace ZetaRay::Math
 	struct half
 	{
 		half() noexcept = default;
-		half(float f)
+		explicit half(float f)
 			: x(FloatToHalf(f))
 		{}
 
