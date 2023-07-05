@@ -2,7 +2,7 @@
 
 #define NOMINMAX
 #define NODRAWTEXT
-#define NOGDI
+//#define NOGDI
 #define NOBITMAP
 #define NOMCX
 #define NOSERVICE

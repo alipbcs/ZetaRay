@@ -46,7 +46,7 @@ namespace ZetaRay::Model::glTF::Asset
 			RoughnessFactor(1.0f),
 			NormalScale(1.0f),
 			AlphaCuttoff(0.5f),
-			AlphaMode(Material::ALPHA_MODE::OPAQUE),
+			AlphaMode(Material::ALPHA_MODE::OPAQUE_),
 			DoubleSided(false),
 			Index(-1),
 			BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),

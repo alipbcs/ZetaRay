@@ -318,7 +318,7 @@ namespace
 			switch (m)
 			{
 			case cgltf_alpha_mode_opaque:
-				return Material::ALPHA_MODE::OPAQUE;
+				return Material::ALPHA_MODE::OPAQUE_;
 			case cgltf_alpha_mode_mask:
 				return Material::ALPHA_MODE::MASK;
 			case cgltf_alpha_mode_blend:
@@ -328,7 +328,7 @@ namespace
 			}
 			
 			Assert(false, "invalid alpha mode.");
-			return Material::ALPHA_MODE::OPAQUE;
+			return Material::ALPHA_MODE::OPAQUE_;
 		};
 
 		for (int m = offset; m != offset + size; m++)
@@ -536,12 +536,12 @@ namespace
 
 				glTF::Asset::InstanceDesc desc{
 					.LocalTransform = transform,
-						.MeshIdx = meshIdx,
-						.ID = currInstanceID,
-						.ParentID = parentId,
-						.MeshPrimIdx = primIdx,
-						.RtMeshMode = RT_MESH_MODE::STATIC,
-						.RtInstanceMask = rtInsMask };
+					.MeshIdx = meshIdx,
+					.ID = currInstanceID,
+					.ParentID = parentId,
+					.MeshPrimIdx = primIdx,
+					.RtMeshMode = RT_MESH_MODE::STATIC,
+					.RtInstanceMask = rtInsMask };
 
 				SceneCore& scene = App::GetScene();
 				scene.AddInstance(sceneID, ZetaMove(desc));
@@ -613,7 +613,6 @@ namespace
 	}
 }
 
-// TODO change the relative path
 void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 {
 	// parse json
@@ -728,7 +727,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 	for (size_t i = 0; i < imgNumThreads; i++)
 	{
 		StackStr(tname, n, "gltf::ProcessImg_%d", i);
-		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index/");
+		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index.");
 
 		imgTasks[i] = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
 			{

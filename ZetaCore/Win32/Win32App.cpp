@@ -27,6 +27,8 @@
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>
 
+#include <Uxtheme.h>	// for HTHEME
+
 using namespace ZetaRay::App;
 using namespace ZetaRay::App::Common;
 using namespace ZetaRay::Core;
@@ -55,6 +57,67 @@ namespace
 		ZetaRay::Support::ParamVariant P;
 		OP_TYPE Op;
 	};
+
+	// Ref: https://github.com/ysc3839/win32-darkmode
+	enum PreferredAppMode
+	{
+		Default,
+		AllowDark,
+		ForceDark,
+		ForceLight,
+		Max
+	};
+
+	enum WINDOWCOMPOSITIONATTRIB
+	{
+		WCA_UNDEFINED = 0,
+		WCA_NCRENDERING_ENABLED = 1,
+		WCA_NCRENDERING_POLICY = 2,
+		WCA_TRANSITIONS_FORCEDISABLED = 3,
+		WCA_ALLOW_NCPAINT = 4,
+		WCA_CAPTION_BUTTON_BOUNDS = 5,
+		WCA_NONCLIENT_RTL_LAYOUT = 6,
+		WCA_FORCE_ICONIC_REPRESENTATION = 7,
+		WCA_EXTENDED_FRAME_BOUNDS = 8,
+		WCA_HAS_ICONIC_BITMAP = 9,
+		WCA_THEME_ATTRIBUTES = 10,
+		WCA_NCRENDERING_EXILED = 11,
+		WCA_NCADORNMENTINFO = 12,
+		WCA_EXCLUDED_FROM_LIVEPREVIEW = 13,
+		WCA_VIDEO_OVERLAY_ACTIVE = 14,
+		WCA_FORCE_ACTIVEWINDOW_APPEARANCE = 15,
+		WCA_DISALLOW_PEEK = 16,
+		WCA_CLOAK = 17,
+		WCA_CLOAKED = 18,
+		WCA_ACCENT_POLICY = 19,
+		WCA_FREEZE_REPRESENTATION = 20,
+		WCA_EVER_UNCLOAKED = 21,
+		WCA_VISUAL_OWNER = 22,
+		WCA_HOLOGRAPHIC = 23,
+		WCA_EXCLUDED_FROM_DDA = 24,
+		WCA_PASSIVEUPDATEMODE = 25,
+		WCA_USEDARKMODECOLORS = 26,
+		WCA_LAST = 27
+	};
+
+	struct WINDOWCOMPOSITIONATTRIBDATA
+	{
+		WINDOWCOMPOSITIONATTRIB Attrib;
+		PVOID pvData;
+		SIZE_T cbData;
+	};
+
+	using fnSetWindowCompositionAttribute = BOOL(WINAPI*)(HWND hWnd, WINDOWCOMPOSITIONATTRIBDATA*);
+	// 1809 17763
+	using fnShouldAppsUseDarkMode = bool (WINAPI*)(); // ordinal 132
+	using fnAllowDarkModeForWindow = bool (WINAPI*)(HWND hWnd, bool allow); // ordinal 133
+	using fnRefreshImmersiveColorPolicyState = void (WINAPI*)(); // ordinal 104
+	using fnIsDarkModeAllowedForWindow = bool (WINAPI*)(HWND hWnd); // ordinal 137
+	using fnOpenNcThemeData = HTHEME(WINAPI*)(HWND hWnd, LPCWSTR pszClassList); // ordinal 49
+	// 1903 18362
+	using fnShouldSystemUseDarkMode = bool (WINAPI*)(); // ordinal 138
+	using fnSetPreferredAppMode = PreferredAppMode(WINAPI*)(PreferredAppMode appMode); // ordinal 135, in 1903
+	using fnIsDarkModeAllowedForApp = bool (WINAPI*)(); // ordinal 139
 }
 
 namespace
@@ -303,6 +366,7 @@ namespace ZetaRay::AppImpl
 		ImVec4* colors = style.Colors;
 
 		colors[ImGuiCol_WindowBg] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 1.0f);
+		colors[ImGuiCol_Border] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 0.0f);
 		//colors[ImGuiCol_TitleBgActive] = (ImVec4)ImColor::HSV(5 / 7.0f, 0.7f, 0.5f);
 		//colors[ImGuiCol_TitleBgActive] = ImVec4(4 / 255.0f, 4 / 255.0f, 4 / 255.0f, 1.0f);
 		colors[ImGuiCol_TitleBg] = ImVec4(26 / 255.0f, 26 / 255.0f, 26 / 255.0f, 1.0f);
@@ -739,10 +803,73 @@ namespace ZetaRay::AppImpl
 		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
+	// Ref: https://github.com/ysc3839/win32-darkmode
+	bool TryInitDarkMode(HMODULE* uxthemeLib) noexcept
+	{
+		bool darkModeEnabled = false;
+
+		*uxthemeLib = LoadLibraryExA("uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+		if (*uxthemeLib)
+		{
+			fnOpenNcThemeData openNcThemeData = reinterpret_cast<fnOpenNcThemeData>(GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(49)));
+			fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState = reinterpret_cast<fnRefreshImmersiveColorPolicyState>(
+				GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(104)));
+			fnShouldAppsUseDarkMode shouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(
+				GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(132)));
+			fnAllowDarkModeForWindow allowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(
+				GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(133)));
+
+			auto ord135 = GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(135));
+			fnSetPreferredAppMode setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(ord135);
+
+			fnIsDarkModeAllowedForWindow isDarkModeAllowedForWindow = reinterpret_cast<fnIsDarkModeAllowedForWindow>(
+				GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(137)));
+
+			if (openNcThemeData &&
+				refreshImmersiveColorPolicyState &&
+				shouldAppsUseDarkMode &&
+				allowDarkModeForWindow &&
+				setPreferredAppMode &&
+				isDarkModeAllowedForWindow)
+			{
+				setPreferredAppMode(PreferredAppMode::AllowDark);
+
+				refreshImmersiveColorPolicyState();
+
+				bool isHighContrast = false;
+				HIGHCONTRASTW highContrast = { sizeof(highContrast) };
+				if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(highContrast), &highContrast, FALSE))
+					isHighContrast = highContrast.dwFlags & HCF_HIGHCONTRASTON;
+
+				darkModeEnabled = shouldAppsUseDarkMode() && !isHighContrast;
+			}
+		}
+
+		return darkModeEnabled;
+	}
+
 	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
 	{
 		switch (message)
 		{
+		case WM_CREATE:
+		{
+			HMODULE uxthemeLib = nullptr;
+			BOOL dark = TryInitDarkMode(&uxthemeLib);
+
+			fnSetWindowCompositionAttribute setWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(
+				GetProcAddress(GetModuleHandleA("user32.dll"), "SetWindowCompositionAttribute"));
+			if (setWindowCompositionAttribute)
+			{
+				WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
+				setWindowCompositionAttribute(hWnd, &data);
+			}
+
+			FreeLibrary(uxthemeLib);
+		}
+
+			return 0;
+
 		case WM_ACTIVATEAPP:
 			if (wParam && !g_app->m_manuallyPaused)
 				AppImpl::OnActivated();

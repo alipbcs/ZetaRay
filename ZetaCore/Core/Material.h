@@ -17,8 +17,8 @@ namespace ZetaRay
         // "BLEND" The alpha value is used to composite the source and destination areas
         enum class ALPHA_MODE : uint8_t
         {
-            // OPAQUE is defined in wingdi.h!
-            OPAQUE = 0,
+            // "OPAQUE" is defined in wingdi.h!
+            OPAQUE_ = 0,
             MASK,
             BLEND,
             COUNT
