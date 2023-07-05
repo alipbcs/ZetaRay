@@ -12,16 +12,13 @@ namespace ZetaRay::Model::glTF::Asset
 {
 	struct MeshSubset
 	{
-		MeshSubset(Support::ThreadSafeMemoryArena& arena) noexcept
-			: Vertices(arena),
-			Indices(arena)
-		{}
-
-		Util::SmallVector<Core::Vertex, Support::ThreadSafeArenaAllocator> Vertices;
-		Util::SmallVector<uint32_t, Support::ThreadSafeArenaAllocator> Indices;
 		int MaterialIdx;
 		int MeshIdx;
 		int MeshPrimIdx;
+		uint32_t BaseVtxOffset;
+		uint32_t BaseIdxOffset;
+		uint32_t NumVertices;
+		uint32_t NumIndices;
 	};
 
 	struct InstanceDesc

@@ -19,22 +19,6 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
-	{
-		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
-		uint64_t meshFromSceneID = XXH3_64bits(str, n);
-
-		return meshFromSceneID;
-	}
-
-	ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
-	{
-		StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
-		uint64_t matFromSceneID = XXH3_64bits(str, n);
-
-		return matFromSceneID;
-	}
-
 	// performs binary search, so assumes input is sorted
 	ZetaInline int FindImage(uint64_t key, int beg, int end, Span<DDSImage> images) noexcept
 	{
@@ -239,17 +223,11 @@ void SceneCore::ReserveMeshData(size_t numVertices, size_t numIndices) noexcept
 	m_meshes.Reserve(numVertices, numIndices);
 }
 
-void SceneCore::AddMesh(uint64_t sceneID, glTF::Asset::MeshSubset&& mesh) noexcept
+void SceneCore::AddMeshes(uint64_t sceneID, SmallVector<Model::glTF::Asset::MeshSubset>&& meshes,
+	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
 {
-	const uint64_t meshFromSceneID = MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
-	const uint64_t matFromSceneID = mesh.MaterialIdx != -1 ? MaterialID(sceneID, mesh.MaterialIdx) : DEFAULT_MATERIAL;
-
 	AcquireSRWLockExclusive(&m_meshLock);
-
-	// remember from which gltf scene this mesh came from
-	//m_sceneMetadata[sceneID].Meshes.push_back(meshFromSceneID);
-	m_meshes.Add(meshFromSceneID, mesh.Vertices, mesh.Indices, matFromSceneID);
-
+	m_meshes.AddBatch(sceneID, ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 

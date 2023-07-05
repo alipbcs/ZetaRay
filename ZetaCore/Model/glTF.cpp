@@ -72,16 +72,8 @@ namespace
 		}                                                                                                                         \
 	}
 #endif
-
-	uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
-	{
-		StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
-		uint64_t meshFromSceneID = XXH3_64bits(str, n);
-
-		return meshFromSceneID;
-	}
 	
-	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
+	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -98,11 +90,11 @@ namespace
 			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[i].Position = float3(curr->x, curr->y, -curr->z);
+			vertices[baseOffset + i].Position = float3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
+	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for NORMAL attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -119,11 +111,11 @@ namespace
 			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[i].Normal = half3(curr->x, curr->y, -curr->z);
+			vertices[baseOffset + i].Normal = half3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
+	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
 	{
 		Check(accessor.type == cgltf_type_vec2, "Invalid type for TEXCOORD_0 attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -138,11 +130,11 @@ namespace
 		for (size_t i = 0; i < accessor.count; i++)
 		{
 			const float2* curr = start + i;
-			vertices[i].TexUV = float2(curr->x, curr->y);
+			vertices[baseOffset + i].TexUV = float2(curr->x, curr->y);
 		}
 	}
 
-	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices) noexcept
+	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
 	{
 		Check(accessor.type == cgltf_type_vec4, "Invalid type for TANGENT attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -158,26 +150,24 @@ namespace
 			const float4* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[i].Tangent = half3(curr->x, curr->y, -curr->z);
+			vertices[baseOffset + i].Tangent = half3(curr->x, curr->y, -curr->z);
 		}
 	}
 
-	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, 
-		Vector<uint32_t, Support::ThreadSafeArenaAllocator>& indices) noexcept
+	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Span<uint32_t> indices, uint32_t baseOffset) noexcept
 	{
 		Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
 		Check(accessor.stride != -1, "Invalid index stride.");
 		Check(accessor.count % 3 == 0, "invalid number of indices");
 
 		const cgltf_buffer_view& bufferView = *accessor.buffer_view;
-		indices.reserve(accessor.count);
-		
 		const cgltf_buffer& buffer = *bufferView.buffer;
 
 		// populate the mesh indices
 		uint8_t* curr = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
 		const size_t numFaces = accessor.count / 3;
 		const size_t indexStrideInBytes = accessor.stride;
+		size_t currIdxOffset = 0;
 
 		for (size_t face = 0; face < numFaces; face++)
 		{
@@ -193,32 +183,78 @@ namespace
 			curr += indexStrideInBytes;
 
 			// use a clockwise ordering
-			indices.push_back(i0);
-			indices.push_back(i2);
-			indices.push_back(i1);
+			indices[baseOffset + currIdxOffset++] = i0;
+			indices[baseOffset + currIdxOffset++] = i2;
+			indices[baseOffset + currIdxOffset++] = i1;
 		}
 	}
 
-	void ProcessMeshes(uint64_t sceneID, const cgltf_data& model, size_t offset, size_t size, ThreadSafeMemoryArena& arena) noexcept
+	void ProcessMeshes(const cgltf_data& model, size_t offset, size_t size, 
+		Span<Vertex> vertices, std::atomic_uint32_t& vertexCounter,
+		Span<uint32_t> indices, std::atomic_uint32_t& idxCounter,
+		Span<MeshSubset> meshPrims, std::atomic_uint32_t& meshPrimCounter) noexcept
 	{
 		SceneCore& scene = App::GetScene();
 
+		uint32_t totalMeshPrims = 0;
+		uint32_t totalVertices = 0;
+		uint32_t totalIndices = 0;
+
+		// figure out total number of mesh prims, vertices and indices
 		for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
 		{
 			Assert(meshIdx < model.meshes_count, "out-of-bound access");
+			const cgltf_mesh& mesh = model.meshes[meshIdx];
+
+			for (int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
+			{
+				const cgltf_primitive& prim = mesh.primitives[primIdx];
+
+				Check(prim.indices->count > 0, "index buffer is required.");
+				Check(prim.type == cgltf_primitive_type_triangles, "Non-triangle meshes are not supported.");
+
+				int posIt = -1;
+
+				for (int attrib = 0; attrib < prim.attributes_count; attrib++)
+				{
+					if (strcmp(prim.attributes[attrib].name, "POSITION") == 0)
+					{
+						posIt = attrib;
+						break;
+					}
+				}
+
+				Check(posIt != -1, "POSITION was not found in the vertex attributes.");
+
+				const cgltf_accessor& accessor = *prim.attributes[posIt].data;
+				const uint32_t numVertices = (uint32_t)accessor.count;
+				totalVertices += numVertices;
+
+				const uint32_t numIndices = (uint32_t)prim.indices->count;
+				totalIndices += numIndices;
+			}
+
+			totalMeshPrims += (uint32_t)mesh.primitives_count;
+		}
+
+		// (sub)allocate
+		const uint32_t workerBaseVtx = vertexCounter.fetch_add(totalVertices, std::memory_order_relaxed);
+		const uint32_t workerBaseIdx = idxCounter.fetch_add(totalIndices, std::memory_order_relaxed);
+		const uint32_t workerBaseMeshPrim = meshPrimCounter.fetch_add(totalMeshPrims, std::memory_order_relaxed);
+
+		uint32_t currVtxOffset = workerBaseVtx;
+		uint32_t currIdxOffset = workerBaseIdx;
+		uint32_t currMeshPrimOffset = workerBaseMeshPrim;
+
+		// now iterate again and populate the buffers
+		for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
+		{
 			const cgltf_mesh& mesh = model.meshes[meshIdx];
 
 			// fill in the subsets
 			for (int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
 			{
 				const cgltf_primitive& prim = mesh.primitives[primIdx];
-
-				glTF::Asset::MeshSubset subset(arena);
-				subset.MeshIdx = (int)meshIdx;
-				subset.MeshPrimIdx = primIdx;
-
-				Check(prim.indices->count > 0, "index buffer is required.");
-				Check(prim.type == cgltf_primitive_type_triangles, "Non-triangle meshes are not supported.");
 				
 				int posIt = -1;
 				int normalIt = -1;
@@ -237,37 +273,54 @@ namespace
 						tangentIt = attrib;
 				}
 				
-				Check(posIt != -1, "POSITION was not found in the vertex attributes.");
 				Check(normalIt != -1, "NORMAL was not found in the vertex attributes.");
 
 				// populate the vertex attributes
 				const cgltf_accessor& accessor = *prim.attributes[posIt].data;
-				subset.Vertices.resize(accessor.count);
+				const uint32_t numVertices = (uint32_t)accessor.count;
+
+				const cgltf_buffer_view& bufferView = *prim.indices->buffer_view;
+				const uint32_t numIndices = (uint32_t)prim.indices->count;
 
 				// POSITION
-				ProcessPositions(model, *prim.attributes[posIt].data, subset.Vertices);
+				ProcessPositions(model, *prim.attributes[posIt].data, vertices, currVtxOffset);
 
 				// NORMAL
-				ProcessNormals(model, *prim.attributes[normalIt].data, subset.Vertices);
+				ProcessNormals(model, *prim.attributes[normalIt].data, vertices, currVtxOffset);
 
 				// indices
-				ProcessIndices(model, *prim.indices, subset.Indices);
+				ProcessIndices(model, *prim.indices, indices, currIdxOffset);
 
 				// TEXCOORD_0
 				if (texIt != -1)
 				{
-					ProcessTexCoords(model, *prim.attributes[texIt].data, subset.Vertices);
+					ProcessTexCoords(model, *prim.attributes[texIt].data, vertices, currVtxOffset);
 
 					// if vertex tangents aren't present, compute them. Make sure the computation happens after 
 					// vertex & index processing
 					if (tangentIt != -1)
-						ProcessTangents(model, *prim.attributes[tangentIt].data, subset.Vertices);
+						ProcessTangents(model, *prim.attributes[tangentIt].data, vertices, currVtxOffset);
 					else
-						Math::ComputeMeshTangentVectors(subset.Vertices, subset.Indices, false);
+					{
+						Math::ComputeMeshTangentVectors(Span(vertices.begin() + currVtxOffset, numVertices),
+							Span(indices.begin() + currIdxOffset, numIndices),
+							false);
+					}
 				}
 
-				subset.MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1;
-				scene.AddMesh(sceneID, ZetaMove(subset));
+				meshPrims[currMeshPrimOffset++] = MeshSubset
+				{
+					.MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
+					.MeshIdx = (int)meshIdx,
+					.MeshPrimIdx = primIdx,
+					.BaseVtxOffset = currVtxOffset,
+					.BaseIdxOffset = currIdxOffset,
+					.NumVertices = numVertices,
+					.NumIndices = numIndices
+				};
+
+				currVtxOffset += numVertices;
+				currIdxOffset += numIndices;
 			}
 		}
 	}
@@ -580,14 +633,16 @@ namespace
 		}
 	}
 
-	void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices) noexcept
+	void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices, size_t& numMeshes) noexcept
 	{
 		numVertices = 0;
 		numIndices = 0;
+		numMeshes = 0;
 
 		for (size_t meshIdx = 0; meshIdx != model->meshes_count; meshIdx++)
 		{
 			const auto& mesh = model->meshes[meshIdx];
+			numMeshes += mesh.primitives_count;
 
 			for(size_t primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
 			{
@@ -633,22 +688,24 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 	const uint64_t sceneID = XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length());
 	SceneCore& scene = App::GetScene();
 
-	// one mesh for each primitive
-	size_t numMeshes = 0;
-	for (size_t i = 0; i < model->meshes_count; i++)
-		numMeshes += model->meshes[i].primitives_count;
-
-	scene.ReserveScene(sceneID, numMeshes, model->materials_count, model->nodes_count);
+	// all the unique textures that need to be loaded from disk
+	SmallVector<DDSImage> ddsImages;
+	ddsImages.resize(model->images_count);
 
 	// figure out total number of vertices & indices
 	size_t totalNumVertices;
 	size_t totalNumIndices;
-	TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices);
-	scene.ReserveMeshData(totalNumVertices, totalNumIndices);
+	size_t totalNumMeshPrims;
+	TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices, totalNumMeshPrims);
 
-	// figure out all the unique textures that need to be loaded from disk
-	SmallVector<DDSImage> ddsImages;
-	ddsImages.resize(model->images_count);
+	// preallocate
+	Util::SmallVector<Core::Vertex> vertices;
+	Util::SmallVector<uint32_t> indices;
+	Util::SmallVector<MeshSubset> meshPrims;
+
+	vertices.resize(totalNumVertices);
+	indices.resize(totalNumIndices);
+	meshPrims.resize(totalNumMeshPrims);
 
 	// how many meshes are processed by each worker
 	constexpr size_t MAX_NUM_MESH_WORKERS = 4;
@@ -675,7 +732,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 		MIN_IMAGES_PER_WORKER);
 
 	// how many materials are processed by each worker
-	constexpr size_t MAX_NUM_MAT_WORKERS = 2;
+	constexpr size_t MAX_NUM_MAT_WORKERS = 1;
 	constexpr size_t MIN_MATS_PER_WORKER = 20;
 	size_t matThreadOffsets[MAX_NUM_MAT_WORKERS];
 	size_t matThreadSizes[MAX_NUM_MAT_WORKERS];
@@ -686,11 +743,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 		matThreadSizes,
 		MIN_MATS_PER_WORKER);
 
-	const auto bufferSizeInBytes = Filesystem::GetFileSize(bufferPath.Get());
-	const auto avgMemPerWorker = Math::CeilUnsignedIntDiv(bufferSizeInBytes, App::GetNumWorkerThreads());
-	auto avgMemPerWorkerMB = Math::CeilUnsignedIntDiv(avgMemPerWorker, 1024 * 1024);
-	avgMemPerWorkerMB = Math::NextPow2(avgMemPerWorkerMB);
-	ThreadSafeMemoryArena arena(avgMemPerWorkerMB * 1024 * 1024);
+	std::atomic_uint32_t currVtxOffset = 0;
+	std::atomic_uint32_t currIdxOffset = 0;
+	std::atomic_uint32_t currMeshPrimOffset = 0;
 
 	struct ThreadContext
 	{
@@ -702,43 +757,49 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 		size_t* MatThreadSizes;
 		size_t* ImgThreadOffsets;
 		size_t* ImgThreadSizes;
-		ThreadSafeMemoryArena* Arena;
+		Span<Vertex> Vertices;
+		std::atomic_uint32_t& CurrVtxOffset;
+		Span<uint32_t> Indices;
+		std::atomic_uint32_t& CurrIdxOffset;
+		Span<MeshSubset> MeshPrims;
+		std::atomic_uint32_t& CurrMeshPrimOffset;
 	};
 
 	ThreadContext tc{ .SceneID = sceneID, .Model = model,
 		.MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
 		.MatThreadOffsets = matThreadOffsets, .MatThreadSizes = matThreadSizes,
 		.ImgThreadOffsets = imgThreadOffsets, .ImgThreadSizes = imgThreadSizes,
-		.Arena = &arena};
+		.Vertices = vertices,
+		.CurrVtxOffset = currVtxOffset,
+		.Indices = indices,
+		.CurrIdxOffset = currIdxOffset,
+		.MeshPrims = meshPrims,
+		.CurrMeshPrimOffset = currMeshPrimOffset };
 
 	TaskSet ts;
+
+	auto addMeshesToScene = ts.EmplaceTask("AddMeshesToScene", [&meshPrims, &vertices, &indices, sceneID]()
+		{
+			SceneCore& scene = App::GetScene();
+			scene.AddMeshes(sceneID, ZetaMove(meshPrims), ZetaMove(vertices), ZetaMove(indices));
+		});
 
 	for (size_t i = 0; i < meshNumThreads; i++)
 	{
 		StackStr(tname, n, "gltf::ProcessMesh_%d", i);
 
-		ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
+		auto h = ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
 			{
-				ProcessMeshes(tc.SceneID, *tc.Model, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx], *tc.Arena);
+				ProcessMeshes(*tc.Model, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx], 
+					tc.Vertices, tc.CurrVtxOffset, 
+					tc.Indices, tc.CurrIdxOffset,
+					tc.MeshPrims, tc.CurrMeshPrimOffset);
 			});
+
+		ts.AddOutgoingEdge(h, addMeshesToScene);
 	}
 
-	TaskSet::TaskHandle imgTasks[MAX_NUM_IMAGE_WORKERS];
-	for (size_t i = 0; i < imgNumThreads; i++)
-	{
-		StackStr(tname, n, "gltf::ProcessImg_%d", i);
-		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index.");
-
-		imgTasks[i] = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
-			{
-				Filesystem::Path parent(pathToglTF.GetView());
-				parent.ToParent();
-
-				LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
-			});
-	}
-
-	TaskSet::TaskHandle sortTask = ts.EmplaceTask("gltf::Sort", [&ddsImages]()
+	auto sortTask = ts.EmplaceTask("gltf::Sort", [&ddsImages]()
 		{
 			std::sort(ddsImages.begin(), ddsImages.end(), [](const DDSImage& lhs, const DDSImage& rhs)
 				{
@@ -746,9 +807,22 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
 				});
 		});
 
-	// sort after all images are loaded
 	for (size_t i = 0; i < imgNumThreads; i++)
-		ts.AddOutgoingEdge(imgTasks[i], sortTask);
+	{
+		StackStr(tname, n, "gltf::ProcessImg_%d", i);
+		Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index.");
+
+		auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
+			{
+				Filesystem::Path parent(pathToglTF.GetView());
+				parent.ToParent();
+
+				LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
+			});
+
+		// sort after all images are loaded
+		ts.AddOutgoingEdge(h, sortTask);
+	}
 
 	for (size_t i = 0; i < matNumThreads; i++)
 	{

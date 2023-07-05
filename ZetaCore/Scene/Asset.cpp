@@ -6,11 +6,15 @@
 #include "../Core/SharedShaderResources.h"
 #include "../App/Filesystem.h"
 #include "SceneRenderer.h"
+#include "SceneCore.h"
+#include "../Model/glTFAsset.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Scene::Internal;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
+using namespace ZetaRay::Math;
+using namespace ZetaRay::Model;
 
 //--------------------------------------------------------------------------------------
 // TexSRVDescriptorTable
@@ -242,10 +246,39 @@ void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indic
 	const size_t vtxOffset = m_vertices.size();
 	const size_t idxOffset = m_indices.size();
 
-	m_meshes.emplace(id, ZetaMove(vertices), vtxOffset, idxOffset, (uint32_t)indices.size(), matID);
+	m_meshes.emplace(id, vertices, vtxOffset, idxOffset, (uint32_t)indices.size(), matID);
 
 	m_vertices.append_range(vertices.begin(), vertices.end());
 	m_indices.append_range(indices.begin(), indices.end());
+}
+
+void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::MeshSubset>&& meshes, 
+	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
+{
+	const size_t vtxOffset = m_vertices.size();
+	const size_t idxOffset = m_indices.size();
+
+	for (auto& mesh : meshes)
+	{
+		const uint64_t meshFromSceneID = SceneCore::MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
+		const uint64_t matFromSceneID = mesh.MaterialIdx != -1 ? SceneCore::MaterialID(sceneID, mesh.MaterialIdx) : SceneCore::DEFAULT_MATERIAL;
+
+		m_meshes.emplace(meshFromSceneID, Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices), 
+			vtxOffset + mesh.BaseVtxOffset,
+			idxOffset + mesh.BaseIdxOffset,
+			mesh.NumIndices, 
+			matFromSceneID);
+	}
+
+	if (m_vertices.empty())
+		m_vertices = ZetaMove(vertices);
+	else
+		m_vertices.append_range(vertices.begin(), vertices.end());
+
+	if (m_indices.empty())
+		m_indices = ZetaMove(indices);
+	else
+		m_indices.append_range(indices.begin(), indices.end());
 }
 
 void MeshContainer::Reserve(size_t numVertices, size_t numIndices) noexcept

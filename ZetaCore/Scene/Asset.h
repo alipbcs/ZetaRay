@@ -5,6 +5,7 @@
 #include "../Utility/HashTable.h"
 #include "../Core/DescriptorHeap.h"
 #include "../Core/GpuMemory.h"
+#include "../Model/glTFAsset.h"
 
 namespace ZetaRay::App::Filesystem
 {
@@ -130,6 +131,8 @@ namespace ZetaRay::Scene::Internal
 	struct MeshContainer
 	{
 		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID) noexcept;
+		void AddBatch(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::MeshSubset>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
+			Util::SmallVector<uint32_t>&& indices) noexcept;
 		void Reserve(size_t numVertices, size_t numIndices) noexcept;
 		void RebuildBuffers() noexcept;
 		

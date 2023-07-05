@@ -52,8 +52,9 @@ namespace ZetaRay::Scene
 		friend struct RT::TLAS;
 
 	public:
-		static const uint64_t ROOT_ID = uint64_t(-1);
-		static const uint64_t NULL_MESH = uint64_t(-1);
+		static constexpr uint64_t ROOT_ID = uint64_t(-1);
+		static constexpr uint64_t NULL_MESH = uint64_t(-1);
+		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
 
 		static ZetaInline uint64_t InstanceID(uint64_t sceneID, const char* name, int meshIdx, int meshPrimIdx) noexcept
 		{
@@ -62,6 +63,22 @@ namespace ZetaRay::Scene
 			uint64_t instanceFromSceneID = XXH3_64bits(str, n);
 
 			return instanceFromSceneID;
+		}
+
+		static ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
+		{
+			StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
+			uint64_t matFromSceneID = XXH3_64bits(str, n);
+
+			return matFromSceneID;
+		}
+
+		static ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
+		{
+			StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
+			uint64_t meshFromSceneID = XXH3_64bits(str, n);
+
+			return meshFromSceneID;
 		}
 
 		SceneCore() noexcept;
@@ -87,7 +104,9 @@ namespace ZetaRay::Scene
 		//
 		// Mesh
 		//
-		void AddMesh(uint64_t sceneID, Model::glTF::Asset::MeshSubset&& mesh) noexcept;
+		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::MeshSubset>&& meshes,
+			Util::SmallVector<Core::Vertex>&& vertices,
+			Util::SmallVector<uint32_t>&& indices) noexcept;
 		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept
 		{
 			AcquireSRWLockShared(&m_meshLock);
@@ -171,7 +190,6 @@ namespace ZetaRay::Scene
 		static constexpr uint32_t NORMAL_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t METALNESS_ROUGHNESS_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t EMISSIVE_DESC_TABLE_SIZE = 64;
-		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
 
 		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
 		// by order of declaration and destroyed in reverse order"
