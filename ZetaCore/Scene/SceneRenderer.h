@@ -17,7 +17,7 @@ namespace ZetaRay::Scene::GlobalResource
 	inline static constexpr const char* FRAME_CONSTANTS_BUFFER_NAME = "FrameConstants";
 	//inline static constexpr const char* ANALYTICAL_LIGHTS_BUFFER_NAME = "AnalyticalLightsBuffer";
 	//inline static constexpr const char* ANALYTICAL_LIGHTS_ALIAS_TABLE_BUFFER_NAME = "LightManager/AnalyticalLightsAliasTable";
-	//inline static constexpr const char* EMISSIVE_TRIANGLES_BUFFER_NAME = "LightManager/EmissiveTrianglesBuffer";
+	inline static constexpr const char* EMISSIVE_TRIANGLE_BUFFER = "EmissiveTriangles";
 	//inline static constexpr const char* EMISSIVE_TRIANGLES_ALIAS_TABLE_BUFFER_NAME = "LightManager/EmissiveTrianglesAliasTable";
 	inline static constexpr const char* RT_SCENE_BVH = "RayTracer/SceneBVH";
 	inline static constexpr const char* SCENE_VERTEX_BUFFER = "SceneVB";

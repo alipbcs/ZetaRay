@@ -10,7 +10,7 @@
 
 namespace ZetaRay::Model::glTF::Asset
 {
-	struct MeshSubset
+	struct Mesh
 	{
 		int MaterialIdx;
 		int MeshIdx;
@@ -19,6 +19,13 @@ namespace ZetaRay::Model::glTF::Asset
 		uint32_t BaseIdxOffset;
 		uint32_t NumVertices;
 		uint32_t NumIndices;
+	};
+
+	struct EmissiveInstance
+	{
+		uint64_t InstanceID;
+		uint32_t BaseTriOffset;
+		uint32_t NumTriangles;
 	};
 
 	struct InstanceDesc

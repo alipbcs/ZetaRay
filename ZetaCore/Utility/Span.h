@@ -36,9 +36,9 @@ namespace ZetaRay::Util
 		{
 		}
 
-		ZetaInline bool empty() noexcept
+		ZetaInline bool empty() const noexcept
 		{
-			return m_ptr == nullptr;
+			return m_ptr == nullptr || m_size == 0;;
 		}
 
 		ZetaInline T* begin() noexcept

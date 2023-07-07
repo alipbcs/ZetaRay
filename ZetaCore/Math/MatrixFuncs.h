@@ -742,7 +742,7 @@ namespace ZetaRay::Math
 		return (r1 & r2) == 0xff;
 	}
 
-	ZetaInline v_float4x4 __vectorcall load(float4x4a M) noexcept
+	ZetaInline v_float4x4 __vectorcall load4x4(float4x4a M) noexcept
 	{
 		v_float4x4 vM;
 
@@ -754,7 +754,7 @@ namespace ZetaRay::Math
 		return vM;
 	}
 
-	ZetaInline v_float4x4 __vectorcall load(float4x3 M) noexcept
+	ZetaInline v_float4x4 __vectorcall load4x3(float4x3 M) noexcept
 	{
 		v_float4x4 vM;
 		float4x4a temp(M);

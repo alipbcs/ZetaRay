@@ -17,7 +17,7 @@ TEST_CASE("3x3 Determinant")
 		float3(0, -0.999999940, -1.19209290e-07),
 		float3(0, 0, 1));
 
-	v_float4x4 vM = load(M);
+	v_float4x4 vM = load4x3(M);
 	auto det = det3x3(vM);
 	auto d = store(det);
 

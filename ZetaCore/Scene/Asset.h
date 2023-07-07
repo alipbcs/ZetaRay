@@ -6,6 +6,7 @@
 #include "../Core/DescriptorHeap.h"
 #include "../Core/GpuMemory.h"
 #include "../Model/glTFAsset.h"
+#include "../RayTracing/RtCommon.h"
 
 namespace ZetaRay::App::Filesystem
 {
@@ -87,15 +88,17 @@ namespace ZetaRay::Scene::Internal
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		// returns a copy since references to elements are not stable
-		ZetaInline Material Get(uint64_t id) noexcept
+		ZetaInline bool Get(uint64_t id, Material& mat) noexcept
 		{
 			Material* m = m_matTable.find(id);
-			Assert(m, "material with id %llu was not found", id);
 
-			if (!m)
-				return Material();
+			if (m)
+			{
+				mat = *m;
+				return true;
+			}
 
-			return *m;
+			return false;
 		}
 
 		void Recycle(uint64_t completedFenceVal) noexcept;
@@ -131,7 +134,7 @@ namespace ZetaRay::Scene::Internal
 	struct MeshContainer
 	{
 		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID) noexcept;
-		void AddBatch(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::MeshSubset>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
+		void AddBatch(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices) noexcept;
 		void Reserve(size_t numVertices, size_t numIndices) noexcept;
 		void RebuildBuffers() noexcept;
@@ -156,5 +159,32 @@ namespace ZetaRay::Scene::Internal
 
 		Core::DefaultHeapBuffer m_vertexBuffer;
 		Core::DefaultHeapBuffer m_indexBuffer;
+	};
+
+	//--------------------------------------------------------------------------------------
+	// EmissiveBuffer
+	//--------------------------------------------------------------------------------------
+
+	struct EmissiveBuffer
+	{
+		EmissiveBuffer() noexcept = default;
+		~EmissiveBuffer() noexcept = default;
+
+		EmissiveBuffer(const EmissiveBuffer&) = delete;
+		MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
+
+		void Clear() noexcept;
+		bool IsStale() noexcept { return !m_emissivesTrisCpu.empty(); };
+		void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
+			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
+		void RebuildBuffers() noexcept;
+
+		Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
+		Util::Span<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
+
+	private:
+		Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;
+		Util::SmallVector<RT::EmissiveTriangle> m_emissivesTrisCpu;
+		Core::DefaultHeapBuffer m_emissiveTrisGpu;
 	};
 }

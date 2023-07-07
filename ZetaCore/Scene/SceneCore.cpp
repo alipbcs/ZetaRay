@@ -114,7 +114,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 	if (m_isPaused)
 		return;
 
-	TaskSet::TaskHandle h0 = sceneTS.EmplaceTask("Scene::Update", [this, dt]()
+	auto updateWorldTransforms = sceneTS.EmplaceTask("Scene::UpdateWorldTransform", [this, dt]()
 		{
 			SmallVector<AnimationUpdateOut, App::FrameAllocator> animUpdates;
 			UpdateAnimations((float)dt, animUpdates);
@@ -130,7 +130,10 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			}
 			else
 				m_bvh.Update(toUpdateInstances);
+		});
 
+	auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
+		{
 			//m_frameInstances.clear();
 			m_frameInstances.free_memory();
 			m_frameInstances.reserve(m_IDtoTreePos.size());
@@ -141,6 +144,38 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
 		});
 
+	auto updateEmissives = sceneTS.EmplaceTask("Scene::Emissives", [this]()
+		{
+			auto emissvies = m_emissives.EmissiveInstances();
+			auto tris = m_emissives.EmissiveTriagnles();
+
+			// for every emissive instance, apply this frame's transformation to all of its triangles
+			for (auto e : emissvies)
+			{
+				const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
+
+				for (size_t i = e.BaseTriOffset; i < e.BaseTriOffset + e.NumTriangles; i++)
+				{
+					__m128 vV0;
+					__m128 vV1;
+					__m128 vV2;
+					tris[i].LoadVertices(vV0, vV1, vV2);
+
+					vV0 = mul(vW, vV0);
+					vV1 = mul(vW, vV1);
+					vV2 = mul(vW, vV2);
+
+					tris[i].StoreVertices(vV0, vV1, vV2);
+				}
+			}
+
+			if(!emissvies.empty())
+				m_emissives.RebuildBuffers();
+		});
+
+	sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
+	sceneTS.AddOutgoingEdge(updateWorldTransforms, updateEmissives);
+
 	if (m_staleStaticInstances)
 	{
 		sceneTS.EmplaceTask("Scene::RebuildMeshBuffers", [this]()
@@ -148,7 +183,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 				m_meshes.RebuildBuffers();
 			});
 	}
-	
+
 	m_matBuffer.UpdateGPUBufferIfStale();
 
 	m_rendererInterface.Update(sceneRendererTS);
@@ -195,6 +230,7 @@ void SceneCore::Shutdown() noexcept
 	m_metalnessRoughnessDescTable.Clear();
 	m_emissiveDescTable.Clear();
 	m_meshes.Clear();
+	m_emissives.Clear();
 	m_bvh.Clear();
 
 	m_baseColTableOffsetToID.free();
@@ -210,20 +246,7 @@ void SceneCore::Shutdown() noexcept
 	m_rendererInterface.Shutdown();
 }
 
-void SceneCore::ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, size_t numNodes) noexcept
-{
-	//auto& it = m_sceneMetadata[sceneID];
-	//it.MaterialIDs.reserve(numMats);
-	//it.Meshes.reserve(numMeshes);
-	//it.Instances.reserve(numNodes);
-}
-
-void SceneCore::ReserveMeshData(size_t numVertices, size_t numIndices) noexcept
-{
-	m_meshes.Reserve(numVertices, numIndices);
-}
-
-void SceneCore::AddMeshes(uint64_t sceneID, SmallVector<Model::glTF::Asset::MeshSubset>&& meshes,
+void SceneCore::AddMeshes(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
 {
 	AcquireSRWLockExclusive(&m_meshLock);
@@ -343,7 +366,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 
 	// update instance "dictionary"
 	{
-		Assert(m_IDtoTreePos.find(instance.ID) == nullptr, "instance with id %llu already existed.", instance.ID);
+		Assert(m_IDtoTreePos.find(instance.ID) == nullptr, "instance with id %llu already exists.", instance.ID);
 		//m_IDtoTreePos.emplace(instanceID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 		m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
@@ -482,6 +505,17 @@ float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
 	return float4x3(store(identity()));
 }
 
+void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
+	SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept
+{
+	if (emissiveTris.empty())
+		return;
+
+	AcquireSRWLockExclusive(&m_emissiveLock);
+	m_emissives.AddBatch(ZetaMove(emissiveInstances), ZetaMove(emissiveTris));
+	ReleaseSRWLockExclusive(&m_emissiveLock);
+}
+
 void SceneCore::RebuildBVH() noexcept
 {
 	SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
@@ -502,7 +536,7 @@ void SceneCore::RebuildBVH() noexcept
 				continue;
 
 			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
-			v_float4x4 vM = load(m_sceneGraph[level].m_toWorlds[i]);
+			v_float4x4 vM = load4x3(m_sceneGraph[level].m_toWorlds[i]);
 
 			// transform AABB to world space
 			vBox = transform(vM, vBox);
@@ -526,7 +560,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 	{
 		for (int i = 0; i < m_sceneGraph[level].m_subtreeRanges.size(); i++)
 		{
-			v_float4x4 vParentTransform = load(m_sceneGraph[level].m_toWorlds[i]);
+			v_float4x4 vParentTransform = load4x3(m_sceneGraph[level].m_toWorlds[i]);
 			const auto& range = m_sceneGraph[level].m_subtreeRanges[i];
 
 			for (int j = range.Base; j < range.Base + range.Count; j++)
@@ -534,7 +568,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 				AffineTransformation& tr = m_sceneGraph[level + 1].m_localTransforms[j];
 				v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
 				v_float4x4 newW = mul(vLocal, vParentTransform);
-				v_float4x4 prevW = load(m_sceneGraph[level + 1].m_toWorlds[j]);
+				v_float4x4 prevW = load4x3(m_sceneGraph[level + 1].m_toWorlds[j]);
 
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))
 				{

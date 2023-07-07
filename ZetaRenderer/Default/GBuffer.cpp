@@ -275,7 +275,9 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 				continue;
 
 			const TriangleMesh mesh = scene.GetMesh(meshID);
-			const Material mat = scene.GetMaterial(mesh.m_materialID);
+			Material mat;
+			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
+			Assert(found, "material with id %llu was not found", mesh.m_materialID);
 
 			gbuffInstances[currInstance].IndexCount = mesh.m_numIndices;
 			gbuffInstances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;

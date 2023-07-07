@@ -15,6 +15,7 @@ using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Model;
+using namespace ZetaRay::Model::glTF;
 
 //--------------------------------------------------------------------------------------
 // TexSRVDescriptorTable
@@ -252,7 +253,7 @@ void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indic
 	m_indices.append_range(indices.begin(), indices.end());
 }
 
-void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::MeshSubset>&& meshes, 
+void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh>&& meshes, 
 	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
 {
 	const size_t vtxOffset = m_vertices.size();
@@ -318,3 +319,44 @@ void MeshContainer::Clear() noexcept
 	m_indices.free_memory();
 }
 
+//--------------------------------------------------------------------------------------
+// EmissiveBuffer
+//--------------------------------------------------------------------------------------
+
+void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept
+{
+	if (m_emissivesTrisCpu.empty())
+	{
+		m_emissivesTrisCpu = ZetaMove(emissiveTris);
+		m_emissivesInstances = ZetaMove(emissiveInstances);
+	}
+	else
+	{
+		// todo implement
+		Check(false, "not supported yet.");
+	}
+}
+
+void EmissiveBuffer::RebuildBuffers() noexcept
+{
+	if (m_emissivesTrisCpu.empty())
+		return;
+
+	const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_emissivesTrisCpu.size();
+	m_emissiveTrisGpu = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, 
+		sizeInBytes,
+		D3D12_RESOURCE_STATE_COMMON, 
+		false, 
+		m_emissivesTrisCpu.data());
+
+	auto& r = App::GetRenderer().GetSharedShaderResources();
+	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_emissiveTrisGpu);
+
+	//m_emissivesTrisCpu.free_memory();
+}
+
+void EmissiveBuffer::Clear() noexcept
+{
+	m_emissiveTrisGpu.Reset();
+	//m_emissivesTrisCpu.free_memory();
+}

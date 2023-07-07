@@ -429,7 +429,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 	Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs)
 {
 	// transform view frustum from view space into world space
-	v_float4x4 vM = load(const_cast<float4x4a&>(viewToWorld));
+	v_float4x4 vM = load4x4(const_cast<float4x4a&>(viewToWorld));
 	v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
 	vFrustum = Math::transform(vM, vFrustum);
 
@@ -483,7 +483,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 	Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs)
 {
 	// transform view frustum from view space into world space
-	v_float4x4 vM = load(const_cast<float4x4a&>(viewToWorld));
+	v_float4x4 vM = load4x4(const_cast<float4x4a&>(viewToWorld));
 	v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
 	vFrustum = Math::transform(vM, vFrustum);
 

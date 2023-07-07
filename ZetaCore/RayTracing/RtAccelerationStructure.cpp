@@ -663,7 +663,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 
 	auto addTLASInstance = [&frameInstanceData, &currInstance](const TriangleMesh& mesh, const Material& mat, float4x3& M) noexcept
 	{
-		v_float4x4 vM = load(M);
+		v_float4x4 vM = load4x3(M);
 
 		// meshes in TLAS go through following transformations:
 		// 
@@ -708,7 +708,10 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 				continue;
 
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
-			const auto mat = scene.GetMaterial(mesh.m_materialID);
+			Material mat;
+			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
+			Assert(found, "material with id %llu was not found", mesh.m_materialID);
+
 			auto& M = currTreeLevel.m_toWorlds[i];
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode == RT_MESH_MODE::STATIC)
@@ -722,7 +725,10 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 				continue;
 
 			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
-			const auto mat = scene.GetMaterial(mesh.m_materialID);
+			Material mat;
+			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
+			Assert(found, "material with id %llu was not found", mesh.m_materialID);
+
 			auto& M = currTreeLevel.m_toWorlds[i];
 
 			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode != RT_MESH_MODE::STATIC)

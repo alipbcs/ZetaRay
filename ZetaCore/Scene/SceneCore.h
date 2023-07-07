@@ -56,10 +56,9 @@ namespace ZetaRay::Scene
 		static constexpr uint64_t NULL_MESH = uint64_t(-1);
 		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
 
-		static ZetaInline uint64_t InstanceID(uint64_t sceneID, const char* name, int meshIdx, int meshPrimIdx) noexcept
+		static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim) noexcept
 		{
-			uint64_t nameHash = XXH3_64bits(name, strlen(name));
-			StackStr(str, n, "instancee_%llu_%llu_%d_%d", sceneID, nameHash, meshIdx, meshPrimIdx);
+			StackStr(str, n, "instancee%d_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
 			uint64_t instanceFromSceneID = XXH3_64bits(str, n);
 
 			return instanceFromSceneID;
@@ -97,14 +96,10 @@ namespace ZetaRay::Scene
 
 	 	ZetaInline Math::AABB GetWorldAABB() noexcept { return m_bvh.GetWorldAABB(); }
 
-		// needs to be called prior to loading a scene
-		void ReserveScene(uint64_t sceneID, size_t numMeshes, size_t numMats, size_t numNodes) noexcept;
-		//void UnloadScene(uint64_t sceneID) noexcept;
-
 		//
 		// Mesh
 		//
-		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::MeshSubset>&& meshes,
+		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices) noexcept;
 		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept
@@ -115,24 +110,21 @@ namespace ZetaRay::Scene
 
 			return d;
 		}
-		void ReserveMeshData(size_t numVertices, size_t numIndices) noexcept;
 
 		ZetaInline const Core::DefaultHeapBuffer& GetMeshVB() noexcept { return m_meshes.GetVB(); }
 		ZetaInline const Core::DefaultHeapBuffer& GetMeshIB() noexcept { return m_meshes.GetIB(); }
-
-		//void RemoveMesh(uint64_t id) noexcept;
 
 		//
 		// Material
 		//
 		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
-		ZetaInline Material GetMaterial(uint64_t id) noexcept
+		ZetaInline bool GetMaterial(uint64_t id, Material& mat) noexcept
 		{
-			AcquireSRWLockShared(&m_matLock);
-			auto mat = m_matBuffer.Get(id);
-			ReleaseSRWLockShared(&m_matLock);
+			//AcquireSRWLockShared(&m_matLock);
+			auto success = m_matBuffer.Get(id, mat);
+			//ReleaseSRWLockShared(&m_matLock);
 
-			return mat;
+			return success;
 		}
 		//void RemoveMaterial(uint64_t id) noexcept;
 
@@ -148,10 +140,16 @@ namespace ZetaRay::Scene
 		//void RemoveInstance(uint64_t id) noexcept;
 		Math::float4x3 GetPrevToWorld(uint64_t id) noexcept;
 		
+		//
+		// emissive
+		//
+		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
+			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
+
 		ZetaInline Math::float4x3 GetToWorld(uint64_t id) noexcept
 		{
 			TreePos* p = FindTreePosFromID(id);
-			Assert(p, "instance with ID %llu was not found in the scene-graph.", id);
+			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
 
 			return m_sceneGraph[p->Level].m_toWorlds[p->Offset];
 		}
@@ -314,6 +312,7 @@ namespace ZetaRay::Scene
 
 		Internal::MaterialBuffer m_matBuffer;
 		Internal::MeshContainer m_meshes;
+		Internal::EmissiveBuffer m_emissives;
 		Internal::TexSRVDescriptorTable m_baseColorDescTable;
 		Internal::TexSRVDescriptorTable m_normalDescTable;
 		Internal::TexSRVDescriptorTable m_metalnessRoughnessDescTable;
@@ -334,6 +333,7 @@ namespace ZetaRay::Scene
 		SRWLOCK m_matLock = SRWLOCK_INIT;
 		SRWLOCK m_meshLock = SRWLOCK_INIT;
 		SRWLOCK m_instanceLock = SRWLOCK_INIT;
+		SRWLOCK m_emissiveLock = SRWLOCK_INIT;
 
 		//
 		// animations

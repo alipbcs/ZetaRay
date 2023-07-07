@@ -53,8 +53,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 
 	// camera
 	const Camera& cam = App::GetCamera();
-	v_float4x4 vCurrV = load(const_cast<float4x4a&>(cam.GetCurrView()));
-	v_float4x4 vP = load(const_cast<float4x4a&>(cam.GetCurrProj()));
+	v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
+	v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
 	v_float4x4 vVP = mul(vCurrV, vP);
 
 	frameConsts.CameraPos = cam.GetPos();
@@ -221,8 +221,8 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_renderGraph.Reset();
 
 		const Camera& cam = App::GetCamera();
-		v_float4x4 vCurrV = load(const_cast<float4x4a&>(cam.GetCurrView()));
-		v_float4x4 vP = load(const_cast<float4x4a&>(cam.GetCurrProj()));
+		v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
+		v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
 		v_float4x4 vVP = mul(vCurrV, vP);
 
 		// for 1st frame
