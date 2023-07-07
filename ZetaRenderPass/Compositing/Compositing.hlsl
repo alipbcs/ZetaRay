@@ -172,6 +172,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float2 mr = g_metalnessRoughness[DTid.xy];
 
+	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
 	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -180,7 +181,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	color += L_e;
 
 	if (g_local.SunLighting)
-		color += SunDirectLighting(DTid.xy, baseColor, mr.x, posW, normal, surface);
+		color += SunDirectLighting(DTid.xy, baseColor, isMetallic, posW, normal, surface);
 
 	if (g_local.SkyLighting)
 	{
@@ -196,8 +197,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
 	const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
 	
-	const bool includeIndDiff = g_local.DiffuseIndirect && mr.x < MIN_METALNESS_METAL;
-	const bool includeIndSpec = g_local.SpecularIndirect && mr.y < g_local.RoughnessCutoff;
+	const bool includeIndDiff = g_local.DiffuseIndirect && !isMetallic;
+	const bool includeIndSpec = g_local.SpecularIndirect && (isMetallic || mr.y <= g_local.RoughnessCutoff);
 	
 	if (includeIndDiff)
 	{
