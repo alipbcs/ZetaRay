@@ -99,31 +99,26 @@ float4 GeometryWeight(float4 prevDepths, float2 prevUVs[4], float3 currNormal, f
 	return weights;
 }
 
-float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float alpha)
+float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float roughness)
 {
 	float4 cosTheta = saturate(float4(dot(currNormal, prevNormals[0]),
 		dot(currNormal, prevNormals[1]),
 		dot(currNormal, prevNormals[2]),
 		dot(currNormal, prevNormals[3])));
 	
-	float4 weight = cosTheta * cosTheta;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
+	float normalExp = lerp(16, 64, 1 - roughness);
+	float4 weight = pow(cosTheta, normalExp);
 
 	return weight;
 }
 
 // helps with high frequency roughness textures
-float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
+float4 RoughnessWeight(float currRoughness, float4 prevRoughness, bool isMetallic)
 {
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
 	float4 w = abs(currRoughness - prevRoughness) / n;
 	w = saturate(1.0f - w);
-	w *= prevRoughness <= g_local.RoughnessCutoff;
+	w *= isMetallic ? 1.0f : prevRoughness <= g_local.RoughnessCutoff;
 	bool4 b1 = prevRoughness < g_local.MinRoughnessResample;
 	bool4 b2 = currRoughness < g_local.MinRoughnessResample;
 	// don't take roughness into account when there's been a sudden change
@@ -133,9 +128,9 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 }
 
 // resample history using a 2x2 bilinear filter with custom weights
-void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float roughness,
-	BRDF::SurfaceInteraction surface, float3 samplePos, float curvature, out float tspp, out float3 color, out float prevLinearDepth, 
-	out float2 prevUV)
+void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, bool isMetallic, 
+	float roughness, BRDF::SurfaceInteraction surface, float3 samplePos, float curvature, out float tspp, 
+	out float3 color, out float prevLinearDepth, out float2 prevUV)
 {
 	color = 0.0.xxx;
 	tspp = 0.0;
@@ -201,13 +196,13 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 	prevNormals[1] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
 	prevNormals[2] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
 	prevNormals[3] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
-	weights *= NormalWeight(prevNormals, normal, roughness * roughness);
+	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float4 prevRoughness = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
-	weights *= RoughnessWeight(roughness, prevRoughness);
+	weights *= RoughnessWeight(roughness, prevRoughness, isMetallic);
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -274,7 +269,7 @@ float4 Integrate(uint2 DTid, int2 GTid, SpecularReservoir r, float3 posW, float 
 		g_local.MaxTSPP : 
 		smoothstep(0, 1, roughness / g_local.MinRoughnessResample) * 6;
 	float currTspp = clamp((1 - f) * maxTspp, 0, maxTspp);
-	float3 currColor = lerp(surfaceColor, signal, 1.0f / (1.0f + currTspp));
+	float3 currColor = dot(surfaceColor, 1) <= 1e-4 ? signal : lerp(surfaceColor, signal, 1.0f / (1.0f + currTspp));
 	
 	return float4(currColor, currTspp);
 }
@@ -302,7 +297,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float2 mr = g_metalnessRoughness[DTid.xy];
 
 	// roughness cuttoff
-	if (mr.y > g_local.RoughnessCutoff)
+	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
+	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
+	if (!roughnessBelowThresh)
 		return;
 
 	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Denoise(DTid.xy,
@@ -338,7 +335,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 
 	const float3 wi = normalize(r.SamplePos - posW);
-	surface.InitComplete(wi, 0.0.xxx, mr.x, normal);
+	surface.InitComplete(wi, 0.0.xxx, isMetallic, normal);
 
 	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 	const float localCurvature = g_curvature[DTid.xy];
@@ -347,7 +344,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	float prevLinearDepth;
 	float tspp;
 	float2 prevUV;
-	SampleTemporalCache(DTid.xy, posW, normal, linearDepth, uv, mr.y, surface, r.SamplePos, 
+	SampleTemporalCache(DTid.xy, posW, normal, linearDepth, uv, isMetallic, mr.y, surface, r.SamplePos,
 		localCurvature, tspp, color, prevLinearDepth, prevUV);
 
 	float4 integrated = Integrate(DTid.xy, GTid.xy, r, posW, linearDepth, mr.y, surface, tspp, color, 

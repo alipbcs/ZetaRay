@@ -69,12 +69,12 @@ float NormalHeuristic(float3 normal, float3 sampleNormal, float alpha)
 
 // helps with high-frequency roughness textures
 // Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
-float RoughnessWeight(float currRoughness, float sampleRoughness)
+float RoughnessWeight(float currRoughness, float sampleRoughness, bool isMetallic)
 {
 	float n = currRoughness * currRoughness * 0.99f + 5e-3f;
 	float w = abs(currRoughness - sampleRoughness) / n;
 	w  = saturate(1.0f - w);
-	w *= sampleRoughness <= g_local.RoughnessCutoff;
+	w *= isMetallic ? 1.0f : sampleRoughness <= g_local.RoughnessCutoff;
 	
 	return w;
 }
@@ -88,7 +88,7 @@ float RayTHeuristic(float currRayT, float sampleRayT)
 }
 
 void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, BRDF::SurfaceInteraction surface,
-	float3 baseColor, float roughness, float isMetallic, inout SpecularReservoir r, inout RNG rng)
+	float3 baseColor, bool isMetallic, float roughness, inout SpecularReservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -152,7 +152,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			const float w_n = NormalHeuristic(normal, sampleNormal, surface.alpha);
 			
 			const float sampleRoughnes = g_metalnessRoughness[samplePosSS].y;
-			const float w_r = RoughnessWeight(roughness, sampleRoughnes);
+			const float w_r = RoughnessWeight(roughness, sampleRoughnes, isMetallic);
 								
 			SpecularReservoir neighbor = RGI_Spec_Util::PartialReadReservoir_Reuse(samplePosSS,
 				g_local.InputReservoir_A_DescHeapIdx,
@@ -220,7 +220,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const float2 mr = g_metalnessRoughness[swizzledDTid];
 
 	// roughness cutoff
-	if (mr.y > g_local.RoughnessCutoff)
+	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
+	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
+	if (!roughnessBelowThresh)
 		return;
 
 	SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_NoW(swizzledDTid,
@@ -253,10 +255,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
-	surface.diffuseReflectance = baseColor * (1.0f - mr.x);
+	surface.diffuseReflectance = baseColor * (1.0f - isMetallic);
 		
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, mr.y, mr.x, r, rng);
+	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, isMetallic, mr.y, r, rng);
 	
 	WriteReservoir(swizzledDTid, r);		
 }

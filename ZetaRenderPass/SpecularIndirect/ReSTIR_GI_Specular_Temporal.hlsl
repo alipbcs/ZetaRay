@@ -339,18 +339,18 @@ float GetTemporalM(float3 posW, float rayT, float curvature, float ndotwo)
 }
 
 // Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
-float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness)
+float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness, bool isMetallic)
 {
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
 	float4 w = abs(currRoughness - sampleRoughness) / n;
 	w = saturate(1.0f - w);
-	w *= sampleRoughness <= g_local.RoughnessCutoff;
+	w *= isMetallic ? 1.0f : sampleRoughness <= g_local.RoughnessCutoff;
 	
 	return w;
 }
 
 SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 normal, float linearDepth,
-	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, float isMetallic, float roughness, 
+	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, bool isMetallic, float roughness, 
 	bool tracedThisFrame, float localCurvature, inout RNG rng)
 {
 	// initialize the reservoir with the newly traced sample
@@ -430,7 +430,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
 	const float4 prevRoughnesses = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	
-	weights *= RoughnessHeuristic(roughness, prevRoughnesses);
+	weights *= RoughnessHeuristic(roughness, prevRoughnesses, isMetallic);
 	
 	if (dot(1, weights) < 1e-4)
 		return r;
@@ -556,7 +556,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float2 mr = g_metalnessRoughness[swizzledDTid.xy];
 
 	// roughness cutoff
-	const bool roughnessBelowThresh = (mr.x > MIN_METALNESS_METAL) || (mr.y <= g_local.RoughnessCutoff);
+	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
+	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
 	if(!roughnessBelowThresh)
 		return;
 	
@@ -601,11 +602,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		GBUFFER_OFFSET::BASE_COLOR];
 	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
 		
-	surface.InitComplete(wi, baseColor, mr.x, normal);
+	surface.InitComplete(wi, baseColor, isMetallic, normal);
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,
-		baseColor, mr.x, mr.y, traceThisFrame, adjustedLocalCurvature, rng);
+		baseColor, isMetallic, mr.y, traceThisFrame, adjustedLocalCurvature, rng);
 		
 	RGI_Spec_Util::WriteReservoir(swizzledDTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx,
