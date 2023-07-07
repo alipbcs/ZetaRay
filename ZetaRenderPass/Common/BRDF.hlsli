@@ -60,7 +60,7 @@ namespace BRDF
 	float GGX(float ndotwh, float alphaSq)
 	{
 		float denom = ndotwh * ndotwh * (alphaSq - 1.0f) + 1.0f;
-		return alphaSq / (PI * denom * denom);
+		return alphaSq / max(PI * denom * denom, 1e-5f);
 	}
 
 	//--------------------------------------------------------------------------------------
@@ -165,7 +165,7 @@ namespace BRDF
 			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
 			si.alpha = roughness * roughness;
 			si.alphaSq = max(1e-5f, si.alpha * si.alpha);
-			si.DeltaNDF = roughness < 0.01f;
+			si.DeltaNDF = roughness < 1e-4;
 			
 			return si;
 		}
@@ -247,9 +247,9 @@ namespace BRDF
 	// Specular Microfacet Model
 	//--------------------------------------------------------------------------------------
 
-	float3 SpecularBRDFGGXSmith(SurfaceInteraction surface)
+	float3 SpecularBRDFGGXSmith(SurfaceInteraction surface, bool guardDelta = false)
 	{
-		float NDF = surface.DeltaNDF ? surface.ndotwh >= 0.99f : GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float NDF = surface.DeltaNDF && guardDelta ? abs(1 - surface.ndotwh) < 5e-4 : GGX(surface.ndotwh, surface.alphaSq);
 		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surface.alphaSq, surface.ndotwi, surface.ndotwo);
 
 		return surface.F * NDF * G2Div4NdotLNdotV * surface.ndotwi;
@@ -263,7 +263,7 @@ namespace BRDF
 	// Note that hdotwo = hdotwi.
 	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surface)
 	{
-		float NDF = surface.DeltaNDF ? surface.ndotwh >= 0.99f : GGX(surface.ndotwh, max(1e-5f, surface.alphaSq));
+		float NDF = surface.DeltaNDF ? abs(1 - surface.ndotwh) <= 1e-5 : GGX(surface.ndotwh, surface.alphaSq);
 		float G1 = SmithG1ForGGX(surface.alphaSq, surface.ndotwo);
 
 		float pdf = (NDF * G1) / (4.0f * saturate(surface.ndotwo));
@@ -317,7 +317,7 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 
 	// Computes combined (diffuse + specular BRDF) * ndotwi at given surface point
-	float3 ComputeSurfaceBRDF(SurfaceInteraction surface)
+	float3 ComputeSurfaceBRDF(SurfaceInteraction surface, bool guardDelta = false)
 	{
 		// For reflection to be non-zero, wi and wo have to be in the same
 		// hemisphere w.r.t. geometric normal of point being shaded. Otherwise, either
@@ -334,7 +334,7 @@ namespace BRDF
 		if (surface.ndotwi <= 0.0f || surface.ndotwo <= 0.0f)
 			return 0.0.xxx;
 	
-		float3 specularBrdf = SpecularBRDFGGXSmith(surface);
+		float3 specularBrdf = SpecularBRDFGGXSmith(surface, guardDelta);
 		float3 diffuseBrdf = (1.0f.xxx - surface.F) * LambertianBRDF(surface.diffuseReflectance, surface.ndotwi);
 
 		return diffuseBrdf + specularBrdf;

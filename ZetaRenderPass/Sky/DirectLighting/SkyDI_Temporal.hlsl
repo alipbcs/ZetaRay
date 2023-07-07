@@ -78,7 +78,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
 float ComputeTarget(float3 pos, float3 normal, float linearDepth, float3 wi, 
 	inout BRDF::SurfaceInteraction surface, out float3 Lo)
 {
-	const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface);
+	const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface, true);
 
 	// sample sky-view LUT
 	Texture2D<float4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
@@ -130,7 +130,7 @@ DIReservoir GenerateCandidatesVNDF(uint2 DTid, float3 posW, float3 normal, float
 
 		float3 Lo;
 		const float target = ComputeTarget(posW, normal, linearDepth, wi, surface, Lo);
-		const float risWeight = target / sourcePdf;
+		const float risWeight = target / max(sourcePdf, 1e-5);
 	
 		r.Update(risWeight, Lo, wi, target, rng);
 	}
