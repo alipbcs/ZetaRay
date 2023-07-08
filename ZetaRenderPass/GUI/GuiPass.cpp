@@ -462,11 +462,14 @@ void GuiPass::RenderSettings() noexcept
 {
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+	const float wndPosX = ceilf(displayWidth * (1 - m_dbgWndWidthPct));
 
 	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
-	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+	ImGui::SetWindowPos(ImVec2(wndPosX, 0.0f), ImGuiCond_Always);
 	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight),
 		ImGuiCond_Always);
+
+	m_logWndWidth = displayWidth - ImGui::GetWindowWidth();
 
 	//if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
 	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
@@ -681,7 +684,6 @@ void GuiPass::RenderLogWindow() noexcept
 	m_prevNumLogs = (int)m_logs.size();
 	m_logs.append_range(frameLogs.begin(), frameLogs.end());
 
-	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 
 	if(!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
@@ -689,12 +691,11 @@ void GuiPass::RenderLogWindow() noexcept
 
 	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
 	{
-		const float wndWidth = m_logWndWidthPct * displayWidth;
 		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
 
 		// TODO save the last position so that ImGuiCond_Always can be removed
-		ImGui::SetWindowPos(ImVec2(ceilf(m_dbgWndWidthPct * displayWidth), displayHeight - wndHeight), ImGuiCond_Always);
-		ImGui::SetWindowSize(ImVec2(wndWidth, wndHeight), ImGuiCond_FirstUseEver);
+		ImGui::SetWindowPos(ImVec2(0, displayHeight - wndHeight), ImGuiCond_Always);
+		ImGui::SetWindowSize(ImVec2(m_logWndWidth, wndHeight), ImGuiCond_Always);
 
 		if (ImGui::Button("Clear"))
 			m_logs.clear();
@@ -705,13 +706,6 @@ void GuiPass::RenderLogWindow() noexcept
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 		char* buf;
 		char* buf_end;
-
-		//std::partition(m_logs.begin(), m_logs.end(),
-		//	[](const App::LogMessage& m)
-		//	{
-		//		return m.Type == App::LogMessage::INFO;
-		//	}
-		//);
 
 		// TODO consider using ImGuiListClipper
 		for (auto& msg : m_logs)
@@ -728,7 +722,7 @@ void GuiPass::RenderLogWindow() noexcept
 		ImGui::EndChild();
 	}
 	else
-		ImGui::SetWindowPos(ImVec2(ceilf(m_dbgWndWidthPct * displayWidth), (float)displayHeight), ImGuiCond_Always);
+		ImGui::SetWindowPos(ImVec2(0, (float)displayHeight), ImGuiCond_Always);
 
 	m_showLogsWindow = !ImGui::IsWindowCollapsed();
 	ImGui::End();

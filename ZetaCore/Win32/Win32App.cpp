@@ -365,17 +365,16 @@ namespace ZetaRay::AppImpl
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec4* colors = style.Colors;
 
-		colors[ImGuiCol_WindowBg] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 1.0f);
+		colors[ImGuiCol_WindowBg] = ImVec4(0.012286487, 0.012286487, 0.012286487, 1.0f);
 		colors[ImGuiCol_Border] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 0.0f);
-		//colors[ImGuiCol_TitleBgActive] = (ImVec4)ImColor::HSV(5 / 7.0f, 0.7f, 0.5f);
-		//colors[ImGuiCol_TitleBgActive] = ImVec4(4 / 255.0f, 4 / 255.0f, 4 / 255.0f, 1.0f);
 		colors[ImGuiCol_TitleBg] = ImVec4(26 / 255.0f, 26 / 255.0f, 26 / 255.0f, 1.0f);
-		colors[ImGuiCol_Tab] = ImVec4(9 / 255.0f, 10 / 255.0f, 14 / 255.0f, 1.0f);
+		colors[ImGuiCol_Tab] = ImVec4(0.046665083, 0.046665083, 0.046665083, 1.0f);
 		colors[ImGuiCol_TabHovered] = ImVec4(40 / 255.0f, 42 / 255.0f, 47 / 255.0f, 1.0f);
 		colors[ImGuiCol_TabActive] = ImVec4(7 / 255.0f, 26 / 255.0f, 56 / 255.0f, 1.0f);
-		colors[ImGuiCol_TitleBgActive] = colors[ImGuiCol_TabActive];
+		colors[ImGuiCol_TitleBg] = colors[ImGuiCol_Tab];
+		colors[ImGuiCol_TitleBgActive] = ImVec4(0.08865560, 0.08865560, 0.08865560, 1.0f);
 		colors[ImGuiCol_FrameBg] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
-		colors[ImGuiCol_Header] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
+		colors[ImGuiCol_Header] = ImVec4(0.046665083, 0.046665083, 0.046665083, 1.0f);
 		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
 		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
 

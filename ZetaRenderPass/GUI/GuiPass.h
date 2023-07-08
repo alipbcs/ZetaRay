@@ -83,7 +83,7 @@ namespace ZetaRay::RenderPass
 		int m_currShader = -1;
 		static constexpr float m_dbgWndWidthPct = 0.21;
 		static constexpr float m_dbgWndHeightPct = 1.0;
-		static constexpr float m_logWndWidthPct = 1 - m_dbgWndWidthPct;
+		float m_logWndWidth = 0.0f;
 		static constexpr float m_logWndHeightPct = 0.21f;
 		bool m_isFullScreen = false;
 		bool m_showRenderGraph = false;
