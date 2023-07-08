@@ -764,7 +764,7 @@ void GBufferPass::CreateDepthPyramid() noexcept
 	m_depthPyramidMip0DimX = width >> 1;
 	m_depthPyramidMip0DimY = height >> 1;
 
-	m_numMips = (uint32_t)floorf(log2f((float)Math::Max(width, height)));
+	m_numMips = (uint32_t)log2f((float)Math::Max(width, height));
 	Assert(m_numMips <= MAX_NUM_MIPS, "#mips can't exceed MAX_NUM_MIPS.");
 
 	m_depthPyramid = renderer.GetGpuMemory().GetTexture2D("DepthPyramid",

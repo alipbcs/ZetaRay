@@ -24,6 +24,9 @@ ByteAddressBuffer g_rankingTile : register(t3);
 
 bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
 {
+	if(wi.y < 0)
+		return false;
+	
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 			 RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			 RAY_FLAG_CULL_NON_OPAQUE> rayQuery;

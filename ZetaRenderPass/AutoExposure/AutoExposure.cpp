@@ -128,11 +128,11 @@ void AutoExposure::Render(CommandList& cmdList) noexcept
 	{
 		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, 64);
 		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, 64);
-		const uint32_t mipLevels = (uint32_t)floorf(log2f((float)Math::Max(w, h)));
+		const uint32_t mipLevels = (uint32_t)log2f((float)Math::Max(w, h));
 
 		cbAutoExposureDownsample cb;
 		cb.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::COMPOSITED];
-		cb.MipLevels = (uint32_t)floorf(log2f((float)Math::Max(w, h)));
+		cb.MipLevels = (uint32_t)log2f((float)Math::Max(w, h));
 		cb.NumThreadGroupsX = dispatchDimX;
 		cb.NumThreadGroupsY = dispatchDimY;
 		cb.Mip5DimX = (uint16_t)m_mip5Width;

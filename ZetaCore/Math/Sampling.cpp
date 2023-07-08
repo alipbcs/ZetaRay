@@ -162,7 +162,7 @@ float Math::Halton(uint32_t i, uint32_t b) noexcept
 	{
 		f /= bf;
 		r = r + f * (float)(i % b);
-		i = (uint32_t)floorf((float)i / bf);
+		i = (uint32_t)((float)i / bf);
 	}
 
 	return r;
