@@ -9,6 +9,8 @@
 #define INVALID_RAY_T -1
 #define INCLUDE_COSINE_TERM_IN_TARGET 0
 #define MAX_TEMPORAL_M 10
+#define MAX_SPATIAL_M 20
+#define SKY_MISS_SHADING 0
 
 struct DiffuseSample
 {

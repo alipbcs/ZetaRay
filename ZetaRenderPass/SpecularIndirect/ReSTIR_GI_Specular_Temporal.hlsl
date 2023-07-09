@@ -16,6 +16,7 @@
 #define RAY_CONE_K2 0.0f
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 #define RAY_OFFSET_VIEW_DIST_START 30.0
+#define SKY_MISS_SHADING 0
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -256,14 +257,15 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone)
+bool Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone, out SpecularSample ret)
 {
-	SpecularSample ret;
 	ret.Lo = 0.0.xxx;
+	ret.Pos = INVALID_SAMPLE_POS;
+	ret.Normal = INVALID_SAMPLE_NORMAL;
 	
 	// skip invalid rays
 	if (dot(wi - INVALID_RAY_DIR, 1) == 0.0f)
-		return ret;
+		return false;
 		
 	// TODO find a better way to protect against self-intersection
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
@@ -273,14 +275,16 @@ SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::
 	HitSurface hitInfo;
 	bool hit = FindClosestHit(adjustedOrigin, wi, rayCone, hitInfo);
 
-	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
-	// return the incoming sky radiance
+	// if the ray hit a surface, compute direct lighting at hit point
 	if (hit)
 	{
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.Normal;
+		
+		return true;
 	}
+#if SKY_MISS_SHADING
 	else
 	{
 		ret.Lo = MissShading(wi);
@@ -291,9 +295,12 @@ SpecularSample Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, wi);
 		ret.Pos = posW + t * wi;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
+		
+		return true;
 	}
+#endif
 	
-	return ret;
+	return false;
 }
 
 float4 PlaneHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos, float linearDepth)
@@ -351,7 +358,7 @@ float4 RoughnessHeuristic(float currRoughness, float4 sampleRoughness, bool isMe
 
 SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 normal, float linearDepth,
 	SpecularSample s, BRDF::SurfaceInteraction surface, float3 baseColor, bool isMetallic, float roughness, 
-	bool tracedThisFrame, float localCurvature, inout RNG rng)
+	bool tracedThisFrame, bool hit, float localCurvature, inout RNG rng)
 {
 	// initialize the reservoir with the newly traced sample
 	SpecularReservoir r = SpecularReservoir::Init();
@@ -363,11 +370,11 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		
 		// target = Li(-wi) * BRDF(wi, wo) * |ndotwi|
 		// source = Pdf(wi)
-		const float risWeight = Math::Color::LuminanceFromLinearRGB(s.Lo * brdfCosthetaDivPdf);
+		const float risWeight = hit ? Math::Color::LuminanceFromLinearRGB(s.Lo * brdfCosthetaDivPdf) : 0;
 	
 		r.Update(risWeight, s, brdfCostheta, rng);
 	}
-		
+	
 	if (!g_local.DoTemporalResampling || !g_local.IsTemporalReservoirValid)
 		return r;
 
@@ -461,7 +468,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		rayTWeights[resIdx] = localCurvature != 0.0 ? 1.0f : RayTHeuristic(currRayT, sampleRayT);
 	}
 		
-	rayTWeights = !tracedThisFrame ? 1.0.xxxx : rayTWeights;
+	// ignore hit distance when there's no sample
+	rayTWeights = !tracedThisFrame || !hit ? 1.0.xxxx : rayTWeights;
 	weights *= rayTWeights;
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
@@ -478,7 +486,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	
 	weights /= weightSum;
 	
-	const float temporalM = !tracedThisFrame ? g_local.M_max : 
+	const float temporalM = !tracedThisFrame || !hit ? g_local.M_max : 
 		GetTemporalM(posW, currRayT, localCurvature, surface.ndotwo);
 		
 	[unroll]
@@ -596,7 +604,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	RT::RayCone rayCone = RT::RayCone::InitFromGBuffer(g_frame.PixelSpreadAngle, 0, linearDepth);
 #endif	
 	
-	SpecularSample tracedSample = Li(posW, normal, wi, linearDepth, rayCone);
+	SpecularSample tracedSample;
+	bool hit = Li(posW, normal, wi, linearDepth, rayCone, tracedSample);
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
@@ -606,7 +615,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,
-		baseColor, isMetallic, mr.y, traceThisFrame, adjustedLocalCurvature, rng);
+		baseColor, isMetallic, mr.y, traceThisFrame, hit, adjustedLocalCurvature, rng);
 		
 	RGI_Spec_Util::WriteReservoir(swizzledDTid.xy, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx,

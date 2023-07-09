@@ -331,10 +331,8 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, out uint16_t sortedIdx)
+bool Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, out uint16_t sortedIdx, out DiffuseSample ret)
 {
-	DiffuseSample ret;
-	
 	// protect against self-intersection
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
 	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
@@ -346,6 +344,8 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 
 	// what's the outgoing radiance from the closest hit point towards wo
 	ret.Lo = 0.0.xxx;
+	ret.Pos = INVALID_SAMPLE_POS;
+	ret.Normal = INVALID_SAMPLE_NORMAL;
 
 	// if the ray hit a surface, compute direct lighting at the given surface point, otherise 
 	// returns the incoming radiance from sky
@@ -354,7 +354,10 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.ShadingNormal;
+		
+		return true;
 	}
+#if SKY_MISS_SHADING
 	else if (isRayValid)
 	{
 #if RAY_BINNING
@@ -368,9 +371,12 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
-	}
 	
-	return ret;
+		return true;
+	}
+#endif
+	
+	return false;
 }
 
 DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currLinearDepth, float3 currNormal)
@@ -427,7 +433,7 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 	
 	const float sampleLum = Math::Color::LuminanceFromLinearRGB(s.Lo);
 	const float reservoirLum = Math::Color::LuminanceFromLinearRGB(r.Li);
-	const float relativeRadianceChange = sampleLum == 0.0 ? saturate(abs(sampleLum - reservoirLum)) : 
+	const float relativeRadianceChange = sampleLum == 0.0 ? saturate(abs(sampleLum - reservoirLum)) :
 		saturate(abs(sampleLum - reservoirLum) / max(sampleLum, 1e-4));
 	
 	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
@@ -458,11 +464,11 @@ void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG 
 		
 		// following should be the correct thing to do, but for some reason casuses artifacts
 		// TODO investigate
-	#if 0		
+#if 0		
 		r.w_sum = risWeight;
-	#else
+#else
 		r.w_sum = 0;
-	#endif
+#endif
 	}
 }
 
@@ -540,7 +546,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 wi = needValidation ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
 	
 	uint16_t sortedIdx;
-	DiffuseSample s = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, sortedIdx);
+	DiffuseSample s;
+	bool hit = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, sortedIdx, s);
 	
 #if RAY_BINNING
 	g_sortedOrigin[Gidx] = RGI_Diff_Util::PackSample(s.Normal, s.Lo, s.RayT);
@@ -561,7 +568,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 			Validate(s, posW, r, rng);		
 		}
 
-		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, 
+			g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}
 }

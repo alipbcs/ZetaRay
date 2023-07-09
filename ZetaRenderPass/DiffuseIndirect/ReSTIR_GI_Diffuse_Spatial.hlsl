@@ -8,7 +8,6 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01
-#define MAX_SPATIAL_M 20
 
 static const float2 k_halton[16] =
 {

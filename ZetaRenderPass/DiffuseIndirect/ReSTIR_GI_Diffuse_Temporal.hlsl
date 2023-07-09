@@ -364,11 +364,9 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	return L_o + L_e;
 }
 
-DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth,
-	RT::RayCone rayCone, out uint16_t sortedIdx)
+bool Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth,
+	RT::RayCone rayCone, out uint16_t sortedIdx, out DiffuseSample ret)
 {
-	DiffuseSample ret;
-	
 	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
 	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
 
@@ -379,6 +377,8 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 
 	// what's the incident radiance from the closest hit point
 	ret.Lo = 0.0.xxx;
+	ret.Pos = INVALID_SAMPLE_POS;
+	ret.Normal = INVALID_SAMPLE_NORMAL;
 
 	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
 	// return the incoming radiance from the sky
@@ -387,7 +387,10 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);
 		ret.Pos = hitInfo.Pos;
 		ret.Normal = hitInfo.ShadingNormal;
+		
+		return true;
 	}
+#if SKY_MISS_SHADING
 	else if (isSortedRayValid)
 	{
 #if RAY_BINNING
@@ -402,9 +405,12 @@ DiffuseSample Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, f
 		float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, newDir);
 		ret.Pos = posW + t * newDir;
 		ret.Normal = Math::Encoding::EncodeUnitNormal(-normalize(ret.Pos));
+		
+		return true;
 	}
+#endif
 	
-	return ret;
+	return false;
 }
 
 float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 currPos, float linearDepth)
@@ -419,8 +425,7 @@ float4 GeometricHeuristic(float3 histPositions[4], float3 currNormal, float3 cur
 	return weights;
 }
 
-void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
-	inout DiffuseReservoir r, inout RNG rng)
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, inout DiffuseReservoir r, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -523,7 +528,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 }
 
 DiffuseReservoir UpdateAndResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float sourcePdf,
-	DiffuseSample s, bool isSampleValid, inout RNG rng)
+	DiffuseSample s, bool isSampleValid, bool hit, inout RNG rng)
 {
 	DiffuseReservoir r = DiffuseReservoir::Init();
 
@@ -647,7 +652,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 #endif	
 	
 	uint16_t sortedIdx;
-	DiffuseSample retSample = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, rayCone, sortedIdx);
+	DiffuseSample retSample;
+	bool hit = Li(swizzledDTid, Gidx, posW, normal, wi, linearDepth, rayCone, sortedIdx, retSample);
 	
 #if RAY_BINNING
 	g_sortedOrigin[Gidx] = RGI_Diff_Util::PackSample(retSample.Normal, retSample.Lo, retSample.RayT);
@@ -668,7 +674,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
 						
 		//const float cosTheta = saturate(pdf * PI);
-		r = UpdateAndResample(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, rng);
+		r = UpdateAndResample(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, hit, rng);
 		
 		// TODO under checkerboarding, result can be NaN when ray binning is enabled.
 		// Need further investigation to figure out the cause. Following seems to mitigate
