@@ -213,6 +213,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	App::AddShaderReloadHandler("DiffuseDNSR_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass));
 	App::AddShaderReloadHandler("DiffuseDNSR_SpatialFilter", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass));
 
+	m_validationPeriod = DefaultParamVals::ValidationPeriod;
 	m_isTemporalReservoirValid = false;
 }
 
@@ -220,9 +221,6 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 {
 	if (IsInitialized())
 	{
-		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Temporal");
-		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Spatial");
-		//App::RemoveShaderReloadHandler("ReSTIR_GI_Diffuse_Validation");
 		s_rpObjs.Clear();
 		
 		for (int i = 0; i < 2; i++)
@@ -284,6 +282,10 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
+		computeCmdList.ResourceBarrier(m_tsppAdjustment.GetResource(),
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
 		m_cbRGITemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbRGITemporal.DispatchDimY = (uint16_t)dispatchDimY;
 		m_cbRGITemporal.IsTemporalReservoirValid = m_isTemporalReservoirValid;
@@ -304,6 +306,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		m_cbRGITemporal.CurrTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
 		m_cbRGITemporal.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
 		m_cbRGITemporal.CurrTemporalReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+		m_cbRGITemporal.TsppAdjustment_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::TSPP_ADJUSTMENT_UAV);
 
 		m_rootSig.SetRootConstants(0, sizeof(cb_RGI_Diff_Temporal) / sizeof(DWORD), &m_cbRGITemporal);
 		m_rootSig.End(computeCmdList);
@@ -443,6 +446,10 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::DIFFUSE_DNSR_TEMPORAL]);
 
+		computeCmdList.ResourceBarrier(m_tsppAdjustment.GetResource(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
 		const int temporalCacheSRV = m_currDNSRTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
 			(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
 		const int temporalCacheUAV = m_currDNSRTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
@@ -452,6 +459,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		m_cbDNSRTemporal.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_1_B_SRV);
 		m_cbDNSRTemporal.PrevTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
 		m_cbDNSRTemporal.CurrTemporalCacheDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
+		m_cbDNSRTemporal.TsppAdjustmentDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::TSPP_ADJUSTMENT_SRV);
 		m_cbDNSRTemporal.IsTemporalCacheValid = m_isTemporalReservoirValid;
 
 		m_rootSig.SetRootConstants(0, sizeof(cbDiffuseDNSRTemporal) / sizeof(DWORD), &m_cbDNSRTemporal);
@@ -626,6 +634,8 @@ void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
 			DESC_TABLE::TEMPORAL_CACHE_A_SRV, DESC_TABLE::TEMPORAL_CACHE_A_UAV);
 		func(m_temporalCache[1], ResourceFormats::DNSR_TEMPORAL_CACHE, "DiffuseDNSR_TEMPORAL_CACHE_B",
 			DESC_TABLE::TEMPORAL_CACHE_B_SRV, DESC_TABLE::TEMPORAL_CACHE_B_UAV);
+		func(m_tsppAdjustment, ResourceFormats::DNSR_TSPP_ADJUSTMENT, "DiffuseDNSR_TSPP_Adjustment",
+			DESC_TABLE::TSPP_ADJUSTMENT_SRV, DESC_TABLE::TSPP_ADJUSTMENT_UAV);
 	}
 }
 

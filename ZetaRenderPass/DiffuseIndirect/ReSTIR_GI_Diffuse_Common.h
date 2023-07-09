@@ -34,6 +34,7 @@ struct cb_RGI_Diff_Temporal
 	uint32_t CurrTemporalReservoir_A_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_B_DescHeapIdx;
 	uint32_t CurrTemporalReservoir_C_DescHeapIdx;
+	uint32_t TsppAdjustment_DescHeapIdx;
 	uint16_t DispatchDimX;
 	uint16_t DispatchDimY;
 
@@ -79,6 +80,7 @@ struct cbDiffuseDNSRTemporal
 	// current temporal cache
 	// RWTexture2D<half4>: (color, tspp)
 	uint32_t CurrTemporalCacheDescHeapIdx;
+	uint32_t TsppAdjustmentDescHeapIdx;
 };
 
 struct cbDiffuseDNSRSpatial

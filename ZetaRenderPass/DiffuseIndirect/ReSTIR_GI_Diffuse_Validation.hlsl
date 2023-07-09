@@ -163,7 +163,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 	return false;
 }
 
-bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out bool isRayValid, 
+bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out bool isRayValid,
 	out uint16_t sortedIdx)
 {
 #if RAY_BINNING
@@ -407,7 +407,7 @@ DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currL
 	if (isDisoccluded)
 	{
 		DiffuseReservoir r = DiffuseReservoir::Init();
-		return r;		
+		return r;
 	}
 	
 	// nearest neighbor
@@ -420,56 +420,24 @@ DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currL
 	return prevReservoir;
 }
 
-void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r, inout RNG rng)
+void Validate(DiffuseSample s, float3 posW, inout DiffuseReservoir r)
 {
-	// TODO not sure what's the best way to do this -- there are either 
-	// false positives or false negatives
-	const float3 d = r.SamplePos - posW;
-	const float reservoirHitDist = sqrt(dot(d, d));
-	const float currHitDist = s.RayT;
-	float dt2 = abs(currHitDist - reservoirHitDist);
-	dt2 *= dt2;
-	const float relativeRayTChange = saturate(dt2 / max(currHitDist, g_frame.RayOffset));
+//	const float3 d = r.SamplePos - posW;
+//	const float reservoirHitDist = sqrt(dot(d, d));
+//	const float currHitDist = s.RayT;
+//	const float relativeRayTChange = saturate(abs(currHitDist - reservoirHitDist) / max(1.1 * currHitDist, 1e-4));
 	
 	const float sampleLum = Math::Color::LuminanceFromLinearRGB(s.Lo);
 	const float reservoirLum = Math::Color::LuminanceFromLinearRGB(r.Li);
-	const float relativeRadianceChange = sampleLum == 0.0 ? saturate(abs(sampleLum - reservoirLum)) :
-		saturate(abs(sampleLum - reservoirLum) / max(sampleLum, 1e-4));
+	const float relativeRadianceChange = saturate(abs(sampleLum - reservoirLum) / max(sampleLum, 1e-4));
 	
-	if (relativeRadianceChange <= TOLERABLE_RELATIVE_RADIANCE_CHANGE)
-	{
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
-	}
-	else if (relativeRayTChange <= TOLERABLE_RELATIVE_RAY_T_CHANGE)
-	{
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
+	r.SamplePos = s.Pos;
+	r.SampleNormal = s.Normal;
+	r.Li = half3(s.Lo);
 
-		float adjustment = 1 - smoothstep(TOLERABLE_RELATIVE_RADIANCE_CHANGE, 1, relativeRadianceChange);
-		r.M = half(max(1, r.M * adjustment));
-		r.w_sum *= adjustment;
-	}
-	else
-	{
-		const float sourcePdf = ONE_OVER_2_PI;
-		const float risWeight = sampleLum / sourcePdf;
-
-		r.SamplePos = s.Pos;
-		r.SampleNormal = s.Normal;
-		r.Li = half3(s.Lo);
-		r.M = 1;
-		
-		// following should be the correct thing to do, but for some reason casuses artifacts
-		// TODO investigate
-#if 0		
-		r.w_sum = risWeight;
-#else
-		r.w_sum = 0;
-#endif
-	}
+	float adjustment = 1 - smoothstep(TOLERABLE_RELATIVE_RADIANCE_CHANGE, 1, relativeRadianceChange);
+	r.M = half(max(1, r.M * adjustment));
+	r.w_sum *= adjustment;
 }
 
 //--------------------------------------------------------------------------------------
@@ -539,11 +507,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	DiffuseReservoir r = SampleTemporalReservoir(swizzledDTid, posW, linearDepth, normal);
 	
 	// skip tracing if reservoir's sample is invalid
-	bool isReservoirEmpty = r.M == 0;
-	const bool needValidation = reservoirValid && !isReservoirEmpty &&
-		(!g_local.CheckerboardTracing || !tracedLastFrame);
-	
-	const float3 wi = needValidation ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
+	const float3 wi = reservoirValid ? normalize(r.SamplePos - posW) : INVALID_RAY_DIR;
+	const bool needsValidation = reservoirValid && (!g_local.CheckerboardTracing || !tracedLastFrame);
 	
 	uint16_t sortedIdx;
 	DiffuseSample s;
@@ -562,13 +527,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	if (reservoirValid)
 	{
-		if (needValidation)
+		if (needsValidation)
 		{
-			RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-			Validate(s, posW, r, rng);		
+			Validate(s, posW, r);
+			
+			float tsppAdjustment = saturate(r.M / MAX_TEMPORAL_M);
+			RWTexture2D<float> g_outTsppAdjustment = ResourceDescriptorHeap[g_local.TsppAdjustment_DescHeapIdx];
+			g_outTsppAdjustment[swizzledDTid] = tsppAdjustment;
 		}
 
-		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, 
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx,
 			g_local.CurrTemporalReservoir_B_DescHeapIdx,
 			g_local.CurrTemporalReservoir_C_DescHeapIdx);
 	}

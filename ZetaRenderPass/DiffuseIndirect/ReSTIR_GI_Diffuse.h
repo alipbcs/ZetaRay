@@ -123,18 +123,12 @@ namespace ZetaRay::RenderPass
 			Core::Texture ReservoirC;
 		};
 
-		Reservoir m_temporalReservoirs[2];
-		Reservoir m_spatialReservoirs[2];
-		Core::Texture m_temporalCache[2];
-		int m_currTemporalReservoirIdx = 0;
-		bool m_isTemporalReservoirValid = false;
-		int m_currDNSRTemporalIdx = 0;
-
 		struct ResourceFormats
 		{
 			static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_FLOAT;
 			static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
 			static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R16G16_FLOAT;
+			static constexpr DXGI_FORMAT DNSR_TSPP_ADJUSTMENT = DXGI_FORMAT_R8_UNORM;
 			static constexpr DXGI_FORMAT DNSR_TEMPORAL_CACHE = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		};
 
@@ -172,11 +166,11 @@ namespace ZetaRay::RenderPass
 			TEMPORAL_CACHE_A_UAV,
 			TEMPORAL_CACHE_B_SRV,
 			TEMPORAL_CACHE_B_UAV,
+			TSPP_ADJUSTMENT_SRV,
+			TSPP_ADJUSTMENT_UAV,
 			//
 			COUNT
 		};
-
-		Core::DescriptorTable m_descTable;
 
 		struct DefaultParamVals
 		{
@@ -189,23 +183,30 @@ namespace ZetaRay::RenderPass
 			static constexpr int DNSRMaxFilterRadius = 64;
 		};
 
-		cb_RGI_Diff_Temporal m_cbRGITemporal;
-		cb_RGI_Diff_Spatial m_cbRGISpatial;
-		cbDiffuseDNSRTemporal m_cbDNSRTemporal;
-		cbDiffuseDNSRSpatial m_cbDNSRSpatial;
+		Reservoir m_temporalReservoirs[2];
+		Reservoir m_spatialReservoirs[2];
+		Core::Texture m_temporalCache[2];
+		Core::Texture m_tsppAdjustment;
+		Core::DescriptorTable m_descTable;
+		int m_currTemporalReservoirIdx = 0;
+		bool m_isTemporalReservoirValid = false;
+		int m_currDNSRTemporalIdx = 0;
 		int m_validationPeriod = 0;
 		int m_validationFrame = 1;
 		int m_sampleIdx = 0;
 		uint32_t m_internalCounter = 0;
 		int m_numDNSRSpatialFilterPasses = DefaultParamVals::DNSRNumSpatialPasses;
 
+		cb_RGI_Diff_Temporal m_cbRGITemporal;
+		cb_RGI_Diff_Spatial m_cbRGISpatial;
+		cbDiffuseDNSRTemporal m_cbDNSRTemporal;
+		cbDiffuseDNSRSpatial m_cbDNSRSpatial;
+
 		void DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept;
 		void DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept;
 		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
 		void ValidationPeriodCallback(const Support::ParamVariant& p) noexcept;
 		void RGINormalExpCallback(const Support::ParamVariant& p) noexcept;
-		void RGIMinRadiusCallback(const Support::ParamVariant& p) noexcept;
-		void RGIMaxRadiusCallback(const Support::ParamVariant& p) noexcept;
 		void CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept;
 		void DNSRNumSpatialPassesCallback(const Support::ParamVariant& p) noexcept;
 		void DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept;

@@ -689,7 +689,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		if (isnan(r.w_sum))
 			r = DiffuseReservoir::Init();
 		
-		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, g_local.CurrTemporalReservoir_B_DescHeapIdx,
-		g_local.CurrTemporalReservoir_C_DescHeapIdx);
+		RGI_Diff_Util::WriteOutputReservoir(swizzledDTid, r, g_local.CurrTemporalReservoir_A_DescHeapIdx, 
+			g_local.CurrTemporalReservoir_B_DescHeapIdx,
+			g_local.CurrTemporalReservoir_C_DescHeapIdx);
+		
+		float tsppAdjustment = saturate(r.M / MAX_TEMPORAL_M);
+		RWTexture2D<float> g_outTsppAdjustment = ResourceDescriptorHeap[g_local.TsppAdjustment_DescHeapIdx];
+		g_outTsppAdjustment[swizzledDTid] = tsppAdjustment;
 	}
 }
