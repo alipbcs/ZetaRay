@@ -76,9 +76,11 @@ namespace
 void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx) noexcept
 {
 	Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
+	Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, "All the nodes in an AggregateRenderNode must have the same batch index.");
 
 	Barriers.append_range(node.Barriers.begin(), node.Barriers.end());
 	Dlgs.push_back(node.Dlg);
+	BatchIdx = node.NodeBatchIdx;
 
 	GpuDepIdx.Val = Math::Max(GpuDepIdx.Val, mappedGpeDepIdx);
 
@@ -446,9 +448,10 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 	{
 		m_aggregateNodes[i].TaskH = ts.EmplaceTask(m_aggregateNodes[i].Name, [this, i]() noexcept
 			{
-				AggregateRenderNode& aggregateNode = m_aggregateNodes[i];
 				auto& renderer = App::GetRenderer();
+
 				ComputeCmdList* cmdList = nullptr;
+				AggregateRenderNode& aggregateNode = m_aggregateNodes[i];
 
 				if (!aggregateNode.IsAsyncCompute)
 					cmdList = static_cast<ComputeCmdList*>(renderer.GetGraphicsCmdList());
@@ -500,8 +503,21 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 			});
 	}
 
-	for (int i = 1; i < m_aggregateNodes.size(); i++)
-		ts.AddOutgoingEdge(m_aggregateNodes[i - 1].TaskH, m_aggregateNodes[i].TaskH);
+	for (int i = 0; i < m_aggregateNodes.size() - 1; i++)
+	{
+		const int currBatchIdx = m_aggregateNodes[i].BatchIdx;
+
+		for (int j = i + 1; j < m_aggregateNodes.size(); j++)
+		{
+			const int nextBatchIdx = m_aggregateNodes[j].BatchIdx;
+
+			if (nextBatchIdx > currBatchIdx + 1)
+				break;
+
+			if (nextBatchIdx == currBatchIdx + 1)
+				ts.AddOutgoingEdge(m_aggregateNodes[i].TaskH, m_aggregateNodes[j].TaskH);
+		}
+	}
 }
 
 void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
@@ -755,7 +771,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 			for (auto n : asyncComputeNodes)
 			{
 				m_aggregateNodes.back().Append(m_renderNodes[n], -1);
-				m_renderNodes[n].AggBatchIdx = (int)m_aggregateNodes.size() - 1;
+				m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
 			}
 		}
 
@@ -794,10 +810,10 @@ void RenderGraph::JoinRenderNodes() noexcept
 			{
 				int mappedGpuDepIdx = m_renderNodes[n].GpuDepSourceIdx.Val == -1 ?
 					-1 :
-					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].AggBatchIdx;
+					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].AggNodeIdx;
 
 				m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
-				m_renderNodes[n].AggBatchIdx = (int)m_aggregateNodes.size() - 1;
+				m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
 			}
 
 			m_aggregateNodes.back().GpuDepIdx = hasGpuFence && gpuFenceSuperfluous ?

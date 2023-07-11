@@ -215,6 +215,7 @@ namespace ZetaRay::Core
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				OutputMask = 0;
 				memset(Name, 0, MAX_NAME_LENGTH);
+				AggNodeIdx = -1;
 #endif
 			}
 
@@ -230,6 +231,7 @@ namespace ZetaRay::Core
 				HasUnsupportedBarrier = false;
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				OutputMask = 0;
+				AggNodeIdx = -1;
 
 				int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
 				memcpy(Name, name, n);
@@ -256,7 +258,7 @@ namespace ZetaRay::Core
 
 			uint32_t OutputMask = 0;
 			int Indegree = 0;
-			int AggBatchIdx = -1;
+			int AggNodeIdx = -1;
 		};
 
 		struct AggregateRenderNode
@@ -286,10 +288,11 @@ namespace ZetaRay::Core
 			void Append(const RenderNode& node, int mappedGpeDepIdx) noexcept;
 
 			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
-			Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 4> Dlgs;
+			Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;
 
 			uint64_t CompletionFence = uint64_t(-1);
 			uint32_t TaskH;
+			int BatchIdx = -1;
 
 			// at most one GPU dependency
 			RenderNodeHandle GpuDepIdx = RenderNodeHandle(-1);
