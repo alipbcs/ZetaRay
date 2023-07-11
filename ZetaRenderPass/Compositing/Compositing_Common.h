@@ -3,8 +3,17 @@
 
 #include "../../ZetaCore/Core/HLSLCompat.h"
 
-#define COMPOSITING_THREAD_GROUP_DIM_X 16
+#define COMPOSITING_THREAD_GROUP_DIM_X 8
 #define COMPOSITING_THREAD_GROUP_DIM_Y 8
+
+#define FIREFLY_FILTER_THREAD_GROUP_DIM_X 16
+#define FIREFLY_FILTER_THREAD_GROUP_DIM_Y 8
+
+#define DOF_GATHER_THREAD_GROUP_DIM_X 8
+#define DOF_GATHER_THREAD_GROUP_DIM_Y 8
+
+#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_X 8
+#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y 8
 
 struct cbCompositing
 {
@@ -29,13 +38,19 @@ struct cbCompositing
 	uint16_t DiffuseIndirect;
 	uint16_t SpecularIndirect;
 	uint16_t AccumulateInscattering;
-	uint16_t FireflySuppression;
+};
+
+struct cbFireflyFilter
+{
+	uint32_t CompositedSRVDescHeapIdx;
+	uint32_t FilteredUAVDescHeapIdx;
+	uint16_t DoFIsON;
 };
 
 struct cbDoF
 {
-	uint32_t GatherUAVDescHeapIdx;
-	uint32_t CompositedSRVDescHeapIdx;
+	uint32_t InputDescHeapIdx;
+	uint32_t OutputDescHeapIdx;
 	float RadiusScale;
 	float MaxBlurRadius;
 	float MinLumToFilter;

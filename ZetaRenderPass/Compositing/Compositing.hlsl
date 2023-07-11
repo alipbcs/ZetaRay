@@ -57,74 +57,6 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metalness, float3 p
 	return L_i;
 }
 
-float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal, float3 centerPos, float centerLinearDepth)
-{
-	float3 samplePos = Math::Transform::WorldPosFromUV(sampleUV,
-		sampleLinearDepth,
-		g_frame.TanHalfFOV,
-		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
-	
-	float planeDist = dot(centerNormal, samplePos - centerPos);
-	float weight = abs(planeDist) <= 0.01 * centerLinearDepth;
-	
-	return weight;
-}
-
-// Ref: P. Kozlowski and T. Cheblokov, "ReLAX: A Denoiser Tailored to Work with the ReSTIR Algorithm," GTC, 2021.
-float3 FilterFirefly(Texture2D<float4> g_input, float3 currColor, int2 DTid, int2 GTid, float linearDepth, float3 normal, float3 posW)
-{
-	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-
-	float minLum = FLT_MAX;
-	float maxLum = 0.0;
-	float3 minColor = currColor;
-	float3 maxColor = currColor;
-	float currLum = Math::Color::LuminanceFromLinearRGB(currColor);
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	
-	[unroll]
-	for (int i = -1; i <= 1; i++)
-	{
-		[unroll]
-		for (int j = -1; j <= 1; j++)
-		{
-			if (i == 0 && j == 0)
-				continue;
-			
-			int2 addr = int2(DTid.x + j, DTid.y + i);
-			if (any(addr) < 0 || any(addr >= renderDim))
-				continue;
-			
-			const float neighborLinearDepth = Math::Transform::LinearDepthFromNDC(g_depth[addr], g_frame.CameraNear);
-			if (neighborLinearDepth == FLT_MAX)
-				continue;
-			
-			float2 neighborUV = (addr + 0.5) * rcpRenderDim;
-			if (!GeometryTest(neighborLinearDepth, neighborUV, normal, posW, linearDepth))
-				continue;
-			
-			float3 neighborColor = g_input[addr].rgb;
-			float neighborLum = Math::Color::LuminanceFromLinearRGB(neighborColor);
-
-			if (neighborLum < minLum)
-			{
-				minLum = neighborLum;
-				minColor = neighborColor;
-			}
-			else if (neighborLum > maxLum)
-			{
-				maxLum = neighborLum;
-				maxColor = neighborColor;
-			}
-		}
-	}
-	
-	float3 ret = currLum < minLum ? minColor : (currLum > maxLum ? maxColor : currColor);
-	return ret;
-}
-
 float CoC(float linearDepth)
 {
 	float f = g_local.FocalLength / 1000.0f; // convert from mm to meters
@@ -187,9 +119,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	{
 		Texture2D<float4> g_directDenoised = ResourceDescriptorHeap[g_local.DirectDNSRCacheDescHeapIdx];
 		float3 skyLo = g_directDenoised[DTid.xy].rgb;
-		
-		if (g_local.FireflySuppression)
-			skyLo = FilterFirefly(g_directDenoised, skyLo, DTid.xy, GTid.xy, linearDepth, normal, posW);
 		
 		color += skyLo;
 	}

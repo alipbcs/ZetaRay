@@ -20,8 +20,8 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	data.SunShadowPass.Init();
 
 	// compositing
-	data.CompositingPass.Init(false, settings.SkyIllumination);
-	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
+	data.CompositingPass.Init(settings.DoF, settings.SkyIllumination, settings.FireflyFilter);
+	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT);
 
 	// sky dome
 	data.SkyDomePass.Init(lightAccum.GetDesc().Format);
@@ -48,7 +48,7 @@ void Light::OnWindowSizeChanged(const RenderSettings& settings, LightData& data)
 	data.CompositingPass.OnWindowResized();
 
 	// RTV
-	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
+	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT);
 	Direct3DHelper::CreateRTV(lightAccum, data.HdrLightAccumRTV.CPUHandle(0));
 
 	if (data.SunShadowPass.IsInitialized())
@@ -149,19 +149,14 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 void Light::Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData,
 	RenderGraph& renderGraph) noexcept
 {
-	Core::Texture& lightAccum = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED));
+	Core::Texture& lightAccum = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT));
 	renderGraph.RegisterResource(lightAccum.GetResource(), lightAccum.GetPathID());
 
 	// dof
-	if (settings.DoF)
+	if (settings.DoF || settings.FireflyFilter)
 	{
-		Core::Texture& dofGather = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_GATHER));
-		renderGraph.RegisterResource(dofGather.GetResource(), dofGather.GetPathID());
-
-		// due to pingponging, these two might be the same
-		Core::Texture& dofFiltered = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED));
-		if(dofFiltered.GetPathID() != dofGather.GetPathID())
-			renderGraph.RegisterResource(dofFiltered.GetResource(), dofFiltered.GetPathID());
+		Core::Texture& filtered = const_cast<Core::Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_FILTERED));
+		renderGraph.RegisterResource(filtered.GetResource(), filtered.GetPathID());
 	}
 
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
@@ -292,7 +287,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
 		renderGraph.AddOutput(lightData.SkyDomeHandle,
-			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED).GetPathID(),
+			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
 
@@ -352,17 +347,13 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 	}
 
 	renderGraph.AddOutput(lightData.CompositingHandle, 
-		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED).GetPathID(),
+		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	if (settings.DoF)
+	if (settings.DoF || settings.FireflyFilter)
 	{
 		renderGraph.AddOutput(lightData.CompositingHandle,
-			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_GATHER).GetPathID(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-		renderGraph.AddOutput(lightData.CompositingHandle,
-			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::DoF_FILTERED).GetPathID(),
+			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_FILTERED).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 }

@@ -32,21 +32,22 @@ namespace ZetaRay::RenderPass
 
 		enum class SHADER_OUT_RES
 		{
-			COMPOSITED,
-			DoF_GATHER,
-			DoF_FILTERED,
+			COMPOSITED_DEFAULT,
+			COMPOSITED_FILTERED,
+			FINAL_OUTPUT,
 			COUNT
 		};
 
 		Compositing() noexcept;
 		~Compositing() noexcept;
 
-		void Init(bool dof, bool skyIllum) noexcept;
+		void Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept;
 		bool IsInitialized() noexcept { return m_psos[0] != nullptr; }
 		void Reset() noexcept;
 		void SetInscatteringEnablement(bool b) { m_cbComposit.AccumulateInscattering = b; }
 		void SetDoFEnablement(bool b) noexcept;
 		void SetSkyIllumEnablement(bool b) noexcept;
+		void SetFireflyFilterEnablement(bool b) noexcept;
 		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float p) noexcept { m_cbComposit.DepthMappingExp = p; }
 		void SetRoughnessCutoff(float c) noexcept { m_cbComposit.RoughnessCutoff = c; }
@@ -79,14 +80,12 @@ namespace ZetaRay::RenderPass
 		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
 		{
 			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
+			if (i == SHADER_OUT_RES::COMPOSITED_DEFAULT)
+				return m_hdrLightAccum;
+			if (i == SHADER_OUT_RES::COMPOSITED_FILTERED)
+				return m_dofGather_filtered;
 
-			if (i == SHADER_OUT_RES::DoF_GATHER)
-				return m_dofGather;
-
-			if (i == SHADER_OUT_RES::DoF_FILTERED && (m_numGaussianPasses & 0x1) == 0)
-				return m_dofGather;
-
-			return m_hdrLightAccum;
+			return *m_output;
 		}
 		void OnWindowResized() noexcept;
 		void Render(Core::CommandList& cmdList) noexcept;
@@ -110,8 +109,8 @@ namespace ZetaRay::RenderPass
 		{
 			LIGHT_ACCUM_SRV,
 			LIGHT_ACCUM_UAV,
-			DoF_GATHER_SRV,
-			DoF_GATHER_UAV,
+			DoF_GATHER_FILTERED_SRV,
+			DoF_GATHER_FILTERED_UAV,
 			COUNT
 		};
 
@@ -120,6 +119,7 @@ namespace ZetaRay::RenderPass
 			COMPOSIT,
 			DoF_GATHER,
 			DoF_GAUSSIAN_FILTER,
+			FIREFLY_FILTER,
 			COUNT
 		};
 
@@ -128,20 +128,27 @@ namespace ZetaRay::RenderPass
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
 			"Compositing_cs.cso",
 			"DoF_Gather_cs.cso",
-			"DoF_GaussianFilter_cs.cso"
+			"DoF_GaussianFilter_cs.cso",
+			"FireflyFilter_cs.cso"
 		};
 		
 		Core::Texture m_hdrLightAccum;
-		Core::Texture m_dofGather;
+		Core::Texture m_dofGather_filtered;
 		Core::DescriptorTable m_descTable; 
 		cbCompositing m_cbComposit;
 		cbDoF m_cbDoF;
 		cbGaussianFilter m_cbGaussian;
-		int m_numGaussianPasses = 2;
+		int m_numGaussianPasses = 0;
+		Core::Texture* m_output = nullptr;
+		bool m_filterFirefly = false;
 		bool m_dof = false;
+		bool m_needToUavBarrierOnHDR = false;
+		bool m_needToUavBarrierOnFilter = false;
 
 		void CreateLightAccumTex() noexcept;
-		void CreateDoFResources() noexcept;
+		void CreateDoForFilteredResources() noexcept;
+		void UpdateManualBarrierConditions() noexcept;
+		
 		void SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
@@ -152,7 +159,6 @@ namespace ZetaRay::RenderPass
 		void RadiusScaleCallback(const Support::ParamVariant& p) noexcept;
 		void MinLumToFilterCallback(const Support::ParamVariant& p) noexcept;
 		void NumGaussianPassesCallback(const Support::ParamVariant& p) noexcept;
-		void FireflySuppressionCallback(const Support::ParamVariant& p) noexcept;
 
 		void ReloadCompsiting() noexcept;
 	};

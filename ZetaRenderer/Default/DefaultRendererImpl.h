@@ -50,6 +50,7 @@ namespace ZetaRay::DefaultRenderer
 		bool Inscattering = false;
 		bool DoF = false;
 		bool SkyIllumination = false;
+		bool FireflyFilter = false;
 		// Note match with default PendingAA
 		Settings::AA AntiAliasing = Settings::AA::NATIVE_TAA;
 	};

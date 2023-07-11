@@ -121,24 +121,24 @@ float3 VerticalPass(uint3 DTid, uint3 GTid)
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y, 1)]
+[numthreads(GAUSSIAN_FILTER_THREAD_GROUP_DIM_X, GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 	Texture2D<float4> g_gather = ResourceDescriptorHeap[g_local.GatherSrvDescHeapIdx];
 	float3 color = g_gather[DTid.xy].rgb;
-	const bool needsFilter = any(color - abs(color) < 0);
+	const bool needsFilter = any(color < 0);
 	color = abs(color);
 	
 	HorizontalPass(Gid, Gidx);
 	GroupMemoryBarrierWithGroupSync();
 	
-	RWTexture2D<float4> g_variance = ResourceDescriptorHeap[g_local.FilteredUavDescHeapIdx];
+	RWTexture2D<float4> g_color = ResourceDescriptorHeap[g_local.FilteredUavDescHeapIdx];
 	
 	if (needsFilter)
 	{
 		float3 filtered = VerticalPass(DTid, GTid);
-		g_variance[DTid.xy].rgb = filtered;
+		g_color[DTid.xy].rgb = filtered;
 	}
 	else
-		g_variance[DTid.xy].rgb = color.rgb;
+		g_color[DTid.xy].rgb = color.rgb;
 }

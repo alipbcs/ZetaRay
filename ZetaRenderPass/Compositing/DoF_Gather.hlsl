@@ -1,21 +1,17 @@
 #include "Compositing_Common.h"
+#include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Common.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../../ZetaCore/Core/Material.h"
 #include "../Common/GBuffers.hlsli"
-#include "../Common/BRDF.hlsli"
-#include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/RT.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
 
 #define GOLDEN_ANGLE 2.39996323
 
 #define MIN_WAVE_SIZE 16
-static const uint MaxNumWaves = (COMPOSITING_THREAD_GROUP_DIM_X * COMPOSITING_THREAD_GROUP_DIM_Y) / MIN_WAVE_SIZE;
+static const uint MaxNumWaves = (DOF_GATHER_THREAD_GROUP_DIM_X * DOF_GATHER_THREAD_GROUP_DIM_Y) / MIN_WAVE_SIZE;
 
 groupshared float g_maxLum[MaxNumWaves];
 
@@ -36,7 +32,7 @@ float3 depthOfField(float3 color, uint2 DTid, float depth, float coc)
 	float total = 1.0;
 	float radius = g_local.RadiusScale;
 	
-	Texture2D<half4> g_composited = ResourceDescriptorHeap[g_local.CompositedSRVDescHeapIdx];
+	Texture2D<half4> g_composited = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float2 pixelSize = float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
 	float2 uv = (DTid.xy + 0.5.xx) * pixelSize;
@@ -65,23 +61,22 @@ float3 depthOfField(float3 color, uint2 DTid, float depth, float coc)
 // Main
 //--------------------------------------------------------------------------------------
 
-[numthreads(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y, 1)]
+[numthreads(DOF_GATHER_THREAD_GROUP_DIM_X, DOF_GATHER_THREAD_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return;
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
-	Texture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.CompositedSRVDescHeapIdx];
+	Texture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	float4 colorCoC = g_hdrLightAccum[DTid.xy];
 
 	float3 color = depthOfField(colorCoC.rgb, DTid.xy, depth, 1);
 	const float lum = Math::Color::LuminanceFromLinearRGB(color.rgb);
 	const float waveMaxLum = WaveActiveMax(lum);
-	const uint numWaves = (COMPOSITING_THREAD_GROUP_DIM_X * COMPOSITING_THREAD_GROUP_DIM_Y) / WaveGetLaneCount();
+	const uint numWaves = (DOF_GATHER_THREAD_GROUP_DIM_X * DOF_GATHER_THREAD_GROUP_DIM_Y) / WaveGetLaneCount();
 	const uint wave = Gidx / WaveGetLaneCount();
 	
 	if (WaveIsFirstLane())
@@ -96,6 +91,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	if (g_local.IsGaussianFilterEnabled && groupMaxLum >= g_local.MinLumToFilter)
 		color *= -1;
 	
-	RWTexture2D<float4> g_gather = ResourceDescriptorHeap[g_local.GatherUAVDescHeapIdx];
+	RWTexture2D<float4> g_gather = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];
 	g_gather[DTid.xy].rgb = color;
 }
