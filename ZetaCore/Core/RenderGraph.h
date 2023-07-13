@@ -74,7 +74,8 @@ namespace ZetaRay::Core
 		void BeginFrame() noexcept;
 
 		// Adds a node to the graph
-		RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&> dlg) noexcept;
+		RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&> dlg,
+			bool forceSeperateCmdList = false) noexcept;
 
 		// Registers a new resource. This must be called prior to declaring resource dependencies in each frame
 		void RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
@@ -100,6 +101,9 @@ namespace ZetaRay::Core
 		// Draws the render graph
 		void DebugDrawGraph() noexcept;
 
+		// GPU completion fence for given render node. It must've already been submitted
+		uint64_t GetCompletionFence(RenderNodeHandle h) noexcept;
+
 	private:
 		static constexpr uint16_t INVALID_NODE_HANDLE = uint16_t(-1);
 		static constexpr int MAX_NUM_RENDER_PASSES = 32;
@@ -108,8 +112,8 @@ namespace ZetaRay::Core
 
 		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
 		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
-		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Util::Span<RenderNodeHandle> mapping) noexcept;
-		void InsertResourceBarriers(Util::Span<RenderNodeHandle> mapping) noexcept;
+		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes) noexcept;
+		void InsertResourceBarriers() noexcept;
 		void JoinRenderNodes() noexcept;
 
 #ifdef _DEBUG
@@ -216,10 +220,11 @@ namespace ZetaRay::Core
 				OutputMask = 0;
 				memset(Name, 0, MAX_NAME_LENGTH);
 				AggNodeIdx = -1;
+				ForceSeperateCmdList = false;
 #endif
 			}
 
-			void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg) noexcept
+			void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeperateCmdList) noexcept
 			{
 				Type = t;
 				Dlg = dlg;
@@ -232,6 +237,7 @@ namespace ZetaRay::Core
 				GpuDepSourceIdx = RenderNodeHandle(-1);
 				OutputMask = 0;
 				AggNodeIdx = -1;
+				ForceSeperateCmdList = forceSeperateCmdList;
 
 				int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
 				memcpy(Name, name, n);
@@ -259,6 +265,7 @@ namespace ZetaRay::Core
 			uint32_t OutputMask = 0;
 			int Indegree = 0;
 			int AggNodeIdx = -1;
+			bool ForceSeperateCmdList = false;
 		};
 
 		struct AggregateRenderNode
@@ -281,11 +288,12 @@ namespace ZetaRay::Core
 				TaskH = uint32_t(-1);
 				IsAsyncCompute = false;
 				IsLast = false;
+				ForceSeperate = false;
 				memset(Name, 0, MAX_NAME_LENGTH);
 #endif
 			}
 
-			void Append(const RenderNode& node, int mappedGpeDepIdx) noexcept;
+			void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate = false) noexcept;
 
 			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
 			Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;
@@ -303,13 +311,16 @@ namespace ZetaRay::Core
 			bool IsAsyncCompute;
 			bool HasUnsupportedBarrier = false;
 			bool IsLast = false;
+			bool ForceSeperate = false;
 		};
 
 		static_assert(std::is_move_constructible_v<RenderNode>);
 		static_assert(std::is_swappable_v<RenderNode>);
 
 		RenderNode m_renderNodes[MAX_NUM_RENDER_PASSES];
+		RenderNodeHandle m_mapping[MAX_NUM_RENDER_PASSES];
 		Util::SmallVector<AggregateRenderNode, App::FrameAllocator> m_aggregateNodes;
+		uint64_t m_aggregateFenceVals[MAX_NUM_RENDER_PASSES];
 
 		//int m_numPassesPrevFrame;
 		int m_numPassesLastTimeDrawn = -1;

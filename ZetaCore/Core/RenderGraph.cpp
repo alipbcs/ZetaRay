@@ -1,4 +1,4 @@
-// Some of the ideas in this implementation were Inspired by following: 
+// Some of the ideas in this implementation were inspired by the following: 
 // https://levelup.gitconnected.com/organizing-gpu-work-with-directed-acyclic-graphs-f3fd5f2c2af3
 
 #include "RenderGraph.h"
@@ -8,6 +8,7 @@
 #include "CommandList.h"
 #include "../Support/Task.h"
 #include "../App/Timer.h"
+#include "../Utility/Utility.h"
 #include <algorithm>
 #include <xxHash/xxhash.h>
 #include <imgui/imnodes.h>
@@ -73,14 +74,16 @@ namespace
 // AggregateRenderNode
 //--------------------------------------------------------------------------------------
 
-void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx) noexcept
+void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate) noexcept
 {
 	Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
 	Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, "All the nodes in an AggregateRenderNode must have the same batch index.");
+	Assert(!forceSeperate || Dlgs.empty(), "Aggregate nodes with forceSeperate flag can't have more than task.");
 
 	Barriers.append_range(node.Barriers.begin(), node.Barriers.end());
 	Dlgs.push_back(node.Dlg);
 	BatchIdx = node.NodeBatchIdx;
+	ForceSeperate = forceSeperate;
 
 	GpuDepIdx.Val = Math::Max(GpuDepIdx.Val, mappedGpeDepIdx);
 
@@ -157,7 +160,7 @@ void RenderGraph::Reset() noexcept
 void RenderGraph::RemoveResource(uint64_t path) noexcept
 {
 	Assert(!m_inBeginEndBlock, "Invalid call.");
-	const int pos = FindFrameResource(path, 0, m_prevFramesNumResources);
+	const int pos = FindFrameResource(path, 0, m_prevFramesNumResources - 1);
 
 	if (pos != -1)
 	{
@@ -177,7 +180,7 @@ void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
 
 	for (auto p : paths)
 	{
-		int pos = FindFrameResource(p, 0, m_prevFramesNumResources);
+		int pos = FindFrameResource(p, 0, m_prevFramesNumResources - 1);
 
 		if (pos != -1)
 		{
@@ -215,7 +218,10 @@ void RenderGraph::BeginFrame() noexcept
 
 	// reset the render nodes
 	for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
+	{
 		m_renderNodes[currNode].Reset();
+		m_aggregateFenceVals[currNode] = uint64_t(-1);
+	}
 
 	m_aggregateNodes.free_memory();
 	m_inBeginEndBlock = true;
@@ -227,38 +233,19 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
 	if (end - beg == 0)
 		return -1;
 
-	end = (end == -1) ? m_lastResIdx.load(std::memory_order_relaxed) : end;
-	int mid = end >> 1;
-
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_frameResources[mid].ID < key)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	if (m_frameResources[beg].ID == key)
-		return beg;
-	else if (m_frameResources[mid].ID == key)
-		return mid;
-
-	return -1;
+	end = (end == -1) ? m_lastResIdx.load(std::memory_order_relaxed) - 1 : end;
+	auto idx = BinarySearch(Span(m_frameResources), key, [](ResourceMetadata& r) {return r.ID; }, beg, end);
+	return (int)idx;
 }
 
 RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, 
-	fastdelegate::FastDelegate1<CommandList&> dlg) noexcept
+	fastdelegate::FastDelegate1<CommandList&> dlg, bool forceSeperateCmdList) noexcept
 {
 	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	int h = m_currRenderPassIdx.fetch_add(1, std::memory_order_relaxed);
 	Assert(h < MAX_NUM_RENDER_PASSES, "Number of render passes exceeded MAX_NUM_RENDER_PASSES");
 
-	m_renderNodes[h].Reset(name, t, dlg);
+	m_renderNodes[h].Reset(name, t, dlg, forceSeperateCmdList);
 
 	return RenderNodeHandle(h);
 }
@@ -268,7 +255,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
 
-	const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources);
+	const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources - 1);
 
 	// existing resource
 	if (prevPos != -1)
@@ -417,12 +404,10 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 		}
 	}
 
-	RenderNodeHandle mapping[MAX_NUM_RENDER_PASSES];
-
-	Sort(adjacentTailNodes, mapping);
+	Sort(adjacentTailNodes);
 
 	// at this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" was sorted. "mapping" must be used instead
-	InsertResourceBarriers(mapping);
+	InsertResourceBarriers();
 	JoinRenderNodes();
 	BuildTaskGraph(ts);
 
@@ -466,7 +451,9 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 				{
 					CommandList* barrierCmdList = renderer.GetGraphicsCmdList();
 					GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(*barrierCmdList);
+#ifdef _DEBUG
 					directCmdList.SetName("Barrier");
+#endif // _DEBUG
 
 					directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), (UINT)aggregateNode.Barriers.size());
 					uint64_t f = renderer.ExecuteCmdList(barrierCmdList);
@@ -500,6 +487,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 
 				// submit
 				aggregateNode.CompletionFence = renderer.ExecuteCmdList(cmdList);
+				m_aggregateFenceVals[i] = aggregateNode.CompletionFence;
 			});
 	}
 
@@ -516,11 +504,14 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 
 			if (nextBatchIdx == currBatchIdx + 1)
 				ts.AddOutgoingEdge(m_aggregateNodes[i].TaskH, m_aggregateNodes[j].TaskH);
+
+			if(nextBatchIdx == currBatchIdx && m_aggregateNodes[j].ForceSeperate)
+				ts.AddOutgoingEdge(m_aggregateNodes[i].TaskH, m_aggregateNodes[j].TaskH);
 		}
 	}
 }
 
-void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes, Span<RenderNodeHandle> mapping) noexcept
+void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes) noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	RenderNodeHandle sorted[MAX_NUM_RENDER_PASSES];
@@ -584,7 +575,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 	//
 	// e.g. Producer handle 0 is now located at mapping[0] = 4
 	for (int currNode = 0; currNode < numNodes; currNode++)
-		mapping[sorted[currNode].Val] = RenderNodeHandle(currNode);
+		m_mapping[sorted[currNode].Val] = RenderNodeHandle(currNode);
 
 	// shuffle
 	RenderNode tempRenderNodes[MAX_NUM_RENDER_PASSES];
@@ -602,7 +593,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 //		});
 }
 
-void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcept
+void RenderGraph::InsertResourceBarriers() noexcept
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 
@@ -632,7 +623,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 	//		 - if R.state != expected --> add a barrier (e.g. SRV to UAV)
 	//		 - if stateBefore(== R.state) is unsupported --> set hasUnsupportedBarriers
 
-	// iterate by execution order (i.e. sorted by batch-index)
+	// iterate by execution order (i.e. sorted by batch index)
 	for (int currNode = 0; currNode < numNodes; currNode++)
 	{
 		RenderNode& node = m_renderNodes[currNode];
@@ -660,7 +651,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 					inputResState,
 					currInputRes.ExpectedState));
 
-				// update the resource state
+				// update resource state
 				m_frameResources[inputFrameResIdx].State = currInputRes.ExpectedState;
 			}
 
@@ -669,20 +660,20 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			// 
 			// Cases:
 			//
-			// a. 5 only needs to sync with 4.
+			// a. 5 only needs to sync with 4 and 7.
 			//
-			//		Queue2:		1------> 3 ------> 5 ------> 7
-			//									   |         |
-			//					|--------|-------------------
-			//		Queue2: 	2 -----> 4 ------> 6
+			//		Queue1		1------> 3 ------> 5
+			//									   |
+			//					|--------|----------
+			//		Queue2	 	2 -----> 4 ------> 6
 			//
 			//		   
-			// b. since 4 has synced with 1, 6 no longer needs to sync with 1
+			// b. since 4 has synced with 1, 6 no longer needs to sync with 1.
 			//
-			//		Queue1:		1------> 2 ------> 3
+			//		Queue1		1------> 2 ------> 3
 			//					|-----------------
 			//					|		 		  |
-			//		Queue2: 	4 -----> 5 -----> 6
+			//		Queue2 		4 -----> 5 -----> 6
 
 			// find the largest producer batch index (case a)
 			const int numProducers = m_frameResources[inputFrameResIdx].CurrProdIdx.load(std::memory_order_relaxed);
@@ -692,7 +683,7 @@ void RenderGraph::InsertResourceBarriers(Span<RenderNodeHandle> mapping) noexcep
 			for (int i = 0; i < numProducers; i++)
 			{
 				RenderNodeHandle unsortedHandle = m_frameResources[inputFrameResIdx].Producers[i];
-				RenderNodeHandle sortedHandle = mapping[unsortedHandle.Val];
+				RenderNodeHandle sortedHandle = m_mapping[unsortedHandle.Val];
 				const bool producerOnDifferentQueue = 
 					(isAsyncCompute && m_renderNodes[sortedHandle.Val].Type != RENDER_NODE_TYPE::ASYNC_COMPUTE) ||
 					(!isAsyncCompute && m_renderNodes[sortedHandle.Val].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE);
@@ -768,57 +759,45 @@ void RenderGraph::JoinRenderNodes() noexcept
 		{
 			m_aggregateNodes.emplace_back(true);
 
+			bool hasGpuFence = false;
+			bool hasUnsupportedBarrier = false;
+
 			for (auto n : asyncComputeNodes)
 			{
-				m_aggregateNodes.back().Append(m_renderNodes[n], -1);
-				m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
-			}
-		}
+				const int gpuDep = m_renderNodes[n].GpuDepSourceIdx.Val;
 
-		if (!nonAsyncComputeNodes.empty())
-		{
-			// if there's an async. compute task in this batch that has unsupported barriers,
-			// then that task's going to sync with the direct queue immediately before execution,
-			// which supersedes any other gpu fence in that batch
-			const bool gpuFenceSuperfluous = !asyncComputeNodes.empty() && m_aggregateNodes.back().HasUnsupportedBarrier;
-			bool hasGpuFence = false;
+				hasGpuFence = hasGpuFence || gpuDep != -1;
+				hasUnsupportedBarrier = hasUnsupportedBarrier || m_renderNodes[n].HasUnsupportedBarrier;
 
-			for (auto n : nonAsyncComputeNodes)
-			{
-				hasGpuFence = m_renderNodes[n].GpuDepSourceIdx.Val != -1;
-				if (hasGpuFence)
-					break;
-			}
-
-			// following was wrong, it seems (!!) the intention was to join (non-async) nodes from
-			// this batch with the previous non-async aggregate node (from the last batch), when there isn't 
-			// a gpu dependency, but failed to consider the case that the last aggregate node is an async compute one
-			// from the CURRENT batch. 
-			// 
-			//if (!hasGpuFence || !gpuFenceSuperfluous)
-				//m_aggregateNodes.emplace_back(false);
-			// 
-			// Correct if condition could be
-			//if (!hasGpuFence || !gpuFenceSuperfluous && asyncComputeNodes.empty())
-			// 
-			// but joining nodes from different batches requires more thought. Also the false condition 
-			// had never been triggered (a new aggreagae was always emplaced)
-
-			m_aggregateNodes.emplace_back(false);
-
-			for (auto n : nonAsyncComputeNodes)
-			{
-				int mappedGpuDepIdx = m_renderNodes[n].GpuDepSourceIdx.Val == -1 ?
-					-1 :
-					m_renderNodes[m_renderNodes[n].GpuDepSourceIdx.Val].AggNodeIdx;
+				const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
+				Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
 
 				m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
 				m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
 			}
 
-			m_aggregateNodes.back().GpuDepIdx = hasGpuFence && gpuFenceSuperfluous ?
+			// if there's an async. compute task in this batch that has unsupported barriers,
+			// then that task's going to sync with the direct queue immediately before execution,
+			// which supersedes any other gpu fence in this joined node
+			m_aggregateNodes.back().GpuDepIdx = hasGpuFence && hasUnsupportedBarrier ?
 				RenderNodeHandle(-1) :
 				m_aggregateNodes.back().GpuDepIdx;
+		}
+
+		if (!nonAsyncComputeNodes.empty())
+		{
+			m_aggregateNodes.emplace_back(false);
+
+			for (auto n : nonAsyncComputeNodes)
+			{
+				const int gpuDep = m_renderNodes[n].GpuDepSourceIdx.Val;
+				// map from node index to aggregate node index
+				const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
+				Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
+
+				m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
+				m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
+			}
 		}
 	};
 
@@ -833,6 +812,20 @@ void RenderGraph::JoinRenderNodes() noexcept
 			currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
 		}
 
+		if (m_renderNodes[currNode].ForceSeperateCmdList)
+		{
+			m_aggregateNodes.emplace_back(m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE);
+
+			const int gpuDep = m_renderNodes[currNode].GpuDepSourceIdx.Val;
+			const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
+			Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
+
+			m_aggregateNodes.back().Append(m_renderNodes[currNode], mappedGpuDepIdx, true);
+			m_renderNodes[currNode].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
+
+			continue;
+		}
+
 		if (m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
 			asyncComputeNodes.push_back(currNode);
 		else
@@ -842,6 +835,23 @@ void RenderGraph::JoinRenderNodes() noexcept
 	insertAggRndrNode();
 
 	m_aggregateNodes.back().IsLast = true;
+}
+
+uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h) noexcept
+{
+	Assert(h.IsValid(), "invalid handle.");
+	Assert(!m_inBeginEndBlock, "invalid call.");
+	Assert(!m_inPreRegister, "invalid call.");
+
+	auto mappedIdx = m_mapping[h.Val];
+	Assert(mappedIdx.IsValid(), "invalid mapped index");
+
+	auto aggNodeIdx = m_renderNodes[mappedIdx.Val].AggNodeIdx;
+	Assert(aggNodeIdx != -1, "render graph hasn't been built yet.");
+	auto fence = m_aggregateFenceVals[aggNodeIdx];
+	//Assert(fence != -1, "render node hasn't been submitted yet.");
+
+	return fence;
 }
 
 void RenderGraph::DebugDrawGraph() noexcept
