@@ -43,6 +43,9 @@ float3 Math::SphericalToCartesian(float theta, float phi) noexcept
 
 size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, size_t* offsets, size_t* sizes, size_t minNumElems) noexcept
 {
+	if (n == 0)
+		return 0;
+
 	size_t groupSize = Max(n / maxNumGroups, minNumElems);
 	size_t actualNumGroups = Max(n / groupSize, 1llu);
 

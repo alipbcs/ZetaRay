@@ -102,10 +102,10 @@ void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept
 	TaskMetadata& tb = m_taskMetadata[b];
 
 	bool prev1 = _bittestandset((long*)&ta.SuccessorMask, b);
-	Assert(!prev1, "Reduntant call. Edge had already beed added.");
+	Assert(!prev1, "Reduntant call, edge already exists.");
 
 	bool prev2 = _bittestandset((long*)&tb.PredecessorMask, a);
-	Assert(!prev2, "Reduntant call. Edge had already beed added.");
+	Assert(!prev2, "Reduntant call, edge already exists.");
 
 	m_tasks[a].m_adjacentTailNodes.push_back(m_tasks[b].m_signalHandle);
 }
@@ -150,17 +150,17 @@ void TaskSet::AddIncomingEdgeFromAll(TaskHandle a) noexcept
 
 void TaskSet::Sort() noexcept
 {
-	Check(!m_isSorted, "Invalid call.");
+	Assert(!m_isSorted, "Invalid call.");
 
-	ComputeInOutMask();
 	TopologicalSort();
+	ComputeInOutMask();
 
 	m_isSorted = true;
 }
 
 void TaskSet::Finalize(WaitObject* waitObj) noexcept
 {
-	Check(!m_isFinalized && m_isSorted, "Invalid call.");
+	Assert(!m_isFinalized && m_isSorted, "Invalid call.");
 
 	for (int i = 0; i < m_currSize; i++)
 	{
@@ -217,8 +217,17 @@ void TaskSet::ComputeInOutMask() noexcept
 
 void TaskSet::TopologicalSort() noexcept
 {
+	// find the root nodes
+	uint16_t rootMask = 0;
+
+	for (int i = 0; i < m_currSize; ++i)
+	{
+		if (m_taskMetadata[i].Indegree() == 0)
+			rootMask |= (1llu << i);
+	}
+
 	// at each itertation, points to remaining elements that have an indegree of zero
-	uint64_t currMask = m_rootMask;
+	uint64_t currMask = rootMask;
 	size_t currIdx = 0;	
 	int sorted[MAX_NUM_TASKS];
 
