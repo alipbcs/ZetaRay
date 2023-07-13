@@ -94,7 +94,8 @@ namespace ZetaRay::App
 	int Run() noexcept;
 	void Abort() noexcept;
 
-	void* AllocateFromFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+	void* AllocateSmallFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+	void* AllocateLargeFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
 
 	int RegisterTask() noexcept;
 	void TaskFinalizedCallback(int handle, int indegree) noexcept;
@@ -159,7 +160,17 @@ namespace ZetaRay::App
 	{
 		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
 		{
-			return App::AllocateFromFrameAllocator(size, alignment);
+			return App::AllocateSmallFrameAllocator(size, alignment);
+		}
+
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
+	};
+
+	struct LargeFrameAllocator
+	{
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		{
+			return App::AllocateLargeFrameAllocator(size, alignment);
 		}
 
 		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}

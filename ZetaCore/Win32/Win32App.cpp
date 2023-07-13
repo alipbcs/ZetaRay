@@ -14,7 +14,6 @@
 #include "../Scene/SceneCore.h"
 #include "../Scene/Camera.h"
 #include "../Support/ThreadPool.h"
-#include "../Utility/RNG.h"
 #include "../Assets/Font/Font.h"
 #include <atomic>
 
@@ -122,6 +121,12 @@ namespace
 
 namespace
 {
+	struct FrameMemoryContext
+	{
+		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
+		std::atomic_int32_t m_currFrameAllocIndex;
+	};
+
 	struct AppData
 	{
 		inline static constexpr const char* PSO_CACHE_PARENT = "..\\Assets\\PsoCache";
@@ -167,10 +172,11 @@ namespace
 		Camera m_camera;
 
 		THREAD_ID_TYPE alignas(64) m_threadIDs[MAX_NUM_THREADS];
-		RNG m_rng;
-		FrameMemory m_frameMemory;
-		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
-		std::atomic_int32_t m_currFrameAllocIndex;
+
+		FrameMemory<512 * 1024> m_smallFrameMemory;
+		FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
+		FrameMemoryContext m_smallFrameMemoryContext;
+		FrameMemoryContext m_largeFrameMemoryContext;
 
 		SmallVector<ParamVariant> m_params;
 		SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
@@ -1057,10 +1063,7 @@ namespace ZetaRay::AppImpl
 			g_app->m_issueResize = false;
 		}
 	}
-}
 
-namespace ZetaRay
-{
 	ZetaInline int GetThreadIdx() noexcept
 	{
 		const THREAD_ID_TYPE id = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
@@ -1074,6 +1077,55 @@ namespace ZetaRay
 		return -1;
 	}
 
+	template<size_t blockSize>
+	ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, size_t size, size_t alignment) noexcept
+	{
+		alignment = Math::Max(alignof(std::max_align_t), alignment);
+
+		// at most alignment - 1 extra bytes are required
+		Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE, "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
+
+		const int threadIdx = GetThreadIdx();
+		Assert(threadIdx != -1, "thread idx was not found");
+
+		// current memory block has enough space
+		int allocIdx = context.m_threadFrameAllocIndices[threadIdx];
+
+		// first time in this frame
+		if (allocIdx != -1)
+		{
+			auto& block = frameMemory.GetAndInitIfEmpty(allocIdx);
+
+			const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
+			const uintptr_t ret = Math::AlignUp(start + block.Offset, alignment);
+			const uintptr_t startOffset = ret - start;
+
+			if (startOffset + size < frameMemory.BLOCK_SIZE)
+			{
+				block.Offset = startOffset + size;
+				return reinterpret_cast<void*>(ret);
+			}
+		}
+
+		// allocate/reuse a new block
+		allocIdx = context.m_currFrameAllocIndex.fetch_add(1, std::memory_order_relaxed);
+		context.m_threadFrameAllocIndices[threadIdx] = allocIdx;
+		auto& block = frameMemory.GetAndInitIfEmpty(allocIdx);
+		Assert(block.Offset == 0, "block offset should be initially 0");
+
+		const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
+		const uintptr_t ret = Math::AlignUp(start, alignment);
+		const uintptr_t startOffset = ret - start;
+
+		Assert(startOffset + size < frameMemory.BLOCK_SIZE, "should never happen.");
+		block.Offset = startOffset + size;
+
+		return reinterpret_cast<void*>(ret);
+	}
+}
+
+namespace ZetaRay
+{
 	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
 		: Dlg(dlg)
 	{
@@ -1134,8 +1186,10 @@ namespace ZetaRay
 			THREAD_PRIORITY::BACKGROUND);
 
 		// initialize frame allocators
-		memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
-		g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
+		memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+		g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
+		memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+		g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
 		// initialize memory pools. has to happen after the thread pool creation
 
@@ -1153,9 +1207,6 @@ namespace ZetaRay
 
 		for (int i = 0; i < backgroundThreadIDs.size(); i++)
 			g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
-
-		uint64_t seed = std::bit_cast<uint64_t, void*>(g_app);
-		g_app->m_rng = RNG(seed);
 
 		g_app->m_workerThreadPool.Start();
 		g_app->m_backgroundThreadPool.Start();
@@ -1240,9 +1291,13 @@ namespace ZetaRay
 
 			if (g_app->m_timer.GetTotalFrameCount() > 1)
 			{
-				g_app->m_currFrameAllocIndex.store(0, std::memory_order_release);
-				memset(g_app->m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
-				g_app->m_frameMemory.Reset();		// set the offset to 0, essentially freeing the memory
+				g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
+				memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				g_app->m_smallFrameMemory.Reset();		// set the offset to 0, essentially freeing the memory
+
+				g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
+				memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				g_app->m_largeFrameMemory.Reset();		// set the offset to 0, essentially freeing the memory
 			}
 
 			// update app
@@ -1335,49 +1390,14 @@ namespace ZetaRay
 		PostQuitMessage(0);
 	}
 
-	void* App::AllocateFromFrameAllocator(size_t size, size_t alignment) noexcept
+	void* App::AllocateSmallFrameAllocator(size_t size, size_t alignment) noexcept
 	{
-		alignment = Math::Max(alignof(std::max_align_t), alignment);
+		return AppImpl::AllocateFrameAllocator<>(g_app->m_smallFrameMemory, g_app->m_smallFrameMemoryContext, size, alignment);
+	}
 
-		// at most alignment - 1 extra bytes are required
-		Assert(size + alignment - 1 <= FrameMemory::BLOCK_SIZE, "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
-
-		const int threadIdx = GetThreadIdx();
-		Assert(threadIdx != -1, "thread idx was not found");
-
-		// current memory block has enough space
-		int allocIdx = g_app->m_threadFrameAllocIndices[threadIdx];
-
-		// first time in this frame
-		if (allocIdx != -1)
-		{
-			FrameMemory::MemoryBlock& block = g_app->m_frameMemory.GetAndInitIfEmpty(allocIdx);
-
-			const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
-			const uintptr_t ret = Math::AlignUp(start + block.Offset, alignment);
-			const uintptr_t startOffset = ret - start;
-
-			if (startOffset + size < FrameMemory::BLOCK_SIZE)
-			{
-				block.Offset = startOffset + size;
-				return reinterpret_cast<void*>(ret);
-			}
-		}
-
-		// allocate/reuse a new block
-		allocIdx = g_app->m_currFrameAllocIndex.fetch_add(1, std::memory_order_relaxed);
-		g_app->m_threadFrameAllocIndices[threadIdx] = allocIdx;
-		FrameMemory::MemoryBlock& block = g_app->m_frameMemory.GetAndInitIfEmpty(allocIdx);
-		Assert(block.Offset == 0, "block offset should be initially 0");
-
-		const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
-		const uintptr_t ret = Math::AlignUp(start, alignment);
-		const uintptr_t startOffset = ret - start;
-
-		Assert(startOffset + size < FrameMemory::BLOCK_SIZE, "should never happen.");
-		block.Offset = startOffset + size;
-
-		return reinterpret_cast<void*>(ret);
+	void* App::AllocateLargeFrameAllocator(size_t size, size_t alignment) noexcept
+	{
+		return AppImpl::AllocateFrameAllocator<>(g_app->m_largeFrameMemory, g_app->m_largeFrameMemoryContext, size, alignment);
 	}
 
 	int App::RegisterTask() noexcept
@@ -1568,13 +1588,13 @@ namespace ZetaRay
 
 	void App::RemoveShaderReloadHandler(const char* name) noexcept
 	{
-		uint64_t id = XXH3_64bits(name, std::min(ShaderReloadHandler::MAX_LEN, (int)strlen(name) + 1));
+		uint64_t id = XXH3_64bits(name, Math::Min(ShaderReloadHandler::MAX_LEN - 1, (int)strlen(name)));
 
 		AcquireSRWLockExclusive(&g_app->m_shaderReloadLock);
-		size_t i = 0;
+		int i = 0;
 		bool found = false;
 
-		for (i = 0; i < g_app->m_shaderReloadHandlers.size(); i++)
+		for (i = 0; i < (int)g_app->m_shaderReloadHandlers.size(); i++)
 		{
 			if (g_app->m_shaderReloadHandlers[i].ID == id)
 			{
