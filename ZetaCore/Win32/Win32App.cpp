@@ -420,11 +420,12 @@ namespace ZetaRay::AppImpl
 		DXGI_QUERY_VIDEO_MEMORY_INFO memoryInfo = {};
 		CheckHR(g_app->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
 
-		//g_app->m_frameStats.emplace_back("Frame", "#Frames", g_app->m_timer.GetTotalFrameCount());
-		//g_app->m_frameStats.emplace_back("Frame", "FrameTime", (float)frameTimeMs);
-		//g_app->m_frameStats.emplace_back("Frame", "FrameTime Avg.", (float) movingAvg);
+		if (memoryInfo.CurrentUsage > memoryInfo.Budget)
+			LOG_UI_WARNING("VRam usage exceeded available budget; performance can be severely impacted.");
+
 		g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
 		g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
+		g_app->m_frameStats.emplace_back("GPU", "VRam Budget (MB)", memoryInfo.Budget >> 20);
 	}
 
 	void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
