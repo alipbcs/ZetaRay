@@ -7,5 +7,6 @@ set(UTIL_SRC
     "${UTIL_DIR}/RNG.h"
     "${UTIL_DIR}/SmallVector.h"
     "${UTIL_DIR}/Span.h"
-    "${UTIL_DIR}/SynchronizedView.h")
+    "${UTIL_DIR}/SynchronizedView.h"
+    "${UTIL_DIR}/Utility.h")
 set(UTIL_SRC ${UTIL_SRC} PARENT_SCOPE)

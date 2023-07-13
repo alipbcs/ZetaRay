@@ -45,22 +45,22 @@ namespace ZetaRay::Core
 		UploadHeapBuffer(UploadHeapBuffer&& other) noexcept;
 		UploadHeapBuffer& operator=(UploadHeapBuffer&&) noexcept;
 
-		bool IsInitialized() noexcept { return Resource != nullptr; }
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return GpuAddress; }
-		ZetaInline ID3D12Resource* GetResource() { return Resource; }
-		ZetaInline size_t GetSize() const { return Size; }
-		ZetaInline size_t GetOffset() const { return OffsetFromResource; }
+		bool IsInitialized() noexcept { return m_resource != nullptr; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_gpuAddress; }
+		ZetaInline ID3D12Resource* GetResource() { return m_resource; }
+		ZetaInline size_t GetSize() const { return m_size; }
+		ZetaInline size_t GetOffset() const { return m_offsetFromResource; }
 
 		void Reset() noexcept;
 		void Copy(size_t offset, size_t numBytesToCopy, void* data) noexcept;
 
 	private:
-		D3D12_GPU_VIRTUAL_ADDRESS GpuAddress = {};
-		ID3D12Resource* Resource = nullptr;
-		void* MappedMemory = nullptr;
-		size_t Size = 0;
-		size_t OffsetFromResource = 0;
-		Internal::PageHandle PageHandle;
+		D3D12_GPU_VIRTUAL_ADDRESS m_gpuAddress = {};
+		ID3D12Resource* m_resource = nullptr;
+		void* m_mappedMemory = nullptr;
+		size_t m_size = 0;
+		size_t m_offsetFromResource = 0;
+		Internal::PageHandle m_pageHandle;
 	};
 
 	// "Resources in this heap must be created with D3D12_RESOURCE_STATE_COPY_DEST and cannot be changed away from this."
@@ -73,13 +73,24 @@ namespace ZetaRay::Core
 		ReadbackHeapBuffer(ReadbackHeapBuffer&&) noexcept;
 		ReadbackHeapBuffer& operator=(ReadbackHeapBuffer&&) noexcept;
 
+		bool IsInitialized() noexcept { return m_resource != nullptr; }
 		void Reset() noexcept;
-
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_resource->GetGPUVirtualAddress(); }
-		ZetaInline ID3D12Resource* GetResource() { return m_resource.Get(); }
-		ZetaInline size_t Size() const { return m_resource->GetDesc().Width; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const 
+		{ 
+			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
+			return m_resource->GetGPUVirtualAddress();
+		}
+		ZetaInline ID3D12Resource* GetResource() 
+		{ 
+			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
+			return m_resource.Get();
+		}
+		ZetaInline D3D12_RESOURCE_DESC GetDesc() const
+		{
+			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
+			return m_resource->GetDesc();
+		}
 		
-		// reminder: source and destination resources for CopyResource() can't be mapped
 		// From MS Docs:
 		// "Resources on D3D12_HEAP_TYPE_READBACK heaps do not support persistent map. Map and Unmap must 
 		// be called between CPU and GPU accesses to the same memory address on some system architectures, 

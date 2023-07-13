@@ -5,6 +5,7 @@
 #include "Direct3DHelpers.h"
 #include "../Support/Task.h"
 #include "../Support/MemoryArena.h"
+#include "../Utility/Utility.h"
 #include <thread>
 #include <algorithm>
 #include <xxHash/xxhash.h>
@@ -429,29 +430,7 @@ namespace ZetaRay::Core::Internal
 			AcquireSRWLockExclusive(&m_pools[poolIdx].m_inUseLock);
 
 			// binary search to find the page that this buffer was suballocated from
-			size_t idxInPool = size_t(-1);
-			size_t beg = 0;
-			size_t end = m_pools[poolIdx].m_inUsePages.size();
-			size_t mid = end >> 1;
-
-			while (true)
-			{
-				if (end - beg <= 2)
-					break;
-
-				if (m_pools[poolIdx].m_inUsePages[mid].m_uploadResource.Get() < r)
-					beg = mid + 1;
-				else
-					end = mid + 1;
-
-				mid = beg + ((end - beg) >> 1);
-			}
-
-			if (m_pools[poolIdx].m_inUsePages[beg].m_uploadResource.Get() == r)
-				idxInPool = beg;
-			else if (m_pools[poolIdx].m_inUsePages[mid].m_uploadResource.Get() == r)
-				idxInPool = mid;
-
+			size_t idxInPool = BinarySearch(Span(m_pools[poolIdx].m_inUsePages), r, [](const LinearAllocatorPage& obj) {return obj.m_uploadResource.Get(); });
 			Assert(idxInPool != -1, "Resource was not found");
 			m_pools[poolIdx].m_inUsePages[idxInPool].Release();
 
@@ -850,12 +829,12 @@ using namespace ZetaRay::Core::Internal;
 
 UploadHeapBuffer::UploadHeapBuffer(Internal::PageHandle handle, size_t offset, D3D12_GPU_VIRTUAL_ADDRESS gpuAddress,
 	ID3D12Resource* resource, void* memory, size_t size) noexcept
-	: PageHandle(handle),
-	GpuAddress(gpuAddress),
-	Resource(resource),
-	MappedMemory(memory),
-	Size(size),
-	OffsetFromResource(offset)
+	: m_pageHandle(handle),
+	m_gpuAddress(gpuAddress),
+	m_resource(resource),
+	m_mappedMemory(memory),
+	m_size(size),
+	m_offsetFromResource(offset)
 {
 	Assert(resource->GetGPUVirtualAddress() + offset == gpuAddress, "bug");
 }
@@ -867,12 +846,12 @@ UploadHeapBuffer::~UploadHeapBuffer() noexcept
 
 UploadHeapBuffer::UploadHeapBuffer(UploadHeapBuffer&& rhs) noexcept
 {
-	std::swap(PageHandle, rhs.PageHandle);
-	std::swap(GpuAddress, rhs.GpuAddress);
-	std::swap(Resource, rhs.Resource);
-	std::swap(MappedMemory, rhs.MappedMemory);
-	std::swap(Size, rhs.Size);
-	std::swap(OffsetFromResource, rhs.OffsetFromResource);
+	std::swap(m_pageHandle, rhs.m_pageHandle);
+	std::swap(m_gpuAddress, rhs.m_gpuAddress);
+	std::swap(m_resource, rhs.m_resource);
+	std::swap(m_mappedMemory, rhs.m_mappedMemory);
+	std::swap(m_size, rhs.m_size);
+	std::swap(m_offsetFromResource, rhs.m_offsetFromResource);
 }
 
 UploadHeapBuffer& UploadHeapBuffer::operator=(UploadHeapBuffer&& rhs) noexcept
@@ -885,35 +864,35 @@ UploadHeapBuffer& UploadHeapBuffer::operator=(UploadHeapBuffer&& rhs) noexcept
 	// can lead to serious memory leak if avoided. The overall upload heap
 	// design is too complicated, making reasoning and debugging harder
 	Reset();
-	PageHandle.Reset();
+	m_pageHandle.Reset();
 
-	std::swap(PageHandle, rhs.PageHandle);
-	std::swap(GpuAddress, rhs.GpuAddress);
-	std::swap(Resource, rhs.Resource);
-	std::swap(MappedMemory, rhs.MappedMemory);
-	std::swap(Size, rhs.Size);
-	std::swap(OffsetFromResource, rhs.OffsetFromResource);
+	std::swap(m_pageHandle, rhs.m_pageHandle);
+	std::swap(m_gpuAddress, rhs.m_gpuAddress);
+	std::swap(m_resource, rhs.m_resource);
+	std::swap(m_mappedMemory, rhs.m_mappedMemory);
+	std::swap(m_size, rhs.m_size);
+	std::swap(m_offsetFromResource, rhs.m_offsetFromResource);
 
 	return *this;
 }
 
 void UploadHeapBuffer::Reset() noexcept
 {
-	if (Resource)
+	if (m_resource)
 		App::GetRenderer().GetGpuMemory().ReleaseUploadHeapBuffer(*this);
 
-	PageHandle.Reset();
-	GpuAddress = 0;
-	Resource = nullptr;
-	MappedMemory = nullptr;
-	Size = 0;
-	OffsetFromResource = 0;
+	m_pageHandle.Reset();
+	m_gpuAddress = 0;
+	m_resource = nullptr;
+	m_mappedMemory = nullptr;
+	m_size = 0;
+	m_offsetFromResource = 0;
 }
 
 void UploadHeapBuffer::Copy(size_t offset, size_t numBytesToCopy, void* data) noexcept
 {
-	Assert(offset + numBytesToCopy <= Size, "Copy destination region was out-of-bound.");
-	memcpy(reinterpret_cast<uint8_t*>(MappedMemory) + offset, data, numBytesToCopy);
+	Assert(offset + numBytesToCopy <= m_size, "Copy destination region was out-of-bound.");
+	memcpy(reinterpret_cast<uint8_t*>(m_mappedMemory) + offset, data, numBytesToCopy);
 }
 
 //--------------------------------------------------------------------------------------
@@ -1236,7 +1215,7 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(size_t sizeInBytes, size_t align
 void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buff) noexcept
 {
 	// might not be the original UploadHeap
-	m_threadContext[buff.PageHandle.ThreadIdx].UploadHeap->ReleaseBuffer(buff.PageHandle.PoolIdx, buff.Resource);
+	m_threadContext[buff.m_pageHandle.ThreadIdx].UploadHeap->ReleaseBuffer(buff.m_pageHandle.PoolIdx, buff.m_resource);
 }
 
 ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(size_t sizeInBytes) noexcept

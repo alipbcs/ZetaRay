@@ -10,6 +10,7 @@
 #include "../Core/GpuMemory.h"
 #include "../App/Log.h"
 #include "../Support/ThreadSafeMemoryArena.h"
+#include "../Utility/Utility.h"
 #include <algorithm>
 
 #define CGLTF_IMPLEMENTATION

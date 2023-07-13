@@ -1,5 +1,6 @@
 #include "PipelineStateLibrary.h"
 #include "RendererCore.h"
+#include "../Utility/Utility.h"
 #include "../App/Log.h"
 
 using namespace ZetaRay;
@@ -247,34 +248,14 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 
 ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key) noexcept
 {
-	ID3D12PipelineState* ret = nullptr;
-
 	if (m_compiledPSOs.empty())
 		return nullptr;
 
-	int beg = 0;
-	int end = (int)m_compiledPSOs.size();
-	int mid = end >> 1;
+	auto idx = BinarySearch(Span(m_compiledPSOs), key, [](Entry& e) {return e.Key; });
+	if (idx != -1)
+		return m_compiledPSOs[idx].PSO;
 
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_compiledPSOs[mid].Key < key)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	if (m_compiledPSOs[beg].Key == key)
-		ret = m_compiledPSOs[beg].PSO;
-	else if (m_compiledPSOs[mid].Key == key)
-		ret = m_compiledPSOs[mid].PSO;
-
-	return ret;
+	return nullptr;
 }
 
 bool PipelineStateLibrary::UpdatePSO(Entry e) noexcept
@@ -282,29 +263,7 @@ bool PipelineStateLibrary::UpdatePSO(Entry e) noexcept
 	if (m_compiledPSOs.empty())
 		return false;
 
-	int beg = 0;
-	int end = (int)m_compiledPSOs.size();
-	int mid = end >> 1;
-
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_compiledPSOs[mid].Key < e.Key)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	int i = -1;
-
-	if (m_compiledPSOs[beg].Key == e.Key)
-		i = beg;
-	else if (m_compiledPSOs[mid].Key == e.Key)
-		i = mid;
+	auto i = BinarySearch(Span(m_compiledPSOs), e.Key, [](Entry& e) {return e.Key; });
 
 	if (i != -1)
 	{
@@ -323,29 +282,7 @@ bool PipelineStateLibrary::RemovePSO(uint64_t nameID) noexcept
 	if (m_compiledPSOs.empty())
 		return false;
 
-	int beg = 0;
-	int end = (int)m_compiledPSOs.size();
-	int mid = end >> 1;
-
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_compiledPSOs[mid].Key < nameID)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	int i = -1;
-
-	if (m_compiledPSOs[beg].Key == nameID)
-		i = beg;
-	else if (m_compiledPSOs[mid].Key == nameID)
-		i = mid;
+	auto i = BinarySearch(Span(m_compiledPSOs), nameID, [](Entry& e) {return e.Key; });
 
 	if (i == -1)
 		return false;

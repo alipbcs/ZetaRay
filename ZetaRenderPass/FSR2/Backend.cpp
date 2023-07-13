@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <Scene/Camera.h>
 #include <Core/PipelineStateLibrary.h>
+#include <Utility/Utility.h>
 
 #include <FSR2/Include/shaders/ffx_fsr2_resources.h>
 #include <FSR2/Include/dx12/shaders/ffx_fsr2_shaders_dx12.h>
@@ -250,33 +251,6 @@ namespace
 		}
 	}
 
-	int FindPSO(ID3D12PipelineState* key) noexcept
-	{
-		int beg = 0;
-		int end = FFX_FSR2_PASS_COUNT;
-		int mid = end >> 1;
-
-		while (true)
-		{
-			if (end - beg <= 2)
-				break;
-
-			if (g_fsr2Data->m_psoToPassMap[mid].PSO < key)
-				beg = mid + 1;
-			else
-				end = mid + 1;
-
-			mid = beg + ((end - beg) >> 1);
-		}
-
-		if (g_fsr2Data->m_psoToPassMap[beg].PSO == key)
-			return beg;
-		else if (g_fsr2Data->m_psoToPassMap[mid].PSO == key)
-			return mid;
-
-		return -1;
-	}
-
 	void RecordClearJob(const FfxClearFloatJobDescription& job) noexcept
 	{
 		Assert(g_fsr2Data->m_cmdList, "Command list was NULL");
@@ -347,7 +321,10 @@ namespace
 
 		auto& renderer = App::GetRenderer();
 		auto* device = renderer.GetDevice();
-		const int idx = FindPSO(reinterpret_cast<ID3D12PipelineState*>(job.pipeline.pipeline));
+		const auto idx = BinarySearch(Span(g_fsr2Data->m_psoToPassMap), 
+			reinterpret_cast<ID3D12PipelineState*>(job.pipeline.pipeline), 
+			[](const PsoMap& p) {return p.PSO; }, 0, FFX_FSR2_PASS_COUNT - 1);
+
 		Assert(idx != -1, "Given PSO was not found");
 
 		const FfxFsr2Pass pass = g_fsr2Data->m_psoToPassMap[idx].Pass;

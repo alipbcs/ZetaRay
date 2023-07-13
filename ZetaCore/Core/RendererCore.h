@@ -70,10 +70,10 @@ namespace ZetaRay::Core
 		void SignalComputeQueue(ID3D12Fence* f, uint64_t v) noexcept;
 //		void SignalCopyQueue(ID3D12Fence* f, uint64_t v) noexcept;
 
-		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value on (blocking)
+		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value (blocking)
 		void WaitForDirectQueueFenceCPU(uint64_t fenceValue) noexcept;
 
-		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value on (blocking)
+		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value (blocking)
 		void WaitForComputeQueueFenceCPU(uint64_t fenceValue) noexcept;
 
 		// Issues a GPU-side wait on the Compute Queue for the fence on the Direct Queue. Corresponding fence
