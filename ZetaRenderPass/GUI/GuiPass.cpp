@@ -352,6 +352,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	directCmdList.SetPipelineState(m_pso);
 
 	RenderSettings();
+	RenderMainHeader();
 	RenderLogWindow();
 	ImGui::Render();
 	UpdateBuffers();
@@ -450,7 +451,6 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	// [hack] this is the last RenderPass, transition to PRESENT can be done here
-	// Transition the render target to the state that allows it to be presented to the display.
 	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().GetResource(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT);
@@ -464,7 +464,7 @@ void GuiPass::RenderSettings() noexcept
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 	const float wndPosX = ceilf(displayWidth * (1 - m_dbgWndWidthPct));
 
-	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
+	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
 	ImGui::SetWindowPos(ImVec2(wndPosX, 0.0f), ImGuiCond_Always);
 	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight),
 		ImGuiCond_Always);
@@ -506,27 +506,16 @@ void GuiPass::RenderSettings() noexcept
 			{
 				ImGuiStyle& style = ImGui::GetStyle();
 
-				//static ImGuiStyle ref_saved_style;
-
-				// Default to using internal storage as reference
-				//static bool init = true;
-				//if (init)
-				//	ref_saved_style = style;
-				//init = false;
-
 				static int output_dest = 0;
 				static bool output_only_modified = true;
 
-				ImGui::SameLine(); ImGui::SetNextItemWidth(120); ImGui::Combo("##output_type", &output_dest, "To Clipboard\0To TTY\0");
+				//ImGui::SameLine(); ImGui::SetNextItemWidth(120); ImGui::Combo("##output_type", &output_dest, "To Clipboard\0To TTY\0");
 				ImGui::SameLine(); ImGui::Checkbox("Only Modified Colors", &output_only_modified);
 
 				static ImGuiTextFilter filter;
 				filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
 
 				static ImGuiColorEditFlags alpha_flags = 0;
-				//if (ImGui::RadioButton("Opaque", alpha_flags == ImGuiColorEditFlags_None)) { alpha_flags = ImGuiColorEditFlags_None; } ImGui::SameLine();
-				//if (ImGui::RadioButton("Alpha", alpha_flags == ImGuiColorEditFlags_AlphaPreview)) { alpha_flags = ImGuiColorEditFlags_AlphaPreview; } ImGui::SameLine();
-				//if (ImGui::RadioButton("Both", alpha_flags == ImGuiColorEditFlags_AlphaPreviewHalf)) { alpha_flags = ImGuiColorEditFlags_AlphaPreviewHalf; } ImGui::SameLine();
 
 				ImGui::BeginChild("##colors", ImVec2(0, 0), true, ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_NavFlattened);
 				ImGui::PushItemWidth(-160);
@@ -578,12 +567,6 @@ void GuiPass::RenderProfiler() noexcept
 		ImGui::SameLine();
 		ImGui::Text("		");
 		ImGui::SameLine();
-
-		if (ImGui::Button("Visualize RenderGraph"))
-			m_showRenderGraph = true;
-
-		if (m_showRenderGraph)
-			RenderRenderGraph();
 
 		Span<Support::Stat> stats = App::GetStats().Variable();
 
@@ -659,25 +642,6 @@ void GuiPass::RenderProfiler() noexcept
 	}
 }
 
-void GuiPass::RenderRenderGraph() noexcept
-{
-	ImGuiWindowFlags flags = ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoSavedSettings | ImGuiWindowFlags_HorizontalScrollbar;
-	const ImGuiViewport* viewport = ImGui::GetMainViewport();
-	ImGui::SetNextWindowBgAlpha(0.8f);
-	ImGui::SetNextWindowPos(viewport->WorkPos);
-	ImGui::SetNextWindowSize(viewport->WorkSize);
-
-	if (ImGui::Begin("Render Graph (Use RMB for panning)", &m_showRenderGraph, flags))
-		App::GetScene().DebugDrawRenderGraph();
-	
-	ImGui::End();
-
-	////if(!ImGui::IsWindowCollapsed())
-	//App::GetScene().DebugDrawRenderGraph();
-
-	//ImGui::End();
-}
-
 void GuiPass::RenderLogWindow() noexcept
 {
 	auto frameLogs = App::GetFrameLogs().Variable();
@@ -689,7 +653,7 @@ void GuiPass::RenderLogWindow() noexcept
 	if(!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
 		ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
 
-	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
+	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoResize))
 	{
 		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
 
@@ -725,6 +689,73 @@ void GuiPass::RenderLogWindow() noexcept
 		ImGui::SetWindowPos(ImVec2(0, (float)displayHeight), ImGuiCond_Always);
 
 	m_showLogsWindow = !ImGui::IsWindowCollapsed();
+	ImGui::End();
+}
+
+void GuiPass::RenderMainHeader() noexcept
+{
+	ImGuiStyle& style = ImGui::GetStyle();
+	ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.012286487f, 0.012286487f, 0.012286487f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_TabActive, ImVec4(0.0295568369f, 0.0295568369f, 0.0295568369f, 1.0f));
+
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(15, style.ItemInnerSpacing.y));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.5f);
+
+	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+	const float wndHeight = (m_headerWndHeightPct * displayHeight);
+
+	ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | 
+		ImGuiWindowFlags_NoResize);
+
+	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+	ImVec2 wndSize = ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight);
+	ImGui::SetWindowSize(wndSize, ImGuiCond_Always);
+
+	ImDrawList* drawList = ImGui::GetWindowDrawList();
+
+	ImVec2 p0 = ImGui::GetCursorScreenPos();
+	ImVec2 p1 = ImVec2(p0.x + ImGui::GetWindowWidth(), p0.y + ImGui::GetWindowHeight());
+	ImU32 col_a = ImGui::GetColorU32(style.Colors[ImGuiCol_WindowBg]);
+	ImU32 col_b = ImGui::GetColorU32(style.Colors[ImGuiCol_TabActive]);
+	drawList->AddRectFilledMultiColor(p0, p1, col_a, col_a, col_b, col_b);
+
+	ImGui::Text("		");
+	ImGui::SameLine();
+	ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
+
+	const bool showMainWnd = ImGui::BeginTabItem("		Main		");
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Scene View");
+
+	if(showMainWnd)
+	{
+		ImGui::SetWindowSize(ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight), ImGuiCond_Always);
+		ImGui::EndTabItem();
+	}
+
+	const bool renderGraphTab = ImGui::BeginTabItem("		Render Graph		");
+	if (ImGui::IsItemHovered())
+		ImGui::SetTooltip("Render graph visualization (use RMB for panning).");
+
+	if(renderGraphTab)
+	{
+		const float fontHeight = ImGui::GetIO().Fonts[0].ConfigData[0].SizePixels;
+		float titleSize = style.FramePadding.y * 2.0f + fontHeight;
+		titleSize *= 1 - m_showLogsWindow;
+		const float logWndHeightPct = m_logWndHeightPct * m_showLogsWindow;
+
+		ImGui::SetWindowSize(ImVec2(m_logWndWidth, ceilf((1.0f - logWndHeightPct) * displayHeight) - titleSize), ImGuiCond_Always);
+		App::GetScene().DebugDrawRenderGraph();
+		
+		ImGui::EndTabItem();
+	}
+
+	ImGui::EndTabBar();
+
+	ImGui::PopStyleColor(2);
+	ImGui::PopStyleVar(3);
+	
 	ImGui::End();
 }
 
@@ -920,6 +951,14 @@ void GuiPass::ShaderReloadTab() noexcept
 {
 	auto reloadHandlers = App::GetShaderReloadHandlers();
 	Span<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
+
+	if (!handlers.empty())
+	{
+		std::sort(handlers.begin(), handlers.end(), [](const App::ShaderReloadHandler& lhs, const App::ShaderReloadHandler& rhs)
+			{
+				return strcmp(lhs.Name, rhs.Name) < 0;
+			});
+	}
 
 	ImGui::Text("Select a shader to reload");
 
