@@ -7,7 +7,6 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
-#define RAY_OFFSET_VIEW_DIST_START 30.0
 #define M_max 10
 #define UNBIASED_RESUE 0
 #define MAX_RAY_DIR_HEURISTIC_EXP 2.0f
@@ -44,9 +43,8 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
 	if (wi.y < 0)
 		return false;
 	
-	// protect against self-intersection
-	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
-	float3 adjustedOrigin = pos + normal * 1e-2f * (1 + offsetScale * 2);
+	float tMin;
+	const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin);
 
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
@@ -55,7 +53,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
-	ray.TMin = g_frame.RayOffset;
+	ray.TMin = tMin;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 

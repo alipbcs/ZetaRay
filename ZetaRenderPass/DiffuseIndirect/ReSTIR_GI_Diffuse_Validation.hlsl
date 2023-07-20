@@ -16,7 +16,6 @@
 #define TOLERABLE_RELATIVE_RADIANCE_CHANGE 0.2
 #define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.35
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
-#define RAY_OFFSET_VIEW_DIST_START 30.0
 
 static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
@@ -87,11 +86,11 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 		return false;
 
 	// protect against self-intersection
-	float3 adjustedOrigin = pos + normal * 5e-3f;
+	float3 adjustedOrigin = pos + normal * 1e-4f;
 
-	RayQuery < RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
@@ -114,8 +113,8 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 
 bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 {
-	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = pos;
@@ -338,22 +337,19 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 
 bool Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, out uint16_t sortedIdx, out DiffuseSample ret)
 {
-	// protect against self-intersection
-	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
-	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
+	const float3 adjustedOrigin = RT::OffsetRay(posW, normal);
 
 	// trace a ray along wi to find closest surface point
 	bool isRayValid;
 	HitSurface hitInfo;
 	bool hit = Trace(Gidx, adjustedOrigin, wi, hitInfo, isRayValid, sortedIdx);
 
-	// what's the outgoing radiance from the closest hit point towards wo
+	// what's the incident radiance from closest hit point
 	ret.Lo = 0.0.xxx;
 	ret.Pos = INVALID_SAMPLE_POS;
 	ret.Normal = INVALID_SAMPLE_NORMAL;
 
-	// if the ray hit a surface, compute direct lighting at the given surface point, otherise 
-	// returns the incoming radiance from sky
+	// if ray hit a surface, compute direct lighting at hit point
 	if (hit)
 	{
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);

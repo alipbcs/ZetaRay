@@ -15,7 +15,6 @@
 #define RAY_BINNING 1
 #define USE_RAY_CONES 0
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
-#define RAY_OFFSET_VIEW_DIST_START 30.0
 
 static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
@@ -94,7 +93,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 		return false;
 	
 	// protect against self-intersection
-	float3 adjustedOrigin = pos + normal * 5e-3f;
+	float3 adjustedOrigin = pos + normal * 1e-4f;
 
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
@@ -122,8 +121,8 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 
 bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
 {
-	RayQuery < RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-		RAY_FLAG_CULL_NON_OPAQUE > rayQuery;
+	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+		RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = pos;
@@ -372,21 +371,19 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 bool Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth,
 	RT::RayCone rayCone, out uint16_t sortedIdx, out DiffuseSample ret)
 {
-	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
-	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
+	const float3 adjustedOrigin = RT::OffsetRay(posW, normal);
 
 	// trace a ray along wi to find closest surface point
 	bool isSortedRayValid;
 	HitSurface hitInfo;
 	bool hit = Trace(Gidx, adjustedOrigin, wi, rayCone, hitInfo, isSortedRayValid, sortedIdx);
 
-	// what's the incident radiance from the closest hit point
+	// what's the incident radiance from closest hit point
 	ret.Lo = 0.0.xxx;
 	ret.Pos = INVALID_SAMPLE_POS;
 	ret.Normal = INVALID_SAMPLE_NORMAL;
 
-	// if the ray hit a surface, compute direct lighting at the hit point, otherwise 
-	// return the incoming radiance from the sky
+	// if ray hit a surface, compute direct lighting at hit point
 	if (hit)
 	{
 		ret.Lo = (half3) DirectLighting(hitInfo, -wi);

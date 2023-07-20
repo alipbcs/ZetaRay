@@ -5,8 +5,6 @@
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Sampling.hlsli"
 
-#define RAY_OFFSET_VIEW_DIST_START 30.0
-
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -22,7 +20,7 @@ ByteAddressBuffer g_rankingTile : register(t3);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
+bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
 {
 	if(wi.y < 0)
 		return false;
@@ -32,9 +30,12 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
 			 RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			 RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 	
+	float tMin;
+	const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin);
+	
 	RayDesc ray;
-	ray.Origin = pos;
-	ray.TMin = g_frame.RayOffset;
+	ray.Origin = adjustedOrigin;
+	ray.TMin = tMin;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 	

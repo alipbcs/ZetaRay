@@ -101,13 +101,16 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface surface)
+bool FindClosestHit(float3 pos, float3 normal, float linearDepth, float3 wi, RT::RayCone rayCone, out HitSurface surface)
 {
+	float tMin;
+	const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin);
+
 	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 
 	RayDesc ray;
-	ray.Origin = pos;
-	ray.TMin = g_frame.RayOffset;
+	ray.Origin = adjustedOrigin;
+	ray.TMin = tMin;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 
@@ -270,7 +273,7 @@ bool Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone ra
 		
 	// trace a ray along wi to find closest surface point
 	HitSurface hitInfo;
-	bool hit = FindClosestHit(posW, wi, rayCone, hitInfo);
+	bool hit = FindClosestHit(posW, normal, linearDepth, wi, rayCone, hitInfo);
 
 	// if the ray hit a surface, compute direct lighting at hit point
 	if (hit)

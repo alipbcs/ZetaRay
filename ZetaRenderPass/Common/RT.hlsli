@@ -43,25 +43,52 @@ namespace RT
 
 	// Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
 	// Geometric Normal points outward for rays exiting the surface, else should be flipped.
-	float3 OffsetRayRTG(in float3 p, in float3 geometricNormal)
+	float3 OffsetRayRTG(float3 pos, float3 geometricNormal, out float offset)
 	{
-		const float origin = 1.0f / 32.0f;
-		const float float_scale = 1.0f / 65536.0f;
-		const float int_scale = 256.0f;
-	
-		int3 of_i = int3(int_scale * geometricNormal.x,
-					 int_scale * geometricNormal.y,
-					 int_scale * geometricNormal.z);
+		static const float origin = 1.0f / 32.0f;
+		static const float float_scale = 1.0f / 65536.0f;
+		static const float int_scale = 256.0f;
 
-		float3 p_i = float3(asfloat(asint(p.x) + ((p.x < 0) ? -of_i.x : of_i.x)),
-						asfloat(asint(p.y) + ((p.y < 0) ? -of_i.y : of_i.y)),
-						asfloat(asint(p.z) + ((p.z < 0) ? -of_i.z : of_i.z)));
+		//int3 of_i = int3(int_scale * geometricNormal.x, int_scale * geometricNormal.y, int_scale * geometricNormal.z);
+		int3 of_i = int_scale * geometricNormal;
 
-		return float3(abs(p.x) < origin ? p.x + float_scale * geometricNormal.x : p_i.x,
-				  abs(p.y) < origin ? p.y + float_scale * geometricNormal.y : p_i.y,
-				  abs(p.z) < origin ? p.z + float_scale * geometricNormal.z : p_i.z);
+		float3 p_i = float3(
+			asfloat(asint(pos.x) + ((pos.x < 0) ? -of_i.x : of_i.x)),
+			asfloat(asint(pos.y) + ((pos.y < 0) ? -of_i.y : of_i.y)),
+			asfloat(asint(pos.z) + ((pos.z < 0) ? -of_i.z : of_i.z)));
+
+		float3 adjusted = float3(abs(pos.x) < origin ? pos.x + float_scale * geometricNormal.x : p_i.x,
+			abs(pos.y) < origin ? pos.y + float_scale * geometricNormal.y : p_i.y,
+			abs(pos.z) < origin ? pos.z + float_scale * geometricNormal.z : p_i.z);
+		
+		offset = length(adjusted - pos);
+		
+		return adjusted;
 	}
 
+	// Mitigates self-intersection. Not ideal, but seems to give decent results for now
+	float3 OffsetRay(float3 origin, float3 normal)
+	{
+		// necessary for when cos(normal, wi) ~ 0, e.g. sun is at the horizon
+		return origin + normal * 1e-4f;
+	}
+
+	float RayTMin(float linearDepth)
+	{
+		return lerp(1e-4, 4e-3, linearDepth / 30.0f);
+	}
+	
+	// Mitigates self-intersection. Not ideal, but gives ok results for now
+	float3 OffsetRay(float3 origin, float3 normal, float linearDepth, out float tMin, float normalOffset = 1e-4f)
+	{
+		// necessary for when cos(normal, wi) ~ 0, e.g. sun is at the horizon
+		const float3 adjustedOrigin = origin + normal * normalOffset;
+		// floating-point error and subsequently depth precision decreases farther from the camera
+		tMin = lerp(1e-4, 4e-3, linearDepth / 30.0f);
+
+		return adjustedOrigin;
+	}
+	
 	// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
 	// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
 	// Ray Tracing Gems 1, 2019.

@@ -307,7 +307,7 @@ namespace ZetaRay::DefaultRenderer
 			fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::RayOffset),
 			Defaults::RAY_T_OFFSET,
 			1e-4f,
-			1e-1f,
+			1e-2f,
 			1e-4f);
 		App::AddParam(rayOffset);
 
