@@ -404,7 +404,7 @@ DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currL
 	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
 	
 	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-			g_frame.PrevViewInv);
+			g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	
 	const float planeDist = dot(currNormal, prevPos - currPos);
 	const bool isDisoccluded = abs(planeDist) > DISOCCLUSION_TEST_RELATIVE_DELTA * currLinearDepth;
@@ -489,7 +489,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);

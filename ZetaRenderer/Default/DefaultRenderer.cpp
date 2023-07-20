@@ -45,7 +45,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 
 	frameConsts.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
 	frameConsts.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
-	frameConsts.MetalnessRoughnessMapsDescHeapOffset = App::GetScene().GetMetalnessRougnessMapsDescHeapOffset();
+	frameConsts.MetallicRoughnessMapsDescHeapOffset = App::GetScene().GetMetallicRougnessMapsDescHeapOffset();
 	frameConsts.EmissiveMapsDescHeapOffset = App::GetScene().GetEmissiveMapsDescHeapOffset();
 
 	// Note: assumes BVH has been built
@@ -69,8 +69,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	frameConsts.CurrViewProj = store(vVP);
 	frameConsts.PrevViewInv = frameConsts.CurrViewInv;
 	frameConsts.CurrViewInv = float3x4(cam.GetViewInv());
-	frameConsts.PrevCameraJitter = frameConsts.CurrCameraJitter;
-	frameConsts.CurrCameraJitter = cam.GetProjOffset();
+	frameConsts.PrevProjectionJitter = frameConsts.CurrProjectionJitter;
+	frameConsts.CurrProjectionJitter = cam.GetProjOffset();
 
 	// frame gbuffer srv desc. table
 	frameConsts.CurrGBufferDescHeapOffset = gbuffData.SRVDescTable[currIdx].GPUDesciptorHeapIndex();
@@ -233,7 +233,7 @@ namespace ZetaRay::DefaultRenderer
 
 		//g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
 		g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
-		//g_data->m_frameConstants.SunDir = float3(0.6169695854187012, -0.6370740532875061, -0.4620445668697357);
+		//g_data->m_frameConstants.SunDir = float3(0.0f, 1.0f, 0.0f);
 		g_data->m_frameConstants.SunDir.normalize();
 		//g_data->m_frameConstants.SunIlluminance = 50.0f;
 		g_data->m_frameConstants.SunIlluminance = 20.0f;

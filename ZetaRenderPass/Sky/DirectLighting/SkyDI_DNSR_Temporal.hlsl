@@ -59,13 +59,13 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 {
 	float3 prevPos[4];
 	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
@@ -80,7 +80,7 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
 {
 	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	
 	float planeDist = dot(currNormal, prevPos - currPos);
 	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
@@ -466,7 +466,8 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 		prevSurfaceLinearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.PrevViewInv, 
+		g_frame.PrevProjectionJitter);
 
 	const float parallax = Parallax(posW, prevSurfacePosW, g_frame.CameraPos, prevCameraPos);
 	float reactivity = Reactivity(roughness, surface.whdotwo, parallax);
@@ -511,7 +512,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];

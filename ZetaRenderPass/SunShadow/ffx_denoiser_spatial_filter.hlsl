@@ -189,7 +189,8 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
         currLinearDepth,
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio, 
-        g_frame.CurrViewInv);
+        g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
     
     // Iterate filter kernel
 	for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; ++y)
@@ -214,7 +215,8 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
                 neighborDepth,
                 g_frame.TanHalfFOV,
                 g_frame.AspectRatio,
-                g_frame.CurrViewInv);
+                g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
             
             // Evaluate the edge-stopping function
 			float w = Kernel[abs(y)][abs(x)]; // kernel weight

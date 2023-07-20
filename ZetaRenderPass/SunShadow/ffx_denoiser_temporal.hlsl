@@ -214,11 +214,12 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 	float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
 	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
-	const float3 currPos = Math::Transform::WorldPosFromUV(currUV,
-            currLinearDepth,
-            g_frame.TanHalfFOV,
-            g_frame.AspectRatio,
-            g_frame.CurrViewInv);
+	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, 
+        currLinearDepth,
+        g_frame.TanHalfFOV,
+        g_frame.AspectRatio,
+        g_frame.CurrViewInv,
+        g_frame.CurrProjectionJitter);
 
     GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
@@ -227,7 +228,8 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
         prevDepth, 
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv,
+        g_frame.PrevProjectionJitter);
 	
 	const float planeDist = dot(normal, prevPos - currPos);
     

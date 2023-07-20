@@ -23,13 +23,13 @@ float4 GeometricTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, fl
 {
 	float3 prevPos[4];
 	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
@@ -44,7 +44,7 @@ float4 GeometricTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, fl
 float GeometricTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
 {
 	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv);
+		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	
 	float planeDist = dot(currNormal, prevPos - currPos);
 	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA_CR * linearDepth;
@@ -307,7 +307,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
 
 	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv, g_frame.CurrProjectionJitter);
 	
 	// compute pixel position corresponding to current pixel in previous frame (in texture space)
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];

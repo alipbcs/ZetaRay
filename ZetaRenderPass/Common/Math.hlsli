@@ -216,9 +216,9 @@ namespace Math
 			return uv;
 		}
 
-		float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv)
+		float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv, float2 projJitter = 0.0.xx)
 		{
-			const float2 posNDC = NDCFromUV(uv);
+			const float2 posNDC = NDCFromUV(uv) - projJitter;
 			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
 			const float yView = posNDC.y * tanHalfFOV;
 			float3 posW = float3(xView, yView, 1.0f) * linearDepth;
@@ -228,10 +228,10 @@ namespace Math
 		}
 
 		float3 WorldPosFromScreenSpace(float2 posSS, float2 screenDim, float linearDepth, float tanHalfFOV,
-			float aspectRatio, float3x4 viewInv)
+			float aspectRatio, float3x4 viewInv, float2 projJitter = 0.0.xx)
 		{
-			const float2 uv = UVFromScreenSpace(posSS, screenDim);
-			const float2 posNDC = NDCFromUV(uv);
+			const float2 uv = (posSS + 0.5f) / screenDim;
+			const float2 posNDC = NDCFromUV(uv) - projJitter;
 			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
 			const float yView = posNDC.y * tanHalfFOV;
 			float3 posW = float3(xView, yView, 1.0f) * linearDepth;
@@ -240,9 +240,9 @@ namespace Math
 			return posW;
 		}
 		
-		float3 ViewPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio)
+		float3 ViewPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float2 projJitter)
 		{
-			const float2 posNDC = NDCFromUV(uv);
+			const float2 posNDC = NDCFromUV(uv) - projJitter;
 			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
 			const float yView = posNDC.y * tanHalfFOV;
 			float3 posV = float3(xView, yView, 1.0f) * linearDepth;

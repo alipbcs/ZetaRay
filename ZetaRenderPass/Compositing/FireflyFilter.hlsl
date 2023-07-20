@@ -24,7 +24,8 @@ float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal
 		sampleLinearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	float planeDist = dot(centerNormal, samplePos - centerPos);
 	float weight = abs(planeDist) <= 0.01 * centerLinearDepth;
@@ -115,7 +116,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);

@@ -122,7 +122,8 @@ void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDep
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
-				g_frame.CurrViewInv);
+				g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
 			const float w_z = GeometricHeuristic(sampleDepth, samplePosW, normal, posW, linearDepth, 
 				biasToleranceScale);
 					
@@ -207,7 +208,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);

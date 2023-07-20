@@ -145,7 +145,8 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
-				g_frame.CurrViewInv);
+				g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
 			const float w_z = PlaneHeuristic(sampleDepth, samplePosW, normal, posW, linearDepth);
 			
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
@@ -244,7 +245,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);

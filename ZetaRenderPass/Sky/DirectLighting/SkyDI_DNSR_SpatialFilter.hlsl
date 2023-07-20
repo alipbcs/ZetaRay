@@ -159,7 +159,8 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, float metalnes
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
-				g_frame.CurrViewInv);
+				g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
@@ -251,7 +252,8 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, float metalne
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
-				g_frame.CurrViewInv);
+				g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
@@ -316,7 +318,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALNESS_ROUGHNESS];

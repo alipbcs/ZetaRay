@@ -15,7 +15,6 @@
 #define RAY_CONE_K1 1.0f
 #define RAY_CONE_K2 0.0f
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
-#define RAY_OFFSET_VIEW_DIST_START 30.0
 #define SKY_MISS_SHADING 0
 
 //--------------------------------------------------------------------------------------
@@ -78,16 +77,13 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 	if (wi.y < 0)
 		return false;
 
-	// protect against self-intersection
-	float3 adjustedOrigin = pos + normal * 5e-3f;
-
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
 		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
 	RayDesc ray;
-	ray.Origin = adjustedOrigin;
+	ray.Origin = pos;
 	ray.TMin = g_frame.RayOffset;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
@@ -272,13 +268,9 @@ bool Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone ra
 	if (dot(wi - INVALID_RAY_DIR, 1) == 0.0f)
 		return false;
 		
-	// TODO find a better way to protect against self-intersection
-	float offsetScale = linearDepth / RAY_OFFSET_VIEW_DIST_START;
-	float3 adjustedOrigin = posW + normal * 1e-2f * (1 + offsetScale * 2);
-	
 	// trace a ray along wi to find closest surface point
 	HitSurface hitInfo;
-	bool hit = FindClosestHit(adjustedOrigin, wi, rayCone, hitInfo);
+	bool hit = FindClosestHit(posW, wi, rayCone, hitInfo);
 
 	// if the ray hit a surface, compute direct lighting at hit point
 	if (hit)
@@ -432,7 +424,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 			prevDepths[posIdx],
 			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
-			g_frame.PrevViewInv);
+			g_frame.PrevViewInv,
+			g_frame.PrevProjectionJitter);
 	}
 	
 	weights *= PlaneHeuristic(prevPos, normal, posW, linearDepth);
@@ -557,7 +550,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];

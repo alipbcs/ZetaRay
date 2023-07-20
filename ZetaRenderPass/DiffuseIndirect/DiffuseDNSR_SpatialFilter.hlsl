@@ -87,7 +87,12 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 uv = (DTid + 0.5f) / renderDim;
-	const float3 pos = Math::Transform::WorldPosFromUV(uv, linearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv);
+	const float3 pos = Math::Transform::WorldPosFromUV(uv, 
+		linearDepth, 
+		g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, 
+		g_frame.CurrViewInv, 
+		g_frame.CurrProjectionJitter);
 
 	RNG rng = RNG::Init(DTid, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
 	const float u0 = rng.Uniform();
@@ -131,7 +136,8 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 				sampleDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
-				g_frame.CurrViewInv);
+				g_frame.CurrViewInv,
+				g_frame.CurrProjectionJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, pos, 1);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);

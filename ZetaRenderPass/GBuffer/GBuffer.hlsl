@@ -185,10 +185,10 @@ PS_OUT mainPS(VSOut psin)
 	
 	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
 	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.z;
-	prevUnjitteredPosNDC -= g_frame.PrevCameraJitter;
+	prevUnjitteredPosNDC -= g_frame.PrevProjectionJitter;
 
 	float2 currUnjitteredPosNDC = psin.PosH.xy / psin.PosH.z;
-	currUnjitteredPosNDC -= g_frame.CurrCameraJitter;
+	currUnjitteredPosNDC -= g_frame.CurrProjectionJitter;
 
 	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
 	float2 prevPosTS = Math::Transform::UVFromNDC(prevUnjitteredPosNDC);

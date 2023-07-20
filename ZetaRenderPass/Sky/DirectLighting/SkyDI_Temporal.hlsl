@@ -428,7 +428,8 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 			prevDepths[posIdx],
 			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
-			g_frame.PrevViewInv);
+			g_frame.PrevViewInv,
+			g_frame.PrevProjectionJitter);
 	}
 	
 	weights *= PlaneHeuristic(prevPos, normal, posW, linearDepth);
@@ -540,7 +541,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];

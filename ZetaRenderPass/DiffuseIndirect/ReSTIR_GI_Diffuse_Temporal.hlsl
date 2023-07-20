@@ -467,7 +467,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	for (int j = 0; j < 4; j++)
 	{
 		prevPos[j] = Math::Transform::WorldPosFromUV(prevUVs[j], prevDepths[j], g_frame.TanHalfFOV, g_frame.AspectRatio,
-			g_frame.PrevViewInv);
+			g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
 	}
 	
 	const float4 geoWeights = GeometricHeuristic(prevPos, normal, posW, linearDepth);
@@ -604,7 +604,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const half2 encodedNormal = g_normal[swizzledDTid];

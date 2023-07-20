@@ -28,16 +28,12 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float viewZ)
 		return false;
 	
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+			 RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
 			 RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			 RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
 	
-	//float3 adjustedRayOrigin = OffsetRayRTG(pos, normal);
-	
-	float offsetScale = viewZ / RAY_OFFSET_VIEW_DIST_START;
-	float3 adjustedRayOrigin = pos + normal * 1e-2f * (1 + offsetScale * 2);
-
 	RayDesc ray;
-	ray.Origin = adjustedRayOrigin;
+	ray.Origin = pos;
 	ray.TMin = g_frame.RayOffset;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
@@ -79,7 +75,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		linearDepth, 
 		g_frame.TanHalfFOV, 
 		g_frame.AspectRatio, 
-		g_frame.CurrViewInv);
+		g_frame.CurrViewInv,
+		g_frame.CurrProjectionJitter);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);

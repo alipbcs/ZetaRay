@@ -32,8 +32,8 @@ namespace ZetaRay
 		uint32_t DisplayWidth;
 		uint32_t DisplayHeight;
 
-		float2_ CurrCameraJitter;
-		float2_ PrevCameraJitter;
+		float2_ CurrProjectionJitter;
+		float2_ PrevProjectionJitter;
 		//
 		// GBuffer
 		//
@@ -83,11 +83,11 @@ namespace ZetaRay
 #endif
 
 #ifdef __cplusplus
-static_assert((offsetof(ZetaRay::cbFrameConstants, CameraPos) % 16) == 0);
-static_assert((offsetof(ZetaRay::cbFrameConstants, CurrCameraJitter) % 16) == 0);
-static_assert((offsetof(ZetaRay::cbFrameConstants, SunDir) % 16) == 0);
-static_assert((offsetof(ZetaRay::cbFrameConstants, RayleighSigmaSColor) % 16) == 0);
-static_assert((offsetof(ZetaRay::cbFrameConstants, OzoneSigmaAColor) % 16) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, CameraPos) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, CurrProjectionJitter) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, SunDir) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, RayleighSigmaSColor) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, OzoneSigmaAColor) & 15) == 0);
 #endif
 
 #endif
