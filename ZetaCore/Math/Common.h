@@ -6,6 +6,17 @@
 #include <string.h>
 #include <immintrin.h>	// AVX intrinsics
 
+namespace ZetaRay::Util
+{
+	template<typename T>
+	struct Span;
+}
+
+namespace ZetaRay::Math
+{
+	struct float3;
+}
+
 namespace ZetaRay::Math
 {
 	static constexpr float PI = 3.141592654f;
@@ -16,10 +27,8 @@ namespace ZetaRay::Math
 	static constexpr float ONE_OVER_2_PI = 0.159154943f;
 	static constexpr float ONE_OVER_4_PI = 0.079577472f;
 
-	struct float3;
-
 	// Returns the smallest power of 2 that is larger than x
-	ZetaInline constexpr size_t NextPow2(size_t x) noexcept
+	ZetaInline constexpr size_t NextPow2(size_t x)
 	{
 		x--;
 		x |= x >> 1;
@@ -33,13 +42,13 @@ namespace ZetaRay::Math
 	}
 
 	// Returns whether x is a power of 2
-	ZetaInline constexpr bool IsPow2(size_t x) noexcept
+	ZetaInline constexpr bool IsPow2(size_t x)
 	{
 		return (x != 0) && ((x & (x - 1)) == 0);
 	}
 
 	// Aligns to nearest largest multiple of alignment
-	ZetaInline constexpr size_t AlignDown(size_t size, size_t alignment) noexcept
+	ZetaInline constexpr size_t AlignDown(size_t size, size_t alignment)
 	{
 		if (alignment > 0)
 		{
@@ -52,7 +61,7 @@ namespace ZetaRay::Math
 	}
 
 	// Aligns to nearest smallest multiple of alignment
-	ZetaInline constexpr size_t AlignUp(size_t x, size_t alignment) noexcept
+	ZetaInline constexpr size_t AlignUp(size_t x, size_t alignment)
 	{
 		if (alignment > 0)
 		{
@@ -65,18 +74,18 @@ namespace ZetaRay::Math
 	}
 
 	template<typename T>
-	ZetaInline constexpr T Max(T a, T b) noexcept
+	ZetaInline constexpr T Max(T a, T b)
 	{
 		return a < b ? b : a;
 	}
 
 	template<typename T>
-	ZetaInline constexpr T Min(T a, T b) noexcept
+	ZetaInline constexpr T Min(T a, T b)
 	{
 		return a < b ? a : b;
 	}
 
-	ZetaInline bool IsNaN(float f) noexcept
+	ZetaInline bool IsNaN(float f)
 	{
 		// for NaN:
 		//  - sign bit could be 0 or 1
@@ -92,12 +101,12 @@ namespace ZetaRay::Math
 	// Solves quadratic equation a * x^2 + b * x + c = 0
 	bool SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexcept;
 
-	ZetaInline float DegreeToRadians(float d) noexcept
+	ZetaInline float DegreeToRadians(float d)
 	{
 		return d * TWO_PI / 360.0f;
 	}
 
-	ZetaInline float RadiansToDegrees(float r) noexcept
+	ZetaInline float RadiansToDegrees(float r)
 	{
 		return r * 360.0f * ONE_OVER_2_PI;
 	}
@@ -105,16 +114,19 @@ namespace ZetaRay::Math
 	void SphericalFromCartesian(const Math::float3& w, float& theta, float& phi) noexcept;
 	Math::float3 SphericalToCartesian(float theta, float phi) noexcept;
 
-	ZetaInline size_t CeilUnsignedIntDiv(size_t x, size_t y) noexcept
+	// Returns x / y, where x and y are unsigned integers
+	ZetaInline size_t CeilUnsignedIntDiv(size_t x, size_t y)
 	{
 		Assert(x != 0, "Input must be greater than 0");
 		return 1 + ((x - 1) / y);
 	}
 
+	// Subdivides range [0, n) into at most maxNumGroups subsets where each subset has
+	// at least minNumElems elements
 	size_t SubdivideRangeWithMin(size_t n,
 		size_t maxNumGroups,
-		size_t* offsets,
-		size_t* sizes,
+		Util::Span<size_t> offsets,
+		Util::Span<size_t> sizes,
 		size_t minNumElems = 0) noexcept;
 
 	// Ref: https://walbourn.github.io/directxmath-f16c-and-fma/
@@ -131,4 +143,8 @@ namespace ZetaRay::Math
 		__m128i V2 = _mm_cvtps_ph(V1, 0);
 		return static_cast<uint16_t>(_mm_cvtsi128_si32(V2));
 	}
+
+	// A summation algorithm that guards against the worst-case loss of precision when summing
+	// a large sequence of floating=point numbers
+	float KahanSum(Util::Span<float> data) noexcept;
 }

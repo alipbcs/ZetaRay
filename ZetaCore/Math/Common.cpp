@@ -1,7 +1,9 @@
 #include "Vector.h"
+#include "../Utility/Span.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Util;
 
 bool Math::SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexcept
 {
@@ -41,8 +43,11 @@ float3 Math::SphericalToCartesian(float theta, float phi) noexcept
 	return float3(sinTheta * cosf(phi), cosf(theta), -sinTheta * sinf(phi));
 }
 
-size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, size_t* offsets, size_t* sizes, size_t minNumElems) noexcept
+size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, Span<size_t> offsets, Span<size_t> sizes, size_t minNumElems) noexcept
 {
+	Assert(offsets.size() >= maxNumGroups, "out-of-bound access in offsets array.");
+	Assert(sizes.size() >= maxNumGroups, "out-of-bound access in sizes array.");
+
 	if (n == 0)
 		return 0;
 
@@ -60,3 +65,78 @@ size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, size_t* offset
 
 	return actualNumGroups;
 }
+
+// fast math must be disabled for Kahan summation
+#pragma float_control(precise, on, push)
+
+float Math::KahanSum(Span<float> data) noexcept
+{
+	const int64_t N = data.size();
+	float sum = 0.0f;
+	float compensation = 0.0;
+
+	// align to 32-byte boundary
+	float* curr = data.data();
+	while ((reinterpret_cast<uintptr_t>(curr) & 31) != 0)
+	{
+		float corrected = *curr - compensation;
+		float newSum = sum + corrected;
+		compensation = (newSum - sum) - corrected;
+		sum = newSum;
+
+		curr++;
+	}
+
+	// largest multiple of 16 (each loop iteration loads two avx registers -- 16 floats) that is smaller than N
+	const int64_t startOffset = curr - data.data();
+	int64_t numToSumSIMD = (N - startOffset);
+	numToSumSIMD -= numToSumSIMD & 15;
+
+	const float* end = curr + numToSumSIMD;
+	__m256 vSum = _mm256_setzero_ps();
+	__m256 vCompensation = _mm256_setzero_ps();
+
+	// unroll two sums in each iteration
+	for (; curr < end; curr += 16)
+	{
+		__m256 V1 = _mm256_load_ps(curr);
+		__m256 V2 = _mm256_load_ps(curr + 8);
+
+		// essentially, each simd lane is doing a seperate Kahan summation
+		__m256 vCurr = _mm256_add_ps(V1, V2);
+		__m256 vCorrected = _mm256_sub_ps(vCurr, vCompensation);
+		__m256 vNewSum = _mm256_add_ps(vSum, vCorrected);
+		vCompensation = _mm256_sub_ps(vNewSum, vSum);
+		vCompensation = _mm256_sub_ps(vCompensation, vCorrected);
+		
+		vSum = vNewSum;
+	}
+
+	// sum the different simd lanes
+	alignas(32) float simdSum[8];
+	alignas(32) float simdCompensation[8];
+	_mm256_store_ps(simdSum, vSum);
+	_mm256_store_ps(simdCompensation, vCompensation);
+
+	// add the simd lanes
+	for (int i = 0; i < 8; i++)
+	{
+		float corrected = simdSum[i] - compensation - simdCompensation[i];
+		float newSum = sum + corrected;
+		compensation = (newSum - sum) - corrected;
+		sum = newSum;
+	}
+
+	// add the remaining data
+	for (int64_t i = startOffset + numToSumSIMD; i < N; i++)
+	{
+		float corrected = data[i] - compensation;
+		float newSum = sum + corrected;
+		compensation = (newSum - sum) - corrected;
+		sum = newSum;
+	}
+
+	return sum;
+}
+
+#pragma float_control(pop)
