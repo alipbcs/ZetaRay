@@ -27,30 +27,33 @@ int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
     return size;
 }
 
-uint8_t Common::CheckSIMDSupport() noexcept
+uint32_t Common::CheckIntrinsicSupport() noexcept
 {
-    uint8_t ret = 0;
+    uint32_t ret = 0;
 
     // All x64 processors support SSE2,
-    // following code checks for SSE3, SSE4, AVX, F16C and AVX2 support
+    // following code checks for SSE3, SSE4, AVX, F16C, AVX2 and BMI1 support
 
     // EAX, EBX, ECX, EDX
     int cpuInfo[4] = { 0 };
     __cpuid(cpuInfo, 1);
 
     if ((cpuInfo[2] & (0x1 | (1 << 9))) == (0x1 | (1 << 9)))
-        ret |= SIMD_Intrinsic::SSE3;
+        ret |= CPU_Intrinsic::SSE3;
     if ((cpuInfo[2] & ((1 << 20) | (1 << 19))) == ((1 << 20) | (1 << 19)))
-        ret |= SIMD_Intrinsic::SSE4;
+        ret |= CPU_Intrinsic::SSE4;
     if (cpuInfo[2] & (1 << 28))
-        ret |= SIMD_Intrinsic::AVX;
+        ret |= CPU_Intrinsic::AVX;
     if (cpuInfo[2] & (1 << 29))
-        ret |= SIMD_Intrinsic::F16C;
+        ret |= CPU_Intrinsic::F16C;
 
     memset(cpuInfo, 0, 4 * sizeof(0));
     __cpuid(cpuInfo, 0x7);
+
     if (cpuInfo[1] & (1 << 5))
-        ret |= SIMD_Intrinsic::AVX2;
+        ret |= CPU_Intrinsic::AVX2;
+    if (cpuInfo[1] & (1 << 3))
+        ret |= CPU_Intrinsic::BMI1;
 
     return ret;
 }

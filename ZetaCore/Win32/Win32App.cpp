@@ -371,16 +371,16 @@ namespace ZetaRay::AppImpl
 		ImGuiStyle& style = ImGui::GetStyle();
 		ImVec4* colors = style.Colors;
 
-		colors[ImGuiCol_WindowBg] = ImVec4(0.012286487, 0.012286487, 0.012286487, 1.0f);
+		colors[ImGuiCol_WindowBg] = ImVec4(0.012286487f, 0.012286487f, 0.012286487f, 1.0f);
 		colors[ImGuiCol_Border] = ImVec4(1.0f / 255, 1.0f / 255, 1.1f / 255, 0.0f);
 		colors[ImGuiCol_TitleBg] = ImVec4(26 / 255.0f, 26 / 255.0f, 26 / 255.0f, 1.0f);
-		colors[ImGuiCol_Tab] = ImVec4(0.046665083, 0.046665083, 0.046665083, 1.0f);
+		colors[ImGuiCol_Tab] = ImVec4(0.046665083f, 0.046665083f, 0.046665083f, 1.0f);
 		colors[ImGuiCol_TabHovered] = ImVec4(40 / 255.0f, 42 / 255.0f, 47 / 255.0f, 1.0f);
 		colors[ImGuiCol_TabActive] = ImVec4(7 / 255.0f, 26 / 255.0f, 56 / 255.0f, 1.0f);
 		colors[ImGuiCol_TitleBg] = colors[ImGuiCol_Tab];
-		colors[ImGuiCol_TitleBgActive] = ImVec4(0.08865560, 0.08865560, 0.08865560, 1.0f);
+		colors[ImGuiCol_TitleBgActive] = ImVec4(0.08865560f, 0.08865560f, 0.08865560f, 1.0f);
 		colors[ImGuiCol_FrameBg] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
-		colors[ImGuiCol_Header] = ImVec4(0.046665083, 0.046665083, 0.046665083, 1.0f);
+		colors[ImGuiCol_Header] = ImVec4(0.046665083f, 0.046665083f, 0.046665083f, 1.0f);
 		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
 		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
 
@@ -1064,17 +1064,25 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	ZetaInline int GetThreadIdx() noexcept
+	ZetaInline int GetThreadIdx()
 	{
+		static_assert(ZetaArrayLen(g_app->m_threadIDs) / 8 == 2, "following assumes there are at most 16 threads.");
+
 		const THREAD_ID_TYPE id = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
-		for (int i = 0; i < g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS; i++)
-		{
-			if (g_app->m_threadIDs[i] == id)
-				return i;
-		}
+		__m256i vKey = _mm256_set1_epi32(id);
+		__m256i vIDs1 = _mm256_load_si256(reinterpret_cast<__m256i*>(g_app->m_threadIDs));
+		__m256i vIDs2 = _mm256_load_si256(reinterpret_cast<__m256i*>(g_app->m_threadIDs + 8));
 
-		return -1;
+		uint32_t mask1 = (uint32_t) _mm256_movemask_epi8(_mm256_cmpeq_epi32(vKey, vIDs1));
+		uint32_t mask2 = (uint32_t) _mm256_movemask_epi8(_mm256_cmpeq_epi32(vKey, vIDs2));
+		uint64_t mask = (uint64_t(mask2) << 32) | mask1;
+
+		uint64_t idx = _tzcnt_u64(mask);
+		auto ret = idx == 64 ? -1 : int(idx >> 2);
+		Assert(ret != -1, "thread index was not found.");
+
+		return ret;
 	}
 
 	template<size_t blockSize>
@@ -1151,10 +1159,11 @@ namespace ZetaRay
 
 	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name) noexcept
 	{
-		// check AVX2 support
-		const auto supported = Common::CheckSIMDSupport();
-		Check(supported & SIMD_Intrinsic::AVX2, "AVX2 is not supported.");
-		Check(supported & SIMD_Intrinsic::F16C, "F16C is not supported.");
+		// check intrinsics support
+		const auto supported = Common::CheckIntrinsicSupport();
+		Check(supported & CPU_Intrinsic::AVX2, "AVX2 is not supported.");
+		Check(supported & CPU_Intrinsic::F16C, "F16C is not supported.");
+		Check(supported & CPU_Intrinsic::BMI1, "BMI1 is not supported.");
 
 		setlocale(LC_ALL, "C");		// set locale to C
 
@@ -1191,7 +1200,7 @@ namespace ZetaRay
 		memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
 		g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
-		// initialize memory pools. has to happen after the thread pool creation
+		memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
 
 		// main thread
 		g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
