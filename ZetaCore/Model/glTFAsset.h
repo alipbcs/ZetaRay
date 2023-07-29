@@ -43,10 +43,10 @@ namespace ZetaRay::Model::glTF::Asset
 	{
 		MaterialDesc() noexcept
 			: BaseColorTexPath(uint64_t(-1)),
-			MetalnessRoughnessTexPath(uint64_t(-1)),
+			MetallicRoughnessTexPath(uint64_t(-1)),
 			NormalTexPath(uint64_t(-1)),
 			EmissiveTexPath(uint64_t(-1)),
-			MetalnessFactor(1.0f),
+			MetallicFactor(1.0f),
 			RoughnessFactor(1.0f),
 			NormalScale(1.0f),
 			AlphaCuttoff(0.5f),
@@ -63,14 +63,14 @@ namespace ZetaRay::Model::glTF::Asset
 		int Index;
 
 		uint64_t BaseColorTexPath;
-		uint64_t MetalnessRoughnessTexPath;
+		uint64_t MetallicRoughnessTexPath;
 		uint64_t NormalTexPath;
 		uint64_t EmissiveTexPath;
 
 		Math::float4 BaseColorFactor;
 		Math::float3 EmissiveFactor;
 		float EmissiveStrength;
-		float MetalnessFactor;
+		float MetallicFactor;
 		float RoughnessFactor;
 		float NormalScale;
 

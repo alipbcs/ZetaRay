@@ -117,18 +117,21 @@ float4 mainPS(VSOut psin) : SV_Target
 	
 	Texture2D<half4> g_composited = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	//float4 composited = g_composited[psin.PosSS.xy].rgba;
-	float3 composited = g_composited.SampleLevel(g_samPointClamp, uv, 0).rgb;
+	float3 composited = g_composited.SampleLevel(g_samPointClamp, uv, 0).rgb;	
+	float3 display = composited;
 	
-	Texture2D<float2> g_exposure = ResourceDescriptorHeap[g_local.ExposureDescHeapIdx];
-	const float exposure = g_exposure[int2(0, 0)].x;		
-	const float3 exposedColor = composited * exposure;
-	
-	float3 display = exposedColor;
+	if(g_local.AutoExposure)
+	{
+		Texture2D<float2> g_exposure = ResourceDescriptorHeap[g_local.ExposureDescHeapIdx];
+		const float exposure = g_exposure[int2(0, 0)].x;
+		const float3 exposedColor = composited * exposure;
+		display = exposedColor;
+	}
 	
 	if (g_local.Tonemapper == (int) Tonemapper::ACES_FITTED)
-		display = ACESFitted(exposedColor);
+		display = ACESFitted(display);
 	else if (g_local.Tonemapper == (int) Tonemapper::NEUTRAL)
-		display = tony_mc_mapface(exposedColor);
+		display = tony_mc_mapface(display);
 
 	float3 desaturation = Math::Color::LuminanceFromLinearRGB(display);
 	display = lerp(desaturation, display, g_local.Saturation);
@@ -144,7 +147,7 @@ float4 mainPS(VSOut psin) : SV_Target
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		half2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
 		display = Math::Encoding::DecodeUnitNormal(encodedNormal.xy);
-		display = abs(display);
+		display = display * 0.5 + 0.5;
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::BASE_COLOR)
 	{
@@ -154,9 +157,13 @@ float4 mainPS(VSOut psin) : SV_Target
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::METALNESS_ROUGHNESS)
 	{
-		GBUFFER_METALNESS_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-			GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+		GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+			GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 		float2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
+
+		bool isMetallic = GBuffer::DecodeMetallic(mr.x);
+		mr.x = isMetallic;
+
 		display = float3(mr, 0.0f);
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::EMISSIVE)
@@ -171,13 +178,12 @@ float4 mainPS(VSOut psin) : SV_Target
 			GBUFFER_OFFSET::CURVATURE];
 		display = g_curvature.SampleLevel(g_samPointClamp, uv, 0).rrr;
 	}
-	else if (g_local.DisplayOption == (int) DisplayOption::EXPOSURE_HEATMAP)
-	{
-		float l1 = Math::Color::LuminanceFromLinearRGB(display);
-		float l2 = Math::Color::LuminanceFromLinearRGB(exposedColor);
-
-		display = HeatmapColor(l2 / max(l1, 1e-6));
-	}
+//	else if (g_local.DisplayOption == (int) DisplayOption::EXPOSURE_HEATMAP)
+//	{
+//		float l1 = Math::Color::LuminanceFromLinearRGB(display);
+//		float l2 = Math::Color::LuminanceFromLinearRGB(exposedColor);
+//		display = HeatmapColor(l2 / max(l1, 1e-6));
+//	}
 	else if (g_local.DisplayOption == (int) DisplayOption::DIFFUSE_DNSR)
 	{
 		Texture2D<float4> g_temporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRTemporalCacheDescHeapIdx];

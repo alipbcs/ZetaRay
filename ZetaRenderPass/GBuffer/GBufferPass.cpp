@@ -31,7 +31,7 @@ GBufferPass::GBufferPass() noexcept
 		0,											// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,		// root idx
@@ -145,7 +145,7 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs) noexcept
 	CheckHR(renderer.GetDevice()->CreateCommandSignature(&desc, s_rpObjs.m_rootSig.Get(), 
 		IID_PPV_ARGS(m_cmdSig.GetAddressOf())));
 
-	m_descTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((uint32_t)DESC_TABLE::COUNT);
+	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((uint32_t)DESC_TABLE::COUNT);
 
 	CreateDepthPyramid();
 
@@ -232,13 +232,13 @@ void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepth
 	std::sort(instances.begin(), split,
 		[](const MeshInstance& lhs, const MeshInstance& rhs)
 		{
-			return lhs.VisibilityIdx <= rhs.VisibilityIdx;
+			return lhs.VisibilityIdx < rhs.VisibilityIdx;
 		});
 
 	std::sort(split, instances.end(),
 		[](const MeshInstance& lhs, const MeshInstance& rhs)
 		{
-			return lhs.VisibilityIdx <= rhs.VisibilityIdx;
+			return lhs.VisibilityIdx < rhs.VisibilityIdx;
 		});
 
 	auto& renderer = App::GetRenderer();

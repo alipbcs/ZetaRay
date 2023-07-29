@@ -163,10 +163,10 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
 
 	// screen-bounds check
-	float4 weights = float4(Math::IsWithinBoundsExc(topLeft, renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(1, 0), renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(0, 1), renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(1, 1), renderDim));
+	float4 weights = float4(Math::IsWithinBounds(topLeft, renderDim),
+							Math::IsWithinBounds(topLeft + float2(1, 0), renderDim),
+							Math::IsWithinBounds(topLeft + float2(0, 1), renderDim),
+							Math::IsWithinBounds(topLeft + float2(1, 1), renderDim));
 
 	if (dot(1, weights) == 0)
 		return;
@@ -199,9 +199,9 @@ void SampleTemporalCache(uint2 DTid, float3 posW, float3 normal, float linearDep
 	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float4 prevRoughness = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float4 prevRoughness = g_metallicRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	weights *= RoughnessWeight(roughness, prevRoughness, isMetallic);
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
@@ -293,12 +293,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 		return;
 
 	// roughness and metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[DTid.xy];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[DTid.xy];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	// roughness cuttoff
-	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
 	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
 	if (!roughnessBelowThresh)
 		return;
@@ -334,10 +341,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 		g_frame.CurrProjectionJitter);
 	
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
-
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, 0.0.xxx);
 	const float3 wi = normalize(r.SamplePos - posW);
-	surface.InitComplete(wi, 0.0.xxx, isMetallic, normal);
+	surface.SetWi(wi, normal);
 
 	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
 	const float localCurvature = g_curvature[DTid.xy];

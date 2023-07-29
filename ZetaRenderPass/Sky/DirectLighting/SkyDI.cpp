@@ -31,7 +31,7 @@ SkyDI::SkyDI() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// BVH
 	m_rootSig.InitAsBufferSRV(2,						// root idx
@@ -47,7 +47,7 @@ SkyDI::SkyDI() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SOBOL_SEQ);
+		Sampler::SOBOL_SEQ_32);
 
 	// scrambling tile
 	m_rootSig.InitAsBufferSRV(4,						// root idx
@@ -55,7 +55,7 @@ SkyDI::SkyDI() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 
 	// ranking tile
 	m_rootSig.InitAsBufferSRV(5,						// root idx
@@ -63,7 +63,7 @@ SkyDI::SkyDI() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 }
 
 SkyDI::~SkyDI() noexcept
@@ -94,17 +94,17 @@ void SkyDI::Init() noexcept
 			COMPILED_CS[i]);
 	}
 
-	m_descTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
 
 	memset(&m_cbTemporalResample, 0, sizeof(m_cbTemporalResample));
 	memset(&m_cbSpatialResample, 0, sizeof(m_cbSpatialResample));
 	memset(&m_cbDNSRTemporal, 0, sizeof(m_cbDNSRTemporal));
 	memset(&m_cbDNSRSpatial, 0, sizeof(m_cbDNSRSpatial));
-	m_cbTemporalResample.DoTemporalResampling = m_doTemporalResampling;
 	m_cbTemporalResample.M_max = DefaultParamVals::TemporalM_max;
 	m_cbTemporalResample.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
 	m_cbTemporalResample.PrefilterReservoirs = true;
+	m_cbTemporalResample.CheckerboardTracing = true;
 	m_cbSpatialResample.DoSpatialResampling = true;
 	m_cbSpatialResample.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
 	m_cbDNSRTemporal.MaxTSPP_Diffuse = m_cbDNSRSpatial.MaxTSPP = DefaultParamVals::DNSRTspp_Diffuse;
@@ -117,7 +117,7 @@ void SkyDI::Init() noexcept
 
 	ParamVariant doTemporal;
 	doTemporal.InitBool("Renderer", "Direct Lighting (Sky)", "TemporalResampling",
-		fastdelegate::MakeDelegate(this, &SkyDI::DoTemporalResamplingCallback), m_cbTemporalResample.DoTemporalResampling);
+		fastdelegate::MakeDelegate(this, &SkyDI::DoTemporalResamplingCallback), m_doTemporalResampling);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;
@@ -145,7 +145,7 @@ void SkyDI::Init() noexcept
 		m_cbTemporalResample.MinRoughnessResample,	// val	
 		0,											// min
 		1,											// max
-		0.1);										// step
+		0.1f);										// step
 	App::AddParam(minRoughness);
 
 	ParamVariant prefilter;

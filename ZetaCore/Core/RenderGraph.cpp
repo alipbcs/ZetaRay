@@ -929,6 +929,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 			m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE ? "[Async Compute]" : "");
 		ImNodes::EndNodeTitleBar();
 
+#ifdef _DEBUG
 		for (auto b : m_renderNodes[currNode].Barriers)
 		{
 			char buff[64] = { '\0' };
@@ -940,6 +941,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 				GetResStateName(b.Transition.StateBefore),
 				GetResStateName(b.Transition.StateAfter));
 		}
+#endif // _DEBUG
 
 		const int prevBatchSize = currBatchIdx > 0 ? batchSize[currBatchIdx - 1] : 0;
 		const int currBatchSize = batchSize[currBatchIdx];
@@ -969,7 +971,12 @@ void RenderGraph::DebugDrawGraph() noexcept
 		if (needsReorder)
 		{
 			const float x = currBatchIdx * 350.0f;
+#ifdef _DEBUG
 			const float y = 50.0f + idxInBatch++ * 75.0f + numBarriersInBatch * 60.0f;
+#else
+			const float y = 50.0f + idxInBatch++ * 75.0f;
+#endif // _DEBUG
+
 			ImNodes::SetNodeEditorSpacePos(currNode, ImVec2(x, y));
 
 			numBarriersInBatch += (int)m_renderNodes[currNode].Barriers.size();
@@ -1022,7 +1029,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 
 	ImNodes::PopColorStyle();
 
-	ImNodes::MiniMap(0.3f, ImNodesMiniMapLocation_BottomRight);
+	ImNodes::MiniMap(0.3f, ImNodesMiniMapLocation_BottomLeft);
 	ImNodes::EndNodeEditor();
 
 	m_numPassesLastTimeDrawn = numNodes;

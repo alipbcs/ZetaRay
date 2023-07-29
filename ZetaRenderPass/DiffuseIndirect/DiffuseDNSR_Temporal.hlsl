@@ -74,11 +74,11 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	//	|--prev-------|
 	//	|-------------|
 	//	p2-----------p3
-	const float2 screenDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float2 f = prevUV * screenDim;
+	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float2 f = prevUV * renderDim;
 	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
 	const float2 offset = f - (topLeft + 0.5f);
-	const float2 topLeftTexelUV = (topLeft + 0.5f) / screenDim;
+	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
 		
 	// previous frame's normals
 	GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -109,10 +109,10 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	const float4 geoWeights = GeometricTest(prevDepths, prevUVs, currNormal, currPos, linearDepth);
 	
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(Math::IsWithinBoundsExc(topLeft, screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(1, 0), screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(0, 1), screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Math::IsWithinBounds(topLeft, renderDim),
+									 Math::IsWithinBounds(topLeft + float2(1, 0), renderDim),
+									 Math::IsWithinBounds(topLeft + float2(0, 1), renderDim),
+									 Math::IsWithinBounds(topLeft + float2(1, 1), renderDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -277,8 +277,7 @@ void Integrate(uint2 DTid, float3 pos, float3 normal, inout uint tspp, inout flo
 [numthreads(DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID)
 {
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
+	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return;
 	
 	float tspp = 0;
@@ -292,10 +291,14 @@ void main(uint3 DTid : SV_DispatchThreadID)
 		return;
 
 	// skip metallic surfaces
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float metalness = g_metalnessRoughness[DTid.xy].x;
-	if (metalness >= MIN_METALNESS_METAL)
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(g_metallicRoughness[DTid.xy].x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isMetallic || isEmissive)
 		return;
 	
 	// current frame's normals
@@ -304,7 +307,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
 
 	// current frame's depth
 	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
+	const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
 	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
 		g_frame.CurrViewInv, g_frame.CurrProjectionJitter);

@@ -6,6 +6,7 @@
 #include "../Support/Task.h"
 #include "../Support/MemoryArena.h"
 #include "../Utility/Utility.h"
+#include "../App/Filesystem.h"
 #include <thread>
 #include <algorithm>
 #include <bit>
@@ -17,12 +18,36 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core::Direct3DHelper;
 
+namespace
+{
+	ZetaInline int GetThreadIndex(Span<uint32_t> threadIDs)
+	{
+		const uint32_t tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+
+		int ret = -1;
+		__m256i vKey = _mm256_set1_epi32(tid);
+
+		for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8)
+		{
+			__m256i vIDs = _mm256_load_si256((__m256i*)(threadIDs.data() + i));
+			__m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
+			int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
+
+			if (mask != 0)
+			{
+				ret = i + _tzcnt_u32(mask);
+				break;
+			}
+		}
+
+		Assert(ret != -1, "thread index was not found.");
+
+		return ret;
+	}
+}
+
 namespace ZetaRay::Core::Internal
 {
-	// Upload heap resource management is mostly based on "GraphicsMemory" class from DirectXTK12 
-	// library (MIT License), available here:
-	// https://github.com/microsoft/DirectXTK12
-
 	//--------------------------------------------------------------------------------------
 	// LinearAllocatorPage
 	//--------------------------------------------------------------------------------------
@@ -616,7 +641,9 @@ namespace ZetaRay::Core::Internal
 			if (!m_directCmdList)
 			{
 				m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
+#ifdef _DEBUG
 				m_directCmdList->SetName("ResourceUploadBatch");
+#endif // _DEBUG
 			}
 
 			constexpr int MAX_NUM_SUBRESOURCES = 12;
@@ -629,7 +656,7 @@ namespace ZetaRay::Core::Internal
 			auto destDesc = resource->GetDesc();
 			// As buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded size. Using subresRowSize[0]
 			// as the copy size could lead to access violations since size of the data pointed to by subresData is probably smaller
-			Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "This functions is for uploading textures.");
+			Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "This function is for uploading textures.");
 
 			// required size of an intermediate buffer that is to be used to initialize this resource
 			auto* device = App::GetRenderer().GetDevice();
@@ -643,11 +670,7 @@ namespace ZetaRay::Core::Internal
 				subresRowSize,									// unpadded size of a row of each subresource
 				&totalSize);									// total size
 
-			// alignment is not important since we're requesting a clean page which we know
-			// will be 64 kb aligned
-			UploadHeapBuffer intermediateBuff = uploadHeap.GetBuffer(threadIdx, totalSize, size_t(-1), true);
-			Assert(intermediateBuff.GetOffset() == 0, "Offset must be zero");
-			//Assert(intermediateBuff.GetSize() >= totalSize + subresLayout[0].Offset, "intermediate buffer is too small.");
+			UploadHeapBuffer intermediateBuff = uploadHeap.GetBuffer(threadIdx, totalSize);
 
 			// for each subresource in Destination
 			for (int i = 0; i < numSubresources; i++)
@@ -677,15 +700,16 @@ namespace ZetaRay::Core::Internal
 
 			for (int i = 0; i < numSubresources; i++)
 			{
-				D3D12_TEXTURE_COPY_LOCATION dst;
+				D3D12_TEXTURE_COPY_LOCATION dst{};
 				dst.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
 				dst.pResource = resource;
 				dst.SubresourceIndex = i + firstSubresourceIndex;
 
-				D3D12_TEXTURE_COPY_LOCATION src;
+				D3D12_TEXTURE_COPY_LOCATION src{};
 				src.pResource = intermediateBuff.GetResource();
 				src.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
 				src.PlacedFootprint = subresLayout[i];
+				src.PlacedFootprint.Offset += intermediateBuff.GetOffset();
 
 				m_directCmdList->CopyTextureRegion(&dst, 0, 0, 0, &src, nullptr);
 			}
@@ -706,7 +730,9 @@ namespace ZetaRay::Core::Internal
 			if (!m_directCmdList)
 			{
 				m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
+#ifdef _DEBUG
 				m_directCmdList->SetName("ResourceUploadBatch");
+#endif // _DEBUG
 			}
 
 			// Note: GetCopyableFootprints() returns the padded size, which led to FindPageForAlloc() always
@@ -746,7 +772,9 @@ namespace ZetaRay::Core::Internal
 			if (!m_directCmdList)
 			{
 				m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
+#ifdef _DEBUG
 				m_directCmdList->SetName("ResourceUploadBatch");
+#endif
 			}
 
 			auto desc = dstResource->GetDesc();
@@ -789,21 +817,19 @@ namespace ZetaRay::Core::Internal
 
 		// Submits all the uploads
 		// No more uploads can happen after this call until Begin is called again.
-		void End() noexcept
+		uint64_t End() noexcept
 		{
 			Assert(m_inBeginEndBlock, "ResourceUploadBatch already closed.");
+			uint64_t ret = 0;
 
 			if (!m_scratchResources.empty())
 			{
-				auto& renderer = App::GetRenderer();
-
-				uint64_t completionFence = renderer.ExecuteCmdList(m_directCmdList);
-				// compute queue needs to wait for direct queue
-				renderer.WaitForDirectQueueOnComputeQueue(completionFence);			
+				ret = App::GetRenderer().ExecuteCmdList(m_directCmdList);
 				m_directCmdList = nullptr;
 			}
 
 			m_inBeginEndBlock = false;
+			return ret;
 		}
 
 		void Recycle() noexcept
@@ -946,9 +972,6 @@ void DefaultHeapBuffer::Reset() noexcept
 ReadbackHeapBuffer::ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r) noexcept
 {
 	m_resource.Swap(r);
-
-	// buffers have only one subresource
-	CheckHR(m_resource->Map(0, nullptr, &m_mappedMemory));
 }
 
 ReadbackHeapBuffer::~ReadbackHeapBuffer() noexcept
@@ -991,7 +1014,7 @@ void ReadbackHeapBuffer::Map() noexcept
 	if (m_mappedMemory)
 		return;
 
-	// buffers have only 1 subresource
+	// buffers have only one subresource
 	CheckHR(m_resource->Map(0, nullptr, &m_mappedMemory));
 }
 
@@ -1109,9 +1132,19 @@ void GpuMemory::BeginFrame() noexcept
 void GpuMemory::SubmitResourceCopies() noexcept
 {
 	const int numThreads = App::GetNumWorkerThreads();
+	uint64_t maxFenceVal = 0;
 
 	for (int i = 0; i < numThreads; i++)
-		m_threadContext[i].ResUploader->End();
+	{
+		auto f = m_threadContext[i].ResUploader->End();
+		maxFenceVal = Math::Max(maxFenceVal, f);
+	}
+
+	if (maxFenceVal != 0)
+	{
+		// compute queue needs to wait for direct queue
+		App::GetRenderer().WaitForDirectQueueOnComputeQueue(maxFenceVal);
+	}
 }
 
 void GpuMemory::Recycle() noexcept
@@ -1206,8 +1239,7 @@ void GpuMemory::Shutdown() noexcept
 
 UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(size_t sizeInBytes, size_t alignment) noexcept
 {
-	const int idx = GetIndexForThread();
-	//const size_t alignment = D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT;
+	const int idx = GetThreadIndex(m_threadIDs);
 	const size_t alignedSize = (sizeInBytes + alignment - 1) & ~(alignment - 1);
 
 	return m_threadContext[idx].UploadHeap->GetBuffer(idx, sizeInBytes, alignment);
@@ -1229,7 +1261,7 @@ ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(size_t sizeInBytes) noexcept
 	ComPtr<ID3D12Resource> buff;
 
 	CheckHR(device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE,
-		&desc, D3D12_RESOURCE_STATE_COPY_DEST, nullptr, IID_PPV_ARGS(buff.GetAddressOf())));
+		&desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(buff.GetAddressOf())));
 
 	return ReadbackHeapBuffer(ZetaMove(buff));
 }
@@ -1237,16 +1269,15 @@ ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(size_t sizeInBytes) noexcept
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, size_t size,
 	D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero) noexcept
 {
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 	return m_threadContext[idx].DefaultHeap->GetBuffer(name, size, initState, allowUAV, initToZero);
 }
 
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_t sizeInBytes,
 	D3D12_RESOURCE_STATES postCopyState, bool allowUAV, void* data) noexcept
 {
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 
-	// Note: setting the state to D3D12_RESOURCE_STATE_COPY_DEST leads to a Warning
 	auto buff = m_threadContext[idx].DefaultHeap->GetBuffer(name, 
 		sizeInBytes,
 		D3D12_RESOURCE_STATE_COMMON, 
@@ -1262,7 +1293,7 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, size_
 
 void GpuMemory::UploadToDefaultHeapBuffer(const DefaultHeapBuffer& buff, size_t sizeInBytes, void* data) noexcept
 {
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 
 	auto desc = buff.GetDesc();
 	m_threadContext[idx].ResUploader->UploadBuffer(idx, *m_threadContext[idx].UploadHeap,
@@ -1271,13 +1302,13 @@ void GpuMemory::UploadToDefaultHeapBuffer(const DefaultHeapBuffer& buff, size_t 
 
 void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept
 {
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 	m_threadContext[idx].DefaultHeap->ReleaseBuffer(ZetaMove(buff.m_resource));
 }
 
 void GpuMemory::ReleaseTexture(Texture&& t) noexcept
 {
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 	Assert(t.m_resource, "Invalid texture.");
 
 	m_threadContext[idx].ToReleaseTextures.emplace_back(PendingTexture{
@@ -1316,8 +1347,6 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
 
 	if ((flags & TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
 		heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
-	//const uint8_t isRtOrDS = flags & (TEXTURE_FLAGS::ALLOW_RENDER_TARGET | TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL);
-	//heapFlags |= isRtOrDS ? D3D12_HEAP_FLAG_ALLOW_ONLY_RT_DS_TEXTURES : D3D12_HEAP_FLAG_ALLOW_ONLY_NON_RT_DS_TEXTURES;
 
 	CheckHR(device->CreateCommittedResource(&defaultHeap,
 		heapFlags,
@@ -1400,7 +1429,7 @@ Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t hei
 	return Texture(ZetaMove(name), ZetaMove(texture));
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexcept
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept
 {
 	SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
@@ -1411,15 +1440,17 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexc
 	DXGI_FORMAT format;
 
 	auto* device = App::GetRenderer().GetDevice();
-	auto errCode = Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+	auto errCode = Direct3DHelper::LoadDDSFromFile(p.GetView().data(), subresources, format, ddsData, width, height, depth, mipCount);
 
 	if (errCode != LOAD_DDS_RESULT::SUCCESS)
 		return errCode;
 
-	// not allowed to be RT or Depth-Stencil
-	t = GetTexture2D(p, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+	char fn[128];
+	p.Stem(fn);
 
-	const int idx = GetIndexForThread();
+	t = GetTexture2D(fn, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+
+	const int idx = GetThreadIndex(m_threadIDs);
 
 	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
 		t.GetResource(),
@@ -1431,7 +1462,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* p, Texture& t) noexc
 	return errCode;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* p, Texture& t) noexcept
+LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept
 {
 	SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
 	std::unique_ptr<uint8_t[]> ddsData;		// must remain alive until CopyTextureRegion() has been called
@@ -1442,15 +1473,17 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* p, Texture& t) noexc
 	DXGI_FORMAT format;
 
 	auto* device = App::GetRenderer().GetDevice();
-	auto errCode = Direct3DHelper::LoadDDSFromFile(p, subresources, format, ddsData, width, height, depth, mipCount);
+	auto errCode = Direct3DHelper::LoadDDSFromFile(p.GetView().data(), subresources, format, ddsData, width, height, depth, mipCount);
 
 	if (errCode != LOAD_DDS_RESULT::SUCCESS)
 		return errCode;
 
-	// not allowed to be RT or Depth-Stencil
-	t = GetTexture3D(p, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+	char fn[128];
+	p.Stem(fn);
 
-	const int idx = GetIndexForThread();
+	t = GetTexture3D(fn, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+
+	const int idx = GetThreadIndex(m_threadIDs);
 
 	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
 		t.GetResource(),
@@ -1466,7 +1499,7 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 	D3D12_RESOURCE_STATES postCopyState, uint8_t* pixels, uint32_t flags) noexcept
 {
 	Texture t = GetTexture2D(name, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, flags);
-	const int idx = GetIndexForThread();
+	const int idx = GetThreadIndex(m_threadIDs);
 
 	m_threadContext[idx].ResUploader->UploadTexture(idx, *m_threadContext[idx].UploadHeap,
 		t.GetResource(),
@@ -1476,27 +1509,3 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 	return t;
 }
 
-int GpuMemory::GetIndexForThread() noexcept
-{
-	const uint32_t tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
-
-	int ret = -1;
-	__m256i vKey = _mm256_set1_epi32(tid);
-
-	for (int i = 0; i < MAX_NUM_THREADS; i += 8)
-	{
-		__m256i vIDs = _mm256_load_si256((__m256i*)(m_threadIDs + i));
-		__m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
-		int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
-
-		if (mask != 0) 
-		{
-			ret = i + _tzcnt_u32(mask);
-			break;
-		}
-	}
-
-	Assert(ret != -1, "thread index was not found.");
-
-	return ret;
-}

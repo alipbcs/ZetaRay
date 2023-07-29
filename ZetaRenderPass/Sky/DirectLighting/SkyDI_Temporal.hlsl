@@ -19,8 +19,10 @@
 #define MIN_ROUGHNESS_SURFACE_MOTION 0.4
 #define CHECKERBOARD_SORT 0
 
-groupshared float g_firstMoment[WAVE_SIZE];
-groupshared float g_secondMoment[WAVE_SIZE];
+static const uint NUM_THREADS_IN_BLOCK = SKY_DI_TEMPORAL_GROUP_DIM_X * SKY_DI_TEMPORAL_GROUP_DIM_Y;
+
+groupshared float g_firstMoment[NUM_THREADS_IN_BLOCK / WAVE_SIZE];
+groupshared float g_secondMoment[NUM_THREADS_IN_BLOCK / WAVE_SIZE];
 
 #if CHECKERBOARD_SORT
 groupshared uint16_t2 g_dtid[SKY_DI_TEMPORAL_GROUP_DIM_Y * SKY_DI_TEMPORAL_GROUP_DIM_X];
@@ -74,9 +76,13 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
 }
 
 float ComputeTarget(float3 pos, float3 normal, float linearDepth, float3 wi, 
-	inout BRDF::SurfaceInteraction surface, out float3 Lo)
+	BRDF::SurfaceInteraction surface, out float3 Lo)
 {
-	const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface, true);
+#if INCLUDE_VISIBILITY_IN_TARGET
+	const bool vis = EvaluateVisibility(pos, wi, normal, linearDepth);
+	if (!vis)
+		return 0.0;
+#endif
 
 	// sample sky-view LUT
 	Texture2D<float4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
@@ -90,13 +96,8 @@ float ComputeTarget(float3 pos, float3 normal, float linearDepth, float3 wi,
 	
 	Lo = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 		
-#if INCLUDE_VISIBILITY_IN_TARGET
-	const bool vis = EvaluateVisibility(pos, wi, normal, linearDepth);
-#else
-	const bool vis = true;
-#endif
-		
-	const float target = Math::Color::LuminanceFromLinearRGB(Lo * brdfCostheta * vis);
+	const float3 brdfCostheta = BRDF::SurfaceBRDF(surface, true);
+	const float target = Math::Color::LuminanceFromLinearRGB(Lo * brdfCostheta);
 
 	return target;
 }
@@ -105,25 +106,25 @@ float2 GetSample(uint2 DTid, uint numSamplesPerFrame, uint offset)
 {
 	const uint sampleIdx = (g_local.SampleIndex * numSamplesPerFrame + offset) & 31;
 	
-	const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+	const float u0 = Sampling::BlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 6);
-	const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+	const float u1 = Sampling::BlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			DTid.x, DTid.y, sampleIdx, 7);
 		
 	return float2(u0, u1);
 }
 
-DIReservoir GenerateCandidatesVNDF(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor,
-	float metalness, float roughness, inout BRDF::SurfaceInteraction surface, inout RNG rng)
+SkyDIReservoir GenerateCandidatesVNDF(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor,
+	bool metallic, float roughness, inout BRDF::SurfaceInteraction surface, inout RNG rng)
 {
-	DIReservoir r = DIReservoir::Init();
+	SkyDIReservoir r = SkyDIReservoir::Init();
 
 	[unroll]
 	for (int i = 0; i < NUM_RIS_CANDIDATES_VNDF; i++)
 	{
 		float2 u = GetSample(DTid, NUM_RIS_CANDIDATES_VNDF, i);
 		float3 wi = BRDF::SampleSpecularBRDFGGXSmith(surface, normal, u);
-		surface.InitComplete(wi, baseColor, metalness, normal);
+		surface.SetWi(wi, normal);
 		float sourcePdf = BRDF::SpecularBRDFGGXSmithPdf(surface);
 
 		float3 Lo;
@@ -143,16 +144,16 @@ DIReservoir GenerateCandidatesVNDF(uint2 DTid, float3 posW, float3 normal, float
 	return r;
 }
 
-DIReservoir GenerateCandidatesMIS(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float metalness,
+SkyDIReservoir GenerateCandidatesMIS(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, bool metallic,
 	float roughness, inout BRDF::SurfaceInteraction surface, inout RNG rng)
 {
-	DIReservoir r = DIReservoir::Init();	
+	SkyDIReservoir r = SkyDIReservoir::Init();	
 	float3 wi_z;
 	float p_z;
 	float p_other_z;
 
 	// MIS -- take a light sample and a brdf sample, then combine them using the balance heuristic
-	float rhoDiffuse = Math::Color::LuminanceFromLinearRGB(baseColor * (1 - metalness));
+	float rhoDiffuse = Math::Color::LuminanceFromLinearRGB(baseColor * (1 - metallic));
 	
 	// sample env. map
 	{
@@ -166,7 +167,7 @@ DIReservoir GenerateCandidatesMIS(uint2 DTid, float3 posW, float3 normal, float 
 		float3 lightWi = BRDF::SampleLambertianBrdf(normal, u, lightPdf);
 #endif
 		// compute brdf pdf with light sample
-		surface.InitComplete(lightWi, baseColor, metalness, normal);
+		surface.SetWi(lightWi, normal);
 		const float F = saturate(Math::Color::LuminanceFromLinearRGB(surface.F));
 		p_other_z = F * BRDF::SpecularBRDFGGXSmithPdf(surface) + (1 - F) * saturate(dot(lightWi, normal)) * ONE_OVER_PI;
 
@@ -188,12 +189,12 @@ DIReservoir GenerateCandidatesMIS(uint2 DTid, float3 posW, float3 normal, float 
 		
 		// decide between diffuse and specular brdfs using (estimated -- wi is unknown at this point) Fresnel
 		const float F_est = mad(0.0926187f, exp(-2.95942632f * surface.ndotwo), 0.11994875f);
-		const float pSpecular = metalness > MIN_METALNESS_METAL ? 1.0f : F_est / max(F_est + rhoDiffuse, 1e-4f);
+		const float pSpecular = metallic ? 1.0f : F_est / max(F_est + rhoDiffuse, 1e-4f);
 		
 		if (rng.Uniform() < pSpecular)
 		{
 			brdfWi = BRDF::SampleSpecularBRDFGGXSmith(surface, normal, u);
-			surface.InitComplete(brdfWi, baseColor, metalness, normal);
+			surface.SetWi(brdfWi, normal);
 			brdfPdf = BRDF::SpecularBRDFGGXSmithPdf(surface);
 			
 			brdfPdf *= pSpecular;
@@ -201,24 +202,24 @@ DIReservoir GenerateCandidatesMIS(uint2 DTid, float3 posW, float3 normal, float 
 		else
 		{
 			brdfWi = BRDF::SampleLambertianBrdf(normal, u, brdfPdf);
-			surface.InitComplete(brdfWi, baseColor, metalness, normal);
+			surface.SetWi(brdfWi, normal);
 			
 			brdfPdf *= (1 - pSpecular);
 		}
-		
-		// also compute light pdf with brdf sample
-#if 0
-		p_other_z = saturate(brdfWi.y) * ONE_OVER_PI;
-#else
-		p_other_z = saturate(dot(brdfWi, normal)) * ONE_OVER_PI;
-#endif
-		
+				
 		// resample
 		float3 Lo;
 		const float target = ComputeTarget(posW, normal, linearDepth, brdfWi, surface, Lo);
 		const float risWeightSpecular = target / max(brdfPdf, 1e-4);
 		const bool wasCandidatePicked = r.Update(risWeightSpecular, Lo, brdfWi, target, rng);
 		
+		// also compute light pdf with brdf sample
+#if 0
+		p_other_z = saturate(brdfWi.y) * ONE_OVER_PI;
+#else
+		p_other_z = wasCandidatePicked ? saturate(dot(brdfWi, normal)) * ONE_OVER_PI : p_other_z;
+#endif
+
 		p_z = wasCandidatePicked ? brdfPdf : p_z;
 		wi_z = wasCandidatePicked ? brdfWi : wi_z;
 	}
@@ -259,11 +260,10 @@ bool IsLaneActive(uint laneIdx, uint4 activeMask)
 }
 
 // Note: causes a darkening bias
-bool PrefilterOutliers(uint gidx, float3 posW, float roughness, float linearDepth, inout DIReservoir r)
+bool PrefilterOutliers(uint gidx, float3 posW, float roughness, float linearDepth, inout SkyDIReservoir r)
 {
-	const float N = SKY_DI_TEMPORAL_GROUP_DIM_X * SKY_DI_TEMPORAL_GROUP_DIM_Y;
 	const uint waveIdx = gidx / WaveGetLaneCount();
-	const uint numWaves = N / WaveGetLaneCount();
+	const uint numWaves = NUM_THREADS_IN_BLOCK / WaveGetLaneCount();
 	const uint laneIdx = WaveGetLaneIndex();
 
 	// fit a normal distribution to data as a way to detect outliers
@@ -303,7 +303,7 @@ bool PrefilterOutliers(uint gidx, float3 posW, float roughness, float linearDept
 	wSumSecondMoment = laneIdx < numWaves ? g_secondMoment[laneIdx].x : 0.0f;
 	wSumSecondMoment = WaveActiveSum(wSumSecondMoment);
 	
-	const float2 wSumMeanStd = MeanStdFromMoments(wSumFirstMoment, wSumSecondMoment, N);
+	const float2 wSumMeanStd = MeanStdFromMoments(wSumFirstMoment, wSumSecondMoment, NUM_THREADS_IN_BLOCK);
 	
 	// and across the 2x4 region
 	const uint4 mask = WaveMatch(quadrant);
@@ -317,7 +317,7 @@ bool PrefilterOutliers(uint gidx, float3 posW, float roughness, float linearDept
 	const bool wSumOutsideTolerance = r.w_sum > mad(numToleratedWSumStds, wSumMeanStd.y, wSumMeanStd.x);
 	
 	if (wSumOutsideTolerance && liesOnPlane)
-		r = DIReservoir::Init();
+		r = SkyDIReservoir::Init();
 	
 	return liesOnPlane;
 }
@@ -352,24 +352,23 @@ float RayDirHeuristic(float3 currWi, float3 neighborWi, float roughness)
 	return pow(weight, exp);	
 }
 
-float GetTemporalM(float roughness, float metalness)
+float GetTemporalM(float roughness, bool metallic)
 {
-	bool isMetallic = metalness > MIN_METALNESS_METAL;
 	float M_metal = smoothstep(0, 0.35f, roughness * roughness);
 	float M_dielectric = smoothstep(0, 0.8f, roughness);
-	float M = isMetallic ? M_metal : M_dielectric;
+	float M = metallic ? M_metal : M_dielectric;
 	M *= g_local.M_max;
 	M = roughness < 0.1 ? 2 : M;
 	
 	return M;
 }
 
-void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, float metalness, float roughness, 
-	float localCurvature, bool tracedThisFrame, inout DIReservoir r, inout BRDF::SurfaceInteraction surface, inout RNG rng)
+void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, float3 baseColor, bool metallic, float roughness, 
+	float localCurvature, bool tracedThisFrame, inout SkyDIReservoir r, inout BRDF::SurfaceInteraction surface, inout RNG rng)
 {
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
-	surface.InitComplete(r.wi, baseColor, metalness, normal);
+	surface.SetWi(r.wi, normal);
 
 	// reverse reproject current pixel
 	float3 posPlanet = posW;
@@ -421,8 +420,8 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	[unroll]
 	for (int posIdx = 0; posIdx < 4; posIdx++)
 	{
-		float2 prevUV = topLeftTexelUV + offsets[posIdx] / renderDim;
-		prevPos[posIdx] = Math::Transform::WorldPosFromUV(prevUV,
+		prevPos[posIdx] = Math::Transform::WorldPosFromScreenSpace(topLeft + offsets[posIdx],
+			renderDim,
 			prevDepths[posIdx],
 			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
@@ -433,9 +432,9 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 	weights *= PlaneHeuristic(prevPos, normal, posW, linearDepth);
 
 	// roughness weight
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float4 prevRoughness = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float4 prevRoughness = g_metallicRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	weights *= RoughnessHeuristic(roughness, prevRoughness);
 	
 	// ray dir weight
@@ -465,7 +464,7 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 		return;
 	
 	weights /= weightSum;
-	const float maxM = GetTemporalM(roughness, metalness);
+	const float maxM = GetTemporalM(roughness, metallic);
 	
 	[unroll]
 	for (int k = 0; k < 4; k++)
@@ -474,11 +473,11 @@ void TemporalResample(uint2 DTid, float3 posW, float3 normal, float linearDepth,
 			continue;
 
 		const uint2 prevPixel = uint2(topLeft) + offsets[k];	
-		DIReservoir prev = SkyDI_Util::PartialReadReservoir_ReuseRest(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, prevWi[k]);
+		SkyDIReservoir prev = SkyDI_Util::PartialReadReservoir_ReuseRest(prevPixel, g_local.PrevTemporalReservoir_A_DescHeapIdx, prevWi[k]);
 		
 		// recompute BRDF at current pixel given temporal reservoir's sample
-		surface.InitComplete(prev.wi, baseColor, metalness, normal);
-		const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface);
+		surface.SetWi(prev.wi, normal);
+		const float3 brdfCostheta = BRDF::SurfaceBRDF(surface);
 		const float target = Math::Color::LuminanceFromLinearRGB(prev.Li * brdfCostheta);
 				
 		// potenital bias as unbiased reuse requires visibility to be checked for all 
@@ -547,23 +546,31 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 		
 	// roughness and metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[swizzledDTid];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[swizzledDTid];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	// generate candidates
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
 		
 	// resampling
-	bool skipResampling = mr.y < g_local.MinRoughnessResample && (mr.x > MIN_METALNESS_METAL || baseColorLum < MAX_LUM_VNDF);
+	bool skipResampling = mr.y < g_local.MinRoughnessResample && (isMetallic || baseColorLum < MAX_LUM_VNDF);
 
 	bool traceThisFrame = g_local.CheckerboardTracing ?
 		((swizzledDTid.x + swizzledDTid.y) & 0x1) == (g_frame.FrameNum & 0x1) :
@@ -572,14 +579,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	// always trace if surface is mirror like
 	traceThisFrame = (traceThisFrame || mr.y < g_local.MinRoughnessResample);
 	
-	DIReservoir r = DIReservoir::Init();
+	SkyDIReservoir r = SkyDIReservoir::Init();
 
 	if(traceThisFrame)
 	{
-		if (mr.x >= MIN_METALNESS_METAL || baseColorLum <= MAX_LUM_VNDF)
-			r = GenerateCandidatesVNDF(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);
+		if (isMetallic || baseColorLum <= MAX_LUM_VNDF)
+			r = GenerateCandidatesVNDF(swizzledDTid, posW, normal, linearDepth, baseColor, isMetallic, mr.y, surface, rng);
 		else
-			r = GenerateCandidatesMIS(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, surface, rng);
+			r = GenerateCandidatesMIS(swizzledDTid, posW, normal, linearDepth, baseColor, isMetallic, mr.y, surface, rng);
 	}
 	
 	if (g_local.DoTemporalResampling && !skipResampling)
@@ -593,7 +600,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		if (g_local.PrefilterReservoirs)
 			PrefilterOutliers(Gidx, posW, mr.y, linearDepth, r);
 	
-		TemporalResample(swizzledDTid, posW, normal, linearDepth, baseColor, mr.x, mr.y, adjustedLocalCurvature, traceThisFrame,
+		TemporalResample(swizzledDTid, posW, normal, linearDepth, baseColor, isMetallic, mr.y, adjustedLocalCurvature, traceThisFrame,
 			r, surface, rng);
 	}
 

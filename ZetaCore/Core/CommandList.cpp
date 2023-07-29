@@ -26,6 +26,6 @@ void CommandList::Reset(ID3D12CommandAllocator* cmdAlloc) noexcept
 	m_cmdAllocator = cmdAlloc;
 	CheckHR(m_cmdList->Reset(m_cmdAllocator, nullptr));
 
-	ID3D12DescriptorHeap* gpuDescHeap = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().GetHeap();
+	ID3D12DescriptorHeap* gpuDescHeap = App::GetRenderer().GetGpuDescriptorHeap().GetHeap();
 	m_cmdList->SetDescriptorHeaps(1, &gpuDescHeap);
 }

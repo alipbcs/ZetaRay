@@ -9,7 +9,7 @@ using namespace ZetaRay::Core;
 // CommandQueue
 //--------------------------------------------------------------------------------------
 
-CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type, const char* name) noexcept
+CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type) noexcept
 	: m_type(type)
 {
 	auto* device = App::GetRenderer().GetDevice();
@@ -18,10 +18,6 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type, const char* name) noexc
 	queueDesc.Type = type;
 	queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
 	CheckHR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_cmdQueue.GetAddressOf())));
-	
-	if (name)
-		SET_D3D_OBJ_NAME(m_cmdQueue, name);
-
 	CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
 	m_event = CreateEventA(nullptr, false, false, "CommandQueue");
@@ -55,16 +51,17 @@ uint64_t CommandQueue::ExecuteCommandList(CommandList* context) noexcept
 	ReleaseCommandAllocator(context->m_cmdAllocator, m_nextFenceValue);
 	context->m_cmdAllocator = nullptr;
 	App::GetRenderer().ReleaseCmdList(context);
+	uint64_t ret;
 
 	{
 		std::unique_lock lock(m_fenceMtx);
 		m_cmdQueue->Signal(m_fence.Get(), m_nextFenceValue);
 		m_lastCompletedFenceVal = Math::Max(m_lastCompletedFenceVal, m_fence->GetCompletedValue());
 		
-		m_nextFenceValue++;
+		ret = m_nextFenceValue++;
 	}
 
-	return m_nextFenceValue - 1;
+	return ret;
 }
 
 ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept

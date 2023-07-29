@@ -12,7 +12,7 @@ namespace ZetaRay::Core
 
 	struct CommandQueue
 	{
-		CommandQueue(D3D12_COMMAND_LIST_TYPE type, const char* name = nullptr) noexcept;
+		CommandQueue(D3D12_COMMAND_LIST_TYPE type) noexcept;
 		~CommandQueue() noexcept;
 
 		CommandQueue(const CommandQueue&) = delete;

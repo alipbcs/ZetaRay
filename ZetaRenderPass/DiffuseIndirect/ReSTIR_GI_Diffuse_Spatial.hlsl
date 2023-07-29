@@ -73,8 +73,8 @@ void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDep
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 
 	// as M goes up, radius becomes smaller and vice versa
 	const float mScale = smoothstep(1, MAX_TEMPORAL_M, r.M);
@@ -115,7 +115,7 @@ void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDep
 
 		const int2 samplePosSS = round(float2(DTid) + relativeSamplePos);
 	
-		if (Math::IsWithinBoundsExc(samplePosSS, renderDim))
+		if (Math::IsWithinBounds(samplePosSS, renderDim))
 		{
 			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
 			float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS, renderDim,
@@ -135,11 +135,11 @@ void DoSpatialResampling(uint2 DTid, float3 posW, float3 normal, float linearDep
 			const float w_n = 1.0;
 #endif
 			
-			float sampleRoughness = g_metalnessRoughness[samplePosSS].y;
+			float sampleRoughness = g_metallicRoughness[samplePosSS].y;
 			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
 
-			float sampleMetalness = g_metalnessRoughness[samplePosSS].x;
-			const float w_m = sampleMetalness < MIN_METALNESS_METAL;
+			float sampleMetalness = g_metallicRoughness[samplePosSS].x;
+			const float w_m = GBuffer::DecodeMetallic(sampleMetalness) == 0;
 			
 			//const float weight = w_z * w_n * w_r * w_m;
 			const float weight = w_z * w_r * w_m;
@@ -193,13 +193,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	if (depth == 0.0)
 		return;
 
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float2 mr = g_metalnessRoughness[swizzledDTid];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	float2 mr = g_metallicRoughness[swizzledDTid];
 
-	if (mr.x >= MIN_METALNESS_METAL)
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isMetallic || isEmissive)
 		return;
-
+	
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);

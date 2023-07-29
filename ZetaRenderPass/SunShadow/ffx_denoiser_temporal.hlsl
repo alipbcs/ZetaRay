@@ -103,7 +103,7 @@ float3 FFX_DNSR_Shadows_ReadPreviousMomentsBuffer(int2 history_pos)
 {
 	RWTexture2D<float3> g_prevMoments = ResourceDescriptorHeap[g_local.MomentsUAVHeapIdx];
     
-	if (!Math::IsWithinBoundsExc(history_pos, int2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (any(history_pos < 0) || any(history_pos >= int2(g_frame.RenderWidth, g_frame.RenderHeight)))
 		return 0.0.xxx;
         
 	return g_prevMoments[history_pos];
@@ -382,7 +382,7 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid)
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float depth = FFX_DNSR_Shadows_ReadDepth(DTid);
     
-	const bool is_shadow_receiver = Math::IsWithinBoundsExc(DTid.xy, (uint2) renderDim) || (depth > 0.0);
+	const bool is_shadow_receiver = all(DTid.xy < (uint2) renderDim) || (depth > 0.0);
 	const bool skip_sky = FFX_DNSR_Shadows_ThreadGroupAllTrue(!is_shadow_receiver);
     
     if (skip_sky)

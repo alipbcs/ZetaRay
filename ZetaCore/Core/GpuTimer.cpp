@@ -31,7 +31,10 @@ void GpuTimer::Init() noexcept
 		m_timings[i].resize(MAX_NUM_QUERIES);
 
 	m_readbackBuff = renderer.GetGpuMemory().GetReadbackHeapBuffer(sizeof(uint64_t) * desc.Count);
+
+#ifdef _DEBUG
 	m_readbackBuff.GetResource()->SetName(L"Timing_Buffer");
+#endif // _DEBUG
 
 	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 }
@@ -144,6 +147,7 @@ void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx) noexcept
 
 void GpuTimer::EndFrame(ComputeCmdList& cmdList) noexcept
 {
+	Assert(!m_readbackBuff.IsMapped(), "readback buffer shouldn't be mapped while in use by the GPU.");
 	const int queryCount = m_frameQueryCount.load(std::memory_order_acquire) - 1;
 	m_queryCounts[m_currFrameIdx] = queryCount;
 

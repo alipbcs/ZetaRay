@@ -109,7 +109,7 @@ namespace ZetaRay::Math
 	}
 
 	// TODO this can be done more efficiently
-	// Given transformation matrix of the following form, returns its inverse,
+	// Given a transformation matrix of the following form, returns its inverse,
 	// M = S * R * T,
 	// where S is a scaling, R is a rotation and T is a translation transformation
 	ZetaInline v_float4x4 __vectorcall inverseSRT(const v_float4x4 M) noexcept
@@ -130,7 +130,7 @@ namespace ZetaRay::Math
 		//		b = (w * u) / u.(v * w)
 		//		c = (u * v) / u.(v * w)
 		// 
-		// Reminder: determinant of M is given by scalar triple product:
+		// Reminder: determinant of M is equal to scalar triple product:
 		// |u v w| = [u v w] = u.(v * w) == v.(w * u) == w.(u * v)
 
 		//  M = [u v w] -> extract u, v, w

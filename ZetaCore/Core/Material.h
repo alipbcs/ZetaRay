@@ -3,6 +3,9 @@
 
 #include "HLSLCompat.h"
 
+// metallic factor shoud be binary, treat everything with a lower "metalness" value as dielectric
+#define MIN_METALNESS_METAL 0.92
+
 #ifdef __cplusplus
 #include "../Math/Color.h"
 
@@ -28,7 +31,7 @@ namespace ZetaRay
             : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
             RoughnessFactor(1.0f),
             BaseColorTexture(uint32_t(-1)),
-            MetalnessRoughnessTexture(uint32_t(-1)),
+            MetallicRoughnessTexture(uint32_t(-1)),
             NormalTexture(uint32_t(-1)),
             EmissiveTexture_Strength(uint32_t(-1)),
             Packed(0),
@@ -74,7 +77,7 @@ namespace ZetaRay
             return ((EmissiveFactorNormalScale >> 24) & 0xff) / 255.0f;
         }
 
-        float GetMetalness() CONST
+        float GetMetallic() CONST
         {
             return (MetallicFactorAlphaCuttoff & 0xff) / 255.0f;
         }
@@ -108,7 +111,7 @@ namespace ZetaRay
         uint32_t EmissiveFactorNormalScale;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture;
-        uint32_t MetalnessRoughnessTexture;
+        uint32_t MetallicRoughnessTexture;
         uint32_t EmissiveTexture_Strength;
 
         // last 4 bits encode alpha and double sided
@@ -123,10 +126,10 @@ namespace ZetaRay
 #endif
 
 #ifndef __cplusplus
-#define BASE_COLOR_MAP Texture2D<half4>
+#define BASE_COLOR_MAP Texture2D<float4>
 #define NORMAL_MAP Texture2D<float2>
-#define METALNESS_ROUGHNESS_MAP Texture2D<half2>
-#define EMISSIVE_MAP Texture2D<half3>
+#define METALLIC_ROUGHNESS_MAP Texture2D<float2>
+#define EMISSIVE_MAP Texture2D<float3>
 #endif
 
 #endif // MATERIAL_H

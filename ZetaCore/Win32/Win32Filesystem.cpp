@@ -135,10 +135,10 @@ void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
     start = curr - beg + 1;
 
     size_t s = end - start + 1;
-    Check(buff.size() >= s, "provided buffer is too small");
+    //Check(buff.size() >= s, "provided buffer is too small");
 
     if(s > 1)
-        memcpy(buff.data(), beg + start, s - 1);
+        memcpy(buff.data(), beg + start, Math::Min(s - 1, buff.size() - 1));
     
     buff.data()[s - 1] = '\0';
 

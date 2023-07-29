@@ -152,7 +152,7 @@ namespace
 // Sampling
 //--------------------------------------------------------------------------------------
 
-float Math::Halton(uint32_t i, uint32_t b) noexcept
+float Math::Halton(int i, int b) noexcept
 {
 	float f = 1.0f;
 	float r = 0.0f;
@@ -162,7 +162,7 @@ float Math::Halton(uint32_t i, uint32_t b) noexcept
 	{
 		f /= bf;
 		r = r + f * (float)(i % b);
-		i = (uint32_t)((float)i / bf);
+		i = (int)((float)i / bf);
 	}
 
 	return r;

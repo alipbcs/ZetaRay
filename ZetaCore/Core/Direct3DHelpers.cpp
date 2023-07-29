@@ -2,7 +2,6 @@
 #include "dds.h"
 #include "RendererCore.h"
 #include <xxHash/xxhash.h>
-#include <memory>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Util;

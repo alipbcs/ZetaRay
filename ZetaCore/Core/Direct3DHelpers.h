@@ -1,4 +1,4 @@
-// Ref: DirectXTK12, available from (under MIT License):
+// Ref: Some of the following functions are from DirectXTK12 (MIT License):
 // https://github.com/microsoft/DirectXTK12
 
 #pragma once

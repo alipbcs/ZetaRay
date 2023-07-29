@@ -54,7 +54,7 @@ namespace ZetaRay::Core
 
 		ZetaInline GpuMemory& GetGpuMemory() { return m_gpuMemory; }
 		ZetaInline SharedShaderResources& GetSharedShaderResources() { return *m_sharedShaderRes; }
-		ZetaInline DescriptorHeap& GetCbvSrvUavDescriptorHeapGpu() { return m_cbvSrvUavDescHeapGpu; };
+		ZetaInline DescriptorHeap& GetGpuDescriptorHeap() { return m_cbvSrvUavDescHeapGpu; };
 		ZetaInline DescriptorHeap& GetCbvSrvUavDescriptorHeapCpu() { return m_cbvSrvUavDescHeapCpu; };
 		ZetaInline DescriptorHeap& GetRtvDescriptorHeap() { return m_rtvDescHeap; };
 		ZetaInline DescriptorHeap& GetDsvDescriptorHeap() { return m_dsvDescHeap; };

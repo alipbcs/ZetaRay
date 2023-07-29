@@ -25,7 +25,7 @@ SunShadow::SunShadow() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,		// root idx
@@ -47,7 +47,7 @@ SunShadow::SunShadow() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SOBOL_SEQ);
+		Sampler::SOBOL_SEQ_32);
 
 	// scrambling tile
 	m_rootSig.InitAsBufferSRV(4,						// root idx
@@ -55,7 +55,7 @@ SunShadow::SunShadow() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 
 	// ranking tile
 	m_rootSig.InitAsBufferSRV(5,						// root idx
@@ -63,7 +63,7 @@ SunShadow::SunShadow() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 
 	m_oldNumSpatialPasses = m_numSpatialPasses;
 }
@@ -98,7 +98,7 @@ void SunShadow::Init() noexcept
 	createPSO((int)SHADERS::DNSR_TEMPORAL_PASS);
 	createPSO((int)SHADERS::DNSR_SPATIAL_FILTER);
 
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateResources();
 
 	m_temporalCB.IsTemporalValid = false;

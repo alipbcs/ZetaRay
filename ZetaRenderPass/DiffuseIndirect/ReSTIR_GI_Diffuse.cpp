@@ -31,7 +31,7 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// BVH
 	m_rootSig.InitAsBufferSRV(2,						// root idx
@@ -55,7 +55,7 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SOBOL_SEQ);
+		Sampler::SOBOL_SEQ_32);
 
 	// scrambling tile
 	m_rootSig.InitAsBufferSRV(5,						// root idx
@@ -63,7 +63,7 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 
 	// ranking tile
 	m_rootSig.InitAsBufferSRV(6,						// root idx
@@ -71,7 +71,7 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE);
+		Sampler::SCRAMBLING_TILE_32);
 
 	// mesh buffer
 	m_rootSig.InitAsBufferSRV(7,						// root idx
@@ -125,7 +125,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 			COMPILED_CS[i]);
 	}
 
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
 
 	memset(&m_cbRGITemporal, 0, sizeof(m_cbRGITemporal));
@@ -156,7 +156,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 
 	ParamVariant doTemporal;
 	doTemporal.InitBool("Renderer", "ReSTIR GI (Diffuse)", "TemporalResampling",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoTemporalResamplingCallback), true);
+		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Diffuse::DoTemporalResamplingCallback), m_cbRGITemporal.DoTemporalResampling);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;

@@ -129,7 +129,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 	
 		const int2 samplePosSS = round((float2) DTid + relativeSamplePos);
 
-		if (Math::IsWithinBoundsExc(samplePosSS, (int2) renderDim))
+		if (Math::IsWithinBounds(samplePosSS, (int2) renderDim))
 		{
 			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
 			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS, renderDim,
@@ -192,10 +192,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 	// skip metallic surfaces
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float metalness = g_metalnessRoughness[swizzledDTid].x;
-	if (metalness >= MIN_METALNESS_METAL)
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(g_metallicRoughness[swizzledDTid.xy].x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isMetallic || isEmissive)
 		return;
 
 	Texture2D<float4> g_inTemporalCache = ResourceDescriptorHeap[g_local.TemporalCacheInDescHeapIdx];

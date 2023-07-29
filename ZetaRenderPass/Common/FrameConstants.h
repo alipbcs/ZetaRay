@@ -46,23 +46,20 @@ namespace ZetaRay
 		//
 		uint32_t BaseColorMapsDescHeapOffset;
 		uint32_t NormalMapsDescHeapOffset;
-		uint32_t MetalnessRoughnessMapsDescHeapOffset;
+		uint32_t MetallicRoughnessMapsDescHeapOffset;
 		uint32_t EmissiveMapsDescHeapOffset;
 		//
-		// SkyDome
+		// Sun & SkyDome
 		// 
 		uint32_t FrameNum;
 		uint32_t EnvMapDescHeapOffset;
-		float WorldRadius;
-		float RayOffset;
+		float SunCosAngularRadius;
+		float SunSinAngularRadius;
 		//
 		// Sun
 		//
 		float3_ SunDir;
 		float SunIlluminance;
-		float SunCosAngularRadius;
-		float SunSinAngularRadius;
-		float2_ pad2;
 		//
 		// Atmosphere
 		//
@@ -72,7 +69,7 @@ namespace ZetaRay
 		float3_ OzoneSigmaAColor;
 		float OzoneSigmaAScale;
 
-		float MieSigmaS;		// Mie-scattering is not wavelength dependent
+		float MieSigmaS;		// Mie scattering is not wavelength dependent
 		float MieSigmaA;
 		float AtmosphereAltitude;
 		float g;

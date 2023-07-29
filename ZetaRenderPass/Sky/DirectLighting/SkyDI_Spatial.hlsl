@@ -119,15 +119,15 @@ float3 RecalculateBRDFWithWi(float3 wi, float3 F0, float3 diffuseReflectance, fl
 }
 
 void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, BRDF::SurfaceInteraction surface,
-	float3 baseColor, float metalness, float roughness, inout DIReservoir r, inout RNG rng)
+	float3 baseColor, bool metallic, float roughness, inout SkyDIReservoir r, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 
-	const float3 diffuseReflectance = baseColor * (1.0f - metalness) * ONE_OVER_PI;
-	const float3 F0 = lerp(0.04f.xxx, baseColor, metalness);
+	const float3 diffuseReflectance = baseColor * (1.0f - metallic) * ONE_OVER_PI;
+	const float3 F0 = lerp(0.04f.xxx, baseColor, metallic);
 
 	const float mScale = smoothstep(1, 20, r.M);
 	const float biasToleranceScale = max(1 - mScale, 0.2f);
@@ -154,7 +154,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 	numSpatialSamplesMetal = max(numSpatialSamplesMetal, 1);
 	int numSpatialSamplesDielectrinc = round(smoothstep(0, 0.2, roughness * roughness) * MAX_NUM_SPATIAL_SAMPLES_DIELECTRIC);
 	numSpatialSamplesDielectrinc = max(numSpatialSamplesDielectrinc, 2);
-	int numSpatialSamples = metalness > MIN_METALNESS_METAL ? numSpatialSamplesMetal : numSpatialSamplesDielectrinc;
+	int numSpatialSamples = metallic ? numSpatialSamplesMetal : numSpatialSamplesDielectrinc;
 	
 	const float radius = 8 + smoothstep(0, 0.5, roughness) * 12;
 	
@@ -170,7 +170,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 		if (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
 			continue;
 
-		if (Math::IsWithinBoundsExc(samplePosSS, renderDim))
+		if (Math::IsWithinBounds(samplePosSS, renderDim))
 		{
 			const float neighborDepth = g_currDepth[samplePosSS];
 			if(neighborDepth == 0.0)
@@ -186,10 +186,10 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 				g_frame.CurrProjectionJitter);
 			const float w_z = PlaneHeuristic(sampleLinearDepth, samplePosW, normal, posW, linearDepth, biasToleranceScale);
 
-			const float sampleRoughness = g_metalnessRoughness[samplePosSS].y;
+			const float sampleRoughness = g_metallicRoughness[samplePosSS].y;
 			const float w_r = RoughnessHeuristic(roughness, sampleRoughness);
 			
-			DIReservoir neighbor = SkyDI_Util::PartialReadReservoir_Shading(samplePosSS,
+			SkyDIReservoir neighbor = SkyDI_Util::PartialReadReservoir_Shading(samplePosSS,
 				g_local.InputReservoir_A_DescHeapIdx);
 
 	#if 0
@@ -260,11 +260,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 		
 	// roughness and metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[swizzledDTid];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[swizzledDTid];
 
-	DIReservoir r = SkyDI_Util::ReadReservoir(swizzledDTid,
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
+	SkyDIReservoir r = SkyDI_Util::ReadReservoir(swizzledDTid,
 			g_local.InputReservoir_A_DescHeapIdx,
 			g_local.InputReservoir_B_DescHeapIdx);
 
@@ -273,7 +281,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
 
-	bool skip = mr.y < g_local.MinRoughnessResample && (mr.x > MIN_METALNESS_METAL || baseColorLum < MAX_LUM_VNDF);
+	bool skip = mr.y < g_local.MinRoughnessResample && (isMetallic || baseColorLum < MAX_LUM_VNDF);
 	
 	if (!g_local.DoSpatialResampling || skip)
 	{
@@ -295,10 +303,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 		
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 		
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
-	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, mr.x, mr.y, r, rng);
+	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, isMetallic, mr.y, r, rng);
 	
 	SkyDI_Util::PartialWriteReservoir(swizzledDTid, r, g_local.OutputReservoir_A_DescHeapIdx);
 }

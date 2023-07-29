@@ -13,13 +13,13 @@ using namespace ZetaRay::Util;
 
 namespace
 {
-	ZetaInline int FindThreadIdx(Span<THREAD_ID_TYPE> threadIds) noexcept
+	ZetaInline int FindThreadIdx(Span<ZETA_THREAD_ID_TYPE> threadIds) noexcept
 	{
 		int idx = -1;
 
 		for (int i = 0; i < threadIds.size(); i++)
 		{
-			if (threadIds[i] == std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
+			if (threadIds[i] == std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
 			{
 				idx = i;
 				break;
@@ -146,7 +146,7 @@ void ThreadPool::PumpUntilEmpty() noexcept
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
 
-	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+	const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 	Task task;
 
 #if ENABLE_TIMINGS
@@ -214,7 +214,7 @@ void ThreadPool::WorkerThread() noexcept
 {
 	while (!m_start.load(std::memory_order_acquire));
 
-	const THREAD_ID_TYPE tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+	const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 	LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
 
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));

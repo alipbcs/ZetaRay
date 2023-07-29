@@ -17,19 +17,12 @@ namespace Math
 {
 	// Returns whether pos is in [0, dim)
 	template<typename T>
-	bool IsWithinBoundsExc(T pos, T dim)
+	bool IsWithinBounds(T pos, T dim)
 	{
 		return all(pos >= 0) && all(pos < dim);
 	}
 
-	// Returns whether pos is in [0, dim]
-	template<typename T>
-	bool IsWithinBoundsInc(T pos, T dim)
-	{
-		return all(pos >= 0) && all(pos <= dim);
-	}
-	
-	// computes smallest floating point f' such that f' > f
+	// Returns smallest floating point f' such that f' > f
 	float NextFloat32Up(float f)
 	{
 		uint u = asuint(f);
@@ -105,6 +98,11 @@ namespace Math
 		thetaPhi.y = thetaPhi.y < 0 ? thetaPhi.y + TWO_PI : thetaPhi.y; // [0, 2 * PI]
 		
 		return thetaPhi;
+	}
+	
+	float TriangleArea(float3 v0, float3 v1, float3 v2)
+	{
+		return 0.5f * length(cross(v1 - v0, v2 - v0));
 	}
 	
 	// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
@@ -279,8 +277,12 @@ namespace Math
 		void revisedONB(float3 n_ws, out float3 b1, out float3 b2)
 		{
 			// LHS to RHS with +Z up
-			float3 n = float3(n_ws.x, n_ws.z, n_ws.y);
+			const float3 n = float3(n_ws.x, n_ws.z, n_ws.y);
 			
+			// changes to b1 & b2:
+			// 1. transformed from RHS (+Z up) to LHS (+Y up)
+			// 2. reordered to match LHS orientation
+
 			if (n.z < 0.0f)
 			{
 				const float a = 1.0f / (1.0f - n.z);
@@ -294,11 +296,7 @@ namespace Math
 				const float b = -n.x * n.y * a;
 				b1 = float3(b, -n.y, 1.0f - n.y * n.y * a);
 				b2 = float3(1.0f - n.x * n.x * a, -n.x, b);
-			}
-			
-			// for b1 & b2:
-			// 1. transform from RHS to LHS with
-			// 2. reorder b1 & b2 to match LHS orientation
+			}			
 		}
 
 		// Quaternion that rotates +Y to u
@@ -425,9 +423,9 @@ namespace Math
 			return q;
 		}
 
-		// rotate u using rotation quaternion q by computing q * u * q*
-		// * is quaternion multiplication
-		// q* is the conjugate of q
+		// Rotate u using rotation quaternion q by computing q * u * q* where
+		//		* is quaternion multiplication
+		//		q* is the conjugate of q
 		// Ref: https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
 		float3 RotateVector(float3 u, float4 q)
 		{
@@ -444,20 +442,19 @@ namespace Math
 
 	namespace Encoding
 	{
-		// encode [0, 1] float as 8-bit unsigned integer (unorm)
-		// reference: "A Survey of Efficient Representations for Independent UnitVectors"
+		// Encode [0, 1] float as 8-bit unsigned integer (unorm)
 		uint Encode01FloatAsUNORM(float r)
 		{
 			return round(clamp(r, 0.0f, 1.0f) * 255);
 		}
 
-		// decode 8-bit unsigned integer (unorm) to [0, 1] float
+		// Decode 8-bit unsigned integer (unorm) to [0, 1] float
 		float DecodeUNORMTo01Float(uint i)
 		{
 			return (i & 0xff) / 255.0f;
 		}
 
-		// encoded unit float3 normal as float2 in [0, 1]
+		// Encodes unit float3 normal as float2 in [0, 1]
 		// reference: https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
 		float2 OctWrap(float2 v)
 		{
@@ -465,13 +462,13 @@ namespace Math
 			return (1.0f - abs(v.yx)) * select(v.xy >= 0.0f, 1.0f, -1.0f);
 		}
  
-		half2 EncodeUnitNormal(float3 n)
+		float2 EncodeUnitNormal(float3 n)
 		{
 			n /= (abs(n.x) + abs(n.y) + abs(n.z));
 			n.xy = n.z >= 0.0f ? n.xy : OctWrap(n.xy);
 			n.xy = n.xy * 0.5f + 0.5f;
 	
-			return half2(n.xy);
+			return n.xy;
 		}
  
 		float3 DecodeUnitNormal(float2 u)
@@ -495,28 +492,19 @@ namespace Math
 			return dot(float3(0.2126f, 0.7152f, 0.0722f), linearRGB);
 		}
 
-		half LuminanceFromLinearRGB(half3 linearRGB)
-		{
-			return dot(half3(0.2126h, 0.7152h, 0.0722h), linearRGB);
-		}
-		
-		// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 		float3 LinearTosRGB(float3 color)
 		{
 			float3 sRGBLo = color * 12.92;
 			float3 sRGBHi = (pow(saturate(color), 1.0f / 2.4f) * 1.055) - 0.055;
-			//float3 sRGB = (color <= 0.0031308) ? sRGBLo : sRGBHi;
 			float3 sRGB = select((color <= 0.0031308f), sRGBLo, sRGBHi);
 	
 			return sRGB;
 		}
 
-		// Ref: S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 		float3 sRGBToLinear(float3 color)
 		{
 			float3 linearRGBLo = color / 12.92f;
 			float3 linearRGBHi = pow(max((color + 0.055f) / 1.055f, 0.0f), 2.4f);
-			//float3 linearRGB = color <= 0.04045f ? linearRGBLo : linearRGBHi;
 			float3 linearRGB = select(color <= 0.0404499993f, linearRGBLo, linearRGBHi);
 
 			return linearRGB;
@@ -562,4 +550,4 @@ namespace Math
 	}
 }
 
-#endif // COMMON_H
+#endif

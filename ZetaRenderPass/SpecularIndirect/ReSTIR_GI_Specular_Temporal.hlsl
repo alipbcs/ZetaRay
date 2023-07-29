@@ -16,6 +16,7 @@
 #define RAY_CONE_K2 0.0f
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
 #define SKY_MISS_SHADING 0
+#define EMISSIVE_DIRECT_LIGHTING 0
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -84,7 +85,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 
 	RayDesc ray;
 	ray.Origin = pos;
-	ray.TMin = g_frame.RayOffset;
+	ray.TMin = 1e-4f;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 
@@ -149,7 +150,7 @@ bool FindClosestHit(float3 pos, float3 normal, float linearDepth, float3 wi, RT:
 				
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.Normal = Math::Encoding::EncodeUnitNormal(normal);
+		surface.Normal = (half2) Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 		
 #if USE_RAY_CONES		
@@ -200,12 +201,12 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			//baseColor = mip > 6 ? float3(1, 0, 0) : float3(0, 0.5, 0.5);
 		}
 
-		float metalness = mat.GetMetalness();
+		float metalness = mat.GetMetallic();
 		float roughness = mat.RoughnessFactor;
-		if (mat.MetalnessRoughnessTexture != -1)
+		if (mat.MetallicRoughnessTexture != -1)
 		{
-			uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
-			METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
+			uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
+			METALLIC_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
 			float mip = g_frame.MipBias;
 
 #if USE_RAY_CONES
@@ -219,9 +220,9 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			roughness *= mr.y;
 		}
 
-		BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, roughness, wo);
-		surface.InitComplete(-g_frame.SunDir, baseColor.rgb, metalness, normal);
-		float3 brdf = BRDF::ComputeSurfaceBRDF(surface);	
+		BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, metalness, roughness, baseColor);
+		surface.SetWi(-g_frame.SunDir, normal);
+		float3 brdf = BRDF::SurfaceBRDF(surface);	
 		// fireflies!
 		brdf = clamp(brdf, 0, 0.35);
 		
@@ -239,6 +240,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		L_o = brdf * tr * g_frame.SunIlluminance;
 	}
 	
+#if EMISSIVE_DIRECT_LIGHTING == 1
 	float3 L_e = Math::Color::UnpackRGB(mat.EmissiveFactorNormalScale);
 	uint16_t emissiveTex = mat.GetEmissiveTex();
 	float emissiveStrength = mat.GetEmissiveStrength();
@@ -259,6 +261,9 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 	}
 
 	return L_o + L_e * emissiveStrength;
+#else
+	return L_o;
+#endif
 }
 
 bool Li(float3 posW, float3 normal, float3 wi, float linearDepth, RT::RayCone rayCone, out SpecularSample ret)
@@ -366,7 +371,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	if (tracedThisFrame)
 	{
 		const float3 brdfCosthetaDivPdf = BRDF::SpecularBRDFGGXSmithDivPdf(surface);
-		const float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface);
+		const float3 brdfCostheta = BRDF::SurfaceBRDF(surface);
 		
 		// target = Li(-wi) * BRDF(wi, wo) * |ndotwi|
 		// source = Pdf(wi)
@@ -389,7 +394,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 			linearDepth, g_frame.TanHalfFOV, g_frame.PrevViewProj, reflectionRayT);
 	prevUV = g_local.CheckerboardTracing && tracedThisFrame ? FLT_MAX.xx : prevUV;
 			
-	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (any(prevUV < 0.0f.xx) || any(prevUV > 1.0f.xx))
 		return r;
 
 	// combine 2x2 neighborhood reservoirs around reprojected pixel
@@ -422,8 +427,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	[unroll]
 	for (int posIdx = 0; posIdx < 4; posIdx++)
 	{
-		float2 prevUV = topLeftTexelUV + offsets[posIdx] / renderDim;
-		prevPos[posIdx] = Math::Transform::WorldPosFromUV(prevUV,
+		prevPos[posIdx] = Math::Transform::WorldPosFromScreenSpace(topLeft + offsets[posIdx],
+			renderDim,
 			prevDepths[posIdx],
 			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
@@ -434,9 +439,9 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	weights *= PlaneHeuristic(prevPos, normal, posW, linearDepth);
 
 	// roughness heuristic
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float4 prevRoughnesses = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float4 prevRoughnesses = g_metallicRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	
 	weights *= RoughnessHeuristic(roughness, prevRoughnesses, isMetallic);
 	
@@ -508,7 +513,8 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 		// q -> reused path, r -> current pixel's path
 		const float3 secondToFirst_r = posW - prev.SamplePos;
 		const float3 wi = normalize(-secondToFirst_r);
-		const float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, normal, surface);
+		surface.SetWi(wi, normal);
+		const float3 brdfCostheta_r = BRDF::SurfaceBRDF(surface);
 		float jacobianDet = 1.0f;
 
 		if (g_local.PdfCorrection)
@@ -561,12 +567,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid.xy]);
 		
 	// roughness and metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[swizzledDTid.xy];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[swizzledDTid.xy];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	// roughness cutoff
-	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
 	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
 	if(!roughnessBelowThresh)
 		return;
@@ -577,17 +590,22 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// always trace if surface is mirror like
 	traceThisFrame = roughnessBelowThresh && (traceThisFrame || (mr.y <= g_local.MinRoughnessResample));
+	
+	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::BASE_COLOR];
+	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
+
+	const float3 wo = normalize(g_frame.CameraPos - posW);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	// sample the incident direction using the distribution of visible normals (VNDF)
-	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
 	float3 wi = INVALID_RAY_DIR;
-	
+
 	if (traceThisFrame)
 	{
-		const float u0 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+		const float u0 = Sampling::BlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 4);
-		const float u1 = Sampling::samplerBlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
+		const float u1 = Sampling::BlueNoiseErrorDistribution(g_owenScrambledSobolSeq, g_rankingTile, g_scramblingTile,
 			swizzledDTid.x, swizzledDTid.y, g_local.SampleIndex, 5);
 
 		wi = BRDF::SampleSpecularBRDFGGXSmith(surface, normal, float2(u0, u1));
@@ -608,12 +626,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	SpecularSample tracedSample;
 	bool hit = Li(posW, normal, wi, linearDepth, rayCone, tracedSample);
-	
-	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::BASE_COLOR];
-	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
-		
-	surface.InitComplete(wi, baseColor, isMetallic, normal);
+			
+	surface.SetWi(wi, normal);
 		
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,

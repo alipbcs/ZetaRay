@@ -30,10 +30,6 @@
 #include "Math.hlsli"
 #include "Sampling.hlsli"
 
-// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
-// use a small threshold
-#define MIN_METALNESS_METAL 0.9f
-
 namespace BRDF
 {
 	//--------------------------------------------------------------------------------------
@@ -60,7 +56,7 @@ namespace BRDF
 	float GGX(float ndotwh, float alphaSq)
 	{
 		float denom = ndotwh * ndotwh * (alphaSq - 1.0f) + 1.0f;
-		return alphaSq / max(PI * denom * denom, 1e-5f);
+		return alphaSq / max(PI * denom * denom, 1e-6f);
 	}
 
 	//--------------------------------------------------------------------------------------
@@ -157,7 +153,7 @@ namespace BRDF
 		// w_o (both w_i and w_o point out from the surface). Filling the related data for BRDF computations 
 		// is done in two steps as w_i isn't usually known until later on
 		
-		static SurfaceInteraction InitPartial(float3 sn, float roughness, float3 wo)
+		static SurfaceInteraction Init(float3 sn, float3 wo, float metallic, float roughness, float3 baseColor)
 		{
 			SurfaceInteraction si;
 			
@@ -165,22 +161,20 @@ namespace BRDF
 			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
 			si.alpha = roughness * roughness;
 			si.alphaSq = max(1e-5f, si.alpha * si.alpha);
+			si.diffuseReflectance = baseColor * (1.0f - metallic);
+			si.F0 = lerp(0.04f.xxx, baseColor, metallic);
 			si.DeltaNDF = roughness < 1e-4;
 			
 			return si;
 		}
 			
-		void InitComplete(float3 wi, float3 baseColor, float metalness, float3 shadingNormal)
+		void SetWi(float3 wi, float3 shadingNormal)
 		{
 			float3 wh = normalize(wi + this.wo);	
-			this.ndotwh = saturate(dot(shadingNormal, wh));			
+			this.ndotwh = saturate(dot(shadingNormal, wh));
 			this.ndotwi = saturate(dot(shadingNormal, wi));
-			
-			this.diffuseReflectance = baseColor * (1.0f - metalness);
-			
-			float3 F0 = lerp(0.04f.xxx, baseColor, metalness);
 			this.whdotwo = saturate(dot(wh, this.wo)); // == whdotwi
-			this.F = FresnelSchlick(F0, this.whdotwo);
+			this.F = FresnelSchlick(this.F0, this.whdotwo);
 		}
 	
 		// Apparently artists work with an "interface" value of roughness that is perceptively linear 
@@ -199,6 +193,7 @@ namespace BRDF
 		float ndotwh;
 		float whdotwo;
 		float3 diffuseReflectance;
+		float3 F0;
 		float3 F;
 		bool DeltaNDF;
 	};
@@ -265,7 +260,6 @@ namespace BRDF
 	{
 		float NDF = surface.DeltaNDF ? abs(1 - surface.ndotwh) <= 1e-5 : GGX(surface.ndotwh, surface.alphaSq);
 		float G1 = SmithG1ForGGX(surface.alphaSq, surface.ndotwo);
-
 		float pdf = (NDF * G1) / (4.0f * saturate(surface.ndotwo));
 	
 		return pdf;
@@ -317,20 +311,8 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 
 	// Computes combined (diffuse + specular BRDF) * ndotwi at given surface point
-	float3 ComputeSurfaceBRDF(SurfaceInteraction surface, bool guardDelta = false)
+	float3 SurfaceBRDF(SurfaceInteraction surface, bool guardDelta = false)
 	{
-		// For reflection to be non-zero, wi and wo have to be in the same
-		// hemisphere w.r.t. geometric normal of point being shaded. Otherwise, either
-		// a) light is arriving from behind the surface point, or
-		// b) viewer is behind the surface and is blocked from seeing the surface point
-		//
-		// Note that there's a discrepancy between geometric and shading normal, as
-		// shading normal (which could be bump mapped) might not reflect the correct
-		// orientation of surface and therefore geometric normal should be used
-
-		//	if (!surfaceInteration.wiAndwoInSameHemisphere)
-		//		return float3(0.0f, 0.0f, 0.0f);
-	
 		if (surface.ndotwi <= 0.0f || surface.ndotwo <= 0.0f)
 			return 0.0.xxx;
 	

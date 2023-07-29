@@ -115,8 +115,9 @@ namespace ZetaRay::RenderPass
 		void CreatePSO() noexcept;
 
 		// parameter callbacks
-		void ChangeDisplayOptionCallback(const Support::ParamVariant& p) noexcept;
-		void ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept;
-		void ChangeSaturationCallback(const Support::ParamVariant& p) noexcept;
+		void DisplayOptionCallback(const Support::ParamVariant& p) noexcept;
+		void TonemapperCallback(const Support::ParamVariant& p) noexcept;
+		void SaturationCallback(const Support::ParamVariant& p) noexcept;
+		void AutoExposureCallback(const Support::ParamVariant& p) noexcept;
 	};
 }

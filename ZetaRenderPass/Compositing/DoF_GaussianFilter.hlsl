@@ -62,7 +62,7 @@ void HorizontalPass(uint3 Gid, uint Gidx)
 		float3 val = 0.0f.xxx;
 		
 		// avoid out-of-bound texture reads
-		if (Gidx4x16.x < 16 && Math::IsWithinBoundsExc(pixelAddr, screenDim))
+		if (Gidx4x16.x < 16 && Math::IsWithinBounds(pixelAddr, screenDim))
 			val = abs(g_gather[pixelAddr].rgb);
 	
 		// wave could span more than one row

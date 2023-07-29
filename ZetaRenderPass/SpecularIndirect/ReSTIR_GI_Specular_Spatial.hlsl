@@ -92,8 +92,8 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float rayT = length(r.SamplePos - posW);
@@ -137,10 +137,10 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 		const int2 samplePosSS = round(float2(DTid) + rotated);
 #endif
 
-		if (Math::IsWithinBoundsExc(samplePosSS, renderDim))
+		if (Math::IsWithinBounds(samplePosSS, renderDim))
 		{
 			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
-			float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS, 
+			float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				sampleDepth,
 				g_frame.TanHalfFOV,
@@ -152,7 +152,7 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
 			const float w_n = NormalHeuristic(normal, sampleNormal, surface.alpha);
 			
-			const float sampleRoughnes = g_metalnessRoughness[samplePosSS].y;
+			const float sampleRoughnes = g_metallicRoughness[samplePosSS].y;
 			const float w_r = RoughnessWeight(roughness, sampleRoughnes, isMetallic);
 								
 			SpecularReservoir neighbor = RGI_Spec_Util::PartialReadReservoir_Reuse(samplePosSS,
@@ -170,7 +170,8 @@ void SpatialResample(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
 			
 			const float3 secondToFirst_r = posW - neighbor.SamplePos;
 			const float3 wi = normalize(-secondToFirst_r);
-			float3 brdfCostheta_r = RGI_Spec_Util::RecalculateSpecularBRDF(wi, baseColor, isMetallic, normal, surface);
+			surface.SetWi(wi, normal);
+			float3 brdfCostheta_r = BRDF::SurfaceBRDF(surface);
 			float jacobianDet = 1.0f;
 
 			if (g_local.PdfCorrection)
@@ -216,12 +217,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 		
 	// roughness and metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[swizzledDTid];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[swizzledDTid];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	// roughness cutoff
-	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
 	const bool roughnessBelowThresh = isMetallic || (mr.y <= g_local.RoughnessCutoff);
 	if (!roughnessBelowThresh)
 		return;
@@ -256,8 +264,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 		
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
-	surface.diffuseReflectance = baseColor * (1.0f - isMetallic);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 		
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
 	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, isMetallic, mr.y, r, rng);

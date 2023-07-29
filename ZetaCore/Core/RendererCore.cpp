@@ -66,8 +66,8 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 		false);
 
 	// command queues
-	m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT, "Direct CommandQueue"));
-	m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE, "Compute CommandQueue"));
+	m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT));
+	m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
 	//m_copyQueue.reset(new CommandQueue(D3D12_COMMAND_LIST_TYPE_COPY, L"Copy Command-Queue"));
 
 	m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);

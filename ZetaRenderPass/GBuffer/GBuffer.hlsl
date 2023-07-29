@@ -3,6 +3,7 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/BRDF.hlsli"
+#include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "GBuffer_Common.h"
 
@@ -35,7 +36,7 @@ struct VSOut
 struct PS_OUT
 {
 	float3 BaseColor : SV_Target0;
-	half2 Normal : SV_Target1;
+	float2 Normal : SV_Target1;
 	float2 MetallicRoughness : SV_Target2;
 	float2 MotionVec : SV_Target3;
 	float3 Emissive : SV_Target4;
@@ -115,16 +116,6 @@ float3 GetCheckerboardColor(float2 uv)
 	return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
 }
 
-float EncodeMetalness(float metalness, uint baseColorTexture)
-{
-	bool isMetal = metalness >= MIN_METALNESS_METAL;
-	float ret = isMetal ? 0.95 : 0.0f;
-	// remember whether this surface was textured
-	ret += baseColorTexture == -1 ? 0 : 0.05;
-		
-	return ret;
-}
-
 PS_OUT mainPS(VSOut psin)
 {
 	const uint byteOffset = psin.MatID * sizeof(Material);
@@ -159,19 +150,17 @@ PS_OUT mainPS(VSOut psin)
 		shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, psin.TangentW, psin.NormalW, emissiveColorNormalScale.w);
 	}
 	
-	if (mat.MetalnessRoughnessTexture != -1)
+	if (mat.MetallicRoughnessTexture != -1)
 	{
-		uint offset = g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture;
+		uint offset = g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture;
 		
-		METALNESS_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
+		METALLIC_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
 		float2 mr = g_metallicRoughnessMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias);
 
 		metalnessAlphaCuttoff.x *= mr.x;
 		roughness *= mr.y;
 	}
 
-	metalnessAlphaCuttoff.x = EncodeMetalness(metalnessAlphaCuttoff.x, mat.BaseColorTexture);
-	
 	uint16_t emissiveTex = mat.GetEmissiveTex();
 	float emissiveStrength = mat.GetEmissiveStrength();
 	
@@ -218,6 +207,8 @@ PS_OUT mainPS(VSOut psin)
 		if (dot(normalV, -posV) < 0)
 			shadingNormal *= -1;
 	}
+	
+	metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, mat.BaseColorTexture, emissiveColorNormalScale.rgb);
 	
 	PS_OUT psout = PackGBuffer(baseColor.rgb,
 							emissiveColorNormalScale.rgb,

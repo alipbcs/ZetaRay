@@ -100,7 +100,7 @@ void ParamVariant::InitNormalizedFloat3(const char* group, const char* subgroup,
 	InitCommon(group, subgroup, name, dlg);
 
 	m_type = PARAM_TYPE::PT_float3;
-	m_float3.Init(val, -1.0f, 1.0f, 1e-2, true);
+	m_float3.Init(val, -1.0f, 1.0f, 1e-2f, true);
 }
 
 void ParamVariant::InitColor(const char* group, const char* subgroup, const char* name, 

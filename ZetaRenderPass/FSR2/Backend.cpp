@@ -281,7 +281,7 @@ namespace
 
 		if (uavDescTableGpu.IsEmpty())
 		{
-			uavDescTableGpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(desc.MipLevels);
+			uavDescTableGpu = App::GetRenderer().GetGpuDescriptorHeap().Allocate(desc.MipLevels);
 
 			for (uint32_t i = 0; i < desc.MipLevels; i++)
 				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
@@ -335,10 +335,10 @@ namespace
 		D3D12_RESOURCE_BARRIER barriers[g_fsr2Data->MAX_BARRIERS];
 		int currBarrierIdx = 0;
 
-		g_fsr2Data->m_passes[pass].SrvTableGpu = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(
+		g_fsr2Data->m_passes[pass].SrvTableGpu = renderer.GetGpuDescriptorHeap().Allocate(
 			g_fsr2Data->m_passes[pass].SrvTableGpuNumDescs);
 
-		g_fsr2Data->m_passes[pass].UavTableGpu = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(
+		g_fsr2Data->m_passes[pass].UavTableGpu = renderer.GetGpuDescriptorHeap().Allocate(
 			g_fsr2Data->m_passes[pass].UavTableGpuNumDescs);
 
 		// UAVs

@@ -5,6 +5,11 @@
 #include "../Utility/SmallVector.h"
 #include <memory>
 
+namespace ZetaRay::App::Filesystem
+{
+	struct Path;
+}
+
 namespace ZetaRay::Core
 {
 	namespace Internal
@@ -97,7 +102,8 @@ namespace ZetaRay::Core
 		// when the page caching behavior is write-back."
 		void Map() noexcept;
 		void Unmap() noexcept;
-		ZetaInline void* GetMappedMemory() noexcept
+		ZetaInline bool IsMapped() const { return m_mappedMemory != nullptr; }
+		ZetaInline void* GetMappedMemory()
 		{ 
 			Assert(m_mappedMemory, "Resource is not mapped.");
 			return m_mappedMemory;
@@ -241,14 +247,12 @@ namespace ZetaRay::Core
 			DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
 			uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
 
-		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture2DFromDisk(const char* p, Texture& t) noexcept;
-		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture3DFromDisk(const char* p, Texture& t) noexcept;
+		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept;
+		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept;
 		Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
 			D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0) noexcept;
 
 	private:
-		int GetIndexForThread() noexcept;
-
 		static constexpr D3D12_RESOURCE_FLAGS VALID_BUFFER_FLAGS =
 			D3D12_RESOURCE_FLAG_NONE |
 			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
@@ -269,8 +273,8 @@ namespace ZetaRay::Core
 			Util::SmallVector<PendingTexture> ToReleaseTextures;
 		};
 
-		ThreadContext m_threadContext[MAX_NUM_THREADS];
-		uint32_t alignas(64) m_threadIDs[MAX_NUM_THREADS];
+		ThreadContext m_threadContext[ZETA_MAX_NUM_THREADS];
+		uint32_t alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
 
 		ComPtr<ID3D12Fence> m_fenceDirect;
 		ComPtr<ID3D12Fence> m_fenceCompute;

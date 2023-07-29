@@ -49,7 +49,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	frameConsts.EmissiveMapsDescHeapOffset = App::GetScene().GetEmissiveMapsDescHeapOffset();
 
 	// Note: assumes BVH has been built
-	frameConsts.WorldRadius = App::GetScene().GetWorldAABB().Extents.length();
+	//frameConsts.WorldRadius = App::GetScene().GetWorldAABB().Extents.length();
 
 	// camera
 	const Camera& cam = App::GetCamera();
@@ -138,11 +138,6 @@ namespace ZetaRay::DefaultRenderer
 		}
 	}
 
-	void RayOffset(const ParamVariant& p) noexcept
-	{
-		g_data->m_frameConstants.RayOffset = p.GetFloat().m_val;
-	}
-
 	void ModifySunDir(const ParamVariant& p) noexcept
 	{
 		float pitch = p.GetUnitDir().m_pitch;
@@ -229,7 +224,6 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.PrevViewProj = store(vVP);
 		g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
 		g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
-		g_data->m_frameConstants.RayOffset = Defaults::RAY_T_OFFSET;
 
 		//g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
 		g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
@@ -301,15 +295,6 @@ namespace ZetaRay::DefaultRenderer
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);
 		}
-
-		ParamVariant rayOffset;
-		rayOffset.InitFloat("Renderer", "SunShadow", "RayOffset",
-			fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::RayOffset),
-			Defaults::RAY_T_OFFSET,
-			1e-4f,
-			1e-2f,
-			1e-4f);
-		App::AddParam(rayOffset);
 
 		// sun
 		{

@@ -27,6 +27,11 @@ namespace
 {
 	void AddParamRange(Span<ParamVariant> params, size_t offset, size_t count) noexcept
 	{
+		std::sort(params.begin() + offset, params.begin() + offset + count, [](ParamVariant& p1, ParamVariant& p2)
+			{
+				return strcmp(p1.GetName(), p2.GetName()) < 0;
+			});
+
 		for (size_t p = offset; p < offset + count; p++)
 		{
 			ParamVariant& param = params[p];
@@ -325,7 +330,7 @@ void GuiPass::Update() noexcept
 		m_imguiFontTex = gpuMem.GetTexture2DAndInit("ImGuiFontTex", m_font.Width, m_font.Height, DXGI_FORMAT_R8G8B8A8_UNORM,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_font.Pixels);
 
-		m_fontTexSRV = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
+		m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
 
 		// Create texture view
 		Direct3DHelper::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));

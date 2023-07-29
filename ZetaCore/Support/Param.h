@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Math/Vector.h"
+#include <type_traits>
 #include <FastDelegate/FastDelegate.h>
 
 namespace ZetaRay::Support

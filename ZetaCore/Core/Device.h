@@ -69,8 +69,7 @@ using Microsoft::WRL::ComPtr;
 #endif
 #else
 #ifndef SET_D3D_OBJ_NAME
-#define SET_D3D_OBJ_NAME(pObj, str)															\
-		pObj->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(str), str);		
+#define SET_D3D_OBJ_NAME(pObj, str)
 #endif
 #endif
 

@@ -145,10 +145,10 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	const float4 geoWeights = GeometryTest(prevDepths, prevUVs, currNormal, currPos, linearDepth);
 
 	// weight must be zero for out-of-bound samples
-	const float4 isInBounds = float4(Math::IsWithinBoundsExc(topLeft, screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(1, 0), screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(0, 1), screenDim),
-									 Math::IsWithinBoundsExc(topLeft + float2(1, 1), screenDim));
+	const float4 isInBounds = float4(Math::IsWithinBounds(topLeft, screenDim),
+									 Math::IsWithinBounds(topLeft + float2(1, 0), screenDim),
+									 Math::IsWithinBounds(topLeft + float2(0, 1), screenDim),
+									 Math::IsWithinBounds(topLeft + float2(1, 1), screenDim));
 
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -286,8 +286,8 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	return false;
 }
 
-void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, float metalness, 
-	float roughness, BRDF::SurfaceInteraction surface, DIReservoir r, out float prevSurfaceLinearDepth, out float2 prevSurfaceUV)
+void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, bool metallic, 
+	float roughness, BRDF::SurfaceInteraction surface, SkyDIReservoir r, out float prevSurfaceLinearDepth, out float2 prevSurfaceUV)
 {
 	prevSurfaceLinearDepth = 0.0f;
 	
@@ -296,7 +296,7 @@ void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3
 	prevSurfaceUV = currUV - motionVec;
 	const bool motionVecValid = all(prevSurfaceUV >= 0.0f) && all(prevSurfaceUV <= 1.0f);
 
-	if (metalness >= MIN_METALNESS_METAL)
+	if (metallic)
 	{
 		GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 		float z = g_prevDepth.SampleLevel(g_samLinearClamp, prevSurfaceUV, 0.0f);	
@@ -305,7 +305,7 @@ void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3
 		return;
 	}
 		
-	float demodulatedDiffuseReflectance = (1 - metalness);
+	float demodulatedDiffuseReflectance = (1 - metallic);
 	float3 f = (1 - surface.F) * demodulatedDiffuseReflectance * saturate(dot(r.wi, normal)) * ONE_OVER_PI;
 	float3 signal = r.Li * f * r.W;
 	
@@ -332,7 +332,7 @@ void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3
 	g_currTemporalCache_Diffuse[DTid] = float4(currColor, tspp);
 }
 
-void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, float metalness, float roughness,
+void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, bool metallic, float roughness,
 	BRDF::SurfaceInteraction surface, float3 wi, float2 prevSurfaceUV, out float3 color, out float tspp)
 {
 	color = 0.0.xxx;
@@ -365,10 +365,10 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
 
 	// screen-bounds check
-	float4 weights = float4(Math::IsWithinBoundsExc(topLeft, renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(1, 0), renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(0, 1), renderDim),
-							Math::IsWithinBoundsExc(topLeft + float2(1, 1), renderDim));
+	float4 weights = float4(Math::IsWithinBounds(topLeft, renderDim),
+							Math::IsWithinBounds(topLeft + float2(1, 0), renderDim),
+							Math::IsWithinBounds(topLeft + float2(0, 1), renderDim),
+							Math::IsWithinBounds(topLeft + float2(1, 1), renderDim));
 
 	if (dot(1, weights) == 0)
 		return;
@@ -401,14 +401,15 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float4 prevRoughness = g_metalnessRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float4 prevRoughness = g_metallicRoughness.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	weights *= RoughnessWeight(roughness, prevRoughness);
 
-	// metalness weight
-	const float4 prevMetalness= g_metalnessRoughness.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	weights *= prevMetalness == metalness;
+	// metallic weight
+	const float4 prevEncodedMetalness= g_metallicRoughness.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+	const bool4 prevMetallic = GBuffer::DecodeMetallic(prevEncodedMetalness);
+	weights *= prevMetallic == metallic;
 	
 	const float4 bilinearWeights = float4((1.0f - offset.x) * (1.0f - offset.y),
 									       offset.x * (1.0f - offset.y),
@@ -450,14 +451,14 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	}
 }
 
-void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, float metalness, 
-	float roughness, BRDF::SurfaceInteraction surface, DIReservoir r, float prevSurfaceLinearDepth, float2 prevSurfaceUV)
+void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, bool metallic, 
+	float roughness, BRDF::SurfaceInteraction surface, SkyDIReservoir r, float prevSurfaceLinearDepth, float2 prevSurfaceUV)
 {
 	float3 color = 0.0.xxx;
 	float tspp = 0;
 	if (g_local.IsTemporalCacheValid)
 	{
-		SampleTemporalCache_Virtual(DTid.xy, posW, normal, linearDepth, currUV, metalness, roughness, surface,
+		SampleTemporalCache_Virtual(DTid.xy, posW, normal, linearDepth, currUV, metallic, roughness, surface,
 			r.wi, prevSurfaceUV, color, tspp);
 	}
 	
@@ -471,7 +472,7 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 
 	const float parallax = Parallax(posW, prevSurfacePosW, g_frame.CameraPos, prevCameraPos);
 	float reactivity = Reactivity(roughness, surface.whdotwo, parallax);
-	float minTspp = metalness > MIN_METALNESS_METAL ? 0 : 1;
+	float minTspp = metallic ? 0 : 1;
 	tspp = clamp((1 - reactivity) * g_local.MaxTSPP_Specular, minTspp, g_local.MaxTSPP_Specular);
 
 	float3 f = BRDF::SpecularBRDFGGXSmith(surface);
@@ -499,10 +500,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	if (depth == 0.0)
 		return;
 
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[DTid.xy];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[DTid.xy];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
@@ -520,15 +529,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	const float3 baseColor = g_baseColor[DTid.xy].rgb;
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
-	DIReservoir r = SkyDI_Util::PartialReadReservoir_Shading(DTid.xy, g_local.InputReservoir_A_DescHeapIdx);
-	surface.InitComplete(r.wi, baseColor, mr.x, normal);
+	SkyDIReservoir r = SkyDI_Util::PartialReadReservoir_Shading(DTid.xy, g_local.InputReservoir_A_DescHeapIdx);
+	surface.SetWi(r.wi, normal);
 	
 	if (!g_local.IsTemporalCacheValid || !g_local.Denoise)
 	{
 		RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
-		float3 f = BRDF::ComputeSurfaceBRDF(surface);
+		float3 f = BRDF::SurfaceBRDF(surface);
 		g_final[DTid.xy].rgb = r.Li * r.W * f;
 		
 		return;
@@ -536,8 +545,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 
 	float prevSurfaceLinearDepth;
 	float2 prevSurfaceUV;
-	TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, linearDepth, mr.x, mr.y, surface, r,
+	TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, surface, r,
 		prevSurfaceLinearDepth, prevSurfaceUV);
-	TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, linearDepth, mr.x, mr.y, surface, r,
+	TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, surface, r,
 		prevSurfaceLinearDepth, prevSurfaceUV);
 }

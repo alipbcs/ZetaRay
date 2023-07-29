@@ -122,7 +122,7 @@ namespace
 {
 	struct FrameMemoryContext
 	{
-		int alignas(64) m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
+		int alignas(64) m_threadFrameAllocIndices[ZETA_MAX_NUM_THREADS] = { -1 };
 		std::atomic_int32_t m_currFrameAllocIndex;
 	};
 
@@ -170,7 +170,7 @@ namespace
 		SceneCore m_scene;
 		Camera m_camera;
 
-		THREAD_ID_TYPE alignas(64) m_threadIDs[MAX_NUM_THREADS];
+		ZETA_THREAD_ID_TYPE alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
 
 		FrameMemory<512 * 1024> m_smallFrameMemory;
 		FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
@@ -408,7 +408,7 @@ namespace ZetaRay::AppImpl
 		g_app->m_frameStats.free_memory();
 
 		const float frameTimeMs = g_app->m_timer.GetTotalFrameCount() > 1 ?
-			(float)(g_app->m_timer.GetElapsedTime() * 1000.0f) : 
+			(float)(g_app->m_timer.GetElapsedTime() * 1000.0f) :
 			0.0f;
 
 		auto& frameStats = g_app->m_frameTime;
@@ -799,9 +799,9 @@ namespace ZetaRay::AppImpl
 				}
 
 				Assert(found, "parameter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
-				if(found)
+				if (found)
 					g_app->m_params.erase(i);
-			}		
+			}
 		}
 
 		g_app->m_paramsUpdates.clear();
@@ -875,7 +875,7 @@ namespace ZetaRay::AppImpl
 			FreeLibrary(uxthemeLib);
 		}
 
-			return 0;
+		return 0;
 
 		case WM_ACTIVATEAPP:
 			if (wParam && !g_app->m_manuallyPaused)
@@ -1067,12 +1067,12 @@ namespace ZetaRay::AppImpl
 
 	ZetaInline int GetThreadIdx()
 	{
-		const THREAD_ID_TYPE id = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+		const ZETA_THREAD_ID_TYPE id = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
 		int ret = -1;
 		__m256i vKey = _mm256_set1_epi32(id);
 
-		for (int i = 0; i < MAX_NUM_THREADS; i += 8) 
+		for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8) 
 		{
 			__m256i vIDs = _mm256_load_si256((__m256i*)(g_app->m_threadIDs + i));
 			__m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
@@ -1200,27 +1200,27 @@ namespace ZetaRay
 			THREAD_PRIORITY::BACKGROUND);
 
 		// initialize frame allocators
-		memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+		memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
 		g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-		memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+		memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
 		g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
 		memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
 
 		// main thread
-		g_app->m_threadIDs[0] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+		g_app->m_threadIDs[0] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
 		// worker threads
 		auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
 
 		for (int i = 0; i < workerThreadIDs.size(); i++)
-			g_app->m_threadIDs[i + 1] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(workerThreadIDs[i]);
+			g_app->m_threadIDs[i + 1] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(workerThreadIDs[i]);
 
 		// background threads
 		auto backgroundThreadIDs = g_app->m_backgroundThreadPool.ThreadIDs();
 
 		for (int i = 0; i < backgroundThreadIDs.size(); i++)
-			g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
+			g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
 
 		g_app->m_workerThreadPool.Start();
 		g_app->m_backgroundThreadPool.Start();
@@ -1252,7 +1252,7 @@ namespace ZetaRay
 		acc.InitFloat("Scene", "Camera", "Acceleration", fastdelegate::FastDelegate1<const ParamVariant&>(&AppImpl::SetCameraAcceleration),
 			g_app->m_cameraAcceleration,
 			1.0f,
-			300.0f,
+			100.0f,
 			1.0f);
 		App::AddParam(acc);
 
@@ -1306,11 +1306,11 @@ namespace ZetaRay
 			if (g_app->m_timer.GetTotalFrameCount() > 1)
 			{
 				g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-				memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
 				g_app->m_smallFrameMemory.Reset();		// set the offset to 0, essentially freeing the memory
 
 				g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-				memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * MAX_NUM_THREADS);
+				memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
 				g_app->m_largeFrameMemory.Reset();		// set the offset to 0, essentially freeing the memory
 			}
 

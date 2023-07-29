@@ -8,7 +8,7 @@ namespace ZetaRay::Support
 {
 	struct ThreadSafeMemoryArena
 	{
-		ThreadSafeMemoryArena(size_t blockSize = 64 * 1024, int initNumBlocks = MAX_NUM_THREADS) noexcept;
+		ThreadSafeMemoryArena(size_t blockSize = 64 * 1024, int initNumBlocks = ZETA_MAX_NUM_THREADS) noexcept;
 		~ThreadSafeMemoryArena() noexcept = default;
 
 		ThreadSafeMemoryArena(ThreadSafeMemoryArena&&) = delete;
@@ -70,11 +70,11 @@ namespace ZetaRay::Support
 		size_t TotalSizeInBytes() noexcept;
 
 		const size_t k_defaultBlockSize;
-		Util::SmallVector<MemoryBlock, Support::SystemAllocator, MAX_NUM_THREADS> m_blocks;
+		Util::SmallVector<MemoryBlock, Support::SystemAllocator, ZETA_MAX_NUM_THREADS> m_blocks;
 		SRWLOCK m_blocksLock;
 		
-		uint32_t m_threadIDs[MAX_NUM_THREADS] = { 0 };
-		int m_threadCurrBlockIdx[MAX_NUM_THREADS];
+		uint32_t m_threadIDs[ZETA_MAX_NUM_THREADS] = { 0 };
+		int m_threadCurrBlockIdx[ZETA_MAX_NUM_THREADS];
 		int m_numThreads;
 		std::atomic_int32_t m_currBlockIdx;
 	};

@@ -70,12 +70,12 @@ void DeviceObjects::CreateDevice() noexcept
 
 	D3D12_MESSAGE_ID filteredMsgs[] = 
 	{ 
-		//D3D12_MESSAGE_ID_LOADPIPELINE_NAMENOTFOUND,
+		D3D12_MESSAGE_ID_LOADPIPELINE_NAMENOTFOUND,
 		//D3D12_MESSAGE_ID_LOADPIPELINE_INVALIDDESC,
 		D3D12_MESSAGE_ID_CREATEPIPELINELIBRARY_DRIVERVERSIONMISMATCH,
 		//D3D12_MESSAGE_ID_CREATEPIPELINELIBRARY_INVALIDLIBRARYBLOB,
 		//D3D12_MESSAGE_ID_RESOLVE_QUERY_INVALID_QUERY_STATE,
-		D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_GPU_WRITTEN_READBACK_RESOURCE_MAPPED
+		//D3D12_MESSAGE_ID_EXECUTECOMMANDLISTS_GPU_WRITTEN_READBACK_RESOURCE_MAPPED
 	};
 
 	D3D12_INFO_QUEUE_FILTER filter{};
@@ -115,7 +115,7 @@ void DeviceObjects::CreateDevice() noexcept
 	// wave intrinsics
 	D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
 	CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
-	Check(options1.WaveOps, "Wave intrinsics is not supported.");
+	Check(options1.WaveOps, "Wave intrinsics are not supported.");
 	Check(options1.WaveLaneCountMin >= 32, "Wave lane count of at least 32 is required.");
 }
 

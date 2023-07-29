@@ -104,9 +104,9 @@ float EdgeStoppingLuminance(float centerLum, float sampleLum, float sigma, float
 	return exp(-abs(centerLum - sampleLum) / s);
 }
 
-float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, float metalness, float roughness, float3 posW, inout RNG rng)
+float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic, float roughness, float3 posW, inout RNG rng)
 {
-	if (metalness >= MIN_METALNESS_METAL)
+	if (metallic)
 		return 0.0.xxx;
 	
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -190,8 +190,8 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, float metalnes
 	return filtered;
 }
 
-float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, float metalness, float roughness, float3 posW, float3 baseColor, 
-	inout RNG rng)
+float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic, bool hasBaseColorTexture, float roughness, 
+	float3 posW, float3 baseColor, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -200,12 +200,10 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, float metalne
 	const float3 centerColor = g_temporalCache_Specular[DTid].rgb;
 	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
-	const bool isMetal = metalness >= MIN_METALNESS_METAL;
-	const bool isTextured = isMetal ? metalness == 1.0f : metalness >= 0.05f;
 	
 	if (!g_local.FilterSpecular || 
-		(roughness <= g_local.MinRoughnessResample && (isMetal || baseColorLum < MAX_LUM_VNDF)) ||
-		isTextured)		 // avoid filtering textured surfaces
+		(roughness <= g_local.MinRoughnessResample && (metallic || baseColorLum < MAX_LUM_VNDF)) ||
+		hasBaseColorTexture)		 // avoid filtering textured surfaces
 		return centerColor;
 	
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -224,7 +222,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, float metalne
 	const float filterRadiusBase = 4 + smoothstep(0, 1, 1 - roughness) * 5;
 	
 	const int numSamplesMetal = max(round(smoothstep(0, 0.3, roughness) * 3), 1);
-	const int numSamples = isMetal ?
+	const int numSamples = metallic ?
 		numSamplesMetal :
 		3;
 	
@@ -321,10 +319,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		g_frame.CurrViewInv,
 		g_frame.CurrProjectionJitter);
 	
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	float2 mr = g_metalnessRoughness[swizzledDTid.xy];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	float2 mr = g_metallicRoughness[swizzledDTid.xy];
 
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	
+	if (isEmissive)
+		return;
+	
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid].xy);
 		
@@ -334,8 +340,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
 
-	float3 filteredDiffuse = FilterDiffuse(swizzledDTid, normal, linearDepth, mr.x, mr.y, posW, rng);
-	float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, mr.x, mr.y, posW, baseColor, rng);
+	float3 filteredDiffuse = FilterDiffuse(swizzledDTid, normal, linearDepth, isMetallic, mr.y, posW, rng);
+	float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, isMetallic, hasBaseColorTexture, 
+		mr.y, posW, baseColor, rng);
 
 	RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 	g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular;

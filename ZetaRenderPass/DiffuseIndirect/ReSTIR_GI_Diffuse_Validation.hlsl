@@ -16,6 +16,7 @@
 #define TOLERABLE_RELATIVE_RADIANCE_CHANGE 0.2
 #define TOLERABLE_RELATIVE_RAY_T_CHANGE 0.35
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+#define EMISSIVE_DIRECT_LIGHTING 0
 
 static const uint16_t2 GroupDim = uint16_t2(RGI_DIFF_TEMPORAL_GROUP_DIM_X, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
@@ -94,7 +95,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
-	ray.TMin = g_frame.RayOffset;
+	ray.TMin = 1e-4f;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 
@@ -118,7 +119,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 	RayDesc ray;
 	ray.Origin = pos;
-	ray.TMin = g_frame.RayOffset;
+	ray.TMin = 1e-4f;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 
@@ -133,7 +134,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 		const uint byteOffset = (rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()) * sizeof(RT::MeshInstance);
 		const RT::MeshInstance meshData = g_frameMeshData.Load<RT::MeshInstance>(byteOffset);
 
-		uint tri = rayQuery.CandidatePrimitiveIndex() * 3;
+		uint tri = rayQuery.CommittedPrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;
 		uint i0 = g_sceneIndices.Load<uint>(tri * sizeof(uint)) + meshData.BaseVtxOffset;
 		uint i1 = g_sceneIndices.Load<uint>((tri + 1) * sizeof(uint)) + meshData.BaseVtxOffset;
@@ -156,7 +157,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
+		surface.ShadingNormal = (half2) Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 
 		return true;
@@ -277,11 +278,11 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 			baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 		}
 
-		float metalness = mat.GetMetalness();
-		if (mat.MetalnessRoughnessTexture != -1)
+		float metalness = mat.GetMetallic();
+		if (mat.MetallicRoughnessTexture != -1)
 		{
-			uint offset = NonUniformResourceIndex(g_frame.MetalnessRoughnessMapsDescHeapOffset + mat.MetalnessRoughnessTexture);
-			METALNESS_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
+			uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
+			METALLIC_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
 			float mip = g_frame.MipBias;
 
 #if USE_RAY_CONES
@@ -313,6 +314,7 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 		L_o = brdf * tr * g_frame.SunIlluminance;
 	}
 	
+#if EMISSIVE_DIRECT_LIGHTING == 1
 	float3 L_e = Math::Color::UnpackRGB(mat.EmissiveFactorNormalScale);
 	uint16_t emissiveTex = mat.GetEmissiveTex();
 	float emissiveStrength = mat.GetEmissiveStrength();
@@ -331,8 +333,10 @@ float3 DirectLighting(HitSurface hitInfo, float3 wo)
 #endif	
 		L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
 	}
-
 	return L_o + L_e * emissiveStrength;
+#else
+	return L_o;
+#endif
 }
 
 bool Li(uint2 DTid, uint Gidx, float3 posW, float3 normal, float3 wi, float linearDepth, out uint16_t sortedIdx, out DiffuseSample ret)
@@ -386,11 +390,11 @@ DiffuseReservoir SampleTemporalReservoir(uint2 DTid, float3 currPos, float currL
 	
 	// reverse reproject current pixel
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
-	const half2 motionVec = g_motionVector[DTid];
+	const float2 motionVec = g_motionVector[DTid];
 	const float2 currUV = (DTid + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 
-	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (any(prevUV < 0.0f.xx) || any(prevUV > 1.0f.xx))
 	{
 		DiffuseReservoir r = DiffuseReservoir::Init();
 		return r;
@@ -492,14 +496,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
 
 	// metallic mask
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float m = g_metalnessRoughness[swizzledDTid].r;
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(g_metallicRoughness[swizzledDTid].r, isMetallic, hasBaseColorTexture, isEmissive);
 	
-	// skip metals
-	// metallic factor shoud be binary, but some scenes have invalid values, so instead of testing against 0,
-	// add a small threshold
-	reservoirValid &= (m < MIN_METALNESS_METAL);
+	// skip metallic & emissive surfaces
+	reservoirValid &= !isMetallic;
+	reservoirValid &= !isEmissive;
 
 	// validate the reservoirs from two frames ago
 	const bool tracedLastFrame = g_local.CheckerboardTracing ?

@@ -46,10 +46,16 @@ struct RNG
 	// 23 low-order fraction bits come from a random integer
 	float Uniform()
 	{
+#if 0
 		uint x = Pcg();
 		
 		// [1, 2) -> [0, 1)
 		return asfloat(0x3f800000 | (x >> 9)) - 1.0f;
+#else
+		const float oneSubEps = 0x1.fffffep-1;
+		const float uniformFloat01Inclusive = Pcg() * 0x1p-32f;    
+		return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
+#endif
 	}
 			
 	uint UintRange(uint lower, uint upper)

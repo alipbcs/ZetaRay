@@ -24,7 +24,7 @@ DisplayPass::DisplayPass() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_PIXEL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,				// root idx
@@ -59,28 +59,34 @@ void DisplayPass::Init() noexcept
 	m_cbLocal.DisplayOption = (int)DisplayOption::DEFAULT;
 	m_cbLocal.Tonemapper = (int)Tonemapper::NEUTRAL;
 	m_cbLocal.Saturation = 1.0f;
+	m_cbLocal.AutoExposure = true;
 
 	ParamVariant p1;
-	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeDisplayOptionCallback),
+	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
 		Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
 	App::AddParam(p1);
 
 	ParamVariant p2;
-	p2.InitEnum("Renderer", "Display", "Tonemapper", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeTonemapperCallback),
+	p2.InitEnum("Renderer", "Display", "Tonemapper", fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
 		Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
 	App::AddParam(p2);
 
+	ParamVariant p3;
+	p3.InitBool("Renderer", "AutoExposure", "Enable", fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
+		m_cbLocal.AutoExposure);
+	App::AddParam(p3);
+
 	ParamVariant p7;
-	p7.InitFloat("Renderer", "Display", "Saturation", fastdelegate::MakeDelegate(this, &DisplayPass::ChangeSaturationCallback), 
-		1, 0, 1.5, 1e-2);
+	p7.InitFloat("Renderer", "Display", "Saturation", fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback), 
+		1, 0, 1.5f, 1e-2f);
 	App::AddParam(p7);
 
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
-	auto err = renderer.GetGpuMemory().GetTexture3DFromDisk(p.Get(), m_lut);
+	auto err = renderer.GetGpuMemory().GetTexture3DFromDisk(p, m_lut);
 	Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture in path %s: %d", p.Get(), err);
 
-	m_lutSRV = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate(1);
+	m_lutSRV = renderer.GetGpuDescriptorHeap().Allocate(1);
 	Direct3DHelper::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
 }
 
@@ -148,17 +154,22 @@ void DisplayPass::CreatePSO() noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
-void DisplayPass::ChangeDisplayOptionCallback(const ParamVariant& p) noexcept
+void DisplayPass::DisplayOptionCallback(const ParamVariant& p) noexcept
 {
 	m_cbLocal.DisplayOption = (uint16_t)p.GetEnum().m_curr;
 }
 
-void DisplayPass::ChangeTonemapperCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::TonemapperCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbLocal.Tonemapper = (uint16_t)p.GetEnum().m_curr;
 }
 
-void DisplayPass::ChangeSaturationCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::SaturationCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbLocal.Saturation = p.GetFloat().m_val;
+}
+
+void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbLocal.AutoExposure = p.GetBool();
 }

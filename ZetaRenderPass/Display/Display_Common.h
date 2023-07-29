@@ -35,7 +35,8 @@ struct cbDisplayPass
 	uint16_t DisplayOption;
 	uint16_t Tonemapper;
 	//uint16_t VisualizeOcclusion;
-	//uint16_t pad;
+	uint16_t AutoExposure;
+	uint16_t pad;
 
 	uint32_t InputDescHeapIdx;
 	uint32_t ExposureDescHeapIdx;
@@ -44,13 +45,6 @@ struct cbDisplayPass
 	uint32_t DiffuseTemporalReservoir_B_DescHeapIdx;
 	uint32_t DiffuseSpatialReservoir_A_DescHeapIdx;
 	uint32_t DiffuseSpatialReservoir_B_DescHeapIdx;
-	//uint32_t SpecularTemporalReservoir_A_DescHeapIdx;
-	//uint32_t SpecularTemporalReservoir_B_DescHeapIdx;
-	//uint32_t SpecularTemporalReservoir_D_DescHeapIdx;
-	//uint32_t SpecularSpatialReservoir_A_DescHeapIdx;
-	//uint32_t SpecularSpatialReservoir_B_DescHeapIdx;
-	//uint32_t SpecularSpatialReservoir_D_DescHeapIdx;
-	//uint32_t SpecularDNSRTemporalCacheDescHeapIdx;
 	uint32_t LUTDescHeapIdx;
 
 	float Saturation;

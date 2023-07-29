@@ -68,8 +68,7 @@ float3 ClipAABB(float3 aabbMin, float3 aabbMax, float3 histSample)
 [numthreads(TAA_THREAD_GROUP_SIZE_X, TAA_THREAD_GROUP_SIZE_Y, TAA_THREAD_GROUP_SIZE_Z)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 {
-	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	if (!Math::IsWithinBoundsExc(DTid.xy, renderDim))
+	if(DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return;
 	
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
@@ -108,7 +107,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 				continue;
 			
 			int2 neighborAddrr = DTid.xy + int2(i, j);
-			if (!Math::IsWithinBoundsExc(neighborAddrr, int2(g_frame.RenderWidth, g_frame.RenderHeight)))
+			if (any(neighborAddrr < 0) || any(neighborAddrr >= int2(g_frame.RenderWidth, g_frame.RenderHeight)))
 				continue;
 			
 			float3 neighborColor = max(g_currSignal[neighborAddrr].rgb, 0.0.xxx);
@@ -149,20 +148,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 #endif
 	
 	// motion vector is relative to texture space
+	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
 	const float2 prevUV = currUV - motionVec;
 	
 	// no history sample was available
-	if (!Math::IsWithinBoundsInc(prevUV, 1.0f.xx))
+	if (any(prevUV < 0.0f.xx) || any(prevUV > 1.0f.xx))
 	{
 		g_antiAliased[DTid.xy].rgb = reconstructed;
 		return;
 	}
 
-	Texture2D<half4> g_prevColor = ResourceDescriptorHeap[g_local.PrevOutputDescHeapIdx];
+	Texture2D<float4> g_prevColor = ResourceDescriptorHeap[g_local.PrevOutputDescHeapIdx];
 	
 #if CATMULL_ROM_FILTERING
-	float3 history = Common::SampleTextureCatmullRom_5Tap(g_prevColor, g_samLinearClamp, prevUV, renderDim);
+	float3 history = Common::SampleTextureCatmullRom(g_prevColor, g_samLinearClamp, prevUV, renderDim);
 #else
 	float3 history = g_prevColor.SampleLevel(g_samLinearClamp, prevUV, 0).xyz;
 #endif

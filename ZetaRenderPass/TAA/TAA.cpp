@@ -23,7 +23,7 @@ TAA::TAA() noexcept
 		0,												// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,		// root idx
@@ -55,7 +55,7 @@ void TAA::Init() noexcept
 	// use an arbitrary number as "nameID" since there's only one shader
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
 
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateResources();
 
 	m_localCB.BlendWeight = DefaultParamVals::BlendWeight;

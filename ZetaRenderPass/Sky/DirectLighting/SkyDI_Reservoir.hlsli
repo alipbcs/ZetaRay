@@ -1,5 +1,5 @@
-#ifndef RESERVOIR_DI_H
-#define RESERVOIR_DI_H
+#ifndef SKY_DI_H
+#define SKY_DI_H
 
 #include "SkyDI_Common.h"
 #include "../../Common/Sampling.hlsli"
@@ -7,11 +7,11 @@
 
 #define MAX_LUM_VNDF 1e-2
 
-struct DIReservoir
+struct SkyDIReservoir
 {
-	static DIReservoir Init()
+	static SkyDIReservoir Init()
 	{
-		DIReservoir res;
+		SkyDIReservoir res;
 		
 		res.Li = 0.0.xxx;
 		res.M = 0;
@@ -23,9 +23,9 @@ struct DIReservoir
 		return res;
 	}
 	
-	static DIReservoir Init(float w_sum, float W, float M, float3 wi, float3 Li)
+	static SkyDIReservoir Init(float w_sum, float W, float M, float3 wi, float3 Li)
 	{
-		DIReservoir res;
+		SkyDIReservoir res;
 		
 		res.Li = Li;
 		res.M = M;
@@ -62,7 +62,7 @@ struct DIReservoir
 		return false;
 	}
 	
-	bool Combine(DIReservoir r, float M_max, float weight, float p_q, inout RNG rng)
+	bool Combine(SkyDIReservoir r, float M_max, float weight, float p_q, inout RNG rng)
 	{
 		float clampedM = min(r.M, M_max);
 		float weightedM = clampedM * weight;
@@ -108,7 +108,7 @@ namespace SkyDI_Util
 		return prevUV;
 	}
 	
-	DIReservoir ReadReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx)
+	SkyDIReservoir ReadReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<float> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
@@ -126,7 +126,7 @@ namespace SkyDI_Util
 		float3 Li = asfloat16(uint16_t3(temp2));
 		float M = asfloat16(uint16_t(resA.z >> 16));
 		
-		DIReservoir r = DIReservoir::Init(w_sum, W, M, wi, Li);
+		SkyDIReservoir r = SkyDIReservoir::Init(w_sum, W, M, wi, Li);
 
 		return r;
 	}
@@ -145,7 +145,7 @@ namespace SkyDI_Util
 		return wi;
 	}
 
-	DIReservoir PartialReadReservoir_ReuseRest(uint2 DTid, uint inputAIdx, float3 wi)
+	SkyDIReservoir PartialReadReservoir_ReuseRest(uint2 DTid, uint inputAIdx, float3 wi)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		const uint3 resA = g_reservoir_A[DTid].yzw;
@@ -156,13 +156,13 @@ namespace SkyDI_Util
 		float3 Li = asfloat16(uint16_t3(temp2));
 		float M = asfloat16(uint16_t(resA.y >> 16));
 		
-		DIReservoir r = DIReservoir::Init(0, W, M, wi, Li);
+		SkyDIReservoir r = SkyDIReservoir::Init(0, W, M, wi, Li);
 
 		return r;
 	}
 
 	// skips w_sum
-	DIReservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx)
+	SkyDIReservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 
@@ -178,13 +178,13 @@ namespace SkyDI_Util
 		float3 Li = asfloat16(uint16_t3(temp2));
 		float M = asfloat16(uint16_t(resA.z >> 16));
 
-		DIReservoir r = DIReservoir::Init(0, W, M, wi, Li);
+		SkyDIReservoir r = SkyDIReservoir::Init(0, W, M, wi, Li);
 
 		return r;
 	}
 
 	// skips w_sum
-	void PartialWriteReservoir(uint2 DTid, DIReservoir r, uint outputAIdx)
+	void PartialWriteReservoir(uint2 DTid, SkyDIReservoir r, uint outputAIdx)
 	{
 		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 	
@@ -200,7 +200,7 @@ namespace SkyDI_Util
 		g_outReservoir_A[DTid] = uint4(a_x, a_y, a_z, a_w);
 	}
 	
-	void WriteReservoir(uint2 DTid, DIReservoir r, uint outputAIdx, uint outputBIdx)
+	void WriteReservoir(uint2 DTid, SkyDIReservoir r, uint outputAIdx, uint outputBIdx)
 	{
 		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<float> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];

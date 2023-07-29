@@ -109,14 +109,17 @@ namespace Volumetric
 		return -mDotdir + delta;
 	}
 
-	bool IntersectRayPlanet(in float radius, in float3 rayOrigin, in float3 rayDir, out float t)
+	bool IntersectRayPlanet(float radius, float3 rayOrigin, float3 rayDir, out float t)
 	{
 		// center is assumed to be (0, 0, 0)
 		float mDotdir = dot(rayDir, rayOrigin);
 		float delta = mDotdir * mDotdir - dot(rayOrigin, rayOrigin) + radius * radius;
 	
 		if (delta < 0.0f)
+		{
+			t = 0;			 
 			return false;
+		}
 	
 		// here, ray is always starting outside the sphere and the first intersection is what's intended
 		delta = sqrt(delta);

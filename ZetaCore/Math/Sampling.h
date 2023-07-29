@@ -6,7 +6,7 @@
 namespace ZetaRay::Math
 {
 	// Generates i'th index of the Halton low-discrepancy sequence for base b 
-	float Halton(uint32_t i, uint32_t b) noexcept;
+	float Halton(int i, int b) noexcept;
 
 	// Uniformly samples the hemisphere around (0, 0, 0)
 	float3 GetUniformSampleHemisphere(float2 u) noexcept;

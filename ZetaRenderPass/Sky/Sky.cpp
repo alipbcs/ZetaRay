@@ -29,7 +29,7 @@ Sky::Sky() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// BVH
 	m_rootSig.InitAsBufferSRV(2,						// root idx
@@ -68,7 +68,7 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 	m_psos[(int)SHADERS::SKY_LUT] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
 
-	m_descTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
+	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 
 	m_localCB.DepthMappingExp = DefaultParamVals::DEPTH_MAP_EXP;
 	m_localCB.VoxelGridNearZ = DefaultParamVals::VOXEL_GRID_NEAR_Z;

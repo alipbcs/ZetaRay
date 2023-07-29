@@ -24,8 +24,8 @@ void ClearPass::Clear(CommandList& cmdList) noexcept
 		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::NORMAL],
 			0.0f, 0.0f, 0.0f, 0.0f);
 
-	if (m_descriptors[SHADER_IN_DESC::METALNESS_ROUGHNESS].ptr)
-		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::METALNESS_ROUGHNESS],
+	if (m_descriptors[SHADER_IN_DESC::METALLIC_ROUGHNESS].ptr)
+		directCmdList.ClearRenderTargetView(m_descriptors[SHADER_IN_DESC::METALLIC_ROUGHNESS],
 			0.0f, 0.0f, 0.0f, 0.0f);
 
 	if (m_descriptors[SHADER_IN_DESC::MOTION_VECTOR].ptr)

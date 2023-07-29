@@ -174,22 +174,6 @@ namespace RGI_Spec_Util
 		return prevUV;
 	}
 
-	float3 RecalculateSpecularBRDF(float3 wi, float3 baseColor, float metallicFactor, float3 shadingNormal, 
-		inout BRDF::SurfaceInteraction surface)
-	{
-		float3 wh = normalize(wi + surface.wo);
-		surface.ndotwh = saturate(dot(shadingNormal, wh));
-		surface.ndotwi = saturate(dot(shadingNormal, wi));
-			
-		float3 F0 = lerp(0.04f.xxx, baseColor, metallicFactor);
-		surface.whdotwo = saturate(dot(wh, surface.wo)); // = whdotwi
-		surface.F = BRDF::FresnelSchlick(F0, surface.whdotwo);
-		
-		float3 brdfCostheta = BRDF::ComputeSurfaceBRDF(surface);
-		
-		return brdfCostheta;
-	}
-	
 	// skips sample position and normal
 	SpecularReservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputDIdx)
 	{

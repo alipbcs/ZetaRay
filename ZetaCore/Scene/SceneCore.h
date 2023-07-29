@@ -29,8 +29,8 @@ namespace ZetaRay::Scene
 	{
 		Model::RT_MESH_MODE MeshMode;
 		uint8_t InstanceMask;
-		uint8_t RebuildFlag;
-		uint8_t UpdateFlag;
+		bool RebuildFlag;
+		bool UpdateFlag;
 	};
 
 	ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update)
@@ -42,8 +42,8 @@ namespace ZetaRay::Scene
 		return RT_Flags{
 			.MeshMode = (Model::RT_MESH_MODE)(f >> 6),
 			.InstanceMask = (uint8_t)(f & 0xf),
-			.RebuildFlag = uint8_t((f >> 4) & 0x1),
-			.UpdateFlag = uint8_t((f >> 5) & 0x1) };
+			.RebuildFlag = bool((f >> 4) & 0x1),
+			.UpdateFlag = bool((f >> 5) & 0x1) };
 	}
 
 	class SceneCore

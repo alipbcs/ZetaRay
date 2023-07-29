@@ -16,7 +16,7 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 	for (int i = 0; i < 2; i++)
 	{
 		data.RTVDescTable[i] = App::GetRenderer().GetRtvDescriptorHeap().Allocate(GBufferData::COUNT);
-		data.SRVDescTable[i] = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(GBufferData::COUNT);
+		data.SRVDescTable[i] = App::GetRenderer().GetGpuDescriptorHeap().Allocate(GBufferData::COUNT);
 		data.DSVDescTable[i] = App::GetRenderer().GetDsvDescriptorHeap().Allocate(1);
 	}
 
@@ -27,7 +27,7 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 	DXGI_FORMAT rtvFormats[NUM_RTVs] = {
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL],
-		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS],
+		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALLIC_ROUGHNESS],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR],
 		GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE] };
@@ -90,28 +90,28 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		}
 	}
 
-	// metalness-roughness
+	// metallic-roughness
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
-		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS];
+		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALLIC_ROUGHNESS];
 
 		for (int i = 0; i < 2; i++)
 		{
-			StackStr(name, n, "GBuffer_Metalness_Roughness_%d", i);
+			StackStr(name, n, "GBuffer_Metallic_Roughness_%d", i);
 
-			data.MetalnessRoughness[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
-				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALNESS_ROUGHNESS],
+			data.MetallicRoughness[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
+				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALLIC_ROUGHNESS],
 				D3D12_RESOURCE_STATE_COMMON,
 				TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 				1,
 				&clearValue));
 
 			// RTV
-			Direct3DHelper::CreateRTV(data.MetalnessRoughness[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
+			Direct3DHelper::CreateRTV(data.MetallicRoughness[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
 
 			// SRV
-			Direct3DHelper::CreateTexture2DSRV(data.MetalnessRoughness[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
+			Direct3DHelper::CreateTexture2DSRV(data.MetallicRoughness[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
 		}
 	}
 
@@ -141,7 +141,7 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 	{
 		D3D12_CLEAR_VALUE clearValue = {};
 		memset(clearValue.Color, 0, sizeof(float) * 4);
-		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR];
+		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR];
 
 		data.EmissiveColor = ZetaMove(gpuMem.GetTexture2D("GBuffer_EmissiveColor", width, height,
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR],
@@ -230,7 +230,7 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 	{
 		data.Normal[i].Reset();
 		data.DepthBuffer[i].Reset();
-		data.MetalnessRoughness[i].Reset();
+		data.MetallicRoughness[i].Reset();
 		data.RTVDescTable[i].Reset();
 		data.SRVDescTable[i].Reset();
 		data.DSVDescTable[i].Reset();
@@ -274,16 +274,17 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 			if (meshID == SceneCore::NULL_MESH)
 				continue;
 
-			const TriangleMesh mesh = scene.GetMesh(meshID);
-			Material mat;
-			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
-			Assert(found, "material with id %llu was not found", mesh.m_materialID);
+			TriangleMesh* mesh = scene.GetMesh(meshID);
+			Assert(mesh, "mesh with id %llu was not found", meshID);
 
-			gbuffInstances[currInstance].IndexCount = mesh.m_numIndices;
-			gbuffInstances[currInstance].BaseVtxOffset = (uint32_t)mesh.m_vtxBuffStartOffset;
-			gbuffInstances[currInstance].BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
-			gbuffInstances[currInstance].IdxInMatBuff = (uint16_t)mat.GpuBufferIndex();
-			gbuffInstances[currInstance].IsDoubleSided = mat.IsDoubleSided();
+			Material* mat = scene.GetMaterial(mesh->m_materialID);
+			Assert(mat, "material with id %llu was not found", mesh->m_materialID);
+
+			gbuffInstances[currInstance].IndexCount = mesh->m_numIndices;
+			gbuffInstances[currInstance].BaseVtxOffset = (uint32_t)mesh->m_vtxBuffStartOffset;
+			gbuffInstances[currInstance].BaseIdxOffset = (uint32_t)mesh->m_idxBuffStartOffset;
+			gbuffInstances[currInstance].IdxInMatBuff = (uint16_t)mat->GpuBufferIndex();
+			gbuffInstances[currInstance].IsDoubleSided = mat->IsDoubleSided();
 
 			currInstance++;
 		}
@@ -314,8 +315,8 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::NORMAL,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_NORMAL));
-	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::METALNESS_ROUGHNESS,
-		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_METALNESS_ROUGHNESS));
+	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::METALLIC_ROUGHNESS,
+		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::MOTION_VECTOR,
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::EMISSIVE_COLOR,
@@ -341,7 +342,7 @@ void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
 	{
 		renderGraph.RegisterResource(data.Normal[i].GetResource(), data.Normal[i].GetPathID());
 		renderGraph.RegisterResource(data.DepthBuffer[i].GetResource(), data.DepthBuffer[i].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		renderGraph.RegisterResource(data.MetalnessRoughness[i].GetResource(), data.MetalnessRoughness[i].GetPathID());
+		renderGraph.RegisterResource(data.MetallicRoughness[i].GetResource(), data.MetallicRoughness[i].GetPathID());
 	}
 
 	renderGraph.RegisterResource(data.BaseColor.GetResource(), data.BaseColor.GetPathID());
@@ -364,7 +365,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 	renderGraph.AddOutput(data.ClearHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.MetalnessRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.MetallicRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
 	renderGraph.AddOutput(data.ClearHandle, data.Curvature.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
@@ -375,7 +376,7 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, 
 
 	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.MetalnessRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.MetallicRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.GBuffPassHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
