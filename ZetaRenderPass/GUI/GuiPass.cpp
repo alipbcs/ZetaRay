@@ -10,7 +10,6 @@
 #include <App/Timer.h>
 #include <Utility/SynchronizedView.h>
 
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
 #include <algorithm>

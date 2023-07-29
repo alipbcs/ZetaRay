@@ -21,7 +21,6 @@
 #define XXH_IMPLEMENTATION 
 #include <xxHash/xxhash.h>
 
-#define IMGUI_DEFINE_MATH_OPERATORS
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
 #include <ImGui/imnodes.h>
@@ -400,6 +399,8 @@ namespace ZetaRay::AppImpl
 
 		io.UserData = &g_app->m_rebuildFontTexDlg;
 		LoadFont();
+
+		ImNodes::GetIO().AltMouseButton = ImGuiMouseButton_Right;
 	}
 
 	void UpdateStats() noexcept

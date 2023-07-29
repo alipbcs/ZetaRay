@@ -3,6 +3,7 @@ include("${CMAKE_INCLUDE_DIR}/SetupAgilitySDK.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupWinPIX.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupxxHash.cmake")
 include("${CMAKE_INCLUDE_DIR}/Setupcgltf.cmake")
+include("${CMAKE_INCLUDE_DIR}/SetupImGui.cmake")
 
 add_subdirectory(App)
 add_subdirectory(Core)
@@ -25,8 +26,11 @@ set(CORE_SRC
 	${UTIL_SRC}
 	${WIN32_SRC})
 
+# 
 # ImGui
-set(IMGUI_DIR "${EXTERNAL_DIR}/imgui")
+# 
+SetupImGui()
+set(IMGUI_DIR "${EXTERNAL_DIR}/ImGui")
 set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
 	"${IMGUI_DIR}/imconfig.h"
 	"${IMGUI_DIR}/imgui_draw.cpp"
@@ -47,7 +51,7 @@ source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
 
 # build ZetaCore as a static library
 add_library(ZetaCore STATIC ${CORE_SRC} ${IMGUI_SRC} ${NATVIS_SRC})
-target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR})
+target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR} ${IMGUI_DIR})
 set_target_properties(ZetaCore PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 # 
