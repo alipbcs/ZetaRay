@@ -672,11 +672,11 @@ namespace ZetaRay::Util
 
 		const Allocator& GetAllocator() { return m_allocator; }
 
-		T* m_beg = nullptr;		// pointer to the begining of memory-block
+		T* m_beg = nullptr;		// pointer to the begining of memory block
 		T* m_end = nullptr;		// pointer to element to insert at next (one past the last inserted element)
-		T* m_last = nullptr;	// pointer to the end of memory-block
+		T* m_last = nullptr;	// pointer to the end of memory block
 
-		Allocator m_allocator;
+		[[msvc::no_unique_address]] Allocator m_allocator;
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -689,7 +689,7 @@ namespace ZetaRay::Util
 		alignas(T) uint8_t Buffer[sizeof(T) * N];
 	};
 
-	// reminder: empty struct has size 1
+	// reminder: empty struct occupies one byte (unless c++20 [[no_unique_address]] is used)
 	template<typename T>
 	struct InlineStorage<T, 0>
 	{};
