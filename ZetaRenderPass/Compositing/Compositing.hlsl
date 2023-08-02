@@ -18,7 +18,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Helper Functions
 //--------------------------------------------------------------------------------------
 
-float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metalness, float3 posW, float3 normal,
+float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
 	inout BRDF::SurfaceInteraction surface)
 {
 #if 0
@@ -38,8 +38,8 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metalness, float3 p
 	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
 		
-	surface.InitComplete(-g_frame.SunDir, baseColor, metalness, normal);
-	float3 f = BRDF::ComputeSurfaceBRDF(surface);
+	surface.SetWi(-g_frame.SunDir, normal);
+	float3 f = BRDF::SurfaceBRDF(surface);
 	
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -101,58 +101,75 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
-	GBUFFER_METALNESS_ROUGHNESS g_metalnessRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::METALNESS_ROUGHNESS];
-	const float2 mr = g_metalnessRoughness[DTid.xy];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+	const float2 mr = g_metallicRoughness[DTid.xy];
 
-	const bool isMetallic = mr.x >= MIN_METALNESS_METAL;
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::InitPartial(normal, mr.y, wo);
+	bool isMetallic;
+	bool hasBaseColorTexture;
+	bool isEmissive;
+	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
-	GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-		GBUFFER_OFFSET::EMISSIVE_COLOR];
-	float3 L_e = g_emissiveColor[DTid.xy].rgb;
-	color += L_e;
-
-	if (g_local.SunLighting)
-		color += SunDirectLighting(DTid.xy, baseColor, isMetallic, posW, normal, surface);
-
-	if (g_local.SkyLighting)
+	if(!isEmissive)
 	{
-		Texture2D<float4> g_directDenoised = ResourceDescriptorHeap[g_local.DirectDNSRCacheDescHeapIdx];
-		float3 skyLo = g_directDenoised[DTid.xy].rgb;
-		
-		color += skyLo;
-	}
+		if (g_local.SunLighting)
+			color += SunDirectLighting(DTid.xy, baseColor, isMetallic, posW, normal, surface);
 
-	const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
-	const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
-	
-	const bool includeIndDiff = g_local.DiffuseIndirect && !isMetallic;
-	const bool includeIndSpec = g_local.SpecularIndirect && (isMetallic || mr.y <= g_local.RoughnessCutoff);
-	
-	if (includeIndDiff)
-	{
-		Texture2D<float4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
-		float3 L_indDiff = g_diffuseTemporalCache[DTid.xy].rgb;
-		L_indDiff *= diffuseReflectance;
+		if (g_local.SkyLighting)
+		{
+			Texture2D<float4> g_directDenoised = ResourceDescriptorHeap[g_local.SkyDIDenoisedDescHeapIdx];
+			float3 skyLo = g_directDenoised[DTid.xy].rgb;
 		
+			color += skyLo;
+		}
+
+		const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
+		const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
+	
+		const bool includeIndDiff = g_local.DiffuseIndirect && !isMetallic;
+		const bool includeIndSpec = g_local.SpecularIndirect && (isMetallic || mr.y <= g_local.RoughnessCutoff);
+	
+		if (includeIndDiff)
+		{
+			Texture2D<float4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
+			float3 L_indDiff = g_diffuseTemporalCache[DTid.xy].rgb;
+			L_indDiff *= diffuseReflectance;
+		
+			if (includeIndSpec)
+				L_indDiff *= 0.5f;
+		
+			color += L_indDiff;
+		}
+	
 		if (includeIndSpec)
-			L_indDiff *= 0.5f;
-		
-		color += L_indDiff;
-	}
-	
-	if (includeIndSpec)
-	{
-		Texture2D<float4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
-		float3 L_indSpec = g_specularTemporalCache[DTid.xy].rgb;
+		{
+			Texture2D<float4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
+			float3 L_indSpec = g_specularTemporalCache[DTid.xy].rgb;
 
-		// check against diffuse can lead to discontinuities, but diffuse is 
-		// a more low-frequency signal, so sudden changes should be less common
-		if (includeIndDiff && diffuseReflectanceLum > 5e-4)
-			L_indSpec *= 0.5;
+			// check against diffuse can lead to discontinuities, but diffuse is 
+			// a more low-frequency signal, so sudden changes should be less common
+			if (includeIndDiff && diffuseReflectanceLum > 5e-4)
+				L_indSpec *= 0.5;
 		
-		color += L_indSpec;
+			color += L_indSpec;
+		}
+	
+		if (g_local.EmissiveLighting)
+		{
+			Texture2D<half4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDenoisedDescHeapIdx];
+			float3 L_d = g_emissive[DTid.xy].rgb;
+			float count = g_emissive[DTid.xy].a;
+
+			color += L_d / count;
+		}
+	}
+	else
+	{
+		GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+			GBUFFER_OFFSET::EMISSIVE_COLOR];
+		float3 L_e = g_emissiveColor[DTid.xy].rgb;
+		color = L_e;
 	}
 	
 	if (g_local.AccumulateInscattering)

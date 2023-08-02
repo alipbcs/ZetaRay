@@ -20,6 +20,7 @@
 #include <RayTracing/RtAccelerationStructure.h>
 #include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
+#include <DirectLighting/DirectLighting.h>
 
 // Note: with a functional-style API dependencies become more clear, which 
 // results in fewer data-race issues and simpler debugging
@@ -32,9 +33,8 @@ namespace ZetaRay::DefaultRenderer::Settings
 {
 	enum class AA
 	{
-		NATIVE,
-		NATIVE_TAA,
-		POINT,
+		NONE,
+		TAA,
 		FSR2,
 		COUNT
 	};
@@ -42,7 +42,7 @@ namespace ZetaRay::DefaultRenderer::Settings
 
 namespace ZetaRay::DefaultRenderer
 {
-	inline static const char* AAOptions[] = { "Native", "Native+TAA", "Point", "AMD FSR 2.2 (Quality)" };
+	inline static const char* AAOptions[] = { "None", "TAA", "AMD FSR 2.2 (Quality)" };
 	static_assert((int)Settings::AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> strings mismatch.");
 
 	struct alignas(64) RenderSettings
@@ -51,8 +51,9 @@ namespace ZetaRay::DefaultRenderer
 		bool DoF = false;
 		bool SkyIllumination = false;
 		bool FireflyFilter = false;
+		bool EmissiveLighting = true;
 		// Note match with default PendingAA
-		Settings::AA AntiAliasing = Settings::AA::NATIVE_TAA;
+		Settings::AA AntiAliasing = Settings::AA::TAA;
 	};
 
 	struct alignas(64) GBufferData
@@ -61,7 +62,7 @@ namespace ZetaRay::DefaultRenderer
 		{
 			GBUFFER_BASE_COLOR,
 			GBUFFER_NORMAL,
-			GBUFFER_METALNESS_ROUGHNESS,
+			GBUFFER_METALLIC_ROUGHNESS,
 			GBUFFER_MOTION_VECTOR,
 			GBUFFER_EMISSIVE_COLOR,
 			GBUFFER_CURVATURE,
@@ -71,11 +72,11 @@ namespace ZetaRay::DefaultRenderer
 
 		inline static const DXGI_FORMAT GBUFFER_FORMAT[GBUFFER::COUNT] =
 		{
-			DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+			DXGI_FORMAT_R8G8B8A8_UNORM,
 			DXGI_FORMAT_R16G16_FLOAT,
 			DXGI_FORMAT_R8G8_UNORM,
 			DXGI_FORMAT_R16G16_FLOAT,
-			DXGI_FORMAT_R8G8B8A8_UNORM_SRGB,
+			DXGI_FORMAT_R11G11B10_FLOAT,
 			DXGI_FORMAT_R16_FLOAT,
 			DXGI_FORMAT_D32_FLOAT
 		};
@@ -83,7 +84,7 @@ namespace ZetaRay::DefaultRenderer
 		// previous frame's gbuffers are required for denoising and ReSTIR
 		Core::Texture BaseColor;
 		Core::Texture Normal[2];
-		Core::Texture MetalnessRoughness[2];
+		Core::Texture MetallicRoughness[2];
 		Core::Texture MotionVec;
 		Core::Texture EmissiveColor;
 		Core::Texture DepthBuffer[2];
@@ -112,15 +113,21 @@ namespace ZetaRay::DefaultRenderer
 			COUNT
 		};
 
+		enum class DESC_TABLE_WND_SIZE_CONST
+		{
+			DENOISED_DIRECT_LIGHITNG,
+			COUNT
+		};
+
 		enum class DESC_TABLE_PER_FRAME
 		{
-			RAW_SHADOW_MASK,
 			DENOISED_SHADOW_MASK,
 			COUNT
 		};
 
-		Core::DescriptorTable GpuDescTable;
-		Core::DescriptorTable SunShadowGpuDescTable;
+		Core::DescriptorTable ConstDescTable;
+		Core::DescriptorTable WndConstDescTable;
+		Core::DescriptorTable PerFrameDescTable;
 
 		Core::DescriptorTable HdrLightAccumRTV;
 
@@ -136,6 +143,15 @@ namespace ZetaRay::DefaultRenderer
 
 		RenderPass::Sky SkyPass;
 		Core::RenderNodeHandle SkyHandle;
+
+		RenderPass::EmissiveTriangleLumen EmissiveTriLumen;
+		Core::RenderNodeHandle EmissiveTriLumenHandle;
+
+		RenderPass::EmissiveTriangleAliasTable EmissiveAliasTable;
+		Core::RenderNodeHandle EmissiveAliasTableHandle;
+
+		RenderPass::DirectLighting DirecLightingPass;
+		Core::RenderNodeHandle DirecLightingHandle;
 	};
 
 	struct alignas(64) PostProcessData
@@ -188,22 +204,26 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::SkyDI SkyDI_Pass;
 		Core::RenderNodeHandle SkyDI_Handle;
 
-		// Descriptors
-		enum DESC_TABLE
+		// descriptor tables
+		enum class DESC_TABLE_WND_SIZE_CONST
 		{
-			DIFFUSE_DNSR_TEMPORAL_CACHE,
-			DIFFUSE_TEMPORAL_RESERVOIR_A,
-			DIFFUSE_TEMPORAL_RESERVOIR_B,
-			DIFFUSE_TEMPORAL_RESERVOIR_C,
-			DIFFUSE_SPATIAL_RESERVOIR_A,
-			DIFFUSE_SPATIAL_RESERVOIR_B,
-			DIFFUSE_SPATIAL_RESERVOIR_C,
-			SPECULAR_DNSR_TEMPORAL_CACHE,
-			SKY_DNSR_TEMPORAL_CACHE,
+			SPECULAR_INDIRECT_DENOISED,
+			SKY_DI_DENOISED,
 			COUNT
 		};
 
-		Core::DescriptorTable DescTableAll;
+		enum class DESC_TABLE_PER_FRAME
+		{
+			DIFFUSE_TEMPORAL_RESERVOIR_A,
+			DIFFUSE_TEMPORAL_RESERVOIR_B,
+			DIFFUSE_SPATIAL_RESERVOIR_A,
+			DIFFUSE_SPATIAL_RESERVOIR_B,
+			DIFFUSE_INDIRECT_DENOISED,
+			COUNT
+		};
+
+		Core::DescriptorTable PerFrameDescTable;
+		Core::DescriptorTable WndConstDescTable;
 	};
 
 	struct PrivateData
@@ -220,7 +240,7 @@ namespace ZetaRay::DefaultRenderer
 		RayTracerData m_raytracerData;
 
 		// Note match with default RenderSettings
-		Settings::AA PendingAA = Settings::AA::NATIVE_TAA;
+		Settings::AA PendingAA = Settings::AA::TAA;
 	};
 
 	struct Defaults

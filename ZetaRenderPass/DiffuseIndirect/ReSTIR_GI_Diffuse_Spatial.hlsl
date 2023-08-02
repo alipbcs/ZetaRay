@@ -225,7 +225,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 //	if (g_local.IsFirstPass || r.M < 2)
 	if (g_local.DoSpatialResampling)
 	{
-		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
+		RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 		DoSpatialResampling(swizzledDTid, posW, normal, linearDepth, mr.y, r, rng);
 	}
 

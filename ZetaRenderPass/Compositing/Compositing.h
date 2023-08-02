@@ -24,9 +24,10 @@ namespace ZetaRay::RenderPass
 		{
 			DIFFUSE_DNSR_CACHE,
 			SPECULAR_DNSR_CACHE,
-			DIRECT_DNSR_CACHE,
+			SKY_DI_DENOISED,
 			INSCATTERING,
 			SUN_SHADOW,
+			EMISSIVE_DI_DENOISED,
 			COUNT
 		};
 
@@ -69,8 +70,11 @@ namespace ZetaRay::RenderPass
 			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
 				m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
 				return;
-			case SHADER_IN_GPU_DESC::DIRECT_DNSR_CACHE:
-				m_cbComposit.DirectDNSRCacheDescHeapIdx = descHeapIdx;
+			case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
+				m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
+				return;
+			case SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED:
+				m_cbComposit.EmissiveDIDenoisedDescHeapIdx = descHeapIdx;
 				return;
 			default:
 				Assert(false, "unreachable case.");
@@ -152,6 +156,7 @@ namespace ZetaRay::RenderPass
 		void SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
+		void SetEmissiveEnablementCallback(const Support::ParamVariant& p) noexcept;
 		void FocusDistCallback(const Support::ParamVariant& p) noexcept;
 		void FStopCallback(const Support::ParamVariant& p) noexcept;
 		void FocalLengthCallback(const Support::ParamVariant& p) noexcept;

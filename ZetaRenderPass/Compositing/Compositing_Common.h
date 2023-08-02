@@ -22,7 +22,8 @@ struct cbCompositing
 	uint32_t InscatteringDescHeapIdx;
 	uint32_t SunShadowDescHeapIdx;
 	uint32_t SpecularDNSRCacheDescHeapIdx;
-	uint32_t DirectDNSRCacheDescHeapIdx;
+	uint32_t SkyDIDenoisedDescHeapIdx;
+	uint32_t EmissiveDIDenoisedDescHeapIdx;
 
 	float DepthMappingExp;
 	float VoxelGridNearZ;
@@ -38,6 +39,7 @@ struct cbCompositing
 	uint16_t DiffuseIndirect;
 	uint16_t SpecularIndirect;
 	uint16_t AccumulateInscattering;
+	uint16_t EmissiveLighting;
 };
 
 struct cbFireflyFilter

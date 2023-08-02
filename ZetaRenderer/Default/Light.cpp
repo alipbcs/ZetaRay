@@ -9,12 +9,17 @@ using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::DefaultRenderer;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Scene;
 
 void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 {
 	auto& renderer = App::GetRenderer();
 	data.HdrLightAccumRTV = renderer.GetRtvDescriptorHeap().Allocate(1);
-	data.GpuDescTable = renderer.GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_CONST::COUNT);
+	
+	// descriptor talbes
+	data.ConstDescTable = renderer.GetGpuDescriptorHeap().Allocate((int)LightData::DESC_TABLE_CONST::COUNT);
+	data.WndConstDescTable = renderer.GetGpuDescriptorHeap().Allocate((int)LightData::DESC_TABLE_WND_SIZE_CONST::COUNT);
+	data.PerFrameDescTable = renderer.GetGpuDescriptorHeap().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
 
 	// sun shadow
 	data.SunShadowPass.Init();
@@ -22,24 +27,31 @@ void Light::Init(const RenderSettings& settings, LightData& data) noexcept
 	// compositing
 	data.CompositingPass.Init(settings.DoF, settings.SkyIllumination, settings.FireflyFilter);
 	const Core::Texture& lightAccum = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT);
-
-	// sky dome
-	data.SkyDomePass.Init(lightAccum.GetDesc().Format);
-
-	// inscattering + sku-view lut
-	data.SkyPass.Init(LightData::SKY_LUT_WIDTH, LightData::SKY_LUT_HEIGHT, settings.Inscattering);
-
-	// descriptors
-	Direct3DHelper::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
-		data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV));
-
 	// RTV
 	Direct3DHelper::CreateRTV(lightAccum, data.HdrLightAccumRTV.CPUHandle(0));
 
 	if (settings.Inscattering)
 	{
 		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
+			data.ConstDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
+	}
+
+	// sky dome
+	data.SkyDomePass.Init(lightAccum.GetDesc().Format);
+
+	// inscattering + sku-view lut
+	data.SkyPass.Init(LightData::SKY_LUT_WIDTH, LightData::SKY_LUT_HEIGHT, settings.Inscattering);
+	Direct3DHelper::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
+		data.ConstDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV));
+
+	// direct lighting
+	if (settings.EmissiveLighting)
+	{
+		data.EmissiveTriLumen.Init();
+		data.DirecLightingPass.Init();
+
+		const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED);
+		Direct3DHelper::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle((int)LightData::DESC_TABLE_WND_SIZE_CONST::DENOISED_DIRECT_LIGHITNG));
 	}
 }
 
@@ -53,22 +65,27 @@ void Light::OnWindowSizeChanged(const RenderSettings& settings, LightData& data)
 
 	if (data.SunShadowPass.IsInitialized())
 		data.SunShadowPass.OnWindowResized();
+
+	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
+	{
+		data.DirecLightingPass.OnWindowResized();
+
+		const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED);
+		Direct3DHelper::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle((int)LightData::DESC_TABLE_WND_SIZE_CONST::DENOISED_DIRECT_LIGHITNG));
+	}
 }
 
 void Light::Shutdown(LightData& data) noexcept
 {
-	//data.AnalyticalAliasTableBuff.Reset();
-	//data.AnalyticalLightBuff.Reset();
-	//data.AnalyticalLightSources.free();
-	//data.EmissiveAliasTable.Reset();
-	//data.EmissiveTrianglesBuff.Reset();
-	//data.EmissiveTriangles.free_memory();
 	data.HdrLightAccumRTV.Reset();
-	data.GpuDescTable.Reset();
+	data.ConstDescTable.Reset();
+	data.WndConstDescTable.Reset();
+	data.PerFrameDescTable.Reset();
 	data.CompositingPass.Reset();
 	data.SunShadowPass.Reset();
 	data.SkyDomePass.Reset();
 	data.SkyPass.Reset();
+	data.DirecLightingPass.Reset();
 }
 
 void Light::Update(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
@@ -79,7 +96,7 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 		data.SkyPass.SetInscatteringEnablement(true);
 
 		Direct3DHelper::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-			data.GpuDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
+			data.ConstDescTable.CPUHandle((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
 	}
 	else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
 		data.SkyPass.SetInscatteringEnablement(false);
@@ -95,34 +112,29 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 
 	if (tlas.IsInitialized())
 	{
-		// indirect diffuse
+		// diffuse indirect
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::DIFFUSE_DNSR_TEMPORAL_CACHE));
+			rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_INDIRECT_DENOISED));
 
-		// indirect specular
+		// specular indirect
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
-			rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE));
+			rayTracerData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SPECULAR_INDIRECT_DENOISED));
 
 		// sky DI
 		if (settings.SkyIllumination)
 		{
-			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DIRECT_DNSR_CACHE,
-				rayTracerData.DescTableAll.GPUDesciptorHeapIndex(RayTracerData::DESC_TABLE::SKY_DNSR_TEMPORAL_CACHE));
+			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI_DENOISED,
+				rayTracerData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
 		}
 
 		// sun shadow temporal cache changes every frame
-		data.SunShadowGpuDescTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
+		data.PerFrameDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)LightData::DESC_TABLE_PER_FRAME::COUNT);
 
 		Direct3DHelper::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST),
-			data.SunShadowGpuDescTable.CPUHandle((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
+			data.PerFrameDescTable.CPUHandle((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
 
-		Direct3DHelper::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK),
-			data.SunShadowGpuDescTable.CPUHandle((int)LightData::DESC_TABLE_PER_FRAME::RAW_SHADOW_MASK));
-
-//		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
-//			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex(0));
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
-			data.SunShadowGpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
+			data.PerFrameDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
 
 		// make sure compistor and indirect specular have matching roughness cutoffs
 		data.CompositingPass.SetRoughnessCutoff(rayTracerData.ReSTIR_GI_SpecularPass.GetRoughnessCutoff());
@@ -139,10 +151,34 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 			data.CompositingPass.SetVoxelGridMappingExp(p);
 			data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
 			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
-				data.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
+				data.ConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::INSCATTERING_SRV));
 		}
 		else
 			data.CompositingPass.SetInscatteringEnablement(false);
+	}
+
+	// recompute alias table only if there are stale emissives
+	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
+	{
+		if (!data.DirecLightingPass.IsInitialized())
+		{
+			data.DirecLightingPass.Init();
+
+			const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED);
+			Direct3DHelper::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle((int)LightData::DESC_TABLE_WND_SIZE_CONST::DENOISED_DIRECT_LIGHITNG));
+		}
+
+		data.EmissiveTriLumen.Update();
+		data.DirecLightingPass.Update();
+
+		if (App::GetScene().AreEmissivesStale())
+		{
+			auto& readback = data.EmissiveTriLumen.GetReadbackBuffer();
+			data.EmissiveAliasTable.Update(&readback);
+		}
+
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED,
+			data.WndConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_WND_SIZE_CONST::DENOISED_DIRECT_LIGHITNG));
 	}
 }
 
@@ -166,7 +202,7 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 	if (isTLASbuilt)
 	{
 		fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyPass, &Sky::Render);
-		data.SkyHandle = renderGraph.RegisterRenderPass("Sky", RENDER_NODE_TYPE::ASYNC_COMPUTE, dlg);
+		data.SkyHandle = renderGraph.RegisterRenderPass("Sky", RENDER_NODE_TYPE::COMPUTE, dlg);
 
 		if (settings.Inscattering)
 		{
@@ -202,71 +238,183 @@ void Light::Register(const RenderSettings& settings, LightData& data, const RayT
 		data.SkyDomeHandle = renderGraph.RegisterRenderPass("SkyDome", RENDER_NODE_TYPE::RENDER, dlg);
 	}
 
+	// direct lighting
+	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
+	{
+		if (App::GetScene().AreEmissivesStale())
+		{
+			fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.EmissiveTriLumen,
+				&EmissiveTriangleLumen::Render);
+			data.EmissiveTriLumenHandle = renderGraph.RegisterRenderPass("EmissiveTriLumen", RENDER_NODE_TYPE::COMPUTE, dlg1, true);
+
+			auto& triLumenBuff = data.EmissiveTriLumen.GetLumenBuffer();
+			renderGraph.RegisterResource(triLumenBuff.GetResource(), triLumenBuff.GetPathID(), D3D12_RESOURCE_STATE_COPY_SOURCE, false);
+
+			fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.EmissiveAliasTable,
+				&EmissiveTriangleAliasTable::Render);
+			data.EmissiveAliasTableHandle = renderGraph.RegisterRenderPass("EmissiveAliasTable", RENDER_NODE_TYPE::COMPUTE, dlg2, true);
+
+			auto& aliasTable = data.EmissiveAliasTable.GetOutput(EmissiveTriangleAliasTable::SHADER_OUT_RES::ALIAS_TABLE);
+			renderGraph.RegisterResource(aliasTable.GetResource(), aliasTable.GetPathID(), D3D12_RESOURCE_STATE_COMMON, false);
+
+			data.EmissiveAliasTable.SetEmissiveTriPassHandle(data.EmissiveTriLumenHandle);
+		}
+
+		if (isTLASbuilt)
+		{
+			fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DirecLightingPass,
+				&DirectLighting::Render);
+			data.DirecLightingHandle = renderGraph.RegisterRenderPass("DirectLighting", RENDER_NODE_TYPE::COMPUTE, dlg3);
+
+			Texture& t = const_cast<Texture&>(data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED));
+			renderGraph.RegisterResource(t.GetResource(), t.GetPathID());
+		}
+	}
+
 	// compositing
 	fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.CompositingPass,
 		&Compositing::Render);
 	data.CompositingHandle = renderGraph.RegisterRenderPass("Compositing", RENDER_NODE_TYPE::COMPUTE, dlg);
 }
 
-void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightData, const GBufferData& gbuffData,
+void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
 	const RayTracerData& rayTracerData, RenderGraph& renderGraph) noexcept
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	auto& tlas = const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS();
 	const bool isTLASbuilt = tlas.IsInitialized();
+	const auto numEmissives = App::GetScene().NumEmissiveInstances();
 
 	// inscattering + sky-view lut
 	if (settings.Inscattering && isTLASbuilt)
 	{
 		// RT_AS
-		renderGraph.AddInput(lightData.SkyHandle,
+		renderGraph.AddInput(data.SkyHandle,
 			const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-		renderGraph.AddOutput(lightData.SkyHandle,
-			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
+		renderGraph.AddOutput(data.SkyHandle,
+			data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		renderGraph.AddOutput(lightData.SkyHandle,
-			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
+		renderGraph.AddOutput(data.SkyHandle,
+			data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	}
+
+	// direct lighting
+	if (settings.EmissiveLighting && numEmissives)
+	{
+		if (App::GetScene().AreEmissivesStale())
+		{
+			const auto& triLumenBuff = data.EmissiveTriLumen.GetLumenBuffer();
+
+			renderGraph.AddOutput(data.EmissiveTriLumenHandle,
+				triLumenBuff.GetPathID(),
+				D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+			renderGraph.AddInput(data.EmissiveAliasTableHandle,
+				triLumenBuff.GetPathID(),
+				D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+			renderGraph.AddOutput(data.EmissiveAliasTableHandle,
+				data.EmissiveAliasTable.GetOutput(EmissiveTriangleAliasTable::SHADER_OUT_RES::ALIAS_TABLE).GetPathID(),
+				D3D12_RESOURCE_STATE_COPY_DEST);
+		}
+
+		if (isTLASbuilt)
+		{
+			if (App::GetScene().AreEmissivesStale())
+			{
+				renderGraph.AddInput(data.DirecLightingHandle,
+					data.EmissiveAliasTable.GetOutput(EmissiveTriangleAliasTable::SHADER_OUT_RES::ALIAS_TABLE).GetPathID(),
+					D3D12_RESOURCE_STATE_COPY_DEST);
+			}
+
+			// RT-AS
+			renderGraph.AddInput(data.DirecLightingHandle,
+				const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().GetPathID(),
+				D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+
+			// prev gbuffers
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.Normal[outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.Normal[1 - outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.MetallicRoughness[outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.MetallicRoughness[1 - outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.DepthBuffer[outIdx].GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.MotionVec.GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.BaseColor.GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			//renderGraph.AddInput(data.DirecLightingHandle,
+			//	gbuffData.Curvature.ID(),
+			//	D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			// output reservoirs
+			renderGraph.AddOutput(data.DirecLightingHandle,
+				data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).GetPathID(),
+				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		}
 	}
 
 	// sun shadow
 	if (isTLASbuilt)
 	{
 		// RT_AS
-		renderGraph.AddInput(lightData.SunShadowHandle,
+		renderGraph.AddInput(data.SunShadowHandle,
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
 		// make sure it runs post gbuffer
-		renderGraph.AddInput(lightData.SunShadowHandle,
+		renderGraph.AddInput(data.SunShadowHandle,
 			gbuffData.DepthBuffer[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightData.SunShadowHandle,
+		renderGraph.AddInput(data.SunShadowHandle,
 			gbuffData.DepthBuffer[1 - outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightData.SunShadowHandle,
+		renderGraph.AddInput(data.SunShadowHandle,
 			gbuffData.Normal[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightData.SunShadowHandle,
+		renderGraph.AddInput(data.SunShadowHandle,
 			gbuffData.MotionVec.GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddOutput(lightData.SunShadowHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
+		renderGraph.AddOutput(data.SunShadowHandle,
+			data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		renderGraph.AddInput(lightData.SunShadowHandle,
-			lightData.SunShadowPass.GetInput(SunShadow::SHADER_IN_RES::TEMPORAL_CACHE_IN).GetPathID(),
+		renderGraph.AddInput(data.SunShadowHandle,
+			data.SunShadowPass.GetInput(SunShadow::SHADER_IN_RES::TEMPORAL_CACHE_IN).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddOutput(lightData.SunShadowHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_PRE).GetPathID(),
+		renderGraph.AddOutput(data.SunShadowHandle,
+			data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_PRE).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
@@ -274,86 +422,94 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& lightD
 	if (isTLASbuilt)
 	{
 		// make sure it runs post gbuffer
-		renderGraph.AddInput(lightData.SkyDomeHandle, 
+		renderGraph.AddInput(data.SkyDomeHandle, 
 			gbuffData.Normal[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightData.SkyDomeHandle,
-			lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
+		renderGraph.AddInput(data.SkyDomeHandle,
+			data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT).GetPathID(),
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-		renderGraph.AddOutput(lightData.SkyDomeHandle,
+		renderGraph.AddOutput(data.SkyDomeHandle,
 			gbuffData.DepthBuffer[outIdx].GetPathID(),
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
 
-		renderGraph.AddOutput(lightData.SkyDomeHandle,
-			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
+		renderGraph.AddOutput(data.SkyDomeHandle,
+			data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
 			D3D12_RESOURCE_STATE_RENDER_TARGET);
 	}
 
 	// compositing
-	renderGraph.AddInput(lightData.CompositingHandle,
+	renderGraph.AddInput(data.CompositingHandle,
 		gbuffData.BaseColor.GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	renderGraph.AddInput(lightData.CompositingHandle,
+	renderGraph.AddInput(data.CompositingHandle,
 		gbuffData.Normal[outIdx].GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	renderGraph.AddInput(lightData.CompositingHandle,
+	renderGraph.AddInput(data.CompositingHandle,
 		gbuffData.DepthBuffer[outIdx].GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-	renderGraph.AddInput(lightData.CompositingHandle,
-		gbuffData.MetalnessRoughness[outIdx].GetPathID(),
+	renderGraph.AddInput(data.CompositingHandle,
+		gbuffData.MetallicRoughness[outIdx].GetPathID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 	if (isTLASbuilt)
 	{
 		// sun shadows
-		renderGraph.AddInput(lightData.CompositingHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST).GetPathID(),
+		renderGraph.AddInput(data.CompositingHandle,
+			data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::TEMPORAL_CACHE_OUT_POST).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		renderGraph.AddInput(lightData.CompositingHandle,
-			lightData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
+		renderGraph.AddInput(data.CompositingHandle,
+			data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// indirect diffuse
-		renderGraph.AddInput(lightData.CompositingHandle,
+		renderGraph.AddInput(data.CompositingHandle,
 			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// indirect specular
-		renderGraph.AddInput(lightData.CompositingHandle,
+		renderGraph.AddInput(data.CompositingHandle,
 			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).GetPathID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// sky di
 		if (settings.SkyIllumination)
 		{
-			renderGraph.AddInput(lightData.CompositingHandle,
+			renderGraph.AddInput(data.CompositingHandle,
 				rayTracerData.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).GetPathID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
+
+		// emissive di
+		if (settings.EmissiveLighting && numEmissives)
+		{
+			renderGraph.AddInput(data.CompositingHandle,
+				data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
 
 		// inscattering
 		if (settings.Inscattering)
 		{
-			renderGraph.AddInput(lightData.CompositingHandle,
-				lightData.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
+			renderGraph.AddInput(data.CompositingHandle,
+				data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING).GetPathID(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 		}
 	}
 
-	renderGraph.AddOutput(lightData.CompositingHandle, 
-		lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
+	renderGraph.AddOutput(data.CompositingHandle, 
+		data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT).GetPathID(),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	if (settings.DoF || settings.FireflyFilter)
 	{
-		renderGraph.AddOutput(lightData.CompositingHandle,
-			lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_FILTERED).GetPathID(),
+		renderGraph.AddOutput(data.CompositingHandle,
+			data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_FILTERED).GetPathID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 }

@@ -20,11 +20,49 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	uint32_t PcgHash(uint32_t x)
+	struct uint3
 	{
-		uint32_t state = x * 747796405u + 2891336453u;
-		uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
-		return (word >> 22u) ^ word;
+		uint3() = default;
+		uint3(uint32_t e0, uint32_t e1, uint32_t e2)
+			: x(e0), y(e1), z(e2)
+		{}
+
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+	};
+
+	uint3 operator+(uint3 v, uint32_t m)
+	{
+		return uint3(v.x + m, v.y + m, v.z + m);
+	}
+
+	uint3 operator*(uint3 v, uint32_t m)
+	{
+		return uint3(v.x * m, v.y * m, v.z * m);
+	}
+
+	uint3 operator>>(uint3 v, uint32_t m)
+	{
+		return uint3(v.x >> m, v.y >> m, v.z >> m);
+	}
+
+	uint3 operator^(uint3 v, uint3 m)
+	{
+		return uint3(v.x ^ m.x, v.y ^ m.y, v.z ^ m.z);
+	}
+
+	static uint3 Pcg3d(uint3 v)
+	{
+		v = v * 1664525u + 1013904223u;
+		v.x += v.y * v.z;
+		v.y += v.z * v.x;
+		v.z += v.x * v.y;
+		v = v ^ (v >> 16u);
+		v.x += v.y * v.z;
+		v.y += v.z * v.x;
+		v.z += v.x * v.y;
+		return v;
 	}
 }
 
@@ -169,8 +207,6 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 					{
 						auto& e = emissvies[instance];
 						const auto rtASInfo = GetInstanceRtASInfo(e.InstanceID);
-						const uint64_t partialCombined = (rtASInfo.GeometryIndex * 22093) ^ (rtASInfo.InstanceID * 521);
-						Assert(partialCombined <= UINT32_MAX, "hashed value overflowed.");
 
 						const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
 						if (equal(vW, I))
@@ -189,12 +225,10 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 
 							tris[t].StoreVertices(vV0, vV1, vV2);
 
-							// TODO ID initially contains triangle index within the respected mesh, after
-							// hashing below it's lost and subsequent runs will give wrong results as it
+							// TODO ID initially contains triangle index within each mesh, after
+							// hashing it below, it's lost and subsequent runs will give wrong results as it
 							// won't match the computation in rt shaders
-							uint64_t combined = partialCombined ^ (tris[t].ID * 5381);
-							Assert(combined <= UINT32_MAX, "hashed value overflowed.");
-							uint32_t hash = PcgHash(static_cast<uint32_t>(combined));
+							uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID, tris[t].ID)).x;
 
 							Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle after the first assignment is invalid.");
 							tris[t].ResetID(hash);

@@ -116,7 +116,7 @@ namespace ZetaRay::App
 	int GetNumBackgroundThreads() noexcept;
 	uint32_t GetDPI() noexcept;
 	float GetUpscalingFactor() noexcept;
-	void SetUpscalingEnablement(bool e) noexcept;
+	void SetUpscaleFactor(float f) noexcept;
 	bool IsFullScreen() noexcept;
 	const App::Timer& GetTimer() noexcept;
 

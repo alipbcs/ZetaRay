@@ -29,7 +29,7 @@ Compositing::Compositing() noexcept
 		0,																// register space
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
 		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER_NAME);
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
 }
 
 Compositing::~Compositing() noexcept
@@ -59,14 +59,12 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept
 			COMPILED_CS[i]);
 	}
 
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate((int)DESC_TABLE::COUNT);
-	CreateLightAccumTex();
-
-	m_cbComposit.AccumulateInscattering = false;
+	memset(&m_cbComposit, 0, sizeof(m_cbComposit));
 	m_cbComposit.SunLighting = true;
 	m_cbComposit.SkyLighting = skyIllum;
 	m_cbComposit.DiffuseIndirect = true;
 	m_cbComposit.SpecularIndirect = true;
+	m_cbComposit.EmissiveLighting = true;
 	m_cbComposit.RoughnessCutoff = 1.0f;
 	m_cbComposit.FocusDepth = 5.0f;
 	m_cbComposit.FocalLength = 50;
@@ -74,6 +72,9 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept
 	m_cbDoF.MaxBlurRadius = 16.0f;
 	m_cbDoF.RadiusScale = 1.6f;
 	m_cbDoF.MinLumToFilter = 1.0f;
+
+	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
+	CreateLightAccumTex();
 
 	ParamVariant p0;
 	p0.InitBool("Renderer", "Lighting", "SunLighting", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
@@ -89,6 +90,11 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept
 	p6.InitBool("Renderer", "Lighting", "SpecularIndirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
 		m_cbComposit.SpecularIndirect);
 	App::AddParam(p6);
+
+	ParamVariant p7;
+	p7.InitBool("Renderer", "Lighting", "EmissiveLighting", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
+		m_cbComposit.EmissiveLighting);
+	App::AddParam(p7);
 
 	ParamVariant focusDist;
 	focusDist.InitFloat("Renderer", "DoF", "Focus Distance",
@@ -211,7 +217,9 @@ void Compositing::Render(CommandList& cmdList) noexcept
 			Assert(m_cbComposit.DepthMappingExp > 0.0f, "Invalid voxel grid depth mapping exponent");
 		}
 
-		m_cbComposit.CompositedUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
+		//Assert(!m_cbComposit.EmissiveLighting || m_cbComposit.EmissiveDIDenoisedDescHeapIdx != 0, "emissive texture hasn't been set.");
+		m_cbComposit.EmissiveLighting = m_cbComposit.EmissiveDIDenoisedDescHeapIdx == 0 ? false : m_cbComposit.EmissiveLighting;
+
 		m_rootSig.SetRootConstants(0, sizeof(cbCompositing) / sizeof(DWORD), &m_cbComposit);
 		m_rootSig.End(computeCmdList);
 
@@ -386,6 +394,8 @@ void Compositing::CreateLightAccumTex() noexcept
 
 	Direct3DHelper::CreateTexture2DSRV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_SRV));
 	Direct3DHelper::CreateTexture2DUAV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_UAV));
+
+	m_cbComposit.CompositedUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
 }
 
 void Compositing::CreateDoForFilteredResources() noexcept
@@ -483,6 +493,11 @@ void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVaria
 void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept
 {
 	m_cbComposit.SpecularIndirect = p.GetBool();
+}
+
+void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p) noexcept
+{
+	m_cbComposit.EmissiveLighting = p.GetBool();
 }
 
 void Compositing::FocusDistCallback(const Support::ParamVariant& p) noexcept

@@ -94,7 +94,7 @@ float3 Filter(int2 DTid, float3 centerColor, float3 normal, float linearDepth, f
 		g_frame.CurrViewInv, 
 		g_frame.CurrProjectionJitter);
 
-	RNG rng = RNG::Init(DTid, g_frame.FrameNum, uint2(g_frame.RenderWidth, g_frame.RenderHeight));
+	RNG rng = RNG::Init(DTid, g_frame.FrameNum);
 	const float u0 = rng.Uniform();
 
 	const float theta = u0 * TWO_PI;

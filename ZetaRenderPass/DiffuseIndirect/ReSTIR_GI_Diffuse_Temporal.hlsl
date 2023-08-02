@@ -681,7 +681,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	{
 		DiffuseReservoir r = DiffuseReservoir::Init();
 
-		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter, renderDim);
+		RNG rng = RNG::Init(swizzledDTid, g_local.FrameCounter);
 						
 		//const float cosTheta = saturate(pdf * PI);
 		r = UpdateAndResample(swizzledDTid, posW, normal, linearDepth, pdf, retSample, traceThisFrame, hit, rng);

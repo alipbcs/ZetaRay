@@ -161,6 +161,7 @@ namespace
 		bool m_imguiMouseTracked = false;
 		uint32_t m_dpi;
 		float m_upscaleFactor = 1.0f;
+		float m_queuedUpscaleFactor = 1.0f;
 		float m_cameraAcceleration = 40.0f;
 
 		Timer m_timer;
@@ -1052,10 +1053,7 @@ namespace ZetaRay::AppImpl
 	{
 		if (g_app->m_issueResize)
 		{
-			if (g_app->m_upscaleFactor == 1.5f)
-				g_app->m_upscaleFactor = 1.0f;
-			else
-				g_app->m_upscaleFactor = 1.5f;
+			g_app->m_upscaleFactor = g_app->m_queuedUpscaleFactor;
 
 			const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
@@ -1517,14 +1515,16 @@ namespace ZetaRay
 	const char* App::GetToolsDir() noexcept { return AppData::TOOLS_DIR; }
 	const char* App::GetRenderPassDir() noexcept { return AppData::RENDER_PASS_DIR; }
 
-	void App::SetUpscalingEnablement(bool e) noexcept
+	void App::SetUpscaleFactor(float f) noexcept
 	{
+		Assert(f >= 1.0f, "invalid upscale factor.");
 		const float oldScaleFactor = g_app->m_upscaleFactor;
 
-		if (e && oldScaleFactor == 1.0)
+		if (f != oldScaleFactor)
+		{
 			g_app->m_issueResize = true;
-		else if (!e && oldScaleFactor == 1.5f)
-			g_app->m_issueResize = true;
+			g_app->m_queuedUpscaleFactor = f;
+		}
 	}
 
 	void App::LockStdOut() noexcept

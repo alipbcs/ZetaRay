@@ -40,6 +40,11 @@ namespace ZetaRay::Core
 			m_cmdList->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(s), s);
 		}
 
+		ZetaInline ID3D12GraphicsCommandList5* Get() noexcept
+		{
+			return m_cmdList.Get();
+		}
+
 	protected:
 		CommandList(D3D12_COMMAND_LIST_TYPE t, ID3D12CommandAllocator* cmdAlloc) noexcept;
 

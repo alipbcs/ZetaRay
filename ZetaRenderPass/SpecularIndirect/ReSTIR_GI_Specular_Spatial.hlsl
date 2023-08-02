@@ -266,7 +266,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 		
-	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
+	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 	SpatialResample(swizzledDTid, posW, normal, linearDepth, surface, baseColor, isMetallic, mr.y, r, rng);
 	
 	WriteReservoir(swizzledDTid, r);		

@@ -18,16 +18,31 @@ using namespace ZetaRay::Scene;
 
 void RayTracer::Init(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	//data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+	data.WndConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
+		(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::COUNT);
+	data.PerFrameDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
+		(int)RayTracerData::DESC_TABLE_PER_FRAME::COUNT);
 
 	// init samplers (async)
-	data.RtSampler.InitLowDiscrepancyBlueNoise();
+	data.RtSampler.InitLowDiscrepancyBlueNoise32();
 
 	data.ReSTIR_GI_DiffusePass.Init();
+
+	// specular indirect
 	data.ReSTIR_GI_SpecularPass.Init();
 
-	if(settings.SkyIllumination)
+	const Texture& specularDnsrTex = data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE);
+	Direct3DHelper::CreateTexture2DSRV(specularDnsrTex, data.WndConstDescTable.CPUHandle(
+		(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SPECULAR_INDIRECT_DENOISED));
+
+	if (settings.SkyIllumination)
+	{
 		data.SkyDI_Pass.Init();
+
+		const Texture& skyDIDnsrTex = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
+		Direct3DHelper::CreateTexture2DSRV(skyDIDnsrTex, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
+	}
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data) noexcept
@@ -35,14 +50,27 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 	if (data.ReSTIR_GI_DiffusePass.IsInitialized())
 		data.ReSTIR_GI_DiffusePass.OnWindowResized();
 	if (data.ReSTIR_GI_SpecularPass.IsInitialized())
+	{
 		data.ReSTIR_GI_SpecularPass.OnWindowResized();
+
+		const Texture& t = data.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE);
+		Direct3DHelper::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SPECULAR_INDIRECT_DENOISED));
+	}
 	if (data.SkyDI_Pass.IsInitialized())
+	{
 		data.SkyDI_Pass.OnWindowResized();
+
+		const Texture& t = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
+		Direct3DHelper::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
+	}
 }
 
 void RayTracer::Shutdown(RayTracerData& data) noexcept
 {
-	data.DescTableAll.Reset();
+	data.WndConstDescTable.Reset();
+	data.PerFrameDescTable.Reset();
 	data.RtAS.Clear();
 	data.RtSampler.Clear();
 	data.ReSTIR_GI_DiffusePass.Reset();
@@ -52,48 +80,33 @@ void RayTracer::Shutdown(RayTracerData& data) noexcept
 
 void RayTracer::UpdateDescriptors(const RenderSettings& settings, RayTracerData& data) noexcept
 {
-	data.DescTableAll = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(RayTracerData::DESC_TABLE::COUNT);
+	data.PerFrameDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
+		(int)RayTracerData::DESC_TABLE_PER_FRAME::COUNT);
 
-	auto funcDiffuse = [&data](ReSTIR_GI_Diffuse::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
+	auto funcDiffuse = [&data](ReSTIR_GI_Diffuse::SHADER_OUT_RES r, RayTracerData::DESC_TABLE_PER_FRAME d)
 	{
 		const Texture& t = data.ReSTIR_GI_DiffusePass.GetOutput(r);
-		Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
-	};
-
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE::DIFFUSE_TEMPORAL_RESERVOIR_A);
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B, RayTracerData::DESC_TABLE::DIFFUSE_TEMPORAL_RESERVOIR_B);
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C, RayTracerData::DESC_TABLE::DIFFUSE_TEMPORAL_RESERVOIR_C);
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_A, RayTracerData::DESC_TABLE::DIFFUSE_SPATIAL_RESERVOIR_A);
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_B, RayTracerData::DESC_TABLE::DIFFUSE_SPATIAL_RESERVOIR_B);
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_C, RayTracerData::DESC_TABLE::DIFFUSE_SPATIAL_RESERVOIR_C);
-	// temporal cache changes every frame due to ping-ponging
-	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL, RayTracerData::DESC_TABLE::DIFFUSE_DNSR_TEMPORAL_CACHE);
-
-	auto funcSpecular = [&data](ReSTIR_GI_Specular::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
-	{
-		const Texture& t = data.ReSTIR_GI_SpecularPass.GetOutput(r);
-		Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
+		Direct3DHelper::CreateTexture2DSRV(t, data.PerFrameDescTable.CPUHandle((int)d));
 	};
 
 	// temporal cache changes every frame due to ping-ponging
-	funcSpecular(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE, RayTracerData::DESC_TABLE::SPECULAR_DNSR_TEMPORAL_CACHE);
-
-	if (settings.SkyIllumination)
-	{
-		auto funcDI = [&data](SkyDI::SHADER_OUT_RES r, RayTracerData::DESC_TABLE d)
-		{
-			const Texture& t = data.SkyDI_Pass.GetOutput(r);
-			Direct3DHelper::CreateTexture2DSRV(t, data.DescTableAll.CPUHandle(d));
-		};
-
-		funcDI(SkyDI::SHADER_OUT_RES::DENOISED, RayTracerData::DESC_TABLE::SKY_DNSR_TEMPORAL_CACHE);
-	}
+	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A, RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_TEMPORAL_RESERVOIR_A);
+	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B, RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_TEMPORAL_RESERVOIR_B);
+	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_A, RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_SPATIAL_RESERVOIR_A);
+	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_B, RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_SPATIAL_RESERVOIR_B);
+	funcDiffuse(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL, RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_INDIRECT_DENOISED);
 }
 
 void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data) noexcept
 {
 	if (settings.SkyIllumination && !data.SkyDI_Pass.IsInitialized())
+	{
 		data.SkyDI_Pass.Init();
+
+		const Texture& skyDIDnsrTex = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
+		Direct3DHelper::CreateTexture2DSRV(skyDIDnsrTex, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
+	}
 	else if (!settings.SkyIllumination && data.SkyDI_Pass.IsInitialized())
 	{
 		uint64_t id = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).GetPathID();
@@ -209,7 +222,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 			tlas.GetPathID(),
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-		// indirect diffuse
+		// diffuse indirect
 		{
 			// RT-AS
 			renderGraph.AddInput(data.ReSTIR_GI_DiffuseHandle,
@@ -231,7 +244,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_DiffuseHandle,
-				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
+				gbuffData.MetallicRoughness[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_DiffuseHandle,
@@ -292,7 +305,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 		}
 
-		// indirect specular
+		// specular indirect
 		{
 			// RT-AS
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
@@ -309,7 +322,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_DiffuseHandle,
-				gbuffData.MetalnessRoughness[1 - outIdx].GetPathID(),
+				gbuffData.MetallicRoughness[1 - outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			// current gbuffers
@@ -318,7 +331,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
+				gbuffData.MetallicRoughness[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
@@ -365,7 +378,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.SkyDI_Handle,
-				gbuffData.MetalnessRoughness[outIdx].GetPathID(),
+				gbuffData.MetallicRoughness[outIdx].GetPathID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.SkyDI_Handle,
@@ -391,5 +404,3 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 		}
 	}
 }
-
-

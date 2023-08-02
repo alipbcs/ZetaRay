@@ -566,7 +566,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	// generate candidates
-	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum, renderDim);
+	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
 		
 	// resampling

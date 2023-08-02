@@ -77,23 +77,23 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	frameConsts.PrevGBufferDescHeapOffset = gbuffData.SRVDescTable[1 - currIdx].GPUDesciptorHeapIndex();
 
 	// env. map SRV
-	frameConsts.EnvMapDescHeapOffset = lightData.GpuDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
+	frameConsts.EnvMapDescHeapOffset = lightData.ConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
 	constexpr size_t sizeInBytes = Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	if (!frameConstsBuff.IsInitialized())
 	{
-		frameConstsBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
+		frameConstsBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER,
 			sizeInBytes,
 			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
 			false,
 			&frameConsts);
+
+		renderer.GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(GlobalResource::FRAME_CONSTANTS_BUFFER,
+			frameConstsBuff);
 	}
 	else
 		renderer.GetGpuMemory().UploadToDefaultHeapBuffer(frameConstsBuff, sizeInBytes, &frameConsts);
-
-	renderer.GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(GlobalResource::FRAME_CONSTANTS_BUFFER_NAME,
-		frameConstsBuff);
 }
 
 //--------------------------------------------------------------------------------------
@@ -116,26 +116,22 @@ namespace ZetaRay::DefaultRenderer
 		if (u == g_data->m_settings.AntiAliasing)
 			return;
 
-		if (u == AA::NATIVE)
+		float newUpscaleFactor;
+		g_data->PendingAA = u;
+
+		switch (u)
 		{
-			App::SetUpscalingEnablement(false);
-			g_data->PendingAA = AA::NATIVE;
+		case AA::FSR2:
+			newUpscaleFactor = 1.5f;
+			break;
+		case AA::NONE:
+		case AA::TAA:
+		default:
+			newUpscaleFactor = 1.0f;
+			break;
 		}
-		else if (u == AA::POINT)
-		{
-			App::SetUpscalingEnablement(true);
-			g_data->PendingAA = AA::POINT;
-		}
-		else if (u == AA::FSR2)
-		{
-			App::SetUpscalingEnablement(true);
-			g_data->PendingAA = AA::FSR2;
-		}
-		else if (u == AA::NATIVE_TAA)
-		{
-			App::SetUpscalingEnablement(false);
-			g_data->PendingAA = AA::NATIVE_TAA;
-		}
+
+		App::SetUpscaleFactor(newUpscaleFactor);
 	}
 
 	void ModifySunDir(const ParamVariant& p) noexcept
@@ -213,6 +209,8 @@ namespace ZetaRay::DefaultRenderer
 {
 	void Init() noexcept
 	{
+		Assert(g_data->PendingAA == g_data->m_settings.AntiAliasing, "these must match.");
+
 		g_data->m_renderGraph.Reset();
 
 		const Camera& cam = App::GetCamera();
@@ -476,9 +474,19 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_renderGraph.Reset();
 	}
 
+	Core::RenderGraph* GetRenderGraph() noexcept
+	{
+		return &g_data->m_renderGraph;
+	}
+
 	void DebugDrawRenderGraph() noexcept
 	{
 		g_data->m_renderGraph.DebugDrawGraph();
+	}
+
+	bool IsRTASBuilt() noexcept
+	{
+		return g_data->m_raytracerData.RtAS.GetTLAS().IsInitialized();
 	}
 }
 
@@ -498,7 +506,9 @@ Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface() noexcept
 	rndIntrf.Render = &DefaultRenderer::Render;
 	rndIntrf.Shutdown = &DefaultRenderer::Shutdown;
 	rndIntrf.OnWindowSizeChanged = &DefaultRenderer::OnWindowSizeChanged;
+	rndIntrf.GetRenderGraph = &DefaultRenderer::GetRenderGraph;
 	rndIntrf.DebugDrawRenderGraph = &DefaultRenderer::DebugDrawRenderGraph;
+	rndIntrf.IsRTASBuilt = &DefaultRenderer::IsRTASBuilt;
 
 	return rndIntrf;
 }

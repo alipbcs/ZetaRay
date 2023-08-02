@@ -629,7 +629,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 			
 	surface.SetWi(wi, normal);
 		
-	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum, renderDim);
+	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum);
 	SpecularReservoir r = TemporalResample(swizzledDTid.xy, GTid.xy, posW, normal, linearDepth, tracedSample, surface,
 		baseColor, isMetallic, mr.y, traceThisFrame, hit, adjustedLocalCurvature, rng);
 		

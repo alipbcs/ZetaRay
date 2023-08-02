@@ -184,7 +184,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	
 	// TODO on rare occasions, result can be NaN. figure out what's causing it
 	// temporay solution in the meantime -- NaN propagation is avoided at least
-	result = isnan(result.x) ? reconstructed : result;
+	result = any(isnan(result)) ? reconstructed : result;
 	
 	g_antiAliased[DTid.xy].rgb = result;
 }
