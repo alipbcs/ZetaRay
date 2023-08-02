@@ -15,6 +15,7 @@ using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Model;
+using namespace ZetaRay::Model::glTF::Asset;
 
 namespace
 {
@@ -60,8 +61,8 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	if (scene.m_numStaticInstances == 0)
 		return;
 
-	SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::FrameAllocator> mesheDescs;
-	mesheDescs.resize(scene.m_numStaticInstances);
+	SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::FrameAllocator> meshDescs;
+	meshDescs.resize(scene.m_numStaticInstances);
 
 	constexpr int transfromMatSize = sizeof(BLASTransform);
 	int currInstance = 0;
@@ -72,7 +73,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	// following loop should exactly match the one in FillMeshTransformBufferForBuild()
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
-		const auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
+		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
 
 		for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
 		{
@@ -84,26 +85,33 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 				if (meshID == SceneCore::NULL_MESH)
 					continue;
 
-				const auto mesh = scene.GetMesh(meshID);
+				TriangleMesh* mesh = scene.GetMesh(meshID);
+				Assert(mesh, "mesh with id %llu was not found", meshID);
 
-				mesheDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-				mesheDescs[currInstance].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+				meshDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+				meshDescs[currInstance].Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
 				// elements are tightly packed as size of each element is a multiple of required alignment
-				mesheDescs[currInstance].Triangles.Transform3x4 = m_perMeshTransformForBuild.GetGpuVA() + currInstance * transfromMatSize;
-				mesheDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-				mesheDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-				mesheDescs[currInstance].Triangles.IndexCount = mesh.m_numIndices;
-				mesheDescs[currInstance].Triangles.VertexCount = mesh.m_numVertices;
-				mesheDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
-				mesheDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
-				mesheDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-
-				currInstance++;
+				meshDescs[currInstance].Triangles.Transform3x4 = m_perMeshTransformForBuild.GetGpuVA() + currInstance * transfromMatSize;
+				meshDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+				meshDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+				meshDescs[currInstance].Triangles.IndexCount = mesh->m_numIndices;
+				meshDescs[currInstance].Triangles.VertexCount = mesh->m_numVertices;
+				meshDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
+				meshDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
+				meshDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
 
 				// clearing the rebuild flag is not actually needed
 				// One newly added static instance means the static BLAS need to be rebuilt, so per-instance
 				// rebuild flag is not used (Scene sets the "m_staleStaticInstances" flag)
 				//Scene::SetRtFlags(RT_MESH_MODE::STATIC, flags.InstanceMask, 0, 0);
+
+				currTreeLevel.m_rtASInfo[i] = RT_AS_Info
+					{
+						.GeometryIndex = (uint32_t)currInstance,
+						.InstanceID = 0
+					};
+
+				currInstance++;
 			}
 		}
 	}
@@ -114,8 +122,8 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
 	buildDesc.Inputs.Flags = GetBuildFlagsForRtAS(RT_MESH_MODE::STATIC);
 	buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	buildDesc.Inputs.NumDescs = (UINT)mesheDescs.size();
-	buildDesc.Inputs.pGeometryDescs = mesheDescs.data();
+	buildDesc.Inputs.NumDescs = (UINT)meshDescs.size();
+	buildDesc.Inputs.pGeometryDescs = meshDescs.data();
 
 	auto& renderer = App::GetRenderer();
 	auto* device = renderer.GetDevice();
@@ -265,7 +273,9 @@ void StaticBLAS::Clear() noexcept
 void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
-	auto mesh = scene.GetMesh(m_meshID);
+
+	TriangleMesh* mesh = scene.GetMesh(m_meshID);
+	Assert(mesh, "mesh with id %llu was not found", m_meshID);
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
 	const auto sceneIBGpuVa = scene.GetMeshIB().GetGpuVA();
@@ -273,13 +283,13 @@ void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
 	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
-	geoDesc.Triangles.IndexCount = mesh.m_numIndices;
+	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
+	geoDesc.Triangles.IndexCount = mesh->m_numIndices;
 	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
+	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
 	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-	geoDesc.Triangles.VertexCount = mesh.m_numVertices;
+	geoDesc.Triangles.VertexCount = mesh->m_numVertices;
 	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
@@ -321,7 +331,9 @@ void DynamicBLAS::Rebuild(ComputeCmdList& cmdList) noexcept
 void DynamicBLAS::Update(ComputeCmdList& cmdList) noexcept
 {
 	SceneCore& scene = App::GetScene();
-	auto mesh = scene.GetMesh(m_meshID);
+
+	TriangleMesh* mesh = scene.GetMesh(m_meshID);
+	Assert(mesh, "mesh with id %llu was not found", m_meshID);
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GetGpuVA();
 	const auto sceneIBGpuVa = scene.GetMeshIB().GetGpuVA();
@@ -329,13 +341,13 @@ void DynamicBLAS::Update(ComputeCmdList& cmdList) noexcept
 	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
 	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh.m_idxBuffStartOffset * sizeof(uint32_t);
-	geoDesc.Triangles.IndexCount = mesh.m_numIndices;
+	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
+	geoDesc.Triangles.IndexCount = mesh->m_numIndices;
 	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
 	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh.m_vtxBuffStartOffset * sizeof(Vertex);
+	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
 	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-	geoDesc.Triangles.VertexCount = mesh.m_numVertices;
+	geoDesc.Triangles.VertexCount = mesh->m_numVertices;
 	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
 	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
@@ -409,7 +421,8 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList) noexcept
 	instance.InstanceID = 0;
 	instance.InstanceMask = RT_AS_SUBGROUP::ALL;
 	instance.InstanceContributionToHitGroupIndex = 0;
-	instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE;		// force all the meshes to be opaque for now
+	instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_FORCE_OPAQUE |		// force all meshes to be opaque for now
+		D3D12_RAYTRACING_INSTANCE_FLAG_TRIANGLE_CULL_DISABLE;
 	instance.AccelerationStructure = m_staticBLAS.m_blasBuffer.GetGpuVA();
 
 	int currInstance = 0;
@@ -432,7 +445,7 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList) noexcept
 	// skip the first level
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
-		const auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
+		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
 		const auto& rtFlagVec = currTreeLevel.m_rtFlags;
 
 		// add one TLAS instance for every dynamic mesh
@@ -460,6 +473,8 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList) noexcept
 					instance.Transform[1][j] = M.m[j].y;
 					instance.Transform[2][j] = M.m[j].z;
 				}
+
+				currTreeLevel.m_rtASInfo[i].InstanceID = instance.InstanceID;
 
 				tlasInstances[currInstance++] = instance;
 			}
@@ -660,12 +675,14 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 	frameInstanceData.resize(numInstances);
 
 	uint32_t currInstance = 0;
+	const bool sceneHasEmissives = scene.NumEmissiveInstances() > 0;
 
-	auto addTLASInstance = [&frameInstanceData, &currInstance](const TriangleMesh& mesh, const Material& mat, float4x3& M) noexcept
+	auto addTLASInstance = [&frameInstanceData, &currInstance, sceneHasEmissives](const TriangleMesh& mesh, const Material& mat, 
+		const EmissiveInstance* emissiveInstance, float4x3& M)
 	{
 		v_float4x4 vM = load4x3(M);
 
-		// meshes in TLAS go through following transformations:
+		// meshes in TLAS go through the following transformations:
 		// 
 		// 1. Optional transform during BLAS build
 		// 2. Per-instance transform for each BLAS instance in TLAS
@@ -683,6 +700,7 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		instance.BaseIdxOffset = (uint32_t)mesh.m_idxBuffStartOffset;
 		instance.Rotation = half4(r);
 		instance.Scale = half3(s);
+		instance.BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : -1;
 
 		frameInstanceData[currInstance++] = instance;
 	};
@@ -706,16 +724,25 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 		{
 			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
 				continue;
+				
+			const auto rtFlags = Scene::GetRtFlags(rtFlagVec[i]);
 
-			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
-			Material mat;
-			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
-			Assert(found, "material with id %llu was not found", mesh.m_materialID);
+			if (rtFlags.MeshMode != RT_MESH_MODE::STATIC)
+				continue;
+
+			TriangleMesh* mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
+			Assert(mesh, "mesh with id %llu was not found", currTreeLevel.m_meshIDs[i]);
+
+			Material* mat = scene.GetMaterial(mesh->m_materialID);
+			Assert(mat, "material with id %llu was not found", mesh->m_materialID);
+
+			EmissiveInstance* emissiveInstance = sceneHasEmissives ? scene.m_emissives.FindEmissive(currTreeLevel.m_IDs[i]) : nullptr;
+			Assert(!sceneHasEmissives || rtFlags.InstanceMask & RT_AS_SUBGROUP::NON_EMISSIVE || emissiveInstance,
+				"emissive instance with ID %llu was not found.", currTreeLevel.m_IDs[i]);
 
 			auto& M = currTreeLevel.m_toWorlds[i];
 
-			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode == RT_MESH_MODE::STATIC)
-				addTLASInstance(mesh, mat, M);
+			addTLASInstance(*mesh, *mat, emissiveInstance, M);
 		}
 
 		// dynamic meshes
@@ -724,15 +751,24 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
 				continue;
 
-			const auto mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
-			Material mat;
-			const bool found = scene.GetMaterial(mesh.m_materialID, mat);
-			Assert(found, "material with id %llu was not found", mesh.m_materialID);
+			const auto rtFlags = Scene::GetRtFlags(rtFlagVec[i]);
+
+			if (rtFlags.MeshMode == RT_MESH_MODE::STATIC)
+				continue;
+
+			TriangleMesh* mesh = scene.GetMesh(currTreeLevel.m_meshIDs[i]);
+			Assert(mesh, "mesh with id %llu was not found", currTreeLevel.m_meshIDs[i]);
+
+			Material* mat = scene.GetMaterial(mesh->m_materialID);
+			Assert(mat, "material with id %llu was not found", mesh->m_materialID);
+
+			EmissiveInstance* emissiveInstance = sceneHasEmissives ? scene.m_emissives.FindEmissive(currTreeLevel.m_IDs[i]) : nullptr;
+			Assert(!sceneHasEmissives || rtFlags.InstanceMask & RT_AS_SUBGROUP::NON_EMISSIVE || emissiveInstance,
+				"emissive instance with ID %llu was not found.", currTreeLevel.m_IDs[i]);
 
 			auto& M = currTreeLevel.m_toWorlds[i];
 
-			if (Scene::GetRtFlags(rtFlagVec[i]).MeshMode != RT_MESH_MODE::STATIC)
-				addTLASInstance(mesh, mat, M);
+			addTLASInstance(*mesh, *mat, emissiveInstance, M);
 		}
 	}
 
@@ -746,14 +782,14 @@ void TLAS::BuildFrameMeshInstanceData() noexcept
 			D3D12_RESOURCE_STATE_COMMON,
 			false,
 			frameInstanceData.data());
+
+		// register the shared resources
+		auto& r = App::GetRenderer().GetSharedShaderResources();
+		r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
 	}
 	else
 		// this is recorded now but submitted after last frame's submissions
 		renderer.GetGpuMemory().UploadToDefaultHeapBuffer(m_framesMeshInstances, sizeInBytes, frameInstanceData.data());
-
-	// register the shared resources
-	auto& r = App::GetRenderer().GetSharedShaderResources();
-	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
 }
 
 void TLAS::BuildStaticBLASTransforms() noexcept

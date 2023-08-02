@@ -6,6 +6,7 @@
 #include "../Support/Task.h"
 #include "../Core/RendererCore.h"
 #include "Camera.h"
+#include "../Utility/Utility.h"
 #include <algorithm>
 
 using namespace ZetaRay::Scene;
@@ -19,30 +20,11 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	// performs binary search, so assumes input is sorted
-	ZetaInline int FindImage(uint64_t key, int beg, int end, Span<DDSImage> images) noexcept
+	uint32_t PcgHash(uint32_t x)
 	{
-		int mid = end >> 1;
-
-		while (true)
-		{
-			if (end - beg <= 2)
-				break;
-
-			if (images[mid].ID < key)
-				beg = mid + 1;
-			else
-				end = mid + 1;
-
-			mid = beg + ((end - beg) >> 1);
-		}
-
-		if (images[beg].ID == key)
-			return beg;
-		else if (images[mid].ID == key)
-			return mid;
-
-		return -1;
+		uint32_t state = x * 747796405u + 2891336453u;
+		uint32_t word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+		return (word >> 22u) ^ word;
 	}
 }
 
@@ -53,7 +35,7 @@ namespace
 SceneCore::SceneCore() noexcept
 	: m_baseColorDescTable(BASE_COLOR_DESC_TABLE_SIZE),
 	m_normalDescTable(NORMAL_DESC_TABLE_SIZE),
-	m_metalnessRoughnessDescTable(METALNESS_ROUGHNESS_DESC_TABLE_SIZE),
+	m_metallicRoughnessDescTable(METALLIC_ROUGHNESS_DESC_TABLE_SIZE),
 	m_emissiveDescTable(EMISSIVE_DESC_TABLE_SIZE),
 	m_sceneGraph(m_memoryPool, m_memoryPool),
 	m_prevToWorlds(m_memoryPool),
@@ -90,8 +72,8 @@ void SceneCore::Init(Renderer::Interface& rendererInterface) noexcept
 	m_baseColorDescTable.Init(XXH3_64bits(GlobalResource::BASE_COLOR_DESCRIPTOR_TABLE,
 		strlen(GlobalResource::BASE_COLOR_DESCRIPTOR_TABLE)));
 	m_normalDescTable.Init(XXH3_64bits(GlobalResource::NORMAL_DESCRIPTOR_TABLE, strlen(GlobalResource::NORMAL_DESCRIPTOR_TABLE)));
-	m_metalnessRoughnessDescTable.Init(XXH3_64bits(GlobalResource::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE,
-		strlen(GlobalResource::METALNESS_ROUGHNESS_DESCRIPTOR_TABLE)));
+	m_metallicRoughnessDescTable.Init(XXH3_64bits(GlobalResource::METALLIC_ROUGHNESS_DESCRIPTOR_TABLE,
+		strlen(GlobalResource::METALLIC_ROUGHNESS_DESCRIPTOR_TABLE)));
 	m_emissiveDescTable.Init(XXH3_64bits(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE, strlen(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE)));
 
 	CheckHR(App::GetRenderer().GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
@@ -144,37 +126,86 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
 		});
 
-	auto updateEmissives = sceneTS.EmplaceTask("Scene::Emissives", [this]()
-		{
-			auto emissvies = m_emissives.EmissiveInstances();
-			auto tris = m_emissives.EmissiveTriagnles();
-
-			// for every emissive instance, apply this frame's transformation to all of its triangles
-			for (auto e : emissvies)
-			{
-				const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
-
-				for (size_t i = e.BaseTriOffset; i < e.BaseTriOffset + e.NumTriangles; i++)
-				{
-					__m128 vV0;
-					__m128 vV1;
-					__m128 vV2;
-					tris[i].LoadVertices(vV0, vV1, vV2);
-
-					vV0 = mul(vW, vV0);
-					vV1 = mul(vW, vV1);
-					vV2 = mul(vW, vV2);
-
-					tris[i].StoreVertices(vV0, vV1, vV2);
-				}
-			}
-
-			if(!emissvies.empty())
-				m_emissives.RebuildBuffers();
-		});
-
 	sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
-	sceneTS.AddOutgoingEdge(updateWorldTransforms, updateEmissives);
+
+	const uint32_t numInstances = m_emissives.NumEmissiveInstances();
+	m_staleEmissives = false;
+	
+	// full rebuild of the emissive buffers for the first time
+	if (numInstances && m_emissives.RebuildFlag() && m_rendererInterface.IsRTASBuilt())
+	{
+		const uint32_t numTris = m_emissives.NumEmissiveTriangles();
+		m_staleEmissives = true;
+
+		constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 4;
+		constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
+		size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
+		size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
+		uint32_t workerEmissiveCount[MAX_NUM_EMISSIVE_WORKERS];
+
+		const int numEmissiveWorkers = (int)SubdivideRangeWithMin(numInstances,
+			MAX_NUM_EMISSIVE_WORKERS,
+			threadOffsets,
+			threadSizes,
+			MIN_EMISSIVE_INSTANCES_PER_WORKER);
+
+		auto finishEmissive = sceneTS.EmplaceTask("BuildEmissiveBuffer", [this]()
+			{
+				m_emissives.RebuildEmissiveBuffer();
+			});
+
+		for (int i = 0; i < numEmissiveWorkers; i++)
+		{
+			StackStr(tname, n, "Scene::Emissive_%d", i);
+
+			auto h = sceneTS.EmplaceTask(tname, [this, offset = threadOffsets[i], size = threadSizes[i]]()
+				{
+					auto emissvies = m_emissives.EmissiveInstances();
+					auto tris = m_emissives.EmissiveTriagnles();
+					v_float4x4 I = identity();
+
+					// for every emissive instance, apply related transformation to all of its triangles
+					for (int instance = (int)offset; instance < (int)offset + (int)size; instance++)
+					{
+						auto& e = emissvies[instance];
+						const auto rtASInfo = GetInstanceRtASInfo(e.InstanceID);
+						const uint64_t partialCombined = (rtASInfo.GeometryIndex * 22093) ^ (rtASInfo.InstanceID * 521);
+						Assert(partialCombined <= UINT32_MAX, "hashed value overflowed.");
+
+						const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
+						if (equal(vW, I))
+							continue;
+
+						for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
+						{
+							__m128 vV0;
+							__m128 vV1;
+							__m128 vV2;
+							tris[t].LoadVertices(vV0, vV1, vV2);
+
+							vV0 = mul(vW, vV0);
+							vV1 = mul(vW, vV1);
+							vV2 = mul(vW, vV2);
+
+							tris[t].StoreVertices(vV0, vV1, vV2);
+
+							// TODO ID initially contains triangle index within the respected mesh, after
+							// hashing below it's lost and subsequent runs will give wrong results as it
+							// won't match the computation in rt shaders
+							uint64_t combined = partialCombined ^ (tris[t].ID * 5381);
+							Assert(combined <= UINT32_MAX, "hashed value overflowed.");
+							uint32_t hash = PcgHash(static_cast<uint32_t>(combined));
+
+							Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle after the first assignment is invalid.");
+							tris[t].ResetID(hash);
+						}
+					}
+				});
+
+			sceneTS.AddOutgoingEdge(updateWorldTransforms, h);
+			sceneTS.AddOutgoingEdge(h, finishEmissive);
+		}
+	}
 
 	if (m_staleStaticInstances)
 	{
@@ -193,7 +224,7 @@ void SceneCore::Recycle() noexcept
 {
 	if (m_baseColorDescTable.m_pending.empty() &&
 		m_normalDescTable.m_pending.empty() &&
-		m_metalnessRoughnessDescTable.m_pending.empty() &&
+		m_metallicRoughnessDescTable.m_pending.empty() &&
 		m_emissiveDescTable.m_pending.empty() &&
 		m_matBuffer.m_pending.empty())
 		return;
@@ -203,7 +234,7 @@ void SceneCore::Recycle() noexcept
 	uint64_t completedFenceVal = m_fence->GetCompletedValue();
 	m_baseColorDescTable.Recycle(completedFenceVal);
 	m_normalDescTable.Recycle(completedFenceVal);
-	m_metalnessRoughnessDescTable.Recycle(completedFenceVal);
+	m_metallicRoughnessDescTable.Recycle(completedFenceVal);
 	m_emissiveDescTable.Recycle(completedFenceVal);
 	m_matBuffer.Recycle(completedFenceVal);
 }
@@ -227,7 +258,7 @@ void SceneCore::Shutdown() noexcept
 	m_matBuffer.Clear();
 	m_baseColorDescTable.Clear();
 	m_normalDescTable.Clear();
-	m_metalnessRoughnessDescTable.Clear();
+	m_metallicRoughnessDescTable.Clear();
 	m_emissiveDescTable.Clear();
 	m_meshes.Clear();
 	m_emissives.Clear();
@@ -235,7 +266,7 @@ void SceneCore::Shutdown() noexcept
 
 	m_baseColTableOffsetToID.free();
 	m_normalTableOffsetToID.free();
-	m_metalnessRougnessrTableOffsetToID.free();
+	m_metallicRoughnessTableOffsetToID.free();
 	m_emissiveTableOffsetToID.free();
 
 	m_prevToWorlds.free_memory();
@@ -263,14 +294,14 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	Material mat;
 	mat.BaseColorFactor = Float4ToRGBA8(matDesc.BaseColorFactor);
 	mat.EmissiveFactorNormalScale = Float4ToRGBA8(float4(matDesc.EmissiveFactor, matDesc.NormalScale));
-	mat.MetallicFactorAlphaCuttoff = Float2ToRG8(float2(matDesc.MetalnessFactor, matDesc.AlphaCuttoff));
+	mat.MetallicFactorAlphaCuttoff = Float2ToRG8(float2(matDesc.MetallicFactor, matDesc.AlphaCuttoff));
 	mat.RoughnessFactor = half(matDesc.RoughnessFactor);
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
 	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
 	{
-		int idx = FindImage(ID, 0, (int)ddsImages.size(), ddsImages);
+		auto idx = BinarySearch(ddsImages, ID, [](const DDSImage& obj) {return obj.ID; });
 		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
 
 		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
@@ -303,13 +334,13 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 
 	{
 		uint32_t tableOffset = uint32_t(-1);
-		if (matDesc.MetalnessRoughnessTexPath != uint64_t(-1))
+		if (matDesc.MetallicRoughnessTexPath != uint64_t(-1))
 		{
-			addTex(matDesc.MetalnessRoughnessTexPath, "MetallicRoughnessMap", m_metalnessRoughnessDescTable, tableOffset, ddsImages);
-			m_metalnessRougnessrTableOffsetToID[tableOffset] = matDesc.MetalnessRoughnessTexPath;
+			addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", m_metallicRoughnessDescTable, tableOffset, ddsImages);
+			m_metallicRoughnessTableOffsetToID[tableOffset] = matDesc.MetallicRoughnessTexPath;
 		}
 		
-		mat.MetalnessRoughnessTexture = tableOffset;
+		mat.MetallicRoughnessTexture = tableOffset;
 	}
 
 	{
@@ -432,6 +463,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
 	// set rebuild flag to true for any instance that is added for the first time
 	rearrange(currLevel.m_rtFlags, insertIdx, SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0));
+	rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
 	// shift base offset of parent's right siblings to right by one
 	for (int siblingIdx = parentIdx + 1; siblingIdx != parentLevel.m_subtreeRanges.size(); siblingIdx++)
@@ -480,27 +512,9 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 
 float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
 {
-	int beg = 0;
-	int end = (int)m_prevToWorlds.size();
-	int mid = (int)m_prevToWorlds.size() >> 1;
-
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_prevToWorlds[mid].ID < key)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	if (m_prevToWorlds[beg].ID == key)
-		return m_prevToWorlds[beg].W;
-	else if (m_prevToWorlds[mid].ID == key)
-		return m_prevToWorlds[mid].W;
+	const auto idx = BinarySearch(Span(m_prevToWorlds), key, [](const PrevToWorld& p) {return p.ID; });
+	if (idx != -1)
+		return m_prevToWorlds[idx].W;
 
 	return float4x3(store(identity()));
 }
@@ -535,7 +549,10 @@ void SceneCore::RebuildBVH() noexcept
 			if (meshID == NULL_MESH)
 				continue;
 
-			v_AABB vBox(m_meshes.GetMesh(meshID).m_AABB);
+			TriangleMesh* mesh = m_meshes.GetMesh(meshID);
+			Assert(mesh, "mesh with id %llu was not found", meshID);
+
+			v_AABB vBox(mesh->m_AABB);
 			v_float4x4 vM = load4x3(m_sceneGraph[level].m_toWorlds[i]);
 
 			// transform AABB to world space
@@ -556,6 +573,8 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 	m_prevToWorlds.clear();
 	const int numLevels = (int)m_sceneGraph.size();
 
+	SmallVector<EmissiveInstance, App::FrameAllocator> modifiedEmissives;
+
 	for (int level = 0; level < numLevels - 1; ++level)
 	{
 		for (int i = 0; i < m_sceneGraph[level].m_subtreeRanges.size(); i++)
@@ -573,21 +592,28 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))
 				{
 					const uint64_t meshID = m_sceneGraph[level + 1].m_meshIDs[j];
+					TriangleMesh* mesh = m_meshes.GetMesh(meshID);
+					Assert(mesh, "mesh with id %llu was not found", meshID);
 
-					v_AABB vOldBox(m_meshes.GetMesh(meshID).m_AABB);
+					v_AABB vOldBox(mesh->m_AABB);
 					vOldBox = transform(prevW, vOldBox);
 					v_AABB vNewBox = transform(newW, vOldBox);
+					const uint64_t ID = m_sceneGraph[level + 1].m_IDs[j];
 
 					toUpdateInstances.emplace_back(BVH::BVHUpdateInput{ 
 						.OldBox = store(vOldBox),
 						.NewBox = store(vNewBox),
-						.ID = m_sceneGraph[level + 1].m_IDs[j] });
+						.ID = ID });
 
 					RT_Flags f = GetRtFlags(m_sceneGraph[level + 1].m_rtFlags[j]);
 					Assert(f.MeshMode != RT_MESH_MODE::STATIC, "Transformation of static meshes can't change");
 					Assert(!f.RebuildFlag, "Rebuild & update flags can't be set at the same time.");
 
 					m_sceneGraph[level + 1].m_rtFlags[j] = SetRtFlags(f.MeshMode, f.InstanceMask, 0, 1);
+
+					auto* emissive = m_emissives.FindEmissive(ID);
+					if (emissive)
+						modifiedEmissives.push_back(*emissive);
 				}
 
 				m_prevToWorlds.emplace_back(PrevToWorld{ 
@@ -604,6 +630,12 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 		{
 			return lhs.ID < rhs.ID;
 		});
+
+	if (!modifiedEmissives.empty())
+	{
+		m_staleEmissives = true;
+		UpdateEmissives(modifiedEmissives);
+	}
 }
 
 void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept
@@ -724,4 +756,44 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec) noexcept
 
 		m_sceneGraph[t->Level].m_localTransforms[t->Offset] = update.M;
 	}
+}
+
+// TODO following is untested
+void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances) noexcept
+{
+	auto emissvies = m_emissives.EmissiveInstances();
+	auto tris = m_emissives.EmissiveTriagnles();
+	v_float4x4 I = identity();
+
+	for (auto& e : instances)
+	{
+		const v_float4x4 vCurrW = load4x3(GetToWorld(e.InstanceID));
+		if (equal(vCurrW, I))
+			continue;
+		
+		// undo previous transformation
+		v_float4x4 vPrevW_inv = load4x3(GetPrevToWorld(e.InstanceID));
+		vPrevW_inv = inverseSRT(vPrevW_inv);
+		// then apply the new transformation
+		const v_float4x4 vNewW = mul(vPrevW_inv, vCurrW);
+
+		// TODO repeated transformations can accumulate floating-point errors, do a rebuild
+		// after certain number of updates
+
+		for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
+		{
+			__m128 vV0;
+			__m128 vV1;
+			__m128 vV2;
+			tris[t].LoadVertices(vV0, vV1, vV2);
+
+			vV0 = mul(vNewW, vV0);
+			vV1 = mul(vNewW, vV1);
+			vV2 = mul(vNewW, vV2);
+
+			tris[t].StoreVertices(vV0, vV1, vV2);
+		}
+	}
+
+	m_emissives.RebuildEmissiveBuffer();
 }

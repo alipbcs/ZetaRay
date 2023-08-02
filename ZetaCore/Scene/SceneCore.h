@@ -33,6 +33,12 @@ namespace ZetaRay::Scene
 		bool UpdateFlag;
 	};
 
+	struct RT_AS_Info
+	{
+		uint32_t GeometryIndex;
+		uint32_t InstanceID;
+	};
+
 	ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update)
 	{
 		return ((uint8_t)m << 6) | instanceMask | (rebuild << 4) | (update << 5);
@@ -102,13 +108,9 @@ namespace ZetaRay::Scene
 		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices) noexcept;
-		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept
+		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id) noexcept
 		{
-			AcquireSRWLockShared(&m_meshLock);
-			auto d = m_meshes.GetMesh(id);
-			ReleaseSRWLockShared(&m_meshLock);
-
-			return d;
+			return m_meshes.GetMesh(id);
 		}
 
 		ZetaInline const Core::DefaultHeapBuffer& GetMeshVB() noexcept { return m_meshes.GetVB(); }
@@ -118,26 +120,20 @@ namespace ZetaRay::Scene
 		// Material
 		//
 		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
-		ZetaInline bool GetMaterial(uint64_t id, Material& mat) noexcept
+		ZetaInline Material* GetMaterial(uint64_t id) noexcept
 		{
-			//AcquireSRWLockShared(&m_matLock);
-			auto success = m_matBuffer.Get(id, mat);
-			//ReleaseSRWLockShared(&m_matLock);
-
-			return success;
+			return m_matBuffer.Get(id);
 		}
-		//void RemoveMaterial(uint64_t id) noexcept;
 
 		ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.m_descTable.GPUDesciptorHeapIndex(); }
 		ZetaInline uint32_t GetNormalMapsDescHeapOffset() const { return m_normalDescTable.m_descTable.GPUDesciptorHeapIndex(); }
-		ZetaInline uint32_t GetMetalnessRougnessMapsDescHeapOffset() const { return m_metalnessRoughnessDescTable.m_descTable.GPUDesciptorHeapIndex(); }
+		ZetaInline uint32_t GetMetallicRougnessMapsDescHeapOffset() const { return m_metallicRoughnessDescTable.m_descTable.GPUDesciptorHeapIndex(); }
 		ZetaInline uint32_t GetEmissiveMapsDescHeapOffset() const { return m_emissiveDescTable.m_descTable.GPUDesciptorHeapIndex(); }
 
 		//
 		// Instance
 		//
 		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance) noexcept;
-		//void RemoveInstance(uint64_t id) noexcept;
 		Math::float4x3 GetPrevToWorld(uint64_t id) noexcept;
 		
 		//
@@ -145,6 +141,9 @@ namespace ZetaRay::Scene
 		//
 		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
 			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
+		size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
+		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
+		bool AreEmissivesStale() const { return m_staleEmissives; }
 
 		ZetaInline Math::float4x3 GetToWorld(uint64_t id) noexcept
 		{
@@ -160,6 +159,14 @@ namespace ZetaRay::Scene
 			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
 
 			return m_sceneGraph[p->Level].m_meshIDs[p->Offset];
+		}
+
+		ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id) noexcept
+		{
+			TreePos* p = FindTreePosFromID(id);
+			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
+
+			return m_sceneGraph[p->Level].m_rtASInfo[p->Offset];
 		}
 
 		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id) noexcept
@@ -181,12 +188,13 @@ namespace ZetaRay::Scene
 		void Recycle() noexcept;
 		void Shutdown() noexcept;
 
+		ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
 		ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
 
 	private:
 		static constexpr uint32_t BASE_COLOR_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t NORMAL_DESC_TABLE_SIZE = 256;
-		static constexpr uint32_t METALNESS_ROUGHNESS_DESC_TABLE_SIZE = 256;
+		static constexpr uint32_t METALLIC_ROUGHNESS_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t EMISSIVE_DESC_TABLE_SIZE = 64;
 
 		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
@@ -203,7 +211,6 @@ namespace ZetaRay::Scene
 
 		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
 			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept;
-		//void RemoveFromLevel(int idx, int level) noexcept;
 
 		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept;
 		void RebuildBVH() noexcept;
@@ -216,6 +223,7 @@ namespace ZetaRay::Scene
 
 		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept;
 		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec) noexcept;
+		void UpdateEmissives(Util::Span<Model::glTF::Asset::EmissiveInstance> instances) noexcept;
 
 		bool m_isPaused = false;
 
@@ -246,7 +254,8 @@ namespace ZetaRay::Scene
 				m_toWorlds(mp),
 				m_meshIDs(mp),
 				m_subtreeRanges(mp),
-				m_rtFlags(mp)
+				m_rtFlags(mp),
+				m_rtASInfo(mp)
 			{}
 
 			Util::SmallVector<uint64_t, Support::PoolAllocator> m_IDs;
@@ -256,6 +265,7 @@ namespace ZetaRay::Scene
 			Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;
 			// first six bits encode MeshInstanceFlags, last two bits indicate RT_MESH_MODE
 			Util::SmallVector<uint8_t, Support::PoolAllocator> m_rtFlags;
+			Util::SmallVector<RT_AS_Info, Support::PoolAllocator> m_rtASInfo;
 		};
 
 		Util::SmallVector<TreeLevel, Support::PoolAllocator> m_sceneGraph;
@@ -272,10 +282,9 @@ namespace ZetaRay::Scene
 			Util::SmallVector<uint64_t> Instances;
 		};
 
-		//Util::HashTable<SceneMetadata> m_sceneMetadata;
-
 		uint32_t m_numStaticInstances = 0;
 		uint32_t m_numDynamicInstances = 0;
+		bool m_staleEmissives = false;
 
 		// TODO this is managed by TLAS, is there a better way?
 		bool m_staleStaticInstances = false;
@@ -315,7 +324,7 @@ namespace ZetaRay::Scene
 		Internal::EmissiveBuffer m_emissives;
 		Internal::TexSRVDescriptorTable m_baseColorDescTable;
 		Internal::TexSRVDescriptorTable m_normalDescTable;
-		Internal::TexSRVDescriptorTable m_metalnessRoughnessDescTable;
+		Internal::TexSRVDescriptorTable m_metallicRoughnessDescTable;
 		Internal::TexSRVDescriptorTable m_emissiveDescTable;
 
 		// mapping from descriptor-table offset to (hash) of the corresponding texture path.
@@ -324,7 +333,7 @@ namespace ZetaRay::Scene
 		// using hash(path), so this mapping is required
 		Util::HashTable<uint64_t> m_baseColTableOffsetToID;
 		Util::HashTable<uint64_t> m_normalTableOffsetToID;
-		Util::HashTable<uint64_t> m_metalnessRougnessrTableOffsetToID;
+		Util::HashTable<uint64_t> m_metallicRoughnessTableOffsetToID;
 		Util::HashTable<uint64_t> m_emissiveTableOffsetToID;
 
 		ComPtr<ID3D12Fence> m_fence;

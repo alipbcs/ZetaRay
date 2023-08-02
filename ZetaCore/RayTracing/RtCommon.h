@@ -7,6 +7,8 @@
 #include "../Math/VectorFuncs.h"
 #endif
 
+#define COMPRESS_EMISSIVE_POS 1
+
 // Meshes present in an Acceleration Structure, can be subdivided into groups
 // based on a specified 8-bit mask value. During ray travesal, instance mask from 
 // the ray and corresponding mask from each mesh are ANDed together. Mesh is skipped
@@ -31,21 +33,25 @@ namespace ZetaRay
 			half4_ Rotation;
 			half3_ Scale;
 			uint16_t MatID;
+			uint32_t BaseEmissiveTriOffset;
 		};
 
 		struct EmissiveTriangle
 		{
 			static const uint32_t V0V1SignBit = 24;
 			static const uint32_t V0V2SignBit = 25;
+			static const uint32_t TriIDPatchedBit = 26;
+			static const uint32_t DoubleSidedBit = 27;
 
 #ifdef __cplusplus
 			EmissiveTriangle() = default;
 			EmissiveTriangle(const Math::float3& vtx0, const Math::float3& vtx1, const Math::float3& vtx2,
 				const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
-				uint32_t emissiveFactor, uint32_t EmissiveTex_Strength) noexcept
+				uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, bool doubleSided = true) noexcept
 				: Vtx0(vtx0),
+				ID(triIdx),
 				EmissiveFactor_Signs(emissiveFactor & 0xffffff),
-				EmissiveTex_Strength(EmissiveTex_Strength),
+				EmissiveTex_Strength(emissiveTex_Strength),
 				UV0(uv0),
 				UV1(uv1),
 				UV2(uv2)
@@ -55,25 +61,35 @@ namespace ZetaRay
 				__m128 v2 = Math::loadFloat3(const_cast<Math::float3&>(vtx2));
 
 				StoreVertices(v0, v1, v2);
+
+				EmissiveFactor_Signs |= (doubleSided << DoubleSidedBit);
 			}
 #endif
 
+			float3_ Vtx0;
+
+#if COMPRESS_EMISSIVE_POS == 1
+			half3_ V0V1;
+			half3_ V0V2;
+#else
+			float3_ Vtx1;
+			float3_ Vtx2;
+#endif
+
+			uint32_t ID;
 			uint32_t EmissiveFactor_Signs;
 			uint32_t EmissiveTex_Strength;
 
-			float3_ Vtx0;
 			float2_ UV0;
 			float2_ UV1;
 			float2_ UV2;
-
-			half3_ V0V1;
-			half3_ V0V2;
 
 #ifdef __cplusplus
 			ZetaInline void __vectorcall StoreVertices(__m128 v0, __m128 v1, __m128 v2) noexcept
 			{
 				Vtx0 = Math::storeFloat3(v0);
 
+#if COMPRESS_EMISSIVE_POS == 1
 				__m128 v0v1 = _mm_sub_ps(v1, v0);
 				__m128 v0v2 = _mm_sub_ps(v2, v0);
 
@@ -116,10 +132,15 @@ namespace ZetaRay
 
 				EmissiveFactor_Signs = EmissiveFactor_Signs | (isPos0 << V0V1SignBit);
 				EmissiveFactor_Signs = EmissiveFactor_Signs | (isPos1 << V0V2SignBit);
+#else
+				Vtx1 = Math::storeFloat3(v1);
+				Vtx2 = Math::storeFloat3(v2);
+#endif
 			}
 
 			ZetaInline void __vectorcall LoadVertices(__m128& v0, __m128& v1, __m128& v2) noexcept
 			{
+#if COMPRESS_EMISSIVE_POS == 1
 				bool signIsPosV1 = EmissiveFactor_Signs & (1u << V0V1SignBit);
 				bool signIsPosV2 = EmissiveFactor_Signs & (1u << V0V2SignBit);
 				__m128 V1Mask = _mm_setr_ps(1.0f, 1.0f, signIsPosV1 ? 1.0f : -1.0f, 1.0f);
@@ -162,12 +183,35 @@ namespace ZetaRay
 				vV2 = _mm_mul_ps(vV2, V2Mask);
 				vV2 = _mm_fmadd_ps(vV2, vLenV0V2, vVtx0);
 				v2 = vV2;
+#else
+				__m128 vOne = _mm_set1_ps(1.0f);
+
+				__m128 vVtx0 = Math::loadFloat3(Vtx0);
+				__m128 vVtx1 = Math::loadFloat3(Vtx1);
+				__m128 vVtx2 = Math::loadFloat3(Vtx2);
+				// set v[3] = 1
+				v0 = _mm_insert_ps(vVtx0, vOne, 0x30);
+				v1 = _mm_insert_ps(vVtx1, vOne, 0x30);
+				v2 = _mm_insert_ps(vVtx2, vOne, 0x30);
+#endif
+			}
+
+			ZetaInline bool IsIDPatched()
+			{
+				return EmissiveFactor_Signs & (1u << TriIDPatchedBit);
+			}
+
+			ZetaInline void ResetID(uint32_t id)
+			{
+				EmissiveFactor_Signs |= (1u << TriIDPatchedBit);
+				ID = id;
 			}
 #endif
 
 #ifndef __cplusplus
 			float3 V1()
 			{
+#if COMPRESS_EMISSIVE_POS == 1
 				float sign = (EmissiveFactor_Signs & (1u << V0V1SignBit)) ? 1.0f : -1.0f;
 				float3 v0v1 = float3(V0V1.x, V0V1.y, 0.0f);
 				float z2 = 1 - v0v1.x * v0v1.x - v0v1.y * v0v1.y;
@@ -175,10 +219,14 @@ namespace ZetaRay
 				v0v1.z = sqrt(z2);
 				v0v1.z *= sign;
 				return mad(v0v1, V0V1.z, Vtx0);
+#else
+				return Vtx1;
+#endif
 			}
 
 			float3 V2()
 			{
+#if COMPRESS_EMISSIVE_POS == 1
 				float sign = (EmissiveFactor_Signs & (1u << V0V2SignBit)) ? 1.0f : -1.0f;
 				float3 v0v2 = float3(V0V2.x, V0V2.y, 0.0f);
 				float z2 = 1 - v0v2.x * v0v2.x - v0v2.y * v0v2.y;
@@ -186,6 +234,9 @@ namespace ZetaRay
 				v0v2.z = sqrt(z2);
 				v0v2.z *= sign;
 				return mad(v0v2, V0V2.z, Vtx0);
+#else
+				return Vtx2;
+#endif			
 			}
 
 			uint16_t GetEmissiveTex()
@@ -196,6 +247,11 @@ namespace ZetaRay
 			half GetEmissiveStrength()
 			{
 				return asfloat16(uint16_t(EmissiveTex_Strength >> 16));
+			}
+
+			bool IsDoubleSided()
+			{
+				return EmissiveFactor_Signs & (1u << DoubleSidedBit);
 			}
 #endif
 		};

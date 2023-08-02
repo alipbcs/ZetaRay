@@ -87,18 +87,10 @@ namespace ZetaRay::Scene::Internal
 		void UpdateGPUBufferIfStale() noexcept;
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
-		// returns a copy since references to elements are not stable
-		ZetaInline bool Get(uint64_t id, Material& mat) noexcept
+		// Note: not thread safe
+		ZetaInline Material* Get(uint64_t id) noexcept
 		{
-			Material* m = m_matTable.find(id);
-
-			if (m)
-			{
-				mat = *m;
-				return true;
-			}
-
-			return false;
+			return m_matTable.find(id);
 		}
 
 		void Recycle(uint64_t completedFenceVal) noexcept;
@@ -139,12 +131,10 @@ namespace ZetaRay::Scene::Internal
 		void Reserve(size_t numVertices, size_t numIndices) noexcept;
 		void RebuildBuffers() noexcept;
 		
-		ZetaInline Model::TriangleMesh GetMesh(uint64_t id) noexcept
+		// Note: not thread safe
+		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id) noexcept
 		{
-			auto* mesh = m_meshes.find(id);
-			Assert(mesh, "Mesh with id %llu was not found", id);
-
-			return *mesh;
+			return m_meshes.find(id);
 		}
 
 		const Core::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
@@ -173,11 +163,15 @@ namespace ZetaRay::Scene::Internal
 		EmissiveBuffer(const EmissiveBuffer&) = delete;
 		MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
 
+		bool RebuildFlag() { return m_rebuildFlag; }
 		void Clear() noexcept;
+		Model::glTF::Asset::EmissiveInstance* FindEmissive(uint64_t ID) noexcept;
 		bool IsStale() noexcept { return !m_emissivesTrisCpu.empty(); };
 		void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
 			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
-		void RebuildBuffers() noexcept;
+		void RebuildEmissiveBuffer() noexcept;
+		ZetaInline uint32_t NumEmissiveInstances() const noexcept { return (uint32_t)m_emissivesInstances.size(); }
+		ZetaInline uint32_t NumEmissiveTriangles() const noexcept { return (uint32_t)m_emissivesTrisCpu.size(); }
 
 		Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
 		Util::Span<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
@@ -186,5 +180,6 @@ namespace ZetaRay::Scene::Internal
 		Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;
 		Util::SmallVector<RT::EmissiveTriangle> m_emissivesTrisCpu;
 		Core::DefaultHeapBuffer m_emissiveTrisGpu;
+		bool m_rebuildFlag = true;
 	};
 }

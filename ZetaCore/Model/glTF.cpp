@@ -430,7 +430,7 @@ namespace
 
 				const uint64_t id = XXH3_64bits(p.Get(), p.Length());
 				Texture tex;
-				auto err = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p.Get(), tex);
+				auto err = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p, tex);
 
 				if (err != LOAD_DDS_RESULT::SUCCESS)
 				{
@@ -516,20 +516,20 @@ namespace
 				}
 			}
 
-			// metalness-roughness map
+			// metallic-roughness map
 			{
-				const cgltf_texture_view& metalnessRoughnessView = mat.pbr_metallic_roughness.metallic_roughness_texture;
-				if (metalnessRoughnessView.texture)
+				const cgltf_texture_view& metallicRoughnessView = mat.pbr_metallic_roughness.metallic_roughness_texture;
+				if (metallicRoughnessView.texture)
 				{
-					Check(metalnessRoughnessView.texture->image, "textureView doesn't point to any image.");
+					Check(metallicRoughnessView.texture->image, "textureView doesn't point to any image.");
 
 					Filesystem::Path p(App::GetAssetDir());
 					p.Append(modelDir.GetView());
-					p.Append(metalnessRoughnessView.texture->image->uri);
-					desc.MetalnessRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
+					p.Append(metallicRoughnessView.texture->image->uri);
+					desc.MetallicRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
 
-				desc.MetalnessFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
+				desc.MetallicFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
 				desc.RoughnessFactor = (float)mat.pbr_metallic_roughness.roughness_factor;
 			}
 
@@ -608,7 +608,7 @@ namespace
 		uint32_t& rtEmissiveTriIdx) noexcept
 	{
 		SceneCore& scene = App::GetScene();
-		uint32_t currTriIdx = rtEmissiveTriIdx;
+		uint32_t currGlobalTriIdx = rtEmissiveTriIdx;
 
 		if (node.mesh)
 		{
@@ -634,9 +634,8 @@ namespace
 
 						// material is needed emissive texture index
 						const uint64_t matID = SceneCore::MaterialID(context.SceneID, meshPrimInfo.MaterialIdx);
-						Material mat;
-						const bool found = scene.GetMaterial(matID, mat);
-						Assert(found, "material with id %llu was not found", matID);
+						Material* mat = scene.GetMaterial(matID);
+						Assert(mat, "material with id %llu was not found", matID);
 
 						const int nodeIdx = (int)(&node - context.Model->nodes);
 						const uint64_t currInstanceID = SceneCore::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
@@ -645,9 +644,11 @@ namespace
 						context.EmissiveInstances[emissiveMeshIdx++] = EmissiveInstance
 						{
 							.InstanceID = currInstanceID,
-							.BaseTriOffset = currTriIdx,
+							.BaseTriOffset = currGlobalTriIdx,
 							.NumTriangles = meshPrimInfo.NumIndices / 3
 						};
+
+						uint32_t currMeshTriIdx = 0;
 
 						// add all the mesh triangles for this instance
 						for (int i = meshPrimInfo.BaseIdxOffset; i < (int)(meshPrimInfo.BaseIdxOffset + meshPrimInfo.NumIndices); i += 3)
@@ -660,16 +661,16 @@ namespace
 							const Vertex& v1 = context.Vertices[meshPrimInfo.BaseVtxOffset + i1];
 							const Vertex& v2 = context.Vertices[meshPrimInfo.BaseVtxOffset + i2];
 
-							context.RTEmissives[currTriIdx++] = RT::EmissiveTriangle(v0.Position, v1.Position, v2.Position,
+							context.RTEmissives[currGlobalTriIdx++] = RT::EmissiveTriangle(v0.Position, v1.Position, v2.Position,
 								v0.TexUV, v1.TexUV, v2.TexUV,
-								emissiveFactorRGB, mat.EmissiveTexture_Strength);
+								emissiveFactorRGB, mat->EmissiveTexture_Strength, currMeshTriIdx++, mat->IsDoubleSided());
 						}
 					}
 				}
 			}
 		}
 
-		rtEmissiveTriIdx = currTriIdx;
+		rtEmissiveTriIdx = currGlobalTriIdx;
 
 		for (int c = 0; c < node.children_count; c++)
 		{

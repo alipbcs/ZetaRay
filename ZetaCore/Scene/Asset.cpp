@@ -8,6 +8,8 @@
 #include "SceneRenderer.h"
 #include "SceneCore.h"
 #include "../Model/glTFAsset.h"
+#include "../Utility/Utility.h"
+#include <algorithm>
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Scene::Internal;
@@ -30,7 +32,7 @@ TexSRVDescriptorTable::TexSRVDescriptorTable(const uint32_t descTableSize) noexc
 
 void TexSRVDescriptorTable::Init(uint64_t id) noexcept
 {
-	m_descTable = App::GetRenderer().GetCbvSrvUavDescriptorHeapGpu().Allocate(m_descTableSize);
+	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(m_descTableSize);
 	Assert(!m_descTable.IsEmpty(), "Allocating descriptors from the GPU descriptor heap failed.");
 
 	auto& s = App::GetRenderer().GetSharedShaderResources();
@@ -67,8 +69,8 @@ uint32_t TexSRVDescriptorTable::Add(Core::Texture&& tex, uint64_t id) noexcept
 	Assert(freeSlot < m_descTableSize, "Invalid table index.");
 
 	// create the SRV
-	auto descTpuHandle = m_descTable.CPUHandle(freeSlot);
-	Direct3DHelper::CreateTexture2DSRV(tex, descTpuHandle);
+	auto descCpuHandle = m_descTable.CPUHandle(freeSlot);
+	Direct3DHelper::CreateTexture2DSRV(tex, descCpuHandle);
 
 	// add this texture to the cache
 	m_cache.insert_or_assign(id, CacheEntry{ 
@@ -100,37 +102,12 @@ void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal) noexcept
 
 void TexSRVDescriptorTable::Clear() noexcept
 {
-	//auto& s = App::GetRenderer().GetSharedShaderResources();
-	//s.RemoveDescriptorTable(ID);
-
 	// Assumes GPU synchronization has been performed, so GPU is done with all the textures
 	m_pending.clear();
 	m_cache.clear();
 	memset(m_inUseBitset, 0, m_numMasks * sizeof(uint64_t));
 	m_descTable.Reset();
 }
-
-//void TexSRVDescriptorTable::Remove(uint64_t id, uint64_t nextFenceVal) noexcept
-//{
-//	auto it = Cache.find(id);
-//	Check(it != nullptr, "Invalid texture ID %llu", id);
-//	Check(it->TableOffset < NUM_DESCRIPTORS, "Descriptor table offset %u was out-of-bounds.", NUM_DESCRIPTORS);
-//	it->RefCount--;
-//
-//	TODO remove the corresponding bit from the bitmask
-// 
-//	// no more references to this texture
-//	if (it->RefCount == 0)
-//	{
-//		auto numErased = Cache.erase(id);
-//		Assert(numErased == 1, "Number of removed elements must be exactly one.");
-//
-//		Pending.emplace_back(ToBeFreedTexture{
-//			.T = ZetaMove(it->second.T), 
-//			.FenceVal = nextFenceVal, 
-//			.TableOffset = it->second.TableOffset});
-//	}
-//}
 
 //--------------------------------------------------------------------------------------
 // MaterialBuffer
@@ -221,22 +198,10 @@ void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept
 
 void MaterialBuffer::Clear() noexcept
 {
-	//auto& s = App::GetRenderer().GetSharedShaderResources();
-	//s.RemoveDescriptorTable(ID);
-
 	// Assumes CPU-GPU synchronization has been performed, so that GPU is done with the material buffer.
 	// UploadHeapBuffer's destructor takes care of the rest
 	m_buffer.Reset();
 }
-
-//void MaterialBuffer::Remove(uint64_t id, uint64_t nextFenceVal) noexcept
-//{
-//	auto it = Materials.find(id);
-//	Assert(it != nullptr, "Attempting to remove material %s that doesn't exist.", id);
-//
-//	Pending.emplace_back(ToBeRemoved{ .FenceVal = nextFenceVal, .Offset = (uint16_t)it->GpuBufferIndex()});
-//	Materials.erase(it);
-//}
 
 //--------------------------------------------------------------------------------------
 // MeshContainer
@@ -335,9 +300,15 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveIns
 		// todo implement
 		Check(false, "not supported yet.");
 	}
+
+	std::sort(m_emissivesInstances.begin(), m_emissivesInstances.end(),
+		[](const Asset::EmissiveInstance& a1, const Asset::EmissiveInstance& a2)
+		{
+			return a1.InstanceID < a2.InstanceID;
+		});
 }
 
-void EmissiveBuffer::RebuildBuffers() noexcept
+void EmissiveBuffer::RebuildEmissiveBuffer() noexcept
 {
 	if (m_emissivesTrisCpu.empty())
 		return;
@@ -352,11 +323,20 @@ void EmissiveBuffer::RebuildBuffers() noexcept
 	auto& r = App::GetRenderer().GetSharedShaderResources();
 	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_emissiveTrisGpu);
 
-	//m_emissivesTrisCpu.free_memory();
+	m_rebuildFlag = false;
 }
 
 void EmissiveBuffer::Clear() noexcept
 {
 	m_emissiveTrisGpu.Reset();
 	//m_emissivesTrisCpu.free_memory();
+}
+
+Asset::EmissiveInstance* EmissiveBuffer::FindEmissive(uint64_t ID) noexcept
+{
+	auto idx = BinarySearch(Span(m_emissivesInstances), ID, [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
+	if (idx != -1)
+		return &m_emissivesInstances[idx];
+
+	return nullptr;
 }
