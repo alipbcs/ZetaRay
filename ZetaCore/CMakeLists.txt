@@ -37,12 +37,12 @@ set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
 	"${IMGUI_DIR}/implot_items.cpp")
 
 # natvis
-set(NATVIS_SRC "${CMAKE_SOURCE_DIR}/Natvis/Container.natvis"
-	"${CMAKE_SOURCE_DIR}/Natvis/imgui.natvis"
-	"${CMAKE_SOURCE_DIR}/Natvis/App.natvis")
+set(NATVIS_SRC "${TOOLS_DIR}/Natvis/Container.natvis"
+	"${TOOLS_DIR}/Natvis/imgui.natvis"
+	"${TOOLS_DIR}/Natvis/App.natvis")
 
 source_group(TREE "${ZETA_CORE_DIR}" FILES ${CORE_SRC})
-source_group(TREE "${CMAKE_SOURCE_DIR}" FILES ${NATVIS_SRC})
+source_group(TREE "${TOOLS_DIR}" FILES ${NATVIS_SRC})
 source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
 
 # build ZetaCore as a static library
