@@ -13,7 +13,7 @@ using namespace ZetaRay::Core;
 
 void PostProcessor::Init(const RenderSettings& settings, PostProcessData& data, const LightData& lightData) noexcept
 {
-	data.AutoExposurePass.Init(AutoExposure::MODE::HISTOGRAM);
+	data.AutoExposurePass.Init();
 	data.DisplayPass.Init();
 	data.GuiPass.Init();
 
@@ -90,8 +90,6 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
 		data.TaaPass.OnWindowResized();
 	else if (settings.AntiAliasing == AA::FSR2)
 		data.Fsr2Pass.OnWindowResized();
-
-	data.AutoExposurePass.OnWindowResized();
 
 	UpdateWndDependentDescriptors(settings, data, lightData);
 }

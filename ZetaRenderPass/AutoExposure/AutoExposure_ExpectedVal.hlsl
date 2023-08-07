@@ -83,7 +83,7 @@ void main(uint Gidx : SV_GroupIndex)
 	if (Gidx == 0)
 	{
 		// undo the mapping
-		float result = pow(expectedVal, 1.0 / g_local.LumMappingExp);
+		float result = pow(expectedVal, 1.0 / g_local.LumMapExp);
 		// bring it to the given luminance range
 		result = result * g_local.LumRange + g_local.MinLum;
 		

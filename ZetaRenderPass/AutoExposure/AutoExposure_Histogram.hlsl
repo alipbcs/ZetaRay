@@ -5,6 +5,8 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 
+#define EPS 1e-4f
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -20,18 +22,18 @@ RWByteAddressBuffer g_hist : register(u0);
 uint CalculateeBin(uint2 DTid)
 {
 	// can't early exit for out-of-screen threads
-	if (!Math::IsWithinBoundsExc(DTid.xy, uint2(g_frame.RenderWidth, g_frame.RenderHeight)))
+	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return -1;
 	
 	Texture2D<half4> g_input = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	const float3 color = g_input[DTid].rgb;
 	const float lum = Math::Color::LuminanceFromLinearRGB(color);
 	
-	if(lum <= g_local.Eps)
+	if (lum <= EPS)
 		return 0;
 	
 	float t = saturate((lum - g_local.MinLum) / g_local.LumRange);
-	t = pow(t, g_local.LumMappingExp);
+	t = pow(t, g_local.LumMapExp);
 	uint bin = (uint) (t * (HIST_BIN_COUNT - 2)) + 1;
 	
 	return bin;
