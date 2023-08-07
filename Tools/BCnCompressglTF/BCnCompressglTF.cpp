@@ -49,9 +49,22 @@ namespace
         constexpr int NUM_ARGS = 16;
     }
 
+    namespace TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -nologo -swizzle bg -o %s %s";
+        constexpr int NUM_ARGS = 17;
+    }
+
+    namespace TEX_CONV_ARGV_OVERWRITE_SWIZZLE
+    {
+        static const char* CMD = " -w %d -h %d -m 0 -ft dds -f %s -nologo -swizzle bg -y -o %s %s";
+        constexpr int NUM_ARGS = 18;
+    }
+
     static constexpr int MAX_NUM_ARGS = Math::Max(
         Math::Max(TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS),
-        Math::Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS));
+        Math::Max(Math::Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS),
+                  Math::Max(TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS)));
 
     enum TEXTURE_TYPE
     {
@@ -149,6 +162,20 @@ namespace
     bool ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
         Span<int> textureMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool srgb, bool forceOverwrite)
     {
+        const char* formatStr = srgb ?
+            (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
+            (texType == METALNESS_ROUGHNESS ?
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SWIZZLE::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::CMD) :
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::CMD : TEX_CONV_ARGV_NO_OVERWRITE::CMD));
+        
+        const int numArgs = srgb ?
+            (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS) :
+            (texType == METALNESS_ROUGHNESS ?
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS) :
+                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS));
+
+        const char* texFormat = GetTexFormat(texType);
+
         for (auto tex : textureMaps)
         {
             // URI paths are relative to gltf file
@@ -168,18 +195,14 @@ namespace
             int comp;
             Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", imgPath.Get(), stbi_failure_reason());
 
-            int w = std::min(x, MAX_TEX_RES);
-            int h = std::min(y, MAX_TEX_RES);
+            int w = Math::Min(x, MAX_TEX_RES);
+            int h = Math::Min(y, MAX_TEX_RES);
 
             // Direct3D requires BC image to be multiple of 4 in width & height
             w = (int)Math::AlignUp(w, 4);
             h = (int)Math::AlignUp(h, 4);
 
             char buff[512];
-            const char* texFormat = GetTexFormat(texType);
-            const char* formatStr = srgb ?
-                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
-                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::CMD : TEX_CONV_ARGV_NO_OVERWRITE::CMD);
             const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, outDir.GetView().data(), imgPath.Get());
             Check(len < sizeof(buff), "buffer is too small.");
 
@@ -189,9 +212,6 @@ namespace
 
             wchar_t* ptr = wideBuff;
 
-            const int numArgs = srgb ? 
-                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS) : 
-                (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS);
             wchar_t* args[MAX_NUM_ARGS];
             int currArg = 0;
 
