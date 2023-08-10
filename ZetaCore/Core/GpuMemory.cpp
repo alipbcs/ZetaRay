@@ -8,6 +8,7 @@
 #include "../Utility/Utility.h"
 #include <thread>
 #include <algorithm>
+#include <bit>
 #include <xxHash/xxhash.h>
 
 using namespace ZetaRay;

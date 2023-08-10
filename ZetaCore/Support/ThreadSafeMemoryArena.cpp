@@ -2,6 +2,7 @@
 #include "../App/App.h"
 #include "../Utility/Span.h"
 #include <thread>
+#include <bit>
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;

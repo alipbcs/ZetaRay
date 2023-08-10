@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../App/ZetaRay.h"
+#include <malloc.h>
 #include <concepts>
 
 namespace ZetaRay::Support

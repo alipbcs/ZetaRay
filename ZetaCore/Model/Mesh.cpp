@@ -3,6 +3,7 @@
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Surface.h"
 #include "../Math/MatrixFuncs.h"
+#include <limits.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -700,7 +701,7 @@ namespace
 				float3 normal = tangent1.cross(tangent2);
 
 				//if (!XMVector3NearEqual(normal, XMVectorZero(), g_XMEpsilon))
-				if (abs(normal.x) > FLT_EPSILON || abs(normal.y) > FLT_EPSILON || abs(normal.z) > FLT_EPSILON)
+				if (fabsf(normal.x) > FLT_EPSILON || fabsf(normal.y) > FLT_EPSILON || fabsf(normal.z) > FLT_EPSILON)
 				{
 					normal.normalize();
 
