@@ -36,6 +36,7 @@ enum class Tonemapper
 	NONE,
 	ACES_FITTED,
 	NEUTRAL,
+	AgX,
 	COUNT
 };
 

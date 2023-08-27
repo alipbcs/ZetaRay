@@ -149,7 +149,7 @@ namespace ZetaRay::RenderPass
 				"ReSTIR_GI_Diffuse_Spatial"};
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
-			inline static const char* Tonemappers[] = { "None", "ACESFitted", "Neutral" };
+			inline static const char* Tonemappers[] = { "None", "ACES", "Neutral", "AgX" };
 			static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
 		};
 
