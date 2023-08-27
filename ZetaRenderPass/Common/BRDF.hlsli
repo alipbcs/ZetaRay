@@ -30,6 +30,8 @@
 #include "Math.hlsli"
 #include "Sampling.hlsli"
 
+#define USE_VNDF_SPHERICAL_CAPS 1
+
 namespace BRDF
 {
 	//--------------------------------------------------------------------------------------
@@ -97,7 +99,6 @@ namespace BRDF
 		return G1wi / (G1wi + G1wo - G1wi * G1wo);
 	}
 
-	// Ref: E. Heitz, "Sampling the GGX Distribution of VisibleNormals," Journal of Computer Graphics Techniques, 2018.
 	// Samples half vector in a coordinates system where z is aligned with shading normal
 	// Input wo: view direction
 	// Input alpha_x, alpha_y: roughness parameters
@@ -108,6 +109,9 @@ namespace BRDF
 		// Section 3.2: transforming the view direction to the hemisphere configuration
 		float3 Vh = normalize(float3(alpha_x * wo.x, alpha_y * wo.y, wo.z));
 	
+#if USE_VNDF_SPHERICAL_CAPS == 0
+		// Ref: E. Heitz, "Sampling the GGX Distribution of VisibleNormals," Journal of Computer Graphics Techniques, 2018.
+		
 		// Section 4.1: orthonormal basis (with special case if cross product is zero)
 		float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
 		float3 T1 = lensq > 0 ? float3(-Vh.y, Vh.x, 0) * rsqrt(lensq) : float3(1, 0, 0);
@@ -124,7 +128,20 @@ namespace BRDF
 	
 		// Section 4.3: reprojection onto hemisphere
 		float3 Nh = t1 * T1 + t2 * T2 + sqrt(saturate(1.0 - t1 * t1 - t2 * t2)) * Vh;
-	
+#else
+		// Ref: J. Dupuy and A. Benyoub, "Sampling Visible GGX Normals with Spherical Caps," High Performance Graphics, 2023.
+		
+		// sample a spherical cap in (-wi.z, 1]
+		float phi = TWO_PI * u.x;
+		float z = mad((1.0f - u.y), (1.0f + wo.z), -wo.z);
+		float sinTheta = sqrt(clamp(1.0f - z * z, 0.0f, 1.0f));
+		float x = sinTheta * cos(phi);
+		float y = sinTheta * sin(phi);
+		float3 c = float3(x, y, z);
+		// compute halfway direction;
+		float3 Nh = c + Vh;		
+#endif
+		
 		// Section 3.4: transforming the normal back to the ellipsoid configuration
 		float3 Ne = normalize(float3(alpha_x * Nh.x, alpha_y * Nh.y, max(0.0f, Nh.z)));
 	
@@ -212,31 +229,25 @@ namespace BRDF
 //		return surface.diffuseReflectance;
 //	}
 
-#if 0
 	float3 SampleLambertianBrdf(float3 normal, float2 u, out float pdf)
 	{
+#if 0
 		// build rotation quaternion that maps y = (0, 1, 0) to the shading normal
 		float4 q = Math::Transform::QuaternionFromY(shadingNormal);
 		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
 		// transform wi from local space to world space
 		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
-	
-		return wiWorld;
-	}	
 #else	
-	float3 SampleLambertianBrdf(float3 normal, float2 u, out float pdf)
-	{
-		float3 wi = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 		
 		float3 T;
 		float3 B;
 		Math::Transform::revisedONB(normal, T, B);
-		wi = wi.x * T + wi.y * B + wi.z * normal;
-		
-		return wi;
-	}
-#endif
+		float3 wiWorld = wiLocal.x * T + wiLocal.y * B + wiLocal.z * normal;
+#endif			
+		return wiWorld;
+	}	
 	
 	//--------------------------------------------------------------------------------------
 	// Specular Microfacet Model
@@ -274,7 +285,7 @@ namespace BRDF
 		
 		// transform wo from world space to C
 		// M = [b1 b2 n] goes from C to world space, so we need its inverse. Since
-		// M is an orthogonal matrix, its inverse is just its tranpose
+		// M is an orthogonal matrix, its inverse is just its transpose
 		float3x3 worldToLocal = float3x3(b1, b2, shadingNormal);
 		float3 woLocalLH = mul(worldToLocal, surface.wo);
 		
@@ -287,7 +298,7 @@ namespace BRDF
 		float3 woLocalRH = float3(woLocalLH.x, -woLocalLH.y, woLocalLH.z);
 		float3 whLocalRH = SampleGGXVNDF(woLocalRH, surface.alpha, surface.alpha, u);
 		
-		// now reverse the transformations in a LIFO order
+		// now reverse the transformations in LIFO order
 		float3 whLocalLH = float3(whLocalRH.x, -whLocalRH.y, whLocalRH.z);
 		float3 whWorld = whLocalLH.x * b1 + whLocalLH.y * b2 + whLocalLH.z * shadingNormal;
 		
@@ -310,7 +321,7 @@ namespace BRDF
 	// Combined surface BRDFs
 	//--------------------------------------------------------------------------------------
 
-	// Computes combined (diffuse + specular BRDF) * ndotwi at given surface point
+	// diffuse plus specular BRDFs times ndotwi at given surface point
 	float3 SurfaceBRDF(SurfaceInteraction surface, bool guardDelta = false)
 	{
 		if (surface.ndotwi <= 0.0f || surface.ndotwo <= 0.0f)
