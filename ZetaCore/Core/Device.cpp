@@ -10,6 +10,9 @@ using namespace ZetaRay::App;
 // PIX crashes & NSight doesn't work when the debug layer is enabled
 #define ENABLE_DEBUG_LAYER
 
+// ID3D12Device::SetStablePowerState requires the system to be in developer mode, uncomment the following to enable
+//#define DEVELOPER_MODE_ENABLED
+
 void DeviceObjects::InitializeAdapter() noexcept
 {
 #if defined(_DEBUG) && defined(ENABLE_DEBUG_LAYER)
@@ -82,7 +85,10 @@ void DeviceObjects::CreateDevice() noexcept
 
 	infoQueue->Release();
 
+#ifdef DEVELOPER_MODE_ENABLED
 	CheckHR(device->SetStablePowerState(true));
+#endif
+
 #endif // _DEBUG
 
 	// Hardware-accelerated RT
