@@ -1478,20 +1478,24 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 
 int GpuMemory::GetIndexForThread() noexcept
 {
-	static_assert(ZetaArrayLen(m_threadIDs) / 8 == 2, "following assumes there are at most 16 threads.");
-
 	const uint32_t tid = std::bit_cast<THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
 
+	int ret = -1;
 	__m256i vKey = _mm256_set1_epi32(tid);
-	__m256i vIDs1 = _mm256_load_si256(reinterpret_cast<__m256i*>(m_threadIDs));
-	__m256i vIDs2 = _mm256_load_si256(reinterpret_cast<__m256i*>(m_threadIDs + 8));
 
-	uint32_t mask1 = (uint32_t)_mm256_movemask_epi8(_mm256_cmpeq_epi32(vKey, vIDs1));
-	uint32_t mask2 = (uint32_t)_mm256_movemask_epi8(_mm256_cmpeq_epi32(vKey, vIDs2));
-	uint64_t mask = (uint64_t(mask2) << 32) | mask1;
+	for (int i = 0; i < MAX_NUM_THREADS; i += 8)
+	{
+		__m256i vIDs = _mm256_load_si256((__m256i*)(m_threadIDs + i));
+		__m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
+		int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
 
-	uint64_t idx = _tzcnt_u64(mask);
-	auto ret = idx == 64 ? -1 : int(idx >> 2);
+		if (mask != 0) 
+		{
+			ret = i + _tzcnt_u32(mask);
+			break;
+		}
+	}
+
 	Assert(ret != -1, "thread index was not found.");
 
 	return ret;

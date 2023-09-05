@@ -23,8 +23,7 @@
 #define ZetaForward(x) static_cast<decltype(x)&&>(x)
 #define ZetaInline __forceinline
 
-#define MAX_NUM_THREADS 16
+#define MAX_NUM_THREADS 64
 #define THREAD_ID_TYPE uint32_t
 
 #define ZetaArrayLen(x) sizeof(x) / sizeof(x[0])
-
