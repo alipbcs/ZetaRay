@@ -6,6 +6,8 @@ set(SUPPORT_SRC
     "${SUPPORT_DIR}/MemoryPool.h"
     "${SUPPORT_DIR}/MemoryArena.cpp"
     "${SUPPORT_DIR}/MemoryArena.h"
+    "${SUPPORT_DIR}/OffsetAllocator.cpp"
+    "${SUPPORT_DIR}/OffsetAllocator.h"
     "${SUPPORT_DIR}/Param.cpp"
     "${SUPPORT_DIR}/Param.h"
     "${SUPPORT_DIR}/Stat.h"
