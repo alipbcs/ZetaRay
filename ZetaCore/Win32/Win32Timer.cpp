@@ -10,7 +10,7 @@ using namespace ZetaRay::App;
 // Timer
 //--------------------------------------------------------------------------------------
 
-Timer::Timer() noexcept
+Timer::Timer()
 {
 	LARGE_INTEGER freq;
 	bool success = QueryPerformanceFrequency(&freq);
@@ -18,14 +18,14 @@ Timer::Timer() noexcept
 	m_counterFreqSec = freq.QuadPart;
 }
 
-void Timer::Start() noexcept
+void Timer::Start()
 {
 	LARGE_INTEGER currCount;
 	CheckWin32(QueryPerformanceCounter(&currCount));
 	m_start = currCount.QuadPart;
 }
 
-void Timer::Resume() noexcept
+void Timer::Resume()
 {
 	LARGE_INTEGER currCount;
 	CheckWin32(QueryPerformanceCounter(&currCount));
@@ -40,7 +40,7 @@ void Timer::Resume() noexcept
 	}
 }
 
-void Timer::Pause() noexcept
+void Timer::Pause()
 {
 	if (m_paused)
 		return;
@@ -54,7 +54,7 @@ void Timer::Pause() noexcept
 	m_paused = true;
 }
 
-void Timer::Tick() noexcept
+void Timer::Tick()
 {
 	if (m_paused)
 		return;
@@ -87,7 +87,7 @@ void Timer::Tick() noexcept
 // DeltaTimer
 //--------------------------------------------------------------------------------------
 
-DeltaTimer::DeltaTimer() noexcept
+DeltaTimer::DeltaTimer()
 {
 	LARGE_INTEGER freq;
 	bool success = QueryPerformanceFrequency(&freq);
@@ -95,21 +95,21 @@ DeltaTimer::DeltaTimer() noexcept
 	m_counterFreqSec = freq.QuadPart;
 }
 
-void DeltaTimer::Start() noexcept
+void DeltaTimer::Start()
 {
 	LARGE_INTEGER currCount;
 	CheckWin32(QueryPerformanceCounter(&currCount));
 	m_start = currCount.QuadPart;
 }
 
-void DeltaTimer::End() noexcept
+void DeltaTimer::End()
 {
 	LARGE_INTEGER currCount;
 	CheckWin32(QueryPerformanceCounter(&currCount));
 	m_end = currCount.QuadPart;
 }
 
-double DeltaTimer::DeltaNano() noexcept
+double DeltaTimer::DeltaNano()
 {
 	// convert to microseconds before dividing to avoid precision loss
 	// https://docs.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
@@ -117,7 +117,7 @@ double DeltaTimer::DeltaNano() noexcept
 	return (double)elapsedMicro / m_counterFreqSec;
 }
 
-double DeltaTimer::DeltaMicro() noexcept
+double DeltaTimer::DeltaMicro()
 {
 	// convert to microseconds before dividing to avoid precision loss
 	// https://docs.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps
@@ -125,7 +125,7 @@ double DeltaTimer::DeltaMicro() noexcept
 	return (double)elapsedMicro / m_counterFreqSec;
 }
 
-double DeltaTimer::DeltaMilli() noexcept
+double DeltaTimer::DeltaMilli()
 {
 	// convert to milliseconds before dividing to avoid precision loss
 	// https://docs.microsoft.com/en-us/windows/win32/sysinfo/acquiring-high-resolution-time-stamps

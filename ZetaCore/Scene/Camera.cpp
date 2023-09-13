@@ -11,7 +11,7 @@ using namespace ZetaRay::Math;
 
 namespace
 {
-	ZetaInline void __vectorcall setCamPos(const __m128 vNewCamPos, float4x4a& view, float4x4a& viewInv) noexcept
+	ZetaInline void __vectorcall setCamPos(const __m128 vNewCamPos, float4x4a& view, float4x4a& viewInv)
 	{
 		const __m128 vT = negate(vNewCamPos);
 		viewInv.m[3] = store(vNewCamPos);
@@ -29,7 +29,7 @@ namespace
 	}
 
 	ZetaInline v_float4x4 __vectorcall resetViewMatrix(const __m128 vBasisX, const __m128 vBasisY,
-		const __m128 vBasisZ, const __m128 vEye, float4x4a& viewInv) noexcept
+		const __m128 vBasisZ, const __m128 vEye, float4x4a& viewInv)
 	{
 		v_float4x4 vViewInv;
 		vViewInv.vRow[0] = vBasisX;
@@ -58,7 +58,7 @@ namespace
 // Camera
 //--------------------------------------------------------------------------------------
 
-void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focusOrViewDir, bool lookAt) noexcept
+void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focusOrViewDir, bool lookAt)
 {
 	m_posW = float4a(posw, 1.0f);
 	m_FOV = fov;
@@ -120,7 +120,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
-void Camera::Update(const Motion& m) noexcept
+void Camera::Update(const Motion& m)
 {
 	if (m.RotationDegreesY != 0.0)
 		RotateY(m.RotationDegreesY);
@@ -164,7 +164,7 @@ void Camera::Update(const Motion& m) noexcept
 	}
 }
 
-void Camera::UpdateProj() noexcept
+void Camera::UpdateProj()
 {
 	v_float4x4 vP;
 
@@ -174,7 +174,7 @@ void Camera::UpdateProj() noexcept
 	m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
 }
 
-void Camera::OnWindowSizeChanged() noexcept
+void Camera::OnWindowSizeChanged()
 {
 	const int renderWidth = App::GetRenderer().GetRenderWidth();
 	const int renderfHeight = App::GetRenderer().GetRenderHeight();
@@ -192,7 +192,7 @@ void Camera::OnWindowSizeChanged() noexcept
 }
 
 /*
-void Camera::MoveY(float dt) noexcept
+void Camera::MoveY(float dt)
 {
 	const __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&m_upW));
 	__m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
@@ -204,7 +204,7 @@ void Camera::MoveY(float dt) noexcept
 }
 */
 
-void Camera::RotateX(float dt) noexcept
+void Camera::RotateX(float dt)
 {
 	__m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
 	__m128 vBasisY = _mm_load_ps(reinterpret_cast<float*>(&m_basisY));
@@ -228,7 +228,7 @@ void Camera::RotateX(float dt) noexcept
 	m_basisZ = store(vBasisZ);
 }
 
-void Camera::RotateY(float dt) noexcept
+void Camera::RotateY(float dt)
 {
 	__m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
 	__m128 vBasisY = _mm_load_ps(reinterpret_cast<float*>(&m_basisY));
@@ -254,13 +254,13 @@ void Camera::RotateY(float dt) noexcept
 	m_basisZ = store(vBasisZ);
 }
 
-void Camera::SetFOV(const ParamVariant& p) noexcept
+void Camera::SetFOV(const ParamVariant& p)
 {
 	m_FOV = Math::DegreeToRadians(p.GetFloat().m_val);
 	UpdateProj();
 }
 
-void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
+void Camera::SetJitteringEnabled(const ParamVariant& p)
 {
 	m_jitteringEnabled = p.GetBool();
 
@@ -271,7 +271,7 @@ void Camera::SetJitteringEnabled(const ParamVariant& p) noexcept
 	m_currProjOffset = float2(0.0f, 0.0f);
 }
 
-void Camera::SetFrictionCoeff(const Support::ParamVariant& p) noexcept
+void Camera::SetFrictionCoeff(const Support::ParamVariant& p)
 {
 	m_frictionCoeff = p.GetFloat().m_val;
 }

@@ -41,12 +41,12 @@ namespace
 // PipelineStateLibrary
 //--------------------------------------------------------------------------------------
 
-PipelineStateLibrary::~PipelineStateLibrary() noexcept
+PipelineStateLibrary::~PipelineStateLibrary()
 {
 	ClearAndFlushToDisk();
 }
 
-void PipelineStateLibrary::Init(const char* name) noexcept
+void PipelineStateLibrary::Init(const char* name)
 {
 	StackStr(filename, n, "%s.cache", name);
 	m_psoLibPath1.Reset(App::GetPSOCacheDir());
@@ -85,7 +85,7 @@ void PipelineStateLibrary::Init(const char* name) noexcept
 		ResetPsoLib();
 }
 
-void PipelineStateLibrary::ClearAndFlushToDisk() noexcept
+void PipelineStateLibrary::ClearAndFlushToDisk()
 {
 	if (m_psoLibrary)
 	{
@@ -110,7 +110,7 @@ void PipelineStateLibrary::ClearAndFlushToDisk() noexcept
 	m_cachedBlob.free_memory();
 }
 
-void PipelineStateLibrary::DeletePsoLibFile() noexcept
+void PipelineStateLibrary::DeletePsoLibFile()
 {
 	if (m_foundOnDisk)
 	{
@@ -123,7 +123,7 @@ void PipelineStateLibrary::DeletePsoLibFile() noexcept
 	//m_compiledPSOs.clear();
 }
 
-void PipelineStateLibrary::ResetPsoLib(bool forceReset) noexcept
+void PipelineStateLibrary::ResetPsoLib(bool forceReset)
 {
 	// avoid recreating PipelineStateLibrary object if it's been reset since the start of program
 	if (forceReset || !m_psoWasReset)
@@ -135,7 +135,7 @@ void PipelineStateLibrary::ResetPsoLib(bool forceReset) noexcept
 	}
 }
 
-void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO) noexcept
+void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO)
 {
 //	ID3D12PipelineState* pso = Find(nameID);
 //	if (!pso)
@@ -246,7 +246,7 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 	}
 }
 
-ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key) noexcept
+ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key)
 {
 	if (m_compiledPSOs.empty())
 		return nullptr;
@@ -258,7 +258,7 @@ ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key) noexcept
 	return nullptr;
 }
 
-bool PipelineStateLibrary::UpdatePSO(Entry e) noexcept
+bool PipelineStateLibrary::UpdatePSO(Entry e)
 {
 	if (m_compiledPSOs.empty())
 		return false;
@@ -277,7 +277,7 @@ bool PipelineStateLibrary::UpdatePSO(Entry e) noexcept
 	return false;
 }
 
-bool PipelineStateLibrary::RemovePSO(uint64_t nameID) noexcept
+bool PipelineStateLibrary::RemovePSO(uint64_t nameID)
 {
 	if (m_compiledPSOs.empty())
 		return false;
@@ -292,7 +292,7 @@ bool PipelineStateLibrary::RemovePSO(uint64_t nameID) noexcept
 	return true;
 }
 
-void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e) noexcept
+void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e)
 {
 	// if PSO with given key already exists, just update it
 	if (UpdatePSO(e))
@@ -315,7 +315,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
 	ID3D12RootSignature* rootSig, 
 	const char* pathToCompiledVS,
-	const char* pathToCompiledPS) noexcept
+	const char* pathToCompiledPS)
 {
 	// if the PSO was already created, just return it
 	ID3D12PipelineState* pso = Find(nameID);
@@ -381,7 +381,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 }
 
 ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12RootSignature* rootSig,
-	const char* pathToCompiledCS) noexcept
+	const char* pathToCompiledCS)
 {
 	ID3D12PipelineState* pso = Find(nameID);
 
@@ -432,7 +432,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 }
 
 ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12RootSignature* rootSig, 
-	Span<const uint8_t> compiledBlob) noexcept
+	Span<const uint8_t> compiledBlob)
 {
 	// if the PSO has already been created, just return it
 	ID3D12PipelineState* pso = Find(nameID);

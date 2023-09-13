@@ -14,7 +14,7 @@ DescriptorTable::DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
 	uint32_t numDesc, 
 	uint32_t descSize,
 	DescriptorHeap* heap,
-	uint32_t internalVal) noexcept
+	uint32_t internalVal)
 	: m_baseCpuHandle(cpuHandle),
 	m_baseGpuHandle(gpuHandle),
 	m_numDescriptors(numDesc),
@@ -24,12 +24,12 @@ DescriptorTable::DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
 {
 }
 
-DescriptorTable::~DescriptorTable() noexcept
+DescriptorTable::~DescriptorTable()
 {
 	Reset();
 }
 
-DescriptorTable::DescriptorTable(DescriptorTable&& other) noexcept
+DescriptorTable::DescriptorTable(DescriptorTable&& other)
 	: m_baseCpuHandle(other.m_baseCpuHandle),
 	m_baseGpuHandle(other.m_baseGpuHandle),
 	m_numDescriptors(other.m_numDescriptors),
@@ -45,7 +45,7 @@ DescriptorTable::DescriptorTable(DescriptorTable&& other) noexcept
 	other.m_internal = uint32_t(-1);
 }
 
-DescriptorTable& DescriptorTable::operator=(DescriptorTable&& other) noexcept
+DescriptorTable& DescriptorTable::operator=(DescriptorTable&& other)
 {
 	if (this == &other)
 		return *this;
@@ -61,7 +61,7 @@ DescriptorTable& DescriptorTable::operator=(DescriptorTable&& other) noexcept
 }
 
 // TODO needs more testing
-void DescriptorTable::Reset() noexcept
+void DescriptorTable::Reset()
 {
 	if (m_baseCpuHandle.ptr)
 		m_descHeap->Release(ZetaMove(*this));
@@ -78,7 +78,7 @@ void DescriptorTable::Reset() noexcept
 // DescriptorHeap
 //--------------------------------------------------------------------------------------
 
-DescriptorHeap::DescriptorHeap(uint32_t blockSize) noexcept
+DescriptorHeap::DescriptorHeap(uint32_t blockSize)
 	: m_pending(m_memoryPool),
 	m_blockSize(blockSize),
 	m_numLists((uint32_t)log2f((float)blockSize) + 1),
@@ -104,7 +104,7 @@ DescriptorHeap::DescriptorHeap(uint32_t blockSize) noexcept
 		m_heads[i].Head = uint32_t(-1);
 }
 
-void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible) noexcept
+void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
 {
 	Assert(!isShaderVisible || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
 		"Shader-visible heap type must be D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV");
@@ -136,12 +136,12 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
 	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 }
 
-void DescriptorHeap::Shutdown() noexcept
+void DescriptorHeap::Shutdown()
 {
 	m_pending.free_memory();
 }
 
-bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx) noexcept
+bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
 {
 	Assert(m_heads[listIdx].Entries.empty(), "this linked list must be empty.");
 
@@ -180,7 +180,7 @@ bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx) noexcept
 	return true;
 }
 
-DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
+DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 {
 	Assert(count && count <= m_totalHeapSize, "invalid allocation count.");
 	uint32_t heapOffset;
@@ -257,7 +257,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count) noexcept
 		arrayOffset);
 }
 
-void DescriptorHeap::Release(DescriptorTable&& table) noexcept
+void DescriptorHeap::Release(DescriptorTable&& table)
 {
 	const uint32_t offset = (uint32_t)((table.m_baseCpuHandle.ptr - m_baseCPUHandle.ptr) / m_descriptorSize);
 
@@ -266,7 +266,7 @@ void DescriptorHeap::Release(DescriptorTable&& table) noexcept
 	ReleaseSRWLockExclusive(&m_lock);
 }
 
-void DescriptorHeap::Recycle() noexcept
+void DescriptorHeap::Recycle()
 {
 	if (m_pending.empty())
 		return;

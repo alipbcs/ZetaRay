@@ -43,26 +43,26 @@ namespace ZetaRay::Core
 
 	struct RootSignature
 	{
-		RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts) noexcept;
-		~RootSignature() noexcept = default;
+		RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts);
+		~RootSignature() = default;
 
 		RootSignature(const RootSignature&) = delete;
 		RootSignature& operator=(const RootSignature&) = delete;
 
 		void InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32_t registerNum,
-			uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL) noexcept;
+			uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 		void InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
 			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false) noexcept;
+			const char* id = nullptr, bool isOptional = false);
 
 		void InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
 			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false) noexcept;
+			const char* id = nullptr, bool isOptional = false);
 
 		void InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
 			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false) noexcept;
+			const char* id = nullptr, bool isOptional = false);
 
 		void Finalize(const char* name,
 			ComPtr<ID3D12RootSignature>& rootSig,
@@ -70,15 +70,15 @@ namespace ZetaRay::Core
 			const D3D12_STATIC_SAMPLER_DESC* samplers = nullptr,
 			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
-		void Begin() noexcept;
+		void Begin();
 
-		void SetRootConstants(uint32_t offset, uint32_t num, void* data) noexcept;
-		void SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept;
-		void SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept;
-		void SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept;
+		void SetRootConstants(uint32_t offset, uint32_t num, void* data);
+		void SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);
+		void SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);
+		void SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);
 
-		void End(GraphicsCmdList& ctx) noexcept;
-		void End(ComputeCmdList& ctx) noexcept;
+		void End(GraphicsCmdList& ctx);
+		void End(ComputeCmdList& ctx);
 
 	private:
 		static constexpr int MAX_NUM_PARAMS = 11;

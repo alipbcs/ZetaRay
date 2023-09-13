@@ -19,7 +19,7 @@ TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices,
 	size_t vtxBuffStartOffset,
 	size_t idxBuffStartOffset,
 	uint32_t numIndices, 
-	uint64_t matID) noexcept
+	uint64_t matID)
 	: m_numIndices(numIndices),
 	m_materialID(matID),
 	m_vtxBuffStartOffset(vtxBuffStartOffset),
@@ -48,7 +48,7 @@ TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices,
 //--------------------------------------------------------------------------------------
 
 void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float width, float depth, uint32_t m, uint32_t n) noexcept
+	float width, float depth, uint32_t m, uint32_t n)
 {
 	vertices.clear();
 	indices.clear();
@@ -113,7 +113,7 @@ void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex>& vertices, Vector<uint32_t>
 }
 
 void PrimitiveMesh::ComputeSphere(Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float diameter, size_t tessellation) noexcept
+	float diameter, size_t tessellation)
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
 
@@ -185,7 +185,7 @@ void PrimitiveMesh::ComputeSphere(Vector<Vertex>& vertices, Vector<uint32_t>& in
 }
 
 void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept
+	float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount)
 {
 	vertices.clear();
 	indices.clear();
@@ -337,7 +337,7 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
 }
 
 void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float diameter, float height, size_t tessellation) noexcept
+	float diameter, float height, size_t tessellation)
 {
 	Assert(tessellation >= 3, "tesselation parameter out of range");
 
@@ -414,7 +414,7 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
 }
 
 void PrimitiveMesh::ComputeTorus(Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float diameter, float thickness, size_t tessellation) noexcept
+	float diameter, float thickness, size_t tessellation)
 {
 	vertices.clear();
 	indices.clear();
@@ -644,7 +644,7 @@ namespace
 		{ true, { 118, 118, 118, 118, 124, 122, 119, 121, 123, 126, 125, 120, 40, 39, 38, 37 } },
 	};
 
-	float3 CubicInterpolate(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
+	float3 CubicInterpolate(float3 p1, float3 p2, float3 p3, float3 p4, float t)
 	{
 		float T0 = (1 - t) * (1 - t) * (1 - t);
 		float T1 = 3 * t * (1 - t) * (1 - t);
@@ -656,7 +656,7 @@ namespace
 		return result;
 	}
 
-	float3 CubicTangent(float3 p1, float3 p2, float3 p3, float3 p4, float t) noexcept
+	float3 CubicTangent(float3 p1, float3 p2, float3 p3, float3 p4, float t)
 	{
 		return p1 * (-1 + 2 * t - t * t) +
 			p2 * (1 - 4 * t + 3 * t * t) +
@@ -665,7 +665,7 @@ namespace
 	}
 
 	void CreatePatchVertices(Vector<Vertex>& vertices, float3 patch[16],
-		size_t tessellation, bool isMirrored) noexcept
+		size_t tessellation, bool isMirrored)
 	{
 		for (size_t i = 0; i <= tessellation; i++)
 		{
@@ -810,7 +810,7 @@ namespace
 }
 
 void PrimitiveMesh::ComputeTeapot(Vector<Vertex>& vertices, Vector<uint32_t>& indices,
-	float size, size_t tessellation) noexcept
+	float size, size_t tessellation)
 {
 	vertices.clear();
 	indices.clear();

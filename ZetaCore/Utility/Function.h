@@ -7,10 +7,10 @@ namespace ZetaRay::Util
     // Ref: https://stackoverflow.com/questions/18633697/fastdelegate-and-lambdas-cant-get-them-to-work-don-clugstons-fastest-possib
     struct Function
     {
-        Function() noexcept = default;
+        Function() = default;
 
         template <typename F>
-        Function(F&& f) noexcept
+        Function(F&& f)
         {
             static_assert(sizeof(F) <= BUFFER_SIZE, "Memory needed exceeded capture buffer size.");
             static_assert(std::is_move_constructible_v<F>);
@@ -19,7 +19,7 @@ namespace ZetaRay::Util
             new (&m_buffer) F(ZetaMove(f));
         }
 
-        ~Function() noexcept
+        ~Function()
         {
             if (m_lambda)
             {
@@ -27,7 +27,7 @@ namespace ZetaRay::Util
             }
         }
 
-        Function(Function&& other) noexcept
+        Function(Function&& other)
             : m_lambda(other.m_lambda)
         {
             other.m_lambda = nullptr;
@@ -35,7 +35,7 @@ namespace ZetaRay::Util
             memset(other.m_buffer, 0, BUFFER_SIZE);
         }
 
-        Function& operator=(Function&& other) noexcept
+        Function& operator=(Function&& other)
         {
             m_lambda = other.m_lambda;
             other.m_lambda = nullptr;
@@ -45,13 +45,13 @@ namespace ZetaRay::Util
             return *this;
         }
 
-        bool IsSet() const noexcept
+        bool IsSet() const
         {
             return m_lambda != nullptr;
         }
 
         //template <typename F>
-        //void Reset(F&& f) noexcept
+        //void Reset(F&& f)
         //{
         //    static_assert(sizeof(F) <= BUFFER_SIZE, "Memory needed exceede capture buffer size.");
         //    static_assert(std::is_move_constructible_v<F>);
@@ -63,7 +63,7 @@ namespace ZetaRay::Util
         //    new (&m_buffer) F(ZetaMove(f));
         //}
 
-        ZetaInline void Run() noexcept
+        ZetaInline void Run()
         {
             return m_lambda->call(&m_buffer);
         }

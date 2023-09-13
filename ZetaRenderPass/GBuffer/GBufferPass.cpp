@@ -173,9 +173,9 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs)
 	ParamVariant depthThresh;
 	depthThresh.InitFloat("Renderer", "OcclusionCulling", "DepthThresh", fastdelegate::MakeDelegate(this, &GBufferPass::DepthThreshCallback),
 		m_occlusionTestDepthThresh,				// val	
-		1e-3f,									// min
+		1e-5f,									// min
 		1e-1f,									// max
-		1e-2f);									// step
+		1e-4f);									// step
 	App::AddParam(depthThresh);
 
 	App::AddShaderReloadHandler("OcclusionCulling", fastdelegate::MakeDelegate(this, &GBufferPass::ReloadShader));

@@ -10,7 +10,7 @@ using namespace ZetaRay::App;
 // Path
 //--------------------------------------------------------------------------------------
 
-Filesystem::Path::Path(Util::StrView str) noexcept
+Filesystem::Path::Path(Util::StrView str)
 {
     const size_t n = str.size();
     m_path.resize(n + 1);   // + 1 for '\0'
@@ -21,7 +21,7 @@ Filesystem::Path::Path(Util::StrView str) noexcept
     m_path[n] = '\0';
 }
 
-void Filesystem::Path::Reset(Util::StrView str) noexcept
+void Filesystem::Path::Reset(Util::StrView str)
 {
     if (!str.empty())
     {
@@ -32,7 +32,7 @@ void Filesystem::Path::Reset(Util::StrView str) noexcept
     }
 }
 
-Filesystem::Path& Filesystem::Path::Append(Util::StrView str) noexcept
+Filesystem::Path& Filesystem::Path::Append(Util::StrView str)
 {
     if (str.empty())
         return *this;
@@ -62,7 +62,7 @@ Filesystem::Path& Filesystem::Path::Append(Util::StrView str) noexcept
     return *this;
 }
 
-Filesystem::Path& Filesystem::Path::ToParent() noexcept
+Filesystem::Path& Filesystem::Path::ToParent()
 {
     const size_t len = strlen(m_path.data());
 
@@ -86,7 +86,7 @@ Filesystem::Path& Filesystem::Path::ToParent() noexcept
     return *this;
 }
 
-Filesystem::Path& Filesystem::Path::Directory() noexcept
+Filesystem::Path& Filesystem::Path::Directory()
 {
     if (Filesystem::IsDirectory(m_path.data()))
         return *this;
@@ -110,7 +110,7 @@ Filesystem::Path& Filesystem::Path::Directory() noexcept
     return *this;
 }
 
-void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
+void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const
 {
     const size_t len = strlen(m_path.begin());
 
@@ -146,7 +146,7 @@ void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const noexcept
         *outStrLen = s - 1;
 }
 
-void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const noexcept
+void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const
 {
     const size_t len = strlen(m_path.begin());
 
@@ -180,7 +180,7 @@ void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const
         *outStrLen = s;
 }
 
-void Filesystem::Path::ConvertToBackslashes() noexcept
+void Filesystem::Path::ConvertToBackslashes()
 {
     const size_t len = strlen(m_path.begin());
     char* srcData = m_path.begin();
@@ -192,7 +192,7 @@ void Filesystem::Path::ConvertToBackslashes() noexcept
     }
 }
 
-void Filesystem::Path::ConvertToForwardSlashes() noexcept
+void Filesystem::Path::ConvertToForwardSlashes()
 {
     const size_t len = strlen(m_path.begin());
     char* srcData = m_path.begin();
@@ -208,7 +208,7 @@ void Filesystem::Path::ConvertToForwardSlashes() noexcept
 // Functions
 //--------------------------------------------------------------------------------------
 
-void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData) noexcept
+void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData)
 {
     Assert(path, "given path was NULL");
 
@@ -236,7 +236,7 @@ void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData) noexc
     CloseHandle(h);
 }
 
-void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAllocator>& fileData) noexcept
+void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAllocator>& fileData)
 {
     Assert(path, "given path was NULL");
 
@@ -264,7 +264,7 @@ void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAl
     CloseHandle(h);
 }
 
-void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInBytes) noexcept
+void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInBytes)
 {
     Assert(path, "given path was NULL");
 
@@ -294,7 +294,7 @@ void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInByt
     CloseHandle(h);
 }
 
-void Filesystem::RemoveFile(const char* path) noexcept
+void Filesystem::RemoveFile(const char* path)
 {
     Assert(path, "given path was NULL");
 
@@ -302,7 +302,7 @@ void Filesystem::RemoveFile(const char* path) noexcept
     Check(success, "DeleteFile() for path %s failed with following error code: %d", path, GetLastError());
 }
 
-bool Filesystem::Exists(const char* path) noexcept
+bool Filesystem::Exists(const char* path)
 {
     Assert(path, "given path was NULL");
 
@@ -323,7 +323,7 @@ bool Filesystem::Exists(const char* path) noexcept
     return true;
 }
 
-size_t Filesystem::GetFileSize(const char* path) noexcept
+size_t Filesystem::GetFileSize(const char* path)
 {
     Assert(path, "given path was NULL");
 
@@ -354,7 +354,7 @@ size_t Filesystem::GetFileSize(const char* path) noexcept
     return s.QuadPart;
 }
 
-void Filesystem::CreateDirectoryIfNotExists(const char* path) noexcept
+void Filesystem::CreateDirectoryIfNotExists(const char* path)
 {
     if (!CreateDirectoryA(path, nullptr))
     {
@@ -372,7 +372,7 @@ void Filesystem::CreateDirectoryIfNotExists(const char* path) noexcept
     }
 }
 
-bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite) noexcept
+bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite)
 {
     bool ret = CopyFileA(path, newPath, !overwrite);
     if (!ret)
@@ -386,7 +386,7 @@ bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite) noe
     return true;
 }
 
-bool Filesystem::IsDirectory(const char* path) noexcept
+bool Filesystem::IsDirectory(const char* path)
 {
     Assert(path, "given path was NULL");
 

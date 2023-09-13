@@ -11,13 +11,13 @@ namespace
 {
 	struct alignas(16) Bin
 	{
-		ZetaInline void __vectorcall Extend(v_AABB box) noexcept
+		ZetaInline void __vectorcall Extend(v_AABB box)
 		{
 			Box = NumEntries > 0 ? compueUnionAABB(Box, box) : box;
 			NumEntries++;
 		}
 
-		ZetaInline void __vectorcall Extend(Bin bin) noexcept
+		ZetaInline void __vectorcall Extend(Bin bin)
 		{
 			Box = NumEntries > 0 ? compueUnionAABB(Box, bin.Box) : bin.Box;
 			NumEntries += bin.NumEntries;
@@ -32,7 +32,7 @@ namespace
 // Node
 //--------------------------------------------------------------------------------------
 
-void BVH::Node::InitAsLeaf(int base, int count, int parent) noexcept
+void BVH::Node::InitAsLeaf(int base, int count, int parent)
 {
 	Assert(count, "Invalid count");
 	Base = base;
@@ -43,7 +43,7 @@ void BVH::Node::InitAsLeaf(int base, int count, int parent) noexcept
 }
 
 void BVH::Node::InitAsInternal(Span<BVH::BVHInput> instances, int base, int count,
-	int right, int parent) noexcept
+	int right, int parent)
 {
 	Assert(count, "Invalid count");
 	Assert(base + count <= instances.size(), "Invalid base/count.");
@@ -62,20 +62,20 @@ void BVH::Node::InitAsInternal(Span<BVH::BVHInput> instances, int base, int coun
 // BVH
 //--------------------------------------------------------------------------------------
 
-BVH::BVH() noexcept
+BVH::BVH()
 	: m_arena(4 * 1096),
 	m_instances(m_arena),
 	m_nodes(m_arena)
 {
 }
 
-void BVH::Clear() noexcept
+void BVH::Clear()
 {
 	m_nodes.free_memory();
 	m_instances.free_memory();
 }
 
-void BVH::Build(Span<BVHInput> instances) noexcept
+void BVH::Build(Span<BVHInput> instances)
 {
 	if (instances.size() == 0)
 		return;
@@ -110,7 +110,7 @@ void BVH::Build(Span<BVHInput> instances) noexcept
 	BuildSubtree(0, numInstances, -1);
 }
 
-int BVH::BuildSubtree(int base, int count, int parent) noexcept
+int BVH::BuildSubtree(int base, int count, int parent)
 {
 	Assert(count > 0, "Number of nodes to build a subtree for must be greater than 0.");
 	const uint32_t currNodeIdx = m_numNodes++;
@@ -285,7 +285,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 	return currNodeIdx;
 }
 
-int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
+int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
 {
 	nodeIdx = -1;
 
@@ -361,7 +361,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx) noexcept
 	return currNodeIdx;
 }
 
-void BVH::Update(Span<BVHUpdateInput> instances) noexcept
+void BVH::Update(Span<BVHUpdateInput> instances)
 {
 	for (auto& [oldBox, newBox, id] : instances)
 	{
@@ -407,7 +407,7 @@ void BVH::Update(Span<BVHUpdateInput> instances) noexcept
 	}
 }
 
-void BVH::Remove(uint64_t ID, const Math::AABB& AABB) noexcept
+void BVH::Remove(uint64_t ID, const Math::AABB& AABB)
 {
 	// find the leaf node that contains it
 	int nodeIdx;
@@ -536,7 +536,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
 	}
 }
 
-uint64_t BVH::CastRay(Math::Ray& r) noexcept
+uint64_t BVH::CastRay(Math::Ray& r)
 {
 	v_AABB vBox(m_nodes[0].AABB);
 	v_Ray vRay(r);

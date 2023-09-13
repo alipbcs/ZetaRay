@@ -31,18 +31,18 @@ namespace ZetaRay::Math
 			uint64_t ID;
 		};
 
-		BVH() noexcept;
-		~BVH() noexcept = default;
+		BVH();
+		~BVH() = default;
 
 		BVH(BVH&&) = delete;
 		BVH& operator=(BVH&&) = delete;
 
-		bool IsBuilt() noexcept { return m_nodes.size() != 0; }
-		void Clear() noexcept;
+		bool IsBuilt() { return m_nodes.size() != 0; }
+		void Clear();
 
-		void Build(Util::Span<BVHInput> instances) noexcept;
-		void Update(Util::Span<BVHUpdateInput> instances) noexcept;
-		void Remove(uint64_t ID, const Math::AABB& AABB) noexcept;
+		void Build(Util::Span<BVHInput> instances);
+		void Update(Util::Span<BVHUpdateInput> instances);
+		void Remove(uint64_t ID, const Math::AABB& AABB);
 		
 		// Returns ID of instances that at least partially overlap the view frustum. Assumes 
 		// the view frustum is in the view space
@@ -58,10 +58,10 @@ namespace ZetaRay::Math
 
 		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
 		// be in world space
-		uint64_t CastRay(Math::Ray& r) noexcept;
+		uint64_t CastRay(Math::Ray& r);
 
 		// Returns the AABB that encompasses the scene
-		Math::AABB GetWorldAABB() noexcept 
+		Math::AABB GetWorldAABB() 
 		{
 			Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
 			return m_nodes[0].AABB; 
@@ -75,10 +75,10 @@ namespace ZetaRay::Math
 
 		struct alignas(64) Node
 		{
-			bool IsInitialized() noexcept { return Parent != -1; }
-			void InitAsLeaf(int base, int count, int parent) noexcept;
+			bool IsInitialized() { return Parent != -1; }
+			void InitAsLeaf(int base, int count, int parent);
 			void InitAsInternal(Util::Span<BVH::BVHInput> instances, int base, int count,
-				int right, int parent) noexcept;
+				int right, int parent);
 			bool IsLeaf() const { return RightChild == -1; }
 
 			// Union AABB of all the child nodes for internal nodes
@@ -111,10 +111,10 @@ namespace ZetaRay::Math
 		static constexpr int qfgh = sizeof(Node);
 
 		// Recursively builds a BVH (subtree) for the given range
-		int BuildSubtree(int base, int count, int parent) noexcept;
+		int BuildSubtree(int base, int count, int parent);
 
 		// Finds the leaf node that contains the given instance. Returns -1 otherwise.
-		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx) noexcept;
+		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx);
 
 		Support::MemoryArena m_arena;
 

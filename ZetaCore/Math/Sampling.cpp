@@ -8,7 +8,7 @@ using namespace ZetaRay::Math;
 
 namespace
 {
-	void Normalize(float* vals, size_t n) noexcept
+	void Normalize(float* vals, size_t n)
 	{
 		// 1. compute sum of values (S)
 		// 2. normalize
@@ -152,7 +152,7 @@ namespace
 // Sampling
 //--------------------------------------------------------------------------------------
 
-float Math::Halton(int i, int b) noexcept
+float Math::Halton(int i, int b)
 {
 	float f = 1.0f;
 	float r = 0.0f;
@@ -168,7 +168,7 @@ float Math::Halton(int i, int b) noexcept
 	return r;
 }
 
-float3 Math::GetUniformSampleHemisphere(float2 u) noexcept
+float3 Math::GetUniformSampleHemisphere(float2 u)
 {
 	float phi = TWO_PI * u.x;
 	float cosTheta = u.y;
@@ -178,19 +178,19 @@ float3 Math::GetUniformSampleHemisphere(float2 u) noexcept
 	return float3(sinTheta * cosf(phi), sinTheta * sinf(phi), cosTheta);
 }
 
-void Math::BuildAliasTableUnnormalized(Vector<float>&& probs, Vector<AliasTableEntry>& ret) noexcept
+void Math::BuildAliasTableUnnormalized(Vector<float>&& probs, Vector<AliasTableEntry>& ret)
 {
 	Normalize(probs.data(), probs.size());
 	BuildAliasTable(probs.data(), probs.size(), ret);
 }
 
-void Math::BuildAliasTableNormalized(Vector<float>&& probs, Vector<AliasTableEntry>& ret) noexcept
+void Math::BuildAliasTableNormalized(Vector<float>&& probs, Vector<AliasTableEntry>& ret)
 {
 	BuildAliasTable(probs.data(), probs.size(), ret);
 }
 
 /* Note: lost track of this function (old, buggy, etc)
-std::vector<AliasTableEntry> Math::BuildAliasTableNormalized(float* probs, int n) noexcept
+std::vector<AliasTableEntry> Math::BuildAliasTableNormalized(float* probs, int n)
 {
 	//uint32_t N = (uint32_t)probs.size();
 	Assert(((uintptr_t)(probs) & (32 - 1)) == 0, "probs should be 32-byte aligned.");

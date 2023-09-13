@@ -13,21 +13,21 @@ namespace ZetaRay::Math
 
 	struct float2
 	{
-		constexpr float2() noexcept = default;
+		constexpr float2() = default;
 
-		constexpr explicit float2(float x) noexcept
+		constexpr explicit float2(float x)
 			: x(x),
 			y(x)
 		{}
 
-		constexpr float2(float x, float y) noexcept
+		constexpr float2(float x, float y)
 			: x(x),
 			y(y)
 		{}
 
-		float2(const half2& h) noexcept;
+		float2(const half2& h);
 
-		constexpr float2& operator+=(const float2& other) noexcept
+		constexpr float2& operator+=(const float2& other)
 		{
 			x += other.x;
 			y += other.y;
@@ -35,7 +35,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float2& operator-=(const float2& other) noexcept
+		constexpr float2& operator-=(const float2& other)
 		{
 			x -= other.x;
 			y -= other.y;
@@ -43,7 +43,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float2& operator*=(float f) noexcept
+		constexpr float2& operator*=(float f)
 		{
 			x *= f;
 			y *= f;
@@ -51,7 +51,7 @@ namespace ZetaRay::Math
 			return *this;
 		}		
 		
-		constexpr float2& operator*=(float2 f) noexcept
+		constexpr float2& operator*=(float2 f)
 		{
 			x *= f.x;
 			y *= f.y;
@@ -59,7 +59,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float dot(const float2& other) noexcept
+		constexpr float dot(const float2& other)
 		{
 			return x * other.x + y * other.y;
 		}
@@ -70,29 +70,29 @@ namespace ZetaRay::Math
 
 	struct float3
 	{
-		constexpr float3() noexcept = default;
+		constexpr float3() = default;
 
-		constexpr explicit float3(float x) noexcept
+		constexpr explicit float3(float x)
 			: x(x),
 			y(x),
 			z(x)
 		{}
 
-		constexpr float3(float x, float y, float z) noexcept
+		constexpr float3(float x, float y, float z)
 			: x(x),
 			y(y),
 			z(z)
 		{}
 
-		constexpr float3(const float2& xy, float z = 0.0f) noexcept
+		constexpr float3(const float2& xy, float z = 0.0f)
 			: x(xy.x),
 			y(xy.y),
 			z(z)
 		{}
 
-		float3(const half3& h) noexcept;
+		float3(const half3& h);
 
-		constexpr float3& operator+=(const float3& other) noexcept
+		constexpr float3& operator+=(const float3& other)
 		{
 			x += other.x;
 			y += other.y;
@@ -101,7 +101,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float3& operator-=(const float3& other) noexcept
+		constexpr float3& operator-=(const float3& other)
 		{
 			x -= other.x;
 			y -= other.y;
@@ -110,7 +110,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float3& operator*=(float3 f) noexcept
+		constexpr float3& operator*=(float3 f)
 		{
 			x *= f.x;
 			y *= f.y;
@@ -119,7 +119,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float3& operator*=(float f) noexcept
+		constexpr float3& operator*=(float f)
 		{
 			x *= f;
 			y *= f;
@@ -128,22 +128,22 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		float length() noexcept
+		float length()
 		{
 			return sqrtf(dot(*this));
 		}
 
-		constexpr float dot(const float3& other) noexcept
+		constexpr float dot(const float3& other)
 		{
 			return x * other.x + y * other.y + z * other.z;
 		}
 
-		constexpr float3 cross(const float3 other) noexcept
+		constexpr float3 cross(const float3 other)
 		{
 			return float3(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
 		}
 
-		void normalize() noexcept
+		void normalize()
 		{
 			float norm = length();
 			if (norm <= FLT_EPSILON)
@@ -162,39 +162,39 @@ namespace ZetaRay::Math
 
 	struct float4
 	{
-		float4() noexcept = default;
+		float4() = default;
 
-		constexpr explicit float4(float f) noexcept
+		constexpr explicit float4(float f)
 			: x(f),
 			y(f),
 			z(f),
 			w(f)
 		{}
 
-		constexpr float4(float fx, float fy, float fz, float fw) noexcept
+		constexpr float4(float fx, float fy, float fz, float fw)
 			: x(fx),
 			y(fy),
 			z(fz),
 			w(fw)
 		{}
 
-		constexpr float4(const float3& xyz, float fw = 0.0f) noexcept
+		constexpr float4(const float3& xyz, float fw = 0.0f)
 			: x(xyz.x),
 			y(xyz.y),
 			z(xyz.z),
 			w(fw)
 		{}
 
-		constexpr float4(const float2& xy, const float2& zw) noexcept
+		constexpr float4(const float2& xy, const float2& zw)
 			: x(xy.x),
 			y(xy.y),
 			z(zw.x),
 			w(zw.y)
 		{}
 
-		float4(const half4& h) noexcept;
+		float4(const half4& h);
 
-		constexpr float4& operator+=(const float4& other) noexcept
+		constexpr float4& operator+=(const float4& other)
 		{
 			x += other.x;
 			y += other.y;
@@ -204,7 +204,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float4& operator-=(const float4& other) noexcept
+		constexpr float4& operator-=(const float4& other)
 		{
 			x -= other.x;
 			y -= other.y;
@@ -214,7 +214,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float4& operator*=(float4 f) noexcept
+		constexpr float4& operator*=(float4 f)
 		{
 			x *= f.x;
 			y *= f.y;
@@ -224,7 +224,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		constexpr float4& operator*=(float f) noexcept
+		constexpr float4& operator*=(float f)
 		{
 			x *= f;
 			y *= f;
@@ -234,7 +234,7 @@ namespace ZetaRay::Math
 			return *this;
 		}
 
-		float length() noexcept
+		float length()
 		{
 			__m128 vV = _mm_loadu_ps(&this->x);
 			__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
@@ -243,12 +243,12 @@ namespace ZetaRay::Math
 			return _mm_cvtss_f32(vLength);
 		}
 
-		constexpr float dot(const float4& other) noexcept
+		constexpr float dot(const float4& other)
 		{
 			return x * other.x + y * other.y + z * other.z + w * other.w;
 		}
 
-		void normalize() noexcept
+		void normalize()
 		{
 			float norm = length();
 			if (norm <= FLT_EPSILON)
@@ -269,30 +269,30 @@ namespace ZetaRay::Math
 
 	struct alignas(16) float4a
 	{
-		float4a() noexcept = default;
+		float4a() = default;
 
-		constexpr explicit float4a(float f) noexcept
+		constexpr explicit float4a(float f)
 			: x(f),
 			y(f),
 			z(f),
 			w(f)
 		{}
 
-		constexpr float4a(float fx, float fy, float fz, float fw) noexcept
+		constexpr float4a(float fx, float fy, float fz, float fw)
 			: x(fx),
 			y(fy),
 			z(fz),
 			w(fw)
 		{}
 
-		constexpr float4a(float4 f) noexcept
+		constexpr float4a(float4 f)
 			: x(f.x),
 			y(f.y),
 			z(f.z),
 			w(f.w)
 		{}
 
-		constexpr float4a(float3 f, float w = 0.0f) noexcept
+		constexpr float4a(float3 f, float w = 0.0f)
 			: x(f.x),
 			y(f.y),
 			z(f.z),
@@ -307,7 +307,7 @@ namespace ZetaRay::Math
 
 	struct half
 	{
-		half() noexcept = default;
+		half() = default;
 		explicit half(float f)
 			: x(FloatToHalf(f))
 		{}
@@ -317,16 +317,16 @@ namespace ZetaRay::Math
 
 	struct half2
 	{
-		half2() noexcept = default;
+		half2() = default;
 
-		explicit half2(float f) noexcept
+		explicit half2(float f)
 		{
 			uint16_t h = FloatToHalf(f);
 			x = h;
 			y = h;
 		}
 
-		half2(float fx, float fy) noexcept
+		half2(float fx, float fy)
 			: x(FloatToHalf(fx)),
 			y(FloatToHalf(fy))
 		{}
@@ -342,9 +342,9 @@ namespace ZetaRay::Math
 
 	struct half3
 	{
-		half3() noexcept = default;
+		half3() = default;
 
-		explicit half3(float f) noexcept
+		explicit half3(float f)
 		{
 			uint16_t h = FloatToHalf(f);
 			x = h;
@@ -352,13 +352,13 @@ namespace ZetaRay::Math
 			z = h;
 		}
 
-		half3(float fx, float fy, float fz) noexcept
+		half3(float fx, float fy, float fz)
 			: x(FloatToHalf(fx)),
 			y(FloatToHalf(fy)),
 			z(FloatToHalf(fz))
 		{}
 
-		half3(float3 f) noexcept
+		half3(float3 f)
 		{
 			// &v does not need to be aligned and the last two elements are set to 0
 			__m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&f)));
@@ -374,7 +374,7 @@ namespace ZetaRay::Math
 			z = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x2)));
 		}
 
-		half3(float4a f) noexcept
+		half3(float4a f)
 		{
 			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
@@ -392,9 +392,9 @@ namespace ZetaRay::Math
 
 	struct half4
 	{
-		half4() noexcept = default;
+		half4() = default;
 
-		explicit half4(float f) noexcept
+		explicit half4(float f)
 		{
 			uint16_t h = FloatToHalf(f);
 			x = h;
@@ -403,14 +403,14 @@ namespace ZetaRay::Math
 			w = h;
 		}
 
-		half4(float fx, float fy, float fz, float fw) noexcept
+		half4(float fx, float fy, float fz, float fw)
 			: x(FloatToHalf(fx)),
 			y(FloatToHalf(fy)),
 			z(FloatToHalf(fz)),
 			w(FloatToHalf(fw))
 		{}
 
-		half4(float4 f) noexcept
+		half4(float4 f)
 		{
 			__m128 vF = _mm_loadu_ps(reinterpret_cast<float*>(&f));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
@@ -422,7 +422,7 @@ namespace ZetaRay::Math
 			w = static_cast<uint16_t>(_mm_cvtsi128_si32(_mm_shuffle_epi32(vH, 0x3)));
 		}
 
-		half4(float4a f) noexcept
+		half4(float4a f)
 		{
 			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
@@ -440,18 +440,18 @@ namespace ZetaRay::Math
 		uint16_t w;
 	};
 
-	inline float2::float2(const half2& h) noexcept
+	inline float2::float2(const half2& h)
 		: x(HalfToFloat(h.x)),
 		y(HalfToFloat(h.y))
 	{}
 
-	inline float3::float3(const half3& h) noexcept
+	inline float3::float3(const half3& h)
 		: x(HalfToFloat(h.x)),
 		y(HalfToFloat(h.y)),
 		z(HalfToFloat(h.z))
 	{}
 
-	inline float4::float4(const half4& h) noexcept
+	inline float4::float4(const half4& h)
 		: x(HalfToFloat(h.x)),
 		y(HalfToFloat(h.y)),
 		z(HalfToFloat(h.z)),
@@ -462,137 +462,137 @@ namespace ZetaRay::Math
 	// Operator Overloading
 	//--------------------------------------------------------------------------------------
 
-	inline constexpr float2 operator-(const float2& v1, const float2& v0) noexcept
+	inline constexpr float2 operator-(const float2& v1, const float2& v0)
 	{
 		return float2(v1.x - v0.x, v1.y - v0.y);
 	}		
 		
-	inline constexpr float2 operator+(const float2& v1, const float2& v0) noexcept
+	inline constexpr float2 operator+(const float2& v1, const float2& v0)
 	{
 		return float2(v1.x + v0.x, v1.y + v0.y);
 	}
 
-	inline constexpr float2 operator*(const float2& v0, const float2& v1) noexcept
+	inline constexpr float2 operator*(const float2& v0, const float2& v1)
 	{
 		return float2(v0.x * v1.x, v0.y * v1.y);
 	}
 
-	inline constexpr float2 operator*(const float2& v0, float f) noexcept
+	inline constexpr float2 operator*(const float2& v0, float f)
 	{
 		return float2(v0.x * f, v0.y * f);
 	}
 
-	inline constexpr float2 operator*(float f, const float2& v0) noexcept
+	inline constexpr float2 operator*(float f, const float2& v0)
 	{
 		return float2(v0.x * f, v0.y * f);
 	}
 
-	inline constexpr float2 operator/(const float2& v0, const float2& v1) noexcept
+	inline constexpr float2 operator/(const float2& v0, const float2& v1)
 	{
 		return float2(v0.x / v1.x, v0.y / v1.y);
 	}
 
-	inline constexpr float2 operator/(const float2& v0, float f) noexcept
+	inline constexpr float2 operator/(const float2& v0, float f)
 	{
 		return float2(v0.x / f, v0.y / f);
 	}
 
-	inline constexpr float2 operator/(float f, const float2& v0) noexcept
+	inline constexpr float2 operator/(float f, const float2& v0)
 	{
 		return float2(f / v0.x, f / v0.y);
 	}
 
-	inline constexpr float2 operator-(const float2& v0) noexcept
+	inline constexpr float2 operator-(const float2& v0)
 	{
 		return float2(-v0.x, -v0.y);
 	}
 
-	inline constexpr float3 operator+(const float3& v0, const float3& v1) noexcept
+	inline constexpr float3 operator+(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z);
 	}
 
-	inline constexpr float3 operator-(const float3& v1, const float3& v0) noexcept
+	inline constexpr float3 operator-(const float3& v1, const float3& v0)
 	{
 		return float3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
 	}
 
-	inline constexpr float3 operator*(const float3& v0, const float3& v1) noexcept
+	inline constexpr float3 operator*(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x * v1.x, v0.y * v1.y, v0.z * v1.z);
 	}
 
-	inline constexpr float3 operator*(const float3& v0, float f) noexcept
+	inline constexpr float3 operator*(const float3& v0, float f)
 	{
 		return float3(v0.x * f, v0.y * f, v0.z * f);
 	}
 
-	inline constexpr float3 operator*(float f, const float3& v0) noexcept
+	inline constexpr float3 operator*(float f, const float3& v0)
 	{
 		return float3(v0.x * f, v0.y * f, v0.z * f);
 	}
 
-	inline constexpr float3 operator/(const float3& v0, const float3& v1) noexcept
+	inline constexpr float3 operator/(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x / v1.x, v0.y / v1.y, v0.z / v1.z);
 	}
 
-	inline constexpr float3 operator/(const float3& v0, float f) noexcept
+	inline constexpr float3 operator/(const float3& v0, float f)
 	{
 		return float3(v0.x / f, v0.y / f, v0.z / f);
 	}
 
-	inline constexpr float3 operator/(float f, const float3& v0) noexcept
+	inline constexpr float3 operator/(float f, const float3& v0)
 	{
 		return float3(f / v0.x, f / v0.y, f / v0.z);
 	}
 
-	inline constexpr float3 operator-(const float3& v0) noexcept
+	inline constexpr float3 operator-(const float3& v0)
 	{
 		return float3(-v0.x, -v0.y, -v0.z);
 	}
 
-	inline constexpr float4 operator+(const float4& v0, const float4& v1) noexcept
+	inline constexpr float4 operator+(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z, v0.w + v1.w);
 	}
 
-	inline constexpr float4 operator-(const float4& v1, const float4& v0) noexcept
+	inline constexpr float4 operator-(const float4& v1, const float4& v0)
 	{
 		return float4(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z, v1.w - v0.w);
 	}
 
-	inline constexpr float4 operator*(const float4& v0, const float4& v1) noexcept
+	inline constexpr float4 operator*(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x * v1.x, v0.y * v1.y, v0.z * v1.z, v0.w * v1.w);
 	}
 
-	inline constexpr float4 operator*(const float4& v0, float f) noexcept
+	inline constexpr float4 operator*(const float4& v0, float f)
 	{
 		return float4(v0.x * f, v0.y * f, v0.z * f, v0.w * f);
 	}
 
-	inline constexpr float4 operator*(float f, const float4& v0) noexcept
+	inline constexpr float4 operator*(float f, const float4& v0)
 	{
 		return float4(v0.x * f, v0.y * f, v0.z * f, v0.w * f);
 	}
 
-	inline constexpr float4 operator/(const float4& v0, const float4& v1) noexcept
+	inline constexpr float4 operator/(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x / v1.x, v0.y / v1.y, v0.z / v1.z, v0.w / v1.w);
 	}
 
-	inline constexpr float4 operator/(const float4& v0, float f) noexcept
+	inline constexpr float4 operator/(const float4& v0, float f)
 	{
 		return float4(v0.x / f, v0.y / f, v0.z / f, v0.w / f);
 	}
 
-	inline constexpr float4 operator/(float f, const float4& v0) noexcept
+	inline constexpr float4 operator/(float f, const float4& v0)
 	{
 		return float4(f / v0.x, f / v0.y, f / v0.z, f / v0.w);
 	}
 
-	inline constexpr float4 operator-(const float4& v0) noexcept
+	inline constexpr float4 operator-(const float4& v0)
 	{
 		return float4(-v0.x, -v0.y, -v0.z, -v0.w);
 	}

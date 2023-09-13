@@ -27,7 +27,7 @@ namespace ZetaRay
             COUNT
         };
         
-        Material() noexcept
+        Material()
             : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
             RoughnessFactor(1.0f),
             BaseColorTexture(uint32_t(-1)),

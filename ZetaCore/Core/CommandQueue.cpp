@@ -9,7 +9,7 @@ using namespace ZetaRay::Core;
 // CommandQueue
 //--------------------------------------------------------------------------------------
 
-CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type) noexcept
+CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type)
 	: m_type(type)
 {
 	auto* device = App::GetRenderer().GetDevice();
@@ -26,7 +26,7 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type) noexcept
 	m_cmdAllocPool.reserve(32);
 }
 
-CommandQueue::~CommandQueue() noexcept
+CommandQueue::~CommandQueue()
 {
 	WaitForIdle();
 
@@ -41,7 +41,7 @@ CommandQueue::~CommandQueue() noexcept
 		it.CmdAlloc->Release();
 }
 
-uint64_t CommandQueue::ExecuteCommandList(CommandList* context) noexcept
+uint64_t CommandQueue::ExecuteCommandList(CommandList* context)
 {
 	CheckHR(context->m_cmdList->Close());
 
@@ -64,7 +64,7 @@ uint64_t CommandQueue::ExecuteCommandList(CommandList* context) noexcept
 	return ret;
 }
 
-ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
+ID3D12CommandAllocator* CommandQueue::GetCommandAllocator()
 {
 	// try to reuse
 	{
@@ -81,7 +81,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
 				m_cmdAllocPool.erase(0);
 
 				std::make_heap(m_cmdAllocPool.begin(), m_cmdAllocPool.end(),
-					[](const ReleasedCmdAlloc& lhs, const ReleasedCmdAlloc& rhs) noexcept
+					[](const ReleasedCmdAlloc& lhs, const ReleasedCmdAlloc& rhs)
 					{
 						return lhs.FenceToWaitFor > rhs.FenceToWaitFor;
 					});
@@ -105,7 +105,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator() noexcept
 	return cmdAlloc;
 }
 
-void CommandQueue::ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAllocator, uint64_t fenceValueToWaitFor) noexcept
+void CommandQueue::ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAllocator, uint64_t fenceValueToWaitFor)
 {
 	std::unique_lock lock(m_poolMtx);
 	m_cmdAllocPool.push_back(ReleasedCmdAlloc{ 
@@ -113,7 +113,7 @@ void CommandQueue::ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAllocator,
 		.FenceToWaitFor = fenceValueToWaitFor });
 }
 
-CommandList* CommandQueue::GetCommandList() noexcept
+CommandList* CommandQueue::GetCommandList()
 {
 	auto* cmdAlloc = GetCommandAllocator();
 	CommandList* ctx;
@@ -129,12 +129,12 @@ CommandList* CommandQueue::GetCommandList() noexcept
 	return context;
 }
 
-void CommandQueue::ReleaseCommandList(CommandList* context) noexcept
+void CommandQueue::ReleaseCommandList(CommandList* context)
 {
 	m_contextPool.enqueue(context);
 }
 
-void CommandQueue::WaitForFenceCPU(uint64_t fenceValue) noexcept
+void CommandQueue::WaitForFenceCPU(uint64_t fenceValue)
 {
 	if (m_fence->GetCompletedValue() < fenceValue)
 	{
@@ -146,7 +146,7 @@ void CommandQueue::WaitForFenceCPU(uint64_t fenceValue) noexcept
 	}
 }
 
-void CommandQueue::WaitForIdle() noexcept
+void CommandQueue::WaitForIdle()
 {
 	{
 		std::unique_lock lock(m_fenceMtx);
@@ -156,7 +156,7 @@ void CommandQueue::WaitForIdle() noexcept
 	WaitForFenceCPU(m_nextFenceValue - 1);
 }
 
-bool CommandQueue::IsFenceComplete(uint64_t fenceValue) noexcept
+bool CommandQueue::IsFenceComplete(uint64_t fenceValue)
 {
 	if (m_lastCompletedFenceVal < fenceValue)
 		m_lastCompletedFenceVal = Math::Max(m_lastCompletedFenceVal, m_fence->GetCompletedValue());

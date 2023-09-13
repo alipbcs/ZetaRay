@@ -7,7 +7,7 @@
 #include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/RT.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 
 #define INVALID_RAY_DIR 32768.xxx
 #define NUM_BINS 8

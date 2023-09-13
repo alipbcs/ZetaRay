@@ -7,7 +7,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
 
-int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
+int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str)
 {
 	int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
 	Assert(str.size() > size, "buffer overflow");
@@ -17,7 +17,7 @@ int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str) noexcept
     return size;
 }
 
-int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
+int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr)
 {
     int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
     Assert(wideStr.size() > size, "buffer overflow");
@@ -27,7 +27,7 @@ int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept
     return size;
 }
 
-uint32_t Common::CheckIntrinsicSupport() noexcept
+uint32_t Common::CheckIntrinsicSupport()
 {
     uint32_t ret = 0;
 

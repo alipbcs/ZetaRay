@@ -6,7 +6,7 @@
 using namespace ZetaRay::Core;
 using namespace ZetaRay::RenderPass;
 
-void ClearPass::Clear(CommandList& cmdList) noexcept
+void ClearPass::Clear(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);

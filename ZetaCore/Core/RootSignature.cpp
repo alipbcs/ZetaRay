@@ -9,7 +9,7 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 
-RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts) noexcept
+RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts)
 	: m_numParams(nCBV + nSRV + nUAV + (nConsts > 0)),
 	m_numCBVs(nCBV),
 	m_numSRVs(nSRV),
@@ -23,7 +23,7 @@ RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nCons
 }
 
 void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32_t registerNum,
-	uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility) noexcept
+	uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert(m_numRootConstants == numDwords, "Given number of root constants doesn't match m_numRootConstants");
@@ -36,7 +36,7 @@ void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32
 }
 
 void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -63,7 +63,7 @@ void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t r
 }
 
 void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -90,7 +90,7 @@ void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint
 }
 
 void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional) noexcept
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -151,7 +151,7 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
 	m_rootConstantsIdx = _BitScanForward(&idx, ~u) && (idx < m_numParams) ? (int)idx : -1;
 }
 
-void RootSignature::Begin() noexcept
+void RootSignature::Begin()
 {
 	m_modifiedBitMap = (1 << m_numParams) - 1;
 
@@ -162,7 +162,7 @@ void RootSignature::Begin() noexcept
 	memset(m_rootDescriptors, 0, sizeof(D3D12_GPU_VIRTUAL_ADDRESS) * MAX_NUM_PARAMS);
 }
 
-void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, void* data) noexcept
+void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, void* data)
 {
 	Assert(offset + num <= m_numRootConstants, "out-of-bound write.");
 	memcpy(&m_rootConstants[offset], data, sizeof(uint32_t) * num);
@@ -170,7 +170,7 @@ void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, void* data) 
 	m_modifiedBitMap |= (1 << m_rootConstantsIdx);
 }
 
-void RootSignature::SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept
+void RootSignature::SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
 	Assert((1 << rootIdx) & m_rootCBVBitMap, "root parameter %u was not set as root CBV", rootIdx);
 	Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
@@ -179,7 +179,7 @@ void RootSignature::SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) n
 	m_modifiedBitMap |= (1 << rootIdx);
 }
 
-void RootSignature::SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept
+void RootSignature::SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
 	Assert((1 << rootIdx) & m_rootSRVBitMap, "root parameter %u was not set as root SRV", rootIdx);
 	Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
@@ -188,7 +188,7 @@ void RootSignature::SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) n
 	m_modifiedBitMap |= (1 << rootIdx);
 }
 
-void RootSignature::SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) noexcept
+void RootSignature::SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
 	Assert((1 << rootIdx) & m_rootUAVBitMap, "root parameter %u was not set as root UAV", rootIdx);
 	Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
@@ -197,7 +197,7 @@ void RootSignature::SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va) n
 	m_modifiedBitMap |= (1 << rootIdx);
 }
 
-void RootSignature::End(GraphicsCmdList& ctx) noexcept
+void RootSignature::End(GraphicsCmdList& ctx)
 {
 	// root constants
 	if (m_rootConstantsIdx != -1 && (m_modifiedBitMap & (1 << m_rootConstantsIdx)))
@@ -313,7 +313,7 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 	}
 }
 
-void RootSignature::End(ComputeCmdList& ctx) noexcept
+void RootSignature::End(ComputeCmdList& ctx)
 {
 	// root constants
 	if (m_rootConstantsIdx != -1 && (m_modifiedBitMap & (1 << m_rootConstantsIdx)))

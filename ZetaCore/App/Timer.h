@@ -6,8 +6,8 @@ namespace ZetaRay::App
 {
 	struct Timer
 	{
-		Timer() noexcept;
-		~Timer() noexcept = default;
+		Timer();
+		~Timer() = default;
 
 		// Returns elapsed time since the last time Tick() was called
 		double GetElapsedTime() const { return m_delta; }
@@ -17,10 +17,10 @@ namespace ZetaRay::App
 		int GetFramesPerSecond() const { return m_fps; }
 		int64_t GetCounterFreq() const { return m_counterFreqSec; }
 
-		void Start() noexcept;
-		void Resume() noexcept;
-		void Pause() noexcept;
-		void Tick() noexcept;
+		void Start();
+		void Resume();
+		void Pause();
+		void Tick();
 
 		// Get total time since the start of the program.
 		double GetTotalTime() const
@@ -70,13 +70,13 @@ namespace ZetaRay::App
 
 	struct DeltaTimer
 	{
-		DeltaTimer() noexcept;
+		DeltaTimer();
 
-		void Start() noexcept;
-		void End() noexcept;
-		double DeltaMicro() noexcept;
-		double DeltaMilli() noexcept;
-		double DeltaNano() noexcept;
+		void Start();
+		void End();
+		double DeltaMicro();
+		double DeltaMilli();
+		double DeltaNano();
 
 	private:
 		// frequency of the counter. Units are counts/sec

@@ -78,11 +78,11 @@ namespace ZetaRay::Core
 	class DeviceObjects
 	{
 	public:
-		void InitializeAdapter() noexcept;
-		void CreateDevice() noexcept;
+		void InitializeAdapter();
+		void CreateDevice();
 		void CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, int h, int numBuffers,
-			DXGI_FORMAT format, int maxLatency) noexcept;
-		void ResizeSwapChain(int w, int h, int maxLatency) noexcept;
+			DXGI_FORMAT format, int maxLatency);
+		void ResizeSwapChain(int w, int h, int maxLatency);
 
 		ComPtr<IDXGIFactory6> m_dxgiFactory;
 		ComPtr<IDXGIAdapter3> m_dxgiAdapter;

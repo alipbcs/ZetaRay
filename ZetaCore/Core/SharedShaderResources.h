@@ -19,29 +19,29 @@ namespace ZetaRay::Core
 	class SharedShaderResources
 	{
 	public:
-		SharedShaderResources() noexcept = default;
-		~SharedShaderResources() noexcept = default;
+		SharedShaderResources() = default;
+		~SharedShaderResources() = default;
 
 		SharedShaderResources(SharedShaderResources&&) = delete;
 		SharedShaderResources& operator==(SharedShaderResources&&) = delete;
 		
 		// Upload heap buffers
-		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(uint64_t id) noexcept;
-		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(std::string_view id) noexcept;
-		void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buf) noexcept;
-		void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buf) noexcept;
+		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(uint64_t id);
+		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(std::string_view id);
+		void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buf);
+		void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buf);
 
 		// Default heap buffers
-		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(uint64_t id) noexcept;
-		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(std::string_view id) noexcept;
-		void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buf) noexcept;
-		void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buf) noexcept;
+		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(uint64_t id);
+		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(std::string_view id);
+		void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buf);
+		void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buf);
 
 		// Descriptor-tables
-		const DescriptorTable* GetDescriptorTable(uint64_t id) noexcept;
-		const DescriptorTable* GetDescriptorTable(std::string_view id) noexcept;
-		void InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& t) noexcept;
-		void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t) noexcept;
+		const DescriptorTable* GetDescriptorTable(uint64_t id);
+		const DescriptorTable* GetDescriptorTable(std::string_view id);
+		void InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& t);
+		void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t);
 
 	private:
 		Util::HashTable<const DescriptorTable*> m_descTables;

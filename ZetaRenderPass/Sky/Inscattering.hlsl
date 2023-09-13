@@ -1,6 +1,6 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 #include "../Common/RT.hlsli"
 #include "../Common/Sampling.hlsli"
 #include "Sky_Common.h"

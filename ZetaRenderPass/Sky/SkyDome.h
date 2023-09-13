@@ -20,22 +20,22 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		SkyDome() noexcept;
-		~SkyDome() noexcept;
+		SkyDome();
+		~SkyDome();
 
-		void Init(DXGI_FORMAT rtvFormat) noexcept;
-		bool IsInitialized() noexcept { return m_pso != nullptr; }
-		void Reset() noexcept;
-		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
+		void Init(DXGI_FORMAT rtvFormat);
+		bool IsInitialized() { return m_pso != nullptr; }
+		void Reset();
+		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
 		{
 			Assert(i < SHADER_IN_DESC::COUNT, "out-of-bound access.");
 			m_descriptors[i] = h;
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
-		void ReloadShaders() noexcept;
-		void CreatePSO() noexcept;
+		void ReloadShaders();
+		void CreatePSO();
 
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 0;

@@ -8,11 +8,11 @@ namespace ZetaRay::Support
 	template<size_t BlockSize>
 	struct FrameMemory
 	{
-		FrameMemory() noexcept
+		FrameMemory()
 		{
 			memset(m_blocks, 0, sizeof(MemoryBlock) * NUM_BLOCKS);
 		}
-		~FrameMemory() noexcept
+		~FrameMemory()
 		{
 			for (int i = 0; i < NUM_BLOCKS; i++)
 			{
@@ -31,7 +31,7 @@ namespace ZetaRay::Support
 			int UsageCounter;
 		};
 
-		ZetaInline MemoryBlock& GetAndInitIfEmpty(int i) noexcept
+		ZetaInline MemoryBlock& GetAndInitIfEmpty(int i)
 		{
 			Assert(i >= 0 && i < NUM_BLOCKS, "invalid block index.");
 
@@ -46,7 +46,7 @@ namespace ZetaRay::Support
 			return m_blocks[i];
 		}
 
-		void Reset() noexcept
+		void Reset()
 		{
 			for (int i = 0; i < NUM_BLOCKS; i++)
 			{
@@ -64,7 +64,7 @@ namespace ZetaRay::Support
 			}
 		}
 
-		size_t TotalSize() noexcept
+		size_t TotalSize()
 		{
 			size_t sum = 0;
 

@@ -23,14 +23,14 @@ using namespace ZetaRay::Model::glTF;
 // TexSRVDescriptorTable
 //--------------------------------------------------------------------------------------
 				
-TexSRVDescriptorTable::TexSRVDescriptorTable(const uint32_t descTableSize) noexcept
+TexSRVDescriptorTable::TexSRVDescriptorTable(const uint32_t descTableSize)
 	: m_descTableSize(descTableSize),
 	m_numMasks(descTableSize >> 6)
 {
 	Assert(Math::IsPow2(descTableSize), "descriptor table size must be a power of two.");
 }
 
-void TexSRVDescriptorTable::Init(uint64_t id) noexcept
+void TexSRVDescriptorTable::Init(uint64_t id)
 {
 	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(m_descTableSize);
 	Assert(!m_descTable.IsEmpty(), "Allocating descriptors from the GPU descriptor heap failed.");
@@ -39,7 +39,7 @@ void TexSRVDescriptorTable::Init(uint64_t id) noexcept
 	s.InsertOrAssingDescriptorTable(id, m_descTable);
 }
 
-uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id) noexcept
+uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
 {
 	// if the texture already exists, just increase the ref count and return it
 	if (auto it = m_cache.find(id); it != nullptr)
@@ -81,7 +81,7 @@ uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id) noexcept
 	return freeSlot;
 }
 
-void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal) noexcept
+void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal)
 {
 	for(auto it = m_pending.begin(); it != m_pending.end();)
 	{
@@ -100,7 +100,7 @@ void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal) noexcept
 	}
 }
 
-void TexSRVDescriptorTable::Clear() noexcept
+void TexSRVDescriptorTable::Clear()
 {
 	// Assumes GPU synchronization has been performed, so GPU is done with all the textures
 	m_pending.clear();
@@ -113,13 +113,13 @@ void TexSRVDescriptorTable::Clear() noexcept
 // MaterialBuffer
 //--------------------------------------------------------------------------------------
 
-void MaterialBuffer::Init(uint64_t id) noexcept
+void MaterialBuffer::Init(uint64_t id)
 {
 	Assert(k_bufferID == -1, "This ID shouldn't be reassigned to after the first time.");
 	k_bufferID = id;
 }
 
-void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
+void MaterialBuffer::Add(uint64_t id, Material& mat)
 {
 	// find first free slot in buffer (i.e. first-fit)
 	DWORD freeIdx = DWORD(-1);
@@ -143,7 +143,7 @@ void MaterialBuffer::Add(uint64_t id, Material& mat) noexcept
 	m_stale = true;
 }
 
-void MaterialBuffer::UpdateGPUBufferIfStale() noexcept
+void MaterialBuffer::UpdateGPUBufferIfStale()
 {
 	if (!m_stale)
 		return;
@@ -176,7 +176,7 @@ void MaterialBuffer::UpdateGPUBufferIfStale() noexcept
 	m_stale = false;
 }
 
-void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept
+void MaterialBuffer::Recycle(uint64_t completedFenceVal)
 {
 	for (auto it = m_pending.begin(); it != m_pending.end();)
 	{
@@ -195,7 +195,7 @@ void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept
 	}
 }
 
-void MaterialBuffer::Clear() noexcept
+void MaterialBuffer::Clear()
 {
 	// Assumes CPU-GPU synchronization has been performed, so that GPU is done with the material buffer.
 	// DefaultHeapBuffer's destructor takes care of the rest
@@ -206,7 +206,7 @@ void MaterialBuffer::Clear() noexcept
 // MeshContainer
 //--------------------------------------------------------------------------------------
 
-void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indices, uint64_t matID) noexcept
+void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indices, uint64_t matID)
 {
 	const size_t vtxOffset = m_vertices.size();
 	const size_t idxOffset = m_indices.size();
@@ -218,7 +218,7 @@ void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indic
 }
 
 void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh>&& meshes, 
-	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
+	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices)
 {
 	const size_t vtxOffset = m_vertices.size();
 	const size_t idxOffset = m_indices.size();
@@ -246,13 +246,13 @@ void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::M
 		m_indices.append_range(indices.begin(), indices.end());
 }
 
-void MeshContainer::Reserve(size_t numVertices, size_t numIndices) noexcept
+void MeshContainer::Reserve(size_t numVertices, size_t numIndices)
 {
 	m_vertices.reserve(numVertices);
 	m_indices.reserve(numIndices);
 }
 
-void MeshContainer::RebuildBuffers() noexcept
+void MeshContainer::RebuildBuffers()
 {
 	Assert(m_vertices.size() > 0, "vertex buffer is empty");
 	Assert(m_indices.size() > 0, "index buffer is empty");
@@ -273,7 +273,7 @@ void MeshContainer::RebuildBuffers() noexcept
 	m_indices.free_memory();
 }
 
-void MeshContainer::Clear() noexcept
+void MeshContainer::Clear()
 {
 	m_meshes.clear();
 	m_vertexBuffer.Reset();
@@ -287,7 +287,7 @@ void MeshContainer::Clear() noexcept
 // EmissiveBuffer
 //--------------------------------------------------------------------------------------
 
-void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept
+void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, SmallVector<RT::EmissiveTriangle>&& emissiveTris)
 {
 	if (m_emissivesTrisCpu.empty())
 	{
@@ -307,7 +307,7 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveIns
 		});
 }
 
-void EmissiveBuffer::RebuildEmissiveBuffer() noexcept
+void EmissiveBuffer::RebuildEmissiveBuffer()
 {
 	if (m_emissivesTrisCpu.empty())
 		return;
@@ -324,13 +324,13 @@ void EmissiveBuffer::RebuildEmissiveBuffer() noexcept
 	m_rebuildFlag = false;
 }
 
-void EmissiveBuffer::Clear() noexcept
+void EmissiveBuffer::Clear()
 {
 	m_emissiveTrisGpu.Reset();
 	//m_emissivesTrisCpu.free_memory();
 }
 
-Asset::EmissiveInstance* EmissiveBuffer::FindEmissive(uint64_t ID) noexcept
+Asset::EmissiveInstance* EmissiveBuffer::FindEmissive(uint64_t ID)
 {
 	auto idx = BinarySearch(Span(m_emissivesInstances), ID, [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
 	if (idx != -1)

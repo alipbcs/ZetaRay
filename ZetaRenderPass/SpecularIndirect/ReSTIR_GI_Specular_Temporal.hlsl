@@ -7,7 +7,7 @@
 #include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/RT.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define INVALID_RAY_DIR 0.xxx

@@ -70,7 +70,7 @@ namespace
 // Scene
 //--------------------------------------------------------------------------------------
 
-SceneCore::SceneCore() noexcept
+SceneCore::SceneCore()
 	: m_baseColorDescTable(BASE_COLOR_DESC_TABLE_SIZE),
 	m_normalDescTable(NORMAL_DESC_TABLE_SIZE),
 	m_metallicRoughnessDescTable(METALLIC_ROUGHNESS_DESC_TABLE_SIZE),
@@ -83,7 +83,7 @@ SceneCore::SceneCore() noexcept
 {
 }
 
-void SceneCore::Init(Renderer::Interface& rendererInterface) noexcept
+void SceneCore::Init(Renderer::Interface& rendererInterface)
 {
 	m_rendererInterface = rendererInterface;
 	Assert(m_rendererInterface.Init, "Init() was null.");
@@ -123,13 +123,13 @@ void SceneCore::Init(Renderer::Interface& rendererInterface) noexcept
 	m_matBuffer.Add(DEFAULT_MATERIAL, defaultMat);
 }
 
-void SceneCore::OnWindowSizeChanged() noexcept
+void SceneCore::OnWindowSizeChanged()
 {
 	//m_camera.OnWindowSizeChanged();
 	m_rendererInterface.OnWindowSizeChanged();
 }
 
-void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
+void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 {
 	if (m_isPaused)
 		return;
@@ -254,7 +254,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS) no
 	m_rendererInterface.Update(sceneRendererTS);
 }
 
-void SceneCore::Recycle() noexcept
+void SceneCore::Recycle()
 {
 	if (m_baseColorDescTable.m_pending.empty() &&
 		m_normalDescTable.m_pending.empty() &&
@@ -273,7 +273,7 @@ void SceneCore::Recycle() noexcept
 	m_matBuffer.Recycle(completedFenceVal);
 }
 
-void SceneCore::Shutdown() noexcept
+void SceneCore::Shutdown()
 {
 	ID3D12Fence* fence = m_fence.Get();
 	App::GetRenderer().SignalDirectQueue(fence, m_nextFenceVal);
@@ -312,14 +312,14 @@ void SceneCore::Shutdown() noexcept
 }
 
 void SceneCore::AddMeshes(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh>&& meshes,
-	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices) noexcept
+	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices)
 {
 	AcquireSRWLockExclusive(&m_meshLock);
 	m_meshes.AddBatch(sceneID, ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& matDesc, Span<glTF::Asset::DDSImage> ddsImages) noexcept
+void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& matDesc, Span<glTF::Asset::DDSImage> ddsImages)
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -333,7 +333,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
-	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages) noexcept
+	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages)
 	{
 		auto idx = BinarySearch(ddsImages, ID, [](const DDSImage& obj) {return obj.ID; });
 		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
@@ -398,7 +398,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	ReleaseSRWLockExclusive(&m_matLock);
 }
 
-void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instance) noexcept
+void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instance)
 {
 	const uint64_t meshID = instance.MeshIdx == -1 ? NULL_MESH : MeshID(sceneID, instance.MeshIdx, instance.MeshPrimIdx);
 	//const uint64_t instanceID = InstanceID(sceneID, instance.Name, instance.MeshIdx, instance.MeshPrimIdx);
@@ -462,7 +462,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 }
 
 int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
-	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept
+	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask)
 {
 	while(treeLevel >= m_sceneGraph.size())
 		m_sceneGraph.emplace_back(m_memoryPool);
@@ -477,9 +477,9 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	// increment parent's children count
 	parentRange.Count++;
 
-	// append it to the end, then keep swapping it back until it's at insertIdx
+	// append it to end, then keep swapping it back until it's at insertIdx
 	auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-		(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args) noexcept
+		(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args)
 		{
 			vec.emplace_back(T(ZetaForward(args)...));
 
@@ -495,7 +495,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	rearrange(currLevel.m_meshIDs, insertIdx, meshID);
 	const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
 	rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
-	// set rebuild flag to true for any instance that is added for the first time
+	// set rebuild flag to true when there's new any instance
 	rearrange(currLevel.m_rtFlags, insertIdx, SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0));
 	rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
@@ -506,7 +506,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	return insertIdx;
 }
 
-void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffset, bool isSorted) noexcept
+void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffset, bool isSorted)
 {
 #ifdef _DEBUG
 	TreePos *p = FindTreePosFromID(id);
@@ -544,7 +544,7 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
-float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
+float4x3 SceneCore::GetPrevToWorld(uint64_t key)
 {
 	const auto idx = BinarySearch(Span(m_prevToWorlds), key, [](const PrevToWorld& p) {return p.ID; });
 	if (idx != -1)
@@ -554,7 +554,7 @@ float4x3 SceneCore::GetPrevToWorld(uint64_t key) noexcept
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
-	SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept
+	SmallVector<RT::EmissiveTriangle>&& emissiveTris)
 {
 	if (emissiveTris.empty())
 		return;
@@ -564,7 +564,7 @@ void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInsta
 	ReleaseSRWLockExclusive(&m_emissiveLock);
 }
 
-void SceneCore::RebuildBVH() noexcept
+void SceneCore::RebuildBVH()
 {
 	SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
@@ -602,7 +602,7 @@ void SceneCore::RebuildBVH() noexcept
 	m_bvh.Build(allInstances);
 }
 
-void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept
+void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances)
 {
 	m_prevToWorlds.clear();
 	const int numLevels = (int)m_sceneGraph.size();
@@ -672,7 +672,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 	}
 }
 
-void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept
+void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameAllocator>& animVec)
 {
 	for (int i = 0; i < m_animationOffsets.size(); i++)
 	{
@@ -751,7 +751,7 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameA
 	}
 }
 
-void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec) noexcept
+void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec)
 {
 	for(auto& update : animVec)
 	{
@@ -793,7 +793,7 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec) noexcept
 }
 
 // TODO following is untested
-void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances) noexcept
+void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances)
 {
 	auto emissvies = m_emissives.EmissiveInstances();
 	auto tris = m_emissives.EmissiveTriagnles();

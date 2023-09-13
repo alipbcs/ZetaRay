@@ -21,18 +21,18 @@ namespace ZetaRay::Util
 		static constexpr size_t MIN_CAPACITY = Math::Max(64 / sizeof(T), 4llu);
 
 	public:
-		~Vector() noexcept
+		~Vector()
 		{
 			free_memory();
 		}
 
-		bool has_inline_storage() const noexcept
+		bool has_inline_storage() const
 		{
 			constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
 			return reinterpret_cast<uintptr_t>(m_beg) == reinterpret_cast<uintptr_t>(this) + inlineStorageOffset;
 		}
 
-		void swap(Vector& other) noexcept
+		void swap(Vector& other)
 		{
 			if (this == &other)
 				return;
@@ -87,81 +87,81 @@ namespace ZetaRay::Util
 			other.m_end = other.m_beg + oldSize;
 		}
 
-		ZetaInline T* begin() noexcept
+		ZetaInline T* begin()
 		{
 			return m_beg;
 		}
 
-		ZetaInline T* end() noexcept
+		ZetaInline T* end()
 		{
 			return m_end;
 		}
 
-		ZetaInline const T* begin() const noexcept
+		ZetaInline const T* begin() const
 		{
 			return m_beg;
 		}
 
-		ZetaInline const T* end() const noexcept
+		ZetaInline const T* end() const
 		{
 			return m_end;
 		}
 
-		ZetaInline const T* cbegin() const noexcept
+		ZetaInline const T* cbegin() const
 		{
 			return m_beg;
 		}
 
-		ZetaInline const T* cend() const noexcept
+		ZetaInline const T* cend() const
 		{
 			return m_end;
 		}
 
-		ZetaInline T* data() noexcept
+		ZetaInline T* data()
 		{
 			return m_beg;
 		}
 
-		ZetaInline T& back() noexcept
+		ZetaInline T& back()
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		ZetaInline const T& back() const noexcept
+		ZetaInline const T& back() const
 		{
 			Assert(size() > 0, "Vector is empty");
 			return *(m_beg + size() - 1);
 		}
 
-		ZetaInline T& operator[](size_t pos) noexcept
+		ZetaInline T& operator[](size_t pos)
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
 		}
 
-		ZetaInline const T& operator[](size_t pos) const noexcept
+		ZetaInline const T& operator[](size_t pos) const
 		{
 			Assert(pos < (uintptr_t)(m_end - m_beg), "Out-of-bound access.");
 			return *(m_beg + pos);
 		}
 
-		ZetaInline size_t capacity() const noexcept
+		ZetaInline size_t capacity() const
 		{
 			return m_last - m_beg;
 		}
 
-		ZetaInline size_t size() const noexcept
+		ZetaInline size_t size() const
 		{
 			return m_end - m_beg;
 		}
 
-		ZetaInline bool empty() const noexcept
+		ZetaInline bool empty() const
 		{
 			return m_end - m_beg == 0;
 		}
 
-		void reserve(size_t n) noexcept
+		void reserve(size_t n)
 		{
 			const size_t currCapacity = capacity();
 			const size_t oldSize = size();
@@ -177,7 +177,7 @@ namespace ZetaRay::Util
 			m_last = m_beg + n;
 		}
 
-		void resize(size_t n) noexcept
+		void resize(size_t n)
 		{
 			static_assert(std::is_default_constructible_v<T>, "T cannot be default constructed.");
 
@@ -208,7 +208,7 @@ namespace ZetaRay::Util
 			}
 		}
 
-		void resize(size_t n, const T& val) noexcept
+		void resize(size_t n, const T& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T cannot be copy or move constructed.");
 
@@ -235,7 +235,7 @@ namespace ZetaRay::Util
 			}
 		}
 
-		void pop_back(size_t num = 1) noexcept
+		void pop_back(size_t num = 1)
 		{
 			Assert(size() >= num, "attempting to pop more items than Vector's size.");
 
@@ -248,20 +248,20 @@ namespace ZetaRay::Util
 			m_end -= num;
 		}
 
-		void push_back(const T& val) noexcept
+		void push_back(const T& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
 			emplace_back(val);
 		}
 
-		void push_back(T&& val) noexcept
+		void push_back(T&& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
 			emplace_back(ZetaMove(val));
 		}
 
 		template<typename... Args>
-		void emplace_back(Args&&... args) noexcept
+		void emplace_back(Args&&... args)
 		{
 			if (m_last == m_end)
 			{
@@ -276,7 +276,7 @@ namespace ZetaRay::Util
 			m_end++;
 		}
 
-		void append_range(const T* beg, const T* end, bool exact = false) noexcept
+		void append_range(const T* beg, const T* end, bool exact = false)
 		{
 			if (!beg || !end || beg == end || beg > end)
 				return;
@@ -331,7 +331,7 @@ namespace ZetaRay::Util
 		}
 
 		// Erases an element by swapping it with the last element. Returns a pointer to the next element.
-		T* erase(size_t pos) noexcept
+		T* erase(size_t pos)
 		{
 			static_assert(std::is_swappable_v<T>, "T is not swappable");
 			const size_t n = size();
@@ -352,7 +352,7 @@ namespace ZetaRay::Util
 		}
 
 		// Erases an element by swapping it with the last element. Returns a pointer to the next element.
-		T* erase(T& item) noexcept
+		T* erase(T& item)
 		{
 			static_assert(std::is_swappable_v<T>, "T is not swappable");
 			const size_t n = size();
@@ -372,7 +372,7 @@ namespace ZetaRay::Util
 			return m_beg + pos;
 		}
 
-		void push_front(const T& val) noexcept
+		void push_front(const T& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
 			static_assert(std::is_swappable_v<T>, "T is not swappable");
@@ -385,7 +385,7 @@ namespace ZetaRay::Util
 				std::swap(*m_beg, *(m_beg + n - 1));
 		}
 
-		void push_front(T&& val) noexcept
+		void push_front(T&& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
 			static_assert(std::is_swappable_v<T>, "T is not swappable");
@@ -398,7 +398,7 @@ namespace ZetaRay::Util
 				std::swap(*m_beg, *(m_beg + n - 1));
 		}
 
-		void clear() noexcept
+		void clear()
 		{
 			if constexpr (!std::is_trivially_destructible_v<T>)
 			{
@@ -411,7 +411,7 @@ namespace ZetaRay::Util
 			m_end = m_beg;
 		}
 
-		void free_memory() noexcept
+		void free_memory()
 		{
 			clear();
 
@@ -430,11 +430,11 @@ namespace ZetaRay::Util
 		}
 
 	protected:
-		Vector(const Allocator& a) noexcept
+		Vector(const Allocator& a)
 			: m_allocator(a)
 		{}
 
-		Vector(size_t N, const Allocator& a) noexcept
+		Vector(size_t N, const Allocator& a)
 			: m_allocator(a)
 		{
 			static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
@@ -456,7 +456,7 @@ namespace ZetaRay::Util
 			}
 		}
 
-		Vector(size_t N, const T& t, const Allocator& a) noexcept
+		Vector(size_t N, const T& t, const Allocator& a)
 			: m_allocator(a)
 		{
 			static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
@@ -475,7 +475,7 @@ namespace ZetaRay::Util
 			}
 		}
 
-		Vector& operator=(const Vector& other) noexcept
+		Vector& operator=(const Vector& other)
 		{
 			static_assert(std::is_copy_assignable_v<T>, "T cannot be copy-assigned.");
 			static_assert(std::is_copy_assignable_v<Allocator>, "Allocator cannot be copy-assigned.");
@@ -535,7 +535,7 @@ namespace ZetaRay::Util
 			return *this;
 		}
 
-		Vector& operator=(Vector&& other) noexcept
+		Vector& operator=(Vector&& other)
 		{
 			static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
 				"T cannot be copy or move assigned.");
@@ -611,7 +611,7 @@ namespace ZetaRay::Util
 			return *this;
 		}
 
-		void* relocate(size_t n) noexcept
+		void* relocate(size_t n)
 		{
 			// allocate memory to accomodate the new size
 			void* mem = m_allocator.AllocateAligned(n * sizeof(T), alignof(T));
@@ -715,56 +715,56 @@ namespace ZetaRay::Util
 	class SmallVector : public Vector<T, Allocator>
 	{
 	public:
-		SmallVector(const Allocator& a = Allocator()) noexcept
+		SmallVector(const Allocator& a = Allocator())
 			: Vector<T, Allocator>(N, a)
 		{}
 
-		SmallVector(const T& t, const Allocator& a = Allocator()) noexcept
+		SmallVector(const T& t, const Allocator& a = Allocator())
 			: Vector<T, Allocator>(N, t, a)
 		{}
 
-		SmallVector(const SmallVector& other) noexcept
+		SmallVector(const SmallVector& other)
 			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
 			Vector<T, Allocator>::operator=(other);
 		}
 
-		SmallVector(const Vector<T, Allocator>& other) noexcept
+		SmallVector(const Vector<T, Allocator>& other)
 			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
 			Vector<T, Allocator>::operator=(other);
 		}
 
-		SmallVector& operator=(const SmallVector& other) noexcept
+		SmallVector& operator=(const SmallVector& other)
 		{
 			Vector<T, Allocator>::operator=(other);
 			return *this;
 		}
 
-		SmallVector& operator=(const Vector<T, Allocator>& other) noexcept
+		SmallVector& operator=(const Vector<T, Allocator>& other)
 		{
 			Vector<T, Allocator>::operator=(other);
 			return *this;
 		}
 
-		SmallVector(SmallVector&& other) noexcept
+		SmallVector(SmallVector&& other)
 			: Vector<T, Allocator>(N, this->GetAllocator())
 		{
 			Vector<T, Allocator>::operator=(ZetaMove(other));
 		}
 
-		SmallVector(Vector<T, Allocator>&& other) noexcept
+		SmallVector(Vector<T, Allocator>&& other)
 		{
 			Vector<T, Allocator>::operator=(ZetaMove(other));
 		}
 
-		SmallVector& operator=(SmallVector&& other) noexcept
+		SmallVector& operator=(SmallVector&& other)
 		{
 			Vector<T, Allocator>::operator=(ZetaMove(other));
 			return *this;
 		}
 
-		SmallVector& operator=(Vector<T, Allocator>&& other) noexcept
+		SmallVector& operator=(Vector<T, Allocator>&& other)
 		{
 			Vector<T, Allocator>::operator=(ZetaMove(other));
 			return *this;

@@ -1,7 +1,7 @@
 #include "../Common/Common.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 
 #define USE_ENVIRONMENT_MAP 1
 #define NON_LINEAR_LATITUDE 1

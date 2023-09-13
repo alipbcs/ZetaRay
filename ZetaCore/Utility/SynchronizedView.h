@@ -7,14 +7,14 @@ namespace ZetaRay::Util
 	template<typename T>
 	struct RSynchronizedView
 	{
-		RSynchronizedView(const T& t, SRWLOCK& lock) noexcept
+		RSynchronizedView(const T& t, SRWLOCK& lock)
 			: m_view(t),
 			m_lock(lock)
 		{
 			AcquireSRWLockShared(&m_lock);
 		}
 
-		~RSynchronizedView() noexcept
+		~RSynchronizedView()
 		{
 			ReleaseSRWLockShared(&m_lock);
 		}
@@ -32,14 +32,14 @@ namespace ZetaRay::Util
 	template<typename T>
 	struct RWSynchronizedView
 	{
-		RWSynchronizedView(T& t, SRWLOCK& lock) noexcept
+		RWSynchronizedView(T& t, SRWLOCK& lock)
 			: m_view(t),
 			m_lock(lock)
 		{
 			AcquireSRWLockExclusive(&m_lock);
 		}
 
-		~RWSynchronizedView() noexcept
+		~RWSynchronizedView()
 		{
 			ReleaseSRWLockExclusive(&m_lock);
 		}
@@ -59,14 +59,14 @@ namespace ZetaRay::Util
 	{
 		static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
 
-		RSynchronizedVariable(T t, SRWLOCK& lock) noexcept
+		RSynchronizedVariable(T t, SRWLOCK& lock)
 			: m_var(t),
 			m_lock(lock)
 		{
 			AcquireSRWLockShared(&m_lock);
 		}
 
-		~RSynchronizedVariable() noexcept
+		~RSynchronizedVariable()
 		{
 			ReleaseSRWLockShared(&m_lock);
 		}
@@ -86,14 +86,14 @@ namespace ZetaRay::Util
 	{
 		static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
 
-		RWSynchronizedVariable(T t, SRWLOCK& lock) noexcept
+		RWSynchronizedVariable(T t, SRWLOCK& lock)
 			: m_var(t),
 			m_lock(lock)
 		{
 			AcquireSRWLockExclusive(&m_lock);
 		}
 
-		~RWSynchronizedVariable() noexcept
+		~RWSynchronizedVariable()
 		{
 			ReleaseSRWLockExclusive(&m_lock);
 		}

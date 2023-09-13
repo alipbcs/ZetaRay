@@ -5,7 +5,7 @@
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/RT.hlsli"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature

@@ -15,8 +15,8 @@ namespace ZetaRay::App::Common
         constexpr uint16_t BMI1 = 0x20;
     };
 
-    int WideToCharStr(const wchar_t* wideStr, Util::Span<char> str) noexcept;
-    int CharToWideStr(const char* str, Util::Span<wchar_t> wideStr) noexcept;
+    int WideToCharStr(const wchar_t* wideStr, Util::Span<char> str);
+    int CharToWideStr(const char* str, Util::Span<wchar_t> wideStr);
 
-    uint32_t CheckIntrinsicSupport() noexcept;
+    uint32_t CheckIntrinsicSupport();
 }

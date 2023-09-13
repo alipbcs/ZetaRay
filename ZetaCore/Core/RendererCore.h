@@ -23,8 +23,8 @@ namespace ZetaRay::Core
 	class RendererCore
 	{
 	public:
-		RendererCore() noexcept;
-		~RendererCore() noexcept;
+		RendererCore();
+		~RendererCore();
 
 		RendererCore(const RendererCore&) = delete;
 		RendererCore& operator=(const RendererCore&) = delete;
@@ -40,8 +40,8 @@ namespace ZetaRay::Core
 		ZetaInline ID3D12Device8* GetDevice() { return m_deviceObjs.m_device.Get(); };
 		ZetaInline const char* GetDeviceDescription() { return m_deviceObjs.m_deviceName; }
 		ZetaInline IDXGIAdapter3* GetAdapter() { return m_deviceObjs.m_dxgiAdapter.Get(); }
-		DXGI_OUTPUT_DESC GetOutputMonitorDesc() const noexcept;
-		uint64_t GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const noexcept;
+		DXGI_OUTPUT_DESC GetOutputMonitorDesc() const;
+		uint64_t GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const;
 
 		ZetaInline uint16_t GetRenderWidth() const { return m_renderWidth; }
 		ZetaInline uint16_t GetRenderHeight() const { return m_renderHeight; }
@@ -58,35 +58,35 @@ namespace ZetaRay::Core
 		ZetaInline DescriptorHeap& GetDsvDescriptorHeap() { return m_dsvDescHeap; };
 		ZetaInline GpuTimer& GetGpuTimer() { return m_gpuTimer; }
 
-		GraphicsCmdList* GetGraphicsCmdList() noexcept;
-		ComputeCmdList* GetComputeCmdList() noexcept;
-		//CopyCmdList* GetCopyCmdList() noexcept;
-		void ReleaseCmdList(CommandList* ctx) noexcept;
-		uint64_t ExecuteCmdList(CommandList* ctx) noexcept;
+		GraphicsCmdList* GetGraphicsCmdList();
+		ComputeCmdList* GetComputeCmdList();
+		//CopyCmdList* GetCopyCmdList();
+		void ReleaseCmdList(CommandList* ctx);
+		uint64_t ExecuteCmdList(CommandList* ctx);
 
-		void SignalDirectQueue(ID3D12Fence* f, uint64_t v) noexcept;
-		void SignalComputeQueue(ID3D12Fence* f, uint64_t v) noexcept;
-//		void SignalCopyQueue(ID3D12Fence* f, uint64_t v) noexcept;
-
-		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value (blocking)
-		void WaitForDirectQueueFenceCPU(uint64_t fenceValue) noexcept;
+		void SignalDirectQueue(ID3D12Fence* f, uint64_t v);
+		void SignalComputeQueue(ID3D12Fence* f, uint64_t v);
+//		void SignalCopyQueue(ID3D12Fence* f, uint64_t v);
 
 		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value (blocking)
-		void WaitForComputeQueueFenceCPU(uint64_t fenceValue) noexcept;
+		void WaitForDirectQueueFenceCPU(uint64_t fenceValue);
+
+		// Waits (CPU-side) for the fence on Direct Queue to reach the specified value (blocking)
+		void WaitForComputeQueueFenceCPU(uint64_t fenceValue);
 
 		// Issues a GPU-side wait on the Compute Queue for the fence on the Direct Queue. Corresponding fence
 		// can only be signalled through ExecuteCmdList() calls.
-		void WaitForDirectQueueOnComputeQueue(uint64_t v) noexcept;
+		void WaitForDirectQueueOnComputeQueue(uint64_t v);
 
 		// Issues a GPU-side wait on the Direct Queue for the Fence on the Compute Queue. Corresponding fence
 		// can only be signalled through ExecuteCmdList() calls.
-		void WaitForComputeQueueOnDirectQueue(uint64_t v) noexcept;
+		void WaitForComputeQueueOnDirectQueue(uint64_t v);
 
 		// Issue a GPU-side wait on the Direct/Compute Queue for the Fence on the copy queue. That fence
 		// can only signalled through ExecuteCmdList() calls.
-		//void WaitForCopyQueueOnDirectQueue(uint64_t v) noexcept;
-		//void WaitForCopyQueueOnComputeQueue(uint64_t v) noexcept;
-		void FlushAllCommandQueues() noexcept;
+		//void WaitForCopyQueueOnDirectQueue(uint64_t v);
+		//void WaitForCopyQueueOnComputeQueue(uint64_t v);
+		void FlushAllCommandQueues();
 
 		ZetaInline D3D12_VIEWPORT GetDisplayViewport() const { return m_displayViewport; }
 		ZetaInline D3D12_RECT GetDisplayScissor() const { return m_displayScissor; }
@@ -95,16 +95,16 @@ namespace ZetaRay::Core
 		ZetaInline const GpuMemory::Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
 		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
-		ZetaInline bool IsTearingSupported() const noexcept { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
+		ZetaInline bool IsTearingSupported() const { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
 		ZetaInline int GetVSyncInterval() const { return m_vsyncInterval; }
 
 		ZetaInline Util::Span<D3D12_STATIC_SAMPLER_DESC> GetStaticSamplers() { return m_staticSamplers; };
-		ZetaInline int GlobaIdxForDoubleBufferedResources() const noexcept { return m_globalDoubleBuffIdx; }
+		ZetaInline int GlobaIdxForDoubleBufferedResources() const { return m_globalDoubleBuffIdx; }
 
 	private:
-		void ResizeBackBuffers(HWND hwnd) noexcept;
-		void InitStaticSamplers() noexcept;
-		void SetVSync(const Support::ParamVariant& p) noexcept;
+		void ResizeBackBuffers(HWND hwnd);
+		void InitStaticSamplers();
+		void SetVSync(const Support::ParamVariant& p);
 
 		DeviceObjects m_deviceObjs;
 

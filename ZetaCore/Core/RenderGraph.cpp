@@ -25,7 +25,7 @@ using namespace ZetaRay::Core::Direct3DUtil;
 
 namespace
 {
-	const char* GetResStateName(D3D12_RESOURCE_STATES s) noexcept
+	const char* GetResStateName(D3D12_RESOURCE_STATES s)
 	{
 		switch (s)
 		{
@@ -73,7 +73,7 @@ namespace
 // AggregateRenderNode
 //--------------------------------------------------------------------------------------
 
-void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate) noexcept
+void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate)
 {
 	Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
 	Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, "All the nodes in an AggregateRenderNode must have the same batch index.");
@@ -108,7 +108,7 @@ void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mapped
 // RenderGraph
 //--------------------------------------------------------------------------------------
 
-void RenderGraph::Shutdown() noexcept
+void RenderGraph::Shutdown()
 {
 	m_frameResources.free_memory();
 
@@ -120,7 +120,7 @@ void RenderGraph::Shutdown() noexcept
 	}
 }
 
-void RenderGraph::Reset() noexcept
+void RenderGraph::Reset()
 {
 	//m_frameResources.clear();
 	m_frameResources.resize(MAX_NUM_RESOURCES);
@@ -156,7 +156,7 @@ void RenderGraph::Reset() noexcept
 	m_currRenderPassIdx.store(0, std::memory_order_relaxed);
 }
 
-void RenderGraph::RemoveResource(uint64_t path) noexcept
+void RenderGraph::RemoveResource(uint64_t path)
 {
 	Assert(!m_inBeginEndBlock, "Invalid call.");
 	const int pos = FindFrameResource(path, 0, m_prevFramesNumResources - 1);
@@ -172,7 +172,7 @@ void RenderGraph::RemoveResource(uint64_t path) noexcept
 	}
 }
 
-void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
+void RenderGraph::RemoveResources(Util::Span<uint64_t> paths)
 {
 	Assert(!m_inBeginEndBlock, "Invalid call.");
 	int numRemoved = 0;
@@ -197,7 +197,7 @@ void RenderGraph::RemoveResources(Util::Span<uint64_t> paths) noexcept
 	m_lastResIdx.fetch_sub(numRemoved, std::memory_order_relaxed);
 }
 
-void RenderGraph::BeginFrame() noexcept
+void RenderGraph::BeginFrame()
 {
 	Assert(!m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	m_prevFramesNumResources = m_lastResIdx.load(std::memory_order_relaxed);
@@ -227,7 +227,7 @@ void RenderGraph::BeginFrame() noexcept
 	m_inPreRegister = true;
 }
 
-int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
+int RenderGraph::FindFrameResource(uint64_t key, int beg, int end)
 {
 	if (end - beg == 0)
 		return -1;
@@ -238,7 +238,7 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end) noexcept
 }
 
 RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, 
-	fastdelegate::FastDelegate1<CommandList&> dlg, bool forceSeperateCmdList) noexcept
+	fastdelegate::FastDelegate1<CommandList&> dlg, bool forceSeperateCmdList)
 {
 	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	int h = m_currRenderPassIdx.fetch_add(1, std::memory_order_relaxed);
@@ -249,7 +249,7 @@ RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_T
 	return RenderNodeHandle(h);
 }
 
-void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent) noexcept
+void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent)
 {
 	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
@@ -272,7 +272,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 	m_frameResources[pos].Reset(path, res, initState, isWindowSizeDependent);
 }
 
-void RenderGraph::MoveToPostRegister() noexcept
+void RenderGraph::MoveToPostRegister()
 {
 	Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
 	const int numResources = m_lastResIdx.load(std::memory_order_relaxed);
@@ -301,7 +301,7 @@ void RenderGraph::MoveToPostRegister() noexcept
 	m_inPreRegister = false;
 }
 
-void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState) noexcept
+void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState)
 {
 	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	Assert(h.IsValid(), "Invalid handle");
@@ -312,7 +312,7 @@ void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_S
 	m_renderNodes[h.Val].Inputs.emplace_back(pathID, expectedState);
 }
 
-void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState) noexcept
+void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState)
 {
 	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	Assert(h.IsValid(), "Invalid handle");
@@ -334,7 +334,7 @@ void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_
 	m_frameResources[idx].Producers[prodIdx] = h;
 }
 
-void RenderGraph::Build(TaskSet& ts) noexcept
+void RenderGraph::Build(TaskSet& ts)
 {
 	Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
 	m_inBeginEndBlock = false;
@@ -415,7 +415,7 @@ void RenderGraph::Build(TaskSet& ts) noexcept
 #endif // _DEBUG
 }
 
-void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
+void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
 {
 	// Task-level dependency cases:
 	// 
@@ -430,7 +430,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 
 	for (int i = 0; i < m_aggregateNodes.size(); i++)
 	{
-		m_aggregateNodes[i].TaskH = ts.EmplaceTask(m_aggregateNodes[i].Name, [this, i]() noexcept
+		m_aggregateNodes[i].TaskH = ts.EmplaceTask(m_aggregateNodes[i].Name, [this, i]()
 			{
 				auto& renderer = App::GetRenderer();
 
@@ -510,7 +510,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts) noexcept
 	}
 }
 
-void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes) noexcept
+void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes)
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	RenderNodeHandle sorted[MAX_NUM_RENDER_PASSES];
@@ -592,7 +592,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 //		});
 }
 
-void RenderGraph::InsertResourceBarriers() noexcept
+void RenderGraph::InsertResourceBarriers()
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 
@@ -741,7 +741,7 @@ void RenderGraph::InsertResourceBarriers() noexcept
 		m_frameResources[idx].State = D3D12_RESOURCE_STATE_PRESENT;
 }
 
-void RenderGraph::JoinRenderNodes() noexcept
+void RenderGraph::JoinRenderNodes()
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	m_aggregateNodes.reserve(numNodes);
@@ -750,7 +750,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 	SmallVector<int, App::FrameAllocator, 16> nonAsyncComputeNodes;
 	SmallVector<int, App::FrameAllocator, 16> asyncComputeNodes;
 
-	auto insertAggRndrNode = [this, &nonAsyncComputeNodes, &asyncComputeNodes]() noexcept
+	auto insertAggRndrNode = [this, &nonAsyncComputeNodes, &asyncComputeNodes]()
 	{
 		Assert(!nonAsyncComputeNodes.empty() || !asyncComputeNodes.empty(), "bug");
 
@@ -836,7 +836,7 @@ void RenderGraph::JoinRenderNodes() noexcept
 	m_aggregateNodes.back().IsLast = true;
 }
 
-uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h) noexcept
+uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h)
 {
 	Assert(h.IsValid(), "invalid handle.");
 	Assert(!m_inBeginEndBlock, "invalid call.");
@@ -853,7 +853,7 @@ uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h) noexcept
 	return fence;
 }
 
-void RenderGraph::DebugDrawGraph() noexcept
+void RenderGraph::DebugDrawGraph()
 {
 	const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 	const bool needsReorder = m_numPassesLastTimeDrawn != numNodes;
@@ -1035,7 +1035,7 @@ void RenderGraph::DebugDrawGraph() noexcept
 }
 
 #ifdef _DEBUG
-void RenderGraph::Log() noexcept
+void RenderGraph::Log()
 {
 	std::string formattedRenderGraph;
 	formattedRenderGraph.reserve(2048);

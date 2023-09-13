@@ -12,8 +12,9 @@ namespace ZetaRay::Support
 
 	struct FloatParam
 	{
-		void Init(float val, float min, float max, float step) noexcept
+		void Init(float val, float min, float max, float step)
 		{
+			Assert(val >= min && val <= max, "default val is outside the given bounds.");
 			m_val = val;
 			m_min = min;
 			m_max = max;
@@ -32,7 +33,7 @@ namespace ZetaRay::Support
 
 	struct Float3Param
 	{
-		void Init(Math::float3 val, float min, float max, float step, bool keepNormalized) noexcept
+		void Init(Math::float3 val, float min, float max, float step, bool keepNormalized)
 		{
 			m_val = val;
 			m_min = min;
@@ -54,13 +55,13 @@ namespace ZetaRay::Support
 
 	struct UnitDirParam
 	{
-		void Init(float pitch, float yaw) noexcept
+		void Init(float pitch, float yaw)
 		{
 			m_pitch = pitch;
 			m_yaw = yaw;
 		}
 
-		Math::float3 GetDir() noexcept;
+		Math::float3 GetDir();
 
 		float m_pitch;		// angle of rotation around the x-axis (radians)
 		float m_yaw;		// angle of rotation around the y-axis (radians)
@@ -72,7 +73,7 @@ namespace ZetaRay::Support
 
 	struct ColorParam
 	{
-		void Init(Math::float3 val, float min, float max, float step) noexcept
+		void Init(Math::float3 val, float min, float max, float step)
 		{
 			m_val = val;
 			m_min = min;
@@ -92,8 +93,9 @@ namespace ZetaRay::Support
 
 	struct IntParam
 	{
-		void Init(int val, int min, int max, int step) noexcept
+		void Init(int val, int min, int max, int step)
 		{
+			Assert(val >= min && val <= max, "default val is outside the given bounds.");
 			m_val = val;
 			m_min = min;
 			m_max = max;
@@ -112,7 +114,7 @@ namespace ZetaRay::Support
 
 	struct EnumParam
 	{
-		void Init(const char** vals, int n, int curr) noexcept
+		void Init(const char** vals, int n, int curr)
 		{
 			m_vals = vals;
 			m_num = n;
@@ -155,32 +157,32 @@ namespace ZetaRay::Support
 		static const int MAX_SUBGROUP_LEN = 24;
 
 		void InitFloat(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			float val, float min, float max, float step) noexcept;
+			float val, float min, float max, float step);
 
 		void InitInt(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			int val, int min, int max, int step) noexcept;
+			int val, int min, int max, int step);
 
 		void InitFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val, float min, float max, float step) noexcept;
+			Math::float3 val, float min, float max, float step);
 
 		void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			float pitch, float yaw) noexcept;		
+			float pitch, float yaw);		
 		
 		void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 dir) noexcept;
+			Math::float3 dir);
 
 		void InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val) noexcept;
+			Math::float3 val);
 
 		void InitColor(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val) noexcept;
+			Math::float3 val);
 
 		void InitBool(const char* group, const char* subgroup, const char* name, 
-			fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val) noexcept;
+			fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val);
 
 		void InitEnum(const char* group, const char* subgroup, const char* name,
 			fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** enumVals, 
-			int num, int curr) noexcept;
+			int num, int curr);
 
 		const char* GetGroup() const { return m_group; }
 		const char* GetSubGroup() const { return m_subgroup; }
@@ -188,29 +190,29 @@ namespace ZetaRay::Support
 		PARAM_TYPE GetType() const { return m_type; }
 		uint64_t GetID() const { return m_id; }
 
-		const FloatParam& GetFloat() const noexcept;
-		void SetFloat(float v) noexcept;
+		const FloatParam& GetFloat() const;
+		void SetFloat(float v);
 
-		const Float3Param& GetFloat3() const noexcept;
-		void SetFloat3(Math::float3 v) noexcept;		
+		const Float3Param& GetFloat3() const;
+		void SetFloat3(Math::float3 v);		
 		
-		const UnitDirParam& GetUnitDir() const noexcept;
-		void SetUnitDir(float pitch, float yaw) noexcept;
+		const UnitDirParam& GetUnitDir() const;
+		void SetUnitDir(float pitch, float yaw);
 
-		const Float3Param& GetColor() const noexcept;
-		void SetColor(Math::float3 v) noexcept;
+		const Float3Param& GetColor() const;
+		void SetColor(Math::float3 v);
 
-		const IntParam& GetInt() const noexcept;
-		void SetInt(int v) noexcept;
+		const IntParam& GetInt() const;
+		void SetInt(int v);
 
 		bool GetBool() const;
-		void SetBool(bool v) noexcept;
+		void SetBool(bool v);
 
-		const EnumParam& GetEnum() const noexcept;
-		void SetEnum(int v) noexcept;
+		const EnumParam& GetEnum() const;
+		void SetEnum(int v);
 
 	private:
-		void InitCommon(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg) noexcept;
+		void InitCommon(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg);
 
 		fastdelegate::FastDelegate1<const ParamVariant&> m_dlg;
 		uint64_t m_id;

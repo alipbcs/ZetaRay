@@ -6,37 +6,37 @@ using namespace ZetaRay::Support;
 // MemoryArena
 //--------------------------------------------------------------------------------------
 
-MemoryArena::MemoryArena(size_t blockSize) noexcept
+MemoryArena::MemoryArena(size_t blockSize)
 	: m_blockSize(blockSize)
 {
 }
 
-MemoryArena::MemoryArena(MemoryArena&& rhs) noexcept
-	: m_blockSize(rhs.m_blockSize)
+MemoryArena::MemoryArena(MemoryArena&& other)
+	: m_blockSize(other.m_blockSize)
 {
-	m_blocks.swap(rhs.m_blocks);
+	m_blocks.swap(other.m_blocks);
 
 #ifdef _DEBUG
-	m_numAllocs = rhs.m_numAllocs;
+	m_numAllocs = other.m_numAllocs;
 #endif // _DEBUG}
 }
 
-MemoryArena& MemoryArena::operator=(MemoryArena&& rhs) noexcept
+MemoryArena& MemoryArena::operator=(MemoryArena&& other)
 {
-	Check(m_blockSize == rhs.m_blockSize, "these MemoryArenas are incompatible.");
+	Check(m_blockSize == other.m_blockSize, "these MemoryArenas are incompatible.");
 
-	m_blocks.swap(rhs.m_blocks);
-	rhs.m_blocks.free_memory();
+	m_blocks.swap(other.m_blocks);
+	other.m_blocks.free_memory();
 
 #ifdef _DEBUG
-	m_numAllocs = rhs.m_numAllocs;
-	rhs.m_numAllocs = 0;
+	m_numAllocs = other.m_numAllocs;
+	other.m_numAllocs = 0;
 #endif // _DEBUG}
 
 	return *this;
 }
 
-void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
+void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
 {
 	for (auto& block : m_blocks)
 	{
@@ -50,7 +50,7 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
 
 #ifdef _DEBUG
 			m_numAllocs++;
-#endif // _DEBUG
+#endif
 
 			return reinterpret_cast<void*>(ret);
 		}
@@ -86,7 +86,7 @@ size_t MemoryArena::TotalSize() const
 	return sum;
 }
 
-void MemoryArena::Reset() noexcept
+void MemoryArena::Reset()
 {
 	while (m_blocks.size() > 1)
 		m_blocks.pop_back();

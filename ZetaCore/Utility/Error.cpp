@@ -203,7 +203,7 @@ namespace dbg
 #endif // _DEBUG
 
 
-void ZetaRay::Util::ReportError(const char* title, const char* msg) noexcept
+void ZetaRay::Util::ReportError(const char* title, const char* msg)
 {
 #ifdef _DEBUG
     char buff[BUFF_SIZE];
@@ -215,7 +215,7 @@ void ZetaRay::Util::ReportError(const char* title, const char* msg) noexcept
 #endif // _DEBUG
 }
 
-void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* call) noexcept
+void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* call)
 {
     char msg[256];
     stbsp_snprintf(msg, 256, "%s: %d\nPredicate: %s\nError code: %d", file, line, call, GetLastError());
@@ -229,12 +229,12 @@ void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* cal
 #endif // _DEBUG
 }
 
-void ZetaRay::Util::DebugBreak() noexcept
+void ZetaRay::Util::DebugBreak()
 {
 	__debugbreak();
 }
 
-void ZetaRay::Util::Exit() noexcept
+void ZetaRay::Util::Exit()
 {
     exit(EXIT_FAILURE);
 }

@@ -9,7 +9,7 @@ set(RP_COMMON_SRC
     ${RP_COMMON_DIR}/Sampling.hlsli
     ${RP_COMMON_DIR}/SH.hlsli
     ${RP_COMMON_DIR}/StaticTextureSamplers.hlsli
-    ${RP_COMMON_DIR}/VolumetricLighting.hlsli
+    ${RP_COMMON_DIR}/Volumetric.hlsli
 	${RP_COMMON_DIR}/ffx_spd.h
     ${RP_COMMON_DIR}/ffx_a.h)
 set(RP_COMMON_SRC ${RP_COMMON_SRC} PARENT_SCOPE)

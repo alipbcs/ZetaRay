@@ -29,13 +29,13 @@ namespace ZetaRay::Model
 
 	struct TriangleMesh
 	{
-		TriangleMesh() noexcept = default;
+		TriangleMesh() = default;
 
 		TriangleMesh(Util::Span<Core::Vertex> vertices,
 			size_t vtxBuffStartOffset,
 			size_t idxBuffStartOffset,
 			uint32_t numIndices,
-			uint64_t matID) noexcept;
+			uint64_t matID);
 		
 		//inline D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const
 		//{
@@ -70,19 +70,19 @@ namespace ZetaRay::Model
 	namespace PrimitiveMesh
 	{
 		//void ComputeBox(Vector<VertexPosNormalTexTangent>& vertices, Vector<uint16_t>& indices, 
-		//	Math::float3 size) noexcept;
+		//	Math::float3 size);
 
 		void ComputeSphere(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float diameter, size_t tessellation) noexcept;
+			float diameter, size_t tessellation);
 		void ComputeCylinder(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount) noexcept;
+			float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount);
 		void ComputeCone(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float diameter, float height, size_t tessellation) noexcept;
+			float diameter, float height, size_t tessellation);
 		void ComputeTorus(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float diameter, float thickness, size_t tessellation) noexcept;
+			float diameter, float thickness, size_t tessellation);
 		void ComputeTeapot(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float size, size_t tessellation) noexcept;
+			float size, size_t tessellation);
 		void ComputeGrid(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
-			float width, float depth, uint32_t m, uint32_t n) noexcept;
+			float width, float depth, uint32_t m, uint32_t n);
 	}
 }

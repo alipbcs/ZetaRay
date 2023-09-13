@@ -63,7 +63,7 @@ namespace ZetaRay::App
 	struct ShaderReloadHandler
 	{
 		ShaderReloadHandler() = default;
-		ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
+		ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg);
 
 		static constexpr int MAX_LEN = 32;
 
@@ -83,96 +83,96 @@ namespace ZetaRay::App
 
 		static constexpr int MAX_LEN = 512;
 
-		LogMessage() noexcept = default;
-		LogMessage(const char* msg, MsgType t) noexcept;
+		LogMessage() = default;
+		LogMessage(const char* msg, MsgType t);
 
 		char Msg[MAX_LEN];
 		MsgType Type;
 	};
 
-	void Init(Scene::Renderer::Interface& rendererInterface, const char* name = nullptr) noexcept;
-	int Run() noexcept;
-	void Abort() noexcept;
+	void Init(Scene::Renderer::Interface& rendererInterface, const char* name = nullptr);
+	int Run();
+	void Abort();
 
-	void* AllocateSmallFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
-	void* AllocateLargeFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+	void* AllocateSmallFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t));
+	void* AllocateLargeFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t));
 
-	int RegisterTask() noexcept;
-	void TaskFinalizedCallback(int handle, int indegree) noexcept;
-	void WaitForAdjacentHeadNodes(int handle) noexcept;
-	void SignalAdjacentTailNodes(Util::Span<int> taskIDs) noexcept;
+	int RegisterTask();
+	void TaskFinalizedCallback(int handle, int indegree);
+	void WaitForAdjacentHeadNodes(int handle);
+	void SignalAdjacentTailNodes(Util::Span<int> taskIDs);
 
 	// Submits task to priority thread pool
-	void Submit(Support::Task&& t) noexcept;
-	void Submit(Support::TaskSet&& ts) noexcept;
-	void SubmitBackground(Support::Task&& t) noexcept;
-	void FlushWorkerThreadPool() noexcept;
-	void FlushAllThreadPools() noexcept;
+	void Submit(Support::Task&& t);
+	void Submit(Support::TaskSet&& ts);
+	void SubmitBackground(Support::Task&& t);
+	void FlushWorkerThreadPool();
+	void FlushAllThreadPools();
 
-	Core::RendererCore& GetRenderer() noexcept;
-	Scene::SceneCore& GetScene() noexcept;
-	const Scene::Camera& GetCamera() noexcept;
-	int GetNumWorkerThreads() noexcept;
-	int GetNumBackgroundThreads() noexcept;
-	uint32_t GetDPI() noexcept;
-	float GetUpscalingFactor() noexcept;
-	void SetUpscaleFactor(float f) noexcept;
-	bool IsFullScreen() noexcept;
-	const App::Timer& GetTimer() noexcept;
+	Core::RendererCore& GetRenderer();
+	Scene::SceneCore& GetScene();
+	const Scene::Camera& GetCamera();
+	int GetNumWorkerThreads();
+	int GetNumBackgroundThreads();
+	uint32_t GetDPI();
+	float GetUpscalingFactor();
+	void SetUpscaleFactor(float f);
+	bool IsFullScreen();
+	const App::Timer& GetTimer();
 
-	Util::Span<uint32_t> GetWorkerThreadIDs() noexcept;
-	Util::Span<uint32_t> GetBackgroundThreadIDs() noexcept;
-	Util::Span<uint32_t> GetAllThreadIDs() noexcept;
+	Util::Span<uint32_t> GetWorkerThreadIDs();
+	Util::Span<uint32_t> GetBackgroundThreadIDs();
+	Util::Span<uint32_t> GetAllThreadIDs();
 
-	void AddParam(Support::ParamVariant& p) noexcept;
-	void RemoveParam(const char* group, const char* subgroup, const char* name) noexcept;
-	Util::RWSynchronizedVariable<Util::Span<Support::ParamVariant>> GetParams() noexcept;
+	void AddParam(Support::ParamVariant& p);
+	void RemoveParam(const char* group, const char* subgroup, const char* name);
+	Util::RWSynchronizedVariable<Util::Span<Support::ParamVariant>> GetParams();
 
-	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept;
-	void RemoveShaderReloadHandler(const char* name) noexcept;
-	Util::RSynchronizedVariable<Util::Span<ShaderReloadHandler>> GetShaderReloadHandlers() noexcept;
+	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg);
+	void RemoveShaderReloadHandler(const char* name);
+	Util::RSynchronizedVariable<Util::Span<ShaderReloadHandler>> GetShaderReloadHandlers();
 
 	// these could be implemented as template functions, but then the implementation has to be in the header,
 	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
 	// codebase, this would have a measurable impact on the compile time.
-	void AddFrameStat(const char* group, const char* name, int i) noexcept;
-	void AddFrameStat(const char* group, const char* name, uint32_t u) noexcept;
-	void AddFrameStat(const char* group, const char* name, float f) noexcept;
-	void AddFrameStat(const char* group, const char* name, uint64_t f) noexcept;
-	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept;
-	Util::RWSynchronizedVariable<Util::Span<Support::Stat>> GetStats() noexcept;
-	Util::Span<float> GetFrameTimeHistory() noexcept;
+	void AddFrameStat(const char* group, const char* name, int i);
+	void AddFrameStat(const char* group, const char* name, uint32_t u);
+	void AddFrameStat(const char* group, const char* name, float f);
+	void AddFrameStat(const char* group, const char* name, uint64_t f);
+	void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total);
+	Util::RWSynchronizedVariable<Util::Span<Support::Stat>> GetStats();
+	Util::Span<float> GetFrameTimeHistory();
 
-	const char* GetPSOCacheDir() noexcept;
-	const char* GetCompileShadersDir() noexcept;
-	const char* GetAssetDir() noexcept;
-	const char* GetDXCPath() noexcept;
-	const char* GetToolsDir() noexcept;
-	const char* GetRenderPassDir() noexcept;
+	const char* GetPSOCacheDir();
+	const char* GetCompileShadersDir();
+	const char* GetAssetDir();
+	const char* GetDXCPath();
+	const char* GetToolsDir();
+	const char* GetRenderPassDir();
 
-	void LockStdOut() noexcept;
-	void UnlockStdOut() noexcept;
+	void LockStdOut();
+	void UnlockStdOut();
 
-	void Log(const char* msg, LogMessage::MsgType t) noexcept;
-	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> GetFrameLogs() noexcept;
+	void Log(const char* msg, LogMessage::MsgType t);
+	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> GetFrameLogs();
 
 	struct FrameAllocator
 	{
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment)
 		{
 			return App::AllocateSmallFrameAllocator(size, alignment);
 		}
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) {}
 	};
 
 	struct LargeFrameAllocator
 	{
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment)
 		{
 			return App::AllocateLargeFrameAllocator(size, alignment);
 		}
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) {}
 	};
 }

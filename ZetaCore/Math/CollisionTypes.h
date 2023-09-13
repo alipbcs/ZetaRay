@@ -17,8 +17,8 @@ namespace ZetaRay::Math
 
 	struct AABB
 	{
-		AABB() noexcept = default;
-		AABB(const float3& c, const float3& e) noexcept
+		AABB() = default;
+		AABB(const float3& c, const float3& e)
 			: Center(c),
 			Extents(e)
 		{}
@@ -29,24 +29,24 @@ namespace ZetaRay::Math
 
 	struct v_AABB
 	{
-		v_AABB() noexcept
+		v_AABB()
 		{
 			auto c = float3(0.0f, 0.0f, 0.0f);
 			auto e = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
 			Reset(c, e);
 		}
 
-		explicit v_AABB(const AABB& aabb) noexcept
+		explicit v_AABB(const AABB& aabb)
 		{
 			Reset(aabb);
 		}
 
-		v_AABB(float3& c, float3& e) noexcept
+		v_AABB(float3& c, float3& e)
 		{
 			Reset(c, e);
 		}
 
-		void __vectorcall Reset(const AABB& aabb) noexcept
+		void __vectorcall Reset(const AABB& aabb)
 		{
 			vCenter = _mm_loadu_ps(reinterpret_cast<const float*>(&aabb));
 			vExtents = _mm_loadu_ps(reinterpret_cast<const float*>(&aabb) + 3);
@@ -56,7 +56,7 @@ namespace ZetaRay::Math
 			vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
 		}
 
-		void __vectorcall Reset(float3& c, float3& e) noexcept
+		void __vectorcall Reset(float3& c, float3& e)
 		{
 			vCenter = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&c)));
 			vCenter = _mm_blend_ps(vCenter, _mm_set1_ps(1.0f), 0x8);
@@ -66,7 +66,7 @@ namespace ZetaRay::Math
 			vExtents = _mm_insert_ps(vExtents, _mm_load_ss(&e.z), 0x20);
 		}
 
-		ZetaInline void __vectorcall Reset(__m128 vMinPoint, __m128 vMaxPoint) noexcept
+		ZetaInline void __vectorcall Reset(__m128 vMinPoint, __m128 vMaxPoint)
 		{
 			const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
 			vCenter = _mm_mul_ps(_mm_add_ps(vMaxPoint, vMinPoint), vOneDivTwo);
@@ -87,17 +87,17 @@ namespace ZetaRay::Math
 
 	struct Plane
 	{
-		Plane() noexcept
+		Plane()
 			: Normal(0.0f, 0.0f, 0.0f),
 			d(0.0f)
 		{}
 
-		Plane(const float3& n, float d) noexcept
+		Plane(const float3& n, float d)
 			: Normal(n),
 			d(d)
 		{}
 
-		Plane(const float3& n, const float3& p0) noexcept
+		Plane(const float3& n, const float3& p0)
 			: Normal(n),
 			d(-(n.x * p0.x + n.y * p0.y + n.z * p0.z))
 		{}
@@ -113,9 +113,9 @@ namespace ZetaRay::Math
 	// In view space, centered at the origin (0, 0, 0), looking down the +z-axis
 	struct alignas(16) ViewFrustum
 	{
-		ViewFrustum() noexcept = default;
+		ViewFrustum() = default;
 
-		ViewFrustum(float vFOV, float aspectRatio, float nearZ, float farZ) noexcept
+		ViewFrustum(float vFOV, float aspectRatio, float nearZ, float farZ)
 		{
 			Assert(vFOV > 0.0f, "invalid vertical FOV");
 			Assert(nearZ > 0.0f && farZ > 0.0f && farZ > nearZ, "invalid near and far planes");
@@ -196,10 +196,10 @@ namespace ZetaRay::Math
 
 	struct v_ViewFrustum
 	{
-		v_ViewFrustum() noexcept
+		v_ViewFrustum()
 		{}
 
-		explicit v_ViewFrustum(ViewFrustum& f) noexcept
+		explicit v_ViewFrustum(ViewFrustum& f)
 		{
 			alignas(32) float N_x[8];
 			alignas(32) float N_y[8];
@@ -254,10 +254,10 @@ namespace ZetaRay::Math
 
 	struct Ray
 	{
-		constexpr Ray() noexcept
+		constexpr Ray()
 		{}
 
-		constexpr Ray(const float3& o, const float3& d) noexcept
+		constexpr Ray(const float3& o, const float3& d)
 			: Origin(o),
 			Dir(d)
 		{}
@@ -268,10 +268,10 @@ namespace ZetaRay::Math
 
 	struct v_Ray
 	{
-		v_Ray() noexcept
+		v_Ray()
 		{}
 
-		explicit v_Ray(Ray& r) noexcept
+		explicit v_Ray(Ray& r)
 		{
 			vOrigin = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&r.Origin)));
 			vOrigin = _mm_insert_ps(vOrigin, _mm_load_ss(&r.Origin.z), 0x20);
@@ -280,7 +280,7 @@ namespace ZetaRay::Math
 			vDir = _mm_insert_ps(vDir, _mm_load_ss(&r.Dir.z), 0x20);
 		}
 
-		v_Ray(float3& origin, float3& dir) noexcept
+		v_Ray(float3& origin, float3& dir)
 		{
 			vOrigin = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&origin)));
 			vOrigin = _mm_insert_ps(vOrigin, _mm_load_ss(&origin.z), 0x20);

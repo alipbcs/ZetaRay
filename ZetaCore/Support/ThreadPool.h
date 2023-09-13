@@ -14,31 +14,31 @@ namespace ZetaRay::Support
 	class ThreadPool
 	{
 	public:
-		ThreadPool() noexcept = default;
-		~ThreadPool() noexcept = default;
+		ThreadPool() = default;
+		~ThreadPool() = default;
 
 		ThreadPool(const ThreadPool&) = delete;
 		ThreadPool& operator=(const ThreadPool&) = delete;
 
 		// create the threads, after which threads are waiting for tasks to exectute, also registers for thread memory pool
-		void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p) noexcept;
-		//void SetThreadIds(Span<std::thread::id> allThreadIds) noexcept;
-		void Start() noexcept;
+		void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p);
+		//void SetThreadIds(Span<std::thread::id> allThreadIds);
+		void Start();
 
 		// signals the shutdown flag
-		void Shutdown() noexcept;
+		void Shutdown();
 
 		// Enqueues tasks
-		void Enqueue(TaskSet&& ts) noexcept;
-		void Enqueue(Task&& t) noexcept;
+		void Enqueue(TaskSet&& ts);
+		void Enqueue(Task&& t);
 
 		// Calling thread (usaully main) dequeues task until queue becomes empty
-		void PumpUntilEmpty() noexcept;
+		void PumpUntilEmpty();
 
 		// Wait until are tasks are "finished" (!= empty queue)
-		bool TryFlush() noexcept;
+		bool TryFlush();
 
-		bool AreAllTasksFinished() noexcept
+		bool AreAllTasksFinished()
 		{
 			const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
 			return isEmpty;
@@ -48,7 +48,7 @@ namespace ZetaRay::Support
 		ZetaInline Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
 
 	private:
-		void WorkerThread() noexcept;
+		void WorkerThread();
 		
 		int m_threadPoolSize;
 		int m_totalNumThreads;

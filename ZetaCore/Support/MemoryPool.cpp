@@ -15,7 +15,7 @@ using namespace ZetaRay::Support;
 
 namespace
 {
-	int Length(void* head) noexcept
+	int Length(void* head)
 	{
 		int ret = 0;
 
@@ -34,12 +34,12 @@ namespace
 // MemoryPool
 //--------------------------------------------------------------------------------------
 
-MemoryPool::~MemoryPool() noexcept
+MemoryPool::~MemoryPool()
 {
 	Clear();
 }
 
-void MemoryPool::Init() noexcept
+void MemoryPool::Init()
 {
 	for (int i = 0; i < POOL_COUNT; i++)
 	{
@@ -51,7 +51,7 @@ void MemoryPool::Init() noexcept
 	}
 }
 
-void MemoryPool::Clear() noexcept
+void MemoryPool::Clear()
 {
 	for (int i = 0; i < POOL_COUNT; i++)
 	{
@@ -74,7 +74,7 @@ void MemoryPool::Clear() noexcept
 	memset(m_numMemoryBlocks, 0, sizeof(size_t) * POOL_COUNT);
 }
 
-size_t MemoryPool::GetPoolIndexFromSize(size_t x) noexcept
+size_t MemoryPool::GetPoolIndexFromSize(size_t x)
 {
 	size_t s = Math::Max(MIN_ALLOC_SIZE, Math::NextPow2(x));
 	unsigned long idx;
@@ -83,7 +83,7 @@ size_t MemoryPool::GetPoolIndexFromSize(size_t x) noexcept
 	return idx - INDEX_SHIFT;
 }
 
-void MemoryPool::MoveTo(MemoryPool& dest) noexcept
+void MemoryPool::MoveTo(MemoryPool& dest)
 {
 	for (int poolIndex = 0; poolIndex < POOL_COUNT; poolIndex++)
 	{
@@ -135,7 +135,7 @@ void MemoryPool::MoveTo(MemoryPool& dest) noexcept
 	}
 }
 
-void* MemoryPool::Allocate(size_t size) noexcept
+void* MemoryPool::Allocate(size_t size)
 {
 	// use malloc for requests larger than block size
 	if (size > MAX_ALLOC_SIZE)
@@ -159,7 +159,7 @@ void* MemoryPool::Allocate(size_t size) noexcept
 	return oldHead;
 }
 
-void* MemoryPool::AllocateAligned(size_t size, size_t alignment) noexcept
+void* MemoryPool::AllocateAligned(size_t size, size_t alignment)
 {
 	if (alignment <= alignof(std::max_align_t))
 		return Allocate(size);
@@ -226,7 +226,7 @@ void* MemoryPool::AllocateAligned(size_t size, size_t alignment) noexcept
 	return reinterpret_cast<void*>(aligned);
 }
 
-void MemoryPool::Free(void* mem, size_t size) noexcept
+void MemoryPool::Free(void* mem, size_t size)
 {
 	if (mem)
 	{
@@ -247,7 +247,7 @@ void MemoryPool::Free(void* mem, size_t size) noexcept
 	}
 }
 
-void MemoryPool::FreeAligned(void* mem, size_t size, size_t alignment) noexcept
+void MemoryPool::FreeAligned(void* mem, size_t size, size_t alignment)
 {
 	if (alignment <= alignof(std::max_align_t))
 		return Free(mem, size);
@@ -278,7 +278,7 @@ void MemoryPool::FreeAligned(void* mem, size_t size, size_t alignment) noexcept
 	}
 }
 
-void* MemoryPool::AllocateNewBlock(size_t chunkSize) noexcept
+void* MemoryPool::AllocateNewBlock(size_t chunkSize)
 {
 	// allocate a new block of memory
 	void* block = malloc(BLOCK_SIZE);
@@ -304,7 +304,7 @@ void* MemoryPool::AllocateNewBlock(size_t chunkSize) noexcept
 	return block;
 }
 
-void MemoryPool::Grow(size_t poolIndex) noexcept
+void MemoryPool::Grow(size_t poolIndex)
 {
 	size_t chunkSize = GetChunkSizeFromPoolIndex(poolIndex);
 

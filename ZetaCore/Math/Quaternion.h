@@ -6,7 +6,7 @@
 namespace ZetaRay::Math
 {
 	// Returns a roations quaternion that can be used to rotate about axis n by angle theta
-	ZetaInline __m128 __vectorcall rotationQuat(float3 n, float theta) noexcept
+	ZetaInline __m128 __vectorcall rotationQuat(float3 n, float theta)
 	{
 		const float s = sinf(0.5f * theta);
 		const float c = cosf(0.5f * theta);
@@ -51,7 +51,7 @@ namespace ZetaRay::Math
 	}
 
 	// Multiplies two given quaternions
-	ZetaInline __m128 __vectorcall mulQuat(const __m128 vP, const __m128 vQ) noexcept
+	ZetaInline __m128 __vectorcall mulQuat(const __m128 vP, const __m128 vQ)
 	{
 		// p = (p1, p2, p3, p4)
 		// q = (q1, q2, q3, q4)
@@ -79,7 +79,7 @@ namespace ZetaRay::Math
 		return result;
 	}
 
-	ZetaInline __m128 __vectorcall slerp(const __m128 vQ1, const __m128 vQ2, float t) noexcept
+	ZetaInline __m128 __vectorcall slerp(const __m128 vQ1, const __m128 vQ2, float t)
 	{
 		// rotation by unit quaternions q and -q lead to same result, with the difference
 		// that q rotates about axis n by angle theta, whereas -q rotates about angle -n by
@@ -122,7 +122,7 @@ namespace ZetaRay::Math
 	// yaw: angle of rotation around the y-axis (radians)
 	// roll: angle of rotation around the z-axis (radians)
 	// order is roll, pitch, then yaw
-	ZetaInline __m128 __vectorcall rotationQuatFromRollPitchYaw(float pitch, float yaw, float roll) noexcept
+	ZetaInline __m128 __vectorcall rotationQuatFromRollPitchYaw(float pitch, float yaw, float roll)
 	{
 		// roll:
 		//		n = (0, 0, 1) -> q_r = (0, 0, sin(r/2), cos(r/2)

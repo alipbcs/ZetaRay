@@ -11,7 +11,7 @@ using namespace ZetaRay::Util;
 // ThreadSafeMemoryArena
 //--------------------------------------------------------------------------------------
 
-ThreadSafeMemoryArena::ThreadSafeMemoryArena(size_t blockSize, int initNumBlocks) noexcept
+ThreadSafeMemoryArena::ThreadSafeMemoryArena(size_t blockSize, int initNumBlocks)
 	: k_defaultBlockSize(blockSize)
 {
 	auto threadIDs = App::GetAllThreadIDs();
@@ -32,7 +32,7 @@ ThreadSafeMemoryArena::ThreadSafeMemoryArena(size_t blockSize, int initNumBlocks
 	m_currBlockIdx.store(0, std::memory_order_release);
 }
 
-void* ThreadSafeMemoryArena::AllocateAligned(size_t size, size_t alignment) noexcept
+void* ThreadSafeMemoryArena::AllocateAligned(size_t size, size_t alignment)
 {
 	alignment = Math::Max(alignof(std::max_align_t), alignment);
 
@@ -98,7 +98,7 @@ void* ThreadSafeMemoryArena::AllocateAligned(size_t size, size_t alignment) noex
 	return reinterpret_cast<void*>(ret);
 }
 
-size_t ThreadSafeMemoryArena::TotalSizeInBytes() noexcept
+size_t ThreadSafeMemoryArena::TotalSizeInBytes()
 {
 	size_t sum = 0;
 

@@ -7,7 +7,7 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::Math;
 
 void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg)
 {
 	Assert(group, "group can't be null");
 	Assert(subgroup, "subgroup can't be null");
@@ -44,7 +44,7 @@ void ParamVariant::InitCommon(const char* group, const char* subgroup, const cha
 }
 
 void ParamVariant::InitFloat(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, float val, float min, float max, float step) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, float val, float min, float max, float step)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -53,7 +53,7 @@ void ParamVariant::InitFloat(const char* group, const char* subgroup, const char
 }
 
 void ParamVariant::InitInt(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, int val, int min, int max, int step) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, int val, int min, int max, int step)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -62,7 +62,7 @@ void ParamVariant::InitInt(const char* group, const char* subgroup, const char* 
 }
 
 void ParamVariant::InitFloat3(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val, float min, float max, float step) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val, float min, float max, float step)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -71,7 +71,7 @@ void ParamVariant::InitFloat3(const char* group, const char* subgroup, const cha
 }
 
 void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, float pitch, float yaw) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, float pitch, float yaw)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -82,7 +82,7 @@ void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const ch
 }
 
 void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 dir) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 dir)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -95,7 +95,7 @@ void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const ch
 }
 
 void ParamVariant::InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -104,7 +104,7 @@ void ParamVariant::InitNormalizedFloat3(const char* group, const char* subgroup,
 }
 
 void ParamVariant::InitColor(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -113,7 +113,7 @@ void ParamVariant::InitColor(const char* group, const char* subgroup, const char
 }
 
 void ParamVariant::InitBool(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -122,7 +122,7 @@ void ParamVariant::InitBool(const char* group, const char* subgroup, const char*
 }
 
 void ParamVariant::InitEnum(const char* group, const char* subgroup, const char* name, 
-	fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, int idx) noexcept
+	fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, int idx)
 {
 	InitCommon(group, subgroup, name, dlg);
 
@@ -131,26 +131,26 @@ void ParamVariant::InitEnum(const char* group, const char* subgroup, const char*
 	m_enum.Init(vals, num, idx);
 }
 
-const FloatParam& ParamVariant::GetFloat() const noexcept
+const FloatParam& ParamVariant::GetFloat() const
 {
 	Assert(m_type == PARAM_TYPE::PT_float, "invalid args");
 	return m_float;
 }
 
-void ParamVariant::SetFloat(float v) noexcept
+void ParamVariant::SetFloat(float v)
 {
 	Assert(m_type == PARAM_TYPE::PT_float, "invalid args");
 	m_float.m_val = v;
 	m_dlg(*this);
 }
 
-const Float3Param& ParamVariant::GetFloat3() const noexcept
+const Float3Param& ParamVariant::GetFloat3() const
 {
 	Assert(m_type == PARAM_TYPE::PT_float3 || m_type == PARAM_TYPE::PT_color, "invalid args");
 	return m_float3;
 }
 
-void ParamVariant::SetFloat3(Math::float3 v) noexcept
+void ParamVariant::SetFloat3(Math::float3 v)
 {
 	Assert(m_type == PARAM_TYPE::PT_float3, "invalid args");
 
@@ -161,13 +161,13 @@ void ParamVariant::SetFloat3(Math::float3 v) noexcept
 	m_dlg(*this);
 }
 
-const UnitDirParam& ParamVariant::GetUnitDir() const noexcept
+const UnitDirParam& ParamVariant::GetUnitDir() const
 {
 	Assert(m_type == PARAM_TYPE::PT_unit_dir, "invalid args");
 	return m_unitDir;
 }
 
-void ParamVariant::SetUnitDir(float pitch, float yaw) noexcept
+void ParamVariant::SetUnitDir(float pitch, float yaw)
 {
 	Assert(m_type == PARAM_TYPE::PT_unit_dir, "invalid args");
 	m_unitDir.m_pitch = pitch;
@@ -175,26 +175,26 @@ void ParamVariant::SetUnitDir(float pitch, float yaw) noexcept
 	m_dlg(*this);
 }
 
-const Float3Param& ParamVariant::GetColor() const noexcept
+const Float3Param& ParamVariant::GetColor() const
 {
 	Assert(m_type == PARAM_TYPE::PT_color, "invalid args");
 	return m_float3;
 }
 
-void ParamVariant::SetColor(Math::float3 v) noexcept
+void ParamVariant::SetColor(Math::float3 v)
 {
 	Assert(m_type == PARAM_TYPE::PT_color, "invalid args");
 	m_float3.m_val = v;
 	m_dlg(*this);
 }
 
-const IntParam& ParamVariant::GetInt() const noexcept
+const IntParam& ParamVariant::GetInt() const
 {
 	Assert(m_type == PARAM_TYPE::PT_int, "invalid args");
 	return m_int;
 }
 
-void ParamVariant::SetInt(int v) noexcept
+void ParamVariant::SetInt(int v)
 {
 	Assert(m_type == PARAM_TYPE::PT_int, "invalid args");
 	m_int.m_val = v;
@@ -207,20 +207,20 @@ bool ParamVariant::GetBool() const
 	return m_bool;
 }
 
-void ParamVariant::SetBool(bool v) noexcept
+void ParamVariant::SetBool(bool v)
 {
 	Assert(m_type == PARAM_TYPE::PT_bool, "invalid args");
 	m_bool = v;
 	m_dlg(*this);
 }
 
-const EnumParam& ParamVariant::GetEnum() const noexcept
+const EnumParam& ParamVariant::GetEnum() const
 {
 	Assert(m_type == PARAM_TYPE::PT_enum, "invalid args");
 	return m_enum;
 }
 
-void ParamVariant::SetEnum(int v) noexcept
+void ParamVariant::SetEnum(int v)
 {
 	Assert(m_type == PARAM_TYPE::PT_enum, "invalid args");
 	Assert(v < m_enum.m_num, "invalid index into enum values");
@@ -228,7 +228,7 @@ void ParamVariant::SetEnum(int v) noexcept
 	m_dlg(*this);
 }
 
-float3 UnitDirParam::GetDir() noexcept
+float3 UnitDirParam::GetDir()
 {
 	return Math::SphericalToCartesian(m_pitch, m_yaw);
 }

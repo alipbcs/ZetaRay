@@ -47,7 +47,7 @@ namespace ZetaRay
 			EmissiveTriangle() = default;
 			EmissiveTriangle(const Math::float3& vtx0, const Math::float3& vtx1, const Math::float3& vtx2,
 				const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
-				uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, bool doubleSided = true) noexcept
+				uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, bool doubleSided = true)
 				: Vtx0(vtx0),
 				ID(triIdx),
 				EmissiveFactor_Signs(emissiveFactor & 0xffffff),
@@ -85,7 +85,7 @@ namespace ZetaRay
 			float2_ UV2;
 
 #ifdef __cplusplus
-			ZetaInline void __vectorcall StoreVertices(__m128 v0, __m128 v1, __m128 v2) noexcept
+			ZetaInline void __vectorcall StoreVertices(__m128 v0, __m128 v1, __m128 v2)
 			{
 				Vtx0 = Math::storeFloat3(v0);
 
@@ -138,7 +138,7 @@ namespace ZetaRay
 #endif
 			}
 
-			ZetaInline void __vectorcall LoadVertices(__m128& v0, __m128& v1, __m128& v2) noexcept
+			ZetaInline void __vectorcall LoadVertices(__m128& v0, __m128& v1, __m128& v2)
 			{
 #if COMPRESS_EMISSIVE_POS == 1
 				bool signIsPosV1 = EmissiveFactor_Signs & (1u << V0V1SignBit);

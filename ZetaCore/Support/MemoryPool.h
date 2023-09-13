@@ -27,26 +27,26 @@ namespace ZetaRay::Support
 	class MemoryPool
 	{
 	public:
-		MemoryPool() noexcept = default;
-		~MemoryPool() noexcept;
+		MemoryPool() = default;
+		~MemoryPool();
 
 		MemoryPool(MemoryPool&&) = delete;
 		MemoryPool& operator=(MemoryPool&&) = delete;
 
 		// initialize the memory pool. Has to be called before any allocation/deallocation can take place
-		void Init() noexcept;
-		void Clear() noexcept;
+		void Init();
+		void Clear();
 
-		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
+		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t));
+		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t));
 
 		size_t TotalSize() const;
 
-		void MoveTo(MemoryPool& mp) noexcept;
+		void MoveTo(MemoryPool& mp);
 
 	private:
-		void* Allocate(size_t size) noexcept;
-		void Free(void* pMem, size_t size) noexcept;
+		void* Allocate(size_t size);
+		void Free(void* pMem, size_t size);
 
 		// Given x, returns:
 		//		0	-> 8 bytes allocator	when 0 < x <= 8
@@ -54,7 +54,7 @@ namespace ZetaRay::Support
 		//		2	-> 32 bytes allocator	when 16 < x <= 32
 		//		3	-> 64 bytes allocator	when 32 < x <= 64
 		//			...
-		size_t GetPoolIndexFromSize(size_t x) noexcept;
+		size_t GetPoolIndexFromSize(size_t x);
 
 		// chunk size for given pool index
 		ZetaInline size_t GetChunkSizeFromPoolIndex(size_t x) const
@@ -63,10 +63,10 @@ namespace ZetaRay::Support
 		}
 
 		// allocates a new memory block and turns it into a linked list
-		void* AllocateNewBlock(size_t chunkSize) noexcept;
+		void* AllocateNewBlock(size_t chunkSize);
 
 		// adds a new memory block
-		void Grow(size_t poolIndex) noexcept;
+		void Grow(size_t poolIndex);
 
 		static constexpr size_t BLOCK_SIZE = 4096;					
 		static constexpr size_t MAX_ALLOC_SIZE = BLOCK_SIZE;		// allocation up to 4 kb supported	
@@ -86,27 +86,27 @@ namespace ZetaRay::Support
 
 	struct PoolAllocator
 	{
-		PoolAllocator(MemoryPool& mp) noexcept
+		PoolAllocator(MemoryPool& mp)
 			: m_allocator(&mp)
 		{}
 
-		PoolAllocator(const PoolAllocator& other) noexcept
+		PoolAllocator(const PoolAllocator& other)
 			: m_allocator(other.m_allocator)
 		{
 		}
 
-		PoolAllocator& operator=(const PoolAllocator& other) noexcept
+		PoolAllocator& operator=(const PoolAllocator& other)
 		{
 			m_allocator = other.m_allocator;
 			return *this;
 		}
 
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			return m_allocator->AllocateAligned(size, alignment);
 		}
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			m_allocator->FreeAligned(mem, size, alignment);
 		}

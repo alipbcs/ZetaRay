@@ -7,28 +7,28 @@ namespace ZetaRay::Support
 	class MemoryArena
 	{
 	public:
-		explicit MemoryArena(size_t blockSize = 64 * 1024) noexcept;
-		~MemoryArena() noexcept = default;
+		explicit MemoryArena(size_t blockSize = 64 * 1024);
+		~MemoryArena() = default;
 
-		MemoryArena(MemoryArena&&) noexcept;
-		MemoryArena& operator=(MemoryArena&&) noexcept;
+		MemoryArena(MemoryArena&&);
+		MemoryArena& operator=(MemoryArena&&);
 
-		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept;
-		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept {};
+		void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t));
+		void FreeAligned(void* pMem, size_t size, size_t alignment = alignof(std::max_align_t)) {};
 		size_t TotalSize() const;
-		void Reset() noexcept;
+		void Reset();
 
 	private:
 		struct MemoryBlock
 		{
-			MemoryBlock() noexcept = default;
-			explicit MemoryBlock(size_t size) noexcept
+			MemoryBlock() = default;
+			explicit MemoryBlock(size_t size)
 			{
 				Start = malloc(size);
 				Offset = 0;
 				Size = size;
 			}
-			~MemoryBlock() noexcept
+			~MemoryBlock()
 			{
 				if (Start)
 					free(Start);
@@ -38,7 +38,7 @@ namespace ZetaRay::Support
 				Size = 0;
 			}
 
-			MemoryBlock(MemoryBlock&& rhs) noexcept
+			MemoryBlock(MemoryBlock&& rhs)
 				: Start(rhs.Start),
 				Offset(rhs.Offset),
 				Size(rhs.Size)
@@ -48,7 +48,7 @@ namespace ZetaRay::Support
 				rhs.Size = 0;
 			}
 
-			MemoryBlock& operator=(MemoryBlock&& rhs) noexcept
+			MemoryBlock& operator=(MemoryBlock&& rhs)
 			{
 				Start = rhs.Start;
 				Offset = rhs.Offset;
@@ -76,27 +76,27 @@ namespace ZetaRay::Support
 
 	struct ArenaAllocator
 	{
-		ArenaAllocator(MemoryArena& ma) noexcept
+		ArenaAllocator(MemoryArena& ma)
 			: m_allocator(&ma)
 		{}
 
-		ArenaAllocator(const ArenaAllocator& other) noexcept
+		ArenaAllocator(const ArenaAllocator& other)
 			: m_allocator(other.m_allocator)
 		{
 		}
 
-		ArenaAllocator& operator=(const ArenaAllocator& other) noexcept
+		ArenaAllocator& operator=(const ArenaAllocator& other)
 		{
 			m_allocator = other.m_allocator;
 			return *this;
 		}
 
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			return m_allocator->AllocateAligned(size, alignment);
 		}
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			m_allocator->FreeAligned(mem, size, alignment);
 		}

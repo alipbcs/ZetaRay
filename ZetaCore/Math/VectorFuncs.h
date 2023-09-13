@@ -8,7 +8,7 @@
 
 namespace ZetaRay::Math
 {
-	ZetaInline __m128 __vectorcall abs(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall abs(const __m128 v)
 	{
 		// all bits are 0 except for the sign bit
 		const __m128 vMinusZero = _mm_set1_ps(-0.0f);
@@ -17,7 +17,7 @@ namespace ZetaRay::Math
 		return _mm_andnot_ps(vMinusZero, v);
 	}
 
-	ZetaInline __m256 __vectorcall abs(const __m256 v) noexcept
+	ZetaInline __m256 __vectorcall abs(const __m256 v)
 	{
 		// all bits are 0 except for the sign bit
 		const __m256 vMinusZero = _mm256_set1_ps(-0.0f);
@@ -26,7 +26,7 @@ namespace ZetaRay::Math
 		return _mm256_andnot_ps(vMinusZero, v);
 	}
 
-	ZetaInline __m128 __vectorcall negate(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall negate(const __m128 v)
 	{
 		// all bits are 0 except for the sign bit
 		const __m128 vMinusZero = _mm_set1_ps(-0.0f);
@@ -36,7 +36,7 @@ namespace ZetaRay::Math
 	}
 
 	// Returns v1 + t * (v2 - v1)
-	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t) noexcept
+	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t)
 	{
 		__m128 vT = _mm_broadcast_ss(&t);
 		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
@@ -44,14 +44,14 @@ namespace ZetaRay::Math
 		return vInterpolated;
 	}
 
-	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT) noexcept
+	ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT)
 	{
 		__m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
 
 		return vInterpolated;
 	}
 
-	ZetaInline __m128 __vectorcall length(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall length(const __m128 v)
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vNorm = _mm_sqrt_ps(vNorm2);
@@ -59,7 +59,7 @@ namespace ZetaRay::Math
 		return vNorm;
 	}
 
-	ZetaInline __m128 __vectorcall normalize(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall normalize(const __m128 v)
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vN = _mm_div_ps(v, _mm_sqrt_ps(vNorm2));
@@ -67,7 +67,7 @@ namespace ZetaRay::Math
 		return vN;
 	}
 
-	ZetaInline __m128 __vectorcall normalizeFast(const __m128 v) noexcept
+	ZetaInline __m128 __vectorcall normalizeFast(const __m128 v)
 	{
 		__m128 vNorm2 = _mm_dp_ps(v, v, 0xff);
 		__m128 vN = _mm_mul_ps(v, _mm_rsqrt_ps(vNorm2));
@@ -75,7 +75,7 @@ namespace ZetaRay::Math
 		return vN;
 	}
 
-	ZetaInline bool __vectorcall equal(const __m128 v1, const __m128 v2) noexcept
+	ZetaInline bool __vectorcall equal(const __m128 v1, const __m128 v2)
 	{
 		const __m128 vEps = _mm_set1_ps(FLT_EPSILON);
 		__m128 vRes = _mm_cmpgt_ps(vEps, abs(_mm_sub_ps(v1, v2)));
@@ -84,7 +84,7 @@ namespace ZetaRay::Math
 		return r == 0;
 	}
 
-	ZetaInline __m128 __vectorcall cross(const __m128 v1, const __m128 v2) noexcept
+	ZetaInline __m128 __vectorcall cross(const __m128 v1, const __m128 v2)
 	{
 		__m128 vTmp0 = _mm_shuffle_ps(v1, v1, 0x9);		// yzx
 		__m128 vTmp1 = _mm_shuffle_ps(v2, v2, 0x12);	// zxy
@@ -101,7 +101,7 @@ namespace ZetaRay::Math
 	}
 
 	// Following function is ported from DirectXMath (under MIT License).
-	ZetaInline __m128 __vectorcall acos(const __m128 V) noexcept
+	ZetaInline __m128 __vectorcall acos(const __m128 V)
 	{
 		__m128 nonnegative = _mm_cmpge_ps(V, _mm_setzero_ps());
 		__m128 mvalue = _mm_sub_ps(_mm_setzero_ps(), V);
@@ -156,7 +156,7 @@ namespace ZetaRay::Math
 
 	// Following function is ported from DirectXMath (under MIT License).
 	// vTheta must be in -XM_PI <= theta < XM_PI
-	ZetaInline __m128 __vectorcall sin(__m128 vTheta) noexcept
+	ZetaInline __m128 __vectorcall sin(__m128 vTheta)
 	{
 #ifdef _DEBUG
 		__m128 vM1 = _mm_cmpge_ps(vTheta, _mm_set1_ps(-PI));
@@ -206,7 +206,7 @@ namespace ZetaRay::Math
 		return Result;
 	}
 
-	ZetaInline float4a __vectorcall store(__m128 v) noexcept
+	ZetaInline float4a __vectorcall store(__m128 v)
 	{
 		float4a f;
 		_mm_store_ps(reinterpret_cast<float*>(&f), v);
@@ -214,7 +214,7 @@ namespace ZetaRay::Math
 		return f;
 	}
 
-	ZetaInline float3 __vectorcall storeFloat3(__m128 v) noexcept
+	ZetaInline float3 __vectorcall storeFloat3(__m128 v)
 	{
 		float3 f;
 		f.x = _mm_cvtss_f32(v);
@@ -224,7 +224,7 @@ namespace ZetaRay::Math
 		return f;
 	}
 
-	ZetaInline float4 __vectorcall storeFloat4(__m128 v) noexcept
+	ZetaInline float4 __vectorcall storeFloat4(__m128 v)
 	{
 		float4 f;
 		f.x = _mm_cvtss_f32(v);
@@ -235,21 +235,21 @@ namespace ZetaRay::Math
 		return f;
 	}
 
-	ZetaInline __m128 __vectorcall load(float4a& v) noexcept
+	ZetaInline __m128 __vectorcall load(float4a& v)
 	{
 		__m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
 
 		return vV;
 	}
 
-	ZetaInline __m128 __vectorcall loadFloat2(float2& v) noexcept
+	ZetaInline __m128 __vectorcall loadFloat2(float2& v)
 	{
 		// &v does not need to be aligned and the last two elements are set to 0
 		__m128 xy = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&v)));
 		return xy;
 	}
 
-	ZetaInline __m128 __vectorcall loadFloat3(float3& v) noexcept
+	ZetaInline __m128 __vectorcall loadFloat3(float3& v)
 	{
 		// &v does not need to be aligned and the last two elements are set to 0
 		__m128 xy = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&v)));
@@ -258,7 +258,7 @@ namespace ZetaRay::Math
 		return _mm_insert_ps(xy, z, 0x20);
 	}
 
-	ZetaInline __m128 __vectorcall loadFloat4(float4& v) noexcept
+	ZetaInline __m128 __vectorcall loadFloat4(float4& v)
 	{
 		return _mm_loadu_ps(reinterpret_cast<float*>(&v));
 	}}

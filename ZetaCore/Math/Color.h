@@ -4,7 +4,7 @@
 
 namespace ZetaRay::Math
 {
-	ZetaInline uint16_t __vectorcall Float2ToRG8(Math::float2 v) noexcept
+	ZetaInline uint16_t __vectorcall Float2ToRG8(Math::float2 v)
 	{
 		// last two elements are set to zero
 		__m128 vRG = Math::loadFloat2(v);
@@ -18,7 +18,7 @@ namespace ZetaRay::Math
 		return uint16_t(ret);
 	}
 
-	ZetaInline uint32_t __vectorcall Float3ToRGB8(Math::float3 v) noexcept
+	ZetaInline uint32_t __vectorcall Float3ToRGB8(Math::float3 v)
 	{
 		__m128 vRGB = Math::loadFloat3(v);
 		vRGB = _mm_mul_ps(vRGB, _mm_set1_ps(255.0f));
@@ -32,7 +32,7 @@ namespace ZetaRay::Math
 		return ret;
 	}
 
-	ZetaInline uint32_t __vectorcall Float4ToRGBA8(Math::float4 v) noexcept
+	ZetaInline uint32_t __vectorcall Float4ToRGBA8(Math::float4 v)
 	{
 		__m128 vRGBA = Math::loadFloat4(v);
 		vRGBA = _mm_mul_ps(vRGBA, _mm_set1_ps(255.0f));

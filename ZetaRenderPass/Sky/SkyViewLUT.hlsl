@@ -1,6 +1,6 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/VolumetricLighting.hlsli"
+#include "../Common/Volumetric.hlsli"
 #include "Sky_Common.h"
 
 //--------------------------------------------------------------------------------------
@@ -16,7 +16,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1, space0);
 
 #define NON_LINEAR_LATITUDE 1
 
-[numthreads(SKY_VIEW_LUT_THREAD_GROUP_SIZE_X, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Y, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Z)]
+[numthreads(SKY_VIEW_LUT_THREAD_GROUP_SIZE_X, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 {
 	const uint2 textureDim = uint2(g_local.LutWidth, g_local.LutHeight);

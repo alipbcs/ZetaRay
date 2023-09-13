@@ -8,25 +8,25 @@ namespace ZetaRay::Support
 {
 	struct ThreadSafeMemoryArena
 	{
-		ThreadSafeMemoryArena(size_t blockSize = 64 * 1024, int initNumBlocks = ZETA_MAX_NUM_THREADS) noexcept;
-		~ThreadSafeMemoryArena() noexcept = default;
+		ThreadSafeMemoryArena(size_t blockSize = 64 * 1024, int initNumBlocks = ZETA_MAX_NUM_THREADS);
+		~ThreadSafeMemoryArena() = default;
 
 		ThreadSafeMemoryArena(ThreadSafeMemoryArena&&) = delete;
 		ThreadSafeMemoryArena& operator=(ThreadSafeMemoryArena&&) = delete;
 
-		void* AllocateAligned(size_t size, size_t alignment) noexcept;
-		void FreeAligned(void* mem, size_t size, size_t alignment) noexcept {}
+		void* AllocateAligned(size_t size, size_t alignment);
+		void FreeAligned(void* mem, size_t size, size_t alignment) {}
 
 	private:
 		struct MemoryBlock
 		{
-			MemoryBlock() noexcept
+			MemoryBlock()
 				: Start(nullptr),
 				Offset(0),
 				Size(0)
 			{}
 
-			~MemoryBlock() noexcept
+			~MemoryBlock()
 			{
 				Offset = 0;
 				if (Start)
@@ -36,7 +36,7 @@ namespace ZetaRay::Support
 				}
 			}
 
-			MemoryBlock(MemoryBlock&& rhs) noexcept
+			MemoryBlock(MemoryBlock&& rhs)
 				: Start(rhs.Start),
 				Offset(rhs.Offset),
 				Size(rhs.Size)
@@ -45,7 +45,7 @@ namespace ZetaRay::Support
 				rhs.Offset = 0;
 			}
 
-			MemoryBlock& operator=(MemoryBlock&& rhs) noexcept
+			MemoryBlock& operator=(MemoryBlock&& rhs)
 			{
 				Start = rhs.Start;
 				Offset = rhs.Offset;
@@ -62,12 +62,12 @@ namespace ZetaRay::Support
 			size_t Size;
 		};
 
-		ZetaInline size_t NumMemoryBlocks() noexcept
+		ZetaInline size_t NumMemoryBlocks()
 		{
 			return m_blocks.size();
 		}
 
-		size_t TotalSizeInBytes() noexcept;
+		size_t TotalSizeInBytes();
 
 		const size_t k_defaultBlockSize;
 		Util::SmallVector<MemoryBlock, Support::SystemAllocator, ZETA_MAX_NUM_THREADS> m_blocks;
@@ -82,26 +82,26 @@ namespace ZetaRay::Support
 
 	struct ThreadSafeArenaAllocator
 	{
-		ThreadSafeArenaAllocator(ThreadSafeMemoryArena& ma) noexcept
+		ThreadSafeArenaAllocator(ThreadSafeMemoryArena& ma)
 			: m_allocator(&ma)
 		{}
 
-		ThreadSafeArenaAllocator(const ThreadSafeArenaAllocator& other) noexcept
+		ThreadSafeArenaAllocator(const ThreadSafeArenaAllocator& other)
 			: m_allocator(other.m_allocator)
 		{}
 
-		ThreadSafeArenaAllocator& operator=(const ThreadSafeArenaAllocator& other) noexcept
+		ThreadSafeArenaAllocator& operator=(const ThreadSafeArenaAllocator& other)
 		{
 			m_allocator = other.m_allocator;
 			return *this;
 		}
 
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			return m_allocator->AllocateAligned(size, alignment);
 		}
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t)) noexcept
+		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t))
 		{
 			m_allocator->FreeAligned(mem, size, alignment);
 		}

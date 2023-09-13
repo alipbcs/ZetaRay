@@ -6,14 +6,14 @@
 namespace ZetaRay::Math
 {
 	// Generates i'th index of the Halton low-discrepancy sequence for base b 
-	float Halton(int i, int b) noexcept;
+	float Halton(int i, int b);
 
 	// Uniformly samples the hemisphere around (0, 0, 0)
-	float3 GetUniformSampleHemisphere(float2 u) noexcept;
+	float3 GetUniformSampleHemisphere(float2 u);
 
     struct AliasTableEntry
     {
-        AliasTableEntry() noexcept
+        AliasTableEntry()
             : P(0.0f),
             Alias(uint32_t(-1)),
             OriginalProb(0.0f)
@@ -28,6 +28,6 @@ namespace ZetaRay::Math
 
 	// Generates an Alias Table for the given probability distribution function
 	// Ref: https://www.keithschwarz.com/darts-dice-coins/
-	void BuildAliasTableUnnormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret) noexcept;
-	void BuildAliasTableNormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret) noexcept;
+	void BuildAliasTableUnnormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret);
+	void BuildAliasTableNormalized(Util::Vector<float>&& probs, Util::Vector<AliasTableEntry>& ret);
 }

@@ -17,7 +17,7 @@ struct RNG
 		uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
 		return (word >> 22u) ^ word;
 	}
-	
+
 	// Ref: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering," Journal of Computer Graphics Techniques, 2020.
 	static uint3 Pcg3d(uint3 v)
 	{
@@ -31,7 +31,7 @@ struct RNG
 		v.z += v.x * v.y;
 		return v;
 	}
-	
+
 	// A seperate pcg PRNG instance for each thread or pixel, seeded with unique values
 	static RNG Init(uint2 pixel, uint frame)
 	{
@@ -44,7 +44,7 @@ struct RNG
 		
 		return rng;
 	}
-	
+
 	static RNG Init(uint idx, uint frame)
 	{
 		RNG rng;
@@ -52,7 +52,7 @@ struct RNG
 		
 		return rng;
 	}
-	
+
 	// for following samples after initial sample
 	uint Next()
 	{
@@ -62,40 +62,28 @@ struct RNG
 		return (word >> 22u) ^ word;
 	}
 
-	// 32-bit floating point (https://en.wikipedia.org/wiki/Single-precision_floating-point_format)
-	//  31 | 30 ..... 23 | 22 ...... 0
-	// sign    exponent      fraction
-	// 9 high-order bits that correspond to sign and exponent are set to 0 and 127 respectively
-	// 23 low-order fraction bits come from a random integer
 	float Uniform()
 	{
-#if 0
-		uint x = Next();
-		
-		// [1, 2) -> [0, 1)
-		return asfloat(0x3f800000 | (x >> 9)) - 1.0f;
-#else
 		const float oneSubEps = 0x1.fffffep-1;
 		const float uniformFloat01Inclusive = Next() * 0x1p-32f;    
 		return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
-#endif
 	}
-	
+
 	// returns samples in [lower, upper)
 	uint UintRange(uint lower, uint upper)
 	{
 		// TODO following is biased: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
 		return lower + uint(Uniform() * float(upper - lower));
 	}
-	
+
 	float2 Uniform2D()
 	{
 		float u0 = Uniform();
 		float u1 = Uniform();
-		
+
 		return float2(u0, u1);
 	}
-	
+
 	uint State;
 };
 	
@@ -114,14 +102,13 @@ namespace Sampling
 	{
 		const float phi = TWO_PI * u.y;
 		const float sinTheta = sqrt(1.0f - u.x * u.x);
-	
+
 		const float x = cos(phi) * sinTheta;
 		const float y = sin(phi) * sinTheta;
 		const float z = u.x;
-	
-		// w.r.t. solid angle
+
 		pdf = ONE_OVER_2_PI;
-		
+
 		return float3(x, y, z);
 	}
 
@@ -134,10 +121,9 @@ namespace Sampling
 		const float x = cos(phi) * sinTheta;
 		const float y = sin(phi) * sinTheta;
 		const float z = sqrt(1.0f - u.x); // = cos(theta)
-	
-		// w.r.t. solid angle
+
 		pdf = z * ONE_OVER_PI; // = cos(theta) / PI
-	
+
 		return float3(x, y, z);
 	}
 
@@ -162,7 +148,7 @@ namespace Sampling
 
 		// w.r.t. solid angle
 		pdf = ONE_OVER_2_PI * rcp(1.0f - cosThetaMax);
-	
+
 		return float3(x, y, z);
 	}
 
@@ -171,7 +157,7 @@ namespace Sampling
 	{
 		const float r = sqrt(u.x);
 		const float phi = TWO_PI * u.y;
-	
+
 		return float2(r * cos(phi), r * sin(phi));
 	}
 
@@ -194,7 +180,7 @@ namespace Sampling
 			r = b;
 			phi = PI_OVER_2 - PI_OVER_4 * (a / b);
 		}
-	
+
 		return float2(r * cos(phi), r * sin(phi));
 	}
 
@@ -216,7 +202,7 @@ namespace Sampling
 		float x = f * sign(u0) * cos(phi);
 		float y = f * sign(u1) * sin(phi);
 		float z = sign(d) * (1.0f - r * r);
-	
+
 		return float3(x, y, z);
 	}
 
@@ -246,7 +232,7 @@ namespace Sampling
 			b2 = u.y * 0.5f;
 			b1 = u.x - b2;
 		}
-		
+
 		return float2(b1, b2);
 #endif
 	}
@@ -284,10 +270,10 @@ namespace Sampling
 
 		// convert to float and return
 		float v = (0.5f + value) / 256.0f;
-	
+
 		return v;
 	}
-	
+
 	float BlueNoiseErrorDistribution(StructuredBuffer<uint16_t> g_owenScrambledSobolSeq,
 		StructuredBuffer<uint16_t> g_rankingTile, StructuredBuffer<uint16_t> g_scramblingTile,
 		int pixel_i, int pixel_j, int sampleIndex, int sampleDimension)

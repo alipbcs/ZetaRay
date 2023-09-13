@@ -27,14 +27,14 @@ namespace ZetaRay::Support
 		friend struct TaskSet;
 		static constexpr int MAX_NAME_LENGTH = 64;
 
-		Task() noexcept = default;
-		Task(const char* name, TASK_PRIORITY p, Util::Function&& f) noexcept;
-		~Task() noexcept = default;
+		Task() = default;
+		Task(const char* name, TASK_PRIORITY p, Util::Function&& f);
+		~Task() = default;
 
-		Task(Task&&) noexcept;
-		Task& operator=(Task&&) noexcept;
+		Task(Task&&);
+		Task& operator=(Task&&);
 
-		void Reset(const char* name, TASK_PRIORITY p, Util::Function&& f) noexcept;
+		void Reset(const char* name, TASK_PRIORITY p, Util::Function&& f);
 #if USE_TASK_NAMES == 1
 		ZetaInline const char* GetName() const { return m_name; }
 #endif
@@ -42,7 +42,7 @@ namespace ZetaRay::Support
 		ZetaInline Util::Span<int> GetAdjacencies() { return Util::Span(m_adjacentTailNodes); }
 		ZetaInline TASK_PRIORITY GetPriority() { return m_priority; }
 
-		ZetaInline void DoTask() noexcept
+		ZetaInline void DoTask()
 		{
 			Assert(m_dlg.IsSet(), "attempting to run an empty Function");
 			m_dlg.Run();
@@ -68,13 +68,13 @@ namespace ZetaRay::Support
 	{
 		WaitObject() = default;
 
-		void Notify() noexcept
+		void Notify()
 		{
 			m_completionFlag.store(true, std::memory_order_release);
 			m_completionFlag.notify_one();
 		}
 
-		void Wait() noexcept
+		void Wait()
 		{
 			m_completionFlag.wait(false, std::memory_order_relaxed);
 		}
@@ -102,13 +102,13 @@ namespace ZetaRay::Support
 		static constexpr int MAX_NUM_TASKS = 18;
 		using TaskHandle = int;
 
-		TaskSet() noexcept = default;
-		~TaskSet() noexcept = default;
+		TaskSet() = default;
+		~TaskSet() = default;
 
 		TaskSet(const TaskSet&) = delete;
 		TaskSet& operator=(const TaskSet&) = delete;
 
-		TaskHandle EmplaceTask(const char* name, Util::Function&& f) noexcept
+		TaskHandle EmplaceTask(const char* name, Util::Function&& f)
 		{
 			Check(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
 			Check(m_currSize < MAX_NUM_TASKS - 2, "current implementation of this functions doesn't support more than 64 tasks.");
@@ -120,17 +120,17 @@ namespace ZetaRay::Support
 		}
 		
 		// Adds a dependent task to the list of tasks that are notified by this task upon completion
-		void AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept;
+		void AddOutgoingEdge(TaskHandle a, TaskHandle b);
 		// Adds an edge from the given task to every other task that is "currently" is the TaskSet
-		void AddOutgoingEdgeToAll(TaskHandle a) noexcept;
-		void AddIncomingEdgeFromAll(TaskHandle a) noexcept;
-		void ConnectTo(TaskSet& other) noexcept;
-		void ConnectTo(Task& other) noexcept;
-		void ConnectFrom(Task& other) noexcept;
+		void AddOutgoingEdgeToAll(TaskHandle a);
+		void AddIncomingEdgeFromAll(TaskHandle a);
+		void ConnectTo(TaskSet& other);
+		void ConnectTo(Task& other);
+		void ConnectFrom(Task& other);
 
-		ZetaInline bool IsFinalized() noexcept { return m_isFinalized; }
-		void Sort() noexcept;
-		void Finalize(WaitObject* waitObj = nullptr) noexcept;
+		ZetaInline bool IsFinalized() { return m_isFinalized; }
+		void Sort();
+		void Finalize(WaitObject* waitObj = nullptr);
 
 		ZetaInline int GetSize() { return m_currSize; }
 		ZetaInline Util::Span<Task> GetTasks() { return Util::Span(m_tasks, m_currSize); }
@@ -148,8 +148,8 @@ namespace ZetaRay::Support
 			uint16_t PredecessorMask = 0;
 		};
 
-		void ComputeInOutMask() noexcept;
-		void TopologicalSort() noexcept;
+		void ComputeInOutMask();
+		void TopologicalSort();
 
 		Task m_tasks[MAX_NUM_TASKS];
 		TaskMetadata m_taskMetadata[MAX_NUM_TASKS];

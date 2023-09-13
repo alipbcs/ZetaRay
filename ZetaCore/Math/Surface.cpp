@@ -9,7 +9,7 @@ using namespace ZetaRay::Math;
 // Surfaces
 //--------------------------------------------------------------------------------------
 
-void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices) noexcept
+void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices)
 {
 	float3* tangents = new float3[vertices.size()];
 	memset(tangents, 0, sizeof(float3) * vertices.size());
@@ -109,7 +109,7 @@ void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32
 	delete[] tangents;
 }
 
-//void Math::MergeBoundingBoxes(BoundingBox& out, const BoundingBox& b1, const BoundingBox& b2) noexcept
+//void Math::MergeBoundingBoxes(BoundingBox& out, const BoundingBox& b1, const BoundingBox& b2)
 //{
 //	// NOTE: DirectX::BoundingBox's default constructor initializes center to (0, 0, 0)
 //	// and extents to (1, 1, 1). When a non-defualt AABB is merged with a default-contructed one, 

@@ -25,7 +25,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Span<ParamVariant> params, size_t offset, size_t count) noexcept
+	void AddParamRange(Span<ParamVariant> params, size_t offset, size_t count)
 	{
 		std::sort(params.begin() + offset, params.begin() + offset + count, [](ParamVariant& p1, ParamVariant& p2)
 			{
@@ -107,7 +107,7 @@ namespace
 		}
 	}
 
-	void DrawAxis(const char* label, const float3& axis, const float3& color, float lineWidth) noexcept
+	void DrawAxis(const char* label, const float3& axis, const float3& color, float lineWidth)
 	{
 		// axis
 		float axis_x[2];
@@ -167,17 +167,17 @@ namespace
 // GuiPass
 //--------------------------------------------------------------------------------------
 
-GuiPass::GuiPass() noexcept
+GuiPass::GuiPass()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 }
 
-GuiPass::~GuiPass() noexcept
+GuiPass::~GuiPass()
 {
 	Reset();
 }
 
-void GuiPass::Init() noexcept
+void GuiPass::Init()
 {
 	// [hack] RenderPasses and App should be decoupled -- in the event of adding/removing fonts,
 	// ImGui expects the font texture to be rebuilt before ImGui::NewFrame() is called, whereas 
@@ -254,7 +254,7 @@ void GuiPass::Init() noexcept
 	}
 }
 
-void GuiPass::Reset() noexcept
+void GuiPass::Reset()
 {
 	if (IsInitialized())
 		s_rpObjs.Clear();
@@ -271,7 +271,7 @@ void GuiPass::Reset() noexcept
 	m_cachedTimings.free_memory();
 }
 
-void GuiPass::UpdateBuffers() noexcept
+void GuiPass::UpdateBuffers()
 {
 	ImDrawData* draw_data = ImGui::GetDrawData();
 	const int currOutIdx = App::GetRenderer().GetCurrentBackBufferIndex();
@@ -317,7 +317,7 @@ void GuiPass::UpdateBuffers() noexcept
 	}
 }
 
-void GuiPass::Update() noexcept
+void GuiPass::Update()
 {
 	if (m_font.IsStale)
 	{
@@ -337,7 +337,7 @@ void GuiPass::Update() noexcept
 	}
 }
 
-void GuiPass::Render(CommandList& cmdList) noexcept
+void GuiPass::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
@@ -460,7 +460,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void GuiPass::RenderSettings() noexcept
+void GuiPass::RenderSettings()
 {
 	const int displayWidth = App::GetRenderer().GetDisplayWidth();
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
@@ -551,7 +551,7 @@ void GuiPass::RenderSettings() noexcept
 	ImGui::End();
 }
 
-void GuiPass::RenderProfiler() noexcept
+void GuiPass::RenderProfiler()
 {
 	const float w = App::GetRenderer().GetDisplayWidth() * m_dbgWndWidthPct;
 	//const float h = App::GetRenderer().GetDisplayHeight() * 0.7f;
@@ -644,7 +644,7 @@ void GuiPass::RenderProfiler() noexcept
 	}
 }
 
-void GuiPass::RenderLogWindow() noexcept
+void GuiPass::RenderLogWindow()
 {
 	auto frameLogs = App::GetFrameLogs().Variable();
 	m_prevNumLogs = (int)m_logs.size();
@@ -694,7 +694,7 @@ void GuiPass::RenderLogWindow() noexcept
 	ImGui::End();
 }
 
-void GuiPass::RenderMainHeader() noexcept
+void GuiPass::RenderMainHeader()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
 	ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.012286487f, 0.012286487f, 0.012286487f, 1.0f));
@@ -761,7 +761,7 @@ void GuiPass::RenderMainHeader() noexcept
 	ImGui::End();
 }
 
-void GuiPass::InfoTab() noexcept
+void GuiPass::InfoTab()
 {
 	auto& renderer = App::GetRenderer();
 	auto& timer = App::GetTimer();
@@ -774,7 +774,7 @@ void GuiPass::InfoTab() noexcept
 	ImGui::Text("\t- MMB zooms in/out");
 }
 
-void GuiPass::CameraTab() noexcept
+void GuiPass::CameraTab()
 {
 	const Camera& camera = App::GetCamera();
 	float3 camPos = camera.GetPos();
@@ -811,7 +811,7 @@ void GuiPass::CameraTab() noexcept
 	}
 }
 
-void GuiPass::ParameterTab() noexcept
+void GuiPass::ParameterTab()
 {
 	auto paramsView = App::GetParams();
 	Span<ParamVariant> params = paramsView.Variable();
@@ -895,7 +895,7 @@ void GuiPass::ParameterTab() noexcept
 	ImGui::PopItemWidth();
 }
 
-void GuiPass::GpuTimingsTab() noexcept
+void GuiPass::GpuTimingsTab()
 {
 	if (App::GetTimer().GetTotalFrameCount() % 5 == 0)
 	{
@@ -949,7 +949,7 @@ void GuiPass::GpuTimingsTab() noexcept
 	}
 }
 
-void GuiPass::ShaderReloadTab() noexcept
+void GuiPass::ShaderReloadTab()
 {
 	auto reloadHandlers = App::GetShaderReloadHandlers();
 	Span<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
@@ -994,7 +994,7 @@ void GuiPass::ShaderReloadTab() noexcept
 		ImGui::EndDisabled();
 }
 
-void GuiPass::RebuildFontTex() noexcept
+void GuiPass::RebuildFontTex()
 {
 	ImGuiIO& io = ImGui::GetIO();
 	io.Fonts->GetTexDataAsRGBA32(&m_font.Pixels, &m_font.Width, &m_font.Height);

@@ -6,7 +6,7 @@
 #include "../../Common/Sampling.hlsli"
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/RT.hlsli"
-#include "../../Common/VolumetricLighting.hlsli"
+#include "../../Common/Volumetric.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 #define INCLUDE_VISIBILITY_IN_TARGET 1

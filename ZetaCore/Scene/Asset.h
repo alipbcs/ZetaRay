@@ -23,21 +23,21 @@ namespace ZetaRay::Scene::Internal
 
 	struct TexSRVDescriptorTable
 	{
-		TexSRVDescriptorTable(const uint32_t descTableSize = 1024) noexcept;
-		~TexSRVDescriptorTable() noexcept = default;
+		TexSRVDescriptorTable(const uint32_t descTableSize = 1024);
+		~TexSRVDescriptorTable() = default;
 
 		TexSRVDescriptorTable(const TexSRVDescriptorTable&) = delete;
 		TexSRVDescriptorTable& operator=(const TexSRVDescriptorTable&) = delete;
 
-		void Init(uint64_t id) noexcept;
+		void Init(uint64_t id);
 
 		// Returns offset of the given texture in the desc. table. The texture is then loaded from
 		// the disk. "id" is hash of the texture path
-		uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id) noexcept;
-		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
+		uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id);
+		//void Remove(uint64_t id, uint64_t nextFenceVal);
 
-		void Clear() noexcept;
-		void Recycle(uint64_t completedFenceVal) noexcept;
+		void Clear();
+		void Recycle(uint64_t completedFenceVal);
 
 		struct ToBeFreedTexture
 		{
@@ -74,27 +74,27 @@ namespace ZetaRay::Scene::Internal
 
 	struct MaterialBuffer
 	{
-		MaterialBuffer() noexcept = default;
-		~MaterialBuffer() noexcept = default;
+		MaterialBuffer() = default;
+		~MaterialBuffer() = default;
 
 		MaterialBuffer(const MaterialBuffer&) = delete;
 		MaterialBuffer& operator=(const MaterialBuffer&) = delete;
 
-		void Init(uint64_t id) noexcept;
+		void Init(uint64_t id);
 
 		// Allocates an entry for the given material. Index to the allocated entry is also set
-		void Add(uint64_t id, Material& mat) noexcept;
-		void UpdateGPUBufferIfStale() noexcept;
-		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
+		void Add(uint64_t id, Material& mat);
+		void UpdateGPUBufferIfStale();
+		//void Remove(uint64_t id, uint64_t nextFenceVal);
 
 		// Note: not thread safe
-		ZetaInline Material* Get(uint64_t id) noexcept
+		ZetaInline Material* Get(uint64_t id)
 		{
 			return m_matTable.find(id);
 		}
 
-		void Recycle(uint64_t completedFenceVal) noexcept;
-		void Clear() noexcept;
+		void Recycle(uint64_t completedFenceVal);
+		void Clear();
 
 		struct ToBeRemoved
 		{
@@ -125,14 +125,14 @@ namespace ZetaRay::Scene::Internal
 
 	struct MeshContainer
 	{
-		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID) noexcept;
+		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID);
 		void AddBatch(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
-			Util::SmallVector<uint32_t>&& indices) noexcept;
-		void Reserve(size_t numVertices, size_t numIndices) noexcept;
-		void RebuildBuffers() noexcept;
+			Util::SmallVector<uint32_t>&& indices);
+		void Reserve(size_t numVertices, size_t numIndices);
+		void RebuildBuffers();
 		
 		// Note: not thread safe
-		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id) noexcept
+		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id)
 		{
 			return m_meshes.find(id);
 		}
@@ -140,7 +140,7 @@ namespace ZetaRay::Scene::Internal
 		const Core::GpuMemory::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
 		const Core::GpuMemory::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
 
-		void Clear() noexcept;
+		void Clear();
 
 	private:
 		Util::HashTable<Model::TriangleMesh> m_meshes;
@@ -157,21 +157,21 @@ namespace ZetaRay::Scene::Internal
 
 	struct EmissiveBuffer
 	{
-		EmissiveBuffer() noexcept = default;
-		~EmissiveBuffer() noexcept = default;
+		EmissiveBuffer() = default;
+		~EmissiveBuffer() = default;
 
 		EmissiveBuffer(const EmissiveBuffer&) = delete;
 		MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
 
 		bool RebuildFlag() { return m_rebuildFlag; }
-		void Clear() noexcept;
-		Model::glTF::Asset::EmissiveInstance* FindEmissive(uint64_t ID) noexcept;
-		bool IsStale() noexcept { return !m_emissivesTrisCpu.empty(); };
+		void Clear();
+		Model::glTF::Asset::EmissiveInstance* FindEmissive(uint64_t ID);
+		bool IsStale() { return !m_emissivesTrisCpu.empty(); };
 		void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
-			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
-		void RebuildEmissiveBuffer() noexcept;
-		ZetaInline uint32_t NumEmissiveInstances() const noexcept { return (uint32_t)m_emissivesInstances.size(); }
-		ZetaInline uint32_t NumEmissiveTriangles() const noexcept { return (uint32_t)m_emissivesTrisCpu.size(); }
+			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
+		void RebuildEmissiveBuffer();
+		ZetaInline uint32_t NumEmissiveInstances() const { return (uint32_t)m_emissivesInstances.size(); }
+		ZetaInline uint32_t NumEmissiveTriangles() const { return (uint32_t)m_emissivesTrisCpu.size(); }
 
 		Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
 		Util::Span<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }

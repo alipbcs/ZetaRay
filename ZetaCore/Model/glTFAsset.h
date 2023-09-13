@@ -41,7 +41,7 @@ namespace ZetaRay::Model::glTF::Asset
 
 	struct MaterialDesc
 	{
-		MaterialDesc() noexcept
+		MaterialDesc()
 			: BaseColorTexPath(uint64_t(-1)),
 			MetallicRoughnessTexPath(uint64_t(-1)),
 			NormalTexPath(uint64_t(-1)),

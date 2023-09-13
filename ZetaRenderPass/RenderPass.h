@@ -15,9 +15,9 @@ namespace ZetaRay::RenderPass
 			Core::RootSignature& rootSigInstance,
 			size_t numStaticSamplers = 0,
 			const D3D12_STATIC_SAMPLER_DESC* samplers = nullptr,
-			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE) noexcept;
+			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
-		void Clear() noexcept;
+		void Clear();
 
 		Core::PipelineStateLibrary m_psoLib;
 		ComPtr<ID3D12RootSignature> m_rootSig;

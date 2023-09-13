@@ -7,12 +7,12 @@
 namespace ZetaRay::Math
 {
 	void ComputeMeshTangentVectors(Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices,
-		bool rhsIndices = false) noexcept;
+		bool rhsIndices = false);
 
 	// Returns barrycentric coordinates (u, v, w) of point p relative to triangle v0v1v2 (ordered clockwise)
 	// such that p = V0 + v(V1 - V0) + w(V2 - V0) or alternatively,
 	//           p = uV0 + vV1 + wV2
-	ZetaInline __m128 __vectorcall computeBarryCoords(const __m128 v0, const __m128 v1, const __m128 v2, const __m128 p) noexcept
+	ZetaInline __m128 __vectorcall computeBarryCoords(const __m128 v0, const __m128 v1, const __m128 v2, const __m128 p)
 	{
 		const __m128 v1Minv0 = _mm_sub_ps(v1, v0);	// s
 		const __m128 v2Minv0 = _mm_sub_ps(v2, v0);	// t
@@ -87,7 +87,7 @@ namespace ZetaRay::Math
 	}
 
 	// Finds the axis with the largest span
-	//static int FindAxisWithMaximumExtent(const DirectX::XMFLOAT3& vec) noexcept
+	//static int FindAxisWithMaximumExtent(const DirectX::XMFLOAT3& vec)
 	//{
 	//	const float EPS = 1e-5;
 	//	Check(vec.x + vec.y + vec.z > EPS, "Degenerate input vector", SEVERITY::FATAL);

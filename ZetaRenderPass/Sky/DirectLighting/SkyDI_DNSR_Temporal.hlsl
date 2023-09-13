@@ -4,7 +4,7 @@
 #include "../../Common/BRDF.hlsli"
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/Common.hlsli"
-#include "../../Common/VolumetricLighting.hlsli"
+#include "../../Common/Volumetric.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 #define VIEW_ANGLE_EXP 0.15f

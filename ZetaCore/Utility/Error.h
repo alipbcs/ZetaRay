@@ -23,14 +23,15 @@
 
 namespace ZetaRay::Util
 {
-    void ReportError(const char* title, const char* msg) noexcept;
-    void ReportErrorWin32(const char* file, int line, const char* call) noexcept;
-    void DebugBreak() noexcept;
-    void Exit() noexcept;
+    void ReportError(const char* title, const char* msg);
+    void ReportErrorWin32(const char* file, int line, const char* call);
+    void DebugBreak();
+    void Exit();
 }
 
 #ifdef _DEBUG
 #define Assert(expr, formatStr, ...)                                                          \
+    [[unlikely]]                                                                              \
     if(!(expr))                                                                               \
     {                                                                                         \
         char buff_[256];                                                                      \
@@ -45,6 +46,7 @@ namespace ZetaRay::Util
 
 #ifdef _DEBUG
 #define CheckWin32(expr)                                            \
+    [[unlikely]]                                                    \
     if(!(expr))                                                     \
     {                                                               \
         ZetaRay::Util::ReportErrorWin32(__FILE__, __LINE__, #expr); \
@@ -52,6 +54,7 @@ namespace ZetaRay::Util
     }
 #else
 #define CheckWin32(expr)                                            \
+    [[unlikely]]                                                    \
     if(!(expr))                                                     \
     {                                                               \
         ZetaRay::Util::ReportErrorWin32(__FILE__, __LINE__, #expr); \
@@ -62,6 +65,7 @@ namespace ZetaRay::Util
 #ifdef _DEBUG   
 #ifndef Check
 #define Check(expr, formatStr, ...)                                                          \
+    [[unlikely]]                                                                             \
     if(!(expr))                                                                              \
     {                                                                                        \
         char buff_[256];                                                                     \
@@ -74,6 +78,7 @@ namespace ZetaRay::Util
 #else
 #ifndef Check
 #define Check(expr, formatStr, ...)                                                          \
+    [[unlikely]]                                                                             \
     if(!(expr))                                                                              \
     {                                                                                        \
         char buff_[256];                                                                     \
@@ -84,4 +89,3 @@ namespace ZetaRay::Util
     }
 #endif
 #endif
-

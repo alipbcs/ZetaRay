@@ -28,11 +28,11 @@ namespace ZetaRay::Util
 			T Val;
 		};
 
-		HashTable(const Allocator& a = Allocator()) noexcept
+		HashTable(const Allocator& a = Allocator())
 			: m_allocator(a)
 		{}
 
-		explicit HashTable(size_t initialSize, const Allocator& a = Allocator()) noexcept
+		explicit HashTable(size_t initialSize, const Allocator& a = Allocator())
 			: m_allocator(a)
 		{
 			static_assert(std::is_default_constructible_v<T>);
@@ -43,7 +43,7 @@ namespace ZetaRay::Util
 		HashTable(const HashTable&) = delete;
 		HashTable& operator=(const HashTable&) = delete;
 
-		void resize(size_t n) noexcept
+		void resize(size_t n)
 		{
 			const size_t numBuckets = bucket_count();
 			if (n <= numBuckets)		// also covers when n == 0
@@ -59,7 +59,7 @@ namespace ZetaRay::Util
 
 		// returns NULL if an element with the given key is not found
 		// Note: in contrast to find(), find_entry() only returns NULL when the table is empty
-		T* find(uint64_t key) noexcept
+		T* find(uint64_t key)
 		{
 			Entry* e = find_entry(key);
 			if (e && e->Key != NULL_KEY)
@@ -69,7 +69,7 @@ namespace ZetaRay::Util
 		}
 
 		template<typename... Args>
-		bool emplace(uint64_t key, Args&&... args) noexcept
+		bool emplace(uint64_t key, Args&&... args)
 		{
 			Assert(key != NULL_KEY, "Invalid key");
 
@@ -95,7 +95,7 @@ namespace ZetaRay::Util
 			return false;
 		}
 
-		Entry& insert_or_assign(uint64_t key, const T& val) noexcept
+		Entry& insert_or_assign(uint64_t key, const T& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
 
@@ -122,7 +122,7 @@ namespace ZetaRay::Util
 			return *elem;
 		}
 
-		Entry& insert_or_assign(uint64_t key, T&& val) noexcept
+		Entry& insert_or_assign(uint64_t key, T&& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
 
@@ -149,17 +149,17 @@ namespace ZetaRay::Util
 			return *elem;
 		}
 
-		ZetaInline size_t bucket_count() const noexcept
+		ZetaInline size_t bucket_count() const
 		{
 			return m_end - m_beg;
 		}
 
-		ZetaInline size_t size() const noexcept
+		ZetaInline size_t size() const
 		{
 			return m_numEntries;
 		}		
 		
-		ZetaInline float load_factor() const noexcept
+		ZetaInline float load_factor() const
 		{
 			// necessary to avoid divide-by-zero
 			if (empty())
@@ -168,12 +168,12 @@ namespace ZetaRay::Util
 			return (float)m_numEntries / bucket_count();
 		}
 
-		ZetaInline bool empty() const noexcept
+		ZetaInline bool empty() const
 		{
 			return m_end - m_beg == 0;
 		}
 
-		void clear() noexcept
+		void clear()
 		{
 			Entry* curr = m_beg;
 
@@ -189,7 +189,7 @@ namespace ZetaRay::Util
 			// don't free the memory
 		}
 
-		void free() noexcept
+		void free()
 		{
 			Entry* curr = m_beg;
 
@@ -208,7 +208,7 @@ namespace ZetaRay::Util
 				m_allocator.FreeAligned(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
 		}
 
-		void swap(HashTable& other) noexcept
+		void swap(HashTable& other)
 		{
 			std::swap(m_beg, other.m_beg);
 			std::swap(m_end, other.m_end);
@@ -216,7 +216,7 @@ namespace ZetaRay::Util
 			std::swap(m_allocator, other.m_allocator);
 		}
 
-		ZetaInline T& operator[](uint64_t key) noexcept
+		ZetaInline T& operator[](uint64_t key)
 		{
 			static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
 
@@ -240,12 +240,12 @@ namespace ZetaRay::Util
 			return elem->Val;
 		}
 
-		ZetaInline Entry* begin_it() noexcept
+		ZetaInline Entry* begin_it()
 		{
 			return m_beg;
 		}
 
-		ZetaInline Entry* next_it(Entry* curr) noexcept
+		ZetaInline Entry* next_it(Entry* curr)
 		{
 			Entry* next = curr + 1;
 			while (next != m_end && next->Key == NULL_KEY)
@@ -254,13 +254,13 @@ namespace ZetaRay::Util
 			return next;
 		}
 
-		ZetaInline Entry* end_it() noexcept
+		ZetaInline Entry* end_it()
 		{
 			return m_end;
 		}
 
 	private:
-		Entry* find_entry(uint64_t key) noexcept
+		Entry* find_entry(uint64_t key)
 		{
 			const size_t n = bucket_count();
 			if (n == 0)
@@ -282,7 +282,7 @@ namespace ZetaRay::Util
 			return m_beg + nextPos;
 		}
 
-		void relocate(size_t n) noexcept
+		void relocate(size_t n)
 		{
 			Assert(Math::IsPow2(n), "n must be a power of 2");
 			Assert(n > bucket_count(), "n must be greater than the current bucket count.");

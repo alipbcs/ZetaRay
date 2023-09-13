@@ -24,32 +24,32 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		GuiPass() noexcept;
-		~GuiPass() noexcept;
+		GuiPass();
+		~GuiPass();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_pso != nullptr; };
-		void Reset() noexcept;
-		void SetCPUDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
+		void Init();
+		bool IsInitialized() { return m_pso != nullptr; };
+		void Reset();
+		void SetCPUDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
 		{
 			Assert(i < SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
 			m_cpuDescriptors[i] = h;
 		}
-		void Update() noexcept;
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Update();
+		void Render(Core::CommandList& cmdList);
 
 	private:
-		void UpdateBuffers() noexcept;
-		void RenderSettings() noexcept;
-		void RenderProfiler() noexcept;
-		void RenderLogWindow() noexcept;
-		void RenderMainHeader() noexcept;
-		void InfoTab() noexcept;
-		void CameraTab() noexcept;
-		void ParameterTab() noexcept;
-		void GpuTimingsTab() noexcept;
-		void ShaderReloadTab() noexcept;
-		void RebuildFontTex() noexcept;
+		void UpdateBuffers();
+		void RenderSettings();
+		void RenderProfiler();
+		void RenderLogWindow();
+		void RenderMainHeader();
+		void InfoTab();
+		void CameraTab();
+		void ParameterTab();
+		void GpuTimingsTab();
+		void ShaderReloadTab();
+		void RebuildFontTex();
 
 		static constexpr int NUM_CBV = 0;
 		static constexpr int NUM_SRV = 0;

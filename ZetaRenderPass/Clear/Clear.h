@@ -24,16 +24,16 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		ClearPass() noexcept = default;
-		~ClearPass() noexcept = default;
+		ClearPass() = default;
+		~ClearPass() = default;
 
-		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
+		void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
 		{
 			Assert(i < SHADER_IN_DESC::COUNT, "out-of-bound access.");
 			m_descriptors[i] = h;
 		}
 
-		void Clear(Core::CommandList& cmdList) noexcept;
+		void Clear(Core::CommandList& cmdList);
 
 	private:
 		D3D12_CPU_DESCRIPTOR_HANDLE m_descriptors[SHADER_IN_DESC::COUNT] = { 0 };

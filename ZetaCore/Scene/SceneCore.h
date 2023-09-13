@@ -62,7 +62,7 @@ namespace ZetaRay::Scene
 		static constexpr uint64_t NULL_MESH = uint64_t(-1);
 		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
 
-		static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim) noexcept
+		static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim)
 		{
 			StackStr(str, n, "instancee%d_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
 			uint64_t instanceFromSceneID = XXH3_64bits(str, n);
@@ -70,7 +70,7 @@ namespace ZetaRay::Scene
 			return instanceFromSceneID;
 		}
 
-		static ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx) noexcept
+		static ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx)
 		{
 			StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
 			uint64_t matFromSceneID = XXH3_64bits(str, n);
@@ -78,7 +78,7 @@ namespace ZetaRay::Scene
 			return matFromSceneID;
 		}
 
-		static ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx) noexcept
+		static ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx)
 		{
 			StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
 			uint64_t meshFromSceneID = XXH3_64bits(str, n);
@@ -86,41 +86,41 @@ namespace ZetaRay::Scene
 			return meshFromSceneID;
 		}
 
-		SceneCore() noexcept;
-		~SceneCore() noexcept = default;
+		SceneCore();
+		~SceneCore() = default;
 
 		SceneCore(const SceneCore&) = delete;
 		SceneCore& operator=(const SceneCore&) = delete;
 
-		void Init(Renderer::Interface& rendererInterface) noexcept;
-		void Pause() noexcept { m_isPaused = true; }
-		void Resume() noexcept { m_isPaused = false; }
-		void OnWindowSizeChanged() noexcept;
+		void Init(Renderer::Interface& rendererInterface);
+		void Pause() { m_isPaused = true; }
+		void Resume() { m_isPaused = false; }
+		void OnWindowSizeChanged();
 
-		void Update(double dt, Support::TaskSet& sceneTS, Support::TaskSet& sceneRendererTS) noexcept;
-		void Render(Support::TaskSet& ts) noexcept { m_rendererInterface.Render(ts); };
+		void Update(double dt, Support::TaskSet& sceneTS, Support::TaskSet& sceneRendererTS);
+		void Render(Support::TaskSet& ts) { m_rendererInterface.Render(ts); };
 
-	 	ZetaInline Math::AABB GetWorldAABB() noexcept { return m_bvh.GetWorldAABB(); }
+	 	ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
 
 		//
 		// Mesh
 		//
 		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
-			Util::SmallVector<uint32_t>&& indices) noexcept;
-		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id) noexcept
+			Util::SmallVector<uint32_t>&& indices);
+		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id)
 		{
 			return m_meshes.GetMesh(id);
 		}
 
-		ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshVB() noexcept { return m_meshes.GetVB(); }
-		ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshIB() noexcept { return m_meshes.GetIB(); }
+		ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshVB() { return m_meshes.GetVB(); }
+		ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshIB() { return m_meshes.GetIB(); }
 
 		//
 		// Material
 		//
-		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages) noexcept;
-		ZetaInline Material* GetMaterial(uint64_t id) noexcept
+		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages);
+		ZetaInline Material* GetMaterial(uint64_t id)
 		{
 			return m_matBuffer.Get(id);
 		}
@@ -133,19 +133,19 @@ namespace ZetaRay::Scene
 		//
 		// Instance
 		//
-		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance) noexcept;
-		Math::float4x3 GetPrevToWorld(uint64_t id) noexcept;
+		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance);
+		Math::float4x3 GetPrevToWorld(uint64_t id);
 		
 		//
 		// emissive
 		//
 		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
-			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris) noexcept;
+			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
 		size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
 		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
 		bool AreEmissivesStale() const { return m_staleEmissives; }
 
-		ZetaInline Math::float4x3 GetToWorld(uint64_t id) noexcept
+		ZetaInline Math::float4x3 GetToWorld(uint64_t id)
 		{
 			TreePos* p = FindTreePosFromID(id);
 			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
@@ -153,7 +153,7 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p->Level].m_toWorlds[p->Offset];
 		}
 
-		ZetaInline uint64_t GetInstanceMeshID(uint64_t id) noexcept
+		ZetaInline uint64_t GetInstanceMeshID(uint64_t id)
 		{
 			TreePos* p = FindTreePosFromID(id);
 			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
@@ -161,7 +161,7 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p->Level].m_meshIDs[p->Offset];
 		}
 
-		ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id) noexcept
+		ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id)
 		{
 			TreePos* p = FindTreePosFromID(id);
 			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
@@ -169,7 +169,7 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p->Level].m_rtASInfo[p->Offset];
 		}
 
-		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id) noexcept
+		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id)
 		{
 			auto* e = m_instanceVisibilityIdx.find(id);
 			Assert(e, "instance with ID %llu was not found.", id);
@@ -180,13 +180,13 @@ namespace ZetaRay::Scene
 		ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
 		ZetaInline Util::Span<Math::BVH::BVHInput> GetFrameInstances() { return m_frameInstances; }
 
-		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true) noexcept;
+		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true);
 
 		//
 		// Cleanup
 		//
-		void Recycle() noexcept;
-		void Shutdown() noexcept;
+		void Recycle();
+		void Shutdown();
 
 		ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
 		ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
@@ -207,13 +207,13 @@ namespace ZetaRay::Scene
 			int Offset;
 		};
 
-		ZetaInline TreePos* FindTreePosFromID(uint64_t id) noexcept { return m_IDtoTreePos.find(id); }
+		ZetaInline TreePos* FindTreePosFromID(uint64_t id) { return m_IDtoTreePos.find(id); }
 
 		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
-			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask) noexcept;
+			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask);
 
-		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances) noexcept;
-		void RebuildBVH() noexcept;
+		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
+		void RebuildBVH();
 
 		struct AnimationUpdateOut
 		{
@@ -221,14 +221,14 @@ namespace ZetaRay::Scene
 			int Offset;
 		};
 
-		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec) noexcept;
-		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec) noexcept;
-		void UpdateEmissives(Util::Span<Model::glTF::Asset::EmissiveInstance> instances) noexcept;
+		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec);
+		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec);
+		void UpdateEmissives(Util::Span<Model::glTF::Asset::EmissiveInstance> instances);
 
 		bool m_isPaused = false;
 
 		//
-		// scene-graph
+		// scene graph
 		//
 
 		// Maps instance ID to tree position
@@ -236,8 +236,8 @@ namespace ZetaRay::Scene
 
 		struct Range
 		{
-			Range() noexcept = default;
-			Range(int b, int c) noexcept
+			Range() = default;
+			Range(int b, int c)
 				: Base(b),
 				Count(c)
 			{}
@@ -248,7 +248,7 @@ namespace ZetaRay::Scene
 
 		struct TreeLevel
 		{
-			TreeLevel(Support::MemoryPool& mp) noexcept
+			TreeLevel(Support::MemoryPool& mp)
 				: m_IDs(mp),
 				m_localTransforms(mp),
 				m_toWorlds(mp),
@@ -352,7 +352,7 @@ namespace ZetaRay::Scene
 		struct InstanceToAnimationMap
 		{
 			InstanceToAnimationMap() = default;
-			InstanceToAnimationMap(uint64_t id, int o) noexcept
+			InstanceToAnimationMap(uint64_t id, int o)
 				: InstanceID(id),
 				Offset(o)
 			{}
@@ -365,7 +365,7 @@ namespace ZetaRay::Scene
 		struct AnimationOffset
 		{
 			AnimationOffset() = default;
-			AnimationOffset(int b, int e, float t) noexcept
+			AnimationOffset(int b, int e, float t)
 				: BegOffset(b),
 				EndOffset(e),
 				BegTimeOffset(t)

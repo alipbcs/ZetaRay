@@ -10,17 +10,17 @@ namespace ZetaRay::Core
 
 	struct DescriptorHeap
 	{
-		DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE) noexcept;
-		~DescriptorHeap() noexcept = default;
+		DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE);
+		~DescriptorHeap() = default;
 
 		DescriptorHeap(const DescriptorHeap&) = delete;
 		DescriptorHeap& operator=(const DescriptorHeap&) = delete;
 
-		void Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible) noexcept;
-		void Shutdown() noexcept;
-		DescriptorTable Allocate(uint32_t count) noexcept;
-		void Release(DescriptorTable&& descTable) noexcept;
-		void Recycle() noexcept;
+		void Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible);
+		void Shutdown();
+		DescriptorTable Allocate(uint32_t count);
+		void Release(DescriptorTable&& descTable);
+		void Recycle();
 
 		ZetaInline bool IsShaderVisible() const { return m_isShaderVisisble; }
 		ZetaInline uint32_t GetDescriptorSize() const { return m_descriptorSize; }
@@ -36,8 +36,8 @@ namespace ZetaRay::Core
 
 		struct PendingDescTable
 		{
-			PendingDescTable() noexcept = default;
-			PendingDescTable(uint64_t fence, uint32_t offset, uint32_t count, uint32_t internalVal) noexcept
+			PendingDescTable() = default;
+			PendingDescTable(uint64_t fence, uint32_t offset, uint32_t count, uint32_t internalVal)
 				: ReleaseFence(fence),
 				Offset(offset),
 				Count(count),
@@ -58,7 +58,7 @@ namespace ZetaRay::Core
 
 		struct Block
 		{
-			Block(Support::MemoryPool &mp) noexcept
+			Block(Support::MemoryPool &mp)
 				: Head(uint32_t(-1)),
 				Entries(mp)
 			{}
@@ -81,7 +81,7 @@ namespace ZetaRay::Core
 			return 1 << x;
 		}
 
-		ZetaInline uint32_t ListIndexFromDescTableSize(uint32_t x) noexcept
+		ZetaInline uint32_t ListIndexFromDescTableSize(uint32_t x)
 		{
 			size_t s = Math::NextPow2(x);
 			unsigned long idx;
@@ -90,7 +90,7 @@ namespace ZetaRay::Core
 			return idx;
 		}
 
-		bool AllocateNewBlock(uint32_t listIdx) noexcept;
+		bool AllocateNewBlock(uint32_t listIdx);
 
 		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
 		// by order of declaration and destroyed in reverse order"
@@ -127,25 +127,25 @@ namespace ZetaRay::Core
 	{
 		friend struct DescriptorHeap;
 
-		DescriptorTable() noexcept = default;
+		DescriptorTable() = default;
 		DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
 			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle,
 			uint32_t numDesc,
 			uint32_t descSize,
 			DescriptorHeap* heap,
-			uint32_t internal) noexcept;
-		~DescriptorTable() noexcept;
+			uint32_t internal);
+		~DescriptorTable();
 
 		DescriptorTable(const DescriptorTable&) = delete;
 		DescriptorTable&operator=(const DescriptorTable&) = delete;
 
-		DescriptorTable(DescriptorTable&& other) noexcept;
-		DescriptorTable& operator=(DescriptorTable&& other) noexcept;
+		DescriptorTable(DescriptorTable&& other);
+		DescriptorTable& operator=(DescriptorTable&& other);
 
-		void Reset() noexcept;
+		void Reset();
 		ZetaInline bool IsEmpty() const { return m_numDescriptors == 0; }
 
-		//void Swap(DescriptorTable& other) noexcept
+		//void Swap(DescriptorTable& other)
 		//{
 		//	Assert(m_descriptorSize == other.m_descriptorSize, "Invalid swap");
 		//	std::swap(m_baseCpuHandle, other.m_baseCpuHandle);
@@ -154,13 +154,13 @@ namespace ZetaRay::Core
 		//	std::swap(m_descHeap, other.m_descHeap);
 		//}
 
-		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const noexcept
+		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
 			return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
 		}
 		
-		ZetaInline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const noexcept
+		ZetaInline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
 			Assert(m_descHeap->IsShaderVisible(), "This descriptor doesn't belong to a shader-visible heap.");
@@ -170,7 +170,7 @@ namespace ZetaRay::Core
 		ZetaInline uint32_t GetNumDescriptors() const { return m_numDescriptors; };
 		
 		// Offset to the beginning of this desc. table in the GPU descriptor heap
-		ZetaInline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const noexcept
+		ZetaInline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const
 		{
 			Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
 			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");

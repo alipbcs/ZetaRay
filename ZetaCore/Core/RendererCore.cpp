@@ -16,7 +16,7 @@ using namespace ZetaRay::Support;
 // RendererCore
 //--------------------------------------------------------------------------------------
 
-RendererCore::RendererCore() noexcept
+RendererCore::RendererCore()
 	: m_cbvSrvUavDescHeapGpu(32),
 	m_cbvSrvUavDescHeapCpu(32),
 	m_rtvDescHeap(8),
@@ -24,7 +24,7 @@ RendererCore::RendererCore() noexcept
 {
 }
 
-RendererCore::~RendererCore() noexcept
+RendererCore::~RendererCore()
 {
 }
 
@@ -106,7 +106,7 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
 	App::AddParam(p0);
 }
 
-void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
+void RendererCore::ResizeBackBuffers(HWND hwnd)
 {
 	// if back buffers already exist, resize them
 	if (m_backBuffers[0].IsInitialized())
@@ -168,7 +168,7 @@ void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
 	m_displayScissor.bottom = m_displayHeight;
 }
 
-void RendererCore::Shutdown() noexcept
+void RendererCore::Shutdown()
 {
 	if (!m_deviceObjs.m_tearingSupport)
 	{
@@ -231,13 +231,13 @@ void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t
 	m_renderScissor.bottom = m_renderHeight;
 }
 
-void RendererCore::WaitForSwapChainWaitableObject() noexcept
+void RendererCore::WaitForSwapChainWaitableObject()
 {
 	// blocks until eariliest queued present is completed
 	WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 16);
 }
 
-void RendererCore::BeginFrame() noexcept
+void RendererCore::BeginFrame()
 {
 	if (App::GetTimer().GetTotalFrameCount() > 0)
 		GpuMemory::BeginFrame();
@@ -245,7 +245,7 @@ void RendererCore::BeginFrame() noexcept
 	m_gpuTimer.BeginFrame();
 }
 
-void RendererCore::SubmitResourceCopies() noexcept
+void RendererCore::SubmitResourceCopies()
 {
 	GpuMemory::SubmitResourceCopies();
 
@@ -255,7 +255,7 @@ void RendererCore::SubmitResourceCopies() noexcept
 		m_cbvSrvUavDescHeapGpu.GetHeapSize());
 }
 
-void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
+void RendererCore::EndFrame(TaskSet& endFrameTS)
 {
 	auto h0 = endFrameTS.EmplaceTask("Present", [this]()
 		{
@@ -311,7 +311,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 		});
 }
 
-DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() const noexcept
+DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() const
 {
 	ComPtr<IDXGIOutput> pOutput;
 	CheckHR(m_deviceObjs.m_dxgiSwapChain->GetContainingOutput(&pOutput));
@@ -322,7 +322,7 @@ DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() const noexcept
 	return desc;
 }
 
-uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const noexcept
+uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const
 {
 	uint64_t freq = uint64_t(-1);
 
@@ -341,7 +341,7 @@ uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE
 	return freq;
 }
 
-GraphicsCmdList* RendererCore::GetGraphicsCmdList() noexcept
+GraphicsCmdList* RendererCore::GetGraphicsCmdList()
 {
 	CommandList* ctx = m_directQueue->GetCommandList();
 	Assert(ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast.");
@@ -349,7 +349,7 @@ GraphicsCmdList* RendererCore::GetGraphicsCmdList() noexcept
 	return static_cast<GraphicsCmdList*>(ctx);
 }
 
-ComputeCmdList* RendererCore::GetComputeCmdList() noexcept
+ComputeCmdList* RendererCore::GetComputeCmdList()
 {
 	CommandList* ctx = m_computeQueue->GetCommandList();
 	Assert(ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast.");
@@ -358,7 +358,7 @@ ComputeCmdList* RendererCore::GetComputeCmdList() noexcept
 }
 
 // There is another "CopyContext" defined in WinBase.h!
-//CopyCmdList* RendererCore::GetCopyCmdList() noexcept
+//CopyCmdList* RendererCore::GetCopyCmdList()
 //{
 //	auto* ctx = m_copyQueue->GetCommandList();
 //	Assert(ctx->CommandListType() == D3D12_COMMAND_LIST_TYPE_COPY, "Invalid downcast.");
@@ -366,7 +366,7 @@ ComputeCmdList* RendererCore::GetComputeCmdList() noexcept
 //	return static_cast<ZetaRay::CopyCmdList*>(ctx);
 //}
 
-void RendererCore::ReleaseCmdList(CommandList* ctx) noexcept
+void RendererCore::ReleaseCmdList(CommandList* ctx)
 {
 	if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT)
 		m_directQueue->ReleaseCommandList(ctx);	
@@ -374,7 +374,7 @@ void RendererCore::ReleaseCmdList(CommandList* ctx) noexcept
 		m_computeQueue->ReleaseCommandList(ctx);
 }
 
-uint64_t RendererCore::ExecuteCmdList(CommandList* ctx) noexcept
+uint64_t RendererCore::ExecuteCmdList(CommandList* ctx)
 {
 	if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT)
 		return m_directQueue->ExecuteCommandList(ctx);
@@ -384,29 +384,29 @@ uint64_t RendererCore::ExecuteCmdList(CommandList* ctx) noexcept
 	return uint64_t(-1);
 }
 
-void RendererCore::SignalDirectQueue(ID3D12Fence* f, uint64_t v) noexcept
+void RendererCore::SignalDirectQueue(ID3D12Fence* f, uint64_t v)
 {
 	auto* cmdQueue = m_directQueue->GetCommandQueue();
 	Assert(cmdQueue, "cmdQueue was NULL");
 	cmdQueue->Signal(f, v);
 }
 
-void RendererCore::SignalComputeQueue(ID3D12Fence* f, uint64_t v) noexcept
+void RendererCore::SignalComputeQueue(ID3D12Fence* f, uint64_t v)
 {
 	m_computeQueue->GetCommandQueue()->Signal(f, v);
 }
 
-void RendererCore::WaitForDirectQueueFenceCPU(uint64_t fenceValue) noexcept
+void RendererCore::WaitForDirectQueueFenceCPU(uint64_t fenceValue)
 {
 	m_directQueue->WaitForFenceCPU(fenceValue);
 }
 
-void RendererCore::WaitForComputeQueueFenceCPU(uint64_t fenceValue) noexcept
+void RendererCore::WaitForComputeQueueFenceCPU(uint64_t fenceValue)
 {
 	m_computeQueue->WaitForFenceCPU(fenceValue);
 }
 
-void RendererCore::WaitForDirectQueueOnComputeQueue(uint64_t v) noexcept
+void RendererCore::WaitForDirectQueueOnComputeQueue(uint64_t v)
 {
 	// MS Docs:
 	// "Queues a GPU-side wait, and returns immediately. A GPU-side wait is where 
@@ -417,18 +417,18 @@ void RendererCore::WaitForDirectQueueOnComputeQueue(uint64_t v) noexcept
 	CheckHR(m_computeQueue->m_cmdQueue->Wait(m_directQueue->m_fence.Get(), v));
 }
 
-void RendererCore::WaitForComputeQueueOnDirectQueue(uint64_t v) noexcept
+void RendererCore::WaitForComputeQueueOnDirectQueue(uint64_t v)
 {
 	CheckHR(m_directQueue->m_cmdQueue->Wait(m_computeQueue->m_fence.Get(), v));
 }
 
-void RendererCore::FlushAllCommandQueues() noexcept
+void RendererCore::FlushAllCommandQueues()
 {
 	m_directQueue->WaitForIdle();
 	m_computeQueue->WaitForIdle();
 }
 
-void RendererCore::InitStaticSamplers() noexcept
+void RendererCore::InitStaticSamplers()
 {
 	D3D12_STATIC_SAMPLER_DESC pointWrap;
 	pointWrap.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
@@ -560,7 +560,7 @@ void RendererCore::InitStaticSamplers() noexcept
 	m_staticSamplers[7] = minPoint;
 }
 
-void RendererCore::SetVSync(const ParamVariant& p) noexcept
+void RendererCore::SetVSync(const ParamVariant& p)
 {
 	m_vsyncInterval = p.GetBool() ? 1 : 0;
 

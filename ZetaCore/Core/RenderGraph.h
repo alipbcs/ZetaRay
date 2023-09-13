@@ -61,48 +61,48 @@ namespace ZetaRay::Core
 			COUNT
 		};
 
-		RenderGraph() noexcept = default;
-		~RenderGraph() noexcept = default;
+		RenderGraph() = default;
+		~RenderGraph() = default;
 
 		RenderGraph(const RenderGraph&) = delete;
 		RenderGraph& operator=(const RenderGraph&) = delete;
 
-		void Shutdown() noexcept;
-		void Reset() noexcept;
+		void Shutdown();
+		void Reset();
 
 		// This should be called at the start of each frame
-		void BeginFrame() noexcept;
+		void BeginFrame();
 
 		// Adds a node to the graph
 		RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&> dlg,
-			bool forceSeperateCmdList = false) noexcept;
+			bool forceSeperateCmdList = false);
 
 		// Registers a new resource. This must be called prior to declaring resource dependencies in each frame
 		void RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
-			bool isWindowSizeDependent = true) noexcept;
+			bool isWindowSizeDependent = true);
 		
 		// Removes given resource (useful for when resources are recreated)
 		// Note: these have to be called prior to BeginFrame()
-		void RemoveResource(uint64_t path) noexcept;
-		void RemoveResources(Util::Span<uint64_t> paths) noexcept;
+		void RemoveResource(uint64_t path);
+		void RemoveResources(Util::Span<uint64_t> paths);
 
 		// Transitions into post-registration. At this point there can be no more Register*() calls
-		void MoveToPostRegister() noexcept;
+		void MoveToPostRegister();
 
 		// Adds an input resource to the RenderNodeHandle
-		void AddInput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState) noexcept;
+		void AddInput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState);
 
 		// Adds an output resource to the RenderNodeHandle
-		void AddOutput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState) noexcept;
+		void AddOutput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState);
 
 		// Builds the graph and submits the rendering tasks with appropriate order
-		void Build(Support::TaskSet& ts) noexcept;
+		void Build(Support::TaskSet& ts);
 
 		// Draws the render graph
-		void DebugDrawGraph() noexcept;
+		void DebugDrawGraph();
 
 		// GPU completion fence for given render node. It must've already been submitted
-		uint64_t GetCompletionFence(RenderNodeHandle h) noexcept;
+		uint64_t GetCompletionFence(RenderNodeHandle h);
 
 	private:
 		static constexpr uint16_t INVALID_NODE_HANDLE = uint16_t(-1);
@@ -110,14 +110,14 @@ namespace ZetaRay::Core
 		static constexpr int MAX_NUM_RESOURCES = 64;
 		static constexpr int MAX_NUM_PRODUCERS = 5;
 
-		int FindFrameResource(uint64_t key, int beg = 0, int end = -1) noexcept;
-		void BuildTaskGraph(Support::TaskSet& ts) noexcept;
-		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes) noexcept;
-		void InsertResourceBarriers() noexcept;
-		void JoinRenderNodes() noexcept;
+		int FindFrameResource(uint64_t key, int beg = 0, int end = -1);
+		void BuildTaskGraph(Support::TaskSet& ts);
+		void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes);
+		void InsertResourceBarriers();
+		void JoinRenderNodes();
 
 #ifdef _DEBUG
-		void Log() noexcept;
+		void Log();
 #endif // _DEBUG
 
 		//
@@ -126,8 +126,8 @@ namespace ZetaRay::Core
 
 		struct ResourceMetadata
 		{
-			ResourceMetadata() noexcept = default;
-			ResourceMetadata(const ResourceMetadata& other) noexcept
+			ResourceMetadata() = default;
+			ResourceMetadata(const ResourceMetadata& other)
 			{
 				ID = other.ID;
 				Res = other.Res;
@@ -136,7 +136,7 @@ namespace ZetaRay::Core
 				CurrProdIdx = other.CurrProdIdx.load(std::memory_order_relaxed);
 				IsWindowSizeDependent = other.IsWindowSizeDependent;
 			}
-			ResourceMetadata& operator=(const ResourceMetadata& rhs) noexcept
+			ResourceMetadata& operator=(const ResourceMetadata& rhs)
 			{
 				if (this == &rhs)
 					return *this;
@@ -151,7 +151,7 @@ namespace ZetaRay::Core
 				return *this;
 			}
 
-			void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, bool isWindowSizeDependent) noexcept
+			void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, bool isWindowSizeDependent)
 			{
 				Res = r;
 				ID = id;
@@ -161,7 +161,7 @@ namespace ZetaRay::Core
 					State = s;
 			}
 
-			void Reset() noexcept
+			void Reset()
 			{
 				ID = uint64_t(-1);
 				Res = nullptr;
@@ -207,7 +207,7 @@ namespace ZetaRay::Core
 
 		struct RenderNode
 		{
-			void Reset() noexcept
+			void Reset()
 			{
 				Inputs.free_memory();
 				Outputs.free_memory();
@@ -224,7 +224,7 @@ namespace ZetaRay::Core
 #endif
 			}
 
-			void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeperateCmdList) noexcept
+			void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeperateCmdList)
 			{
 				Type = t;
 				Dlg = dlg;
@@ -270,13 +270,13 @@ namespace ZetaRay::Core
 
 		struct AggregateRenderNode
 		{
-			AggregateRenderNode() noexcept = default;
-			AggregateRenderNode(bool isAsyncCompute) noexcept
+			AggregateRenderNode() = default;
+			AggregateRenderNode(bool isAsyncCompute)
 				: IsAsyncCompute(isAsyncCompute)
 			{
 			}
 
-			void Reset() noexcept
+			void Reset()
 			{
 				Barriers.free_memory();
 				Dlgs.free_memory();
@@ -293,7 +293,7 @@ namespace ZetaRay::Core
 #endif
 			}
 
-			void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate = false) noexcept;
+			void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate = false);
 
 			Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
 			Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;

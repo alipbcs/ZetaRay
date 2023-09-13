@@ -52,7 +52,7 @@ void DeviceObjects::InitializeAdapter() noexcept
 	Common::WideToCharStr(desc.Description, m_deviceName);
 }
 
-void DeviceObjects::CreateDevice() noexcept
+void DeviceObjects::CreateDevice()
 {
 	ID3D12Device* device;
 
@@ -120,7 +120,7 @@ void DeviceObjects::CreateDevice() noexcept
 }
 
 void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, int h, int numBuffers,
-	DXGI_FORMAT format, int maxLatency) noexcept
+	DXGI_FORMAT format, int maxLatency)
 {
 	DXGI_SWAP_CHAIN_DESC1 desc{};
 	desc.Width = w;
@@ -145,7 +145,7 @@ void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, 
 	m_frameLatencyWaitableObj = m_dxgiSwapChain->GetFrameLatencyWaitableObject();
 }
 
-void DeviceObjects::ResizeSwapChain(int w, int h, int maxLatency) noexcept
+void DeviceObjects::ResizeSwapChain(int w, int h, int maxLatency)
 {
 	CheckHR(m_dxgiSwapChain->ResizeBuffers(0, w, h, DXGI_FORMAT_UNKNOWN, m_swapChainFlags));
 	//CheckHR(m_dxgiSwapChain->SetMaximumFrameLatency(maxLatency));

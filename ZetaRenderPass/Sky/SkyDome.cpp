@@ -16,7 +16,7 @@ using namespace ZetaRay::Model;
 // SkyDome
 //--------------------------------------------------------------------------------------
 
-SkyDome::SkyDome() noexcept
+SkyDome::SkyDome()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -28,12 +28,12 @@ SkyDome::SkyDome() noexcept
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 }
 
-SkyDome::~SkyDome() noexcept
+SkyDome::~SkyDome()
 {
 	Reset();
 }
 
-void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
+void SkyDome::Init(DXGI_FORMAT rtvFormat)
 {
 	auto& renderer = App::GetRenderer();
 	m_cachedRtvFormat = rtvFormat;
@@ -83,7 +83,7 @@ void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 	App::AddShaderReloadHandler("SkyDome", fastdelegate::MakeDelegate(this, &SkyDome::ReloadShaders));
 }
 
-void SkyDome::Reset() noexcept
+void SkyDome::Reset()
 {
 	if (IsInitialized())
 	{
@@ -96,7 +96,7 @@ void SkyDome::Reset() noexcept
 	//m_pso = nullptr;
 }
 
-void SkyDome::Render(CommandList& cmdList) noexcept
+void SkyDome::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
@@ -133,7 +133,7 @@ void SkyDome::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void SkyDome::CreatePSO() noexcept
+void SkyDome::CreatePSO()
 {
 	D3D12_INPUT_ELEMENT_DESC inputElements[] =
 	{
@@ -161,7 +161,7 @@ void SkyDome::CreatePSO() noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
-void SkyDome::ReloadShaders() noexcept
+void SkyDome::ReloadShaders()
 {
 	s_rpObjs.m_psoLib.Reload(0, "Sky\\SkyDome.hlsl", false);
 	CreatePSO();

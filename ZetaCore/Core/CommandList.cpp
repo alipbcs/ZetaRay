@@ -8,7 +8,7 @@ using namespace ZetaRay::Core;
 // CommandContext
 //--------------------------------------------------------------------------------------
 
-CommandList::CommandList(D3D12_COMMAND_LIST_TYPE t, ID3D12CommandAllocator* cmdAlloc) noexcept
+CommandList::CommandList(D3D12_COMMAND_LIST_TYPE t, ID3D12CommandAllocator* cmdAlloc)
 	: m_cmdAllocator(cmdAlloc),
 	m_type(t)
 {
@@ -20,7 +20,7 @@ CommandList::CommandList(D3D12_COMMAND_LIST_TYPE t, ID3D12CommandAllocator* cmdA
 	Assert(cmdList->Release() == 1, "bug");
 }
 
-void CommandList::Reset(ID3D12CommandAllocator* cmdAlloc) noexcept
+void CommandList::Reset(ID3D12CommandAllocator* cmdAlloc)
 {
 	Assert(m_cmdList && !m_cmdAllocator, "bug");
 	m_cmdAllocator = cmdAlloc;

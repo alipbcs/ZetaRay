@@ -5,7 +5,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Util;
 
-bool Math::SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexcept
+bool Math::SolveQuadratic(float a, float b, float c, float& x1, float& x2)
 {
 	float delta = b * b - 4.0f * a * c;
 
@@ -23,7 +23,7 @@ bool Math::SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexc
 	return true;
 }
 
-void Math::SphericalFromCartesian(const float3& w, float& theta, float& phi) noexcept
+void Math::SphericalFromCartesian(const float3& w, float& theta, float& phi)
 {
 	// x = sin(theta) * cos(phi)
 	// y = cos(theta)
@@ -34,7 +34,7 @@ void Math::SphericalFromCartesian(const float3& w, float& theta, float& phi) noe
 	phi = phi < 0.0f ? phi + Math::TWO_PI : phi;	// [0, 2 * PI]
 }
 
-float3 Math::SphericalToCartesian(float theta, float phi) noexcept
+float3 Math::SphericalToCartesian(float theta, float phi)
 {
 	// x = sin(theta) * cos(phi)
 	// y = cos(theta)
@@ -43,7 +43,7 @@ float3 Math::SphericalToCartesian(float theta, float phi) noexcept
 	return float3(sinTheta * cosf(phi), cosf(theta), -sinTheta * sinf(phi));
 }
 
-size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, Span<size_t> offsets, Span<size_t> sizes, size_t minNumElems) noexcept
+size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, Span<size_t> offsets, Span<size_t> sizes, size_t minNumElems)
 {
 	Assert(offsets.size() >= maxNumGroups, "out-of-bound access in offsets array.");
 	Assert(sizes.size() >= maxNumGroups, "out-of-bound access in sizes array.");
@@ -69,7 +69,7 @@ size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, Span<size_t> o
 // fast math must be disabled for Kahan summation
 #pragma float_control(precise, on, push)
 
-float Math::KahanSum(Span<float> data) noexcept
+float Math::KahanSum(Span<float> data)
 {
 	const int64_t N = data.size();
 	float sum = 0.0f;

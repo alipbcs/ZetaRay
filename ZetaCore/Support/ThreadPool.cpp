@@ -13,7 +13,7 @@ using namespace ZetaRay::Util;
 
 namespace
 {
-	ZetaInline int FindThreadIdx(Span<ZETA_THREAD_ID_TYPE> threadIds) noexcept
+	ZetaInline int FindThreadIdx(Span<ZETA_THREAD_ID_TYPE> threadIds)
 	{
 		int idx = -1;
 
@@ -34,7 +34,7 @@ namespace
 // ThreadPool
 //--------------------------------------------------------------------------------------
 
-void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p) noexcept
+void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p)
 {
 	m_threadPoolSize = poolSize;
 	m_totalNumThreads = totalNumThreads;
@@ -83,7 +83,7 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 	}
 }
 
-void ThreadPool::Start() noexcept
+void ThreadPool::Start()
 {
 	auto threadIDs = App::GetAllThreadIDs();
 	Assert(threadIDs.size() == m_totalNumThreads, "these must match");
@@ -94,7 +94,7 @@ void ThreadPool::Start() noexcept
 	m_start.store(true, std::memory_order_release);
 }
 
-void ThreadPool::Shutdown() noexcept
+void ThreadPool::Shutdown()
 {
 	// relaxed since Enqueue has a release op
 	m_shutdown.store(true, std::memory_order_relaxed);
@@ -114,7 +114,7 @@ void ThreadPool::Shutdown() noexcept
 		m_threadPool[i].join();
 }
 
-void ThreadPool::Enqueue(Task&& t) noexcept
+void ThreadPool::Enqueue(Task&& t)
 {
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
@@ -126,7 +126,7 @@ void ThreadPool::Enqueue(Task&& t) noexcept
 	m_numTasksInQueue.fetch_add(1, std::memory_order_release);
 }
 
-void ThreadPool::Enqueue(TaskSet&& ts) noexcept
+void ThreadPool::Enqueue(TaskSet&& ts)
 {
 	Assert(ts.IsFinalized(), "Given TaskSet is not finalized.");
 
@@ -141,7 +141,7 @@ void ThreadPool::Enqueue(TaskSet&& ts) noexcept
 	Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 }
 
-void ThreadPool::PumpUntilEmpty() noexcept
+void ThreadPool::PumpUntilEmpty()
 {
 	const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
 	Assert(idx != -1, "Thread ID was not found");
@@ -193,7 +193,7 @@ void ThreadPool::PumpUntilEmpty() noexcept
 	}
 }
 
-bool ThreadPool::TryFlush() noexcept
+bool ThreadPool::TryFlush()
 {
 	const bool success = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
 	if (!success)
@@ -210,7 +210,7 @@ bool ThreadPool::TryFlush() noexcept
 	return success;
 }
 
-void ThreadPool::WorkerThread() noexcept
+void ThreadPool::WorkerThread()
 {
 	while (!m_start.load(std::memory_order_acquire));
 

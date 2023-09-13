@@ -99,7 +99,7 @@ namespace ZetaRay::Math
 	}
 
 	// Solves quadratic equation a * x^2 + b * x + c = 0
-	bool SolveQuadratic(float a, float b, float c, float& x1, float& x2) noexcept;
+	bool SolveQuadratic(float a, float b, float c, float& x1, float& x2);
 
 	ZetaInline float DegreeToRadians(float d)
 	{
@@ -111,8 +111,8 @@ namespace ZetaRay::Math
 		return r * 360.0f * ONE_OVER_2_PI;
 	}
 
-	void SphericalFromCartesian(const Math::float3& w, float& theta, float& phi) noexcept;
-	Math::float3 SphericalToCartesian(float theta, float phi) noexcept;
+	void SphericalFromCartesian(const Math::float3& w, float& theta, float& phi);
+	Math::float3 SphericalToCartesian(float theta, float phi);
 
 	// Returns x / y, where x and y are unsigned integers
 	template<typename T>
@@ -128,7 +128,7 @@ namespace ZetaRay::Math
 		size_t maxNumGroups,
 		Util::Span<size_t> offsets,
 		Util::Span<size_t> sizes,
-		size_t minNumElems = 0) noexcept;
+		size_t minNumElems = 0);
 
 	// Ref: https://walbourn.github.io/directxmath-f16c-and-fma/
 	ZetaInline float HalfToFloat(uint16_t value)
@@ -147,5 +147,5 @@ namespace ZetaRay::Math
 
 	// A summation algorithm that guards against the worst-case loss of precision when summing
 	// a large sequence of floating=point numbers
-	float KahanSum(Util::Span<float> data) noexcept;
+	float KahanSum(Util::Span<float> data);
 }

@@ -16,32 +16,32 @@ namespace ZetaRay::Support
 			ST_RATIO
 		};
 
-		Stat() noexcept = default;
-		Stat(const char* group, const char* name, int i) noexcept
+		Stat() = default;
+		Stat(const char* group, const char* name, int i)
 		{
 			InitCommon(group, name);
 			m_type = ST_TYPE::ST_INT;
 			m_int = i;
 		}		
-		Stat(const char* group, const char* name, uint32_t u) noexcept
+		Stat(const char* group, const char* name, uint32_t u)
 		{
 			InitCommon(group, name);
 			m_type = ST_TYPE::ST_UINT;
 			m_uint = u;
 		}		
-		Stat(const char* group, const char* name, float f) noexcept
+		Stat(const char* group, const char* name, float f)
 		{
 			InitCommon(group, name);
 			m_type = ST_TYPE::ST_FLOAT;
 			m_float = f;
 		}		
-		Stat(const char* group, const char* name, uint64_t u) noexcept
+		Stat(const char* group, const char* name, uint64_t u)
 		{
 			InitCommon(group, name);
 			m_type = ST_TYPE::ST_UINT64;
 			m_uint64 = u;
 		}
-		Stat(const char* group, const char* name, uint32_t u, uint32_t total) noexcept
+		Stat(const char* group, const char* name, uint32_t u, uint32_t total)
 		{
 			InitCommon(group, name);
 			m_type = ST_TYPE::ST_RATIO;
@@ -52,31 +52,31 @@ namespace ZetaRay::Support
 		const char* GetName() { return m_name; }
 		ST_TYPE GetType() { return m_type; }
 
-		int GetInt() noexcept
+		int GetInt()
 		{
 			Assert(m_type == ST_TYPE::ST_INT, "invalid type");
 			return m_int;
 		}
 
-		uint32_t GetUInt() noexcept
+		uint32_t GetUInt()
 		{
 			Assert(m_type == ST_TYPE::ST_UINT, "invalid type");
 			return m_uint;
 		}
 
-		float GetFloat() noexcept
+		float GetFloat()
 		{
 			Assert(m_type == ST_TYPE::ST_FLOAT, "invalid type");
 			return m_float;
 		}
 
-		uint64_t GetUInt64() noexcept
+		uint64_t GetUInt64()
 		{
 			Assert(m_type == ST_TYPE::ST_UINT64, "invalid type");
 			return m_uint64;
 		}
 
-		void GetRatio(uint32_t& num, uint32_t& total) noexcept
+		void GetRatio(uint32_t& num, uint32_t& total)
 		{
 			Assert(m_type == ST_TYPE::ST_RATIO, "invalid type");
 			num = m_uint64 >> 32;
@@ -84,7 +84,7 @@ namespace ZetaRay::Support
 		}
 
 	private:
-		void InitCommon(const char* group, const char* name) noexcept
+		void InitCommon(const char* group, const char* name)
 		{
 			Assert(group, "group can't be NULL");
 			Assert(name, "name can't be NULL");

@@ -9,7 +9,7 @@ void RpObjects::Init(const char* name,
 	RootSignature& rootSigInstance,
 	size_t numStaticSamplers,
 	const D3D12_STATIC_SAMPLER_DESC* samplers,
-	D3D12_ROOT_SIGNATURE_FLAGS flags) noexcept
+	D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
 	const int prev = m_refCount++;
 
@@ -23,7 +23,7 @@ void RpObjects::Init(const char* name,
 	}
 }
 
-void RpObjects::Clear() noexcept
+void RpObjects::Clear()
 {
 	const int prev = m_refCount--;
 

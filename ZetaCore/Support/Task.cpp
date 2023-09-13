@@ -9,7 +9,7 @@ using namespace ZetaRay::Util;
 // Task
 //--------------------------------------------------------------------------------------
 
-Task::Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept
+Task::Task(const char* name, TASK_PRIORITY p, Function&& f)
 	: m_priority(p)
 {
 #if USE_TASK_NAMES == 1
@@ -23,7 +23,7 @@ Task::Task(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 		m_signalHandle = App::RegisterTask();
 }
 
-Task::Task(Task&& other) noexcept
+Task::Task(Task&& other)
 {
 	if (this == &other)
 		return;
@@ -47,7 +47,7 @@ Task::Task(Task&& other) noexcept
 	//m_blockFlag.store(false, std::memory_order_relaxed);
 }
 
-Task& Task::operator=(Task&& other) noexcept
+Task& Task::operator=(Task&& other)
 {
 	//m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
 	m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
@@ -70,7 +70,7 @@ Task& Task::operator=(Task&& other) noexcept
 	return *this;
 }
 
-void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f) noexcept
+void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f)
 {
 	m_priority = p;
 	Check(m_signalHandle == -1, "Reinitialization is not allowed.");
@@ -94,7 +94,7 @@ void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f) noexcept
 // TaskSet
 //--------------------------------------------------------------------------------------
 
-void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept
+void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b)
 {
 	Assert(a < m_currSize && b < m_currSize, "Invalid task handles");
 
@@ -110,7 +110,7 @@ void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b) noexcept
 	m_tasks[a].m_adjacentTailNodes.push_back(m_tasks[b].m_signalHandle);
 }
 
-void TaskSet::AddOutgoingEdgeToAll(TaskHandle a) noexcept
+void TaskSet::AddOutgoingEdgeToAll(TaskHandle a)
 {
 	Assert(a < m_currSize, "Invalid task handle");
 	TaskMetadata& ta = m_taskMetadata[a];
@@ -129,7 +129,7 @@ void TaskSet::AddOutgoingEdgeToAll(TaskHandle a) noexcept
 	}
 }
 
-void TaskSet::AddIncomingEdgeFromAll(TaskHandle a) noexcept
+void TaskSet::AddIncomingEdgeFromAll(TaskHandle a)
 {
 	Assert(a < m_currSize, "Invalid task handle");
 	TaskMetadata& ta = m_taskMetadata[a];
@@ -148,7 +148,7 @@ void TaskSet::AddIncomingEdgeFromAll(TaskHandle a) noexcept
 	}
 }
 
-void TaskSet::Sort() noexcept
+void TaskSet::Sort()
 {
 	Assert(!m_isSorted, "Invalid call.");
 
@@ -158,7 +158,7 @@ void TaskSet::Sort() noexcept
 	m_isSorted = true;
 }
 
-void TaskSet::Finalize(WaitObject* waitObj) noexcept
+void TaskSet::Finalize(WaitObject* waitObj)
 {
 	Assert(!m_isFinalized && m_isSorted, "Invalid call.");
 
@@ -203,7 +203,7 @@ void TaskSet::Finalize(WaitObject* waitObj) noexcept
 	}
 }
 
-void TaskSet::ComputeInOutMask() noexcept
+void TaskSet::ComputeInOutMask()
 {
 	for (int i = 0; i < m_currSize; ++i)
 	{
@@ -215,7 +215,7 @@ void TaskSet::ComputeInOutMask() noexcept
 	}
 }
 
-void TaskSet::TopologicalSort() noexcept
+void TaskSet::TopologicalSort()
 {
 	// find the root nodes
 	uint16_t rootMask = 0;
@@ -286,7 +286,7 @@ void TaskSet::TopologicalSort() noexcept
 	}
 }
 
-void TaskSet::ConnectTo(TaskSet& other) noexcept
+void TaskSet::ConnectTo(TaskSet& other)
 {
 	Assert(!m_isFinalized, "Calling this method on a finalized TaskSet is invalid.");
 	Assert(!other.m_isFinalized, "Calling this method on a finalized TaskSet is invalid.");
@@ -319,7 +319,7 @@ void TaskSet::ConnectTo(TaskSet& other) noexcept
 	}
 }
 
-void TaskSet::ConnectTo(Task& other) noexcept
+void TaskSet::ConnectTo(Task& other)
 {
 	Assert(!m_isFinalized, "Calling this method on a finalized TaskSet is invalid.");
 
@@ -337,7 +337,7 @@ void TaskSet::ConnectTo(Task& other) noexcept
 	other.m_indegree += __popcnt16((uint16_t)mask);
 }
 
-void TaskSet::ConnectFrom(Task& other) noexcept
+void TaskSet::ConnectFrom(Task& other)
 {
 	Assert(!m_isFinalized, "Calling this method on a finalized TaskSet is invalid.");
 

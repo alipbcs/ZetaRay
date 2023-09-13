@@ -1,5 +1,4 @@
 #include "../App/Log.h"
-#include "../Support/MemoryPool.h"
 #include "../Support/FrameMemory.h"
 #include "../Utility/SynchronizedView.h"
 #include "../App/Timer.h"
@@ -9,8 +8,6 @@
 #include "../Utility/HashTable.h"
 #include "../Utility/Span.h"
 #include "../Core/RendererCore.h"
-#include "../Core/CommandQueue.h"			// just for std::unique_ptr<>
-#include "../Core/SharedShaderResources.h"	// just for std::unique_ptr<>
 #include "../Scene/SceneCore.h"
 #include "../Scene/Camera.h"
 #include "../Support/ThreadPool.h"
@@ -144,11 +141,11 @@ namespace
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
 
-		int m_processorCoreCount = 0;
+		uint16_t m_processorCoreCount = 0;
 		HWND m_hwnd;
 		RECT m_wndRectCache;
-		int m_displayWidth;
-		int m_displayHeight;
+		uint16_t m_displayWidth;
+		uint16_t m_displayHeight;
 		bool m_isActive = true;
 		bool m_manuallyPaused = false;
 		int m_lastMousePosX = 0;
@@ -159,7 +156,7 @@ namespace
 		bool m_isFullScreen = false;
 		ImGuiMouseCursor m_imguiCursor = ImGuiMouseCursor_COUNT;
 		bool m_imguiMouseTracked = false;
-		uint32_t m_dpi;
+		uint16_t m_dpi;
 		float m_upscaleFactor = 1.0f;
 		float m_queuedUpscaleFactor = 1.0f;
 		float m_cameraAcceleration = 40.0f;
@@ -216,7 +213,7 @@ namespace
 
 namespace ZetaRay::AppImpl
 {
-	void LoadFont() noexcept
+	void LoadFont()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		io.Fonts->Clear();
@@ -256,21 +253,21 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnActivated() noexcept
+	void OnActivated()
 	{
 		g_app->m_timer.Resume();
 		g_app->m_isActive = true;
 		SetWindowTextA(g_app->m_hwnd, "ZetaRay");
 	}
 
-	void OnDeactivated() noexcept
+	void OnDeactivated()
 	{
 		g_app->m_timer.Pause();
 		g_app->m_isActive = false;
 		SetWindowTextA(g_app->m_hwnd, "ZetaRay (Paused - press 'P' to resume)");
 	}
 
-	void OnDPIChanged(int newDPI, const RECT* newRect) noexcept
+	void OnDPIChanged(uint16_t newDPI, const RECT* newRect)
 	{
 		g_app->m_dpi = newDPI;
 
@@ -287,7 +284,7 @@ namespace ZetaRay::AppImpl
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 	}
 
-	void ImGuiUpdateMouseCursor() noexcept
+	void ImGuiUpdateMouseCursor()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
@@ -320,7 +317,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void ImGuiUpdateMouse() noexcept
+	void ImGuiUpdateMouse()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 
@@ -360,7 +357,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void InitImGui() noexcept
+	void InitImGui()
 	{
 		ImGui::CreateContext();
 		ImPlot::CreateContext();
@@ -404,7 +401,7 @@ namespace ZetaRay::AppImpl
 		ImNodes::GetIO().AltMouseButton = ImGuiMouseButton_Right;
 	}
 
-	void UpdateStats() noexcept
+	void UpdateStats()
 	{
 		g_app->m_frameStats.free_memory();
 
@@ -436,7 +433,7 @@ namespace ZetaRay::AppImpl
 		g_app->m_frameStats.emplace_back("GPU", "VRam Budget (MB)", memoryInfo.Budget >> 20);
 	}
 
-	void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS) noexcept
+	void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS)
 	{
 		UpdateStats();
 
@@ -469,15 +466,15 @@ namespace ZetaRay::AppImpl
 		g_app->m_scene.Update(g_app->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
 	}
 
-	void OnWindowSizeChanged() noexcept
+	void OnWindowSizeChanged()
 	{
 		if (g_app->m_timer.GetTotalFrameCount() > 0)
 		{
 			RECT rect;
 			GetClientRect(g_app->m_hwnd, &rect);
 
-			const int newWidth = rect.right - rect.left;
-			const int newHeight = rect.bottom - rect.top;
+			const uint16_t newWidth = (uint16_t)(rect.right - rect.left);
+			const uint16_t newHeight = (uint16_t)(rect.bottom - rect.top);
 
 			if (newWidth == g_app->m_displayWidth && newHeight == g_app->m_displayHeight)
 				return;
@@ -489,7 +486,7 @@ namespace ZetaRay::AppImpl
 			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
 			// following order is important
-			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight,
+			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight,
 				g_app->m_displayWidth, g_app->m_displayHeight);
 			g_app->m_scene.OnWindowSizeChanged();
 
@@ -498,7 +495,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnToggleFullscreenWindow() noexcept
+	void OnToggleFullscreenWindow()
 	{
 		// switch from windowed to full-screen
 		if (!g_app->m_isFullScreen)
@@ -545,7 +542,7 @@ namespace ZetaRay::AppImpl
 		g_app->m_isFullScreen = !g_app->m_isFullScreen;
 	}
 
-	void OnKeyboard(UINT message, WPARAM vkKey, LPARAM lParam) noexcept
+	void OnKeyboard(UINT message, WPARAM vkKey, LPARAM lParam)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -637,7 +634,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnMouseDown(UINT message, WPARAM btnState, LPARAM lParam) noexcept
+	void OnMouseDown(UINT message, WPARAM btnState, LPARAM lParam)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -671,7 +668,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnMouseUp(UINT message, WPARAM btnState, LPARAM lParam) noexcept
+	void OnMouseUp(UINT message, WPARAM btnState, LPARAM lParam)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -700,7 +697,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnMouseMove(UINT message, WPARAM btnState, LPARAM lParam) noexcept
+	void OnMouseMove(UINT message, WPARAM btnState, LPARAM lParam)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -736,7 +733,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnMouseWheel(UINT message, WPARAM btnState, LPARAM lParam) noexcept
+	void OnMouseWheel(UINT message, WPARAM btnState, LPARAM lParam)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -757,7 +754,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnDestroy() noexcept
+	void OnDestroy()
 	{
 		ImGui::DestroyContext();
 		ImPlot::DestroyContext();
@@ -775,7 +772,7 @@ namespace ZetaRay::AppImpl
 		g_app = nullptr;
 	}
 
-	void ApplyParamUpdates() noexcept
+	void ApplyParamUpdates()
 	{
 		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
 		AcquireSRWLockExclusive(&g_app->m_paramLock);
@@ -812,7 +809,7 @@ namespace ZetaRay::AppImpl
 	}
 
 	// Ref: https://github.com/ysc3839/win32-darkmode
-	bool TryInitDarkMode(HMODULE* uxthemeLib) noexcept
+	bool TryInitDarkMode(HMODULE* uxthemeLib)
 	{
 		bool darkModeEnabled = false;
 
@@ -856,7 +853,7 @@ namespace ZetaRay::AppImpl
 		return darkModeEnabled;
 	}
 
-	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam) noexcept
+	LRESULT WndProc(HWND hWnd, UINT message, WPARAM wParam, LPARAM lParam)
 	{
 		switch (message)
 		{
@@ -962,7 +959,7 @@ namespace ZetaRay::AppImpl
 		return DefWindowProc(hWnd, message, wParam, lParam);
 	}
 
-	void CreateAppWindow(HINSTANCE instance) noexcept
+	void CreateAppWindow(HINSTANCE instance)
 	{
 		const char* wndClassName = "MyWindowClass";
 		WNDCLASSA wc{};
@@ -992,7 +989,7 @@ namespace ZetaRay::AppImpl
 		CheckWin32(SystemParametersInfoA(SPI_GETWORKAREA, 0, &workingArea, 0));
 
 		CheckWin32(SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2));
-		g_app->m_dpi = GetDpiForWindow(g_app->m_hwnd);
+		g_app->m_dpi = (uint16_t)GetDpiForWindow(g_app->m_hwnd);
 
 		const int monitorWidth = workingArea.right - workingArea.left;
 		const int monitorHeight = workingArea.bottom - workingArea.top;
@@ -1004,7 +1001,7 @@ namespace ZetaRay::AppImpl
 		ShowWindow(g_app->m_hwnd, SW_SHOWNORMAL);
 	}
 
-	void GetProcessorInfo() noexcept
+	void GetProcessorInfo()
 	{
 		SYSTEM_LOGICAL_PROCESSOR_INFORMATION* buffer = nullptr;
 		DWORD buffSize = 0;
@@ -1041,15 +1038,15 @@ namespace ZetaRay::AppImpl
 
 		free(buffer);
 
-		g_app->m_processorCoreCount = Math::Min(g_app->m_processorCoreCount, ZETA_MAX_NUM_THREADS);
+		g_app->m_processorCoreCount = Math::Min(g_app->m_processorCoreCount, (uint16_t)ZETA_MAX_NUM_THREADS);
 	}
 
-	void SetCameraAcceleration(const ParamVariant& p) noexcept
+	void SetCameraAcceleration(const ParamVariant& p)
 	{
 		g_app->m_cameraAcceleration = p.GetFloat().m_val;
 	}
 
-	void ResizeIfQueued() noexcept
+	void ResizeIfQueued()
 	{
 		if (g_app->m_issueResize)
 		{
@@ -1058,7 +1055,7 @@ namespace ZetaRay::AppImpl
 			const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
-			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
 			g_app->m_scene.OnWindowSizeChanged();
 
 			g_app->m_issueResize = false;
@@ -1091,7 +1088,7 @@ namespace ZetaRay::AppImpl
 	}
 
 	template<size_t blockSize>
-	ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, size_t size, size_t alignment) noexcept
+	ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, size_t size, size_t alignment)
 	{
 		alignment = Math::Max(alignof(std::max_align_t), alignment);
 
@@ -1139,7 +1136,7 @@ namespace ZetaRay::AppImpl
 
 namespace ZetaRay
 {
-	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
+	ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg)
 		: Dlg(dlg)
 	{
 		int n = std::min(MAX_LEN - 1, (int)strlen(name));
@@ -1150,7 +1147,7 @@ namespace ZetaRay
 		ID = XXH3_64bits(Name, n);
 	}
 
-	LogMessage::LogMessage(const char* msg, LogMessage::MsgType t) noexcept
+	LogMessage::LogMessage(const char* msg, LogMessage::MsgType t)
 	{
 		const int n = Math::Min((int)strlen(msg), LogMessage::MAX_LEN - 1);
 		Assert(n > 0, "invalid log message.");
@@ -1162,7 +1159,7 @@ namespace ZetaRay
 			g_app->m_timer.GetTotalFrameCount(), GetCurrentThreadId(), logType, msg);
 	}
 
-	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name) noexcept
+	void App::Init(Scene::Renderer::Interface& rendererInterface, const char* name)
 	{
 		// check intrinsics support
 		const auto supported = Common::CheckIntrinsicSupport();
@@ -1228,8 +1225,8 @@ namespace ZetaRay
 		RECT rect;
 		GetClientRect(g_app->m_hwnd, &rect);
 
-		g_app->m_displayWidth = rect.right - rect.left;
-		g_app->m_displayHeight = rect.bottom - rect.top;
+		g_app->m_displayWidth = (uint16_t)(rect.right - rect.left);
+		g_app->m_displayHeight = (uint16_t)(rect.bottom - rect.top);
 
 		// ImGui
 		AppImpl::InitImGui();
@@ -1237,7 +1234,7 @@ namespace ZetaRay
 		// initialize renderer
 		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
-		g_app->m_renderer.Init(g_app->m_hwnd, (int)renderWidth, (int)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+		g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
 
 		// initialize camera
 		g_app->m_frameMotion.Reset();
@@ -1262,7 +1259,7 @@ namespace ZetaRay
 		LOG_UI(INFO, "Work area on the primary display monitor is %dx%d.", g_app->m_displayWidth, g_app->m_displayHeight);
 	}
 
-	int App::Run() noexcept
+	int App::Run()
 	{
 		MSG msg = {};
 		bool success = false;
@@ -1398,23 +1395,23 @@ namespace ZetaRay
 		return (int)msg.wParam;
 	}
 
-	void App::Abort() noexcept
+	void App::Abort()
 	{
 		AppImpl::OnDestroy();
 		PostQuitMessage(0);
 	}
 
-	void* App::AllocateSmallFrameAllocator(size_t size, size_t alignment) noexcept
+	void* App::AllocateSmallFrameAllocator(size_t size, size_t alignment)
 	{
 		return AppImpl::AllocateFrameAllocator<>(g_app->m_smallFrameMemory, g_app->m_smallFrameMemoryContext, size, alignment);
 	}
 
-	void* App::AllocateLargeFrameAllocator(size_t size, size_t alignment) noexcept
+	void* App::AllocateLargeFrameAllocator(size_t size, size_t alignment)
 	{
 		return AppImpl::AllocateFrameAllocator<>(g_app->m_largeFrameMemory, g_app->m_largeFrameMemoryContext, size, alignment);
 	}
 
-	int App::RegisterTask() noexcept
+	int App::RegisterTask()
 	{
 		int idx = g_app->m_currTaskSignalIdx.fetch_add(1, std::memory_order_relaxed);
 		Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME, "number of task signals exceeded MAX_NUM_TASKS_PER_FRAME");
@@ -1422,7 +1419,7 @@ namespace ZetaRay
 		return idx;
 	}
 
-	void App::TaskFinalizedCallback(int handle, int indegree) noexcept
+	void App::TaskFinalizedCallback(int handle, int indegree)
 	{
 		Assert(indegree > 0, "unnecessary call.");
 		const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
@@ -1432,7 +1429,7 @@ namespace ZetaRay
 		g_app->m_registeredTasks[handle].BlockFlag.store(true, std::memory_order_release);
 	}
 
-	void App::WaitForAdjacentHeadNodes(int handle) noexcept
+	void App::WaitForAdjacentHeadNodes(int handle)
 	{
 		const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
 		Assert(handle >= 0 && handle < c, "received handle %d while #handles for current frame is %d", c);
@@ -1448,7 +1445,7 @@ namespace ZetaRay
 		}
 	}
 
-	void App::SignalAdjacentTailNodes(Span<int> taskIDs) noexcept
+	void App::SignalAdjacentTailNodes(Span<int> taskIDs)
 	{
 		for (auto handle : taskIDs)
 		{
@@ -1464,31 +1461,31 @@ namespace ZetaRay
 		}
 	}
 
-	void App::Submit(Task&& t) noexcept
+	void App::Submit(Task&& t)
 	{
 		Assert(t.GetPriority() == TASK_PRIORITY::NORMAL, "Background task is not allowed to be executed in main thread-pool");
 		g_app->m_workerThreadPool.Enqueue(ZetaMove(t));
 	}
 
-	void App::Submit(TaskSet&& ts) noexcept
+	void App::Submit(TaskSet&& ts)
 	{
 		g_app->m_workerThreadPool.Enqueue(ZetaMove(ts));
 	}
 
-	void App::SubmitBackground(Task&& t) noexcept
+	void App::SubmitBackground(Task&& t)
 	{
 		Assert(t.GetPriority() == TASK_PRIORITY::BACKGRUND, "Normal task is not allowed to be executed in background thread-pool");
 		g_app->m_backgroundThreadPool.Enqueue(ZetaMove(t));
 	}
 
-	void App::FlushWorkerThreadPool() noexcept
+	void App::FlushWorkerThreadPool()
 	{
 		bool success = false;
 		while (!success)
 			success = g_app->m_workerThreadPool.TryFlush();
 	}
 
-	void App::FlushAllThreadPools() noexcept
+	void App::FlushAllThreadPools()
 	{
 		bool success = false;
 		while (!success)
@@ -1499,23 +1496,23 @@ namespace ZetaRay
 			success = g_app->m_backgroundThreadPool.TryFlush();
 	}
 
-	RendererCore& App::GetRenderer() noexcept { return g_app->m_renderer; }
-	SceneCore& App::GetScene() noexcept { return g_app->m_scene; }
-	const Camera& App::GetCamera() noexcept { return g_app->m_camera; }
-	int App::GetNumWorkerThreads() noexcept { return g_app->m_processorCoreCount; }
-	int App::GetNumBackgroundThreads() noexcept { return AppData::NUM_BACKGROUND_THREADS; }
-	uint32_t App::GetDPI() noexcept { return g_app->m_dpi; }
-	float App::GetUpscalingFactor() noexcept { return g_app->m_upscaleFactor; }
-	bool App::IsFullScreen() noexcept { return g_app->m_isFullScreen; }
-	const App::Timer& App::GetTimer() noexcept { return g_app->m_timer; }
-	const char* App::GetPSOCacheDir() noexcept { return AppData::PSO_CACHE_DIR; }
-	const char* App::GetCompileShadersDir() noexcept { return AppData::COMPILED_SHADER_DIR; }
-	const char* App::GetAssetDir() noexcept { return AppData::ASSET_DIR; }
-	const char* App::GetDXCPath() noexcept { return AppData::DXC_PATH; }
-	const char* App::GetToolsDir() noexcept { return AppData::TOOLS_DIR; }
-	const char* App::GetRenderPassDir() noexcept { return AppData::RENDER_PASS_DIR; }
+	RendererCore& App::GetRenderer() { return g_app->m_renderer; }
+	SceneCore& App::GetScene() { return g_app->m_scene; }
+	const Camera& App::GetCamera() { return g_app->m_camera; }
+	int App::GetNumWorkerThreads() { return g_app->m_processorCoreCount; }
+	int App::GetNumBackgroundThreads() { return AppData::NUM_BACKGROUND_THREADS; }
+	uint32_t App::GetDPI() { return g_app->m_dpi; }
+	float App::GetUpscalingFactor() { return g_app->m_upscaleFactor; }
+	bool App::IsFullScreen() { return g_app->m_isFullScreen; }
+	const App::Timer& App::GetTimer() { return g_app->m_timer; }
+	const char* App::GetPSOCacheDir() { return AppData::PSO_CACHE_DIR; }
+	const char* App::GetCompileShadersDir() { return AppData::COMPILED_SHADER_DIR; }
+	const char* App::GetAssetDir() { return AppData::ASSET_DIR; }
+	const char* App::GetDXCPath() { return AppData::DXC_PATH; }
+	const char* App::GetToolsDir() { return AppData::TOOLS_DIR; }
+	const char* App::GetRenderPassDir() { return AppData::RENDER_PASS_DIR; }
 
-	void App::SetUpscaleFactor(float f) noexcept
+	void App::SetUpscaleFactor(float f)
 	{
 		Assert(f >= 1.0f, "invalid upscale factor.");
 		const float oldScaleFactor = g_app->m_upscaleFactor;
@@ -1527,49 +1524,49 @@ namespace ZetaRay
 		}
 	}
 
-	void App::LockStdOut() noexcept
+	void App::LockStdOut()
 	{
 		if (g_app)
 			AcquireSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 
-	void App::UnlockStdOut() noexcept
+	void App::UnlockStdOut()
 	{
 		if (g_app)
 			ReleaseSRWLockExclusive(&g_app->m_stdOutLock);
 	}
 
-	Span<uint32_t> App::GetWorkerThreadIDs() noexcept
+	Span<uint32_t> App::GetWorkerThreadIDs()
 	{
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount);
 	}
 
-	Span<uint32_t> App::GetBackgroundThreadIDs() noexcept
+	Span<uint32_t> App::GetBackgroundThreadIDs()
 	{
 		return Span(g_app->m_threadIDs + g_app->m_processorCoreCount, AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	Span<uint32_t> App::GetAllThreadIDs() noexcept
+	Span<uint32_t> App::GetAllThreadIDs()
 	{
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedVariable<Span<ParamVariant>> App::GetParams() noexcept
+	RWSynchronizedVariable<Span<ParamVariant>> App::GetParams()
 	{
 		return RWSynchronizedVariable<Span<ParamVariant>>(g_app->m_params, g_app->m_paramLock);
 	}
 
-	RSynchronizedVariable<Span<ShaderReloadHandler>> App::GetShaderReloadHandlers() noexcept
+	RSynchronizedVariable<Span<ShaderReloadHandler>> App::GetShaderReloadHandlers()
 	{
 		return RSynchronizedVariable<Span<ShaderReloadHandler>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
 	}
 
-	RWSynchronizedVariable<Span<Stat>> App::GetStats() noexcept
+	RWSynchronizedVariable<Span<Stat>> App::GetStats()
 	{
 		return RWSynchronizedVariable<Span<Stat>>(g_app->m_frameStats, g_app->m_statsLock);
 	}
 
-	void App::AddParam(ParamVariant& p) noexcept
+	void App::AddParam(ParamVariant& p)
 	{
 		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
 
@@ -1580,7 +1577,7 @@ namespace ZetaRay
 		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
-	void App::RemoveParam(const char* group, const char* subgroup, const char* name) noexcept
+	void App::RemoveParam(const char* group, const char* subgroup, const char* name)
 	{
 		AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
 
@@ -1595,14 +1592,14 @@ namespace ZetaRay
 		ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
 	}
 
-	void App::AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg) noexcept
+	void App::AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg)
 	{
 		AcquireSRWLockExclusive(&g_app->m_shaderReloadLock);
 		g_app->m_shaderReloadHandlers.emplace_back(name, dlg);
 		ReleaseSRWLockExclusive(&g_app->m_shaderReloadLock);
 	}
 
-	void App::RemoveShaderReloadHandler(const char* name) noexcept
+	void App::RemoveShaderReloadHandler(const char* name)
 	{
 		uint64_t id = XXH3_64bits(name, Math::Min(ShaderReloadHandler::MAX_LEN - 1, (int)strlen(name)));
 
@@ -1625,55 +1622,55 @@ namespace ZetaRay
 		ReleaseSRWLockExclusive(&g_app->m_shaderReloadLock);
 	}
 
-	void App::AddFrameStat(const char* group, const char* name, int i) noexcept
+	void App::AddFrameStat(const char* group, const char* name, int i)
 	{
 		AcquireSRWLockExclusive(&g_app->m_statsLock);
 		g_app->m_frameStats.emplace_back(group, name, i);
 		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
-	void App::AddFrameStat(const char* group, const char* name, uint32_t u) noexcept
+	void App::AddFrameStat(const char* group, const char* name, uint32_t u)
 	{
 		AcquireSRWLockExclusive(&g_app->m_statsLock);
 		g_app->m_frameStats.emplace_back(group, name, u);
 		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
-	void App::AddFrameStat(const char* group, const char* name, float f) noexcept
+	void App::AddFrameStat(const char* group, const char* name, float f)
 	{
 		AcquireSRWLockExclusive(&g_app->m_statsLock);
 		g_app->m_frameStats.emplace_back(group, name, f);
 		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
-	void App::AddFrameStat(const char* group, const char* name, uint64_t u) noexcept
+	void App::AddFrameStat(const char* group, const char* name, uint64_t u)
 	{
 		AcquireSRWLockExclusive(&g_app->m_statsLock);
 		g_app->m_frameStats.emplace_back(group, name, u);
 		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
-	void App::AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total) noexcept
+	void App::AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total)
 	{
 		AcquireSRWLockExclusive(&g_app->m_statsLock);
 		g_app->m_frameStats.emplace_back(group, name, num, total);
 		ReleaseSRWLockExclusive(&g_app->m_statsLock);
 	}
 
-	Span<float> App::GetFrameTimeHistory() noexcept
+	Span<float> App::GetFrameTimeHistory()
 	{
 		auto& frameStats = g_app->m_frameTime;
 		return frameStats.FrameTimeHist;
 	}
 
-	void App::Log(const char* msg, LogMessage::MsgType t) noexcept
+	void App::Log(const char* msg, LogMessage::MsgType t)
 	{
 		AcquireSRWLockExclusive(&g_app->m_logLock);
 		g_app->m_frameLogs.emplace_back(msg, t);
 		ReleaseSRWLockExclusive(&g_app->m_logLock);
 	}
 
-	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> App::GetFrameLogs() noexcept
+	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> App::GetFrameLogs()
 	{
 		return RSynchronizedVariable<Span<LogMessage>>(g_app->m_frameLogs, g_app->m_logLock);;
 	}
