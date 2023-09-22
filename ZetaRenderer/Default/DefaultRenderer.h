@@ -4,5 +4,5 @@
 
 namespace ZetaRay::DefaultRenderer
 {
-	Scene::Renderer::Interface InitAndGetInterface() noexcept;
+	Scene::Renderer::Interface InitAndGetInterface();
 }

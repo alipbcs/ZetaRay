@@ -2,7 +2,6 @@
 
 #include "Constants.h"
 #include "DescriptorHeap.h"
-#include "GpuMemory.h"
 #include "GpuTimer.h"
 #include "../Utility/Span.h"
 
@@ -30,13 +29,13 @@ namespace ZetaRay::Core
 		RendererCore(const RendererCore&) = delete;
 		RendererCore& operator=(const RendererCore&) = delete;
 
-		void Init(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept;
-		void Shutdown() noexcept;
-		void OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept;
-		void WaitForSwapChainWaitableObject() noexcept;
-		void BeginFrame() noexcept;
-		void SubmitResourceCopies() noexcept;
-		void EndFrame(Support::TaskSet& endFrameTS) noexcept;
+		void Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight);
+		void Shutdown();
+		void OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight);
+		void WaitForSwapChainWaitableObject();
+		void BeginFrame();
+		void SubmitResourceCopies();
+		void EndFrame(Support::TaskSet& endFrameTS);
 
 		ZetaInline ID3D12Device8* GetDevice() { return m_deviceObjs.m_device.Get(); };
 		ZetaInline const char* GetDeviceDescription() { return m_deviceObjs.m_deviceName; }
@@ -44,15 +43,14 @@ namespace ZetaRay::Core
 		DXGI_OUTPUT_DESC GetOutputMonitorDesc() const noexcept;
 		uint64_t GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const noexcept;
 
-		ZetaInline int GetRenderWidth() const { return m_renderWidth; }
-		ZetaInline int GetRenderHeight() const { return m_renderHeight; }
-		ZetaInline int GetDisplayWidth() const { return m_displayWidth; }
-		ZetaInline int GetDisplayHeight() const { return m_displayHeight; }
+		ZetaInline uint16_t GetRenderWidth() const { return m_renderWidth; }
+		ZetaInline uint16_t GetRenderHeight() const { return m_renderHeight; }
+		ZetaInline uint16_t GetDisplayWidth() const { return m_displayWidth; }
+		ZetaInline uint16_t GetDisplayHeight() const { return m_displayHeight; }
 		ZetaInline float GetAspectRatio() const { return (float)m_renderWidth / m_renderHeight; }
 		ZetaInline int GetCurrentBackBufferIndex() const { return m_currBackBuffIdx; }
-		ZetaInline Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
+		ZetaInline GpuMemory::Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
 
-		ZetaInline GpuMemory& GetGpuMemory() { return m_gpuMemory; }
 		ZetaInline SharedShaderResources& GetSharedShaderResources() { return *m_sharedShaderRes; }
 		ZetaInline DescriptorHeap& GetGpuDescriptorHeap() { return m_cbvSrvUavDescHeapGpu; };
 		ZetaInline DescriptorHeap& GetCbvSrvUavDescriptorHeapCpu() { return m_cbvSrvUavDescHeapCpu; };
@@ -94,7 +92,7 @@ namespace ZetaRay::Core
 		ZetaInline D3D12_RECT GetDisplayScissor() const { return m_displayScissor; }
 		ZetaInline D3D12_VIEWPORT GetRenderViewport() const { return m_renderViewport; }
 		ZetaInline D3D12_RECT GetRenderScissor() const { return m_renderScissor; }
-		ZetaInline const Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
+		ZetaInline const GpuMemory::Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
 		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
 		ZetaInline bool IsTearingSupported() const noexcept { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
@@ -110,7 +108,6 @@ namespace ZetaRay::Core
 
 		DeviceObjects m_deviceObjs;
 
-		GpuMemory m_gpuMemory;
 		std::unique_ptr<SharedShaderResources> m_sharedShaderRes;
 		DescriptorHeap m_cbvSrvUavDescHeapGpu;
 		DescriptorHeap m_cbvSrvUavDescHeapCpu;
@@ -124,15 +121,15 @@ namespace ZetaRay::Core
 		DescriptorTable m_depthBuffDescTable;
 
 		HWND m_hwnd;
-		Texture m_backBuffers[Constants::NUM_BACK_BUFFERS];
-		int m_currBackBuffIdx = 0;
-		int m_displayWidth;
-		int m_displayHeight;
-		int m_renderWidth;
-		int m_renderHeight;
+		GpuMemory::Texture m_backBuffers[Constants::NUM_BACK_BUFFERS];
+		uint16_t m_currBackBuffIdx = 0;
+		uint16_t m_displayWidth;
+		uint16_t m_displayHeight;
+		uint16_t m_renderWidth;
+		uint16_t m_renderHeight;
 		UINT m_presentFlags = 0;
-		int m_vsyncInterval = 1;
-		int m_globalDoubleBuffIdx = 0;
+		uint16_t m_vsyncInterval = 1;
+		uint16_t m_globalDoubleBuffIdx = 0;
 
 		D3D12_VIEWPORT m_displayViewport;
 		D3D12_RECT m_displayScissor;

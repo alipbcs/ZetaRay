@@ -104,7 +104,7 @@ void BVH::Build(Span<BVHInput> instances) noexcept
 	}
 
 	// TODO check this computation
-	const uint32_t MAX_NUM_NODES = (uint32_t)Math::CeilUnsignedIntDiv(4 * numInstances, MAX_NUM_INSTANCES_PER_LEAF) + 1;
+	const uint32_t MAX_NUM_NODES = Math::CeilUnsignedIntDiv(4 * numInstances, MAX_NUM_INSTANCES_PER_LEAF) + 1;
 	m_nodes.resize(MAX_NUM_NODES);
 
 	BuildSubtree(0, numInstances, -1);
@@ -180,7 +180,7 @@ int BVH::BuildSubtree(int base, int count, int parent) noexcept
 		{
 			const float* center = reinterpret_cast<float*>(&m_instances[i].AABB.Center);
 			float numBinWidthsFromLeftMostPlane = (center[splitAxis] - leftMostPlane) * rcpStepSize;
-			int bin = Math::Min((int)numBinWidthsFromLeftMostPlane, NUM_SAH_BINS - 1);
+			int bin = Math::Min((int)numBinWidthsFromLeftMostPlane, (int)NUM_SAH_BINS - 1);
 
 			v_AABB box(m_instances[i].AABB);
 			bins[bin].Extend(box);

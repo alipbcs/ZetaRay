@@ -3,8 +3,8 @@
 
 #include "../../ZetaCore/Core/HLSLCompat.h"
 
-#define THREAD_GROUP_SIZE_HIST_X 16
-#define THREAD_GROUP_SIZE_HIST_Y 16
+#define THREAD_GROUP_SIZE_HIST_X 16u
+#define THREAD_GROUP_SIZE_HIST_Y 16u
 
 #define HIST_BIN_COUNT 256
 

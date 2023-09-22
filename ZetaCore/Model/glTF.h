@@ -9,5 +9,5 @@ namespace ZetaRay::App::Filesystem
 
 namespace ZetaRay::Model::glTF
 {
-	void Load(const App::Filesystem::Path& p) noexcept;
+	void Load(const App::Filesystem::Path& p);
 }

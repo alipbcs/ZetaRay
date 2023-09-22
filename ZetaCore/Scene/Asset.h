@@ -33,7 +33,7 @@ namespace ZetaRay::Scene::Internal
 
 		// Returns offset of the given texture in the desc. table. The texture is then loaded from
 		// the disk. "id" is hash of the texture path
-		uint32_t Add(Core::Texture&& tex, uint64_t id) noexcept;
+		uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id) noexcept;
 		//void Remove(uint64_t id, uint64_t nextFenceVal) noexcept;
 
 		void Clear() noexcept;
@@ -41,7 +41,7 @@ namespace ZetaRay::Scene::Internal
 
 		struct ToBeFreedTexture
 		{
-			Core::Texture T;
+			Core::GpuMemory::Texture T;
 			uint64_t FenceVal;
 			uint32_t DescTableOffset;
 		};
@@ -58,7 +58,7 @@ namespace ZetaRay::Scene::Internal
 
 		struct CacheEntry
 		{
-			Core::Texture T;
+			Core::GpuMemory::Texture T;
 			uint32_t DescTableOffset = uint32_t(-1);
 			uint32_t RefCount = 0;
 		};
@@ -110,7 +110,7 @@ namespace ZetaRay::Scene::Internal
 		static_assert(NUM_MASKS * 64 == MAX_NUM_MATERIALS, "these must match.");
 		uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
 
-		Core::DefaultHeapBuffer m_buffer;
+		Core::GpuMemory::DefaultHeapBuffer m_buffer;
 			
 		// references to elements are not stable
 		Util::HashTable<Material> m_matTable;
@@ -137,8 +137,8 @@ namespace ZetaRay::Scene::Internal
 			return m_meshes.find(id);
 		}
 
-		const Core::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
-		const Core::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
+		const Core::GpuMemory::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
+		const Core::GpuMemory::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
 
 		void Clear() noexcept;
 
@@ -147,8 +147,8 @@ namespace ZetaRay::Scene::Internal
 		Util::SmallVector<Core::Vertex> m_vertices;
 		Util::SmallVector<uint32_t> m_indices;
 
-		Core::DefaultHeapBuffer m_vertexBuffer;
-		Core::DefaultHeapBuffer m_indexBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_vertexBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_indexBuffer;
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -179,7 +179,7 @@ namespace ZetaRay::Scene::Internal
 	private:
 		Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;
 		Util::SmallVector<RT::EmissiveTriangle> m_emissivesTrisCpu;
-		Core::DefaultHeapBuffer m_emissiveTrisGpu;
+		Core::GpuMemory::DefaultHeapBuffer m_emissiveTrisGpu;
 		bool m_rebuildFlag = true;
 	};
 }

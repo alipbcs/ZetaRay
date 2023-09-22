@@ -6,6 +6,7 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -16,7 +17,7 @@ using namespace ZetaRay::Support;
 // SunShadow
 //--------------------------------------------------------------------------------------
 
-SunShadow::SunShadow() noexcept
+SunShadow::SunShadow()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -68,12 +69,12 @@ SunShadow::SunShadow() noexcept
 	m_oldNumSpatialPasses = m_numSpatialPasses;
 }
 
-SunShadow::~SunShadow() noexcept
+SunShadow::~SunShadow() 
 {
 	Reset();
 }
 
-void SunShadow::Init() noexcept
+void SunShadow::Init()
 {
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -130,7 +131,7 @@ void SunShadow::Init() noexcept
 	App::AddShaderReloadHandler("SunShadow_Trace", fastdelegate::MakeDelegate(this, &SunShadow::ReloadSunShadowTrace));
 }
 
-void SunShadow::Reset() noexcept
+void SunShadow::Reset() 
 {
 	if (IsInitialized())
 	{
@@ -141,12 +142,12 @@ void SunShadow::Reset() noexcept
 	}
 }
 
-void SunShadow::OnWindowResized() noexcept
+void SunShadow::OnWindowResized()
 {
 	CreateResources();
 }
 
-void SunShadow::Render(CommandList& cmdList) noexcept
+void SunShadow::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -154,8 +155,8 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
-	const int w = renderer.GetRenderWidth();
-	const int h = renderer.GetRenderHeight();
+	const uint32_t w = renderer.GetRenderWidth();
+	const uint32_t h = renderer.GetRenderWidth();
 
 	const int originalTemporalCacheIdx = m_currTemporalCacheOutIdx;
 
@@ -185,10 +186,10 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 
 		D3D12_RESOURCE_BARRIER postBarriers[] =
 		{
-			Direct3DHelper::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].GetResource(),
+			Direct3DUtil::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].Resource(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			Direct3DHelper::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].GetResource(),
+			Direct3DUtil::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
 		};
@@ -213,8 +214,8 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 
 		m_rootSig.End(computeCmdList);
 
-		const int numGroupsX = (uint32_t)CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
-		const int numGroupsY = (uint32_t)CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
+		const uint32_t numGroupsX = CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
+		const uint32_t numGroupsY = CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
 
 		computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
@@ -235,10 +236,10 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 
 		D3D12_RESOURCE_BARRIER barriers[] =
 		{
-			Direct3DHelper::TransitionBarrier(m_shadowMask.GetResource(),
+			Direct3DUtil::TransitionBarrier(m_shadowMask.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-			Direct3DHelper::TransitionBarrier(m_metadata.GetResource(),
+			Direct3DUtil::TransitionBarrier(m_metadata.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		};
@@ -256,8 +257,8 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 		m_rootSig.SetRootConstants(0, sizeof(cbFFX_DNSR_Temporal) / sizeof(DWORD), &m_temporalCB);
 		m_rootSig.End(computeCmdList);
 
-		const int numGroupsX = (uint32_t)CeilUnsignedIntDiv(w, DNSR_TEMPORAL_THREAD_GROUP_SIZE_X);
-		const int numGroupsY = (uint32_t)CeilUnsignedIntDiv(h, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y);
+		const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_TEMPORAL_THREAD_GROUP_SIZE_X);
+		const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y);
 
 		computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
@@ -280,24 +281,24 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 
 		D3D12_RESOURCE_BARRIER preBarriers[] =
 		{
-			Direct3DHelper::TransitionBarrier(m_metadata.GetResource(),
+			Direct3DUtil::TransitionBarrier(m_metadata.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-			Direct3DHelper::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].GetResource(),
+			Direct3DUtil::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].Resource(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			Direct3DHelper::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].GetResource(),
+			Direct3DUtil::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE),
-			Direct3DHelper::TransitionBarrier(m_shadowMask.GetResource(),
+			Direct3DUtil::TransitionBarrier(m_shadowMask.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
 		};
 
 		computeCmdList.ResourceBarrier(preBarriers, ZetaArrayLen(preBarriers));
 
-		const int numGroupsX = (uint32_t)CeilUnsignedIntDiv(w, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
-		const int numGroupsY = (uint32_t)CeilUnsignedIntDiv(h, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
+		const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
+		const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
 
 		for (int i = 0; i < m_numSpatialPasses; i++)
 		{
@@ -333,77 +334,75 @@ void SunShadow::Render(CommandList& cmdList) noexcept
 	m_temporalCB.IsTemporalValid = true;
 }
 
-void SunShadow::CreateResources() noexcept
+void SunShadow::CreateResources()
 {
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
-
-	const int w = App::GetRenderer().GetRenderWidth();
-	const int h = App::GetRenderer().GetRenderHeight();
+	const uint32_t w = App::GetRenderer().GetRenderWidth();
+	const uint32_t h = App::GetRenderer().GetRenderHeight();
 
 	// shadow mask
 	{
-		const int texWidth = (uint32_t)CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
-		const int texHeight = (uint32_t)CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
+		const uint32_t texWidth = CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
+		const uint32_t texHeight = CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
 
-		m_shadowMask = gpuMem.GetTexture2D("SunShadowMask",
+		m_shadowMask = GpuMemory::GetTexture2D("SunShadowMask",
 			texWidth, texHeight,
 			ResourceFormats::SHADOW_MASK,
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DHelper::CreateTexture2DSRV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_SRV));
-		Direct3DHelper::CreateTexture2DUAV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_UAV));
+		Direct3DUtil::CreateTexture2DSRV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_UAV));
 	}
 
 	// metadata
 	{
-		const int texWidth = (uint32_t)CeilUnsignedIntDiv(w, DNSR_TEMPORAL_THREAD_GROUP_SIZE_X);
-		const int texHeight = (uint32_t)CeilUnsignedIntDiv(h, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y);
+		const int texWidth = CeilUnsignedIntDiv(w, DNSR_TEMPORAL_THREAD_GROUP_SIZE_X);
+		const int texHeight = CeilUnsignedIntDiv(h, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y);
 
-		m_metadata = gpuMem.GetTexture2D("SunShadowMetadata",
+		m_metadata = GpuMemory::GetTexture2D("SunShadowMetadata",
 			texWidth, texHeight,
 			ResourceFormats::THREAD_GROUP_METADATA,
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DHelper::CreateTexture2DSRV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_SRV));
-		Direct3DHelper::CreateTexture2DUAV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_UAV));
+		Direct3DUtil::CreateTexture2DSRV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_UAV));
 	}
 
 	// moments
 	{
-		m_moments = gpuMem.GetTexture2D("SunShadowMoments",
+		m_moments = GpuMemory::GetTexture2D("SunShadowMoments",
 			w, h,
 			ResourceFormats::MOMENTS,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DHelper::CreateTexture2DUAV(m_moments, m_descTable.CPUHandle((uint32_t)DESC_TABLE::MOMENTS_UAV));
+		Direct3DUtil::CreateTexture2DUAV(m_moments, m_descTable.CPUHandle((uint32_t)DESC_TABLE::MOMENTS_UAV));
 	}
 
 	// temporal cache
 	{
-		m_temporalCache[0] = gpuMem.GetTexture2D("SunShadowTemporalCache_A",
+		m_temporalCache[0] = GpuMemory::GetTexture2D("SunShadowTemporalCache_A",
 			w, h,
 			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		m_temporalCache[1] = gpuMem.GetTexture2D("ShadowTemporalCache_B",
+		m_temporalCache[1] = GpuMemory::GetTexture2D("ShadowTemporalCache_B",
 			w, h,
 			ResourceFormats::TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DHelper::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV));
-		Direct3DHelper::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV));
+		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV));
 
-		Direct3DHelper::CreateTexture2DSRV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV));
-		Direct3DHelper::CreateTexture2DUAV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV));
+		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV));
 	}
 }
 
-void SunShadow::DoSoftShadowsCallback(const Support::ParamVariant& p) noexcept
+void SunShadow::DoSoftShadowsCallback(const Support::ParamVariant& p)
 {
 	m_doSoftShadows = p.GetBool();
 
@@ -416,22 +415,22 @@ void SunShadow::DoSoftShadowsCallback(const Support::ParamVariant& p) noexcept
 		m_numSpatialPasses = m_oldNumSpatialPasses;
 }
 
-void SunShadow::NumSpatialFilterPassesCallback(const Support::ParamVariant& p) noexcept
+void SunShadow::NumSpatialFilterPassesCallback(const Support::ParamVariant& p)
 {
 	m_numSpatialPasses = p.GetInt().m_val;
 }
 
-void SunShadow::MinFilterVarianceCallback(const Support::ParamVariant& p) noexcept
+void SunShadow::MinFilterVarianceCallback(const Support::ParamVariant& p)
 {
 	m_spatialCB.MinFilterVar = p.GetFloat().m_val;
 }
 
-void SunShadow::EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p) noexcept
+void SunShadow::EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p)
 {
 	m_spatialCB.EdgeStoppingShadowStdScale = p.GetFloat().m_val;
 }
 
-void SunShadow::ReloadDNSRTemporal() noexcept
+void SunShadow::ReloadDNSRTemporal()
 {
 	const int i = (int)SHADERS::DNSR_TEMPORAL_PASS;
 
@@ -439,7 +438,7 @@ void SunShadow::ReloadDNSRTemporal() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void SunShadow::ReloadDNSRSpatial() noexcept
+void SunShadow::ReloadDNSRSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL_FILTER;
 
@@ -447,7 +446,7 @@ void SunShadow::ReloadDNSRSpatial() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void SunShadow::ReloadSunShadowTrace() noexcept
+void SunShadow::ReloadSunShadowTrace()
 {
 	const int i = (int)SHADERS::SHADOW_MASK;
 

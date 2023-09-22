@@ -3,6 +3,7 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 
 //--------------------------------------------------------------------------------------
 // SharedShaderResources

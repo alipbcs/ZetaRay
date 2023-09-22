@@ -11,6 +11,7 @@
 #include <algorithm>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -22,7 +23,7 @@ using namespace ZetaRay::Support;
 // GBufferPass
 //--------------------------------------------------------------------------------------
 
-GBufferPass::GBufferPass() noexcept
+GBufferPass::GBufferPass()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -106,12 +107,12 @@ GBufferPass::GBufferPass() noexcept
 		true);
 }
 
-GBufferPass::~GBufferPass() noexcept
+GBufferPass::~GBufferPass()
 {
 	Reset();
 }
 
-void GBufferPass::Init(Span<DXGI_FORMAT> rtvs) noexcept
+void GBufferPass::Init(Span<DXGI_FORMAT> rtvs)
 {
 	const D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -150,20 +151,20 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs) noexcept
 	CreateDepthPyramid();
 
 	// create a zero-initialized buffer for resetting the counter
-	m_zeroBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("Zero",
-		sizeof(uint32_t),
+	m_zeroBuffer = GpuMemory::GetDefaultHeapBuffer("Zero",
+		sizeof(uint32_t) * 4,
 		D3D12_RESOURCE_STATE_COMMON,
 		false,
 		true);
 
-	m_spdCounter = renderer.GetGpuMemory().GetDefaultHeapBuffer("SpdCounter",
+	m_spdCounter = GpuMemory::GetDefaultHeapBuffer("SpdCounter",
 		sizeof(uint32_t),
 		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 		true,
 		true);	// init the counter to zero for first frame
 
 	// for retrieving stats from the GPU
-	m_readbackBuff = renderer.GetGpuMemory().GetReadbackHeapBuffer(
+	m_readbackBuff = GpuMemory::GetReadbackHeapBuffer(
 		sizeof(uint32_t) * 4 * Constants::NUM_BACK_BUFFERS);		// four counters each frame
 	CheckHR(renderer.GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
@@ -180,7 +181,7 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs) noexcept
 	App::AddShaderReloadHandler("OcclusionCulling", fastdelegate::MakeDelegate(this, &GBufferPass::ReloadShader));
 }
 
-void GBufferPass::Reset() noexcept
+void GBufferPass::Reset()
 {
 	if (m_graphicsPso[0])
 	{
@@ -197,12 +198,12 @@ void GBufferPass::Reset() noexcept
 	m_visibilityBuffer.Reset();
 }
 
-void GBufferPass::OnWindowResized() noexcept
+void GBufferPass::OnWindowResized()
 {
 	CreateDepthPyramid();
 }
 
-void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepthBuffer) noexcept
+void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepthBuffer)
 {
 	m_currDepthBuffer = currDepthBuffer;
 	m_numMeshesThisFrame = (uint32_t)instances.size();
@@ -242,22 +243,20 @@ void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepth
 		});
 
 	auto& renderer = App::GetRenderer();
-	auto& gpuMem = renderer.GetGpuMemory();
 
-	const size_t meshInsBuffSizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
+	const uint32_t meshInsBuffSizeInBytes = sizeof(MeshInstance) * m_numMeshesThisFrame;
 
 	// reuse the current buffer if possible
-	if (!m_meshInstances.IsInitialized() || m_meshInstances.GetDesc().Width < meshInsBuffSizeInBytes)
+	if (!m_meshInstances.IsInitialized() || m_meshInstances.Desc().Width < meshInsBuffSizeInBytes)
 	{
-		m_meshInstances = gpuMem.GetDefaultHeapBufferAndInit("GBufferMeshInstances",
+		m_meshInstances = GpuMemory::GetDefaultHeapBufferAndInit("GBufferMeshInstances",
 			meshInsBuffSizeInBytes,
-			D3D12_RESOURCE_STATE_COMMON,
 			false,
 			instances.data());
 	}
 	else
 		// this is recorded now but submitted after the last frame's submissions
-		gpuMem.UploadToDefaultHeapBuffer(m_meshInstances, meshInsBuffSizeInBytes, instances.data());
+		GpuMemory::UploadToDefaultHeapBuffer(m_meshInstances, meshInsBuffSizeInBytes, instances.data());
 
 	// reuse the existing indirect args buffer if possible
 	if (m_maxNumDrawCallsSoFar < m_numMeshesThisFrame)
@@ -270,9 +269,9 @@ void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepth
 		m_counterSingleSidedBufferOffsetSecond = m_counterDoubleSidedBufferOffsetFirst + sizeof(uint32_t);
 		m_counterDoubleSidedBufferOffsetSecond = m_counterSingleSidedBufferOffsetSecond + sizeof(uint32_t);
 
-		const size_t indDrawArgsBuffSizeInBytes = m_counterDoubleSidedBufferOffsetSecond + sizeof(uint32_t);
+		const uint32_t indDrawArgsBuffSizeInBytes = m_counterDoubleSidedBufferOffsetSecond + sizeof(uint32_t);
 
-		m_indirectDrawArgs = gpuMem.GetDefaultHeapBuffer("IndirectDrawArgs",
+		m_indirectDrawArgs = GpuMemory::GetDefaultHeapBuffer("IndirectDrawArgs",
 			indDrawArgsBuffSizeInBytes,
 			D3D12_RESOURCE_STATE_COMMON,
 			true);
@@ -283,9 +282,9 @@ void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepth
 	{
 		const uint32_t numTotalInstances = App::GetScene().GetTotalNumInstances();
 		Assert(numTotalInstances, "this must be greater than zero.");
-		const size_t sizeInBytes = Math::CeilUnsignedIntDiv(numTotalInstances, 32) * sizeof(uint32_t);
+		const uint32_t sizeInBytes = Math::CeilUnsignedIntDiv(numTotalInstances, 32u) * sizeof(uint32_t);
 
-		m_visibilityBuffer = gpuMem.GetDefaultHeapBuffer("VisibilityBuffer",
+		m_visibilityBuffer = GpuMemory::GetDefaultHeapBuffer("VisibilityBuffer",
 			sizeInBytes,
 			D3D12_RESOURCE_STATE_COMMON,
 			true,
@@ -293,7 +292,7 @@ void GBufferPass::Update(Span<MeshInstance> instances, ID3D12Resource* currDepth
 	}
 }
 
-void GBufferPass::Render(CommandList& cmdList) noexcept
+void GBufferPass::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 
@@ -316,29 +315,29 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::BUILD_IND_DRAW_ARGS_NO_CULL]);
 
 		cbOcclussionCulling localCB;
-		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
-		m_rootSig.SetRootSRV(6, m_visibilityBuffer.GetGpuVA());
-		m_rootSig.SetRootUAV(7, m_indirectDrawArgs.GetGpuVA());
+		m_rootSig.SetRootSRV(2, m_meshInstances.GpuVA());
+		m_rootSig.SetRootSRV(6, m_visibilityBuffer.GpuVA());
+		m_rootSig.SetRootUAV(7, m_indirectDrawArgs.GpuVA());
 
 		D3D12_RESOURCE_BARRIER barriers[2];
-		barriers[0] = Direct3DHelper::TransitionBarrier(m_indirectDrawArgs.GetResource(),
+		barriers[0] = Direct3DUtil::TransitionBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_COMMON,
 			D3D12_RESOURCE_STATE_COPY_DEST);
 
-		barriers[1] = Direct3DHelper::TransitionBarrier(m_visibilityBuffer.GetResource(),
+		barriers[1] = Direct3DUtil::TransitionBarrier(m_visibilityBuffer.Resource(),
 			D3D12_RESOURCE_STATE_COMMON,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
 		// clear the counters
-		computeCmdList.CopyBufferRegion(m_indirectDrawArgs.GetResource(),
+		computeCmdList.CopyBufferRegion(m_indirectDrawArgs.Resource(),
 			m_counterSingleSidedBufferOffsetFirst,
-			m_zeroBuffer.GetResource(),
+			m_zeroBuffer.Resource(),
 			0,
 			sizeof(uint32_t) * 4);
 
-		computeCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
+		computeCmdList.ResourceBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_COPY_DEST,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -353,7 +352,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
 			m_rootSig.End(computeCmdList);
 
-			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numSingleSidedMeshes, BUILD_NO_CULL_THREAD_GROUP_SIZE_X),
+			computeCmdList.Dispatch(CeilUnsignedIntDiv(m_numSingleSidedMeshes, BUILD_NO_CULL_THREAD_GROUP_SIZE_X),
 				1, 1);
 		}
 
@@ -369,7 +368,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
 			m_rootSig.End(computeCmdList);
 
-			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(numDoubleSided, BUILD_NO_CULL_THREAD_GROUP_SIZE_X),
+			computeCmdList.Dispatch(CeilUnsignedIntDiv(numDoubleSided, BUILD_NO_CULL_THREAD_GROUP_SIZE_X),
 				1, 1);
 		}
 
@@ -390,7 +389,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 		directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-		m_rootSig.SetRootSRV(2, m_meshInstances.GetGpuVA());
+		m_rootSig.SetRootSRV(2, m_meshInstances.GpuVA());
 		m_rootSig.End(directCmdList);
 
 		D3D12_VIEWPORT viewports[(int)SHADER_OUT::COUNT - 1] =
@@ -416,13 +415,13 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		static_assert(ZetaArrayLen(viewports) == (int)SHADER_OUT::COUNT - 1, "bug");
 		static_assert(ZetaArrayLen(scissors) == (int)SHADER_OUT::COUNT - 1, "bug");
 
-		const Core::DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
+		const DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
 		Assert(sceneIB.IsInitialized(), "IB hasn't been built yet.");
-		const auto ibGpuVa = sceneIB.GetGpuVA();
+		const auto ibGpuVa = sceneIB.GpuVA();
 
 		D3D12_INDEX_BUFFER_VIEW ibv;
 		ibv.BufferLocation = ibGpuVa;
-		ibv.SizeInBytes = (UINT)sceneIB.GetDesc().Width;
+		ibv.SizeInBytes = (UINT)sceneIB.Desc().Width;
 		ibv.Format = DXGI_FORMAT_R32_UINT;
 
 		directCmdList.IASetPrimitiveTopology(D3D_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -435,7 +434,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		directCmdList.OMSetRenderTargets((int)SHADER_OUT::COUNT - 1, &m_inputDescriptors[SHADER_IN_DESC::GBUFFERS_RTV],
 			true, &m_inputDescriptors[(int)SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV]);
 
-		directCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
+		directCmdList.ResourceBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
@@ -446,9 +445,9 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
 				m_numSingleSidedMeshes,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				0,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				m_counterSingleSidedBufferOffsetFirst);
 		}
 
@@ -462,9 +461,9 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
 				numDoubleSided,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				argBuffStartOffset,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				m_counterDoubleSidedBufferOffsetFirst);
 		}
 
@@ -484,13 +483,13 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DepthPyramid");
 
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::DEPTH_PYRAMID]);
-		m_rootSig.SetRootUAV(9, m_spdCounter.GetGpuVA());
+		m_rootSig.SetRootUAV(9, m_spdCounter.GpuVA());
 
-		const int width = renderer.GetRenderWidth();
-		const int height = renderer.GetRenderHeight();
+		const uint32_t width = renderer.GetRenderWidth();
+		const uint32_t height = renderer.GetRenderHeight();
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(width, 64);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(height, 64);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(width, 64u);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(height, 64u);
 
 		cbDepthPyramid localCB;
 		uint32_t* mipUAVs = reinterpret_cast<uint32_t*>(localCB.Mips0_3);
@@ -507,11 +506,11 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		m_rootSig.End(computeCmdList);
 
 		D3D12_RESOURCE_BARRIER barriers[2];
-		barriers[0] = Direct3DHelper::TransitionBarrier(m_currDepthBuffer,
+		barriers[0] = Direct3DUtil::TransitionBarrier(m_currDepthBuffer,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-		barriers[1] = Direct3DHelper::TransitionBarrier(m_depthPyramid.GetResource(),
+		barriers[1] = Direct3DUtil::TransitionBarrier(m_depthPyramid.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -537,22 +536,22 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		computeCmdList.SetPipelineState(m_computePsos[(int)COMPUTE_SHADERS::BUILD_IND_DRAW_ARGS_OCC_CULL]);
 
 		D3D12_RESOURCE_BARRIER barriers[4];
-		barriers[0] = Direct3DHelper::TransitionBarrier(m_visibilityBuffer.GetResource(),
+		barriers[0] = Direct3DUtil::TransitionBarrier(m_visibilityBuffer.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[1] = Direct3DHelper::TransitionBarrier(m_indirectDrawArgs.GetResource(),
+		barriers[1] = Direct3DUtil::TransitionBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[2] = Direct3DHelper::TransitionBarrier(m_currDepthBuffer,
+		barriers[2] = Direct3DUtil::TransitionBarrier(m_currDepthBuffer,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		barriers[3] = Direct3DHelper::TransitionBarrier(m_depthPyramid.GetResource(),
+		barriers[3] = Direct3DUtil::TransitionBarrier(m_depthPyramid.Resource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
-		m_rootSig.SetRootUAV(8, m_visibilityBuffer.GetGpuVA());
+		m_rootSig.SetRootUAV(8, m_visibilityBuffer.GpuVA());
 
 		cbOcclussionCulling localCB;
 		localCB.DepthPyramidSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::SRV_ALL);
@@ -580,7 +579,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
 			m_rootSig.End(computeCmdList);
 
-			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(m_numSingleSidedMeshes, BUILD_OCC_CULL_THREAD_GROUP_SIZE_X),
+			computeCmdList.Dispatch(CeilUnsignedIntDiv(m_numSingleSidedMeshes, BUILD_OCC_CULL_THREAD_GROUP_SIZE_X),
 				1, 1);
 		}
 
@@ -596,7 +595,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 			m_rootSig.SetRootConstants(0, sizeof(localCB) / sizeof(DWORD), &localCB);
 			m_rootSig.End(computeCmdList);
 
-			computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(numDoubleSided, BUILD_OCC_CULL_THREAD_GROUP_SIZE_X),
+			computeCmdList.Dispatch(CeilUnsignedIntDiv(numDoubleSided, BUILD_OCC_CULL_THREAD_GROUP_SIZE_X),
 				1, 1);
 		}
 
@@ -615,7 +614,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "GBuffer_2nd");
 
-		directCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
+		directCmdList.ResourceBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT);
 
@@ -626,9 +625,9 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
 				m_numSingleSidedMeshes,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				0,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				m_counterSingleSidedBufferOffsetSecond);
 		}
 
@@ -642,22 +641,22 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 
 			directCmdList.ExecuteIndirect(m_cmdSig.Get(),
 				numDoubleSided,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				argBuffStartOffset,
-				m_indirectDrawArgs.GetResource(),
+				m_indirectDrawArgs.Resource(),
 				m_counterDoubleSidedBufferOffsetSecond);
 		}
 
 		// record a copy that copies the counter to a cpu-readable buffer
 		// PIX warns that following is not needed, yet the debug layer gives and error
 		// that STATE_INDIRECT_ARGUMENT is invalid for copy!
-		directCmdList.ResourceBarrier(m_indirectDrawArgs.GetResource(),
+		directCmdList.ResourceBarrier(m_indirectDrawArgs.Resource(),
 			D3D12_RESOURCE_STATE_INDIRECT_ARGUMENT,
 			D3D12_RESOURCE_STATE_COPY_SOURCE);
 
-		directCmdList.CopyBufferRegion(m_readbackBuff.GetResource(),
+		directCmdList.CopyBufferRegion(m_readbackBuff.Resource(),
 			m_currFrameIdx * sizeof(uint32_t) * 4,
-			m_indirectDrawArgs.GetResource(),
+			m_indirectDrawArgs.Resource(),
 			m_counterSingleSidedBufferOffsetFirst,
 			sizeof(uint32_t) * 4);
 
@@ -691,7 +690,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 				// with any in-flight Copy commands 
 				m_readbackBuff.Map();
 
-				uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.GetMappedMemory());
+				uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.MappedMemory());
 				uint32_t singleSidedCounterFirst;
 				uint32_t doubleSidedCounterFirst;
 				uint32_t singleSidedCounterSecond;
@@ -721,7 +720,7 @@ void GBufferPass::Render(CommandList& cmdList) noexcept
 	}
 }
 
-void GBufferPass::CreatePSOs(Span<DXGI_FORMAT> rtvs) noexcept
+void GBufferPass::CreatePSOs(Span<DXGI_FORMAT> rtvs)
 {
 	for (int i = 0; i < (int)COMPUTE_SHADERS::COUNT; i++)
 	{
@@ -730,7 +729,7 @@ void GBufferPass::CreatePSOs(Span<DXGI_FORMAT> rtvs) noexcept
 			COMPILED_CS[i]);
 	}
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(nullptr,
 		(int)rtvs.size(),
 		rtvs.data(),
 		Constants::DEPTH_BUFFER_FORMAT);
@@ -754,7 +753,7 @@ void GBufferPass::CreatePSOs(Span<DXGI_FORMAT> rtvs) noexcept
 		COMPILED_PS[0]);
 }
 
-void GBufferPass::CreateDepthPyramid() noexcept
+void GBufferPass::CreateDepthPyramid()
 {
 	auto& renderer = App::GetRenderer();
 
@@ -767,20 +766,20 @@ void GBufferPass::CreateDepthPyramid() noexcept
 	m_numMips = (uint32_t)log2f((float)Math::Max(width, height));
 	Assert(m_numMips <= MAX_NUM_MIPS, "#mips can't exceed MAX_NUM_MIPS.");
 
-	m_depthPyramid = renderer.GetGpuMemory().GetTexture2D("DepthPyramid",
+	m_depthPyramid = GpuMemory::GetTexture2D("DepthPyramid",
 		m_depthPyramidMip0DimX, m_depthPyramidMip0DimY,
 		DXGI_FORMAT_R32_FLOAT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
 		(uint16_t)m_numMips);
 
-	Direct3DHelper::CreateTexture2DSRV(m_depthPyramid, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SRV_ALL));
+	Direct3DUtil::CreateTexture2DSRV(m_depthPyramid, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SRV_ALL));
 
 	for (int i = 0; i < m_numMips; i++)
-		Direct3DHelper::CreateTexture2DUAV(m_depthPyramid, m_descTable.CPUHandle(i), DXGI_FORMAT_R32_FLOAT, i);
+		Direct3DUtil::CreateTexture2DUAV(m_depthPyramid, m_descTable.CPUHandle(i), DXGI_FORMAT_R32_FLOAT, i);
 }
 
-void GBufferPass::ReloadShader() noexcept
+void GBufferPass::ReloadShader()
 {
 	const int i = (int)COMPUTE_SHADERS::BUILD_IND_DRAW_ARGS_OCC_CULL;
 
@@ -790,7 +789,7 @@ void GBufferPass::ReloadShader() noexcept
 		COMPILED_CS[i]);
 }
 
-void GBufferPass::DepthThreshCallback(const Support::ParamVariant& p) noexcept
+void GBufferPass::DepthThreshCallback(const Support::ParamVariant& p)
 {
 	m_occlusionTestDepthThresh = p.GetFloat().m_val;
 }

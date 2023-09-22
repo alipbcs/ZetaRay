@@ -81,7 +81,7 @@ namespace ZetaRay::Model::glTF::Asset
 
 	struct alignas(64) DDSImage
 	{
-		Core::Texture T;
+		Core::GpuMemory::Texture T;
 		uint64_t ID;
 	};
 }

@@ -52,8 +52,8 @@ namespace ZetaRay::RenderPass
 
 		ID3D12PipelineState* m_pso = nullptr;
 
-		Core::DefaultHeapBuffer m_domeVertexBuffer;
-		Core::DefaultHeapBuffer m_domeIndexBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_domeVertexBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_domeIndexBuffer;
 
 		D3D12_VERTEX_BUFFER_VIEW m_vbv;
 		D3D12_INDEX_BUFFER_VIEW m_ibv;

@@ -6,9 +6,10 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Util;
 
-void GpuTimer::Init() noexcept
+void GpuTimer::Init()
 {
 	auto& renderer = App::GetRenderer();
 
@@ -30,22 +31,22 @@ void GpuTimer::Init() noexcept
 	for (int i = 0; i < ZetaArrayLen(m_timings); i++)
 		m_timings[i].resize(MAX_NUM_QUERIES);
 
-	m_readbackBuff = renderer.GetGpuMemory().GetReadbackHeapBuffer(sizeof(uint64_t) * desc.Count);
+	m_readbackBuff = GpuMemory::GetReadbackHeapBuffer(sizeof(uint64_t) * desc.Count);
 
 #ifdef _DEBUG
-	m_readbackBuff.GetResource()->SetName(L"Timing_Buffer");
+	m_readbackBuff.Resource()->SetName(L"Timing_Buffer");
 #endif // _DEBUG
 
 	CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 }
 
-void GpuTimer::Shutdown() noexcept
+void GpuTimer::Shutdown()
 {
 	for (int i = 0; i < ZetaArrayLen(m_timings); i++)
 		m_timings[i].free_memory();
 }
 
-Span<GpuTimer::Timing> GpuTimer::GetFrameTimings() noexcept
+Span<GpuTimer::Timing> GpuTimer::GetFrameTimings()
 {
 	if (App::GetTimer().GetTotalFrameCount() < 2)
 		return Span(reinterpret_cast<Timing*>(NULL), 0);
@@ -53,7 +54,7 @@ Span<GpuTimer::Timing> GpuTimer::GetFrameTimings() noexcept
 	return Span(m_timings[Constants::NUM_BACK_BUFFERS].data(), m_queryCounts[Constants::NUM_BACK_BUFFERS]);
 }
 
-void GpuTimer::BeginFrame() noexcept
+void GpuTimer::BeginFrame()
 {
 	Assert(m_frameQueryCount.load(std::memory_order_relaxed) == 0,
 		"Attempting to begin a new frame while GpuTimer::Resolve() hasn't been called for the previous frame yet.");
@@ -87,7 +88,7 @@ void GpuTimer::BeginFrame() noexcept
 			const int lastCompletedFrameIdx = m_nextCompletedFrameIdx > 0 ? m_nextCompletedFrameIdx - 1 : Constants::NUM_BACK_BUFFERS - 1;
 
 			m_readbackBuff.Map();
-			uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.GetMappedMemory());
+			uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.MappedMemory());
 
 			for (int i = 0; i < m_queryCounts[lastCompletedFrameIdx]; i++)
 			{
@@ -119,7 +120,7 @@ void GpuTimer::BeginFrame() noexcept
 	//	m_timings[m_currFrameIdx][i].Reset();
 }
 
-uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name) noexcept
+uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name)
 {
 	const uint32_t queryIdx = m_frameQueryCount.fetch_add(1, std::memory_order_relaxed);
 	Assert(queryIdx < MAX_NUM_QUERIES, "number of queries exceeded maximum allowed.");
@@ -136,7 +137,7 @@ uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name) noexcep
 	return heapIdx;
 }
 
-void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx) noexcept
+void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx)
 {
 	Assert(((begHeapIdx & 0x1) == 0) && (begHeapIdx >= MAX_NUM_QUERIES * 2 * m_currFrameIdx), "invalid query index.");
 	const uint32_t endHeapIdx = begHeapIdx + 1;
@@ -145,7 +146,7 @@ void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx) noexcept
 	cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, endHeapIdx);
 }
 
-void GpuTimer::EndFrame(ComputeCmdList& cmdList) noexcept
+void GpuTimer::EndFrame(ComputeCmdList& cmdList)
 {
 	Assert(!m_readbackBuff.IsMapped(), "readback buffer shouldn't be mapped while in use by the GPU.");
 	const int queryCount = m_frameQueryCount.load(std::memory_order_acquire) - 1;
@@ -160,7 +161,7 @@ void GpuTimer::EndFrame(ComputeCmdList& cmdList) noexcept
 		D3D12_QUERY_TYPE_TIMESTAMP, 
 		heapStartIdx, 
 		queryCount * 2,
-		m_readbackBuff.GetResource(), 
+		m_readbackBuff.Resource(), 
 		bufferOffsetBeg);
 
 	cmdList.PIXEndEvent();

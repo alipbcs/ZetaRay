@@ -30,7 +30,7 @@
                 | (static_cast<uint32_t>(static_cast<uint8_t>(ch3)) << 24))
 #endif /* defined(MAKEFOURCC) */
 
-namespace ZetaRay::Core::Direct3DHelper
+namespace ZetaRay::Core::Direct3DUtil
 {
 #pragma pack(push,1)
     const uint32_t DDS_MAGIC = 0x20534444; // "DDS "

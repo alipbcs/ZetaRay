@@ -1,5 +1,4 @@
 #include "DefaultRendererImpl.h"
-#include <Core/Direct3DHelpers.h>
 #include <Core/CommandList.h>
 #include <App/App.h>
 
@@ -7,11 +6,12 @@ using namespace ZetaRay::Math;
 using namespace ZetaRay::Model;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::DefaultRenderer;
 
-void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
+void GBuffer::Init(const RenderSettings& settings, GBufferData& data)
 {
 	for (int i = 0; i < 2; i++)
 	{
@@ -35,10 +35,9 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data) noexcept
 	data.GBuffPass.Init(rtvFormats);
 }
 
-void GBuffer::CreateGBuffers(GBufferData& data) noexcept
+void GBuffer::CreateGBuffers(GBufferData& data)
 {
 	auto* device = App::GetRenderer().GetDevice();
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
 	const int width = App::GetRenderer().GetRenderWidth();
 	const int height = App::GetRenderer().GetRenderHeight();
 
@@ -48,21 +47,21 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR];
 
-		data.BaseColor = ZetaMove(gpuMem.GetTexture2D("GBuffer_BaseColor",
+		data.BaseColor = ZetaMove(GpuMemory::GetTexture2D("GBuffer_BaseColor",
 			width, height,
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_BASE_COLOR],
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 			1,
 			&clearValue));
 
 		// RTV
-		Direct3DHelper::CreateRTV(data.BaseColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
-		Direct3DHelper::CreateRTV(data.BaseColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DUtil::CreateRTV(data.BaseColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DUtil::CreateRTV(data.BaseColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 
 		// SRV
-		Direct3DHelper::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
-		Direct3DHelper::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DUtil::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
+		Direct3DUtil::CreateTexture2DSRV(data.BaseColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_BASE_COLOR));
 	}
 
 	// normal
@@ -75,18 +74,18 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		{
 			StackStr(name, n, "GBuffer_Normal_%d", i);
 
-			data.Normal[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
+			data.Normal[i] = ZetaMove(GpuMemory::GetTexture2D(name, width, height,
 				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_NORMAL],
 				D3D12_RESOURCE_STATE_COMMON,
-				TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+				CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 				1,
 				&clearValue));
 
 			// RTV
-			Direct3DHelper::CreateRTV(data.Normal[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
+			Direct3DUtil::CreateRTV(data.Normal[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
 
 			// SRV
-			Direct3DHelper::CreateTexture2DSRV(data.Normal[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
+			Direct3DUtil::CreateTexture2DSRV(data.Normal[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_NORMAL));
 		}
 	}
 
@@ -100,18 +99,18 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		{
 			StackStr(name, n, "GBuffer_Metallic_Roughness_%d", i);
 
-			data.MetallicRoughness[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
+			data.MetallicRoughness[i] = ZetaMove(GpuMemory::GetTexture2D(name, width, height,
 				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_METALLIC_ROUGHNESS],
 				D3D12_RESOURCE_STATE_COMMON,
-				TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+				CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 				1,
 				&clearValue));
 
 			// RTV
-			Direct3DHelper::CreateRTV(data.MetallicRoughness[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
+			Direct3DUtil::CreateRTV(data.MetallicRoughness[i], data.RTVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
 
 			// SRV
-			Direct3DHelper::CreateTexture2DSRV(data.MetallicRoughness[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
+			Direct3DUtil::CreateTexture2DSRV(data.MetallicRoughness[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_METALLIC_ROUGHNESS));
 		}
 	}
 
@@ -121,20 +120,20 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR];
 
-		data.MotionVec = ZetaMove(gpuMem.GetTexture2D("GBuffer_MotionVec", width, height,
+		data.MotionVec = ZetaMove(GpuMemory::GetTexture2D("GBuffer_MotionVec", width, height,
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_MOTION_VECTOR],
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 			1,
 			&clearValue));
 
 		// RTV
-		Direct3DHelper::CreateRTV(data.MotionVec, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
-		Direct3DHelper::CreateRTV(data.MotionVec, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DUtil::CreateRTV(data.MotionVec, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DUtil::CreateRTV(data.MotionVec, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 
 		// SRV
-		Direct3DHelper::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
-		Direct3DHelper::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
+		Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_MOTION_VECTOR));
 	}
 
 	// emissive color	
@@ -143,20 +142,20 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR];
 
-		data.EmissiveColor = ZetaMove(gpuMem.GetTexture2D("GBuffer_EmissiveColor", width, height,
+		data.EmissiveColor = ZetaMove(GpuMemory::GetTexture2D("GBuffer_EmissiveColor", width, height,
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_EMISSIVE_COLOR],
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 			1,
 			&clearValue));
 
 		// RTV
-		Direct3DHelper::CreateRTV(data.EmissiveColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-		Direct3DHelper::CreateRTV(data.EmissiveColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DUtil::CreateRTV(data.EmissiveColor, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DUtil::CreateRTV(data.EmissiveColor, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 
 		// SRV
-		Direct3DHelper::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
-		Direct3DHelper::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
+		Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_EMISSIVE_COLOR));
 	}
 
 	// depth
@@ -176,19 +175,19 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		{
 			StackStr(name, n, "DepthBuffer_%d", i);
 
-			data.DepthBuffer[i] = ZetaMove(gpuMem.GetTexture2D(name, width, height,
+			data.DepthBuffer[i] = ZetaMove(GpuMemory::GetTexture2D(name, width, height,
 				GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_DEPTH],
 				D3D12_RESOURCE_STATE_DEPTH_WRITE,
-				TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL,
+				CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL,
 				1,
 				&clearValueDepth));
 			
 			// DSV
-			device->CreateDepthStencilView(data.DepthBuffer[i].GetResource(), &desc,
+			device->CreateDepthStencilView(data.DepthBuffer[i].Resource(), &desc,
 				data.DSVDescTable[i].CPUHandle(0));
 
 			// SRV
-			Direct3DHelper::CreateTexture2DSRV(data.DepthBuffer[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_DEPTH), 
+			Direct3DUtil::CreateTexture2DSRV(data.DepthBuffer[i], data.SRVDescTable[i].CPUHandle(GBufferData::GBUFFER_DEPTH), 
 				DXGI_FORMAT_R32_FLOAT);
 		}
 	}
@@ -199,30 +198,30 @@ void GBuffer::CreateGBuffers(GBufferData& data) noexcept
 		memset(clearValue.Color, 0, sizeof(float) * 4);
 		clearValue.Format = GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE];
 
-		data.Curvature = ZetaMove(gpuMem.GetTexture2D("GBuffer_Curvature", width, height,
+		data.Curvature = ZetaMove(GpuMemory::GetTexture2D("GBuffer_Curvature", width, height,
 			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER_CURVATURE],
 			D3D12_RESOURCE_STATE_COMMON,
-			TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
+			CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET,
 			1,
 			&clearValue));
 
 		// RTV
-		Direct3DHelper::CreateRTV(data.Curvature, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
-		Direct3DHelper::CreateRTV(data.Curvature, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DUtil::CreateRTV(data.Curvature, data.RTVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DUtil::CreateRTV(data.Curvature, data.RTVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
 
 		// SRV
-		Direct3DHelper::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
-		Direct3DHelper::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DUtil::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[0].CPUHandle(GBufferData::GBUFFER_CURVATURE));
+		Direct3DUtil::CreateTexture2DSRV(data.Curvature, data.SRVDescTable[1].CPUHandle(GBufferData::GBUFFER_CURVATURE));
 	}
 }
 
-void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data) noexcept
+void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data)
 {
 	GBuffer::CreateGBuffers(data);
 	data.GBuffPass.OnWindowResized();
 }
 
-void GBuffer::Shutdown(GBufferData& data) noexcept
+void GBuffer::Shutdown(GBufferData& data)
 {
 	data.GBuffPass.Reset();
 
@@ -242,7 +241,7 @@ void GBuffer::Shutdown(GBufferData& data) noexcept
 	data.Curvature.Reset();
 }
 
-void GBuffer::Update(GBufferData& gbuffData) noexcept
+void GBuffer::Update(GBufferData& gbuffData)
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 	SceneCore& scene = App::GetScene();
@@ -308,7 +307,7 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 	gbuffData.GBuffPass.SetDescriptor(GBufferPass::SHADER_IN_DESC::CURR_DEPTH_BUFFER_DSV,
 		gbuffData.DSVDescTable[outIdx].CPUHandle(0));
 
-	gbuffData.GBuffPass.Update(gbuffInstances, gbuffData.DepthBuffer[outIdx].GetResource());
+	gbuffData.GBuffPass.Update(gbuffInstances, gbuffData.DepthBuffer[outIdx].Resource());
 
 	// clear the gbuffers
 	gbuffData.ClearPass.SetDescriptor(ClearPass::SHADER_IN_DESC::BASE_COLOR,
@@ -327,7 +326,7 @@ void GBuffer::Update(GBufferData& gbuffData) noexcept
 		gbuffData.RTVDescTable[outIdx].CPUHandle(GBufferData::GBUFFER_CURVATURE));
 }
 
-void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
+void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph)
 {
 	// Clear
 	fastdelegate::FastDelegate1<CommandList&> clearDlg = fastdelegate::MakeDelegate(&data.ClearPass, &ClearPass::Clear);
@@ -340,45 +339,45 @@ void GBuffer::Register(GBufferData& data, RenderGraph& renderGraph) noexcept
 	// register current and previous frame's gbuffers
 	for (int i = 0; i < 2; i++)
 	{
-		renderGraph.RegisterResource(data.Normal[i].GetResource(), data.Normal[i].GetPathID());
-		renderGraph.RegisterResource(data.DepthBuffer[i].GetResource(), data.DepthBuffer[i].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-		renderGraph.RegisterResource(data.MetallicRoughness[i].GetResource(), data.MetallicRoughness[i].GetPathID());
+		renderGraph.RegisterResource(data.Normal[i].Resource(), data.Normal[i].ID());
+		renderGraph.RegisterResource(data.DepthBuffer[i].Resource(), data.DepthBuffer[i].ID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+		renderGraph.RegisterResource(data.MetallicRoughness[i].Resource(), data.MetallicRoughness[i].ID());
 	}
 
-	renderGraph.RegisterResource(data.BaseColor.GetResource(), data.BaseColor.GetPathID());
-	renderGraph.RegisterResource(data.MotionVec.GetResource(), data.MotionVec.GetPathID());
-	renderGraph.RegisterResource(data.EmissiveColor.GetResource(), data.EmissiveColor.GetPathID());
-	renderGraph.RegisterResource(data.Curvature.GetResource(), data.Curvature.GetPathID());
+	renderGraph.RegisterResource(data.BaseColor.Resource(), data.BaseColor.ID());
+	renderGraph.RegisterResource(data.MotionVec.Resource(), data.MotionVec.ID());
+	renderGraph.RegisterResource(data.EmissiveColor.Resource(), data.EmissiveColor.ID());
+	renderGraph.RegisterResource(data.Curvature.Resource(), data.Curvature.ID());
 
 	// when more than one RenderPass outputs one resource, it's unclear which one should run first.
 	// add a made-up resource so that GBufferPass runs after Clear
 	renderGraph.RegisterResource(nullptr, RenderGraph::DUMMY_RES::RES_0);
 }
 
-void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, RenderGraph& renderGraph) noexcept
+void GBuffer::DeclareAdjacencies(GBufferData& data, const LightData& lightData, RenderGraph& renderGraph)
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
 	// [hack] use D3D12_RESOURCE_STATE_UNORDERED_ACCESS, which can be considered as both readable and 
 	// writable to avoid a Transition
 
-	renderGraph.AddOutput(data.ClearHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.MetallicRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	renderGraph.AddOutput(data.ClearHandle, data.Curvature.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.BaseColor.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.Normal[outIdx].ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.MotionVec.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.MetallicRoughness[outIdx].ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.EmissiveColor.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.ClearHandle, data.DepthBuffer[outIdx].ID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	renderGraph.AddOutput(data.ClearHandle, data.Curvature.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 	renderGraph.AddOutput(data.ClearHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	// make the GBufferPass dependent on Clear
 	renderGraph.AddInput(data.GBuffPassHandle, RenderGraph::DUMMY_RES::RES_0, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.Normal[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.MetallicRoughness[outIdx].GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.EmissiveColor.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.DepthBuffer[outIdx].GetPathID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
-	renderGraph.AddOutput(data.GBuffPassHandle, data.Curvature.GetPathID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.BaseColor.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.Normal[outIdx].ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.MetallicRoughness[outIdx].ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.MotionVec.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.EmissiveColor.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.DepthBuffer[outIdx].ID(), D3D12_RESOURCE_STATE_DEPTH_WRITE);
+	renderGraph.AddOutput(data.GBuffPassHandle, data.Curvature.ID(), D3D12_RESOURCE_STATE_RENDER_TARGET);
 }

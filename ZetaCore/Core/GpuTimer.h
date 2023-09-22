@@ -3,7 +3,6 @@
 #include "../Core/Constants.h"
 #include "GpuMemory.h"
 #include "../Utility/Span.h"
-
 #include <atomic>
 
 namespace ZetaRay::Core
@@ -14,7 +13,7 @@ namespace ZetaRay::Core
 	{
 		struct alignas(32) Timing
 		{
-			//void Reset() noexcept
+			//void Reset()
 			//{
 			//	Delta = -1;
 			//	Name[0] = '\0';
@@ -27,34 +26,34 @@ namespace ZetaRay::Core
 			D3D12_COMMAND_LIST_TYPE ExecutionQueue;
 		};
 
-		GpuTimer() noexcept = default;
-		~GpuTimer() noexcept = default;
+		GpuTimer() = default;
+		~GpuTimer() = default;
 
 		GpuTimer(GpuTimer&) = delete;
 		GpuTimer& operator=(GpuTimer&) = delete;
 
-		void Init() noexcept;
-		void Shutdown() noexcept;
+		void Init();
+		void Shutdown();
 
-		Util::Span<Timing> GetFrameTimings() noexcept;
+		Util::Span<Timing> GetFrameTimings();
 
 		// call before recording commands for a particular command list
-		uint32_t BeginQuery(ComputeCmdList& cmdList, const char* name) noexcept;
+		uint32_t BeginQuery(ComputeCmdList& cmdList, const char* name);
 
 		// call after all commands for a particular command list are recorded
-		void EndQuery(ComputeCmdList& cmdList, uint32_t idx) noexcept;
+		void EndQuery(ComputeCmdList& cmdList, uint32_t idx);
 
 		// call before rendering this frame
-		void BeginFrame() noexcept;
+		void BeginFrame();
 
 		// call after all rendering commands for this frame have been submitted
-		void EndFrame(ComputeCmdList& cmdList) noexcept;
+		void EndFrame(ComputeCmdList& cmdList);
 
 	private:
 		static const uint32_t MAX_NUM_QUERIES = 32;
 
 		ComPtr<ID3D12QueryHeap> m_queryHeap;
-		ReadbackHeapBuffer m_readbackBuff;
+		GpuMemory::ReadbackHeapBuffer m_readbackBuff;
 
 		Util::SmallVector<Timing> m_timings[Constants::NUM_BACK_BUFFERS + 1];
 		int m_queryCounts[Constants::NUM_BACK_BUFFERS + 1] = { 0 };

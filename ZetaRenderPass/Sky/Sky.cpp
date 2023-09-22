@@ -5,6 +5,7 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
@@ -14,7 +15,7 @@ using namespace ZetaRay::Scene;
 // Sky
 //--------------------------------------------------------------------------------------
 
-Sky::Sky() noexcept
+Sky::Sky()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
@@ -40,12 +41,12 @@ Sky::Sky() noexcept
 		GlobalResource::RT_SCENE_BVH);
 }
 
-Sky::~Sky() noexcept
+Sky::~Sky()
 {
 	Reset();
 }
 
-void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
+void Sky::Init(int lutWidth, int lutHeight, bool doInscattering)
 {
 	Assert(lutHeight > 0 && lutWidth > 0, "invalid texture dimensions");
 
@@ -82,7 +83,7 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering) noexcept
 	SetInscatteringEnablement(doInscattering);
 }
 
-void Sky::Reset() noexcept
+void Sky::Reset()
 {
 	if (IsInitialized())
 	{
@@ -96,7 +97,7 @@ void Sky::Reset() noexcept
 	}
 }
 
-void Sky::SetInscatteringEnablement(bool b) noexcept
+void Sky::SetInscatteringEnablement(bool b)
 {
 	if (b == m_doInscattering)
 		return;
@@ -140,7 +141,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 	}
 	else
 	{
-		m_voxelGrid.Reset(true);
+		m_voxelGrid.Reset();
 
 		App::RemoveParam("Renderer", "Inscattering", "DepthMapExp");
 		App::RemoveParam("Renderer", "Inscattering", "VoxelGridNearZ");
@@ -152,7 +153,7 @@ void Sky::SetInscatteringEnablement(bool b) noexcept
 	}
 }
 
-void Sky::Render(CommandList& cmdList) noexcept
+void Sky::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -176,8 +177,8 @@ void Sky::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SKY_LUT]);
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(m_localCB.LutWidth, SKY_VIEW_LUT_THREAD_GROUP_SIZE_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(m_localCB.LutHeight, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_localCB.LutWidth, SKY_VIEW_LUT_THREAD_GROUP_SIZE_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(m_localCB.LutHeight, SKY_VIEW_LUT_THREAD_GROUP_SIZE_Y);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
@@ -208,16 +209,16 @@ void Sky::Render(CommandList& cmdList) noexcept
 	}
 }
 
-void Sky::CreateSkyviewLUT() noexcept
+void Sky::CreateSkyviewLUT()
 {
 	auto& renderer = App::GetRenderer();
 	auto* device = renderer.GetDevice();
 
-	m_lut = renderer.GetGpuMemory().GetTexture2D("SkyLUT",
+	m_lut = GpuMemory::GetTexture2D("SkyLUT",
 		m_localCB.LutWidth, m_localCB.LutHeight,
 		ResourceFormats::SKY_VIEW_LUT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -225,21 +226,20 @@ void Sky::CreateSkyviewLUT() noexcept
 	uavDesc.Texture2D.MipSlice = 0;
 	uavDesc.Texture2D.PlaneSlice = 0;
 
-	device->CreateUnorderedAccessView(m_lut.GetResource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::SKY_LUT_UAV));
+	device->CreateUnorderedAccessView(m_lut.Resource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::SKY_LUT_UAV));
 
 	m_localCB.LutDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SKY_LUT_UAV);
 }
 
-void Sky::CreateVoxelGrid() noexcept
+void Sky::CreateVoxelGrid()
 {
-	auto& renderer = App::GetRenderer();
-	auto* device = renderer.GetDevice();
+	auto* device = App::GetRenderer().GetDevice();
 
-	m_voxelGrid = renderer.GetGpuMemory().GetTexture3D("InscatteringVoxelGrid",
+	m_voxelGrid = GpuMemory::GetTexture3D("InscatteringVoxelGrid",
 		m_localCB.NumVoxelsX, m_localCB.NumVoxelsY, INSCATTERING_THREAD_GROUP_SIZE_X,
 		ResourceFormats::INSCATTERING_VOXEL_GRID,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
 	uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;
@@ -248,37 +248,36 @@ void Sky::CreateVoxelGrid() noexcept
 	uavDesc.Texture3D.WSize = INSCATTERING_THREAD_GROUP_SIZE_X;
 	uavDesc.Texture3D.FirstWSlice = 0;
 
-	device->CreateUnorderedAccessView(m_voxelGrid.GetResource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::VOXEL_GRID_UAV));
+	device->CreateUnorderedAccessView(m_voxelGrid.Resource(), nullptr, &uavDesc, m_descTable.CPUHandle((int)DESC_TABLE::VOXEL_GRID_UAV));
 
 	m_localCB.VoxelGridDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::VOXEL_GRID_UAV);	
 }
 
-void Sky::DepthMapExpCallback(const ParamVariant& p) noexcept
+void Sky::DepthMapExpCallback(const ParamVariant& p)
 {
 	m_localCB.DepthMappingExp = p.GetFloat().m_val;
 }
 
-void Sky::VoxelGridNearZCallback(const ParamVariant& p) noexcept
+void Sky::VoxelGridNearZCallback(const ParamVariant& p)
 {
 	m_localCB.VoxelGridNearZ = p.GetFloat().m_val;
 }
 
-void Sky::VoxelGridFarZCallback(const ParamVariant& p) noexcept
+void Sky::VoxelGridFarZCallback(const ParamVariant& p)
 {
 	m_localCB.VoxelGridFarZ = p.GetFloat().m_val;
 }
 
-void Sky::ReloadInscatteringShader() noexcept
+void Sky::ReloadInscatteringShader()
 {
 	s_rpObjs.m_psoLib.Reload((int)SHADERS::INSCATTERING, "Sky\\Inscattering.hlsl", true);
 	m_psos[(int)SHADERS::INSCATTERING] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING, 
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
 }
 
-void Sky::ReloadSkyLUTShader() noexcept
+void Sky::ReloadSkyLUTShader()
 {
 	s_rpObjs.m_psoLib.Reload((int)SHADERS::SKY_LUT, "Sky\\SkyViewLUT.hlsl", true);
 	m_psos[(int)SHADERS::SKY_LUT] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
 		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
 }
-

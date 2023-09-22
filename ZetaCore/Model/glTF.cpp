@@ -20,12 +20,13 @@ using namespace ZetaRay;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Model;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Model::glTF::Asset;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DUtil;
 
 //--------------------------------------------------------------------------------------
 // glTF
@@ -33,7 +34,7 @@ using namespace ZetaRay::Core::Direct3DHelper;
 
 namespace
 {
-	ZetaInline const char* GetErrorMsg(cgltf_result r) noexcept
+	ZetaInline const char* GetErrorMsg(cgltf_result r)
 	{
 		switch (r)
 		{
@@ -110,7 +111,7 @@ namespace
 		uint32_t NumEmissiveTris;
 	};
 
-	void ResetEmissiveSubsets(Span<EmissiveMeshPrim> subsets) noexcept
+	void ResetEmissiveSubsets(Span<EmissiveMeshPrim> subsets)
 	{
 		if (subsets.empty())
 			return;
@@ -118,7 +119,7 @@ namespace
 		const int numTotalBytes = (int)subsets.size() * sizeof(EmissiveMeshPrim);
 		const int numSimdBytes = numTotalBytes >> 5;
 		const int numRemainingBytes = numTotalBytes & 31;
-		int numToSetManually = numRemainingBytes > 0 ? (int)Math::CeilUnsignedIntDiv(numRemainingBytes, sizeof(EmissiveMeshPrim)) : 0;
+		int numToSetManually = numRemainingBytes > 0 ? Math::CeilUnsignedIntDiv(numRemainingBytes, (int)sizeof(EmissiveMeshPrim)) : 0;
 
 		uintptr_t ptr = reinterpret_cast<uintptr_t>(subsets.data());
 
@@ -133,7 +134,7 @@ namespace
 			subsets[subsets.size() - 1 - i].MeshID = uint64_t(-1);
 	}
 
-	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
+	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -154,7 +155,7 @@ namespace
 		}
 	}
 
-	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
+	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for NORMAL attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -175,7 +176,7 @@ namespace
 		}
 	}
 
-	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
+	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec2, "Invalid type for TEXCOORD_0 attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -194,7 +195,7 @@ namespace
 		}
 	}
 
-	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset) noexcept
+	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec4, "Invalid type for TANGENT attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -214,7 +215,7 @@ namespace
 		}
 	}
 
-	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Span<uint32_t> indices, uint32_t baseOffset) noexcept
+	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Span<uint32_t> indices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
 		Check(accessor.stride != -1, "Invalid index stride.");
@@ -253,7 +254,7 @@ namespace
 		Span<Vertex> vertices, std::atomic_uint32_t& vertexCounter,
 		Span<uint32_t> indices, std::atomic_uint32_t& idxCounter,
 		Span<Mesh> meshes, std::atomic_uint32_t& meshCounter,
-		Span<EmissiveMeshPrim> emissivesPrims, uint32_t& emissivePrimCount) noexcept
+		Span<EmissiveMeshPrim> emissivesPrims, uint32_t& emissivePrimCount)
 	{
 		SceneCore& scene = App::GetScene();
 
@@ -411,8 +412,10 @@ namespace
 	}
 
 	void LoadDDSImages(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-		size_t offset, size_t size, Span<DDSImage> ddsImages) noexcept
+		size_t offset, size_t size, Span<DDSImage> ddsImages)
 	{
+		UploadHeapArena arena(64 * 1024 * 1024);
+
 		char ext[8];
 
 		for (size_t m = offset; m != offset + size; m++)
@@ -430,7 +433,7 @@ namespace
 
 				const uint64_t id = XXH3_64bits(p.Get(), p.Length());
 				Texture tex;
-				auto err = App::GetRenderer().GetGpuMemory().GetTexture2DFromDisk(p, tex);
+				auto err = GpuMemory::GetTexture2DFromDisk(p, tex, arena);
 
 				if (err != LOAD_DDS_RESULT::SUCCESS)
 				{
@@ -449,9 +452,9 @@ namespace
 	}
 
 	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-		int offset, int size, const Span<DDSImage> ddsImages) noexcept
+		int offset, int size, const Span<DDSImage> ddsImages)
 	{
-		auto getAlphaMode = [](cgltf_alpha_mode m) noexcept
+		auto getAlphaMode = [](cgltf_alpha_mode m)
 		{
 			switch (m)
 			{
@@ -559,7 +562,7 @@ namespace
 		}
 	}
 
-	void NumEmissiveInstancesAndTrianglesSubtree(const cgltf_node& node, ThreadContext& context) noexcept
+	void NumEmissiveInstancesAndTrianglesSubtree(const cgltf_node& node, ThreadContext& context)
 	{
 		if (node.mesh)
 		{
@@ -595,7 +598,7 @@ namespace
 		}
 	}
 
-	void NumEmissiveInstancesAndTriangles(ThreadContext& context) noexcept
+	void NumEmissiveInstancesAndTriangles(ThreadContext& context)
 	{
 		for (size_t i = 0; i < context.Model->scene->nodes_count; i++)
 		{
@@ -605,7 +608,7 @@ namespace
 	}
 
 	void ProcessEmissiveSubtree(const cgltf_node& node, ThreadContext& context, int& emissiveMeshIdx,
-		uint32_t& rtEmissiveTriIdx) noexcept
+		uint32_t& rtEmissiveTriIdx)
 	{
 		SceneCore& scene = App::GetScene();
 		uint32_t currGlobalTriIdx = rtEmissiveTriIdx;
@@ -679,7 +682,7 @@ namespace
 		}
 	}
 
-	void ProcessEmissives(ThreadContext& context) noexcept
+	void ProcessEmissives(ThreadContext& context)
 	{
 		int emissiveMeshIdx = 0;
 		uint32_t rtEmissiveTriIdx = 0;
@@ -694,7 +697,7 @@ namespace
 		Assert(rtEmissiveTriIdx == context.NumEmissiveTris, "these must match.");
 	}
 
-	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId) noexcept
+	void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId)
 	{
 		uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -841,7 +844,7 @@ namespace
 		}
 	}
 
-	void ProcessNodes(const cgltf_data& model, uint64_t sceneID) noexcept
+	void ProcessNodes(const cgltf_data& model, uint64_t sceneID)
 	{
 		for (size_t i = 0; i < model.scene->nodes_count; i++)
 		{
@@ -850,7 +853,7 @@ namespace
 		}
 	}
 
-	void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices, size_t& numMeshes) noexcept
+	void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices, size_t& numMeshes)
 	{
 		numVertices = 0;
 		numIndices = 0;
@@ -885,7 +888,7 @@ namespace
 	}
 }
 
-void glTF::Load(const App::Filesystem::Path& pathToglTF) noexcept
+void glTF::Load(const App::Filesystem::Path& pathToglTF)
 {
 	// parse json
 	cgltf_options options{};

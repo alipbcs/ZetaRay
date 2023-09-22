@@ -6,6 +6,7 @@
 
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass::FSR2_Internal;
 using namespace ZetaRay::Math;
 
@@ -13,12 +14,12 @@ using namespace ZetaRay::Math;
 // FSR2
 //--------------------------------------------------------------------------------------
 
-FSR2Pass::~FSR2Pass() noexcept
+FSR2Pass::~FSR2Pass()
 {
 	Reset();
 }
 
-void FSR2Pass::Init() noexcept
+void FSR2Pass::Init()
 {
 	auto& renderer = App::GetRenderer();
 	const int w = renderer.GetDisplayWidth();
@@ -27,12 +28,12 @@ void FSR2Pass::Init() noexcept
 	FSR2_Internal::Init(UPSCALED_RES_FORMAT, w, h);
 }
 
-bool FSR2Pass::IsInitialized() noexcept
+bool FSR2Pass::IsInitialized()
 {
 	return FSR2_Internal::IsInitialized();
 }
 
-void FSR2Pass::OnWindowResized() noexcept
+void FSR2Pass::OnWindowResized()
 {
 	auto& renderer = App::GetRenderer();
 	const int w = renderer.GetDisplayWidth();
@@ -46,7 +47,7 @@ void FSR2Pass::OnWindowResized() noexcept
 	//LOG("FSR2Pass::OnWindowResized()");
 }
 
-void FSR2Pass::Reset() noexcept
+void FSR2Pass::Reset()
 {
 	if (IsInitialized())
 	{
@@ -58,7 +59,7 @@ void FSR2Pass::Reset() noexcept
 	}
 }
 
-void FSR2Pass::Render(CommandList& cmdList) noexcept
+void FSR2Pass::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -83,7 +84,7 @@ void FSR2Pass::Render(CommandList& cmdList) noexcept
 	computeCmdList.PIXEndEvent();
 }
 
-const Texture& FSR2Pass::GetOutput(SHADER_OUT_RES res) noexcept
+const Texture& FSR2Pass::GetOutput(SHADER_OUT_RES res)
 {
 	Assert((int)res < (int)SHADER_OUT_RES::COUNT, "out-of-bound access");
 	return FSR2_Internal::GetUpscaledOutput();

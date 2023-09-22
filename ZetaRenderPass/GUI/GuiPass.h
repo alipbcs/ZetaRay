@@ -67,14 +67,14 @@ namespace ZetaRay::RenderPass
 
 		struct ImGuiFrameBufferData
 		{
-			Core::UploadHeapBuffer IndexBuffer;
-			Core::UploadHeapBuffer VertexBuffer;
+			Core::GpuMemory::UploadHeapBuffer IndexBuffer;
+			Core::GpuMemory::UploadHeapBuffer VertexBuffer;
 			int NumIndices = 10000;
 			int NumVertices = 5000;
 		};
 
 		ImGuiFrameBufferData m_imguiFrameBuffs[Core::Constants::NUM_BACK_BUFFERS];
-		Core::Texture m_imguiFontTex;
+		Core::GpuMemory::Texture m_imguiFontTex;
 		Core::DescriptorTable m_fontTexSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };
 

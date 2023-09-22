@@ -5,6 +5,7 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -14,7 +15,7 @@ using namespace ZetaRay::Support;
 // TAA
 //--------------------------------------------------------------------------------------
 
-TAA::TAA() noexcept
+TAA::TAA()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -32,12 +33,12 @@ TAA::TAA() noexcept
 		0);								// register space
 }
 
-TAA::~TAA() noexcept
+TAA::~TAA()
 {
 	Reset();
 }
 
-void TAA::Init() noexcept
+void TAA::Init()
 {
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -72,7 +73,7 @@ void TAA::Init() noexcept
 	//App::AddShaderReloadHandler("TAA", fastdelegate::MakeDelegate(this, &TAA::ReloadShader));
 }
 
-void TAA::Reset() noexcept
+void TAA::Reset()
 {
 	if (IsInitialized())
 	{
@@ -88,13 +89,13 @@ void TAA::Reset() noexcept
 	}
 }
 
-void TAA::OnWindowResized() noexcept
+void TAA::OnWindowResized()
 {
 	CreateResources();
 	m_isTemporalTexValid = false;
 }
 
-void TAA::Render(CommandList& cmdList) noexcept
+void TAA::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -103,8 +104,8 @@ void TAA::Render(CommandList& cmdList) noexcept
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
 	const int outIdx = renderer.GlobaIdxForDoubleBufferedResources();
-	const int w = renderer.GetRenderWidth();
-	const int h = renderer.GetRenderHeight();
+	const uint32_t w = renderer.GetRenderWidth();
+	const uint32_t h = renderer.GetRenderWidth();
 
 	Assert(m_inputDesc[(int)SHADER_IN_DESC::SIGNAL] > 0, "Input SRV hasn't been set.");
 	m_localCB.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::SIGNAL];
@@ -123,8 +124,8 @@ void TAA::Render(CommandList& cmdList) noexcept
 	m_rootSig.SetRootConstants(0, sizeof(cbTAA) / sizeof(DWORD), &m_localCB);
 	m_rootSig.End(computeCmdList);
 
-	computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, TAA_THREAD_GROUP_SIZE_X), 
-		(uint32_t)CeilUnsignedIntDiv(h, TAA_THREAD_GROUP_SIZE_Y), 1);
+	computeCmdList.Dispatch(CeilUnsignedIntDiv(w, TAA_THREAD_GROUP_SIZE_X), 
+		CeilUnsignedIntDiv(h, TAA_THREAD_GROUP_SIZE_Y), 1);
 
 	computeCmdList.PIXEndEvent();
 
@@ -134,37 +135,37 @@ void TAA::Render(CommandList& cmdList) noexcept
 	m_isTemporalTexValid = true;
 }
 
-void TAA::CreateResources() noexcept
+void TAA::CreateResources()
 {
 	auto& renderer = App::GetRenderer();
 
-	m_antiAliased[0] = renderer.GetGpuMemory().GetTexture2D("TAA_A",
+	m_antiAliased[0] = GpuMemory::GetTexture2D("TAA_A",
 		renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 		DXGI_FORMAT_R16G16B16A16_FLOAT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-	m_antiAliased[1] = renderer.GetGpuMemory().GetTexture2D("TAA_B",
+	m_antiAliased[1] = GpuMemory::GetTexture2D("TAA_B",
 		renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 		DXGI_FORMAT_R16G16B16A16_FLOAT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	// SRVs
-	Direct3DHelper::CreateTexture2DSRV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_SRV));
-	Direct3DHelper::CreateTexture2DSRV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_SRV));
+	Direct3DUtil::CreateTexture2DSRV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_SRV));
+	Direct3DUtil::CreateTexture2DSRV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_SRV));
 
 	// UAVs
-	Direct3DHelper::CreateTexture2DUAV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_UAV));
-	Direct3DHelper::CreateTexture2DUAV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_UAV));
+	Direct3DUtil::CreateTexture2DUAV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_UAV));
+	Direct3DUtil::CreateTexture2DUAV(m_antiAliased[1], m_descTable.CPUHandle((int)DESC_TABLE::TEX_B_UAV));
 }
 
-void TAA::BlendWeightCallback(const ParamVariant& p) noexcept
+void TAA::BlendWeightCallback(const ParamVariant& p)
 {
 	m_localCB.BlendWeight = p.GetFloat().m_val;
 }
 
-void TAA::ReloadShader() noexcept
+void TAA::ReloadShader()
 {
 	s_rpObjs.m_psoLib.Reload(0, "TAA\\TAA.hlsl", true);
 	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);

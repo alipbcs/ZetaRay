@@ -32,28 +32,28 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		ReSTIR_GI_Specular() noexcept;
-		~ReSTIR_GI_Specular() noexcept;
+		ReSTIR_GI_Specular();
+		~ReSTIR_GI_Specular();
 
-		void Init() noexcept;
-		bool IsInitialized() const noexcept { return m_psos[0] != nullptr; };
-		void Reset() noexcept;
-		float GetRoughnessCutoff() const noexcept { return m_cbTemporal.RoughnessCutoff; }
-		void OnWindowResized() noexcept;
+		void Init();
+		bool IsInitialized() const { return m_psos[0] != nullptr; };
+		void Reset();
+		float GetRoughnessCutoff() const { return m_cbTemporal.RoughnessCutoff; }
+		void OnWindowResized();
 
-		const Core::Texture& GetInput(SHADER_IN_RES i) const noexcept
+		const Core::GpuMemory::Texture& GetInput(SHADER_IN_RES i) const
 		{
 			Assert(i == SHADER_IN_RES::PREV_DNSR_CACHE, "Invalid shader input.");
 			return m_dnsrTemporalCache[1 - m_currTemporalReservoirIdx];
 		}
 
-		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
+		const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
 		{
 			Assert(i == SHADER_OUT_RES::CURR_DNSR_CACHE, "Invalid shader output.");
 			return m_dnsrTemporalCache[m_currTemporalReservoirIdx];
 		}
 
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -64,25 +64,25 @@ namespace ZetaRay::RenderPass
 
 		RpObjects s_rpObjs;
 
-		void CreateOutputs() noexcept;
+		void CreateOutputs();
 
 		Core::RootSignature m_rootSig;
 		
 		struct Reservoir
 		{
 			// Texture2D<float4>: (Pos, w_sum)
-			Core::Texture ReservoirA;
+			Core::GpuMemory::Texture ReservoirA;
 			// Texture2D<half4>: (Li, M)
-			Core::Texture ReservoirB;
+			Core::GpuMemory::Texture ReservoirB;
 			// Texture2D<half2>: (Normal)
-			Core::Texture ReservoirC;
+			Core::GpuMemory::Texture ReservoirC;
 			// Texture2D<half4>: (BrdfCosTheta, W)
-			Core::Texture ReservoirD;
+			Core::GpuMemory::Texture ReservoirD;
 		};
 
 		Reservoir m_temporalReservoirs[2];
 		Reservoir m_spatialReservoir;
-		Core::Texture m_dnsrTemporalCache[2];
+		Core::GpuMemory::Texture m_dnsrTemporalCache[2];
 		int m_currTemporalReservoirIdx = 0;
 		bool m_isTemporalReservoirValid = false;
 
@@ -154,21 +154,21 @@ namespace ZetaRay::RenderPass
 		int m_sampleIdx = 0;
 		uint32_t m_internalCounter = 0;
 
-		void DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept;
-		void DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept;
-		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
-		void RoughnessCutoffCallback(const Support::ParamVariant& p) noexcept;
-		void MaxTemporalMCallback(const Support::ParamVariant& p) noexcept;
-		void MinRoughnessResample(const Support::ParamVariant& p) noexcept;
-		void TemporalHistDistSigmaScaleCallback(const Support::ParamVariant& p) noexcept;
-		void SpatialHistDistSigmaScaleCallback(const Support::ParamVariant& p) noexcept;
-		void NumIterationsCallback(const Support::ParamVariant& p) noexcept;
-		void SpatialRadiusCallback(const Support::ParamVariant& p) noexcept;
-		void CheckerboardingCallback(const Support::ParamVariant& p) noexcept;
-		void DoDenoisingCallback(const Support::ParamVariant& p) noexcept;
-		void TsppCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRViewAngleExpCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRRoughnessExpScaleCallback(const Support::ParamVariant& p) noexcept;
+		void DoTemporalResamplingCallback(const Support::ParamVariant& p);
+		void DoSpatialResamplingCallback(const Support::ParamVariant& p);
+		void PdfCorrectionCallback(const Support::ParamVariant& p);
+		void RoughnessCutoffCallback(const Support::ParamVariant& p);
+		void MaxTemporalMCallback(const Support::ParamVariant& p);
+		void MinRoughnessResample(const Support::ParamVariant& p);
+		void TemporalHistDistSigmaScaleCallback(const Support::ParamVariant& p);
+		void SpatialHistDistSigmaScaleCallback(const Support::ParamVariant& p);
+		void NumIterationsCallback(const Support::ParamVariant& p);
+		void SpatialRadiusCallback(const Support::ParamVariant& p);
+		void CheckerboardingCallback(const Support::ParamVariant& p);
+		void DoDenoisingCallback(const Support::ParamVariant& p);
+		void TsppCallback(const Support::ParamVariant& p);
+		void DNSRViewAngleExpCallback(const Support::ParamVariant& p);
+		void DNSRRoughnessExpScaleCallback(const Support::ParamVariant& p);
 
 		enum class SHADERS
 		{
@@ -187,8 +187,8 @@ namespace ZetaRay::RenderPass
 		};
 
 		// shader reload
-		void ReloadTemporalPass() noexcept;
-		void ReloadSpatialPass() noexcept;
-		void ReloadDNSR() noexcept;
+		void ReloadTemporalPass();
+		void ReloadSpatialPass();
+		void ReloadDNSR();
 	};
 }

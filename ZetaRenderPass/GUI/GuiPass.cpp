@@ -1,6 +1,5 @@
 #include "GuiPass.h"
 #include <Math/Vector.h>
-#include <Core/Direct3DHelpers.h>
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Support/Param.h>
@@ -16,8 +15,9 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DUtil;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
@@ -226,7 +226,7 @@ void GuiPass::Init() noexcept
 		D3D12_INPUT_LAYOUT_DESC inputLayout = { local_layout, 3 };
 		DXGI_FORMAT rtv[1] = { Constants::BACK_BUFFER_FORMAT };
 
-		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(&inputLayout,
 			1,
 			rtv,
 			Constants::DEPTH_BUFFER_FORMAT);
@@ -275,7 +275,6 @@ void GuiPass::UpdateBuffers() noexcept
 {
 	ImDrawData* draw_data = ImGui::GetDrawData();
 	const int currOutIdx = App::GetRenderer().GetCurrentBackBufferIndex();
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
 
 	// Avoid rendering when minimized
 	if (draw_data->DisplaySize.x <= 0.0f || draw_data->DisplaySize.y <= 0.0f)
@@ -284,14 +283,14 @@ void GuiPass::UpdateBuffers() noexcept
 	auto& fr = m_imguiFrameBuffs[currOutIdx];
 
 	// Create and grow vertex/index buffers if needed
-	if (fr.VertexBuffer.GetSize() == 0 || fr.NumVertices < draw_data->TotalVtxCount)
+	if (!fr.VertexBuffer.IsInitialized() || fr.NumVertices < draw_data->TotalVtxCount)
 	{
 		fr.NumVertices = draw_data->TotalVtxCount + 5000;
-		fr.VertexBuffer = gpuMem.GetUploadHeapBuffer(fr.NumVertices * sizeof(ImDrawVert));
+		fr.VertexBuffer = GpuMemory::GetUploadHeapBuffer(fr.NumVertices * sizeof(ImDrawVert));
 	}
 
 	// Upload vertex data into a single contiguous GPU buffer
-	size_t offset = 0;
+	uint32_t offset = 0;
 
 	for (int n = 0; n < draw_data->CmdListsCount; n++)
 	{
@@ -300,11 +299,11 @@ void GuiPass::UpdateBuffers() noexcept
 		offset += cmd_list->VtxBuffer.Size * sizeof(ImDrawVert);
 	}
 
-	if (fr.IndexBuffer.GetSize() == 0 || fr.NumIndices < draw_data->TotalIdxCount)
+	if (!fr.IndexBuffer.IsInitialized() || fr.NumIndices < draw_data->TotalIdxCount)
 	{
 		//SafeRelease(fr->IndexBuffer);
 		fr.NumIndices = draw_data->TotalIdxCount + 10000;
-		fr.IndexBuffer = gpuMem.GetUploadHeapBuffer(fr.NumIndices * sizeof(ImDrawIdx));
+		fr.IndexBuffer = GpuMemory::GetUploadHeapBuffer(fr.NumIndices * sizeof(ImDrawIdx));
 	}
 
 	// Upload index data into a single contiguous GPU buffer
@@ -326,14 +325,13 @@ void GuiPass::Update() noexcept
 		Assert(m_font.Pixels, "pointer to pixels was NULL.");
 		Assert(m_font.Width && m_font.Height, "invalid texture dims.");
 
-		auto& gpuMem = App::GetRenderer().GetGpuMemory();
-		m_imguiFontTex = gpuMem.GetTexture2DAndInit("ImGuiFontTex", m_font.Width, m_font.Height, DXGI_FORMAT_R8G8B8A8_UNORM,
+		m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFontTex", m_font.Width, m_font.Height, DXGI_FORMAT_R8G8B8A8_UNORM,
 			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_font.Pixels);
 
 		m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
 
 		// Create texture view
-		Direct3DHelper::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));
+		Direct3DUtil::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));
 
 		m_font.IsStale = false;
 	}
@@ -399,12 +397,12 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	unsigned int stride = sizeof(ImDrawVert);
 	unsigned int offset = 0;
 	D3D12_VERTEX_BUFFER_VIEW vbv{};
-	vbv.BufferLocation = fr.VertexBuffer.GetGpuVA() + offset;
+	vbv.BufferLocation = fr.VertexBuffer.GpuVA() + offset;
 	vbv.SizeInBytes = fr.NumVertices * stride;
 	vbv.StrideInBytes = stride;
 
 	D3D12_INDEX_BUFFER_VIEW ibv{};
-	ibv.BufferLocation = fr.IndexBuffer.GetGpuVA();
+	ibv.BufferLocation = fr.IndexBuffer.GpuVA();
 	ibv.SizeInBytes = fr.NumIndices * sizeof(ImDrawIdx);
 	ibv.Format = sizeof(ImDrawIdx) == 2 ? DXGI_FORMAT_R16_UINT : DXGI_FORMAT_R32_UINT;
 
@@ -455,7 +453,7 @@ void GuiPass::Render(CommandList& cmdList) noexcept
 	gpuTimer.EndQuery(directCmdList, queryIdx);
 
 	// [hack] this is the last RenderPass, transition to PRESENT can be done here
-	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().GetResource(),
+	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().Resource(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT);
 

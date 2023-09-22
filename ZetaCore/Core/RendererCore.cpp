@@ -2,13 +2,14 @@
 #include "CommandQueue.h" 
 #include "CommandList.h"
 #include "SharedShaderResources.h"
-#include "Direct3DHelpers.h"
+#include "Direct3DUtil.h"
 #include "../Support/Task.h"
 #include "../Support/Param.h"
 #include "../App/Timer.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Support;
 
 //--------------------------------------------------------------------------------------
@@ -27,7 +28,7 @@ RendererCore::~RendererCore() noexcept
 {
 }
 
-void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept
+void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight)
 {
 	m_hwnd = hwnd;
 
@@ -45,8 +46,8 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 	m_displayHeight = displayHeight;
 
 	// memory
-	m_gpuMemory.Init();
-	m_gpuMemory.BeginFrame();
+	GpuMemory::Init();
+	GpuMemory::BeginFrame();
 
 	// descriptor heaps
 	m_cbvSrvUavDescHeapGpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
@@ -107,11 +108,18 @@ void RendererCore::Init(HWND hwnd, int renderWidth, int renderHeight, int displa
 
 void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
 {
-	// if the backbuffers already exist, resize them
+	// if back buffers already exist, resize them
 	if (m_backBuffers[0].IsInitialized())
 	{
+		// GPU is flushed, no need to wait
 		for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
-			m_backBuffers[i].Reset(false);
+		{
+			// don't check ref count for backbuffer COM object as it's 3 rather than 1:
+			// "DXGI_SWAP_EFFECT_FLIP_DISCARD is valid for a swap chain with more than one back buffer; although 
+			// applications have read and write access only to buffer 0"
+			// Ref: https://learn.microsoft.com/en-us/windows/win32/api/dxgi/ne-dxgi-dxgi_swap_effect
+			m_backBuffers[i].Reset(false, false);
+		}
 
 		m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
 	}
@@ -121,17 +129,17 @@ void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
 			hwnd,
 			m_displayWidth, m_displayHeight,
 			Constants::NUM_BACK_BUFFERS,
-			Direct3DHelper::NoSRGB(Constants::BACK_BUFFER_FORMAT),
+			Direct3DUtil::NoSRGB(Constants::BACK_BUFFER_FORMAT),
 			Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
 	}
 
-	m_currBackBuffIdx = m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
+	m_currBackBuffIdx = (uint16_t)m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
 
-	// obtain the buffers
+	// obtain the back buffers
 	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
-		ComPtr<ID3D12Resource> backbuff;
-		CheckHR(m_deviceObjs.m_dxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(backbuff.GetAddressOf())));
+		ID3D12Resource* backbuff;
+		CheckHR(m_deviceObjs.m_dxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(&backbuff)));
 
 		StackStr(buff, n, "Backbuffer_%d", i);
 		m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff)));
@@ -144,7 +152,7 @@ void RendererCore::ResizeBackBuffers(HWND hwnd) noexcept
 		desc.Format = Constants::BACK_BUFFER_FORMAT;
 		desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-		m_deviceObjs.m_device->CreateRenderTargetView(m_backBuffers[i].GetResource(), &desc, m_backbuffDescTable.CPUHandle(i));
+		m_deviceObjs.m_device->CreateRenderTargetView(m_backBuffers[i].Resource(), &desc, m_backbuffDescTable.CPUHandle(i));
 	}
 
 	m_displayViewport.TopLeftX = 0.0f;
@@ -170,7 +178,7 @@ void RendererCore::Shutdown() noexcept
 	}
 
 	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
-		m_backBuffers[i].Reset();
+		m_backBuffers[i].Reset(false, false);
 
 	m_backbuffDescTable.Reset();
 	m_depthBuffDescTable.Reset();
@@ -179,7 +187,7 @@ void RendererCore::Shutdown() noexcept
 	m_dsvDescHeap.Shutdown();
 	m_rtvDescHeap.Shutdown();
 	m_gpuTimer.Shutdown();
-	m_gpuMemory.Shutdown();
+	GpuMemory::Shutdown();
 
 	FlushAllCommandQueues();
 
@@ -187,7 +195,7 @@ void RendererCore::Shutdown() noexcept
 	m_computeQueue.reset();
 }
 
-void RendererCore::OnWindowSizeChanged(HWND hwnd, int renderWidth, int renderHeight, int displayWidth, int displayHeight) noexcept
+void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight)
 {
 	FlushAllCommandQueues();
 
@@ -232,14 +240,14 @@ void RendererCore::WaitForSwapChainWaitableObject() noexcept
 void RendererCore::BeginFrame() noexcept
 {
 	if (App::GetTimer().GetTotalFrameCount() > 0)
-		m_gpuMemory.BeginFrame();
+		GpuMemory::BeginFrame();
 	
 	m_gpuTimer.BeginFrame();
 }
 
 void RendererCore::SubmitResourceCopies() noexcept
 {
-	m_gpuMemory.SubmitResourceCopies();
+	GpuMemory::SubmitResourceCopies();
 
 	App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetHeapSize() - m_rtvDescHeap.GetNumFreeDescriptors(), 
 		m_rtvDescHeap.GetHeapSize());
@@ -274,7 +282,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 			CheckHR(m_directQueue->GetCommandQueue()->Signal(m_fence.Get(), m_nextFenceVal++));
 
 			// Update the back buffer index.
-			const int nextBackBuffidx = m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
+			const uint16_t nextBackBuffidx = (uint16_t)m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
 			const uint64_t completed = m_fence->GetCompletedValue();
 
 			if (completed < m_fenceVals[nextBackBuffidx])
@@ -291,7 +299,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS) noexcept
 
 	auto h1 = endFrameTS.EmplaceTask("RecycleGpuMem", [this]()
 		{
-			m_gpuMemory.Recycle();
+			GpuMemory::Recycle();
 		});
 
 	auto h2 = endFrameTS.EmplaceTask("RecycleDescHeaps", [this]()

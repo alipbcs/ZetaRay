@@ -9,13 +9,13 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DUtil;
 
 //--------------------------------------------------------------------------------------
 // DisplayPass
 //--------------------------------------------------------------------------------------
 
-DisplayPass::DisplayPass() noexcept
+DisplayPass::DisplayPass()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
@@ -34,12 +34,12 @@ DisplayPass::DisplayPass() noexcept
 		D3D12_SHADER_VISIBILITY_PIXEL);
 }
 
-DisplayPass::~DisplayPass() noexcept
+DisplayPass::~DisplayPass()
 {
 	Reset();
 }
 
-void DisplayPass::Init() noexcept
+void DisplayPass::Init()
 {
 	auto& renderer = App::GetRenderer();
 
@@ -83,20 +83,20 @@ void DisplayPass::Init() noexcept
 
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
-	auto err = renderer.GetGpuMemory().GetTexture3DFromDisk(p, m_lut);
+	auto err = GpuMemory::GetTexture3DFromDisk(p, m_lut);
 	Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture in path %s: %d", p.Get(), err);
 
 	m_lutSRV = renderer.GetGpuDescriptorHeap().Allocate(1);
-	Direct3DHelper::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
+	Direct3DUtil::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));
 }
 
-void DisplayPass::Reset() noexcept
+void DisplayPass::Reset()
 {
 	if (IsInitialized())
 		s_rpObjs.Clear();
 }
 
-void DisplayPass::Render(CommandList& cmdList) noexcept
+void DisplayPass::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
@@ -132,10 +132,10 @@ void DisplayPass::Render(CommandList& cmdList) noexcept
 	directCmdList.PIXEndEvent();
 }
 
-void DisplayPass::CreatePSO() noexcept
+void DisplayPass::CreatePSO()
 {
 	DXGI_FORMAT rtvFormats[1] = { Constants::BACK_BUFFER_FORMAT };
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(nullptr,
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(nullptr,
 		1,
 		rtvFormats,
 		Constants::DEPTH_BUFFER_FORMAT);
@@ -154,22 +154,22 @@ void DisplayPass::CreatePSO() noexcept
 	m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 }
 
-void DisplayPass::DisplayOptionCallback(const ParamVariant& p) noexcept
+void DisplayPass::DisplayOptionCallback(const ParamVariant& p)
 {
 	m_cbLocal.DisplayOption = (uint16_t)p.GetEnum().m_curr;
 }
 
-void DisplayPass::TonemapperCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
 {
 	m_cbLocal.Tonemapper = (uint16_t)p.GetEnum().m_curr;
 }
 
-void DisplayPass::SaturationCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::SaturationCallback(const Support::ParamVariant& p)
 {
 	m_cbLocal.Saturation = p.GetFloat().m_val;
 }
 
-void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p) noexcept
+void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p)
 {
 	m_cbLocal.AutoExposure = p.GetBool();
 }

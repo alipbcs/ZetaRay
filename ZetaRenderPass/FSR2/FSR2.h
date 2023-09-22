@@ -28,13 +28,13 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		FSR2Pass() noexcept = default;
-		~FSR2Pass() noexcept;
+		FSR2Pass() = default;
+		~FSR2Pass();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept;
-		void OnWindowResized() noexcept;
-		void SetInput(SHADER_IN_RES i, ID3D12Resource* res) noexcept
+		void Init();
+		bool IsInitialized();
+		void OnWindowResized();
+		void SetInput(SHADER_IN_RES i, ID3D12Resource* res)
 		{
 			Assert((int)i < (int)SHADER_IN_RES::COUNT, "out-of-bound access");
 
@@ -56,10 +56,10 @@ namespace ZetaRay::RenderPass
 				break;
 			}
 		}
-		const Core::Texture& GetOutput(SHADER_OUT_RES res) noexcept;
+		const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES res);
 
-		void Reset() noexcept;
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Reset();
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr DXGI_FORMAT UPSCALED_RES_FORMAT = DXGI_FORMAT_R16G16B16A16_FLOAT;

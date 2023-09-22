@@ -1,6 +1,6 @@
 #pragma once
 
-#include "GpuMemory.h"
+#include "Direct3DUtil.h"
 #include "../Utility/Span.h"
 #include <FastDelegate/FastDelegate.h>
 

@@ -39,20 +39,20 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		Compositing() noexcept;
-		~Compositing() noexcept;
+		Compositing();
+		~Compositing();
 
-		void Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept;
-		bool IsInitialized() noexcept { return m_psos[0] != nullptr; }
-		void Reset() noexcept;
+		void Init(bool dof, bool skyIllum, bool fireflyFilter);
+		bool IsInitialized() { return m_psos[0] != nullptr; }
+		void Reset();
 		void SetInscatteringEnablement(bool b) { m_cbComposit.AccumulateInscattering = b; }
-		void SetDoFEnablement(bool b) noexcept;
-		void SetSkyIllumEnablement(bool b) noexcept;
-		void SetFireflyFilterEnablement(bool b) noexcept;
-		void SetVoxelGridDepth(float zNear, float zFar) noexcept { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
-		void SetVoxelGridMappingExp(float p) noexcept { m_cbComposit.DepthMappingExp = p; }
-		void SetRoughnessCutoff(float c) noexcept { m_cbComposit.RoughnessCutoff = c; }
-		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx) noexcept
+		void SetDoFEnablement(bool b);
+		void SetSkyIllumEnablement(bool b);
+		void SetFireflyFilterEnablement(bool b);
+		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
+		void SetVoxelGridMappingExp(float p) { m_cbComposit.DepthMappingExp = p; }
+		void SetRoughnessCutoff(float c) { m_cbComposit.RoughnessCutoff = c; }
+		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx)
 		{
 			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 
@@ -81,7 +81,7 @@ namespace ZetaRay::RenderPass
 				return;
 			}
 		}
-		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
+		const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES i) const
 		{
 			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
 			if (i == SHADER_OUT_RES::COMPOSITED_DEFAULT)
@@ -91,8 +91,8 @@ namespace ZetaRay::RenderPass
 
 			return *m_output;
 		}
-		void OnWindowResized() noexcept;
-		void Render(Core::CommandList& cmdList) noexcept;
+		void OnWindowResized();
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -136,35 +136,35 @@ namespace ZetaRay::RenderPass
 			"FireflyFilter_cs.cso"
 		};
 		
-		Core::Texture m_hdrLightAccum;
-		Core::Texture m_dofGather_filtered;
+		Core::GpuMemory::Texture m_hdrLightAccum;
+		Core::GpuMemory::Texture m_dofGather_filtered;
 		Core::DescriptorTable m_descTable; 
 		cbCompositing m_cbComposit;
 		cbDoF m_cbDoF;
 		cbGaussianFilter m_cbGaussian;
 		int m_numGaussianPasses = 0;
-		Core::Texture* m_output = nullptr;
+		Core::GpuMemory::Texture* m_output = nullptr;
 		bool m_filterFirefly = false;
 		bool m_dof = false;
 		bool m_needToUavBarrierOnHDR = false;
 		bool m_needToUavBarrierOnFilter = false;
 
-		void CreateLightAccumTex() noexcept;
-		void CreateDoForFilteredResources() noexcept;
-		void UpdateManualBarrierConditions() noexcept;
+		void CreateLightAccumTex();
+		void CreateDoForFilteredResources();
+		void UpdateManualBarrierConditions();
 		
-		void SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void SetEmissiveEnablementCallback(const Support::ParamVariant& p) noexcept;
-		void FocusDistCallback(const Support::ParamVariant& p) noexcept;
-		void FStopCallback(const Support::ParamVariant& p) noexcept;
-		void FocalLengthCallback(const Support::ParamVariant& p) noexcept;
-		void BlurRadiusCallback(const Support::ParamVariant& p) noexcept;
-		void RadiusScaleCallback(const Support::ParamVariant& p) noexcept;
-		void MinLumToFilterCallback(const Support::ParamVariant& p) noexcept;
-		void NumGaussianPassesCallback(const Support::ParamVariant& p) noexcept;
+		void SetSunLightingEnablementCallback(const Support::ParamVariant& p);
+		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p);
+		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p);
+		void SetEmissiveEnablementCallback(const Support::ParamVariant& p);
+		void FocusDistCallback(const Support::ParamVariant& p);
+		void FStopCallback(const Support::ParamVariant& p);
+		void FocalLengthCallback(const Support::ParamVariant& p);
+		void BlurRadiusCallback(const Support::ParamVariant& p);
+		void RadiusScaleCallback(const Support::ParamVariant& p);
+		void MinLumToFilterCallback(const Support::ParamVariant& p);
+		void NumGaussianPassesCallback(const Support::ParamVariant& p);
 
-		void ReloadCompsiting() noexcept;
+		void ReloadCompsiting();
 	};
 }

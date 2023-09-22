@@ -33,29 +33,29 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		TAA() noexcept;
-		~TAA() noexcept;
+		TAA();
+		~TAA();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_pso != nullptr; }
-		void Reset() noexcept;
-		void OnWindowResized() noexcept;
-		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx) noexcept
+		void Init();
+		bool IsInitialized() { return m_pso != nullptr; }
+		void Reset();
+		void OnWindowResized();
+		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
 		{
 			Assert((int)i < (int)SHADER_IN_DESC::COUNT, "out-of-bound access.");
 			m_inputDesc[(int)i] = heapIdx;
 		}
-		Core::Texture& GetOutput(SHADER_OUT_RES i) noexcept
+		Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i)
 		{
 			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
 			return m_antiAliased[(int)i];
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
-		void CreateResources() noexcept;
-		void BlendWeightCallback(const Support::ParamVariant& p) noexcept;
-		void ReloadShader() noexcept;
+		void CreateResources();
+		void BlendWeightCallback(const Support::ParamVariant& p);
+		void ReloadShader();
 
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 0;
@@ -68,7 +68,7 @@ namespace ZetaRay::RenderPass
 		inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
 
 		// ping-pong between input & output
-		Core::Texture m_antiAliased[2];
+		Core::GpuMemory::Texture m_antiAliased[2];
 		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
 
 		Core::RootSignature m_rootSig;

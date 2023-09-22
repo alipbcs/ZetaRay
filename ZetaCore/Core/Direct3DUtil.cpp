@@ -1,4 +1,4 @@
-#include "Direct3DHelpers.h"
+#include "Direct3DUtil.h"
 #include "dds.h"
 #include "RendererCore.h"
 #include <xxHash/xxhash.h>
@@ -6,7 +6,8 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::GpuMemory;
+using namespace ZetaRay::Core::Direct3DUtil;
 
 #define ISBITMASK( r,g,b,a ) ( ddpf.RBitMask == r && ddpf.GBitMask == g && ddpf.BBitMask == b && ddpf.ABitMask == a )
 
@@ -15,7 +16,7 @@ namespace
     void AdjustPlaneResource(DXGI_FORMAT fmt,
         size_t height,
         size_t slicePlane,
-        D3D12_SUBRESOURCE_DATA& res) noexcept
+        D3D12_SUBRESOURCE_DATA& res)
     {
         switch (fmt)
         {
@@ -55,7 +56,7 @@ namespace
         }
     }
 
-    bool IsDepthStencil(DXGI_FORMAT fmt) noexcept
+    bool IsDepthStencil(DXGI_FORMAT fmt)
     {
         switch (fmt)
         {
@@ -76,7 +77,7 @@ namespace
         }
     }
 
-    UINT8 D3D12GetFormatPlaneCount(ID3D12Device* pDevice, DXGI_FORMAT Format) noexcept
+    UINT8 D3D12GetFormatPlaneCount(ID3D12Device* pDevice, DXGI_FORMAT Format)
     {
         D3D12_FEATURE_DATA_FORMAT_INFO formatInfo = { Format, 0 };
         if (FAILED(pDevice->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &formatInfo, sizeof(formatInfo))))
@@ -85,7 +86,7 @@ namespace
         return formatInfo.PlaneCount;
     }
 
-    DXGI_FORMAT GetDXGIFormat(const DDS_PIXELFORMAT& ddpf) noexcept
+    DXGI_FORMAT GetDXGIFormat(const DDS_PIXELFORMAT& ddpf)
     {
         if (ddpf.flags & DDS_RGB)
         {
@@ -327,7 +328,7 @@ namespace
     HRESULT FillInitData(size_t width, size_t height, size_t depth, size_t mipCount,
         size_t arraySize, size_t numberOfPlanes, DXGI_FORMAT format, size_t maxsize, size_t bitSize,
         const uint8_t* bitData, size_t& twidth, size_t& theight, size_t& tdepth, size_t& skipMip,
-        Vector<D3D12_SUBRESOURCE_DATA>& initData) noexcept
+        Vector<D3D12_SUBRESOURCE_DATA>& initData)
     {
         skipMip = 0;
         twidth = 0;
@@ -412,7 +413,7 @@ namespace
     }
 
     void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA>& subresources, const uint8_t* bitData, 
-        size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, uint16_t& mipCount, DXGI_FORMAT& format) noexcept
+        size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, uint16_t& mipCount, DXGI_FORMAT& format)
     {
         auto* device = App::GetRenderer().GetDevice();
 
@@ -585,7 +586,7 @@ namespace
     }
 
     LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, const DDS_HEADER** header,
-        const uint8_t** bitData, size_t* bitSize) noexcept
+        const uint8_t** bitData, size_t* bitSize)
     {
         Assert(header && bitData && bitSize, "invalid args.");
 
@@ -697,10 +698,10 @@ namespace
 }
 
 //--------------------------------------------------------------------------------------
-// Direct3DHelper
+// Direct3DUtil
 //--------------------------------------------------------------------------------------
 
-size_t Direct3DHelper::BitsPerPixel(DXGI_FORMAT fmt) noexcept
+size_t Direct3DUtil::BitsPerPixel(DXGI_FORMAT fmt)
 {
     switch (fmt)
     {
@@ -857,12 +858,12 @@ size_t Direct3DHelper::BitsPerPixel(DXGI_FORMAT fmt) noexcept
     }
 }
 
-HRESULT Direct3DHelper::GetSurfaceInfo(size_t width,
+HRESULT Direct3DUtil::GetSurfaceInfo(size_t width,
     size_t height,
     DXGI_FORMAT fmt,
     size_t* outNumBytes,
     size_t* outRowBytes,
-    size_t* outNumRows) noexcept
+    size_t* outNumRows)
 {
     uint64_t numBytes = 0;
     uint64_t rowBytes = 0;
@@ -999,7 +1000,7 @@ HRESULT Direct3DHelper::GetSurfaceInfo(size_t width,
     return S_OK;
 }
 
-UINT64 Direct3DHelper::GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource, UINT numSubresources) noexcept
+UINT64 Direct3DUtil::GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource, UINT numSubresources)
 {
     auto desc = destinationResource->GetDesc();
     UINT64 requiredSize = 0;
@@ -1010,14 +1011,14 @@ UINT64 Direct3DHelper::GetRequiredIntermediateSize(ID3D12Resource* destinationRe
     return requiredSize;
 }
 
-LOAD_DDS_RESULT Direct3DHelper::LoadDDSFromFile(const char* path,
+LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
     Vector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator>& subresources,
     DXGI_FORMAT& format, 
     std::unique_ptr<uint8_t[]>& ddsData,
     uint32_t& width, 
     uint32_t& height, 
     uint32_t& depth, 
-    uint16_t& mipCount) noexcept
+    uint16_t& mipCount)
 {
     // ddsData is populated with the file contents
     // bitData offsets into ddsData where the data starts
@@ -1035,14 +1036,14 @@ LOAD_DDS_RESULT Direct3DHelper::LoadDDSFromFile(const char* path,
     return LOAD_DDS_RESULT::SUCCESS;
 }
 
-D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DHelper::GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
+D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DUtil::GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
     int numRenderTargets, 
     DXGI_FORMAT* rtvFormats, 
     DXGI_FORMAT dsvFormat, 
     D3D12_RASTERIZER_DESC* rasterizerDesc, 
     D3D12_BLEND_DESC* blendDesc, 
     D3D12_DEPTH_STENCIL_DESC* depthStencilDesc, 
-    D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology) noexcept
+    D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology)
 {
     //DXGI_FORMAT unknownFormats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = { DXGI_FORMAT_UNKNOWN };
 
@@ -1068,7 +1069,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DHelper::GetPSODesc(const D3D12_INPUT_
     return psoDesc;
 }
 
-uint64_t Direct3DHelper::GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc) noexcept
+uint64_t Direct3DUtil::GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc)
 {
     // exclude pointers
     constexpr int offset1 = offsetof(D3D12_GRAPHICS_PIPELINE_STATE_DESC, BlendState);
@@ -1080,10 +1081,10 @@ uint64_t Direct3DHelper::GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc
     return XXH3_64bits(start, range);
 }
 
-void Direct3DHelper::CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDesc,
+void Direct3DUtil::CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDesc,
     ID3D12RootSignature* rootSignature, const D3D12_SHADER_BYTECODE* vertexShader, 
     const D3D12_SHADER_BYTECODE* pixelShader, const D3D12_SHADER_BYTECODE* hullShader, 
-    const D3D12_SHADER_BYTECODE* domainShader, ID3D12PipelineState** pipelineState) noexcept
+    const D3D12_SHADER_BYTECODE* domainShader, ID3D12PipelineState** pipelineState)
 {
     psDesc.pRootSignature = rootSignature;
 
@@ -1100,10 +1101,10 @@ void Direct3DHelper::CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDes
     CheckHR(device->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(pipelineState)));
 }
 
-void Direct3DHelper::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
-    UINT stride, UINT numElements) noexcept
+void Direct3DUtil::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).GetResource();
+    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1117,10 +1118,10 @@ void Direct3DHelper::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DE
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
-    UINT stride, UINT numElements) noexcept
+void Direct3DUtil::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).GetResource();
+    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
@@ -1133,9 +1134,9 @@ void Direct3DHelper::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DE
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT stride, UINT numElements) noexcept
+void Direct3DUtil::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).GetResource();
+    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
     Assert((stride & (4 - 1)) == 0, "Stride must be a multiple of 4.");
 
@@ -1151,12 +1152,12 @@ void Direct3DHelper::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
-    float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
+void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
+    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    auto* res = const_cast<Texture&>(t).GetResource();
+    auto* res = const_cast<Texture&>(t).Resource();
     Assert(res, "Texture hasn't been initialized.");
     auto desc = res->GetDesc();
 
@@ -1172,12 +1173,12 @@ void Direct3DHelper::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
-    float minLODClamp, UINT mostDetailedMip, UINT planeSlice) noexcept
+void Direct3DUtil::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
+    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    auto* res = const_cast<Texture&>(t).GetResource();
+    auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1191,12 +1192,12 @@ void Direct3DHelper::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
-    UINT mipSlice, UINT planeSlice) noexcept
+void Direct3DUtil::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    auto* res = const_cast<Texture&>(t).GetResource();
+    auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
 
     D3D12_RENDER_TARGET_VIEW_DESC rtvDesc;
@@ -1208,12 +1209,12 @@ void Direct3DHelper::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpu
     device->CreateRenderTargetView(res, &rtvDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
-    UINT mipSlice, UINT planeSlice) noexcept
+void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    auto* res = const_cast<Texture&>(t).GetResource();
+    auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
@@ -1225,12 +1226,12 @@ void Direct3DHelper::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_H
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DHelper::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
-    UINT mipSlice, UINT numSlices, UINT firstSliceIdx) noexcept
+void Direct3DUtil::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
+    UINT mipSlice, UINT numSlices, UINT firstSliceIdx)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    auto* res = const_cast<Texture&>(t).GetResource();
+    auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};

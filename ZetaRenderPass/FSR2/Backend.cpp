@@ -15,6 +15,7 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
@@ -56,7 +57,7 @@ namespace
 		using fp_Fsr2ContextDispatch = FfxErrorCode (*)(FfxFsr2Context* context, const FfxFsr2DispatchDescription* dispatchDescription);
 		using fp_Fsr2GetPermBlobByIdx = Fsr2ShaderBlobDX12 (*)(FfxFsr2Pass passId, uint32_t permutationOptions);
 
-		void Load() noexcept
+		void Load()
 		{
 			m_fsrLib = LoadLibraryExA("ffx_fsr2_api_x64", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
 			CheckWin32(m_fsrLib);
@@ -73,7 +74,7 @@ namespace
 			CheckWin32(FpGetShaderPermutation);
 		}
 
-		void Free() noexcept
+		void Free()
 		{
 			if(m_fsrLib)
 				FreeLibrary(m_fsrLib);
@@ -148,7 +149,7 @@ namespace
 
 	FSR2_Data* g_fsr2Data = nullptr;
 
-	D3D12_RESOURCE_STATES GetD3D12State(FfxResourceStates fsrState) noexcept
+	D3D12_RESOURCE_STATES GetD3D12State(FfxResourceStates fsrState)
 	{
 		switch (fsrState)
 		{
@@ -168,7 +169,7 @@ namespace
 		}
 	}
 
-	const char* GetFsrErrorMsg(FfxErrorCode err) noexcept
+	const char* GetFsrErrorMsg(FfxErrorCode err)
 	{
 		if (err == FFX_ERROR_INVALID_POINTER)
 			return "The operation failed due to an invalid pointer";
@@ -251,7 +252,7 @@ namespace
 		}
 	}
 
-	void RecordClearJob(const FfxClearFloatJobDescription& job) noexcept
+	void RecordClearJob(const FfxClearFloatJobDescription& job)
 	{
 		Assert(g_fsr2Data->m_cmdList, "Command list was NULL");
 		Assert(job.target.internalIndex < FFX_FSR2_RESOURCE_IDENTIFIER_COUNT, "Unknown resource");
@@ -268,7 +269,7 @@ namespace
 		auto& uavDescTableCpu = g_fsr2Data->m_resData[job.target.internalIndex].UavAllMipsCpu;
 		auto& uavDescTableGpu = g_fsr2Data->m_resData[job.target.internalIndex].UavAllMipsGpu;
 
-		const auto desc = t.GetResource()->GetDesc();
+		const auto desc = t.Resource()->GetDesc();
 		Assert(desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, "UAV access is not allowed for this resource");
 
 		if (uavDescTableCpu.IsEmpty())
@@ -276,7 +277,7 @@ namespace
 			uavDescTableCpu = App::GetRenderer().GetCbvSrvUavDescriptorHeapCpu().Allocate(desc.MipLevels);
 
 			for (uint32_t i = 0; i < desc.MipLevels; i++)
-				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableCpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
+				Direct3DUtil::CreateTexture2DUAV(t, uavDescTableCpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
 		}
 
 		if (uavDescTableGpu.IsEmpty())
@@ -284,7 +285,7 @@ namespace
 			uavDescTableGpu = App::GetRenderer().GetGpuDescriptorHeap().Allocate(desc.MipLevels);
 
 			for (uint32_t i = 0; i < desc.MipLevels; i++)
-				Direct3DHelper::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
+				Direct3DUtil::CreateTexture2DUAV(t, uavDescTableGpu.CPUHandle(i), DXGI_FORMAT_UNKNOWN, i);
 		}
 
 		if (job.target.internalIndex == FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT)
@@ -294,7 +295,7 @@ namespace
 		}
 		else if (g_fsr2Data->m_resData[job.target.internalIndex].State != D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
 		{
-			auto barrier = Direct3DHelper::TransitionBarrier(t.GetResource(), g_fsr2Data->m_resData[job.target.internalIndex].State,
+			auto barrier = Direct3DUtil::TransitionBarrier(t.Resource(), g_fsr2Data->m_resData[job.target.internalIndex].State,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 			// TODO barriers should be batched
@@ -305,14 +306,14 @@ namespace
 
 		g_fsr2Data->m_cmdList->ClearUnorderedAccessViewFloat(uavDescTableGpu.GPUHandle(0), 
 			uavDescTableCpu.CPUHandle(0),
-			t.GetResource(), 
+			t.Resource(), 
 			job.color[0], job.color[1], job.color[2], job.color[3]);
 
 		g_fsr2Data->m_resData[job.target.internalIndex].NeedsUavBarrier = true;
 		g_fsr2Data->m_resData[job.target.internalIndex].RecordedClearThisFrame = true;
 	}	
 	
-	void RecordComputeJob(const FfxComputeJobDescription& job) noexcept
+	void RecordComputeJob(const FfxComputeJobDescription& job)
 	{
 		Assert(g_fsr2Data->m_cmdList, "Command list was NULL");
 
@@ -352,23 +353,23 @@ namespace
 			
 			{
 				Texture& t = g_fsr2Data->m_textures[uavResIdx];
-				Assert(t.GetResource(), "Texture2D hasn't been created yet.");
+				Assert(t.Resource(), "Texture2D hasn't been created yet.");
 
-				const auto desc = t.GetResource()->GetDesc();
+				const auto desc = t.Resource()->GetDesc();
 				Assert(desc.Flags & D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS, "UAV access is not allowed for this resource");
 
 				if (uavAllMips.IsEmpty())
 					uavAllMips = App::GetRenderer().GetCbvSrvUavDescriptorHeapCpu().Allocate(desc.MipLevels);
 
 				for (uint32_t j = 0; j < desc.MipLevels; j++)
-					Direct3DHelper::CreateTexture2DUAV(t, uavAllMips.CPUHandle(j), DXGI_FORMAT_UNKNOWN, j);
+					Direct3DUtil::CreateTexture2DUAV(t, uavAllMips.CPUHandle(j), DXGI_FORMAT_UNKNOWN, j);
 			}
 
 			if ((g_fsr2Data->m_resData[uavResIdx].State & D3D12_RESOURCE_STATE_UNORDERED_ACCESS) == 0)
 			{
 				Texture& t = g_fsr2Data->m_textures[uavResIdx];
 
-				barriers[currBarrierIdx++] = Direct3DHelper::TransitionBarrier(t.GetResource(),
+				barriers[currBarrierIdx++] = Direct3DUtil::TransitionBarrier(t.Resource(),
 					g_fsr2Data->m_resData[uavResIdx].State,
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -378,7 +379,7 @@ namespace
 			else if(g_fsr2Data->m_resData[uavResIdx].NeedsUavBarrier)
 			{
 				Texture& t = g_fsr2Data->m_textures[uavResIdx];
-				barriers[currBarrierIdx++] = Direct3DHelper::UAVBarrier(t.GetResource());
+				barriers[currBarrierIdx++] = Direct3DUtil::UAVBarrier(t.Resource());
 
 				g_fsr2Data->m_resData[uavResIdx].NeedsUavBarrier = false;
 			}
@@ -408,14 +409,14 @@ namespace
 
 				Texture& t = g_fsr2Data->m_textures[srvResIdx];
 				Assert(t.IsInitialized(), "Texture2D hasn't been created yet.");
-				Direct3DHelper::CreateTexture2DSRV(t, srv.CPUHandle(0));
+				Direct3DUtil::CreateTexture2DSRV(t, srv.CPUHandle(0));
 			}
 
 			if ((g_fsr2Data->m_resData[srvResIdx].State & D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE) == 0)
 			{
 				Texture& t = g_fsr2Data->m_textures[srvResIdx];
 
-				barriers[currBarrierIdx++] = Direct3DHelper::TransitionBarrier(t.GetResource(),
+				barriers[currBarrierIdx++] = Direct3DUtil::TransitionBarrier(t.Resource(),
 					g_fsr2Data->m_resData[srvResIdx].State,
 					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -491,7 +492,7 @@ namespace
 // FSR2_Internal
 //--------------------------------------------------------------------------------------
 
-void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight) noexcept
+void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight)
 {
 	if(!g_fsr2Data)
 		g_fsr2Data = new FSR2_Data;
@@ -535,12 +536,12 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 
 	// upscaled output texture
 	Assert(!g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].IsInitialized(), "Output is app-controlled");
-	g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT] = renderer.GetGpuMemory().GetTexture2D("UpscaledColor",
+	g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT] = GpuMemory::GetTexture2D("UpscaledColor",
 		outputWidth,
 		outputHeight,
 		outputFormat,
 		D3D12_RESOURCE_STATE_COMMON, 
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 	// render graph performs the transition to UAV prior to recording
 	g_fsr2Data->m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
@@ -553,7 +554,7 @@ void FSR2_Internal::Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHe
 		});
 }
 
-void FSR2_Internal::Shutdown() noexcept
+void FSR2_Internal::Shutdown()
 {
 	if (g_fsr2Data)
 	{
@@ -610,19 +611,19 @@ void FSR2_Internal::Shutdown() noexcept
 	}
 }
 
-bool FSR2_Internal::IsInitialized() noexcept
+bool FSR2_Internal::IsInitialized()
 {
 	return g_fsr2Data != nullptr;
 }
 
-const Texture& FSR2_Internal::GetUpscaledOutput() noexcept
+const Texture& FSR2_Internal::GetUpscaledOutput()
 {
 	Assert(g_fsr2Data, "g_fsr2Data is NULL");
 	Assert(g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].IsInitialized(), "Texture hasn't been initialized.");
 	return g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT];
 }
 
-void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appParams) noexcept
+void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appParams)
 {
 	g_fsr2Data->m_cmdList = &static_cast<ComputeCmdList&>(cmdList);
 	g_fsr2Data->m_color = appParams.Color;
@@ -672,7 +673,7 @@ void FSR2_Internal::Dispatch(CommandList& cmdList, const DispatchParams& appPara
 	params.depth.isDepth = true;
 	params.motionVectors.resource = appParams.MotionVectors;
 	params.motionVectors.state = FFX_RESOURCE_STATE_COMPUTE_READ;
-	params.output.resource = g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].GetResource();
+	params.output.resource = g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].Resource();
 	params.output.state = FFX_RESOURCE_STATE_UNORDERED_ACCESS;
 	params.exposure.resource = appParams.Exposure;
 	params.exposure.state = FFX_RESOURCE_STATE_COMPUTE_READ;
@@ -758,15 +759,13 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 	for (uint32_t i = 0; i < g_fsr2Data->NUM_APP_CONTROLLED_RESOURCES; i++)
 		Assert(resDesc->id != g_fsr2Data->APP_CONTROLLED_RES_IDS[i], "This resource is created by the App.");
 	
-	auto& gpuMem = App::GetRenderer().GetGpuMemory();
-
 	// upload buffer
 	if (resDesc->heapType == FFX_HEAP_TYPE_UPLOAD)
 	{
 		Assert(resDesc->initalState == FFX_RESOURCE_STATE_GENERIC_READ,
 			"Upload heap buffer must be GENERIC_READ at all times");
 
-		auto buff = gpuMem.GetUploadHeapBuffer(resDesc->initDataSize);
+		auto buff = GpuMemory::GetUploadHeapBuffer(resDesc->initDataSize);
 		buff.Copy(0, resDesc->initDataSize, resDesc->initData);
 
 		g_fsr2Data->m_uploadHeapBuffs[resDesc->id] = ZetaMove(buff);
@@ -785,8 +784,8 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 	const bool allowRT = resDesc->usage & FFX_RESOURCE_USAGE_RENDERTARGET;
 	const D3D12_RESOURCE_STATES state = GetD3D12State(resDesc->initalState);
 	uint8_t textureFlags = 0;
-	textureFlags = allowUAV ? textureFlags | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS : textureFlags;
-	textureFlags = allowRT ? textureFlags | TEXTURE_FLAGS::ALLOW_RENDER_TARGET : textureFlags;
+	textureFlags = allowUAV ? textureFlags | CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS : textureFlags;
+	textureFlags = allowRT ? textureFlags | CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET : textureFlags;
 	//const DXGI_FORMAT fmt = GetDXGIFormat(resDesc->resourceDescription.format);
 
 	if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
@@ -794,10 +793,10 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		Assert(resDesc->usage != FFX_RESOURCE_USAGE_RENDERTARGET, "Buffers can't be used as render targets.");
 
 		if (resDesc->initData)
-			g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = gpuMem.GetDefaultHeapBufferAndInit(resName, resDesc->initDataSize, 
+			g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBufferAndInit(resName,
 				state, allowUAV, resDesc->initData);
 		else
-			g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = gpuMem.GetDefaultHeapBuffer(resName, resDesc->initDataSize, 
+			g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBuffer(resName, resDesc->initDataSize,
 				state, allowUAV);
 
 		outResource->internalIndex = resDesc->id;
@@ -809,7 +808,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 
 		if (resDesc->initData)
 		{
-			g_fsr2Data->m_textures[resDesc->id] = gpuMem.GetTexture2DAndInit(resName, 
+			g_fsr2Data->m_textures[resDesc->id] = GpuMemory::GetTexture2DAndInit(resName,
 				resDesc->resourceDescription.width,
 				resDesc->resourceDescription.height,
 				fmt,
@@ -819,7 +818,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		}
 		else
 		{
-			g_fsr2Data->m_textures[resDesc->id] = gpuMem.GetTexture2D(resName,
+			g_fsr2Data->m_textures[resDesc->id] = GpuMemory::GetTexture2D(resName,
 				resDesc->resourceDescription.width,
 				resDesc->resourceDescription.height,
 				fmt,
@@ -836,7 +835,7 @@ FfxErrorCode FSR2_Internal::Fsr2CreateResource(FfxFsr2Interface* backendInterfac
 		Assert(!resDesc->initData, "Initializing Texture3D from CPU side is not supported.");
 		Assert(fmt != DXGI_FORMAT_UNKNOWN, "Invalid Texture2D format.");
 
-		g_fsr2Data->m_textures[resDesc->id] = gpuMem.GetTexture3D(resName,
+		g_fsr2Data->m_textures[resDesc->id] = GpuMemory::GetTexture3D(resName,
 			resDesc->resourceDescription.width,
 			resDesc->resourceDescription.height,
 			(uint16_t)resDesc->resourceDescription.depth,
@@ -866,7 +865,7 @@ FfxErrorCode FSR2_Internal::Fsr2RegisterResource(FfxFsr2Interface* backendInterf
 		outResource->internalIndex = FFX_FSR2_RESOURCE_IDENTIFIER_INPUT_MOTION_VECTORS;
 	else if (reinterpret_cast<const ID3D12Resource*>(inResource->resource) == g_fsr2Data->m_exposure)
 		outResource->internalIndex = FFX_FSR2_RESOURCE_IDENTIFIER_INPUT_EXPOSURE;
-	else if (reinterpret_cast<const ID3D12Resource*>(inResource->resource) == g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].GetResource())
+	else if (reinterpret_cast<const ID3D12Resource*>(inResource->resource) == g_fsr2Data->m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].Resource())
 		outResource->internalIndex = FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT;
 
 	return FFX_OK;
@@ -943,7 +942,7 @@ FfxResourceDescription FSR2_Internal::Fsr2GetResourceDescription(FfxFsr2Interfac
 
 	if (g_fsr2Data->m_textures[resource.internalIndex].IsInitialized())
 	{
-		auto desc = g_fsr2Data->m_textures[resource.internalIndex].GetDesc();
+		auto desc = g_fsr2Data->m_textures[resource.internalIndex].Desc();
 
 		ret.type = desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D ? FFX_RESOURCE_TYPE_TEXTURE2D : FFX_RESOURCE_TYPE_TEXTURE3D;
 		ret.mipCount = desc.MipLevels;
@@ -954,7 +953,7 @@ FfxResourceDescription FSR2_Internal::Fsr2GetResourceDescription(FfxFsr2Interfac
 	}
 	else if (g_fsr2Data->m_defaultHeapBuffs[resource.internalIndex].IsInitialized())
 	{
-		auto desc = g_fsr2Data->m_defaultHeapBuffs[resource.internalIndex].GetDesc();
+		auto desc = g_fsr2Data->m_defaultHeapBuffs[resource.internalIndex].Desc();
 
 		ret.type = FFX_RESOURCE_TYPE_BUFFER;
 		ret.mipCount = desc.MipLevels;

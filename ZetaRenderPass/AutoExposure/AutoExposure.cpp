@@ -5,7 +5,8 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DUtil;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -15,17 +16,17 @@ using namespace ZetaRay::Support;
 // AutoExposure
 //--------------------------------------------------------------------------------------
 
-AutoExposure::AutoExposure() noexcept
+AutoExposure::AutoExposure()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 }
 
-AutoExposure::~AutoExposure() noexcept
+AutoExposure::~AutoExposure()
 {
 	Reset();
 }
 
-void AutoExposure::Init() noexcept
+void AutoExposure::Init()
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,
@@ -99,7 +100,7 @@ void AutoExposure::Init() noexcept
 	CreateResources();
 }
 
-void AutoExposure::Reset() noexcept
+void AutoExposure::Reset()
 {
 	if (m_psos[0] || m_psos[1])
 	{
@@ -110,7 +111,7 @@ void AutoExposure::Reset() noexcept
 	}
 }
 
-void AutoExposure::Render(CommandList& cmdList) noexcept
+void AutoExposure::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -120,8 +121,8 @@ void AutoExposure::Render(CommandList& cmdList) noexcept
 
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
-	const int w = renderer.GetRenderWidth();
-	const int h = renderer.GetRenderHeight();
+	const uint32_t w = renderer.GetRenderWidth();
+	const uint32_t h = renderer.GetRenderHeight();
 
 	computeCmdList.PIXBeginEvent("AutoExposure");
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
@@ -134,21 +135,21 @@ void AutoExposure::Render(CommandList& cmdList) noexcept
 	m_cbHist.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::COMPOSITED];
 	m_cbHist.ExposureDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::EXPOSURE_UAV);
 		
-	m_rootSig.SetRootUAV(2, m_hist.GetGpuVA());
+	m_rootSig.SetRootUAV(2, m_hist.GpuVA());
 	m_rootSig.SetRootConstants(0, sizeof(cbAutoExposureHist) / sizeof(DWORD), &m_cbHist);
 	m_rootSig.End(computeCmdList);
 
-	const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, THREAD_GROUP_SIZE_HIST_X);
-	const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, THREAD_GROUP_SIZE_HIST_Y);
+	const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, THREAD_GROUP_SIZE_HIST_X);
+	const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, THREAD_GROUP_SIZE_HIST_Y);
 
-	computeCmdList.ResourceBarrier(m_hist.GetResource(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
-	computeCmdList.CopyBufferRegion(m_hist.GetResource(), 0, m_zeroBuffer.GetResource(), 0, HIST_BIN_COUNT * sizeof(uint32_t));
-	computeCmdList.ResourceBarrier(m_hist.GetResource(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	computeCmdList.ResourceBarrier(m_hist.Resource(), D3D12_RESOURCE_STATE_COMMON, D3D12_RESOURCE_STATE_COPY_DEST);
+	computeCmdList.CopyBufferRegion(m_hist.Resource(), 0, m_zeroBuffer.Resource(), 0, HIST_BIN_COUNT * sizeof(uint32_t));
+	computeCmdList.ResourceBarrier(m_hist.Resource(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 	computeCmdList.SetPipelineState(m_psos[(int)SHADERS::HISTOGRAM]);
 	computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-	auto uavBarrier = Direct3DHelper::UAVBarrier(m_hist.GetResource());
+	auto uavBarrier = Direct3DUtil::UAVBarrier(m_hist.Resource());
 	computeCmdList.UAVBarrier(1, &uavBarrier);
 
 	computeCmdList.SetPipelineState(m_psos[(int)SHADERS::EXPECTED_VALUE]);
@@ -160,53 +161,53 @@ void AutoExposure::Render(CommandList& cmdList) noexcept
 	gpuTimer.EndQuery(computeCmdList, queryIdx);
 }
 
-void AutoExposure::CreateResources() noexcept
+void AutoExposure::CreateResources()
 {
 	auto& renderer = App::GetRenderer();
 
-	m_hist = renderer.GetGpuMemory().GetDefaultHeapBuffer("LogLumHistogram",
+	m_hist = GpuMemory::GetDefaultHeapBuffer("LogLumHistogram",
 		HIST_BIN_COUNT * sizeof(uint32_t),
 		D3D12_RESOURCE_STATE_COMMON,
 		true);
 
-	m_exposure = renderer.GetGpuMemory().GetTexture2D("Exposure",
+	m_exposure = GpuMemory::GetTexture2D("Exposure",
 		1,
 		1,
 		DXGI_FORMAT_R32G32_FLOAT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | TEXTURE_FLAGS::INIT_TO_ZERO);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | CREATE_TEXTURE_FLAGS::INIT_TO_ZERO);
 
 	// create a zero-initialized buffer for resetting the counter
-	m_zeroBuffer = renderer.GetGpuMemory().GetDefaultHeapBuffer("Zero",
-		sizeof(uint32_t),
+	m_zeroBuffer = GpuMemory::GetDefaultHeapBuffer("Zero",
+		HIST_BIN_COUNT * sizeof(uint32_t),
 		D3D12_RESOURCE_STATE_COMMON,
 		false,
 		true);
 
-	Direct3DHelper::CreateTexture2DUAV(m_exposure, m_descTable.CPUHandle((int)DESC_TABLE::EXPOSURE_UAV));
+	Direct3DUtil::CreateTexture2DUAV(m_exposure, m_descTable.CPUHandle((int)DESC_TABLE::EXPOSURE_UAV));
 }
 
-void AutoExposure::MinLumCallback(const Support::ParamVariant& p) noexcept
+void AutoExposure::MinLumCallback(const Support::ParamVariant& p)
 {
 	m_minLum = Math::Min(p.GetFloat().m_val, m_maxLum);
 }
 
-void AutoExposure::MaxLumCallback(const Support::ParamVariant& p) noexcept
+void AutoExposure::MaxLumCallback(const Support::ParamVariant& p)
 {
 	m_maxLum = Math::Max(p.GetFloat().m_val, m_minLum);
 }
 
-void AutoExposure::LumMapExpCallback(const Support::ParamVariant& p) noexcept
+void AutoExposure::LumMapExpCallback(const Support::ParamVariant& p)
 {
 	m_cbHist.LumMapExp = p.GetFloat().m_val;
 }
 
-void AutoExposure::LowerPercentileCallback(const Support::ParamVariant& p) noexcept
+void AutoExposure::LowerPercentileCallback(const Support::ParamVariant& p)
 {
 	m_cbHist.LowerPercentile = p.GetFloat().m_val;
 }
 
-void AutoExposure::UpperPercentileCallback(const Support::ParamVariant& p) noexcept
+void AutoExposure::UpperPercentileCallback(const Support::ParamVariant& p)
 {
 	m_cbHist.UpperPercentile = p.GetFloat().m_val;
 }

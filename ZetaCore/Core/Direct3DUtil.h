@@ -18,13 +18,13 @@ namespace ZetaRay::Util
     class Vector;
 }
 
-namespace ZetaRay::Core
+namespace ZetaRay::Core::GpuMemory
 {
     struct Texture;
     struct DefaultHeapBuffer;
 }
 
-namespace ZetaRay::Core::Direct3DHelper
+namespace ZetaRay::Core::Direct3DUtil
 {
     enum class LOAD_DDS_RESULT
     {
@@ -40,7 +40,7 @@ namespace ZetaRay::Core::Direct3DHelper
 
     struct DDS_HEADER;
 
-    inline D3D12_HEAP_PROPERTIES UploadHeapProp() noexcept
+    inline D3D12_HEAP_PROPERTIES UploadHeapProp()
     {
         D3D12_HEAP_PROPERTIES uploadHeap{
             .Type = D3D12_HEAP_TYPE_UPLOAD,
@@ -52,7 +52,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return uploadHeap;
     }
 
-    inline D3D12_HEAP_PROPERTIES DefaultHeapProp() noexcept
+    inline D3D12_HEAP_PROPERTIES DefaultHeapProp()
     {
         D3D12_HEAP_PROPERTIES defaultHeap{
             .Type = D3D12_HEAP_TYPE_DEFAULT,
@@ -64,7 +64,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return defaultHeap;
     }
 
-    inline D3D12_HEAP_PROPERTIES ReadbackHeapProp() noexcept
+    inline D3D12_HEAP_PROPERTIES ReadbackHeapProp()
     {
         D3D12_HEAP_PROPERTIES defaultHeap{
             .Type = D3D12_HEAP_TYPE_READBACK,
@@ -77,7 +77,7 @@ namespace ZetaRay::Core::Direct3DHelper
     }
 
     inline D3D12_RESOURCE_DESC BufferResourceDesc(UINT64 w,
-        D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE) noexcept
+        D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE)
     {
         D3D12_RESOURCE_DESC bufferDesc;
 
@@ -100,7 +100,7 @@ namespace ZetaRay::Core::Direct3DHelper
         uint16_t arraySize = 1, uint16_t mipLevels = 1,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
         D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-        UINT64 alignment = 0) noexcept
+        UINT64 alignment = 0)
     {
         D3D12_RESOURCE_DESC tex1DDesc;
 
@@ -123,7 +123,7 @@ namespace ZetaRay::Core::Direct3DHelper
         uint16_t arraySize = 1, uint16_t mipLevels = 1,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
         D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-        UINT64 alignment = 0) noexcept
+        UINT64 alignment = 0)
     {
         D3D12_RESOURCE_DESC tex2DDesc;
 
@@ -146,7 +146,7 @@ namespace ZetaRay::Core::Direct3DHelper
         uint16_t depth = 1, uint16_t mipLevels = 1,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
         D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
-        UINT64 alignment = 0) noexcept
+        UINT64 alignment = 0)
     {
         D3D12_RESOURCE_DESC tex2DDesc;
 
@@ -169,7 +169,7 @@ namespace ZetaRay::Core::Direct3DHelper
         D3D12_RESOURCE_STATES before,
         D3D12_RESOURCE_STATES after,
         UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES,
-        D3D12_RESOURCE_BARRIER_FLAGS flags = D3D12_RESOURCE_BARRIER_FLAG_NONE) noexcept
+        D3D12_RESOURCE_BARRIER_FLAGS flags = D3D12_RESOURCE_BARRIER_FLAG_NONE)
     {
         D3D12_RESOURCE_BARRIER barrier{};
 
@@ -183,7 +183,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return barrier;
     }
 
-    inline D3D12_RESOURCE_BARRIER UAVBarrier(ID3D12Resource* res) noexcept
+    inline D3D12_RESOURCE_BARRIER UAVBarrier(ID3D12Resource* res)
     {
         D3D12_RESOURCE_BARRIER barrier{};
 
@@ -195,7 +195,7 @@ namespace ZetaRay::Core::Direct3DHelper
     }
 
     // Return the BPP for a particular format
-    size_t BitsPerPixel(DXGI_FORMAT fmt) noexcept;
+    size_t BitsPerPixel(DXGI_FORMAT fmt);
 
     // Get surface information for a particular format
     HRESULT GetSurfaceInfo(size_t width,
@@ -203,13 +203,13 @@ namespace ZetaRay::Core::Direct3DHelper
         DXGI_FORMAT fmt,
         size_t* outNumBytes,
         size_t* outRowBytes,
-        size_t* outNumRows) noexcept;
+        size_t* outNumRows);
 
     // Returns required size of a buffer to be used for data upload
     UINT64 GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource,
-        UINT numSubresources) noexcept;
+        UINT numSubresources);
 
-    inline D3D12_BLEND_DESC DefaultBlendDesc() noexcept
+    inline D3D12_BLEND_DESC DefaultBlendDesc()
     {
         D3D12_BLEND_DESC desc{};
         desc.AlphaToCoverageEnable = false;
@@ -233,7 +233,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return desc;
     }
 
-    inline D3D12_RASTERIZER_DESC DefaultRasterizerDesc() noexcept
+    inline D3D12_RASTERIZER_DESC DefaultRasterizerDesc()
     {
         D3D12_RASTERIZER_DESC desc{};
 
@@ -252,7 +252,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return desc;
     }
 
-    inline D3D12_DEPTH_STENCIL_DESC DefaultDepthStencilDesc() noexcept
+    inline D3D12_DEPTH_STENCIL_DESC DefaultDepthStencilDesc()
     {
         D3D12_DEPTH_STENCIL_DESC desc{};
         desc.DepthEnable = true;
@@ -274,7 +274,7 @@ namespace ZetaRay::Core::Direct3DHelper
         return desc;
     }
 
-    inline constexpr DXGI_FORMAT NoSRGB(DXGI_FORMAT fmt) noexcept
+    inline constexpr DXGI_FORMAT NoSRGB(DXGI_FORMAT fmt)
     {
         switch (fmt)
         {
@@ -296,7 +296,7 @@ namespace ZetaRay::Core::Direct3DHelper
         uint32_t& width,
         uint32_t& height,
         uint32_t& depth,
-        uint16_t& mipCount) noexcept;
+        uint16_t& mipCount);
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
         int numRenderTargets,
@@ -305,9 +305,9 @@ namespace ZetaRay::Core::Direct3DHelper
         D3D12_RASTERIZER_DESC* rasterizerDesc = nullptr,
         D3D12_BLEND_DESC* blendDesc = nullptr,
         D3D12_DEPTH_STENCIL_DESC* depthStencilDesc = nullptr,
-        D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE) noexcept;
+        D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 
-    uint64_t GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc) noexcept;
+    uint64_t GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc);
 
     void CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDesc,
         ID3D12RootSignature* rootSignature,
@@ -315,23 +315,23 @@ namespace ZetaRay::Core::Direct3DHelper
         const D3D12_SHADER_BYTECODE* pixelShader,
         const D3D12_SHADER_BYTECODE* hullShader,
         const D3D12_SHADER_BYTECODE* domainShader,
-        ID3D12PipelineState** pPipelineState) noexcept;
+        ID3D12PipelineState** pPipelineState);
 
-    void CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
-        UINT stride, UINT numElements) noexcept;
-    void CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
-        UINT stride, UINT numElements) noexcept;
-    void CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
-        UINT stride, UINT numElements) noexcept;
-    void CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
-        UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
-    void CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
-        UINT mipSlice = 0, UINT numSlices = 0, UINT firstSliceIdx = 0) noexcept;
+    void CreateBufferSRV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+        UINT stride, UINT numElements);
+    void CreateBufferUAV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+        UINT stride, UINT numElements);
+    void CreateRawBufferUAV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+        UINT stride, UINT numElements);
+    void CreateTexture2DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
+        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);
+    void CreateTexture3DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
+        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);
+    void CreateTexture2DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
+        UINT mipSlice = 0, UINT planeSlice = 0);
+    void CreateTexture3DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
+        UINT mipSlice = 0, UINT numSlices = 0, UINT firstSliceIdx = 0);
 
-    void CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, 
-        UINT mipSlice = 0, UINT planeSlice = 0) noexcept;
+    void CreateRTV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
+        UINT mipSlice = 0, UINT planeSlice = 0);
 }

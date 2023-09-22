@@ -42,15 +42,15 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		ReSTIR_GI_Diffuse() noexcept;
-		~ReSTIR_GI_Diffuse() noexcept;
+		ReSTIR_GI_Diffuse();
+		~ReSTIR_GI_Diffuse();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_psos[0] != nullptr; };
-		void Reset() noexcept;
-		void OnWindowResized() noexcept;
+		void Init();
+		bool IsInitialized() { return m_psos[0] != nullptr; };
+		void Reset();
+		void OnWindowResized();
 
-		const Core::Texture& GetInput(SHADER_IN_RES i) const noexcept
+		const Core::GpuMemory::Texture& GetInput(SHADER_IN_RES i) const
 		{
 			switch (i)
 			{
@@ -68,7 +68,7 @@ namespace ZetaRay::RenderPass
 			return m_spatialReservoirs[1].ReservoirC;
 		}
 
-		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
+		const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
 		{
 			switch (i)
 			{
@@ -98,7 +98,7 @@ namespace ZetaRay::RenderPass
 			return m_spatialReservoirs[0].ReservoirC;
 		}
 
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -109,18 +109,18 @@ namespace ZetaRay::RenderPass
 
 		RpObjects s_rpObjs;
 
-		void CreateOutputs() noexcept;
+		void CreateOutputs();
 
 		Core::RootSignature m_rootSig;
 		
 		struct Reservoir
 		{
 			// Texture2D<float4>: (Pos, w_sum)
-			Core::Texture ReservoirA;
+			Core::GpuMemory::Texture ReservoirA;
 			// Texture2D<half4>: (Li, M)
-			Core::Texture ReservoirB;
+			Core::GpuMemory::Texture ReservoirB;
 			// Texture2D<half2>: (Normal)
-			Core::Texture ReservoirC;
+			Core::GpuMemory::Texture ReservoirC;
 		};
 
 		struct ResourceFormats
@@ -185,8 +185,8 @@ namespace ZetaRay::RenderPass
 
 		Reservoir m_temporalReservoirs[2];
 		Reservoir m_spatialReservoirs[2];
-		Core::Texture m_temporalCache[2];
-		Core::Texture m_tsppAdjustment;
+		Core::GpuMemory::Texture m_temporalCache[2];
+		Core::GpuMemory::Texture m_tsppAdjustment;
 		Core::DescriptorTable m_descTable;
 		int m_currTemporalReservoirIdx = 0;
 		bool m_isTemporalReservoirValid = false;
@@ -202,17 +202,17 @@ namespace ZetaRay::RenderPass
 		cbDiffuseDNSRTemporal m_cbDNSRTemporal;
 		cbDiffuseDNSRSpatial m_cbDNSRSpatial;
 
-		void DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept;
-		void DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept;
-		void PdfCorrectionCallback(const Support::ParamVariant& p) noexcept;
-		void ValidationPeriodCallback(const Support::ParamVariant& p) noexcept;
-		void RGINormalExpCallback(const Support::ParamVariant& p) noexcept;
-		void CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRNumSpatialPassesCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRNormalExpCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRMinFilterRadiusCallback(const Support::ParamVariant& p) noexcept;
-		void DNSRMaxFilterRadiusCallback(const Support::ParamVariant& p) noexcept;
+		void DoTemporalResamplingCallback(const Support::ParamVariant& p);
+		void DoSpatialResamplingCallback(const Support::ParamVariant& p);
+		void PdfCorrectionCallback(const Support::ParamVariant& p);
+		void ValidationPeriodCallback(const Support::ParamVariant& p);
+		void RGINormalExpCallback(const Support::ParamVariant& p);
+		void CheckerboardTracingCallback(const Support::ParamVariant& p);
+		void DNSRNumSpatialPassesCallback(const Support::ParamVariant& p);
+		void DNSRMaxTSPPCallback(const Support::ParamVariant& p);
+		void DNSRNormalExpCallback(const Support::ParamVariant& p);
+		void DNSRMinFilterRadiusCallback(const Support::ParamVariant& p);
+		void DNSRMaxFilterRadiusCallback(const Support::ParamVariant& p);
 
 		enum class SHADERS
 		{
@@ -233,10 +233,10 @@ namespace ZetaRay::RenderPass
 			"DiffuseDNSR_SpatialFilter_cs.cso" };
 
 		// shader reload
-		void ReloadRGITemporalPass() noexcept;
-		void ReloadRGISpatialPass() noexcept;
-		void ReloadValidationPass() noexcept;
-		void ReloadDNSRTemporalPass() noexcept;
-		void ReloadDNSRSpatialPass() noexcept;
+		void ReloadRGITemporalPass();
+		void ReloadRGISpatialPass();
+		void ReloadValidationPass();
+		void ReloadDNSRTemporalPass();
+		void ReloadDNSRSpatialPass();
 	};
 }

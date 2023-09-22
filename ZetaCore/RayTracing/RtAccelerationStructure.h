@@ -17,41 +17,40 @@ namespace ZetaRay::RT
 
 	struct StaticBLAS
 	{
-		void Rebuild(Core::ComputeCmdList& cmdList) noexcept;
-		void DoCompaction(Core::ComputeCmdList& cmdList) noexcept;
-		void CopyCompactionSize(Core::ComputeCmdList& cmdList) noexcept;
-		void CompactionCompletedCallback() noexcept;
-		void FillMeshTransformBufferForBuild() noexcept;
-		void Clear() noexcept;
+		void Rebuild(Core::ComputeCmdList& cmdList);
+		void DoCompaction(Core::ComputeCmdList& cmdList);
+		void CopyCompactionSize(Core::ComputeCmdList& cmdList);
+		void CompactionCompletedCallback();
+		void FillMeshTransformBufferForBuild();
+		void Clear();
 
 		// TODO release scratch & transform buffers in the next frame
-		Core::DefaultHeapBuffer m_blasBuffer;
-		Core::DefaultHeapBuffer m_compactedBlasBuffer;
-		Core::DefaultHeapBuffer m_scratchBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_blasBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_compactedBlasBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
 		
-		Core::DefaultHeapBuffer m_postBuildInfo;
-		Core::ReadbackHeapBuffer m_postBuildInfoReadback;
+		Core::GpuMemory::DefaultHeapBuffer m_postBuildInfo;
+		Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
 
 		// each element containa a 3x4 affine transformation matrix
-		Core::DefaultHeapBuffer m_perMeshTransformForBuild;
+		Core::GpuMemory::DefaultHeapBuffer m_perMeshTransformForBuild;
 	};
 
 	struct DynamicBLAS
 	{
-		DynamicBLAS() noexcept = default;
-
-		DynamicBLAS(uint64_t insID, uint64_t meshID) noexcept
+		DynamicBLAS() = default;
+		DynamicBLAS(uint64_t insID, uint64_t meshID)
 			: m_instanceID(insID),
 			m_meshID(meshID)
 		{}
 
-		void Rebuild(Core::ComputeCmdList& cmdList) noexcept;
-		void Update(Core::ComputeCmdList& cmdList) noexcept;
-		void Clear() noexcept;
+		void Rebuild(Core::ComputeCmdList& cmdList);
+		void Update(Core::ComputeCmdList& cmdList);
+		void Clear();
 
 		// TODO release scratch & transform buffers in the next frame
-		Core::DefaultHeapBuffer m_blasBuffer;
-		Core::DefaultHeapBuffer m_scratchBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_blasBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
 		
 		uint64_t m_instanceID = uint64_t(-1);
 		uint64_t m_meshID = uint64_t(-1);
@@ -64,28 +63,28 @@ namespace ZetaRay::RT
 
 	struct TLAS
 	{
-		void Render(Core::CommandList& cmdList) noexcept;
-		void BuildFrameMeshInstanceData() noexcept;
-		void BuildStaticBLASTransforms() noexcept;
-		Core::DefaultHeapBuffer& GetTLAS() noexcept { return m_tlasBuffer;  };
-		void Clear() noexcept;
+		void Render(Core::CommandList& cmdList);
+		void BuildFrameMeshInstanceData();
+		void BuildStaticBLASTransforms();
+		Core::GpuMemory::DefaultHeapBuffer& GetTLAS() { return m_tlasBuffer;  };
+		void Clear();
 
 	private:
-		void RebuildTLAS(Core::ComputeCmdList& cmdList) noexcept;
-		void RebuildTLASInstances(Core::ComputeCmdList& cmdList) noexcept;
-		void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList) noexcept;
-		int FindDynamicBLAS(uint64_t id) noexcept;
+		void RebuildTLAS(Core::ComputeCmdList& cmdList);
+		void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
+		void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList);
+		int FindDynamicBLAS(uint64_t id);
 
 		StaticBLAS m_staticBLAS;
 		Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
-		Core::DefaultHeapBuffer m_framesMeshInstances;
+		Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
 
 		// CmdList->BuildAS() updates in-place which means shaders from the previous frame
 		// might still be referencing the TLAS when RebuildTLAS is submitted
-		Core::DefaultHeapBuffer m_tlasBuffer;
-		Core::DefaultHeapBuffer m_scratchBuff;
-		Core::DefaultHeapBuffer m_tlasInstanceBuff;
+		Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_scratchBuff;
+		Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
 
 		uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
 	};

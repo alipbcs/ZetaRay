@@ -61,12 +61,12 @@ namespace ZetaRay::Math
 	}
 
 	// Aligns to nearest smallest multiple of alignment
-	ZetaInline constexpr size_t AlignUp(size_t x, size_t alignment)
+	template<typename T>
+	ZetaInline constexpr T AlignUp(T x, T alignment)
 	{
 		if (alignment > 0)
 		{
-			//assert(((alignment - 1) & alignment) == 0);
-			size_t mask = alignment - 1;
+			T mask = alignment - 1;
 			return (x + mask) & ~mask;
 		}
 
@@ -115,7 +115,8 @@ namespace ZetaRay::Math
 	Math::float3 SphericalToCartesian(float theta, float phi) noexcept;
 
 	// Returns x / y, where x and y are unsigned integers
-	ZetaInline size_t CeilUnsignedIntDiv(size_t x, size_t y)
+	template<typename T>
+	ZetaInline T CeilUnsignedIntDiv(T x, T y)
 	{
 		Assert(x != 0, "Input must be greater than 0");
 		return 1 + ((x - 1) / y);

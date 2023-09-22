@@ -235,14 +235,17 @@ namespace ZetaRay::Util
 			}
 		}
 
-		void pop_back() noexcept
+		void pop_back(size_t num = 1) noexcept
 		{
-			Assert(size() > 0, "attempting to pop from an empty Vector");
+			Assert(size() >= num, "attempting to pop more items than Vector's size.");
 
 			if constexpr (!std::is_trivially_destructible_v<T>)
-				(m_end - 1)->~T();
+			{
+				for (size_t i = 0; i < num; i++)
+					(m_end - 1 - i)->~T();
+			}
 
-			m_end--;
+			m_end -= num;
 		}
 
 		void push_back(const T& val) noexcept
@@ -704,8 +707,8 @@ namespace ZetaRay::Util
 	constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)
 	{
 		return Math::Max(0u, (uint32_t)Math::Min(
-			(32 - Math::AlignUp(sizeof(void*) * 3, alignofT)) / sizeofT,
-			(64 - Math::AlignUp(sizeof(void*) * 3, alignofT)) / sizeofT));
+			(32 - Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT,
+			(64 - Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT));
 	}
 
 	template<typename T, Support::AllocType Allocator = Support::SystemAllocator, uint32_t N = GetExcessSize(sizeof(T), alignof(T))>

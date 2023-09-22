@@ -3,10 +3,14 @@
 #include "../Utility/HashTable.h"
 #include <shared_mutex>
 
-namespace ZetaRay::Core
+namespace ZetaRay::Core::GpuMemory
 {
 	struct UploadHeapBuffer;
 	struct DefaultHeapBuffer;
+}
+
+namespace ZetaRay::Core
+{
 	struct DescriptorTable;
 
 	// Allows sharing buffers (in upload and default heaps), descriptor tables and other reosurces 
@@ -22,16 +26,16 @@ namespace ZetaRay::Core
 		SharedShaderResources& operator==(SharedShaderResources&&) = delete;
 		
 		// Upload heap buffers
-		const UploadHeapBuffer* GetUploadHeapBuff(uint64_t id) noexcept;
-		const UploadHeapBuffer* GetUploadHeapBuff(std::string_view id) noexcept;
-		void InsertOrAssingUploadHeapBuffer(uint64_t, const UploadHeapBuffer& buf) noexcept;
-		void InsertOrAssingUploadHeapBuffer(std::string_view id, UploadHeapBuffer& buf) noexcept;
+		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(uint64_t id) noexcept;
+		const GpuMemory::UploadHeapBuffer* GetUploadHeapBuff(std::string_view id) noexcept;
+		void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buf) noexcept;
+		void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buf) noexcept;
 
 		// Default heap buffers
-		const DefaultHeapBuffer* GetDefaultHeapBuff(uint64_t id) noexcept;
-		const DefaultHeapBuffer* GetDefaultHeapBuff(std::string_view id) noexcept;
-		void InsertOrAssignDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf) noexcept;
-		void InsertOrAssignDefaultHeapBuffer(std::string_view id, const DefaultHeapBuffer& buf) noexcept;
+		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(uint64_t id) noexcept;
+		const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuff(std::string_view id) noexcept;
+		void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buf) noexcept;
+		void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buf) noexcept;
 
 		// Descriptor-tables
 		const DescriptorTable* GetDescriptorTable(uint64_t id) noexcept;
@@ -41,8 +45,8 @@ namespace ZetaRay::Core
 
 	private:
 		Util::HashTable<const DescriptorTable*> m_descTables;
-		Util::HashTable<const UploadHeapBuffer*> m_uploadHeapBuffs;
-		Util::HashTable<const DefaultHeapBuffer*> m_defaultHeapBuffs;
+		Util::HashTable<const GpuMemory::UploadHeapBuffer*> m_uploadHeapBuffs;
+		Util::HashTable<const GpuMemory::DefaultHeapBuffer*> m_defaultHeapBuffs;
 
 		std::shared_mutex m_descTableMtx;
 		std::shared_mutex m_uploadHeapMtx;

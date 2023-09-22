@@ -5,6 +5,7 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -14,7 +15,7 @@ using namespace ZetaRay::Support;
 // Compositing
 //--------------------------------------------------------------------------------------
 
-Compositing::Compositing() noexcept
+Compositing::Compositing()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
@@ -32,12 +33,12 @@ Compositing::Compositing() noexcept
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 }
 
-Compositing::~Compositing() noexcept
+Compositing::~Compositing()
 {
 	Reset();
 }
 
-void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept
+void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter)
 {
 	auto& renderer = App::GetRenderer();
 	auto samplers = renderer.GetStaticSamplers();
@@ -165,7 +166,7 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter) noexcept
 	SetFireflyFilterEnablement(fireflyFilter);
 }
 
-void Compositing::Reset() noexcept
+void Compositing::Reset()
 {
 	if (IsInitialized())
 	{
@@ -175,7 +176,7 @@ void Compositing::Reset() noexcept
 	}
 }
 
-void Compositing::OnWindowResized() noexcept
+void Compositing::OnWindowResized()
 {
 	CreateLightAccumTex();
 
@@ -185,14 +186,14 @@ void Compositing::OnWindowResized() noexcept
 	UpdateManualBarrierConditions();
 }
 
-void Compositing::Render(CommandList& cmdList) noexcept
+void Compositing::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 	
-	const int w = App::GetRenderer().GetRenderWidth();
-	const int h = App::GetRenderer().GetRenderHeight();
+	const uint32_t w = App::GetRenderer().GetRenderWidth();
+	const uint32_t h = App::GetRenderer().GetRenderHeight();
 	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
 
 	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
@@ -204,8 +205,8 @@ void Compositing::Render(CommandList& cmdList) noexcept
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "Compositing");
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, COMPOSITING_THREAD_GROUP_DIM_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, COMPOSITING_THREAD_GROUP_DIM_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, COMPOSITING_THREAD_GROUP_DIM_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, COMPOSITING_THREAD_GROUP_DIM_Y);
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::COMPOSIT]);
 
@@ -238,12 +239,12 @@ void Compositing::Render(CommandList& cmdList) noexcept
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "FireflyFilter");
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, FIREFLY_FILTER_THREAD_GROUP_DIM_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, FIREFLY_FILTER_THREAD_GROUP_DIM_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, FIREFLY_FILTER_THREAD_GROUP_DIM_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, FIREFLY_FILTER_THREAD_GROUP_DIM_Y);
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::FIREFLY_FILTER]);
 
-		computeCmdList.ResourceBarrier(m_hdrLightAccum.GetResource(),
+		computeCmdList.ResourceBarrier(m_hdrLightAccum.Resource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -272,14 +273,14 @@ void Compositing::Render(CommandList& cmdList) noexcept
 			// record the timestamp prior to execution
 			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DoF_Gather");
 
-			const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, DOF_GATHER_THREAD_GROUP_DIM_X);
-			const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, DOF_GATHER_THREAD_GROUP_DIM_Y);
+			const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, DOF_GATHER_THREAD_GROUP_DIM_X);
+			const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, DOF_GATHER_THREAD_GROUP_DIM_Y);
 
 			D3D12_RESOURCE_BARRIER barriers[2];
-			barriers[0] = Direct3DHelper::TransitionBarrier(m_filterFirefly ? m_dofGather_filtered.GetResource() : m_hdrLightAccum.GetResource(),
+			barriers[0] = Direct3DUtil::TransitionBarrier(m_filterFirefly ? m_dofGather_filtered.Resource() : m_hdrLightAccum.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			barriers[1] = Direct3DHelper::TransitionBarrier(m_hdrLightAccum.GetResource(),
+			barriers[1] = Direct3DUtil::TransitionBarrier(m_hdrLightAccum.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -312,13 +313,13 @@ void Compositing::Render(CommandList& cmdList) noexcept
 			// record the timestamp prior to execution
 			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "DoF_GaussianFilter");
 
-			const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, GAUSSIAN_FILTER_THREAD_GROUP_DIM_X);
-			const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y);
+			const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, GAUSSIAN_FILTER_THREAD_GROUP_DIM_X);
+			const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y);
 
 			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DoF_GAUSSIAN_FILTER]);
 
-			ID3D12Resource* src = m_filterFirefly ? m_hdrLightAccum.GetResource() : m_dofGather_filtered.GetResource();
-			ID3D12Resource* target = m_filterFirefly ? m_dofGather_filtered.GetResource() : m_hdrLightAccum.GetResource();
+			ID3D12Resource* src = m_filterFirefly ? m_hdrLightAccum.Resource() : m_dofGather_filtered.Resource();
+			ID3D12Resource* target = m_filterFirefly ? m_dofGather_filtered.Resource() : m_hdrLightAccum.Resource();
 			const auto srvEven = m_filterFirefly ? DESC_TABLE::LIGHT_ACCUM_SRV : DESC_TABLE::DoF_GATHER_FILTERED_SRV;
 			const auto srvOdd = m_filterFirefly ? DESC_TABLE::DoF_GATHER_FILTERED_SRV : DESC_TABLE::LIGHT_ACCUM_SRV;
 			const auto uavEven = m_filterFirefly ? DESC_TABLE::DoF_GATHER_FILTERED_UAV : DESC_TABLE::LIGHT_ACCUM_UAV;
@@ -327,10 +328,10 @@ void Compositing::Render(CommandList& cmdList) noexcept
 			for (int i = 0; i < m_numGaussianPasses; i++)
 			{
 				D3D12_RESOURCE_BARRIER barriers[2];
-				barriers[0] = Direct3DHelper::TransitionBarrier(src,
+				barriers[0] = Direct3DUtil::TransitionBarrier(src,
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-				barriers[1] = Direct3DHelper::TransitionBarrier(target,
+				barriers[1] = Direct3DUtil::TransitionBarrier(target,
 					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -360,23 +361,22 @@ void Compositing::Render(CommandList& cmdList) noexcept
 
 	if (m_needToUavBarrierOnHDR)
 	{
-		computeCmdList.ResourceBarrier(m_hdrLightAccum.GetResource(),
+		computeCmdList.ResourceBarrier(m_hdrLightAccum.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 
 	if (m_needToUavBarrierOnFilter)
 	{
-		computeCmdList.ResourceBarrier(m_dofGather_filtered.GetResource(),
+		computeCmdList.ResourceBarrier(m_dofGather_filtered.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 }
 
-void Compositing::CreateLightAccumTex() noexcept
+void Compositing::CreateLightAccumTex()
 {
 	auto& renderer = App::GetRenderer();
-	auto& gpuMem = renderer.GetGpuMemory();
 	const int width = renderer.GetRenderWidth();
 	const int height = renderer.GetRenderHeight();
 
@@ -384,35 +384,35 @@ void Compositing::CreateLightAccumTex() noexcept
 	memset(clearValue.Color, 0, sizeof(float) * 4);
 	clearValue.Format = ResourceFormats::LIGHT_ACCUM;
 
-	m_hdrLightAccum = gpuMem.GetTexture2D("HDRLightAccum",
+	m_hdrLightAccum = GpuMemory::GetTexture2D("HDRLightAccum",
 		width, height,
 		ResourceFormats::LIGHT_ACCUM,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_RENDER_TARGET | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS, 
+		CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET | CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
 		1, 
 		&clearValue);
 
-	Direct3DHelper::CreateTexture2DSRV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_SRV));
-	Direct3DHelper::CreateTexture2DUAV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_UAV));
+	Direct3DUtil::CreateTexture2DSRV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_SRV));
+	Direct3DUtil::CreateTexture2DUAV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_UAV));
 
 	m_cbComposit.CompositedUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
 }
 
-void Compositing::CreateDoForFilteredResources() noexcept
+void Compositing::CreateDoForFilteredResources()
 {
 	auto& renderer = App::GetRenderer();
 
-	m_dofGather_filtered = renderer.GetGpuMemory().GetTexture2D("DoF_Gather_Filtered",
+	m_dofGather_filtered = GpuMemory::GetTexture2D("DoF_Gather_Filtered",
 		renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 		DXGI_FORMAT_R16G16B16A16_FLOAT,
 		D3D12_RESOURCE_STATE_COMMON,
-		TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-	Direct3DHelper::CreateTexture2DSRV(m_dofGather_filtered, m_descTable.CPUHandle((int)DESC_TABLE::DoF_GATHER_FILTERED_SRV));
-	Direct3DHelper::CreateTexture2DUAV(m_dofGather_filtered, m_descTable.CPUHandle((int)DESC_TABLE::DoF_GATHER_FILTERED_UAV));
+	Direct3DUtil::CreateTexture2DSRV(m_dofGather_filtered, m_descTable.CPUHandle((int)DESC_TABLE::DoF_GATHER_FILTERED_SRV));
+	Direct3DUtil::CreateTexture2DUAV(m_dofGather_filtered, m_descTable.CPUHandle((int)DESC_TABLE::DoF_GATHER_FILTERED_UAV));
 }
 
-void Compositing::UpdateManualBarrierConditions() noexcept
+void Compositing::UpdateManualBarrierConditions()
 {
 	m_needToUavBarrierOnHDR = m_filterFirefly && (!m_dof || (m_dof && (m_numGaussianPasses & 0x1) == 1));
 	m_needToUavBarrierOnHDR = m_needToUavBarrierOnHDR || (!m_filterFirefly && m_dof && (m_numGaussianPasses & 0x1) == 0);
@@ -438,7 +438,7 @@ void Compositing::UpdateManualBarrierConditions() noexcept
 		m_output = &m_dofGather_filtered;
 }
 
-void Compositing::SetDoFEnablement(bool b) noexcept
+void Compositing::SetDoFEnablement(bool b)
 {
 	m_dof = b;
 	m_cbDoF.IsGaussianFilterEnabled = m_numGaussianPasses >= 1;
@@ -457,12 +457,12 @@ void Compositing::SetDoFEnablement(bool b) noexcept
 	}
 }
 
-void Compositing::SetSkyIllumEnablement(bool b) noexcept
+void Compositing::SetSkyIllumEnablement(bool b)
 {
 	m_cbComposit.SkyLighting = b;
 }
 
-void Compositing::SetFireflyFilterEnablement(bool b) noexcept
+void Compositing::SetFireflyFilterEnablement(bool b)
 {
 	m_filterFirefly = b;
 
@@ -480,52 +480,52 @@ void Compositing::SetFireflyFilterEnablement(bool b) noexcept
 	}
 }
 
-void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.SunLighting = p.GetBool();
 }
 
-void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.DiffuseIndirect = p.GetBool();
 }
 
-void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.SpecularIndirect = p.GetBool();
 }
 
-void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p) noexcept
+void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.EmissiveLighting = p.GetBool();
 }
 
-void Compositing::FocusDistCallback(const Support::ParamVariant& p) noexcept
+void Compositing::FocusDistCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.FocusDepth = p.GetFloat().m_val;
 }
 
-void Compositing::FStopCallback(const Support::ParamVariant& p) noexcept
+void Compositing::FStopCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.FStop = p.GetFloat().m_val;
 }
 
-void Compositing::FocalLengthCallback(const Support::ParamVariant& p) noexcept
+void Compositing::FocalLengthCallback(const Support::ParamVariant& p)
 {
 	m_cbComposit.FocalLength = p.GetFloat().m_val;
 }
 
-void Compositing::BlurRadiusCallback(const Support::ParamVariant& p) noexcept
+void Compositing::BlurRadiusCallback(const Support::ParamVariant& p)
 {
 	m_cbDoF.MaxBlurRadius = p.GetFloat().m_val;
 }
 
-void Compositing::RadiusScaleCallback(const Support::ParamVariant& p) noexcept
+void Compositing::RadiusScaleCallback(const Support::ParamVariant& p)
 {
 	m_cbDoF.RadiusScale = p.GetFloat().m_val;
 }
 
-void Compositing::NumGaussianPassesCallback(const Support::ParamVariant& p) noexcept
+void Compositing::NumGaussianPassesCallback(const Support::ParamVariant& p)
 {
 	m_numGaussianPasses = p.GetInt().m_val;
 	m_cbDoF.IsGaussianFilterEnabled = m_numGaussianPasses >= 1;
@@ -533,12 +533,12 @@ void Compositing::NumGaussianPassesCallback(const Support::ParamVariant& p) noex
 	UpdateManualBarrierConditions();
 }
 
-void Compositing::MinLumToFilterCallback(const Support::ParamVariant& p) noexcept
+void Compositing::MinLumToFilterCallback(const Support::ParamVariant& p)
 {
 	m_cbDoF.MinLumToFilter = p.GetFloat().m_val;
 }
 
-void Compositing::ReloadCompsiting() noexcept
+void Compositing::ReloadCompsiting()
 {
 	const int i = (int)SHADERS::COMPOSIT;
 

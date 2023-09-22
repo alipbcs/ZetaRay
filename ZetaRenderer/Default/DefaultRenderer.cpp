@@ -2,7 +2,6 @@
 #include "DefaultRendererImpl.h"
 #include <App/Timer.h>
 #include <App/Log.h>
-#include <Core/Direct3DHelpers.h>
 #include <Core/SharedShaderResources.h>
 #include <Support/Task.h>
 #include <Support/Param.h>
@@ -15,6 +14,8 @@ namespace
 }
 
 using namespace ZetaRay;
+using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::DefaultRenderer;
 using namespace ZetaRay::DefaultRenderer::Settings;
@@ -27,8 +28,8 @@ using namespace ZetaRay::App;
 // DefaultRenderer::Common
 //--------------------------------------------------------------------------------------
 
-void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHeapBuffer& frameConstsBuff,
-	const GBufferData& gbuffData, const LightData& lightData) noexcept
+void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuffer& frameConstsBuff,
+	const GBufferData& gbuffData, const LightData& lightData)
 {
 	auto& renderer = App::GetRenderer();
 	const int currIdx = renderer.GlobaIdxForDoubleBufferedResources();
@@ -79,13 +80,12 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 	// env. map SRV
 	frameConsts.EnvMapDescHeapOffset = lightData.ConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
-	constexpr size_t sizeInBytes = Math::AlignUp(sizeof(cbFrameConstants), D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+	constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	if (!frameConstsBuff.IsInitialized())
 	{
-		frameConstsBuff = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER,
+		frameConstsBuff = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER,
 			sizeInBytes,
-			D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER,
 			false,
 			&frameConsts);
 
@@ -93,7 +93,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 			frameConstsBuff);
 	}
 	else
-		renderer.GetGpuMemory().UploadToDefaultHeapBuffer(frameConstsBuff, sizeInBytes, &frameConsts);
+		GpuMemory::UploadToDefaultHeapBuffer(frameConstsBuff, sizeInBytes, &frameConsts);
 }
 
 //--------------------------------------------------------------------------------------
@@ -102,12 +102,12 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Core::DefaultHe
 
 namespace ZetaRay::DefaultRenderer
 {
-	void SetInscatteringEnablement(const ParamVariant& p) noexcept
+	void SetInscatteringEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.Inscattering = p.GetBool();
 	}
 
-	void SetAA(const ParamVariant& p) noexcept
+	void SetAA(const ParamVariant& p)
 	{
 		const int e = p.GetEnum().m_curr;
 		Assert(e < (int)AA::COUNT, "invalid enum value");
@@ -134,71 +134,71 @@ namespace ZetaRay::DefaultRenderer
 		App::SetUpscaleFactor(newUpscaleFactor);
 	}
 
-	void ModifySunDir(const ParamVariant& p) noexcept
+	void ModifySunDir(const ParamVariant& p)
 	{
 		float pitch = p.GetUnitDir().m_pitch;
 		float yaw = p.GetUnitDir().m_yaw;
 		g_data->m_frameConstants.SunDir = -Math::SphericalToCartesian(pitch, yaw);
 	}
 
-	void ModifySunLux(const ParamVariant& p) noexcept
+	void ModifySunLux(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_val;
 	}
 
-	void ModifySunAngularRadius(const ParamVariant& p) noexcept
+	void ModifySunAngularRadius(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.SunCosAngularRadius = cosf(p.GetFloat().m_val);
 	}
 
-	void ModifyRayleighSigmaSColor(const ParamVariant& p) noexcept
+	void ModifyRayleighSigmaSColor(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.RayleighSigmaSColor = p.GetFloat3().m_val;
 	}
 
-	void ModifyRayleighSigmaSScale(const ParamVariant& p) noexcept
+	void ModifyRayleighSigmaSScale(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.RayleighSigmaSScale = p.GetFloat().m_val;
 	}
 
-	void ModifyMieSigmaS(const ParamVariant& p) noexcept
+	void ModifyMieSigmaS(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.MieSigmaS = p.GetFloat().m_val;
 	}
 
-	void ModifyMieSigmaA(const ParamVariant& p) noexcept
+	void ModifyMieSigmaA(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.MieSigmaA = p.GetFloat().m_val;
 	}
 
-	void ModifyOzoneSigmaAColor(const ParamVariant& p) noexcept
+	void ModifyOzoneSigmaAColor(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.OzoneSigmaAColor = p.GetColor().m_val;
 	}
 
-	void ModifyOzoneSigmaAScale(const ParamVariant& p) noexcept
+	void ModifyOzoneSigmaAScale(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.OzoneSigmaAScale = p.GetFloat().m_val;
 	}
 
-	void ModifygForPhaseHG(const ParamVariant& p) noexcept
+	void ModifygForPhaseHG(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.g = p.GetFloat().m_val;
 	}
 
-	void SetDoFEnablement(const ParamVariant& p) noexcept
+	void SetDoFEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.DoF = p.GetBool();
 		g_data->m_lightData.CompositingPass.SetDoFEnablement(g_data->m_settings.DoF);
 	}
 	
-	void SetFireflyFilterEnablement(const ParamVariant& p) noexcept
+	void SetFireflyFilterEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.FireflyFilter = p.GetBool();
 		g_data->m_lightData.CompositingPass.SetFireflyFilterEnablement(g_data->m_settings.FireflyFilter);
 	}
 
-	void SetSkyIllumEnablement(const ParamVariant& p) noexcept
+	void SetSkyIllumEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.SkyIllumination = p.GetBool();
 		g_data->m_lightData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
@@ -207,7 +207,7 @@ namespace ZetaRay::DefaultRenderer
 
 namespace ZetaRay::DefaultRenderer
 {
-	void Init() noexcept
+	void Init()
 	{
 		Assert(g_data->PendingAA == g_data->m_settings.AntiAliasing, "these must match.");
 
@@ -397,7 +397,7 @@ namespace ZetaRay::DefaultRenderer
 		App::AddParam(p9);
 	}
 
-	void Update(TaskSet& ts) noexcept
+	void Update(TaskSet& ts)
 	{
 		g_data->m_settings.AntiAliasing = g_data->PendingAA;
 
@@ -445,12 +445,12 @@ namespace ZetaRay::DefaultRenderer
 		ts.AddOutgoingEdge(h1, h3);
 	}
 
-	void Render(TaskSet& ts) noexcept
+	void Render(TaskSet& ts)
 	{
 		g_data->m_renderGraph.Build(ts);
 	}
 
-	void Shutdown() noexcept
+	void Shutdown()
 	{
 		GBuffer::Shutdown(g_data->m_gbuffData);
 		Light::Shutdown(g_data->m_lightData);
@@ -463,7 +463,7 @@ namespace ZetaRay::DefaultRenderer
 		delete g_data;
 	}
 
-	void OnWindowSizeChanged() noexcept
+	void OnWindowSizeChanged()
 	{
 		// following order is important
 		GBuffer::OnWindowSizeChanged(g_data->m_settings, g_data->m_gbuffData);
@@ -474,17 +474,17 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_renderGraph.Reset();
 	}
 
-	Core::RenderGraph* GetRenderGraph() noexcept
+	Core::RenderGraph* GetRenderGraph()
 	{
 		return &g_data->m_renderGraph;
 	}
 
-	void DebugDrawRenderGraph() noexcept
+	void DebugDrawRenderGraph()
 	{
 		g_data->m_renderGraph.DebugDrawGraph();
 	}
 
-	bool IsRTASBuilt() noexcept
+	bool IsRTASBuilt()
 	{
 		return g_data->m_raytracerData.RtAS.GetTLAS().IsInitialized();
 	}
@@ -494,7 +494,7 @@ namespace ZetaRay::DefaultRenderer
 // DefaultRenderer
 //--------------------------------------------------------------------------------------
 
-Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface() noexcept
+Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface()
 {
 	Assert(!g_data, "g_data has already been initialized.");
 	g_data = new (std::nothrow) Data;

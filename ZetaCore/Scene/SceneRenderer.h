@@ -30,14 +30,14 @@ namespace ZetaRay::Scene::GlobalResource
 
 namespace ZetaRay::Scene::Renderer
 {
-	using fp_Init = void(*)() noexcept;
-	using fp_Update = void(*)(Support::TaskSet& ts) noexcept;
-	using fp_Render = void(*)(Support::TaskSet& ts) noexcept;
-	using fp_Shutdown = void(*)() noexcept;
-	using fp_OnWindowSizeChanged = void(*)() noexcept;
-	using fp_GetRenderGraph = Core::RenderGraph*(*)() noexcept;
-	using fp_DebugDrawRenderGraph = void(*)() noexcept;
-	using fp_IsRTASBuilt = bool(*)() noexcept;
+	using fp_Init = void(*)();
+	using fp_Update = void(*)(Support::TaskSet& ts);
+	using fp_Render = void(*)(Support::TaskSet& ts);
+	using fp_Shutdown = void(*)();
+	using fp_OnWindowSizeChanged = void(*)();
+	using fp_GetRenderGraph = Core::RenderGraph*(*)();
+	using fp_DebugDrawRenderGraph = void(*)();
+	using fp_IsRTASBuilt = bool(*)();
 
 	struct Interface
 	{

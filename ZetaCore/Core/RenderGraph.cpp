@@ -3,7 +3,6 @@
 
 #include "RenderGraph.h"
 #include "RendererCore.h"
-#include "Direct3DHelpers.h"
 #include "../Math/Common.h"
 #include "CommandList.h"
 #include "../Support/Task.h"
@@ -22,7 +21,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
-using namespace ZetaRay::Core::Direct3DHelper;
+using namespace ZetaRay::Core::Direct3DUtil;
 
 namespace
 {
@@ -736,7 +735,7 @@ void RenderGraph::InsertResourceBarriers() noexcept
 	}
 
 	// temporary solution; assumes that "someone" will transition backbuffer to Present state
-	int idx = FindFrameResource(App::GetRenderer().GetCurrBackBuffer().GetPathID());
+	int idx = FindFrameResource(App::GetRenderer().GetCurrBackBuffer().ID());
 	//Assert(idx != -1, "Current backbuffer was not found in frame resources");
 	if(idx != -1)
 		m_frameResources[idx].State = D3D12_RESOURCE_STATE_PRESENT;

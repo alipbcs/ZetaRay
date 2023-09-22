@@ -277,10 +277,10 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
 
-				va = defautlHeapBuff->GetGpuVA();
+				va = defautlHeapBuff->GpuVA();
 			}
 			else
-				va = uploadHeapBuff->GetGpuVA();
+				va = uploadHeapBuff->GpuVA();
 
 			ctx.SetRootConstantBufferView(nextParam, va);
 		}
@@ -293,10 +293,10 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
 
-				va = defautlHeapBuff->GetGpuVA();
+				va = defautlHeapBuff->GpuVA();
 			}
 			else
-				va = uploadHeapBuff->GetGpuVA();
+				va = uploadHeapBuff->GpuVA();
 
 			ctx.SetRootShaderResourceView(nextParam, va);
 		}
@@ -305,7 +305,7 @@ void RootSignature::End(GraphicsCmdList& ctx) noexcept
 			// UAV must be a default-heap buffer
 			auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 			Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Root param %d: Global resource with id %llu was not found.", nextParam, m_globals[nextParam]);
-			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GetGpuVA();
+			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GpuVA();
 			ctx.SetRootUnorderedAccessView(nextParam, va);
 		}
 		else
@@ -393,10 +393,10 @@ void RootSignature::End(ComputeCmdList& ctx) noexcept
 				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
 
-				va = defautlHeapBuff->GetGpuVA();
+				va = defautlHeapBuff->GpuVA();
 			}
 			else
-				va = uploadHeapBuff->GetGpuVA();
+				va = uploadHeapBuff->GpuVA();
 
 			ctx.SetRootConstantBufferView(nextParam, va);
 		}
@@ -409,10 +409,10 @@ void RootSignature::End(ComputeCmdList& ctx) noexcept
 				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
 
-				va = defautlHeapBuff->GetGpuVA();
+				va = defautlHeapBuff->GpuVA();
 			}
 			else
-				va = uploadHeapBuff->GetGpuVA();
+				va = uploadHeapBuff->GpuVA();
 
 			ctx.SetRootShaderResourceView(nextParam, va);
 		}
@@ -421,7 +421,7 @@ void RootSignature::End(ComputeCmdList& ctx) noexcept
 			// UAV must be a default-heap buffer
 			auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
 			Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Root param %d: Global resource with id %llu was not found.", nextParam, m_globals[nextParam]);
-			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GetGpuVA();
+			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GpuVA();
 			ctx.SetRootUnorderedAccessView(nextParam, va);
 		}
 		else

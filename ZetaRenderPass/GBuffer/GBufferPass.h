@@ -28,20 +28,20 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		GBufferPass() noexcept;
-		~GBufferPass() noexcept;
+		GBufferPass();
+		~GBufferPass();
 
-		void Init(Util::Span<DXGI_FORMAT> rtvs) noexcept;
-		void Reset() noexcept;
+		void Init(Util::Span<DXGI_FORMAT> rtvs);
+		void Reset();
 		bool IsInitialized() { return m_graphicsPso != nullptr; }
-		void OnWindowResized() noexcept;
-		void Update(Util::Span<MeshInstance> instances, ID3D12Resource* currDepthBuffer) noexcept;
-		ZetaInline void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
+		void OnWindowResized();
+		void Update(Util::Span<MeshInstance> instances, ID3D12Resource* currDepthBuffer);
+		ZetaInline void SetDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
 		{
 			Assert(i < SHADER_IN_DESC::COUNT, "out-of-bound access.");
 			m_inputDescriptors[i] = h;
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -51,8 +51,8 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cbGBuffer) / sizeof(DWORD), 
 			Math::Max(sizeof(cbOcclussionCulling) / sizeof(DWORD), sizeof(cbDepthPyramid) / sizeof(DWORD)));
 
-		void CreatePSOs(Util::Span<DXGI_FORMAT> rtvs) noexcept;
-		void CreateDepthPyramid() noexcept;
+		void CreatePSOs(Util::Span<DXGI_FORMAT> rtvs);
+		void CreateDepthPyramid();
 
 		RpObjects s_rpObjs;
 
@@ -76,15 +76,15 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		Core::DefaultHeapBuffer m_zeroBuffer;			// for resetting the UAV counter to zero each frame
-		Core::DefaultHeapBuffer m_meshInstances;		// frustum-visible meshes in the scene in each frame
-		Core::DefaultHeapBuffer m_indirectDrawArgs;
-		Core::DefaultHeapBuffer m_visibilityBuffer;
-		Core::DefaultHeapBuffer m_spdCounter;
+		Core::GpuMemory::DefaultHeapBuffer m_zeroBuffer;		// for resetting the UAV counter to zero each frame
+		Core::GpuMemory::DefaultHeapBuffer m_meshInstances;		// frustum-visible meshes in the scene in each frame
+		Core::GpuMemory::DefaultHeapBuffer m_indirectDrawArgs;
+		Core::GpuMemory::DefaultHeapBuffer m_visibilityBuffer;
+		Core::GpuMemory::DefaultHeapBuffer m_spdCounter;
 
 		ID3D12Resource* m_currDepthBuffer = nullptr;
 
-		Core::ReadbackHeapBuffer m_readbackBuff;
+		Core::GpuMemory::ReadbackHeapBuffer m_readbackBuff;
 		ComPtr<ID3D12Fence> m_fence;
 		uint64_t m_fenceVals[Core::Constants::NUM_BACK_BUFFERS] = { 0 };
 		uint64_t m_nextFenceVal = 1;
@@ -111,7 +111,7 @@ namespace ZetaRay::RenderPass
 		};
 
 		static constexpr int MAX_NUM_MIPS = 12;
-		Core::Texture m_depthPyramid;
+		Core::GpuMemory::Texture m_depthPyramid;
 		Core::DescriptorTable m_descTable;
 		int m_numMips;
 		uint32_t m_depthPyramidMip0DimX;
@@ -150,13 +150,13 @@ namespace ZetaRay::RenderPass
 		inline static constexpr const char* COMPILED_VS[] = { "GBuffer_vs.cso" };
 		inline static constexpr const char* COMPILED_PS[] = { "GBuffer_ps.cso" };
 
-		void ReloadShader() noexcept;
+		void ReloadShader();
 
 		struct DefaultParamVals
 		{
 			static constexpr float DepthThresh = 1e-4f;
 		};
 
-		void DepthThreshCallback(const Support::ParamVariant& p) noexcept;
+		void DepthThreshCallback(const Support::ParamVariant& p);
 	};
 }

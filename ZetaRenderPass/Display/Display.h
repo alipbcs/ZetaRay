@@ -38,18 +38,18 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		DisplayPass() noexcept;
-		~DisplayPass() noexcept;
+		DisplayPass();
+		~DisplayPass();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_pso != nullptr; }
-		void Reset() noexcept;
-		void SetCpuDescriptor(SHADER_IN_CPU_DESC i, D3D12_CPU_DESCRIPTOR_HANDLE h) noexcept
+		void Init();
+		bool IsInitialized() { return m_pso != nullptr; }
+		void Reset();
+		void SetCpuDescriptor(SHADER_IN_CPU_DESC i, D3D12_CPU_DESCRIPTOR_HANDLE h)
 		{
 			Assert((int)i < (int)SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
 			m_cpuDescs[(int)i] = h;
 		}
-		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t dechHeapIdx) noexcept
+		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t dechHeapIdx)
 		{
 			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 			switch (i)
@@ -79,7 +79,7 @@ namespace ZetaRay::RenderPass
 				break;
 			}
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -95,7 +95,7 @@ namespace ZetaRay::RenderPass
 
 		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;
-		Core::Texture m_lut;
+		Core::GpuMemory::Texture m_lut;
 		Core::DescriptorTable m_lutSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
 
@@ -112,12 +112,12 @@ namespace ZetaRay::RenderPass
 			static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
 		};
 
-		void CreatePSO() noexcept;
+		void CreatePSO();
 
 		// parameter callbacks
-		void DisplayOptionCallback(const Support::ParamVariant& p) noexcept;
-		void TonemapperCallback(const Support::ParamVariant& p) noexcept;
-		void SaturationCallback(const Support::ParamVariant& p) noexcept;
-		void AutoExposureCallback(const Support::ParamVariant& p) noexcept;
+		void DisplayOptionCallback(const Support::ParamVariant& p);
+		void TonemapperCallback(const Support::ParamVariant& p);
+		void SaturationCallback(const Support::ParamVariant& p);
+		void AutoExposureCallback(const Support::ParamVariant& p);
 	};
 }

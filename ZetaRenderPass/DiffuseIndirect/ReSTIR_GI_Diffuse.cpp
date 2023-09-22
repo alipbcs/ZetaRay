@@ -6,6 +6,7 @@
 #include <Support/Param.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -16,7 +17,7 @@ using namespace ZetaRay::Support;
 // ReSTIR_GI_Diffuse
 //--------------------------------------------------------------------------------------
 
-ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
+ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse()
 	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
@@ -98,12 +99,12 @@ ReSTIR_GI_Diffuse::ReSTIR_GI_Diffuse() noexcept
 		GlobalResource::SCENE_INDEX_BUFFER);
 }
 
-ReSTIR_GI_Diffuse::~ReSTIR_GI_Diffuse() noexcept
+ReSTIR_GI_Diffuse::~ReSTIR_GI_Diffuse()
 {
 	Reset();
 }
 
-void ReSTIR_GI_Diffuse::Init() noexcept
+void ReSTIR_GI_Diffuse::Init()
 {
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -217,7 +218,7 @@ void ReSTIR_GI_Diffuse::Init() noexcept
 	m_isTemporalReservoirValid = false;
 }
 
-void ReSTIR_GI_Diffuse::Reset() noexcept
+void ReSTIR_GI_Diffuse::Reset()
 {
 	if (IsInitialized())
 	{
@@ -241,14 +242,14 @@ void ReSTIR_GI_Diffuse::Reset() noexcept
 	}
 }
 
-void ReSTIR_GI_Diffuse::OnWindowResized() noexcept
+void ReSTIR_GI_Diffuse::OnWindowResized()
 {
 	CreateOutputs();
 	m_cbDNSRTemporal.IsTemporalCacheValid = false;
 	m_cbRGITemporal.IsTemporalReservoirValid = false;
 }
 
-void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
+void ReSTIR_GI_Diffuse::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
@@ -256,15 +257,15 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
-	const int w = renderer.GetRenderWidth();
-	const int h = renderer.GetRenderHeight();
+	const uint32_t w = renderer.GetRenderWidth();
+	const uint32_t h = renderer.GetRenderWidth();
 
 	const bool isTraceFrame = m_validationPeriod == 0 || m_validationFrame != 0;
 
 	// temporal resampling/validation
 	{
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_TEMPORAL_GROUP_DIM_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RGI_DIFF_TEMPORAL_GROUP_DIM_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RGI_DIFF_TEMPORAL_GROUP_DIM_Y);
 
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_GI_Diffuse_Temporal");
@@ -282,7 +283,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 
-		computeCmdList.ResourceBarrier(m_tsppAdjustment.GetResource(),
+		computeCmdList.ResourceBarrier(m_tsppAdjustment.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -321,8 +322,8 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 	// spatial resampling
 	{
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, RGI_DIFF_SPATIAL_GROUP_DIM_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RGI_DIFF_SPATIAL_GROUP_DIM_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RGI_DIFF_SPATIAL_GROUP_DIM_Y);
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_PASS]);
 
@@ -339,23 +340,23 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			// transition temporal reservoir into read state
 			D3D12_RESOURCE_BARRIER barriers[6];
 			int curr = 0;
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			// transition spatial reservoir 0 into write state
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			barriers[curr++] = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.GetResource(),
+			barriers[curr++] = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.Resource(),
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
@@ -395,13 +396,13 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 			computeCmdList.PIXBeginEvent("ReSTIR_GI_Diffuse_Spatial_2");
 
 			// transition spatial reservoir into read state
-			D3D12_RESOURCE_BARRIER barrier0 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.GetResource(),
+			D3D12_RESOURCE_BARRIER barrier0 = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirA.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			D3D12_RESOURCE_BARRIER barrier1 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.GetResource(),
+			D3D12_RESOURCE_BARRIER barrier1 = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirB.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-			D3D12_RESOURCE_BARRIER barrier2 = Direct3DHelper::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.GetResource(),
+			D3D12_RESOURCE_BARRIER barrier2 = Direct3DUtil::TransitionBarrier(m_spatialReservoirs[0].ReservoirC.Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -446,7 +447,7 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetPipelineState(m_psos[(uint32_t)SHADERS::DIFFUSE_DNSR_TEMPORAL]);
 
-		computeCmdList.ResourceBarrier(m_tsppAdjustment.GetResource(),
+		computeCmdList.ResourceBarrier(m_tsppAdjustment.Resource(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -465,8 +466,8 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		m_rootSig.SetRootConstants(0, sizeof(cbDiffuseDNSRTemporal) / sizeof(DWORD), &m_cbDNSRTemporal);
 		m_rootSig.End(computeCmdList);
 
-		computeCmdList.Dispatch((uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X),
-			(uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y),
+		computeCmdList.Dispatch(CeilUnsignedIntDiv(w, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_X),
+			CeilUnsignedIntDiv(h, DiffuseDNSR_TEMPORAL_THREAD_GROUP_SIZE_Y),
 			1);
 
 		// record the timestamp after execution
@@ -484,8 +485,8 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DIFFUSE_DNSR_SPATIAL]);
 
-		const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X);
-		const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y);
+		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_X);
+		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, DiffuseDNSR_SPATIAL_THREAD_GROUP_SIZE_Y);
 
 		m_cbDNSRSpatial.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbDNSRSpatial.DispatchDimY = (uint16_t)dispatchDimY;
@@ -495,10 +496,10 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		for (int i = 0; i < m_numDNSRSpatialFilterPasses; i++)
 		{
 			D3D12_RESOURCE_BARRIER barriers[2];
-			barriers[0] = Direct3DHelper::TransitionBarrier(m_temporalCache[1 - m_currDNSRTemporalIdx].GetResource(),
+			barriers[0] = Direct3DUtil::TransitionBarrier(m_temporalCache[1 - m_currDNSRTemporalIdx].Resource(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-			barriers[1] = Direct3DHelper::TransitionBarrier(m_temporalCache[m_currDNSRTemporalIdx].GetResource(),
+			barriers[1] = Direct3DUtil::TransitionBarrier(m_temporalCache[m_currDNSRTemporalIdx].Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
@@ -540,26 +541,26 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		int curr = 0;
 
 		// temporal reservoirs
-		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.GetResource(),
+		restoreBarriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirA.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.GetResource(),
+		restoreBarriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirB.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.GetResource(),
+		restoreBarriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalReservoirIdx].ReservoirC.Resource(),
 			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
 		// dnsr temporal cache
 		if (initialDNSRTemporalIdx != m_currDNSRTemporalIdx)
 		{
-			restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalCache[initialDNSRTemporalIdx].GetResource(),
+			restoreBarriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalCache[initialDNSRTemporalIdx].Resource(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-			restoreBarriers[curr++] = Direct3DHelper::TransitionBarrier(m_temporalCache[1 - initialDNSRTemporalIdx].GetResource(),
+			restoreBarriers[curr++] = Direct3DUtil::TransitionBarrier(m_temporalCache[1 - initialDNSRTemporalIdx].Resource(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 		}
@@ -583,21 +584,21 @@ void ReSTIR_GI_Diffuse::Render(CommandList& cmdList) noexcept
 		m_sampleIdx = (m_sampleIdx + 1) & 31;
 }
 
-void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
+void ReSTIR_GI_Diffuse::CreateOutputs()
 {
 	auto& renderer = App::GetRenderer();
 
-	auto func = [&renderer, this](Core::Texture& tex, DXGI_FORMAT f, const char* name, 
+	auto func = [&renderer, this](Texture& tex, DXGI_FORMAT f, const char* name, 
 		DESC_TABLE srv, DESC_TABLE uav, D3D12_RESOURCE_STATES s = D3D12_RESOURCE_STATE_COMMON)
 	{
-		tex = renderer.GetGpuMemory().GetTexture2D(name,
+		tex = GpuMemory::GetTexture2D(name,
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 			f,
 			s,
-			TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DHelper::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
-		Direct3DHelper::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
+		Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
+		Direct3DUtil::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
 	};
 
 	{
@@ -639,64 +640,64 @@ void ReSTIR_GI_Diffuse::CreateOutputs() noexcept
 	}
 }
 
-void ReSTIR_GI_Diffuse::DoTemporalResamplingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DoTemporalResamplingCallback(const Support::ParamVariant& p)
 {
 	m_cbRGITemporal.DoTemporalResampling = p.GetBool();
 }
 
-void ReSTIR_GI_Diffuse::DoSpatialResamplingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DoSpatialResamplingCallback(const Support::ParamVariant& p)
 {
 	m_cbRGISpatial.DoSpatialResampling = p.GetBool();
 }
 
-void ReSTIR_GI_Diffuse::PdfCorrectionCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::PdfCorrectionCallback(const Support::ParamVariant& p)
 {
 	m_cbRGITemporal.PdfCorrection = p.GetBool();
 	m_cbRGISpatial.PdfCorrection = p.GetBool();
 }
 
-void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::ValidationPeriodCallback(const Support::ParamVariant& p)
 {
 	m_validationPeriod = p.GetInt().m_val;
 }
 
-void ReSTIR_GI_Diffuse::RGINormalExpCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::RGINormalExpCallback(const Support::ParamVariant& p)
 {
 	m_cbRGISpatial.NormalExp = p.GetFloat().m_val;
 }
 
-void ReSTIR_GI_Diffuse::CheckerboardTracingCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::CheckerboardTracingCallback(const Support::ParamVariant& p)
 {
 	m_cbRGITemporal.CheckerboardTracing = p.GetBool();
 }
 
-void ReSTIR_GI_Diffuse::DNSRNumSpatialPassesCallback(const ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DNSRNumSpatialPassesCallback(const ParamVariant& p)
 {
 	m_numDNSRSpatialFilterPasses = p.GetInt().m_val;
 }
 
-void ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DNSRMaxTSPPCallback(const Support::ParamVariant& p)
 {
 	m_cbDNSRTemporal.MaxTspp = (uint16_t)p.GetInt().m_val;
 	m_cbDNSRSpatial.MaxTspp = (uint16_t)p.GetInt().m_val;
 }
 
-void ReSTIR_GI_Diffuse::DNSRNormalExpCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DNSRNormalExpCallback(const Support::ParamVariant& p)
 {
 	m_cbDNSRSpatial.NormalExp = p.GetFloat().m_val;
 }
 
-void ReSTIR_GI_Diffuse::DNSRMinFilterRadiusCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DNSRMinFilterRadiusCallback(const Support::ParamVariant& p)
 {
 	m_cbDNSRSpatial.MinFilterRadius = Math::Min(m_cbDNSRSpatial.MaxFilterRadius, (uint16_t)p.GetInt().m_val);
 }
 
-void ReSTIR_GI_Diffuse::DNSRMaxFilterRadiusCallback(const Support::ParamVariant& p) noexcept
+void ReSTIR_GI_Diffuse::DNSRMaxFilterRadiusCallback(const Support::ParamVariant& p)
 {
 	m_cbDNSRSpatial.MaxFilterRadius = Math::Max(m_cbDNSRSpatial.MinFilterRadius, (uint16_t)p.GetInt().m_val);
 }
 
-void ReSTIR_GI_Diffuse::ReloadRGITemporalPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadRGITemporalPass()
 {
 	const int i = (int)SHADERS::TEMPORAL_PASS;
 
@@ -704,7 +705,7 @@ void ReSTIR_GI_Diffuse::ReloadRGITemporalPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI_Diffuse::ReloadRGISpatialPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadRGISpatialPass()
 {
 	const int i = (int)SHADERS::SPATIAL_PASS;
 
@@ -712,7 +713,7 @@ void ReSTIR_GI_Diffuse::ReloadRGISpatialPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI_Diffuse::ReloadValidationPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadValidationPass()
 {
 	const int i = (int)SHADERS::VALIDATION;
 
@@ -720,7 +721,7 @@ void ReSTIR_GI_Diffuse::ReloadValidationPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass()
 {
 	const int i = (int)SHADERS::DIFFUSE_DNSR_TEMPORAL;
 
@@ -728,7 +729,7 @@ void ReSTIR_GI_Diffuse::ReloadDNSRTemporalPass() noexcept
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
-void ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass() noexcept
+void ReSTIR_GI_Diffuse::ReloadDNSRSpatialPass()
 {
 	const int i = (int)SHADERS::DIFFUSE_DNSR_SPATIAL;
 

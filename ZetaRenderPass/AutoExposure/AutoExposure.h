@@ -27,23 +27,23 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		AutoExposure() noexcept;
-		~AutoExposure() noexcept;
+		AutoExposure();
+		~AutoExposure();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_psos[0] != nullptr || m_psos[1] != nullptr; };
-		void Reset() noexcept;
-		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx) noexcept
+		void Init();
+		bool IsInitialized() { return m_psos[0] != nullptr || m_psos[1] != nullptr; };
+		void Reset();
+		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
 		{
 			Assert((uint32_t)i < (uint32_t)SHADER_IN_DESC::COUNT, "out-of-bound access.");
 			m_inputDesc[(uint32_t)i] = heapIdx;
 		}
-		Core::Texture& GetOutput(SHADER_OUT_RES i) noexcept
+		Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i)
 		{
 			Assert((uint32_t)i < (uint32_t)SHADER_OUT_RES::COUNT, "out-of-bound access.");
 			return m_exposure;
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
@@ -52,14 +52,14 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = (int)sizeof(cbAutoExposureHist) / sizeof(DWORD);
 
-		void CreateResources() noexcept;
+		void CreateResources();
 
 		RpObjects s_rpObjs;
 
-		Core::Texture m_exposure;
-		Core::DefaultHeapBuffer m_counter;
-		Core::DefaultHeapBuffer m_hist;
-		Core::DefaultHeapBuffer m_zeroBuffer;		// for resetting the histogram to zero each frame
+		Core::GpuMemory::Texture m_exposure;
+		Core::GpuMemory::DefaultHeapBuffer m_counter;
+		Core::GpuMemory::DefaultHeapBuffer m_hist;
+		Core::GpuMemory::DefaultHeapBuffer m_zeroBuffer;		// for resetting the histogram to zero each frame
 		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT] = { 0 };
 
 		enum class DESC_TABLE
@@ -101,10 +101,10 @@ namespace ZetaRay::RenderPass
 		cbAutoExposureHist m_cbHist;
 		bool m_clampLum;
 
-		void MinLumCallback(const Support::ParamVariant& p) noexcept;
-		void MaxLumCallback(const Support::ParamVariant& p) noexcept;
-		void LumMapExpCallback(const Support::ParamVariant& p) noexcept;
-		void LowerPercentileCallback(const Support::ParamVariant& p) noexcept;
-		void UpperPercentileCallback(const Support::ParamVariant& p) noexcept;
+		void MinLumCallback(const Support::ParamVariant& p);
+		void MaxLumCallback(const Support::ParamVariant& p);
+		void LumMapExpCallback(const Support::ParamVariant& p);
+		void LowerPercentileCallback(const Support::ParamVariant& p);
+		void UpperPercentileCallback(const Support::ParamVariant& p);
 	};
 }

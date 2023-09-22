@@ -5,6 +5,7 @@
 #include <Model/Mesh.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -59,27 +60,25 @@ void SkyDome::Init(DXGI_FORMAT rtvFormat) noexcept
 
 	PrimitiveMesh::ComputeSphere(vertices, indices, worldRadius * 2.0f, 8);
 
-	size_t sizeInBytes = sizeof(Vertex) * vertices.size();
-	m_domeVertexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("DomeVertexBuffer", 
+	uint32_t sizeInBytes = sizeof(Vertex) * (uint32_t)vertices.size();
+	m_domeVertexBuffer = GpuMemory::GetDefaultHeapBufferAndInit("DomeVertexBuffer",
 		sizeInBytes,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, 
 		false, 
 		vertices.begin());
 
-	sizeInBytes = sizeof(uint32_t) * indices.size();
-	m_domeIndexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("DomeIndexBuffer", 
+	sizeInBytes = sizeof(uint32_t) * (uint32_t)indices.size();
+	m_domeIndexBuffer = GpuMemory::GetDefaultHeapBufferAndInit("DomeIndexBuffer",
 		sizeInBytes,
-		D3D12_RESOURCE_STATE_INDEX_BUFFER, 
 		false, 
 		indices.begin());
 
-	m_vbv.BufferLocation = m_domeVertexBuffer.GetGpuVA();
-	m_vbv.SizeInBytes = (UINT)m_domeVertexBuffer.GetDesc().Width;
+	m_vbv.BufferLocation = m_domeVertexBuffer.GpuVA();
+	m_vbv.SizeInBytes = (UINT)m_domeVertexBuffer.Desc().Width;
 	m_vbv.StrideInBytes = sizeof(Vertex);
 
-	m_ibv.BufferLocation = m_domeIndexBuffer.GetGpuVA();
+	m_ibv.BufferLocation = m_domeIndexBuffer.GpuVA();
 	m_ibv.Format = DXGI_FORMAT_R32_UINT;
-	m_ibv.SizeInBytes = (UINT)m_domeIndexBuffer.GetDesc().Width;
+	m_ibv.SizeInBytes = (UINT)m_domeIndexBuffer.Desc().Width;
 
 	App::AddShaderReloadHandler("SkyDome", fastdelegate::MakeDelegate(this, &SkyDome::ReloadShaders));
 }
@@ -147,7 +146,7 @@ void SkyDome::CreatePSO() noexcept
 	D3D12_INPUT_LAYOUT_DESC inputLayout = D3D12_INPUT_LAYOUT_DESC{ .pInputElementDescs = inputElements,
 		.NumElements = ZetaArrayLen(inputElements) };
 
-	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DHelper::GetPSODesc(&inputLayout,
+	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(&inputLayout,
 		1,
 		&m_cachedRtvFormat,
 		Constants::DEPTH_BUFFER_FORMAT);

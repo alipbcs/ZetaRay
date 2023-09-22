@@ -1,6 +1,5 @@
 #include "Asset.h"
 #include "../Core/DescriptorHeap.h"
-#include "../Core/Direct3DHelpers.h"
 #include "../Core/RendererCore.h"
 #include "../Core/GpuMemory.h"
 #include "../Core/SharedShaderResources.h"
@@ -12,6 +11,7 @@
 #include <algorithm>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Scene::Internal;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
@@ -39,7 +39,7 @@ void TexSRVDescriptorTable::Init(uint64_t id) noexcept
 	s.InsertOrAssingDescriptorTable(id, m_descTable);
 }
 
-uint32_t TexSRVDescriptorTable::Add(Core::Texture&& tex, uint64_t id) noexcept
+uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id) noexcept
 {
 	// if the texture already exists, just increase the ref count and return it
 	if (auto it = m_cache.find(id); it != nullptr)
@@ -70,7 +70,7 @@ uint32_t TexSRVDescriptorTable::Add(Core::Texture&& tex, uint64_t id) noexcept
 
 	// create the SRV
 	auto descCpuHandle = m_descTable.CPUHandle(freeSlot);
-	Direct3DHelper::CreateTexture2DSRV(tex, descCpuHandle);
+	Direct3DUtil::CreateTexture2DSRV(tex, descCpuHandle);
 
 	// add this texture to the cache
 	m_cache.insert_or_assign(id, CacheEntry{ 
@@ -165,9 +165,8 @@ void MaterialBuffer::UpdateGPUBufferIfStale() noexcept
 
 	auto& renderer = App::GetRenderer();
 
-	m_buffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("MaterialBuffer",
-		buffer.size() * sizeof(Material), 
-		D3D12_RESOURCE_STATE_COMMON, 
+	m_buffer = GpuMemory::GetDefaultHeapBufferAndInit("MaterialBuffer",
+		(uint32_t)(buffer.size() * sizeof(Material)),
 		false,
 		buffer.data());
 
@@ -199,7 +198,7 @@ void MaterialBuffer::Recycle(uint64_t completedFenceVal) noexcept
 void MaterialBuffer::Clear() noexcept
 {
 	// Assumes CPU-GPU synchronization has been performed, so that GPU is done with the material buffer.
-	// UploadHeapBuffer's destructor takes care of the rest
+	// DefaultHeapBuffer's destructor takes care of the rest
 	m_buffer.Reset();
 }
 
@@ -258,13 +257,13 @@ void MeshContainer::RebuildBuffers() noexcept
 	Assert(m_vertices.size() > 0, "vertex buffer is empty");
 	Assert(m_indices.size() > 0, "index buffer is empty");
 
-	const size_t vbSizeInBytes = sizeof(Vertex) * m_vertices.size();
-	m_vertexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, vbSizeInBytes,
-		D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false, m_vertices.data());
+	const uint32_t vbSizeInBytes = sizeof(Vertex) * (uint32_t)m_vertices.size();
+	m_vertexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, vbSizeInBytes,
+		false, m_vertices.data(), true);
 
-	const size_t ibSizeInBytes = sizeof(uint32_t) * m_indices.size();
-	m_indexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, ibSizeInBytes,
-		D3D12_RESOURCE_STATE_INDEX_BUFFER, false, m_indices.data());
+	const uint32_t ibSizeInBytes = sizeof(uint32_t) * (uint32_t)m_indices.size();
+	m_indexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, ibSizeInBytes,
+		false, m_indices.data(), true);
 
 	auto& r = App::GetRenderer().GetSharedShaderResources();
 	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::SCENE_VERTEX_BUFFER, m_vertexBuffer);
@@ -313,10 +312,9 @@ void EmissiveBuffer::RebuildEmissiveBuffer() noexcept
 	if (m_emissivesTrisCpu.empty())
 		return;
 
-	const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_emissivesTrisCpu.size();
-	m_emissiveTrisGpu = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, 
+	const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangle) * (uint32_t)m_emissivesTrisCpu.size();
+	m_emissiveTrisGpu = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER,
 		sizeInBytes,
-		D3D12_RESOURCE_STATE_COMMON, 
 		false, 
 		m_emissivesTrisCpu.data());
 

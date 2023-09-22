@@ -1,110 +1,105 @@
 #pragma once
 
-#include "Direct3DHelpers.h"
-#include "../Utility/Error.h"
-#include "../Utility/SmallVector.h"
-#include <memory>
+#include "Direct3DUtil.h"
+#include "../Utility/Span.h"
+#include "../Support/OffsetAllocator.h"
 
 namespace ZetaRay::App::Filesystem
 {
 	struct Path;
 }
 
-namespace ZetaRay::Core
+namespace ZetaRay::Core::GpuMemory
 {
-	namespace Internal
-	{
-		struct LinearAllocatorPage;
-		struct UploadHeapManager;
-		struct DefaultHeapManager;
-		struct ResourceUploadBatch;
+	static constexpr uint64_t INVALID_ID = uint64_t(-1);
 
-		struct PageHandle
-		{
-			void Reset()
-			{
-				PoolIdx = -1;
-				ThreadIdx = -1;
-			}
-
-			int PoolIdx = -1;
-			int ThreadIdx = -1;
-		};
-	}
-
-	// "Resources in this heap must be created with D3D12_RESOURCE_STATE_GENERIC_READ and cannot be changed away from this."
 	struct UploadHeapBuffer
 	{
-		friend class GpuMemory;
+		UploadHeapBuffer() = default;
+		UploadHeapBuffer(ID3D12Resource* r, void* mapped, const Support::OffsetAllocator::Allocation& alloc = Support::OffsetAllocator::Allocation::Empty());
+		~UploadHeapBuffer();
+		UploadHeapBuffer(UploadHeapBuffer&& other);
+		UploadHeapBuffer& operator=(UploadHeapBuffer&& other);
 
-		UploadHeapBuffer() noexcept = default;
-		UploadHeapBuffer(Internal::PageHandle page,
-			size_t offsetFromResource,
-			D3D12_GPU_VIRTUAL_ADDRESS gpuAddress,
-			ID3D12Resource* resource,
-			void* memory,
-			size_t size) noexcept;
-
-		~UploadHeapBuffer() noexcept;
-
-		UploadHeapBuffer(UploadHeapBuffer&& other) noexcept;
-		UploadHeapBuffer& operator=(UploadHeapBuffer&&) noexcept;
-
-		bool IsInitialized() noexcept { return m_resource != nullptr; }
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const { return m_gpuAddress; }
-		ZetaInline ID3D12Resource* GetResource() { return m_resource; }
-		ZetaInline size_t GetSize() const { return m_size; }
-		ZetaInline size_t GetOffset() const { return m_offsetFromResource; }
-
-		void Reset() noexcept;
-		void Copy(size_t offset, size_t numBytesToCopy, void* data) noexcept;
+		void Reset();
+		ZetaInline bool IsInitialized() const { return m_resource != nullptr; }
+		ZetaInline ID3D12Resource* Resource() { return m_resource; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const { return m_resource->GetGPUVirtualAddress() + m_allocation.Offset; }
+		ZetaInline void* MappedMemeory() { return m_mappedMemory; }
+		ZetaInline const Support::OffsetAllocator::Allocation& Allocation() const { return m_allocation; }
+		ZetaInline uint32_t Offset() const { return m_allocation.Offset; }
+		void Copy(uint32_t offset, uint32_t numBytesToCopy, void* data);
 
 	private:
-		D3D12_GPU_VIRTUAL_ADDRESS m_gpuAddress = {};
 		ID3D12Resource* m_resource = nullptr;
 		void* m_mappedMemory = nullptr;
-		size_t m_size = 0;
-		size_t m_offsetFromResource = 0;
-		Internal::PageHandle m_pageHandle;
+		Support::OffsetAllocator::Allocation m_allocation = Support::OffsetAllocator::Allocation::Empty();
 	};
 
-	// "Resources in this heap must be created with D3D12_RESOURCE_STATE_COPY_DEST and cannot be changed away from this."
+	struct UploadHeapArena
+	{
+		struct Allocation
+		{
+			ID3D12Resource* Res;
+			void* Mapped;
+			uint32_t Offset = 0;
+		};
+
+		struct Block
+		{
+			ID3D12Resource* Res;
+			uint32_t Offset;
+			void* Mapped;
+		};
+
+		explicit UploadHeapArena(uint32_t sizeInBytes);
+		~UploadHeapArena();
+		UploadHeapArena(UploadHeapArena&& rhs);
+
+		Util::Span<Block> Blocks() { return m_blocks; }
+		Allocation SubAllocate(uint32_t size, uint32_t alignment = 1);
+
+	private:
+		Util::SmallVector<Block, Support::SystemAllocator, 4> m_blocks;
+		uint32_t m_size;
+	};
+
 	struct ReadbackHeapBuffer
 	{
-		ReadbackHeapBuffer() noexcept = default;
-		explicit ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r) noexcept;
-		~ReadbackHeapBuffer() noexcept;
+		ReadbackHeapBuffer() = default;
+		explicit ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r);
+		~ReadbackHeapBuffer();
+		ReadbackHeapBuffer(ReadbackHeapBuffer&&);
+		ReadbackHeapBuffer& operator=(ReadbackHeapBuffer&&);
 
-		ReadbackHeapBuffer(ReadbackHeapBuffer&&) noexcept;
-		ReadbackHeapBuffer& operator=(ReadbackHeapBuffer&&) noexcept;
+		ZetaInline bool IsInitialized() { return m_resource != nullptr; }
+		void Reset();
 
-		bool IsInitialized() noexcept { return m_resource != nullptr; }
-		void Reset() noexcept;
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const 
-		{ 
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
+		{
 			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
 			return m_resource->GetGPUVirtualAddress();
 		}
-		ZetaInline ID3D12Resource* GetResource() 
-		{ 
+		ZetaInline ID3D12Resource* Resource()
+		{
 			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
 			return m_resource.Get();
 		}
-		ZetaInline D3D12_RESOURCE_DESC GetDesc() const
+		ZetaInline D3D12_RESOURCE_DESC Desc() const
 		{
 			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
 			return m_resource->GetDesc();
 		}
-		
+
 		// From MS Docs:
 		// "Resources on D3D12_HEAP_TYPE_READBACK heaps do not support persistent map. Map and Unmap must 
 		// be called between CPU and GPU accesses to the same memory address on some system architectures, 
 		// when the page caching behavior is write-back."
-		void Map() noexcept;
-		void Unmap() noexcept;
+		void Map();
+		void Unmap();
 		ZetaInline bool IsMapped() const { return m_mappedMemory != nullptr; }
-		ZetaInline void* GetMappedMemory()
-		{ 
+		ZetaInline void* MappedMemory()
+		{
 			Assert(m_mappedMemory, "Resource is not mapped.");
 			return m_mappedMemory;
 		}
@@ -116,84 +111,77 @@ namespace ZetaRay::Core
 
 	struct DefaultHeapBuffer
 	{
-		friend class GpuMemory;
+		DefaultHeapBuffer() = default;
+		DefaultHeapBuffer(const char* p, ID3D12Resource* r);
+		~DefaultHeapBuffer();
+		DefaultHeapBuffer(DefaultHeapBuffer&&);
+		DefaultHeapBuffer& operator=(DefaultHeapBuffer&&);
 
-		DefaultHeapBuffer() noexcept = default;
-		DefaultHeapBuffer(const char* p, ComPtr<ID3D12Resource>&& r) noexcept;
-		~DefaultHeapBuffer() noexcept;
-
-		DefaultHeapBuffer(DefaultHeapBuffer&&) noexcept;
-		DefaultHeapBuffer& operator=(DefaultHeapBuffer&&) noexcept;
-
-		void Reset() noexcept;
-		ZetaInline bool IsInitialized() const noexcept { return m_resource != nullptr; }
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const
-		{ 
+		void Reset();
+		ZetaInline bool IsInitialized() const { return m_resource != nullptr; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
+		{
 			Assert(m_resource, "Buffer hasn't been initialized.");
 			return m_resource->GetGPUVirtualAddress();
 		}
-		ZetaInline ID3D12Resource* GetResource() 
-		{ 
+		ZetaInline ID3D12Resource* Resource()
+		{
 			Assert(m_resource, "Buffer hasn't been initialized.");
-			return m_resource.Get();
+			return m_resource;
 		}
-		ZetaInline D3D12_RESOURCE_DESC GetDesc() const 
-		{ 
+		ZetaInline D3D12_RESOURCE_DESC Desc() const
+		{
 			Assert(m_resource, "Buffer hasn't been initialized.");
 			return m_resource->GetDesc();
 		}
-		ZetaInline uint64_t GetPathID() const 
-		{ 
+		ZetaInline uint64_t ID() const
+		{
 			Assert(m_resource, "Buffer hasn't been initialized.");
-			return m_pathID;
+			return m_ID;
 		}
 
 	private:
-		uint64_t m_pathID = uint64_t(-1);
-		ComPtr<ID3D12Resource> m_resource;
+		uint64_t m_ID = INVALID_ID;
+		ID3D12Resource* m_resource = nullptr;
 	};
 
 	struct Texture
 	{
-		friend class GpuMemory;
+		Texture() = default;
+		Texture(const char* p, ID3D12Resource* r);
+		~Texture();
+		Texture(Texture&&);
+		Texture& operator=(Texture&&);
 
-		Texture() noexcept = default;
-		Texture(const char* p, ComPtr<ID3D12Resource>&& r) noexcept;
-		~Texture() noexcept;
-
-		Texture(Texture&&) noexcept;
-		Texture& operator=(Texture&&) noexcept;
-
-		ZetaInline bool IsInitialized() const { return m_pathID != -1; }
-		void Reset(bool guardDestruction = true) noexcept;
-
-		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GetGpuVA() const 
-		{ 
+		void Reset(bool waitForGpu = true, bool checkRefCount = true);
+		ZetaInline bool IsInitialized() const { return m_ID != -1; }
+		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
+		{
 			Assert(m_resource, "Texture hasn't been initialized.");
 			return m_resource->GetGPUVirtualAddress();
 		}
-		ZetaInline ID3D12Resource* GetResource() 
-		{ 
-			Assert(m_resource, "Texture hasn't been initialized.");
-			return m_resource.Get(); 
-		}
-		ZetaInline uint64_t GetPathID() const 
-		{ 
-			Assert(m_resource, "Texture hasn't been initialized.");
-			return m_pathID;
-		}
-		D3D12_RESOURCE_DESC GetDesc() const 
+		ZetaInline ID3D12Resource* Resource()
 		{
 			Assert(m_resource, "Texture hasn't been initialized.");
-			return m_resource->GetDesc(); 
+			return m_resource;
+		}
+		ZetaInline uint64_t ID() const
+		{
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_ID;
+		}
+		D3D12_RESOURCE_DESC Desc() const
+		{
+			Assert(m_resource, "Texture hasn't been initialized.");
+			return m_resource->GetDesc();
 		}
 
 	private:
-		uint64_t m_pathID = uint64_t(-1);
-		ComPtr<ID3D12Resource> m_resource;
+		uint64_t m_ID = INVALID_ID;
+		ID3D12Resource* m_resource = nullptr;
 	};
 
-	enum TEXTURE_FLAGS
+	enum CREATE_TEXTURE_FLAGS
 	{
 		ALLOW_RENDER_TARGET = 1 << 0,
 		ALLOW_DEPTH_STENCIL = 1 << 1,
@@ -201,83 +189,44 @@ namespace ZetaRay::Core
 		INIT_TO_ZERO = 1 << 3
 	};
 
-	class GpuMemory
-	{
-	public:
-		GpuMemory() noexcept;
-		~GpuMemory() noexcept;
+	void Init();
+	void BeginFrame();
+	void SubmitResourceCopies();
+	void Recycle();
+	void Shutdown();
 
-		GpuMemory(GpuMemory&&) = delete;
-		GpuMemory& operator=(GpuMemory&&) = delete;
+	UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, bool forceSeperate = false);
+	void ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer);
+	void ReleaseUploadHeapArena(UploadHeapArena& arena);
 
-		void Init() noexcept;
-		void BeginFrame() noexcept;
-		void SubmitResourceCopies() noexcept;
-		void Recycle() noexcept;
-		void Shutdown() noexcept;
+	ReadbackHeapBuffer GetReadbackHeapBuffer(uint32_t sizeInBytes);
 
-		UploadHeapBuffer GetUploadHeapBuffer(size_t sizeInBytes, size_t alignment = 16) noexcept;
-		void ReleaseUploadHeapBuffer(UploadHeapBuffer& buff) noexcept;
+	DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
+		D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero = false);
+	DefaultHeapBuffer GetDefaultHeapBufferAndInit(const char* name,
+		uint32_t sizeInBytes,
+		bool allowUAV, 
+		void* data,
+		bool forceSeperateUploadBuffer = false);
+	void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data);
+	void ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer);
+	void ReleaseTexture(Texture& textue);
 
-		ReadbackHeapBuffer GetReadbackHeapBuffer(size_t sizeInBytes) noexcept;
+	Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
+		D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
+		D3D12_CLEAR_VALUE* clearVal = nullptr);
 
-		DefaultHeapBuffer GetDefaultHeapBuffer(const char* n, size_t size,
-			D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero = false) noexcept;
-		DefaultHeapBuffer GetDefaultHeapBufferAndInit(const char* n,
-			size_t sizeInBytes,
-			D3D12_RESOURCE_STATES postCopyState,
-			bool allowUAV, 
-			void* data) noexcept;
-		void UploadToDefaultHeapBuffer(const DefaultHeapBuffer& buff, size_t sizeInBytes, void* data) noexcept;
-		void ReleaseDefaultHeapBuffer(DefaultHeapBuffer&& buff) noexcept;
-		void ReleaseTexture(Texture&& t) noexcept;
+	Texture GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
+		DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
+		uint32_t flags = 0, uint16_t mipLevels = 1);
 
-		//Texture GetTexture1D(const char* n, uint64_t width, DXGI_FORMAT format,
-		//	D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
+	Texture GetTextureCube(const char* name, uint64_t width, uint32_t height,
+		DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
+		uint32_t flags = 0, uint16_t mipLevels = 1);
 
-		Texture GetTexture2D(const char* n, uint64_t width, uint32_t height, DXGI_FORMAT format,
-			D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
-			D3D12_CLEAR_VALUE* clearVal = nullptr) noexcept;
-
-		Texture GetTexture3D(const char* n, uint64_t width, uint32_t height, uint16_t depth,
-			DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
-			uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
-
-		Texture GetTextureCube(const char* n, uint64_t width, uint32_t height,
-			DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
-			uint32_t flags = 0, uint16_t mipLevels = 1) noexcept;
-
-		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept;
-		Core::Direct3DHelper::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t) noexcept;
-		Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
-			D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0) noexcept;
-
-	private:
-		static constexpr D3D12_RESOURCE_FLAGS VALID_BUFFER_FLAGS =
-			D3D12_RESOURCE_FLAG_NONE |
-			D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS |
-			D3D12_RESOURCE_FLAG_DENY_SHADER_RESOURCE;
-
-		struct PendingTexture
-		{
-			ComPtr<ID3D12Resource> Res;
-			uint64_t ReleaseFence;
-		};
-
-		struct ThreadContext
-		{
-			std::unique_ptr<Internal::UploadHeapManager> UploadHeap;
-			std::unique_ptr<Internal::DefaultHeapManager> DefaultHeap;
-			std::unique_ptr<Internal::ResourceUploadBatch> ResUploader;
-
-			Util::SmallVector<PendingTexture> ToReleaseTextures;
-		};
-
-		ThreadContext m_threadContext[ZETA_MAX_NUM_THREADS];
-		uint32_t alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
-
-		ComPtr<ID3D12Fence> m_fenceDirect;
-		ComPtr<ID3D12Fence> m_fenceCompute;
-		uint64_t m_nextFenceVal = 1;	// no need to be atomic
-	};
+	Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t);
+	Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, UploadHeapArena& arena);
+	Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t);
+	Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
+		D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0);
 }

@@ -34,19 +34,19 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		SunShadow() noexcept;
-		~SunShadow() noexcept;
+		SunShadow();
+		~SunShadow();
 
-		void Init() noexcept;
-		bool IsInitialized() noexcept { return m_psos[(int)SHADERS::SHADOW_MASK] != nullptr; };
-		void Reset() noexcept;
-		void OnWindowResized() noexcept;
-		const Core::Texture& GetInput(SHADER_IN_RES i) const noexcept
+		void Init();
+		bool IsInitialized() { return m_psos[(int)SHADERS::SHADOW_MASK] != nullptr; };
+		void Reset();
+		void OnWindowResized();
+		const Core::GpuMemory::Texture& GetInput(SHADER_IN_RES i) const
 		{
 			Assert((int)i < (int)SHADER_IN_RES::COUNT, "out-of-bound access.");
 			return m_temporalCache[1 - m_currTemporalCacheOutIdx];
 		}
-		const Core::Texture& GetOutput(SHADER_OUT_RES i) const noexcept
+		const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
 		{
 			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
 
@@ -63,10 +63,10 @@ namespace ZetaRay::RenderPass
 
 			return m_temporalCache[idx];
 		}
-		void Render(Core::CommandList& cmdList) noexcept;
+		void Render(Core::CommandList& cmdList);
 
 	private:
-		void CreateResources() noexcept;
+		void CreateResources();
 
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 4;
@@ -86,10 +86,10 @@ namespace ZetaRay::RenderPass
 			static constexpr DXGI_FORMAT TEMPORAL_CACHE = DXGI_FORMAT_R16G16_FLOAT;
 		};
 
-		Core::Texture m_shadowMask;
-		Core::Texture m_metadata;
-		Core::Texture m_moments;
-		Core::Texture m_temporalCache[2];
+		Core::GpuMemory::Texture m_shadowMask;
+		Core::GpuMemory::Texture m_metadata;
+		Core::GpuMemory::Texture m_moments;
+		Core::GpuMemory::Texture m_temporalCache[2];
 		int m_currTemporalCacheOutIdx = 0;
 		int m_numSpatialPasses = 2;
 		int m_oldNumSpatialPasses;
@@ -136,13 +136,13 @@ namespace ZetaRay::RenderPass
 		cbFFX_DNSR_Temporal m_temporalCB;
 		cbFFX_DNSR_Spatial m_spatialCB;
 
-		void DoSoftShadowsCallback(const Support::ParamVariant& p) noexcept;
-		void NumSpatialFilterPassesCallback(const Support::ParamVariant& p) noexcept;
-		void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p) noexcept;
-		void MinFilterVarianceCallback(const Support::ParamVariant& p) noexcept;
+		void DoSoftShadowsCallback(const Support::ParamVariant& p);
+		void NumSpatialFilterPassesCallback(const Support::ParamVariant& p);
+		void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p);
+		void MinFilterVarianceCallback(const Support::ParamVariant& p);
 
-		void ReloadDNSRTemporal() noexcept;
-		void ReloadDNSRSpatial() noexcept;
-		void ReloadSunShadowTrace() noexcept;
+		void ReloadDNSRTemporal();
+		void ReloadDNSRSpatial();
+		void ReloadSunShadowTrace();
 	};
 }

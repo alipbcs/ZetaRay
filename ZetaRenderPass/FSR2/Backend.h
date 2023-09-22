@@ -3,9 +3,13 @@
 #include "../RenderPass.h"
 #include <FSR2/Include/ffx_fsr2.h>
 
-namespace ZetaRay::Core
+namespace ZetaRay::Core::GpuMemory
 {
 	struct Texture;
+}
+
+namespace ZetaRay::Core
+{
 	class CommandList;
 }
 
@@ -19,12 +23,12 @@ namespace ZetaRay::RenderPass::FSR2_Internal
 		ID3D12Resource* Exposure;
 	};
 
-	void Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight) noexcept;
-	void Shutdown() noexcept;
-	bool IsInitialized() noexcept;
-	//void OnWindowResized(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight) noexcept;
-	const Core::Texture& GetUpscaledOutput() noexcept;
-	void Dispatch(Core::CommandList& cmdList, const DispatchParams& params) noexcept;
+	void Init(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight);
+	void Shutdown();
+	bool IsInitialized();
+	//void OnWindowResized(DXGI_FORMAT outputFormat, int outputWidth, int outputHeight);
+	const Core::GpuMemory::Texture& GetUpscaledOutput();
+	void Dispatch(Core::CommandList& cmdList, const DispatchParams& params);
 
 	FfxErrorCode Fsr2CreateBackendContext(FfxFsr2Interface* backendInterface, FfxDevice device);
 	FfxErrorCode Fsr2DestroyBackendContext(FfxFsr2Interface* backendInterface);
