@@ -204,7 +204,6 @@ namespace ZetaRay::RenderPass
 
 		void DoTemporalResamplingCallback(const Support::ParamVariant& p);
 		void DoSpatialResamplingCallback(const Support::ParamVariant& p);
-		void PdfCorrectionCallback(const Support::ParamVariant& p);
 		void ValidationPeriodCallback(const Support::ParamVariant& p);
 		void RGINormalExpCallback(const Support::ParamVariant& p);
 		void CheckerboardTracingCallback(const Support::ParamVariant& p);

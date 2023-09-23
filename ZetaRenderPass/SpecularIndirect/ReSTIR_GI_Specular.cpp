@@ -221,18 +221,13 @@ void ReSTIR_GI_Specular::Init()
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoSpatialResamplingCallback), m_cbSpatial.DoSpatialResampling);
 	App::AddParam(doSpatial);
 
-	ParamVariant pdfCorrection;
-	pdfCorrection.InitBool("Renderer", "ReSTIR GI (Specular)", "PdfCorrection",
-		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::PdfCorrectionCallback), m_cbTemporal.PdfCorrection);
-	App::AddParam(pdfCorrection);
-
 	ParamVariant denoise;
-	denoise.InitBool("Renderer", "SpecularDenoiser", "Enable",
+	denoise.InitBool("Renderer", "Specular Denoiser", "Enable",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DoDenoisingCallback), m_cbDNSR.Denoise);
 	App::AddParam(denoise);
 
 	ParamVariant tspp;
-	tspp.InitInt("Renderer", "SpecularDenoiser", "MaxTSPP",
+	tspp.InitInt("Renderer", "Specular Denoiser", "MaxTSPP",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::TsppCallback),
 		m_cbDNSR.MaxTSPP,				// val	
 		1,								// min
@@ -241,7 +236,7 @@ void ReSTIR_GI_Specular::Init()
 	App::AddParam(tspp);
 
 	ParamVariant viewAngleExp;
-	viewAngleExp.InitFloat("Renderer", "SpecularDenoiser", "ViewAngleExp",
+	viewAngleExp.InitFloat("Renderer", "Specular Denoiser", "ViewAngleExp",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRViewAngleExpCallback),
 		m_cbDNSR.ViewAngleExp,			// val	
 		0.1f,							// min
@@ -250,7 +245,7 @@ void ReSTIR_GI_Specular::Init()
 	App::AddParam(viewAngleExp);
 
 	ParamVariant roughnessExp;
-	roughnessExp.InitFloat("Renderer", "SpecularDenoiser", "RoughnessExpScale",
+	roughnessExp.InitFloat("Renderer", "Specular Denoiser", "RoughnessExpScale",
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::DNSRRoughnessExpScaleCallback),
 		m_cbDNSR.RoughnessExpScale,		// val	
 		0.1f,							// min
@@ -263,9 +258,9 @@ void ReSTIR_GI_Specular::Init()
 		fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::CheckerboardingCallback), m_cbTemporal.CheckerboardTracing);
 	App::AddParam(checkerboarding);
 
-	App::AddShaderReloadHandler("ReSTIR_GI_Specular_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadTemporalPass));
-	App::AddShaderReloadHandler("ReSTIR_GI_Specular_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadSpatialPass));
-	App::AddShaderReloadHandler("SpecularDNSR", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadDNSR));
+	//App::AddShaderReloadHandler("ReSTIR_GI_Specular_Temporal", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadTemporalPass));
+	//App::AddShaderReloadHandler("ReSTIR_GI_Specular_Spatial", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadSpatialPass));
+	//App::AddShaderReloadHandler("SpecularDNSR", fastdelegate::MakeDelegate(this, &ReSTIR_GI_Specular::ReloadDNSR));
 
 	m_isTemporalReservoirValid = false;
 }
@@ -590,12 +585,6 @@ void ReSTIR_GI_Specular::DNSRViewAngleExpCallback(const Support::ParamVariant& p
 void ZetaRay::RenderPass::ReSTIR_GI_Specular::DNSRRoughnessExpScaleCallback(const Support::ParamVariant& p)
 {
 	m_cbDNSR.RoughnessExpScale = p.GetFloat().m_val;
-}
-
-void ReSTIR_GI_Specular::PdfCorrectionCallback(const Support::ParamVariant& p)
-{
-	m_cbTemporal.PdfCorrection = p.GetBool();
-	m_cbSpatial.PdfCorrection = p.GetBool();
 }
 
 void ReSTIR_GI_Specular::RoughnessCutoffCallback(const Support::ParamVariant& p)

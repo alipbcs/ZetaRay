@@ -78,22 +78,22 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter)
 	CreateLightAccumTex();
 
 	ParamVariant p0;
-	p0.InitBool("Renderer", "Lighting", "SunLighting", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
+	p0.InitBool("Renderer", "Lighting", "Sun", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
 		m_cbComposit.SunLighting);
 	App::AddParam(p0);	
 
 	ParamVariant p2;
-	p2.InitBool("Renderer", "Lighting", "DiffuseIndirect", fastdelegate::MakeDelegate(this, &Compositing::SetDiffuseIndirectEnablementCallback),
+	p2.InitBool("Renderer", "Lighting", "Diffuse Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetDiffuseIndirectEnablementCallback),
 		m_cbComposit.DiffuseIndirect);
 	App::AddParam(p2);
 
 	ParamVariant p6;
-	p6.InitBool("Renderer", "Lighting", "SpecularIndirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
+	p6.InitBool("Renderer", "Lighting", "Specular Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
 		m_cbComposit.SpecularIndirect);
 	App::AddParam(p6);
 
 	ParamVariant p7;
-	p7.InitBool("Renderer", "Lighting", "EmissiveLighting", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
+	p7.InitBool("Renderer", "Lighting", "Emissive Lighting", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
 		m_cbComposit.EmissiveLighting);
 	App::AddParam(p7);
 
@@ -152,7 +152,7 @@ void Compositing::Init(bool dof, bool skyIllum, bool fireflyFilter)
 	App::AddParam(gaussianPasses);
 
 	ParamVariant minLumToFilter;
-	minLumToFilter.InitFloat("Renderer", "DoF", "MinLumToFilter",
+	minLumToFilter.InitFloat("Renderer", "DoF", "Min Lum To Filter",
 		fastdelegate::MakeDelegate(this, &Compositing::MinLumToFilterCallback),
 		m_cbDoF.MinLumToFilter,				// val	
 		1e-3f,								// min

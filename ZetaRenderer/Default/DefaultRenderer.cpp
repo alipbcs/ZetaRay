@@ -288,7 +288,7 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(enableInscattering);
 
 			ParamVariant p6;
-			p6.InitEnum("Renderer", "AntiAliasing", "AA/Upscale",
+			p6.InitEnum("Renderer", "Anti-Aliasing", "AA/Upscaling",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAA),
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);
@@ -312,7 +312,7 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(p2);
 
 			ParamVariant p3;
-			p3.InitFloat("LightSource", "Sun", "AngularRadius",
+			p3.InitFloat("LightSource", "Sun", "Angular Radius",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifySunAngularRadius),
 				acosf(g_data->m_frameConstants.SunCosAngularRadius),
 				0.004f,
@@ -387,7 +387,7 @@ namespace ZetaRay::DefaultRenderer
 		App::AddParam(p7);
 
 		ParamVariant p8;
-		p8.InitBool("Renderer", "Lighting", "SkyLighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
+		p8.InitBool("Renderer", "Lighting", "Sky Lighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
 			g_data->m_settings.SkyIllumination);
 		App::AddParam(p8);
 

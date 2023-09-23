@@ -108,17 +108,17 @@ void SunShadow::Init()
 	m_spatialCB.MinFilterVar = 0.0f;
 
 	ParamVariant softShadows;
-	softShadows.InitBool("Renderer", "SunShadow", "SoftShadows",
+	softShadows.InitBool("Renderer", "Sun", "SoftShadows",
 		fastdelegate::MakeDelegate(this, &SunShadow::DoSoftShadowsCallback), m_doSoftShadows);
 	App::AddParam(softShadows);
 
 	ParamVariant numSpatialPasses;
-	numSpatialPasses.InitInt("Renderer", "SunShadow", "#SpatialFilterPasses",
+	numSpatialPasses.InitInt("Renderer", "Sun", "#SpatialFilterPasses",
 		fastdelegate::MakeDelegate(this, &SunShadow::NumSpatialFilterPassesCallback), m_numSpatialPasses, 0, 3, 1);
 	App::AddParam(numSpatialPasses);
 
 	ParamVariant minVar;
-	minVar.InitFloat("Renderer", "SunShadow", "MinFilterVariance",
+	minVar.InitFloat("Renderer", "Sun", "MinFilterVariance",
 		fastdelegate::MakeDelegate(this, &SunShadow::MinFilterVarianceCallback),
 		m_spatialCB.MinFilterVar,					// val	
 		0.0f,										// min

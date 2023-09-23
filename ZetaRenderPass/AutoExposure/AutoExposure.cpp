@@ -68,27 +68,27 @@ void AutoExposure::Init()
 	m_cbHist.UpperPercentile = DefaultParamVals::UpperPercentile;
 
 	ParamVariant p1;
-	p1.InitFloat("Renderer", "AutoExposure", "MinLum", fastdelegate::MakeDelegate(this, &AutoExposure::MinLumCallback),
+	p1.InitFloat("Renderer", "Auto Exposure", "Min Lum", fastdelegate::MakeDelegate(this, &AutoExposure::MinLumCallback),
 		DefaultParamVals::MinLum, 1e-4f, 0.5f, 1e-3f);
 	App::AddParam(p1);
 
 	ParamVariant p2;
-	p2.InitFloat("Renderer", "AutoExposure", "MaxLum", fastdelegate::MakeDelegate(this, &AutoExposure::MaxLumCallback),
+	p2.InitFloat("Renderer", "Auto Exposure", "Max Lum", fastdelegate::MakeDelegate(this, &AutoExposure::MaxLumCallback),
 		DefaultParamVals::MaxLum, 0.5f, 8.0f, 1e-2f);
 	App::AddParam(p2);
 
 	ParamVariant p5;
-	p5.InitFloat("Renderer", "AutoExposure", "LowerPercentile", fastdelegate::MakeDelegate(this, &AutoExposure::LowerPercentileCallback),
+	p5.InitFloat("Renderer", "Auto Exposure", "Lower Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::LowerPercentileCallback),
 		DefaultParamVals::LowerPercentile, 0.0f, 0.3f, 0.01f);
 	App::AddParam(p5);
 
 	ParamVariant p6;
-	p6.InitFloat("Renderer", "AutoExposure", "UpperPercentile", fastdelegate::MakeDelegate(this, &AutoExposure::UpperPercentileCallback),
+	p6.InitFloat("Renderer", "Auto Exposure", "Upper Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::UpperPercentileCallback),
 		DefaultParamVals::UpperPercentile, 0.6f, 1.0f, 0.01f);
 	App::AddParam(p6);
 
 	ParamVariant p3;
-	p3.InitFloat("Renderer", "AutoExposure", "LumMapExp", fastdelegate::MakeDelegate(this, &AutoExposure::LumMapExpCallback),
+	p3.InitFloat("Renderer", "Auto Exposure", "Lum Map Exp", fastdelegate::MakeDelegate(this, &AutoExposure::LumMapExpCallback),
 		DefaultParamVals::LumMapExp, 1e-1f, 1.0f, 1e-2f);
 	App::AddParam(p3);
 

@@ -62,7 +62,7 @@ void DisplayPass::Init()
 	m_cbLocal.AutoExposure = true;
 
 	ParamVariant p1;
-	p1.InitEnum("Renderer", "Display", "FinalRender", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
+	p1.InitEnum("Renderer", "Display", "Final Render", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
 		Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
 	App::AddParam(p1);
 
@@ -72,7 +72,7 @@ void DisplayPass::Init()
 	App::AddParam(p2);
 
 	ParamVariant p3;
-	p3.InitBool("Renderer", "AutoExposure", "Enable", fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
+	p3.InitBool("Renderer", "Auto Exposure", "Enable", fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
 		m_cbLocal.AutoExposure);
 	App::AddParam(p3);
 
@@ -84,7 +84,7 @@ void DisplayPass::Init()
 	App::Filesystem::Path p(App::GetAssetDir());
 	p.Append("LUT\\tony_mc_mapface.dds");
 	auto err = GpuMemory::GetTexture3DFromDisk(p, m_lut);
-	Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture in path %s: %d", p.Get(), err);
+	Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture from path %s: %d", p.Get(), err);
 
 	m_lutSRV = renderer.GetGpuDescriptorHeap().Allocate(1);
 	Direct3DUtil::CreateTexture3DSRV(m_lut, m_lutSRV.CPUHandle(0));

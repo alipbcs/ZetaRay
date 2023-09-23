@@ -89,6 +89,7 @@ namespace ZetaRay::RenderPass
 		bool m_isFullScreen = false;
 		int m_prevNumLogs = 0;
 		bool m_showLogsWindow = true;
+		//float m_headerSpacingX = 0;
 
 		Util::SmallVector<App::LogMessage> m_logs;
 

@@ -380,11 +380,12 @@ namespace ZetaRay::AppImpl
 		colors[ImGuiCol_Header] = ImVec4(0.046665083f, 0.046665083f, 0.046665083f, 1.0f);
 		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
 		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
+		colors[ImGuiCol_CheckMark] = ImVec4(112 / 255.0f, 118 / 255.0f, 128 / 255.0f, 1.0f);
 
 		style.FramePadding = ImVec2(7.0f, 3.0f);
 		style.GrabMinSize = 13.0f;
-		style.FrameRounding = 12.0f;
-		style.GrabRounding = style.FrameRounding;
+		style.FrameRounding = 4.0f;
+		style.GrabRounding = 5.0f;
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
 
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);

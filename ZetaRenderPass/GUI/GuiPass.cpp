@@ -488,22 +488,15 @@ void GuiPass::RenderSettings()
 
 	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
-		ImGuiTabBarFlags tab_bar_flags = ImGuiTabBarFlags_None;
-		if (ImGui::BeginTabBar("MyTabBar", tab_bar_flags))
+		ParameterTab();
+		ImGui::Text("");
+	}
+
+	/*
+	if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
+	{
+		if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None))
 		{
-			if (ImGui::BeginTabItem("Parameters"))
-			{
-				ParameterTab();
-				ImGui::EndTabItem();
-			}
-
-			if (ImGui::BeginTabItem("Shader Hot-Reload"))
-			{
-				ShaderReloadTab();
-				ImGui::EndTabItem();
-			}
-
-			/*
 			if (ImGui::BeginTabItem("Colors"))
 			{
 				ImGuiStyle& style = ImGui::GetStyle();
@@ -511,15 +504,11 @@ void GuiPass::RenderSettings()
 				static int output_dest = 0;
 				static bool output_only_modified = true;
 
-				//ImGui::SameLine(); ImGui::SetNextItemWidth(120); ImGui::Combo("##output_type", &output_dest, "To Clipboard\0To TTY\0");
-				ImGui::SameLine(); ImGui::Checkbox("Only Modified Colors", &output_only_modified);
-
 				static ImGuiTextFilter filter;
 				filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
 
 				static ImGuiColorEditFlags alpha_flags = 0;
 
-				ImGui::BeginChild("##colors", ImVec2(0, 0), true, ImGuiWindowFlags_AlwaysVerticalScrollbar | ImGuiWindowFlags_AlwaysHorizontalScrollbar | ImGuiWindowFlags_NavFlattened);
 				ImGui::PushItemWidth(-160);
 				for (int i = 0; i < ImGuiCol_COUNT; i++)
 				{
@@ -534,15 +523,60 @@ void GuiPass::RenderSettings()
 				}
 
 				ImGui::PopItemWidth();
-				ImGui::EndChild();
-
 				ImGui::EndTabItem();
 			}
-			*/
+
+			if (ImGui::BeginTabItem("Sizes"))
+			{
+				ImGuiStyle& style = ImGui::GetStyle();
+
+				ImGui::Text("Main");
+				ImGui::SliderFloat2("WindowPadding", (float*)&style.WindowPadding, 0.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat2("FramePadding", (float*)&style.FramePadding, 0.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat2("CellPadding", (float*)&style.CellPadding, 0.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat2("ItemSpacing", (float*)&style.ItemSpacing, 0.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat2("ItemInnerSpacing", (float*)&style.ItemInnerSpacing, 0.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat2("TouchExtraPadding", (float*)&style.TouchExtraPadding, 0.0f, 10.0f, "%.0f");
+				ImGui::SliderFloat("IndentSpacing", &style.IndentSpacing, 0.0f, 30.0f, "%.0f");
+				ImGui::SliderFloat("ScrollbarSize", &style.ScrollbarSize, 1.0f, 20.0f, "%.0f");
+				ImGui::SliderFloat("GrabMinSize", &style.GrabMinSize, 1.0f, 20.0f, "%.0f");
+				ImGui::Text("Borders");
+				ImGui::SliderFloat("WindowBorderSize", &style.WindowBorderSize, 0.0f, 1.0f, "%.0f");
+				ImGui::SliderFloat("ChildBorderSize", &style.ChildBorderSize, 0.0f, 1.0f, "%.0f");
+				ImGui::SliderFloat("PopupBorderSize", &style.PopupBorderSize, 0.0f, 1.0f, "%.0f");
+				ImGui::SliderFloat("FrameBorderSize", &style.FrameBorderSize, 0.0f, 1.0f, "%.0f");
+				ImGui::SliderFloat("TabBorderSize", &style.TabBorderSize, 0.0f, 1.0f, "%.0f");
+				ImGui::Text("Rounding");
+				ImGui::SliderFloat("WindowRounding", &style.WindowRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("ChildRounding", &style.ChildRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("FrameRounding", &style.FrameRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("PopupRounding", &style.PopupRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("ScrollbarRounding", &style.ScrollbarRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("GrabRounding", &style.GrabRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("LogSliderDeadzone", &style.LogSliderDeadzone, 0.0f, 12.0f, "%.0f");
+				ImGui::SliderFloat("TabRounding", &style.TabRounding, 0.0f, 12.0f, "%.0f");
+				ImGui::Text("Alignment");
+				ImGui::SliderFloat2("WindowTitleAlign", (float*)&style.WindowTitleAlign, 0.0f, 1.0f, "%.2f");
+				int window_menu_button_position = style.WindowMenuButtonPosition + 1;
+				ImGui::Combo("ColorButtonPosition", (int*)&style.ColorButtonPosition, "Left\0Right\0");
+				ImGui::SliderFloat2("ButtonTextAlign", (float*)&style.ButtonTextAlign, 0.0f, 1.0f, "%.2f");
+				ImGui::SliderFloat2("SelectableTextAlign", (float*)&style.SelectableTextAlign, 0.0f, 1.0f, "%.2f");
+				ImGui::Text("Safe Area Padding");
+				ImGui::SliderFloat2("DisplaySafeAreaPadding", (float*)&style.DisplaySafeAreaPadding, 0.0f, 30.0f, "%.0f");
+				
+				ImGui::EndTabItem();
+			}
 
 			ImGui::EndTabBar();
 		}
 
+		ImGui::Text("");
+	}
+	*/
+
+	if (ImGui::CollapsingHeader("Shader Hot-Reload", ImGuiTreeNodeFlags_None))
+	{
+		ShaderReloadTab();
 		ImGui::Text("");
 	}
 
@@ -704,6 +738,9 @@ void GuiPass::RenderMainHeader()
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.5f);
 
+	//const float spacingX = m_logWndWidth * 0.5f - m_headerSpacingX * 0.5f;
+	//ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, style.ItemSpacing.y));
+
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 	const float wndHeight = (m_headerWndHeightPct * displayHeight);
 
@@ -730,6 +767,9 @@ void GuiPass::RenderMainHeader()
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Scene View");
 
+	//const bool resetSpacing = m_headerSpacingX == 0;
+	//m_headerSpacingX += resetSpacing ? ImGui::GetItemRectSize().x : 0;
+
 	if(showMainWnd)
 	{
 		ImGui::SetWindowSize(ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight), ImGuiCond_Always);
@@ -737,6 +777,9 @@ void GuiPass::RenderMainHeader()
 	}
 
 	const bool renderGraphTab = ImGui::BeginTabItem("		Render Graph		");
+
+	//m_headerSpacingX += resetSpacing ? ImGui::GetItemRectSize().x : 0;
+
 	if (ImGui::IsItemHovered())
 		ImGui::SetTooltip("Render graph visualization (use RMB for panning).");
 
@@ -962,7 +1005,7 @@ void GuiPass::ShaderReloadTab()
 			});
 	}
 
-	ImGui::Text("Select a shader to reload");
+	ImGui::Text("Select a shader to reload:");
 
 	// TODO m_currShader becomes invalid when there's been a change in reloadHandlers 
 	if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? handlers[m_currShader].Name : "None", 0))

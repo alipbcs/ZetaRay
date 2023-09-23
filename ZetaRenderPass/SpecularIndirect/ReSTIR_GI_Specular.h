@@ -156,7 +156,6 @@ namespace ZetaRay::RenderPass
 
 		void DoTemporalResamplingCallback(const Support::ParamVariant& p);
 		void DoSpatialResamplingCallback(const Support::ParamVariant& p);
-		void PdfCorrectionCallback(const Support::ParamVariant& p);
 		void RoughnessCutoffCallback(const Support::ParamVariant& p);
 		void MaxTemporalMCallback(const Support::ParamVariant& p);
 		void MinRoughnessResample(const Support::ParamVariant& p);
