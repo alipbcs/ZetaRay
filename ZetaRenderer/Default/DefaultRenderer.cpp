@@ -186,18 +186,6 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.g = p.GetFloat().m_val;
 	}
 
-	void SetDoFEnablement(const ParamVariant& p)
-	{
-		g_data->m_settings.DoF = p.GetBool();
-		g_data->m_lightData.CompositingPass.SetDoFEnablement(g_data->m_settings.DoF);
-	}
-	
-	void SetFireflyFilterEnablement(const ParamVariant& p)
-	{
-		g_data->m_settings.FireflyFilter = p.GetBool();
-		g_data->m_lightData.CompositingPass.SetFireflyFilterEnablement(g_data->m_settings.FireflyFilter);
-	}
-
 	void SetSkyIllumEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.SkyIllumination = p.GetBool();
@@ -381,20 +369,10 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(p7);
 		}
 
-		ParamVariant p7;
-		p7.InitBool("Renderer", "DoF", "Enable", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetDoFEnablement),
-			g_data->m_settings.DoF);
-		App::AddParam(p7);
-
 		ParamVariant p8;
 		p8.InitBool("Renderer", "Lighting", "Sky Lighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
 			g_data->m_settings.SkyIllumination);
 		App::AddParam(p8);
-
-		ParamVariant p9;
-		p9.InitBool("Renderer", "Lighting", "FireflySuppression", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetFireflyFilterEnablement),
-			g_data->m_settings.FireflyFilter);
-		App::AddParam(p9);
 	}
 
 	void Update(TaskSet& ts)

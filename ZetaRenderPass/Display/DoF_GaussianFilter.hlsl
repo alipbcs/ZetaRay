@@ -1,6 +1,6 @@
 // Ref: https://github.com/microsoft/DirectX-Graphics-Samples/blob/master/Samples/Desktop/D3D12Raytracing/src/D3D12RaytracingRealTimeDenoisedAmbientOcclusion/RTAO/Shaders/Denoising/DepthAwareSeparableGaussianFilter3x3CS_AnyToAnyWaveReadLaneAt.hlsl
 
-#include "Compositing_Common.h"
+#include "Display_Common.h"
 #include "../Common/Common.hlsli"
 #include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
@@ -16,7 +16,7 @@ static const float Kernel[2 * Radius + 1] = { 0.27901f, 0.44198f, 0.27901f };
 // NumToLoadPerRowOrColumn = 8 + 2 * R pixel values need to be loaded for the filtering
 // of each row or column where 10 <= NumToLoadPerRowOrColumn <= 16. Note that ALL
 // 16 threads participate in the final computation though
-static const int2 GroupDim = int2(COMPOSITING_THREAD_GROUP_DIM_X, COMPOSITING_THREAD_GROUP_DIM_Y);
+static const int2 GroupDim = int2(GAUSSIAN_FILTER_THREAD_GROUP_DIM_X, GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y);
 static const int NumToLoadPerRowOrColumn = 8 + Radius * 2;
 
 groupshared float3 g_horizontallyFiltered[NumToLoadPerRowOrColumn][8];
@@ -25,8 +25,8 @@ groupshared float3 g_horizontallyFiltered[NumToLoadPerRowOrColumn][8];
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbGaussianFilter> g_local : register(b0);
-ConstantBuffer<cbFrameConstants> g_frame : register(b1);
+ConstantBuffer<cbFrameConstants> g_frame : register(b0);
+ConstantBuffer<cbGaussianFilter> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Horizontal convolution
@@ -34,7 +34,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 
 void HorizontalPass(uint3 Gid, uint Gidx)
 {
-	const int2 screenDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const int2 screenDim = int2(g_frame.DisplayWidth, g_frame.DisplayHeight);
 	const int2 blockFirstPixel = int2(Gid.xy) * GroupDim - Radius;
 
 	// reshape original 8x8 group into 4x16 so that every 16 threads work on one image row

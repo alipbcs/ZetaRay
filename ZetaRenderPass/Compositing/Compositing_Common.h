@@ -9,12 +9,6 @@
 #define FIREFLY_FILTER_THREAD_GROUP_DIM_X 16u
 #define FIREFLY_FILTER_THREAD_GROUP_DIM_Y 8u
 
-#define DOF_GATHER_THREAD_GROUP_DIM_X 8u
-#define DOF_GATHER_THREAD_GROUP_DIM_Y 8u
-
-#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_X 8u
-#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y 8u
-
 struct cbCompositing
 {
 	uint32_t CompositedUAVDescHeapIdx;
@@ -29,10 +23,6 @@ struct cbCompositing
 	float VoxelGridNearZ;
 	float VoxelGridFarZ;
 
-	float FocalLength;
-	float FStop;
-	float FocusDepth;
-
 	float RoughnessCutoff;
 	uint16_t SunLighting;
 	uint16_t SkyLighting;
@@ -44,25 +34,7 @@ struct cbCompositing
 
 struct cbFireflyFilter
 {
-	uint32_t CompositedSRVDescHeapIdx;
-	uint32_t FilteredUAVDescHeapIdx;
-	uint16_t DoFIsON;
+	uint32_t CompositedUAVDescHeapIdx;
 };
 
-struct cbDoF
-{
-	uint32_t InputDescHeapIdx;
-	uint32_t OutputDescHeapIdx;
-	float RadiusScale;
-	float MaxBlurRadius;
-	float MinLumToFilter;
-	uint32_t IsGaussianFilterEnabled;
-};
-
-struct cbGaussianFilter
-{
-	uint32_t GatherSrvDescHeapIdx;
-	uint32_t FilteredUavDescHeapIdx;
-};
-
-#endif // COMPOSITING_H
+#endif

@@ -33,30 +33,26 @@ namespace ZetaRay::RenderPass
 
 		enum class SHADER_OUT_RES
 		{
-			COMPOSITED_DEFAULT,
-			COMPOSITED_FILTERED,
-			FINAL_OUTPUT,
+			COMPOSITED,
 			COUNT
 		};
 
 		Compositing();
 		~Compositing();
 
-		void Init(bool dof, bool skyIllum, bool fireflyFilter);
+		void Init(bool skyIllum);
 		bool IsInitialized() { return m_psos[0] != nullptr; }
 		void Reset();
-		void SetInscatteringEnablement(bool b) { m_cbComposit.AccumulateInscattering = b; }
-		void SetDoFEnablement(bool b);
-		void SetSkyIllumEnablement(bool b);
-		void SetFireflyFilterEnablement(bool b);
+		void SetInscatteringEnablement(bool enable) { m_cbComposit.AccumulateInscattering = enable; }
+		void SetSkyIllumEnablement(bool enable);
 		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
-		void SetVoxelGridMappingExp(float p) { m_cbComposit.DepthMappingExp = p; }
-		void SetRoughnessCutoff(float c) { m_cbComposit.RoughnessCutoff = c; }
-		void SetGpuDescriptor(SHADER_IN_GPU_DESC i, uint32_t descHeapIdx)
+		void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }
+		void SetRoughnessCutoff(float cuttoff) { m_cbComposit.RoughnessCutoff = cuttoff; }
+		void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
 		{
-			Assert((int)i < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
+			Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 
-			switch (i)
+			switch (input)
 			{
 			case SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE:
 				m_cbComposit.DiffuseDNSRCacheDescHeapIdx = descHeapIdx;
@@ -81,15 +77,10 @@ namespace ZetaRay::RenderPass
 				return;
 			}
 		}
-		const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES i) const
+		const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES out) const
 		{
-			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
-			if (i == SHADER_OUT_RES::COMPOSITED_DEFAULT)
-				return m_hdrLightAccum;
-			if (i == SHADER_OUT_RES::COMPOSITED_FILTERED)
-				return m_dofGather_filtered;
-
-			return *m_output;
+			Assert((int)out < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
+			return m_hdrLightAccum;
 		}
 		void OnWindowResized();
 		void Render(Core::CommandList& cmdList);
@@ -111,18 +102,13 @@ namespace ZetaRay::RenderPass
 
 		enum class DESC_TABLE
 		{
-			LIGHT_ACCUM_SRV,
 			LIGHT_ACCUM_UAV,
-			DoF_GATHER_FILTERED_SRV,
-			DoF_GATHER_FILTERED_UAV,
 			COUNT
 		};
 
 		enum class SHADERS
 		{
 			COMPOSIT,
-			DoF_GATHER,
-			DoF_GAUSSIAN_FILTER,
 			FIREFLY_FILTER,
 			COUNT
 		};
@@ -131,39 +117,23 @@ namespace ZetaRay::RenderPass
 
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
 			"Compositing_cs.cso",
-			"DoF_Gather_cs.cso",
-			"DoF_GaussianFilter_cs.cso",
 			"FireflyFilter_cs.cso"
 		};
 		
 		Core::GpuMemory::Texture m_hdrLightAccum;
-		Core::GpuMemory::Texture m_dofGather_filtered;
-		Core::DescriptorTable m_descTable; 
+		Core::DescriptorTable m_descTable;
 		cbCompositing m_cbComposit;
-		cbDoF m_cbDoF;
-		cbGaussianFilter m_cbGaussian;
-		int m_numGaussianPasses = 0;
-		Core::GpuMemory::Texture* m_output = nullptr;
 		bool m_filterFirefly = false;
-		bool m_dof = false;
 		bool m_needToUavBarrierOnHDR = false;
 		bool m_needToUavBarrierOnFilter = false;
 
-		void CreateLightAccumTex();
-		void CreateDoForFilteredResources();
-		void UpdateManualBarrierConditions();
-		
+		void CreateLightAccumTexure();
+
+		void SetFireflyFilterEnablement(const Support::ParamVariant& p);
 		void SetSunLightingEnablementCallback(const Support::ParamVariant& p);
 		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p);
 		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p);
 		void SetEmissiveEnablementCallback(const Support::ParamVariant& p);
-		void FocusDistCallback(const Support::ParamVariant& p);
-		void FStopCallback(const Support::ParamVariant& p);
-		void FocalLengthCallback(const Support::ParamVariant& p);
-		void BlurRadiusCallback(const Support::ParamVariant& p);
-		void RadiusScaleCallback(const Support::ParamVariant& p);
-		void MinLumToFilterCallback(const Support::ParamVariant& p);
-		void NumGaussianPassesCallback(const Support::ParamVariant& p);
 
 		void ReloadCompsiting();
 	};

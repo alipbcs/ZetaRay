@@ -48,10 +48,8 @@ namespace ZetaRay::DefaultRenderer
 	struct alignas(64) RenderSettings
 	{
 		bool Inscattering = false;
-		bool DoF = false;
 		bool SkyIllumination = false;
-		bool FireflyFilter = false;
-		bool EmissiveLighting = false;
+		bool EmissiveLighting = true;
 		// Note match with default PendingAA
 		Settings::AA AntiAliasing = Settings::AA::TAA;
 	};
@@ -175,7 +173,6 @@ namespace ZetaRay::DefaultRenderer
 		enum class DESC_TABLE_CONST
 		{
 			HDR_LIGHT_ACCUM_SRV,
-			DoF_SRV,
 			EXPOSURE_SRV,
 			COUNT
 		};

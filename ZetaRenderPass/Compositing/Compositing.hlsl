@@ -57,14 +57,6 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 po
 	return L_i;
 }
 
-float CoC(float linearDepth)
-{
-	float f = g_local.FocalLength / 1000.0f; // convert from mm to meters
-	float numerator = f * f * abs(linearDepth - g_local.FocusDepth);
-	float denom = g_local.FStop * linearDepth * (g_local.FocusDepth - f);
-	return abs(numerator / denom) * 1000;
-}
-
 //--------------------------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------------------------
@@ -192,8 +184,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		}
 	}
 
-	const float coc = CoC(linearDepth);
-	
 	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
-	g_hdrLightAccum[DTid.xy] = float4(color, coc);
+	g_hdrLightAccum[DTid.xy].rgb = color;
 }

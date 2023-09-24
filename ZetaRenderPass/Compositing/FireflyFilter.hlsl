@@ -34,7 +34,7 @@ float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal
 }
 
 // Ref: P. Kozlowski and T. Cheblokov, "ReLAX: A Denoiser Tailored to Work with the ReSTIR Algorithm," GTC, 2021.
-float3 FilterFirefly(Texture2D<float4> g_input, float3 currColor, int2 DTid, int2 GTid, float linearDepth, float3 normal, float3 posW)
+float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, int2 GTid, float linearDepth, float3 normal, float3 posW)
 {
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 
@@ -101,13 +101,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	const float depth = g_depth[DTid.xy];
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	
-	Texture2D<float4> g_composited= ResourceDescriptorHeap[g_local.CompositedSRVDescHeapIdx];
-	RWTexture2D<float4> g_filtered = ResourceDescriptorHeap[g_local.FilteredUAVDescHeapIdx];
-	float4 colorCoC = g_local.DoFIsON ? g_composited[DTid.xy].rgba : float4(g_composited[DTid.xy].rgb, 0);
+	RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
+	float3 color = g_composited[DTid.xy].rgb;
 	
 	if (depth == 0.0)
 	{
-		g_filtered[DTid.xy].rgba = colorCoC;
+		g_composited[DTid.xy].rgb = color;
 		return;
 	}
 
@@ -122,6 +121,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
 
-	colorCoC.rgb = FilterFirefly(g_composited, colorCoC.rgb, DTid.xy, GTid.xy, linearDepth, normal, posW);
-	g_filtered[DTid.xy] = colorCoC;
+	color = FilterFirefly(g_composited, color, DTid.xy, GTid.xy, linearDepth, normal, posW);
+	g_composited[DTid.xy].rgb = color;
 }

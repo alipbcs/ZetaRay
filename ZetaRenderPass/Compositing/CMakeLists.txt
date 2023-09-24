@@ -3,8 +3,6 @@ set(RP_COMPOSITING_SRC
     ${RP_COMPOSITING_DIR}/Compositing.cpp
     ${RP_COMPOSITING_DIR}/Compositing.h
     ${RP_COMPOSITING_DIR}/Compositing_Common.h
-	${RP_COMPOSITING_DIR}/DoF_Gather.hlsl
-	${RP_COMPOSITING_DIR}/DoF_GaussianFilter.hlsl
     ${RP_COMPOSITING_DIR}/FireflyFilter.hlsl
     ${RP_COMPOSITING_DIR}/Compositing.hlsl)
 set(RP_COMPOSITING_SRC ${RP_COMPOSITING_SRC} PARENT_SCOPE)

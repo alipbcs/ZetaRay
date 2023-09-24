@@ -27,7 +27,7 @@ void PostProcessor::UpdateWndDependentDescriptors(const RenderSettings& settings
 	Direct3DUtil::CreateTexture2DSRV(data.AutoExposurePass.GetOutput(AutoExposure::SHADER_OUT_RES::EXPOSURE),
 		data.WindowSizeConstSRVs.CPUHandle((int)PostProcessData::DESC_TABLE_CONST::EXPOSURE_SRV));
 
-	const Texture& lightAccum = lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED_DEFAULT);
+	const Texture& lightAccum = lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
 	Direct3DUtil::CreateTexture2DSRV(lightAccum,
 		data.WindowSizeConstSRVs.CPUHandle((int)PostProcessData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_SRV));
 }
@@ -53,14 +53,6 @@ void PostProcessor::UpdateFrameDescriptors(const RenderSettings& settings, PostP
 		Texture& taaOut = data.TaaPass.GetOutput(taaOutIdx);
 		Direct3DUtil::CreateTexture2DSRV(taaOut, data.TaaOrFsr2OutSRV.CPUHandle(0));
 	}
-
-	// can change every frame due to UI controls
-	if (settings.DoF || settings.FireflyFilter)
-	{
-		const Texture& dof = lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::FINAL_OUTPUT);
-		Direct3DUtil::CreateTexture2DSRV(dof,
-			data.WindowSizeConstSRVs.CPUHandle((int)PostProcessData::DESC_TABLE_CONST::DoF_SRV));
-	}
 }
 
 void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData& data)
@@ -85,6 +77,7 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
 	else if (settings.AntiAliasing == AA::FSR2)
 		data.Fsr2Pass.OnWindowResized();
 
+	data.DisplayPass.OnWindowResized();
 	UpdateWndDependentDescriptors(settings, data, lightData);
 }
 
@@ -106,8 +99,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 	UpdateFrameDescriptors(settings, data, lightData);
 
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
-	const auto compositedSrv = !settings.DoF && !settings.FireflyFilter ? PostProcessData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_SRV :
-		PostProcessData::DESC_TABLE_CONST::DoF_SRV;
+	const auto compositedSrv = PostProcessData::DESC_TABLE_CONST::HDR_LIGHT_ACCUM_SRV;
 
 	// Display
 	auto backBuffRTV = App::GetRenderer().GetCurrBackBufferRTV();
@@ -131,12 +123,12 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 			data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
 
 		// Display
-		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
+		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::COMPOSITED, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
 	}
 	// FSR2
 	else if (settings.AntiAliasing == AA::FSR2)
 	{
-		Texture& composited = const_cast<Texture&>(lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::FINAL_OUTPUT));
+		Texture& composited = const_cast<Texture&>(lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED));
 
 		data.Fsr2Pass.SetInput(FSR2Pass::SHADER_IN_RES::DEPTH, const_cast<Texture&>(gbuffData.DepthBuffer[outIdx]).Resource());
 		data.Fsr2Pass.SetInput(FSR2Pass::SHADER_IN_RES::MOTION_VECTOR, const_cast<Texture&>(gbuffData.MotionVec).Resource());
@@ -144,12 +136,12 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		data.Fsr2Pass.SetInput(FSR2Pass::SHADER_IN_RES::EXPOSURE, const_cast<Texture&>(exposureTex).Resource());
 
 		// Display
-		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
+		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::COMPOSITED, data.TaaOrFsr2OutSRV.GPUDesciptorHeapIndex(0));
 	}
 	else
 	{
 		// Display
-		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::FINAL_LIGHTING,
+		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::COMPOSITED,
 			data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
 	}
 
@@ -167,7 +159,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_SPATIAL_RESERVOIR_B));
 
 	// denoised indirect diffuse
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE,
+	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::DIFFUSE_INDIRECT_DENOISED,
 		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_INDIRECT_DENOISED));
 
 	data.GuiPass.Update();
@@ -235,7 +227,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
 	const LightData& lightData, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
 {
-	const Texture& composited = lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::FINAL_OUTPUT);
+	const Texture& composited = lightData.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);
 	const Texture& exposureTex = data.AutoExposurePass.GetOutput(AutoExposure::SHADER_OUT_RES::EXPOSURE);
 
 	// TAA
