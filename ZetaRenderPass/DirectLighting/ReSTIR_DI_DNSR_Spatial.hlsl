@@ -186,7 +186,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 
 	Texture2D<float4> g_temporalCache_Specular = ResourceDescriptorHeap[g_local.TemporalCacheSpecularDescHeapIdx];
 	const float3 centerColor = g_temporalCache_Specular[DTid].rgb;
-			
+
 	if (!g_local.FilterSpecular || roughness <= 0.1)
 		return centerColor;
 
@@ -330,5 +330,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 	float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, isMetallic, mr.y, posW, baseColor, rng);
 
 	RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
-	g_final[swizzledDTid.xy] = float4(filteredDiffuse * baseColor + filteredSpecular * (isMetallic ? F : 1), 1);
+	g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (isMetallic ? F : 1);
 }

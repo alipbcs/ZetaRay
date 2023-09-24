@@ -86,7 +86,7 @@ namespace ZetaRay::Core
 
 		ComPtr<IDXGIFactory6> m_dxgiFactory;
 		ComPtr<IDXGIAdapter3> m_dxgiAdapter;
-		ComPtr<ID3D12Device8> m_device;
+		ComPtr<ID3D12Device10> m_device;
 		ComPtr<IDXGISwapChain3> m_dxgiSwapChain;
 
 		bool m_tearingSupport = false;

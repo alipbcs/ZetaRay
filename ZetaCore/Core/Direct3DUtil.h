@@ -142,6 +142,32 @@ namespace ZetaRay::Core::Direct3DUtil
         return tex2DDesc;
     }
 
+    inline D3D12_RESOURCE_DESC1 Tex2D1(DXGI_FORMAT format, UINT64 width, UINT height,
+        uint16_t arraySize = 1, uint16_t mipLevels = 1,
+        D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
+        D3D12_TEXTURE_LAYOUT layout = D3D12_TEXTURE_LAYOUT_UNKNOWN,
+        UINT64 alignment = 0)
+    {
+        D3D12_RESOURCE_DESC1 tex2DDesc;
+
+        tex2DDesc.Dimension = D3D12_RESOURCE_DIMENSION_TEXTURE2D;
+        tex2DDesc.Format = format;
+        tex2DDesc.Alignment = alignment;
+        tex2DDesc.Width = width;
+        tex2DDesc.Height = height;
+        tex2DDesc.MipLevels = mipLevels;
+        tex2DDesc.DepthOrArraySize = arraySize;
+        tex2DDesc.Flags = flags;
+        tex2DDesc.Layout = layout;
+        tex2DDesc.SampleDesc.Count = 1;
+        tex2DDesc.SampleDesc.Quality = 0;
+        tex2DDesc.SamplerFeedbackMipRegion.Width = 0;
+        tex2DDesc.SamplerFeedbackMipRegion.Height = 0;
+        tex2DDesc.SamplerFeedbackMipRegion.Depth = 0;
+
+        return tex2DDesc;
+    }
+
     inline D3D12_RESOURCE_DESC Tex3D(DXGI_FORMAT format, UINT64 width, UINT height,
         uint16_t depth = 1, uint16_t mipLevels = 1,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,
@@ -181,6 +207,89 @@ namespace ZetaRay::Core::Direct3DUtil
         barrier.Flags = flags;
 
         return barrier;
+    }
+
+    inline D3D12_BUFFER_BARRIER BufferBarrier(ID3D12Resource* res,
+        D3D12_BARRIER_SYNC syncBefore,
+        D3D12_BARRIER_SYNC syncAfter,
+        D3D12_BARRIER_ACCESS accessBefore,
+        D3D12_BARRIER_ACCESS accessAfter)
+    {
+        return D3D12_BUFFER_BARRIER{ .SyncBefore = syncBefore,
+            .SyncAfter = syncAfter,
+            .AccessBefore = accessBefore,
+            .AccessAfter = accessAfter,
+            .pResource = res,
+            .Offset = 0,
+            .Size = UINT64_MAX };
+    }
+
+    inline D3D12_TEXTURE_BARRIER TextureBarrier(ID3D12Resource* res,
+        D3D12_BARRIER_SYNC syncBefore,
+        D3D12_BARRIER_SYNC syncAfter,
+        D3D12_BARRIER_LAYOUT layoutBefore,
+        D3D12_BARRIER_LAYOUT layoutAfter,
+        D3D12_BARRIER_ACCESS accessBefore,
+        D3D12_BARRIER_ACCESS accessAfter,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = syncBefore;
+        barrier.SyncAfter = syncAfter;
+        barrier.AccessBefore = accessBefore;
+        barrier.AccessAfter = accessAfter;
+        barrier.LayoutBefore = layoutBefore;
+        barrier.LayoutAfter = layoutAfter;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+        
+        return barrier;
+    }
+
+    inline D3D12_BARRIER_GROUP BarrierGroup(D3D12_BUFFER_BARRIER& barrier)
+    {
+        D3D12_BARRIER_GROUP group;
+        group.Type = D3D12_BARRIER_TYPE_BUFFER;
+        group.NumBarriers = 1;
+        group.pBufferBarriers = &barrier;
+
+        return group;
+    }
+
+    inline D3D12_BARRIER_GROUP BarrierGroup(D3D12_BUFFER_BARRIER* barriers, uint32_t numBarriers)
+    {
+        D3D12_BARRIER_GROUP group;
+        group.Type = D3D12_BARRIER_TYPE_BUFFER;
+        group.NumBarriers = numBarriers;
+        group.pBufferBarriers = barriers;
+
+        return group;
+    }    
+
+    inline D3D12_BARRIER_GROUP BarrierGroup(D3D12_TEXTURE_BARRIER& barrier)
+    {
+        D3D12_BARRIER_GROUP group;
+        group.Type = D3D12_BARRIER_TYPE_TEXTURE;
+        group.NumBarriers = 1;
+        group.pTextureBarriers = &barrier;
+
+        return group;
+    }
+
+    inline D3D12_BARRIER_GROUP BarrierGroup(D3D12_TEXTURE_BARRIER* barriers, uint32_t numBarriers)
+    {
+        D3D12_BARRIER_GROUP group;
+        group.Type = D3D12_BARRIER_TYPE_TEXTURE;
+        group.NumBarriers = numBarriers;
+        group.pTextureBarriers = barriers;
+
+        return group;
     }
 
     inline D3D12_RESOURCE_BARRIER UAVBarrier(ID3D12Resource* res)

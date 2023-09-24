@@ -40,7 +40,7 @@ namespace ZetaRay::Core
 			m_cmdList->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(s), s);
 		}
 
-		ZetaInline ID3D12GraphicsCommandList5* Get()
+		ZetaInline ID3D12GraphicsCommandList7* Get()
 		{
 			return m_cmdList.Get();
 		}
@@ -49,7 +49,7 @@ namespace ZetaRay::Core
 		CommandList(D3D12_COMMAND_LIST_TYPE t, ID3D12CommandAllocator* cmdAlloc);
 
 		D3D12_COMMAND_LIST_TYPE m_type;
-		ComPtr<ID3D12GraphicsCommandList5> m_cmdList;
+		ComPtr<ID3D12GraphicsCommandList7> m_cmdList;
 		ID3D12CommandAllocator *m_cmdAllocator = nullptr;
 	};
 
@@ -75,6 +75,35 @@ namespace ZetaRay::Core
 		ZetaInline void ResourceBarrier(D3D12_RESOURCE_BARRIER* barriers, UINT numBarriers)
 		{
 			m_cmdList->ResourceBarrier(numBarriers, barriers);
+		}
+
+		ZetaInline void ResourceBarrier(D3D12_BUFFER_BARRIER& barrier)
+		{
+			const auto barrierGroup = Direct3DUtil::BarrierGroup(&barrier, 1);
+			m_cmdList->Barrier(1, &barrierGroup);
+		}
+
+		ZetaInline void ResourceBarrier(D3D12_BUFFER_BARRIER* barriers, UINT numBarriers)
+		{
+			const auto barrierGroup = Direct3DUtil::BarrierGroup(barriers, numBarriers);
+			m_cmdList->Barrier(1, &barrierGroup);
+		}
+
+		ZetaInline void ResourceBarrier(D3D12_TEXTURE_BARRIER& barrier)
+		{
+			const auto barrierGroup = Direct3DUtil::BarrierGroup(&barrier, 1);
+			m_cmdList->Barrier(1, &barrierGroup);
+		}
+
+		ZetaInline void ResourceBarrier(D3D12_TEXTURE_BARRIER* barriers, UINT numBarriers)
+		{
+			const auto barrierGroup = Direct3DUtil::BarrierGroup(barriers, numBarriers);
+			m_cmdList->Barrier(1, &barrierGroup);
+		}
+
+		ZetaInline void ResourceBarrier(D3D12_BARRIER_GROUP* barrierGroups, UINT numBarrierGroups)
+		{
+			m_cmdList->Barrier(numBarrierGroups, barrierGroups);
 		}
 
 		ZetaInline void UAVBarrier(ID3D12Resource* res)

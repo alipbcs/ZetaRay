@@ -515,7 +515,7 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	const float ndotwo = saturate(dot(normal, wo));
-	
+
 	const float parallax = Parallax(posW, prevSurfacePosW, g_frame.CameraPos, prevCameraPos);
 	float reactivity = Reactivity(roughness, ndotwo, parallax);
 	//float minTspp = metallic ? 0 : 1;

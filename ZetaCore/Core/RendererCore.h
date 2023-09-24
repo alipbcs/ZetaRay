@@ -37,7 +37,7 @@ namespace ZetaRay::Core
 		void SubmitResourceCopies();
 		void EndFrame(Support::TaskSet& endFrameTS);
 
-		ZetaInline ID3D12Device8* GetDevice() { return m_deviceObjs.m_device.Get(); };
+		ZetaInline ID3D12Device10* GetDevice() { return m_deviceObjs.m_device.Get(); };
 		ZetaInline const char* GetDeviceDescription() { return m_deviceObjs.m_deviceName; }
 		ZetaInline IDXGIAdapter3* GetAdapter() { return m_deviceObjs.m_dxgiAdapter.Get(); }
 		DXGI_OUTPUT_DESC GetOutputMonitorDesc() const;

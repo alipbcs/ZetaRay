@@ -1049,6 +1049,50 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
 	return Texture(name, texture);
 }
 
+Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
+	D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+{
+	Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width");
+	Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height");
+	Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
+	Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)) == 0,
+		"Texures can't be used as both Render Target and Depth Stencil");
+	Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
+		"A Depth-Stencil texture can't be used for unordered access");
+
+	D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+
+	if (flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
+		f |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+	if (flags & CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
+		f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+	if (flags & CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
+		f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+
+	D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
+	D3D12_RESOURCE_DESC1 desc = Direct3DUtil::Tex2D1(format, width, height, 1, mipLevels, f);
+
+	ID3D12Resource* texture;
+	auto* device = App::GetRenderer().GetDevice();
+
+	D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
+
+	if ((flags & CREATE_TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
+		heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
+
+	CheckHR(device->CreateCommittedResource3(&defaultHeap,
+		heapFlags,
+		&desc,
+		initialLayout,
+		clearVal,
+		nullptr,
+		0,
+		nullptr,
+		IID_PPV_ARGS(&texture)));
+
+	return Texture(name, texture);
+}
+
 Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
 	DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels)
 {
