@@ -113,9 +113,14 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 	App::AddParam(fovParam);
 
 	ParamVariant coeff;
-	coeff.InitFloat("Scene", "Camera", "FrictionCoeff", fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
+	coeff.InitFloat("Scene", "Camera", "Friction Coeff.", fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
 		m_frictionCoeff, 1, 16, 1);
 	App::AddParam(coeff);
+
+	ParamVariant clampTo0;
+	clampTo0.InitBool("Scene", "Camera", "Clamp Small V0 To 0", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
+		m_clampSmallV0ToZero);
+	App::AddParam(clampTo0);
 
 	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
 }
@@ -132,8 +137,9 @@ void Camera::Update(const Motion& m)
 	const __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
 	__m128 vInitialVelocity = _mm_load_ps(reinterpret_cast<float*>(&m_initialVelocity));
 
-	__m128 vAcc = _mm_mul_ps(vBasisX, _mm_set1_ps(m.Acceleration.x));
-	vAcc = _mm_fmadd_ps(vBasisZ, _mm_set1_ps(m.Acceleration.z), vAcc);	
+	const __m128 vForce = loadFloat3(const_cast<float3&>(m.Acceleration));
+	__m128 vAcc = _mm_mul_ps(vBasisX, _mm_broadcastss_ps(vForce));
+	vAcc = _mm_fmadd_ps(vBasisZ, _mm_shuffle_ps(vForce, vForce, V_SHUFFLE_XYZW(2, 2, 2, 2)), vAcc);
 	vAcc = _mm_fmadd_ps(_mm_set1_ps(-m_frictionCoeff), vInitialVelocity, vAcc);
 
 	const __m128 vDt = _mm_set1_ps(m.dt);
@@ -143,6 +149,14 @@ void Camera::Update(const Motion& m)
 	__m128 vNewEye = _mm_fmadd_ps(vAcc, vDt2Over2, vVdt);
 	vNewEye = _mm_add_ps(vNewEye, vEye);
 	vInitialVelocity = vVelocity;
+
+	if (m_clampSmallV0ToZero)
+	{
+		__m128 vForceIs0 = _mm_cmpeq_ps(vForce, _mm_setzero_ps());
+		__m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(1e-1f));
+		__m128 vClamp = _mm_and_ps(vForceIs0, vV0Near0);
+		vInitialVelocity = _mm_blendv_ps(vInitialVelocity, _mm_setzero_ps(), vClamp);
+	}
 
 	setCamPos(vNewEye, m_view, m_viewInv);
 	m_posW = store(vNewEye);
@@ -274,4 +288,9 @@ void Camera::SetJitteringEnabled(const ParamVariant& p)
 void Camera::SetFrictionCoeff(const Support::ParamVariant& p)
 {
 	m_frictionCoeff = p.GetFloat().m_val;
+}
+
+void Camera::ClampSmallV0To0(const Support::ParamVariant& p)
+{
+	m_clampSmallV0ToZero = p.GetBool();
 }

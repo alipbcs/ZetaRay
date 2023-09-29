@@ -58,6 +58,7 @@ namespace ZetaRay::Scene
 		void SetFOV(const Support::ParamVariant& p);
 		void SetJitteringEnabled(const Support::ParamVariant& p);
 		void SetFrictionCoeff(const Support::ParamVariant& p);
+		void ClampSmallV0To0(const Support::ParamVariant& p);
 
 		void RotateX(float dt);
 		void RotateY(float dt);
@@ -111,6 +112,7 @@ namespace ZetaRay::Scene
 		float m_pixelSampleAreaHeight;
 		int m_jitterPhaseCount;
 		bool m_jitteringEnabled = false;
-		float m_frictionCoeff = 7.0f;
+		float m_frictionCoeff = 10.0f;
+		bool m_clampSmallV0ToZero = true;
 	};
 }
