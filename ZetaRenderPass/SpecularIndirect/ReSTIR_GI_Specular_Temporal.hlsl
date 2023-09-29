@@ -41,7 +41,7 @@ struct HitSurface
 {
 	float3 Pos;
 	float2 uv;
-	half2 Normal;
+	float2 Normal;
 	uint16_t MatID;
 	
 #if USE_RAY_CONES
@@ -150,7 +150,7 @@ bool FindClosestHit(float3 pos, float3 normal, float linearDepth, float3 wi, RT:
 				
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.Normal = (half2) Math::Encoding::EncodeUnitNormal(normal);
+		surface.Normal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 		
 #if USE_RAY_CONES		
@@ -453,7 +453,7 @@ SpecularReservoir TemporalResample(uint2 DTid, int2 GTid, float3 posW, float3 no
 	
 	Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_A_DescHeapIdx];
 	Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_B_DescHeapIdx];
-	Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_C_DescHeapIdx];
+	Texture2D<float2> g_reservoir_C = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_C_DescHeapIdx];
 	Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[g_local.PrevTemporalReservoir_D_DescHeapIdx];
 	// defer reading the rest of reservoir data to relieve register pressure
 	float3 prevReservoirSamplePos[4];

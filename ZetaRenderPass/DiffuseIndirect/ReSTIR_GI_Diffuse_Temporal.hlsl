@@ -42,7 +42,7 @@ struct HitSurface
 {
 	float3 Pos;
 	float2 uv;
-	half2 ShadingNormal;
+	float2 ShadingNormal;
 	uint16_t MatID;
 
 #if USE_RAY_CONES
@@ -53,7 +53,7 @@ struct HitSurface
 #if RAY_BINNING
 groupshared uint g_binOffset[NUM_BINS];
 groupshared uint g_binIndex[NUM_BINS];
-groupshared float3 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
+groupshared float4 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 groupshared float3 g_sortedDir[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 #endif
 
@@ -165,7 +165,7 @@ bool FindClosestHit(float3 pos, float3 wi, RT::RayCone rayCone, out HitSurface s
 		
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = (half2) Math::Encoding::EncodeUnitNormal(normal);
+		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 
 #if USE_RAY_CONES		
@@ -245,7 +245,7 @@ bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSur
 	InterlockedAdd(g_binIndex[laneBin], 1, idxInBin);
 
 	const uint idx = g_binOffset[laneBin] + idxInBin;
-	g_sortedOrigin[idx] = origin;
+	g_sortedOrigin[idx].xyz = origin;
 	g_sortedDir[idx].xyz = dir;
 
 #if USE_RAY_CONES
@@ -256,7 +256,7 @@ bool Trace(uint Gidx, float3 origin, float3 dir, RT::RayCone rayCone, out HitSur
 
 	GroupMemoryBarrierWithGroupSync();
 
-	float3 newOrigin = g_sortedOrigin[Gidx];
+	float3 newOrigin = g_sortedOrigin[Gidx].xyz;
 	float3 newDir = g_sortedDir[Gidx].xyz;
 	
 #if USE_RAY_CONES
@@ -609,7 +609,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.CurrProjectionJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const half2 encodedNormal = g_normal[swizzledDTid];
+	const float2 encodedNormal = g_normal[swizzledDTid];
 	const float3 normal = Math::Encoding::DecodeUnitNormal(encodedNormal);
 	
 	// metallic mask

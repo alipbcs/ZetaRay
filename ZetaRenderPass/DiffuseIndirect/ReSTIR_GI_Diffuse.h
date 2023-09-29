@@ -119,7 +119,7 @@ namespace ZetaRay::RenderPass
 			Core::GpuMemory::Texture ReservoirA;
 			// Texture2D<half4>: (Li, M)
 			Core::GpuMemory::Texture ReservoirB;
-			// Texture2D<half2>: (Normal)
+			// Texture2D<float2>: (Normal)
 			Core::GpuMemory::Texture ReservoirC;
 		};
 

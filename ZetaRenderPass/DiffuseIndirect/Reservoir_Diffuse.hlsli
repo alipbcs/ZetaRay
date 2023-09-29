@@ -16,7 +16,7 @@ struct DiffuseSample
 {
 	float3 Pos;
 	float3 Lo;
-	half2 Normal;
+	float2 Normal;
 	half RayT;
 };
 
@@ -35,7 +35,7 @@ struct DiffuseReservoir
 		return res;
 	}
 	
-	static DiffuseReservoir Init(float3 samplePos, float w_sum, half3 Li, half M, half2 sampleNormal)
+	static DiffuseReservoir Init(float3 samplePos, float w_sum, half3 Li, half M, float2 sampleNormal)
 	{
 		DiffuseReservoir res;
 		
@@ -105,7 +105,7 @@ struct DiffuseReservoir
 	
 	float3 SamplePos;
 	float w_sum;
-	half2 SampleNormal;
+	float2 SampleNormal;
 	half3 Li;
 	half M;
 };
@@ -128,40 +128,37 @@ namespace RGI_Diff_Util
 		return jacobianDet;
 	}
 
-	float3 PackSample(half2 normal, float3 Li, half rayT)
+	float4 PackSample(float2 normal, float3 Li, half rayT)
 	{
-		uint3 r;
+		float4 r;
 		half3 Lih = half3(Li);
 	
-		r.x = asuint16(Lih.r) | (uint(asuint16(Lih.g)) << 16);
-		r.y = asuint16(Lih.b) | (uint(asuint16(rayT)) << 16);
-		r.z = asuint16(normal.x) | (uint(asuint16(normal.y)) << 16);
+		r.x = asfloat(asuint16(Lih.r) | (uint(asuint16(Lih.g)) << 16));
+		r.y = asfloat(asuint16(Lih.b) | (uint(asuint16(rayT)) << 16));
+		r.zw = asuint(normal);
 	
-		return asfloat(r);
+		return r;
 	}
 
-	void UnpackSample(float3 packed, out half2 normal, out float3 Li, out half rayT)
+	void UnpackSample(float4 packed, out float2 normal, out float3 Li, out half rayT)
 	{
-		uint3 packedU = asuint(packed);
+		uint2 packedU = asuint(packed.xy);
 	
 		uint16_t3 packedLi = uint16_t3(packedU.x & 0xffff, packedU.x >> 16, packedU.y & 0xffff);
 		Li = float3(asfloat16(packedLi));
-	
 		rayT = asfloat16(uint16_t(packedU.y >> 16));
-
-		uint16_t2 packedNormal = uint16_t2(packedU.z & 0xffff, packedU.z >> 16);
-		normal = asfloat16(packedNormal);
+		normal = packed.zw;
 	}
 
 	DiffuseReservoir ReadInputReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputCIdx)
 	{
 		Texture2D<float4> g_inReservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_inReservoir_B = ResourceDescriptorHeap[inputBIdx];
-		Texture2D<half2> g_inReservoir_C = ResourceDescriptorHeap[inputCIdx];
+		Texture2D<float2> g_inReservoir_C = ResourceDescriptorHeap[inputCIdx];
 
 		const float4 resA = g_inReservoir_A[DTid];
 		const half4 resB = g_inReservoir_B[DTid];
-		const half2 resC = g_inReservoir_C[DTid];
+		const float2 resC = g_inReservoir_C[DTid];
 	
 		DiffuseReservoir r = DiffuseReservoir::Init(resA.xyz, resA.w, resB.xyz, resB.w, resC);
 
@@ -172,11 +169,11 @@ namespace RGI_Diff_Util
 	{
 		Texture2D<float4> g_inReservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_inReservoir_B = ResourceDescriptorHeap[inputBIdx];
-		Texture2D<half2> g_inReservoir_C = ResourceDescriptorHeap[inputCIdx];
+		Texture2D<float2> g_inReservoir_C = ResourceDescriptorHeap[inputCIdx];
 
 		const float4 resA = g_inReservoir_A.SampleLevel(s, uv, 0.0);
 		const half4 resB = g_inReservoir_B.SampleLevel(s, uv, 0.0);
-		const half2 resC = g_inReservoir_C.SampleLevel(s, uv, 0.0);
+		const float2 resC = g_inReservoir_C.SampleLevel(s, uv, 0.0);
 	
 		DiffuseReservoir r = DiffuseReservoir::Init(resA.xyz, resA.w, resB.xyz, resB.w, resC);
 
@@ -215,7 +212,7 @@ namespace RGI_Diff_Util
 	{
 		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
-		RWTexture2D<half2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
+		RWTexture2D<float2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 	
 		g_outReservoir_A[DTid] = float4(r.SamplePos, r.w_sum);
 		g_outReservoir_B[DTid] = half4(r.Li, r.M);

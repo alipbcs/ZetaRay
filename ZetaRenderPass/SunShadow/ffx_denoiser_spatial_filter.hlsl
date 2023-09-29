@@ -51,7 +51,7 @@ ConstantBuffer<cbFFX_DNSR_Spatial> g_local : register(b1);
 
 groupshared half2 g_FFX_DNSR_shared_input[16][16];
 groupshared float g_FFX_DNSR_shared_depth[16][16];
-groupshared half2 g_FFX_DNSR_shared_normal[16][16];
+groupshared float2 g_FFX_DNSR_shared_normal[16][16];
 
 void FFX_DNSR_Shadows_ReadTileMetadata(uint2 Gid, out bool is_cleared, out bool all_in_light)
 {
@@ -68,7 +68,7 @@ void FFX_DNSR_Shadows_WriteTemporalCache(uint2 DTid, float2 meanVar)
 	g_outTemporalCache[DTid] = meanVar;
 }
 
-void FFX_DNSR_Shadows_LoadWithOffset(int2 DTid, int2 offset, out half2 normal, out half2 input, out float depth)
+void FFX_DNSR_Shadows_LoadWithOffset(int2 DTid, int2 offset, out float2 normal, out half2 input, out float depth)
 {
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -82,7 +82,7 @@ void FFX_DNSR_Shadows_LoadWithOffset(int2 DTid, int2 offset, out half2 normal, o
 	input = g_outTemporalCache[p];
 }
 
-void FFX_DNSR_Shadows_StoreWithOffsetInGroupSharedMemory(int2 GTid, int2 offset, half2 normal, half2 input, float depth)
+void FFX_DNSR_Shadows_StoreWithOffsetInGroupSharedMemory(int2 GTid, int2 offset, float2 normal, half2 input, float depth)
 {
 	GTid += offset;
     
@@ -98,19 +98,19 @@ void FFX_DNSR_Shadows_InitializeGroupSharedMemory(int2 DTid, int2 GTid)
 	int2 offset_2 = int2(0, 8);
 	int2 offset_3 = int2(8, 8);
 
-	half2 normals_0;
+	float2 normals_0;
 	half2 input_0;
 	float depth_0;
 
-	half2 normals_1;
+	float2 normals_1;
 	half2 input_1;
 	float depth_1;
 
-	half2 normals_2;
+	float2 normals_2;
 	half2 input_2;
 	float depth_2;
 
-	half2 normals_3;
+	float2 normals_3;
 	half2 input_3;
 	float depth_3;
 

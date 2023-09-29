@@ -43,14 +43,14 @@ struct HitSurface
 {
 	float3 Pos;
 	float2 uv;
-	half2 ShadingNormal;
+	float2 ShadingNormal;
 	uint16_t MatID;
 };
 
 #if RAY_BINNING
 groupshared uint g_binOffset[NUM_BINS];
 groupshared uint g_binIndex[NUM_BINS];
-groupshared float3 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
+groupshared float4 g_sortedOrigin[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 groupshared float3 g_sortedDir[RGI_DIFF_TEMPORAL_GROUP_DIM_X * RGI_DIFF_TEMPORAL_GROUP_DIM_Y];
 #endif
 
@@ -157,7 +157,7 @@ bool FindClosestHit(float3 pos, float3 wi, out HitSurface surface)
 
 		surface.Pos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
 		surface.uv = uv;
-		surface.ShadingNormal = (half2) Math::Encoding::EncodeUnitNormal(normal);
+		surface.ShadingNormal = Math::Encoding::EncodeUnitNormal(normal);
 		surface.MatID = meshData.MatID;
 
 		return true;
@@ -225,13 +225,13 @@ bool Trace(uint Gidx, float3 origin, float3 dir, out HitSurface hitInfo, out boo
 	InterlockedAdd(g_binIndex[laneBin], 1, idxInBin);
 
 	const uint idx = g_binOffset[laneBin] + idxInBin;
-	g_sortedOrigin[idx] = origin;
+	g_sortedOrigin[idx].xyz = origin;
 	g_sortedDir[idx].xyz = dir;
 	sortedIdx = (uint16_t) idx;
 
 	GroupMemoryBarrierWithGroupSync();
 
-	float3 newOrigin = g_sortedOrigin[Gidx];
+	float3 newOrigin = g_sortedOrigin[Gidx].xyz;
 	float3 newDir = g_sortedDir[Gidx].xyz;
 #else	
 	float3 newOrigin = origin;

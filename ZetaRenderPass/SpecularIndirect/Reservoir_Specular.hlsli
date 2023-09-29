@@ -12,7 +12,7 @@ struct SpecularSample
 {
 	float3 Pos;
 	float3 Lo;
-	half2 Normal;
+	float2 Normal;
 };
 
 struct SpecularReservoir
@@ -32,7 +32,7 @@ struct SpecularReservoir
 		return res;
 	}
 	
-	static SpecularReservoir Init(float3 samplePos, float w_sum, float3 Li, float M, half2 sampleNormal, float3 brdfCosTheta, float W)
+	static SpecularReservoir Init(float3 samplePos, float w_sum, float3 Li, float M, float2 sampleNormal, float3 brdfCosTheta, float W)
 	{
 		SpecularReservoir res;
 		
@@ -108,7 +108,7 @@ struct SpecularReservoir
 	
 	// sample
 	float3 SamplePos;
-	half2 SampleNormal;
+	float2 SampleNormal;
 	float3 Li;
 	
 	// reservoir
@@ -197,7 +197,7 @@ namespace RGI_Spec_Util
 	{
 		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
-		Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
+		Texture2D<float2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
 		const float4 resB = g_reservoir_B[DTid];
@@ -205,7 +205,7 @@ namespace RGI_Spec_Util
 		const float3 pos = g_reservoir_A[DTid].xyz;
 		const float3 Li = resB.rgb;
 		const float M = resB.w;
-		const half2 normal = g_reservoir_C[DTid];
+		const float2 normal = g_reservoir_C[DTid];
 		const float W = g_reservoir_D[DTid].a;
 		SpecularReservoir r = SpecularReservoir::Init(pos, 0.0, Li, M, normal, 0.0.xxx, W);
 
@@ -217,7 +217,7 @@ namespace RGI_Spec_Util
 	{
 		Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
-		Texture2D<half2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
+		Texture2D<float2> g_reservoir_C = ResourceDescriptorHeap[inputCIdx];
 		Texture2D<half4> g_reservoir_D = ResourceDescriptorHeap[inputDIdx];
 
 		const float4 resA = g_reservoir_A[DTid];
@@ -227,7 +227,7 @@ namespace RGI_Spec_Util
 		const float w_sum = resA.w;
 		const float3 Li = resB.rgb;
 		const float M = resB.w;
-		const half2 normal = g_reservoir_C[DTid];
+		const float2 normal = g_reservoir_C[DTid];
 		const float3 brdfCostheta = g_reservoir_D[DTid].rgb;
 		SpecularReservoir r = SpecularReservoir::Init(pos, w_sum, Li, M, normal, brdfCostheta, 0);
 
@@ -270,7 +270,7 @@ namespace RGI_Spec_Util
 	{
 		RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<float4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
-		RWTexture2D<half2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
+		RWTexture2D<float2> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 		RWTexture2D<float4> g_outReservoir_D = ResourceDescriptorHeap[outputDIdx];
 	
 		// clamp W to about maximum value possible with 16-bit floats

@@ -85,14 +85,14 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 
 	// w (0, 0)		z (1,0)
 	// x (0, 1)		y (1, 1)
-	const half4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	const half4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
+	const float4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	float3 prevNormals[4];
 			
-	prevNormals[0] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = Math::Encoding::DecodeUnitNormal(half2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 		
 	const float4 normalWeights = NormalTest(prevNormals, currNormal);
 	

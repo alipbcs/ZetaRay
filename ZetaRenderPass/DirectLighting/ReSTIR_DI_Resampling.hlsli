@@ -520,7 +520,7 @@ namespace RDI_Util
 				continue;
 
 			// normal heuristic
-			const half2 prevNormalEncoded = g_prevNormal[samplePosSS];
+			const float2 prevNormalEncoded = g_prevNormal[samplePosSS];
 			const float3 prevNormal = Math::Encoding::DecodeUnitNormal(prevNormalEncoded);
 			const float normalSimilarity = dot(prevNormal, normal);
 			
