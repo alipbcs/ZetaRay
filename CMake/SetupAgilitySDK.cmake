@@ -1,5 +1,5 @@
 function(SetupAgilitySDK SDK_VERSION)
-    set(VER "1.610.3")
+    set(VER "1.610.5")
     set(SDK_DIR "${EXTERNAL_DIR}/D3D12/${VER}")
 
     file(GLOB_RECURSE CORE_DLL_PATH "${SDK_DIR}/*D3D12Core.dll")
@@ -8,7 +8,7 @@ function(SetupAgilitySDK SDK_VERSION)
         file(MAKE_DIRECTORY ${SDK_DIR})
     
         # download from nuget
-        set(URL "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.610.3")
+        set(URL "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.610.5")
         message(STATUS "Downloading Agility SDK from ${URL}...")
         set(ARCHIVE_PATH "${SDK_DIR}/temp/agility.zip")
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)       
