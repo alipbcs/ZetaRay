@@ -18,7 +18,7 @@ namespace ZetaRay::App
 
 namespace ZetaRay::Util
 {
-	template<typename T, typename Allocator>
+	template<typename T, Support::AllocatorType Allocator>
 	class Vector;
 
 	template<typename T>

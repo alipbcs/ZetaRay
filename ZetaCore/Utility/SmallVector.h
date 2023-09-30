@@ -13,11 +13,9 @@ namespace ZetaRay::Util
 	// As a result, usage doesn't require knowing the inline storage size N.
 	//--------------------------------------------------------------------------------------
 
-	template<typename T, typename Allocator = Support::SystemAllocator>
+	template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator>
 	class Vector
 	{
-		static_assert(Support::AllocType<Allocator>, "Allocator doesn't meet the requirements for AllocType.");
-		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be copy-constructible.");
 		static constexpr size_t MIN_CAPACITY = Math::Max(64 / sizeof(T), 4llu);
 
 	public:
@@ -711,7 +709,7 @@ namespace ZetaRay::Util
 			(64 - Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT));
 	}
 
-	template<typename T, Support::AllocType Allocator = Support::SystemAllocator, uint32_t N = GetExcessSize(sizeof(T), alignof(T))>
+	template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator, uint32_t N = GetExcessSize(sizeof(T), alignof(T))>
 	class SmallVector : public Vector<T, Allocator>
 	{
 	public:

@@ -1,12 +1,8 @@
 #pragma once
 
 #include "../Utility/Span.h"
+#include "../Support/MemoryArena.h"
 #include "App.h"
-
-namespace ZetaRay::Support
-{
-    struct ArenaAllocator;
-}
 
 namespace ZetaRay::App::Filesystem
 {

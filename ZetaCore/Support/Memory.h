@@ -7,11 +7,12 @@
 namespace ZetaRay::Support
 {
 	template<typename T>
-	concept AllocType = requires(T t, size_t s, size_t a, void* mem)
-	{
-		{ t.AllocateAligned(s, a) } -> std::same_as<void*>;
-		{ t.FreeAligned(mem, s, a) } -> std::same_as<void>;
-	};
+	concept AllocatorType = std::is_copy_constructible_v<T> && 
+		requires(T t, size_t s, size_t a, void* mem)
+		{
+			{ t.AllocateAligned(s, a) } -> std::same_as<void*>;
+			{ t.FreeAligned(mem, s, a) } -> std::same_as<void>;
+		};
 
 	struct SystemAllocator
 	{

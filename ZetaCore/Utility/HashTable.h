@@ -13,12 +13,10 @@ namespace ZetaRay::Util
 	//  - Iterators (pointers) are NOT stable; pointer to an entry found earlier might not be valid
 	//	  anymore due to subsequent insertions and possible resize.
 	//  - Not thread-safe
-	template<typename T, typename Allocator = Support::SystemAllocator>
+	template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator>
 	class HashTable
 	{
 		static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
-		static_assert(Support::AllocType<Allocator>, "Allocator doesn't meet the requirements for AllocType.");
-		static_assert(std::is_copy_constructible_v<Allocator>, "Allocator must be copy-constructible.");
 
 	public:
 
