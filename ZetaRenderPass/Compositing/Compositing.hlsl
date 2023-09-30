@@ -151,9 +151,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		{
 			Texture2D<half4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDenoisedDescHeapIdx];
 			float3 L_d = g_emissive[DTid.xy].rgb;
-			float count = g_emissive[DTid.xy].a;
 
-			color += L_d / count;
+			color += L_d / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
 		}
 	}
 	else

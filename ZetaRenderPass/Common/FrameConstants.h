@@ -61,6 +61,11 @@ namespace ZetaRay
 		float MieSigmaA;
 		float AtmosphereAltitude;
 		float g;
+
+		uint32_t NumFramesCameraStatic;
+		uint32_t CameraStatic;
+		uint32_t Accumulate;
+		uint32_t pad2;
 	};
 #ifdef __cplusplus
 }

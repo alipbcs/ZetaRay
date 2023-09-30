@@ -57,6 +57,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
 	v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
 	v_float4x4 vVP = mul(vCurrV, vP);
+	float3 prevCameraPos = frameConsts.CameraPos;
 
 	frameConsts.CameraPos = cam.GetPos();
 	frameConsts.CameraNear = cam.GetNearZ();
@@ -79,6 +80,13 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 
 	// env. map SRV
 	frameConsts.EnvMapDescHeapOffset = lightData.ConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
+
+	float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, frameConsts.PrevViewInv.m[2].z);
+	float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, frameConsts.CurrViewInv.m[2].z);
+	float3 one(1.0f);
+	const bool cameraStatic = (one.dot(prevCameraPos - frameConsts.CameraPos) == 0) && (one.dot(prevViewDir - currViewDir) == 0);
+	frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? frameConsts.NumFramesCameraStatic + 1 : 1;
+	frameConsts.CameraStatic = cameraStatic;
 
 	constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
@@ -191,6 +199,11 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_settings.SkyIllumination = p.GetBool();
 		g_data->m_lightData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
 	}
+
+	void SetAccumulation(const ParamVariant& p)
+	{
+		g_data->m_frameConstants.Accumulate = p.GetBool();
+	}
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -225,6 +238,8 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.AtmosphereAltitude = Defaults::ATMOSPHERE_ALTITUDE;
 		g_data->m_frameConstants.PlanetRadius = Defaults::PLANET_RADIUS;
 		g_data->m_frameConstants.g = Defaults::g;
+		g_data->m_frameConstants.NumFramesCameraStatic = 0;
+		g_data->m_frameConstants.Accumulate = false;
 
 		auto normalizeAndStore = [](float3 v, float3& cbVal, float& cbScale)
 		{
@@ -373,6 +388,11 @@ namespace ZetaRay::DefaultRenderer
 		p8.InitBool("Renderer", "Lighting", "Sky Lighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
 			g_data->m_settings.SkyIllumination);
 		App::AddParam(p8);
+
+		ParamVariant p9;
+		p9.InitBool("Renderer", "Lighting", "Accumulate", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
+			g_data->m_frameConstants.Accumulate);
+		App::AddParam(p9);
 	}
 
 	void Update(TaskSet& ts)
