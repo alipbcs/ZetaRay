@@ -80,7 +80,7 @@ namespace ZetaRay::DefaultRenderer
 		};
 
 		// previous frame's gbuffers are required for denoising and ReSTIR
-		Core::GpuMemory::Texture BaseColor;
+		Core::GpuMemory::Texture BaseColor[2];
 		Core::GpuMemory::Texture Normal[2];
 		Core::GpuMemory::Texture MetallicRoughness[2];
 		Core::GpuMemory::Texture MotionVec;

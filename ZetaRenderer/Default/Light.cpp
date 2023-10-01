@@ -359,7 +359,11 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& data, 
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
-				gbuffData.BaseColor.ID(),
+				gbuffData.BaseColor[outIdx].ID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.BaseColor[1 - outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			//renderGraph.AddInput(data.DirecLightingHandle,
@@ -434,7 +438,7 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& data, 
 
 	// compositing
 	renderGraph.AddInput(data.CompositingHandle,
-		gbuffData.BaseColor.ID(),
+		gbuffData.BaseColor[outIdx].ID(),
 		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 	renderGraph.AddInput(data.CompositingHandle,

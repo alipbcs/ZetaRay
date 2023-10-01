@@ -344,7 +344,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
-				gbuffData.BaseColor.ID(),
+				gbuffData.BaseColor[outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.ReSTIR_GI_SpecularHandle,
@@ -391,7 +391,11 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.SkyDI_Handle,
-				gbuffData.BaseColor.ID(),
+				gbuffData.BaseColor[outIdx].ID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.SkyDI_Handle,
+				gbuffData.BaseColor[1 - outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.SkyDI_Handle,
