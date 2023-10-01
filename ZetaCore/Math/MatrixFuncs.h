@@ -90,10 +90,48 @@ namespace ZetaRay::Math
 	{
 		v_float4x4 M3;
 
-		M3.vRow[0] = mul(M2, M1.vRow[0]);
-		M3.vRow[1] = mul(M2, M1.vRow[1]);
-		M3.vRow[2] = mul(M2, M1.vRow[2]);
-		M3.vRow[3] = mul(M2, M1.vRow[3]);
+		// Ref: https://github.com/microsoft/DirectXMath/blob/main/Inc/DirectXMathMatrix.inl
+		__m256 t0 = _mm256_castps128_ps256(M1.vRow[0]);
+		t0 = _mm256_insertf128_ps(t0, M1.vRow[1], 1);
+		__m256 t1 = _mm256_castps128_ps256(M1.vRow[2]);
+		t1 = _mm256_insertf128_ps(t1, M1.vRow[3], 1);
+
+		__m256 u0 = _mm256_castps128_ps256(M2.vRow[0]);
+		u0 = _mm256_insertf128_ps(u0, M2.vRow[1], 1);
+		__m256 u1 = _mm256_castps128_ps256(M2.vRow[2]);
+		u1 = _mm256_insertf128_ps(u1, M2.vRow[3], 1);
+
+		__m256 a0 = _mm256_shuffle_ps(t0, t0, _MM_SHUFFLE(0, 0, 0, 0));
+		__m256 a1 = _mm256_shuffle_ps(t1, t1, _MM_SHUFFLE(0, 0, 0, 0));
+		__m256 b0 = _mm256_permute2f128_ps(u0, u0, 0x00);
+		__m256 c0 = _mm256_mul_ps(a0, b0);
+		__m256 c1 = _mm256_mul_ps(a1, b0);
+
+		a0 = _mm256_shuffle_ps(t0, t0, _MM_SHUFFLE(1, 1, 1, 1));
+		a1 = _mm256_shuffle_ps(t1, t1, _MM_SHUFFLE(1, 1, 1, 1));
+		b0 = _mm256_permute2f128_ps(u0, u0, 0x11);
+		__m256 c2 = _mm256_fmadd_ps(a0, b0, c0);
+		__m256 c3 = _mm256_fmadd_ps(a1, b0, c1);
+
+		a0 = _mm256_shuffle_ps(t0, t0, _MM_SHUFFLE(2, 2, 2, 2));
+		a1 = _mm256_shuffle_ps(t1, t1, _MM_SHUFFLE(2, 2, 2, 2));
+		__m256 b1 = _mm256_permute2f128_ps(u1, u1, 0x00);
+		__m256 c4 = _mm256_mul_ps(a0, b1);
+		__m256 c5 = _mm256_mul_ps(a1, b1);
+
+		a0 = _mm256_shuffle_ps(t0, t0, _MM_SHUFFLE(3, 3, 3, 3));
+		a1 = _mm256_shuffle_ps(t1, t1, _MM_SHUFFLE(3, 3, 3, 3));
+		b1 = _mm256_permute2f128_ps(u1, u1, 0x11);
+		__m256 c6 = _mm256_fmadd_ps(a0, b1, c4);
+		__m256 c7 = _mm256_fmadd_ps(a1, b1, c5);
+
+		t0 = _mm256_add_ps(c2, c6);
+		t1 = _mm256_add_ps(c3, c7);
+
+		M3.vRow[0] = _mm256_castps256_ps128(t0);
+		M3.vRow[1] = _mm256_extractf128_ps(t0, 1);
+		M3.vRow[2] = _mm256_castps256_ps128(t1);
+		M3.vRow[3] = _mm256_extractf128_ps(t1, 1);
 
 		return M3;
 	}
