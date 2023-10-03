@@ -483,6 +483,11 @@ namespace Math
 	
 			return normalize(n);
 		}
+
+		float2 DecodeSNORM2(int16_t2 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
 	}
 
 	namespace Color

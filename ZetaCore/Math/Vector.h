@@ -440,6 +440,24 @@ namespace ZetaRay::Math
 		uint16_t w;
 	};
 
+	struct int16_t2
+	{
+		int16_t2() = default;
+
+		explicit int16_t2(int16_t u)
+			: x(u),
+			y(u)
+		{}
+
+		int16_t2(int16_t u, int16_t v)
+			: x(u),
+			y(v)
+		{}
+
+		int16_t x;
+		int16_t y;
+	};
+
 	inline float2::float2(const half2& h)
 		: x(HalfToFloat(h.x)),
 		y(HalfToFloat(h.y))

@@ -175,7 +175,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 		const uint32_t numTris = m_emissives.NumEmissiveTriangles();
 		m_staleEmissives = true;
 
-		constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 4;
+		constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 5;
 		constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
 		size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
 		size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
