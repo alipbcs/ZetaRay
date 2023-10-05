@@ -12,6 +12,7 @@ using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::RT;
+using namespace ZetaRay::Util;
 
 //--------------------------------------------------------------------------------------
 // SkyDI
@@ -41,30 +42,6 @@ SkyDI::SkyDI()
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		GlobalResource::RT_SCENE_BVH);
-
-	// Owen-Scrambled Sobol Sequence
-	m_rootSig.InitAsBufferSRV(3,						// root idx
-		1,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SOBOL_SEQ_32);
-
-	// scrambling tile
-	m_rootSig.InitAsBufferSRV(4,						// root idx
-		2,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE_32);
-
-	// ranking tile
-	m_rootSig.InitAsBufferSRV(5,						// root idx
-		3,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE_32);
 }
 
 SkyDI::~SkyDI()
@@ -98,97 +75,90 @@ void SkyDI::Init()
 	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
 
-	memset(&m_cbTemporalResample, 0, sizeof(m_cbTemporalResample));
-	memset(&m_cbSpatialResample, 0, sizeof(m_cbSpatialResample));
-	memset(&m_cbDNSRTemporal, 0, sizeof(m_cbDNSRTemporal));
-	memset(&m_cbDNSRSpatial, 0, sizeof(m_cbDNSRSpatial));
-	m_cbTemporalResample.M_max = DefaultParamVals::TemporalM_max;
-	m_cbTemporalResample.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
-	m_cbTemporalResample.PrefilterReservoirs = true;
-	m_cbTemporalResample.CheckerboardTracing = true;
-	m_cbSpatialResample.DoSpatialResampling = true;
-	m_cbSpatialResample.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
-	m_cbDNSRTemporal.MaxTSPP_Diffuse = m_cbDNSRSpatial.MaxTSPP = DefaultParamVals::DNSRTspp_Diffuse;
-	m_cbDNSRTemporal.MaxTSPP_Specular = m_cbDNSRSpatial.MaxTSPP = DefaultParamVals::DNSRTspp_Specular;
-	m_cbDNSRTemporal.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
-	m_cbDNSRSpatial.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
-	m_cbDNSRTemporal.Denoise = m_cbDNSRSpatial.Denoise = true;
-	m_cbDNSRSpatial.FilterDiffuse = true;
-	m_cbDNSRSpatial.FilterSpecular = true;
+	memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
+	memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
+	memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
+	m_cbSpatioTemporal.M_max = DefaultParamVals::TemporalM_max;
+	m_cbSpatioTemporal.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
+	m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSRTspp_Diffuse;
+	m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSRTspp_Specular;
+	m_cbDnsrTemporal.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
+	m_cbDnsrSpatial.MinRoughnessResample = DefaultParamVals::MinRoughnessToResample;
+	SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE, true);
+	SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::DENOISE, true);
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::DENOISE, true);
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE, true);
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR, true);
 
 	ParamVariant doTemporal;
-	doTemporal.InitBool("Renderer", "Direct Lighting (Sky)", "TemporalResampling",
-		fastdelegate::MakeDelegate(this, &SkyDI::DoTemporalResamplingCallback), m_doTemporalResampling);
+	doTemporal.InitBool("Renderer", "Direct Lighting (Sky)", "Temporal Resample",
+		fastdelegate::MakeDelegate(this, &SkyDI::TemporalResamplingCallback), m_temporalResampling);
 	App::AddParam(doTemporal);
 
 	ParamVariant doSpatial;
-	doSpatial.InitBool("Renderer", "Direct Lighting (Sky)", "SpatialResampling",
-		fastdelegate::MakeDelegate(this, &SkyDI::DoSpatialResamplingCallback), m_cbSpatialResample.DoSpatialResampling);
+	doSpatial.InitBool("Renderer", "Direct Lighting (Sky)", "Spatial Resample",
+		fastdelegate::MakeDelegate(this, &SkyDI::SpatialResamplingCallback), m_spatialResampling);
 	App::AddParam(doSpatial);
 
 	ParamVariant maxTemporalM;
-	maxTemporalM.InitInt("Renderer", "Direct Lighting (Sky)", "MaxTemporalM",
+	maxTemporalM.InitInt("Renderer", "Direct Lighting (Sky)", "M_max",
 		fastdelegate::MakeDelegate(this, &SkyDI::MaxTemporalMCallback),
-		m_cbTemporalResample.M_max,		// val	
-		1,								// min
-		32,								// max
-		1);								// step
+		m_cbSpatioTemporal.M_max,
+		1,
+		32,
+		1);
 	App::AddParam(maxTemporalM);
 
-	ParamVariant checkerboarding;
-	checkerboarding.InitBool("Renderer", "Direct Lighting (Sky)", "CheckerboardTrace",
-		fastdelegate::MakeDelegate(this, &SkyDI::CheckerboardingCallback), m_cbTemporalResample.CheckerboardTracing);
-	App::AddParam(checkerboarding);
+	//ParamVariant checkerboarding;
+	//checkerboarding.InitBool("Renderer", "Direct Lighting (Sky)", "Checkerboarding",
+	//	fastdelegate::MakeDelegate(this, &SkyDI::CheckerboardingCallback), IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::CHECKERBOARDING));
+	//App::AddParam(checkerboarding);
 
 	ParamVariant minRoughness;
-	minRoughness.InitFloat("Renderer", "Direct Lighting (Sky)", "MinRoughnessToResample",
+	minRoughness.InitFloat("Renderer", "Direct Lighting (Sky)", "Min Resample Roughness",
 		fastdelegate::MakeDelegate(this, &SkyDI::MinRoughnessResampleCallback),
-		m_cbTemporalResample.MinRoughnessResample,	// val	
+		m_cbSpatioTemporal.MinRoughnessResample,	// val	
 		0,											// min
 		1,											// max
 		0.1f);										// step
 	App::AddParam(minRoughness);
 
-	ParamVariant prefilter;
-	prefilter.InitBool("Renderer", "Direct Lighting (Sky)", "PrefilterReservoirs",
-		fastdelegate::MakeDelegate(this, &SkyDI::SetReservoirPrefilteringEnablementCallback), m_cbTemporalResample.PrefilterReservoirs);
-	App::AddParam(prefilter);
-
 	ParamVariant denoise;
-	denoise.InitBool("Renderer", "SkyDI Denoiser", "Enable",
-		fastdelegate::MakeDelegate(this, &SkyDI::DoDenoisingCallback), m_cbDNSRTemporal.Denoise);
+	denoise.InitBool("Renderer", "Direct Lighting (Sky)", "Denoise",
+		fastdelegate::MakeDelegate(this, &SkyDI::DenoisingCallback), IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE));
 	App::AddParam(denoise);
 
 	ParamVariant tsppDiffuse;
-	tsppDiffuse.InitInt("Renderer", "SkyDI Denoiser", "TSPP_Diffuse",
+	tsppDiffuse.InitInt("Renderer", "Direct Lighting (Sky)", "TSPP (Diffuse)",
 		fastdelegate::MakeDelegate(this, &SkyDI::TsppDiffuseCallback),
-		m_cbDNSRTemporal.MaxTSPP_Diffuse,			// val	
+		m_cbDnsrTemporal.MaxTsppDiffuse,			// val	
 		1,											// min
 		32,											// max
 		1);											// step
 	App::AddParam(tsppDiffuse);
 
 	ParamVariant tsppSpecular;
-	tsppSpecular.InitInt("Renderer", "SkyDI Denoiser", "TSPP_Specular",
+	tsppSpecular.InitInt("Renderer", "Direct Lighting (Sky)", "TSPP (Specular)",
 		fastdelegate::MakeDelegate(this, &SkyDI::TsppSpecularCallback),
-		m_cbDNSRTemporal.MaxTSPP_Specular,			// val	
+		m_cbDnsrTemporal.MaxTsppSpecular,			// val	
 		1,											// min
 		32,											// max
 		1);											// step
 	App::AddParam(tsppSpecular);
 
 	ParamVariant dnsrSpatialFilterDiffuse;
-	dnsrSpatialFilterDiffuse.InitBool("Renderer", "SkyDI Denoiser", "SpatialFiltering (Diffuse)",
-		fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterDiffuseCallback), m_cbDNSRSpatial.FilterDiffuse);
+	dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting (Sky)", "Spatial Filter (Diffuse)",
+		fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterDiffuseCallback), 
+		IS_CB_FLAG_SET(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE));
 	App::AddParam(dnsrSpatialFilterDiffuse);
 
 	ParamVariant dnsrSpatialFilterSpecular;
-	dnsrSpatialFilterSpecular.InitBool("Renderer", "SkyDI Denoiser", "SpatialFiltering (Specular)",
-		fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterSpecularCallback), m_cbDNSRSpatial.FilterSpecular);
+	dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting (Sky)", "Spatial Filter (Specular)",
+		fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterSpecularCallback), 
+		IS_CB_FLAG_SET(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR));
 	App::AddParam(dnsrSpatialFilterSpecular);
 
 	App::AddShaderReloadHandler("SkyDI_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
-	App::AddShaderReloadHandler("SkyDI_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadSpatialPass));
 	App::AddShaderReloadHandler("SkyDI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRTemporal));
 	App::AddShaderReloadHandler("SkyDI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRSpatial));
 
@@ -202,31 +172,29 @@ void SkyDI::Reset()
 		s_rpObjs.Clear();
 
 		App::RemoveShaderReloadHandler("SkyDI_Temporal");
-		App::RemoveShaderReloadHandler("SkyDI_Spatial");
 		App::RemoveShaderReloadHandler("SkyDI_DNSR_Temporal");
 		App::RemoveShaderReloadHandler("SkyDI_DNSR_Spatial");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "TemporalResampling");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "SpatialResampling");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "MaxTemporalM");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "CheckerboardTrace");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "MinRoughnessToResample");
-		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "PrefilterReservoirs");
-		App::RemoveParam("Renderer", "SkyDI Denoiser", "Enable");
-		App::RemoveParam("Renderer", "SkyDI Denoiser", "TSPP_Diffuse");
-		App::RemoveParam("Renderer", "SkyDI Denoiser", "TSPP_Specular");
-		App::RemoveParam("Renderer", "SkyDI Denoiser", "SpatialFiltering (Diffuse)");
-		App::RemoveParam("Renderer", "SkyDI Denoiser", "SpatialFiltering (Specular)");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Temporal Resample");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Spatial Resample");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "M_max");
+		//App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Checkerboarding");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Min Resample Roughness");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Denoise");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "TSPP (Diffuse)");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "TSPP (Specular)");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Spatial Filter (Diffuse)");
+		App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Spatial Filter (Specular)");
 		
 		for (int i = 0; i < 2; i++)
 		{
-			m_temporalReservoirs[i].ReservoirA.Reset();
-			m_temporalReservoirs[i].ReservoirB.Reset();
+			m_temporalReservoir[i].ReservoirA.Reset();
+			m_temporalReservoir[i].ReservoirB.Reset();
 			m_dnsrCache[i].Specular.Reset();
 			m_dnsrCache[i].Diffuse.Reset();
 		}
 
-		m_spatialReservoir.ReservoirA.Reset();
-		m_dnsrFinal.Reset();
+		//m_spatialReservoir.ReservoirA.Reset();
+		m_denoised.Reset();
 
 		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
 			m_psos[i] = nullptr;
@@ -265,34 +233,85 @@ void SkyDI::Render(CommandList& cmdList)
 		computeCmdList.PIXBeginEvent("SkyDI_Temporal");
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_RESAMPLE]);
 
-		D3D12_RESOURCE_BARRIER barriers[2];
+		SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
 
 		// transition current temporal reservoir into write state
-		barriers[0] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalIdx].ReservoirA.Resource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[1] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalIdx].ReservoirB.Resource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+		textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[m_currTemporalIdx].ReservoirA.Resource(),
+			D3D12_BARRIER_SYNC_NONE,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_NO_ACCESS,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
+		textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[m_currTemporalIdx].ReservoirB.Resource(),
+			D3D12_BARRIER_SYNC_NONE,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_NO_ACCESS,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
 
-		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+		// transition color outputs into write state
+		if (IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE))
+		{
+			textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_colorA.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
+			textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_colorB.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
+		}
 
-		m_cbTemporalResample.DispatchDimX = (uint16_t)dispatchDimX;
-		m_cbTemporalResample.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbTemporalResample.NumGroupsInTile = SKY_DI_TEMPORAL_TILE_WIDTH * m_cbTemporalResample.DispatchDimY;
-		m_cbTemporalResample.DoTemporalResampling = m_doTemporalResampling && m_isTemporalReservoirValid;
-		m_cbTemporalResample.SampleIndex = (uint16_t)m_sampleIdx;
+		// transition previous reservoirs into read state
+		if (m_isTemporalReservoirValid)
+		{
+			textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[1 - m_currTemporalIdx].ReservoirA.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE));
+			textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[1 - m_currTemporalIdx].ReservoirB.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE));
+		}
 
-		auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV;
-		auto srvBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV;
-		auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_A_UAV : DESC_TABLE::TEMPORAL_RESERVOIR_0_A_UAV;
-		auto uavBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_B_UAV : DESC_TABLE::TEMPORAL_RESERVOIR_0_B_UAV;
+		computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
 
-		m_cbTemporalResample.PrevTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-		m_cbTemporalResample.CurrTemporalReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-		m_cbTemporalResample.CurrTemporalReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+		m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
+		m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
+		m_cbSpatioTemporal.NumGroupsInTile = SKY_DI_TEMPORAL_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
+		SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE, m_temporalResampling && m_isTemporalReservoirValid);
+		SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE, m_spatialResampling && m_isTemporalReservoirValid);
 
-		m_rootSig.SetRootConstants(0, sizeof(m_cbTemporalResample) / sizeof(DWORD), &m_cbTemporalResample);
+		auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_A_SRV : DESC_TABLE::RESERVOIR_1_A_SRV;
+		auto srvBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_B_SRV : DESC_TABLE::RESERVOIR_1_B_SRV;
+		auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_A_UAV : DESC_TABLE::RESERVOIR_0_A_UAV;
+		auto uavBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_B_UAV : DESC_TABLE::RESERVOIR_0_B_UAV;
+
+		m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+		m_cbSpatioTemporal.PrevReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
+		m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+		m_cbSpatioTemporal.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+
+		m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
+		m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
+		m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);;
+
+		m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
 		m_rootSig.End(computeCmdList);
 
 		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
@@ -303,173 +322,156 @@ void SkyDI::Render(CommandList& cmdList)
 		cmdList.PIXEndEvent();
 	}
 
-	// spatial resampling
+	// denoiser
+	if(IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE))
 	{
-		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_SPATIAL_GROUP_DIM_X);
-		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_SPATIAL_GROUP_DIM_Y);
+		// denoiser - temporal
+		{
+			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL]);
 
-		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SPATIAL_RESAMPLE]);
+			// record the timestamp prior to execution
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Temporal");
 
-		m_cbSpatialResample.DispatchDimX = (uint16_t)dispatchDimX;
-		m_cbSpatialResample.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbSpatialResample.NumGroupsInTile = SKY_DI_SPATIAL_TILE_WIDTH * m_cbSpatialResample.DispatchDimY;
-		
-		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_Spatial");
+			computeCmdList.PIXBeginEvent("SkyDI_DNSR_Temporal");
 
-		computeCmdList.PIXBeginEvent("SkyDI_Spatial");
+			D3D12_TEXTURE_BARRIER barriers[4];
 
-		D3D12_RESOURCE_BARRIER barriers[3];
+			// transition color into read state
+			barriers[0] = Direct3DUtil::TextureBarrier(m_colorA.Resource(),
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+			barriers[1] = Direct3DUtil::TextureBarrier(m_colorB.Resource(),
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+			// transition current denoiser caches into write
+			barriers[2] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+			barriers[3] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
 
-		// transition temporal reservoir into read state
-		barriers[0] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalIdx].ReservoirA.Resource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[1] = Direct3DUtil::TransitionBarrier(m_temporalReservoirs[m_currTemporalIdx].ReservoirB.Resource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		// transition spatial reservoir into write state
-		barriers[2] = Direct3DUtil::TransitionBarrier(m_spatialReservoir.ReservoirA.Resource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
-		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+			auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV :
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV;
+			auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV :
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV;
+			auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV :
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV;
+			auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
 
-		auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV;
-		auto srvBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV : DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV;
-		auto uavAIdx = DESC_TABLE::SPATIAL_RESERVOIR_A_UAV;
+			m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
+			m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+			m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
+			m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
+			m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDiffuseIdx);
+			m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavSpecularIdx);
+			SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::CACHE_VALID, m_isDnsrTemporalCacheValid);
 
-		m_cbSpatialResample.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-		m_cbSpatialResample.InputReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-		m_cbSpatialResample.OutputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+			m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrTemporal) / sizeof(DWORD), &m_cbDnsrTemporal);
+			m_rootSig.End(computeCmdList);
 
-		m_rootSig.SetRootConstants(0, sizeof(m_cbSpatialResample) / sizeof(DWORD), &m_cbSpatialResample);
-		m_rootSig.End(computeCmdList);
+			const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X);
+			const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
+			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+			// record the timestamp after execution
+			gpuTimer.EndQuery(computeCmdList, queryIdx);
 
-		// record the timestamp after execution
-		gpuTimer.EndQuery(computeCmdList, queryIdx);
+			cmdList.PIXEndEvent();
+		}
 
-		cmdList.PIXEndEvent();		
-	}
+		// denoiser - spatial
+		{
+			computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL]);
 
-	// denoiser - temporal
-	{
-		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL]);
+			const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_SPATIAL_GROUP_DIM_X);
+			const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y);
 
-		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Temporal");
+			// record the timestamp prior to execution
+			const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Spatial");
 
-		computeCmdList.PIXBeginEvent("SkyDI_DNSR_Temporal");
+			computeCmdList.PIXBeginEvent("SkyDI_DNSR_Spatial");
 
-		D3D12_RESOURCE_BARRIER barriers[3];
+			D3D12_TEXTURE_BARRIER spatialBarriers[2];
 
-		// transition spatial reservoir into read state
-		barriers[0] = Direct3DUtil::TransitionBarrier(m_spatialReservoir.ReservoirA.Resource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		// transition current denoiser caches into write
-		barriers[1] = Direct3DUtil::TransitionBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-		barriers[2] = Direct3DUtil::TransitionBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			// transition color into read state
+			spatialBarriers[0] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+			spatialBarriers[1] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
 
-		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+			computeCmdList.ResourceBarrier(spatialBarriers, ZetaArrayLen(spatialBarriers));
 
-		auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV : DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV;
-		auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV : DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV;
-		auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV : DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV;
-		auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV : DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
+			auto spatialSrvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV : 
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
+			auto spatialSrvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : 
+				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
 
-		m_cbDNSRTemporal.InputReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SPATIAL_RESERVOIR_A_SRV);
-		m_cbDNSRTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-		m_cbDNSRTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-		m_cbDNSRTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDiffuseIdx);
-		m_cbDNSRTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavSpecularIdx);
-		m_cbDNSRTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
-		m_cbDNSRTemporal.IsTemporalCacheValid = m_isTemporalReservoirValid;
+			m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)spatialSrvDiffuseIdx);
+			m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)spatialSrvSpecularIdx);
+			m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+			m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
+			m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
+			m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
+			m_cbDnsrSpatial.NumGroupsInTile = SKY_DI_DNSR_SPATIAL_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
 
-		m_rootSig.SetRootConstants(0, sizeof(m_cbDNSRTemporal) / sizeof(DWORD), &m_cbDNSRTemporal);
-		m_rootSig.End(computeCmdList);
+			m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
+			m_rootSig.End(computeCmdList);
 
-		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X);
-		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
-		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+			computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-		// record the timestamp after execution
-		gpuTimer.EndQuery(computeCmdList, queryIdx);
+			// record the timestamp after execution
+			gpuTimer.EndQuery(computeCmdList, queryIdx);
 
-		cmdList.PIXEndEvent();
-	}
-
-	// denoiser - spatial
-	{
-		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL]);
-
-		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_SPATIAL_GROUP_DIM_X);
-		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y);
-
-		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Spatial");
-
-		computeCmdList.PIXBeginEvent("SkyDI_DNSR_Spatial");
-
-		D3D12_RESOURCE_BARRIER barriers[2];
-
-		// transition denoiser caches into read state
-		barriers[0] = Direct3DUtil::TransitionBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-		barriers[1] = Direct3DUtil::TransitionBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
-		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
-
-		auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV : DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
-		auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
-
-		m_cbDNSRSpatial.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-		m_cbDNSRSpatial.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-		m_cbDNSRSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
-		m_cbDNSRSpatial.DispatchDimX = (uint16_t)dispatchDimX;
-		m_cbDNSRSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-		m_cbDNSRSpatial.NumGroupsInTile = SKY_DI_DNSR_SPATIAL_TILE_WIDTH * m_cbDNSRSpatial.DispatchDimY;
-
-		m_rootSig.SetRootConstants(0, sizeof(m_cbDNSRSpatial) / sizeof(DWORD), &m_cbDNSRSpatial);
-		m_rootSig.End(computeCmdList);
-
-		computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-		// record the timestamp after execution
-		gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-		cmdList.PIXEndEvent();
+			cmdList.PIXEndEvent();
+		}
 	}
 
 	m_isTemporalReservoirValid = true;
 	m_currTemporalIdx = 1 - m_currTemporalIdx;
-	m_internalCounter++;
-
-	// when checkerboarding, advance the sample index every other tracing frame
-	if (!m_cbTemporalResample.CheckerboardTracing || (m_internalCounter & 0x1))
-		m_sampleIdx = (m_sampleIdx + 1) & 31;
+	m_isDnsrTemporalCacheValid = IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE);
 }
 
 void SkyDI::CreateOutputs()
 {
 	auto& renderer = App::GetRenderer();
 
-	auto func = [&renderer, this](Texture& tex, DXGI_FORMAT f, const char* name, 
-		DESC_TABLE srv, DESC_TABLE uav, D3D12_RESOURCE_STATES s = D3D12_RESOURCE_STATE_COMMON)
+	auto func = [&renderer, this](Texture& tex, DXGI_FORMAT format, const char* name, 
+		DESC_TABLE srv, DESC_TABLE uav)
 	{
 		tex = GpuMemory::GetTexture2D(name,
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			f,
-			s,
+			format,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 		Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
@@ -478,19 +480,19 @@ void SkyDI::CreateOutputs()
 
 	// reservoir
 	{
-		// temporal reservoirs
-		func(m_temporalReservoirs[0].ReservoirA, ResourceFormats::RESERVOIR_A, "SkyDI_TemporalReservoir_0_A",
-			DESC_TABLE::TEMPORAL_RESERVOIR_0_A_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_0_A_UAV);
-		func(m_temporalReservoirs[0].ReservoirB, ResourceFormats::RESERVOIR_B, "SkyDI_TemporalReservoir_0_B",
-			DESC_TABLE::TEMPORAL_RESERVOIR_0_B_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_0_B_UAV);
-		func(m_temporalReservoirs[1].ReservoirA, ResourceFormats::RESERVOIR_A, "SkyDI_TemporalReservoir_1_A",
-			DESC_TABLE::TEMPORAL_RESERVOIR_1_A_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_1_A_UAV);
-		func(m_temporalReservoirs[1].ReservoirB, ResourceFormats::RESERVOIR_B, "SkyDI_TemporalReservoir_1_B",
-			DESC_TABLE::TEMPORAL_RESERVOIR_1_B_SRV, DESC_TABLE::TEMPORAL_RESERVOIR_1_B_UAV);
+		func(m_temporalReservoir[0].ReservoirA, ResourceFormats::RESERVOIR_A, "SkyDI_TemporalReservoir_0_A",
+			DESC_TABLE::RESERVOIR_0_A_SRV, DESC_TABLE::RESERVOIR_0_A_UAV);
+		func(m_temporalReservoir[0].ReservoirB, ResourceFormats::RESERVOIR_B, "SkyDI_TemporalReservoir_0_B",
+			DESC_TABLE::RESERVOIR_0_B_SRV, DESC_TABLE::RESERVOIR_0_B_UAV);
+		func(m_temporalReservoir[1].ReservoirA, ResourceFormats::RESERVOIR_A, "SkyDI_TemporalReservoir_1_A",
+			DESC_TABLE::RESERVOIR_1_A_SRV, DESC_TABLE::RESERVOIR_1_A_UAV);
+		func(m_temporalReservoir[1].ReservoirB, ResourceFormats::RESERVOIR_B, "SkyDI_TemporalReservoir_1_B",
+			DESC_TABLE::RESERVOIR_1_B_SRV, DESC_TABLE::RESERVOIR_1_B_UAV);
+	}
 
-		// spatial reservoir
-		func(m_spatialReservoir.ReservoirA, ResourceFormats::RESERVOIR_A, "DI_SpatialReservoir_A",
-			DESC_TABLE::SPATIAL_RESERVOIR_A_SRV, DESC_TABLE::SPATIAL_RESERVOIR_A_UAV);
+	{
+		func(m_colorA, ResourceFormats::COLOR_A, "RDI_COLOR_A", DESC_TABLE::COLOR_A_SRV, DESC_TABLE::COLOR_A_UAV);
+		func(m_colorB, ResourceFormats::COLOR_B, "RDI_COLOR_B", DESC_TABLE::COLOR_B_SRV, DESC_TABLE::COLOR_B_UAV);
 	}
 
 	// denoiser cache
@@ -504,89 +506,79 @@ void SkyDI::CreateOutputs()
 		func(m_dnsrCache[1].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, "SkyDI_DNSR_Specular_1",
 			DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV);
 
-		m_dnsrFinal = GpuMemory::GetTexture2D("SkyDI_DNSR_Final",
+		m_denoised = GpuMemory::GetTexture2D("SkyDI_Denoised",
 			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
 			ResourceFormats::DNSR_TEMPORAL_CACHE,
 			D3D12_RESOURCE_STATE_COMMON,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DUtil::CreateTexture2DUAV(m_dnsrFinal, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
+		Direct3DUtil::CreateTexture2DUAV(m_denoised, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
 	}
 }
 
 void SkyDI::TemporalResamplingCallback(const Support::ParamVariant& p)
 {
-	m_doTemporalResampling = p.GetBool();
+	m_temporalResampling = p.GetBool();
 }
 
 void SkyDI::SpatialResamplingCallback(const Support::ParamVariant& p)
 {
-	m_cbSpatialResample.DoSpatialResampling = p.GetBool();
+	m_spatialResampling = p.GetBool();
 }
 
 void SkyDI::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-	m_cbTemporalResample.M_max = (uint16_t)p.GetInt().m_val;
-}
-
-void SkyDI::CheckerboardingCallback(const Support::ParamVariant& p)
-{
-	m_cbTemporalResample.CheckerboardTracing = p.GetBool();
-	m_cbSpatialResample.CheckerboardTracing = p.GetBool();
+	m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_val;
 }
 
 void SkyDI::MinRoughnessResampleCallback(const Support::ParamVariant& p)
 {
-	m_cbTemporalResample.MinRoughnessResample = p.GetFloat().m_val;
-	m_cbSpatialResample.MinRoughnessResample = p.GetFloat().m_val;
-	m_cbDNSRTemporal.MinRoughnessResample = p.GetFloat().m_val;
-	m_cbDNSRSpatial.MinRoughnessResample = p.GetFloat().m_val;
-}
-
-void SkyDI::SetReservoirPrefilteringEnablementCallback(const Support::ParamVariant& p)
-{
-	m_cbTemporalResample.PrefilterReservoirs = p.GetBool();
+	m_cbSpatioTemporal.MinRoughnessResample = p.GetFloat().m_val;
+	m_cbDnsrTemporal.MinRoughnessResample = p.GetFloat().m_val;
+	m_cbDnsrSpatial.MinRoughnessResample = p.GetFloat().m_val;
 }
 
 void SkyDI::DenoisingCallback(const Support::ParamVariant& p)
 {
-	m_cbDNSRTemporal.Denoise = p.GetBool();
-	m_cbDNSRSpatial.Denoise = p.GetBool();
+	m_isDnsrTemporalCacheValid = !IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE) ?
+		false : m_isDnsrTemporalCacheValid;
+	SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE, p.GetBool());
+	SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::DENOISE, p.GetBool());
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::DENOISE, p.GetBool());
+	m_isDnsrTemporalCacheValid = !IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE) ?
+		false : m_isDnsrTemporalCacheValid;
 }
 
 void SkyDI::TsppDiffuseCallback(const Support::ParamVariant& p)
 {
-	m_cbDNSRTemporal.MaxTSPP_Diffuse = (uint16_t)p.GetInt().m_val;
+	m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
 }
 
 void SkyDI::TsppSpecularCallback(const Support::ParamVariant& p)
 {
-	m_cbDNSRTemporal.MaxTSPP_Specular = (uint16_t)p.GetInt().m_val;
+	m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
 }
 
 void SkyDI::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)
 {
-	m_cbDNSRSpatial.FilterDiffuse = p.GetBool();
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE, p.GetBool());
 }
 
 void SkyDI::DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p)
 {
-	m_cbDNSRSpatial.FilterSpecular = p.GetBool();
+	SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR, p.GetBool());
 }
+
+//void SkyDI::CheckerboardingCallback(const Support::ParamVariant& p)
+//{
+//	SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::CHECKERBOARDING, p.GetBool());
+//}
 
 void SkyDI::ReloadTemporalPass()
 {
 	const int i = (int)SHADERS::TEMPORAL_RESAMPLE;
 
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_Temporal.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
-}
-
-void SkyDI::ReloadSpatialPass()
-{
-	const int i = (int)SHADERS::SPATIAL_RESAMPLE;
-
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_Spatial.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_SpatioTemporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -602,6 +594,6 @@ void SkyDI::ReloadDNSRSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_DNSR_SpatialFilter.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_DNSR_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

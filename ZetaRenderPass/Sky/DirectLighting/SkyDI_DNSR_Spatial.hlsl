@@ -1,18 +1,18 @@
 #include "SkyDI_Common.h"
-#include "SkyDI_Reservoir.hlsli"
 #include "../../Common/GBuffers.hlsli"
 #include "../../Common/FrameConstants.h"
-#include "../../Common/Sampling.hlsli"
-#include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/BRDF.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define NUM_SAMPLES 8
-#define PLANE_DIST_RELATIVE_DELTA 0.01f
+#define PLANE_DIST_RELATIVE_DELTA 0.005f
 #define BASE_FILTER_RADIUS_DIFFUSE 5
+#define FILTER_RADIUS_SPECULAR 16
 #define SIGMA_L_DIFFUSE 0.005f
-#define SIGMA_L_SPECULAR 0.005f
+#define SIGMA_L_SPECULAR 0.025f
+#define MAX_ROUGHNESS_DELTA 5e-2f
 
 static const float2 k_poissonDisk[NUM_SAMPLES] =
 {
@@ -60,42 +60,37 @@ float EdgeStoppingGeometry(float3 samplePos, float3 centerNormal, float centerLi
 float EdgeStoppingNormal_Diffuse(float3 centerNormal, float3 sampleNormal, float roughness)
 {
 	float cosTheta = saturate(dot(centerNormal, sampleNormal));
-//	float weight = cosTheta * cosTheta;
-//	weight *= weight;
-//	weight *= weight;
-//	weight *= weight;
-	
-	float normalExp = 8 + smoothstep(0, 1, 1 - roughness) * 252;
+	float normalExp = 8 + smoothstep(0, 1, 1 - roughness) * 120;
 	float weight = pow(cosTheta, normalExp);
 
 	return weight;
 }
 
-float EdgeStoppingNormal_Specular(float3 centerNormal, float3 sampleNormal)
+float EdgeStoppingNormal_Specular(float3 centerNormal, float3 sampleNormal, float alpha)
 {
 	float cosTheta = saturate(dot(centerNormal, sampleNormal));
-	float weight = cosTheta * cosTheta;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
-	weight *= weight;
+	float angle = Math::ArcCos(cosTheta);
+	
+	// tolerance angle becomes narrower based on specular lobe half angle
+	// Ref: D. Zhdan, "Fast Denoising with Self-Stabilizing Recurrent Blurs," GDC, 2020.
+	float specularLobeHalfAngle = alpha / (1.0 + alpha) * 1.5707963267f;
+	float tolerance = 0.08726646 + specularLobeHalfAngle;
+	float weight = saturate((tolerance - angle) / tolerance);
 	
 	return weight;
 }
 
 float EdgeStoppingRoughness(float centerRoughness, float sampleRoughness)
 {
-	float n = centerRoughness * centerRoughness * 0.99f + 0.01f;
-	float w = abs(centerRoughness - sampleRoughness) / n;
-	w = saturate(1.0f - w);
+	return 1.0f - saturate(abs(centerRoughness - sampleRoughness) / MAX_ROUGHNESS_DELTA);
+#if 0
 	bool b1 = sampleRoughness < g_local.MinRoughnessResample;
 	bool b2 = centerRoughness < g_local.MinRoughnessResample;
 	// don't take roughness into account when there's been a sudden change
 	w = select(w, 1.0, b1 ^ b2);
 	
 	return w;
+#endif
 }
 
 float EdgeStoppingLuminance(float centerLum, float sampleLum, float sigma, float scale)
@@ -108,20 +103,20 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 {
 	if (metallic)
 		return 0.0.xxx;
-	
+
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	
-	Texture2D<float4> g_temporalCache_Diffuse = ResourceDescriptorHeap[g_local.CurrTemporalCacheDiffuseDescHeapIdx];
+
+	Texture2D<float4> g_temporalCache_Diffuse = ResourceDescriptorHeap[g_local.TemporalCacheDiffuseDescHeapIdx];
 	const float3 centerColor = g_temporalCache_Diffuse[DTid].rgb;
 	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
-	
-	if (!g_local.FilterDiffuse)
+
+	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE))
 		return centerColor;
-	
+
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float u0 = rng.Uniform();
-	const uint offset = rng.UintRange(0, NUM_SAMPLES - 1);
+	const uint offset = rng.UintRange(0, NUM_SAMPLES);
 
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
@@ -132,7 +127,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 	int numValidSamples = 0;
 	int scale = 1;
 	const int numSamples = max(round(smoothstep(0, 0.2, roughness) * 6), 1);
-	
+
 	for (int i = 0; i < numSamples; i++)
 	{
 		// rotate
@@ -179,37 +174,37 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 			numValidSamples++;
 		}
 	}
-	
+
 	const float tspp = g_temporalCache_Diffuse[DTid].w;
-	const float accSpeed = tspp / (float) g_local.MaxTSPP;
+	const float accSpeed = tspp / (float) g_local.MaxTsppDiffuse;
 
 	float3 filtered = weightSum > 1e-3 ? weightedColor / weightSum : 0.0.xxx;
-	float s = (weightSum > 1e-3) && (numValidSamples > 0) ? min(accSpeed, 0.2) : 1.0f;
+	float s = (weightSum > 1e-3) && (numValidSamples > 0) ? min(accSpeed, 0.07) : 1.0f;
 	filtered = lerp(filtered, centerColor, s);
 	
 	return filtered;
 }
 
-float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic, bool hasBaseColorTexture, float roughness, 
+float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic, float roughness, 
 	float3 posW, float3 baseColor, inout RNG rng)
 {
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	
-	Texture2D<float4> g_temporalCache_Specular = ResourceDescriptorHeap[g_local.CurrTemporalCacheSpecularDescHeapIdx];
+	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+
+	Texture2D<float4> g_temporalCache_Specular = ResourceDescriptorHeap[g_local.TemporalCacheSpecularDescHeapIdx];
 	const float3 centerColor = g_temporalCache_Specular[DTid].rgb;
-	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
-	const float baseColorLum = Math::Color::LuminanceFromLinearRGB(baseColor);
-	
-	if (!g_local.FilterSpecular || 
-		(roughness <= g_local.MinRoughnessResample && (metallic || baseColorLum < MAX_LUM_VNDF)) ||
-		hasBaseColorTexture)		 // avoid filtering textured surfaces
+
+	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR) || 
+		(roughness <= g_local.MinRoughnessResample && metallic))		 // avoid filtering textured surfaces
 		return centerColor;
 	
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
 	const float alpha = roughness * roughness;
 	const float u0 = rng.Uniform();
-	const uint offset = rng.UintRange(0, NUM_SAMPLES - 1);
+	const uint offset = rng.UintRange(0, NUM_SAMPLES);
 
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
@@ -218,13 +213,8 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 	float3 weightedColor = 0.0.xxx;
 	float weightSum = 0.0f;
 	int numValidSamples = 0;
-	int scale = 1;
-	const float filterRadiusBase = 4 + smoothstep(0, 1, 1 - roughness) * 5;
-	
 	const int numSamplesMetal = max(round(smoothstep(0, 0.3, roughness) * 3), 1);
-	const int numSamples = metallic ?
-		numSamplesMetal :
-		3;
+	const int numSamples = metallic ? numSamplesMetal : 3;
 	
 	for (int i = 0; i < numSamples; i++)
 	{
@@ -234,11 +224,9 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 		rotatedXZ.x = dot(sampleLocalXZ, float2(cosTheta, -sinTheta));
 		rotatedXZ.y = dot(sampleLocalXZ, float2(sinTheta, cosTheta));
 
-		const float filterRadius = filterRadiusBase * (1u << scale);
-		scale = scale < 4 ? scale << 1 : 1;
-		
-		float2 relativeSamplePos = rotatedXZ * filterRadius;
+		float2 relativeSamplePos = rotatedXZ * FILTER_RADIUS_SPECULAR;
 		const int2 samplePosSS = round((float2) DTid + relativeSamplePos);
+
 		if (samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
 			continue;
 
@@ -255,13 +243,16 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
 			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
-			const float w_n = EdgeStoppingNormal_Specular(normal, sampleNormal);
+			const float w_n = EdgeStoppingNormal_Specular(normal, sampleNormal, alpha);
 					
 			const float3 sampleColor = g_temporalCache_Specular[samplePosSS].rgb;
 			const float sampleLum = Math::Color::LuminanceFromLinearRGB(sampleColor);
-			const float w_l = roughness > g_local.MinRoughnessResample ? EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_SPECULAR, scale + 1) : 1.0f;
+			const float w_l = EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_SPECULAR, 1);
 
-			const float weight = w_z * w_n * w_l * k_gaussian[i];
+			const float sampleRoughness = g_metallicRoughness[samplePosSS].y;
+			const float w_r = EdgeStoppingRoughness(roughness, sampleRoughness);
+
+			const float weight = w_z * w_n * w_l * w_r * k_gaussian[i];
 			if (weight < 1e-3)
 				continue;
 			
@@ -270,12 +261,11 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 			numValidSamples++;
 		}
 	}
-	
-	const float tspp = g_temporalCache_Specular[DTid].w;
-	const float accSpeed = tspp / (float) g_local.MaxTSPP;
 
+	const float tspp = g_temporalCache_Specular[DTid].w;
+	const float accSpeed = tspp / (float) g_local.MaxTsppSpecular;
 	float3 filtered = weightSum > 1e-3 ? weightedColor / weightSum : 0.0.xxx;
-	float s = (weightSum > 1e-3) && (numValidSamples > 0) ? min(accSpeed, 0.2f) : 1.0f;
+	float s = (weightSum > 1e-3) && (numValidSamples > 0) ? min(accSpeed, 0.1f) : 1.0f;
 	filtered = lerp(filtered, centerColor, s);
 	
 	return filtered;
@@ -288,9 +278,9 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 [numthreads(SKY_DI_DNSR_SPATIAL_GROUP_DIM_X, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
-	if (!g_local.Denoise)
+	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_SPATIAL_FLAGS::DENOISE))
 		return;
-	
+
 #if THREAD_GROUP_SWIZZLING
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
@@ -318,32 +308,36 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
 		g_frame.CurrProjectionJitter);
-	
+
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-	float2 mr = g_metallicRoughness[swizzledDTid.xy];
+	float2 mr = g_metallicRoughness[swizzledDTid];
 
 	bool isMetallic;
-	bool hasBaseColorTexture;
 	bool isEmissive;
-	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
-	
+	GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
+
 	if (isEmissive)
 		return;
-	
+
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid].xy);
-		
+	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid]);
+
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];
-	const float3 baseColor = g_baseColor[swizzledDTid.xy].rgb;
+	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
+
+	Texture2D<half4> g_colorB = ResourceDescriptorHeap[g_local.ColorBSrvDescHeapIdx];
+	uint16_t2 encoded = asuint16(g_colorB[swizzledDTid].zw);
+	uint tmpU = encoded.x | (uint(encoded.y) << 16);
+	float tmp = asfloat(tmpU);
+	float3 F = baseColor + (1.0f - baseColor) * tmp;
 
 	RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum);
 
 	float3 filteredDiffuse = FilterDiffuse(swizzledDTid, normal, linearDepth, isMetallic, mr.y, posW, rng);
-	float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, isMetallic, hasBaseColorTexture, 
-		mr.y, posW, baseColor, rng);
+	float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, isMetallic, mr.y, posW, baseColor, rng);
 
 	RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
-	g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular;
+	g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (isMetallic ? F : 1);
 }

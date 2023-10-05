@@ -5,88 +5,74 @@
 #include "../../Common/Sampling.hlsli"
 #include "../../Common/BRDF.hlsli"
 
-#define MAX_LUM_VNDF 1e-2
-
-struct SkyDIReservoir
-{
-	static SkyDIReservoir Init()
-	{
-		SkyDIReservoir res;
-		
-		res.Li = 0.0.xxx;
-		res.M = 0;
-		res.w_sum = 0;
-		res.W = 0;
-		res.wi = 0.0.xxx;
-		res.Target = 0;
-		
-		return res;
-	}
-	
-	static SkyDIReservoir Init(float w_sum, float W, float M, float3 wi, float3 Li)
-	{
-		SkyDIReservoir res;
-		
-		res.Li = Li;
-		res.M = M;
-		res.w_sum = w_sum;
-		res.W = W;
-		res.wi = wi;
-		res.Target = 0;
-		
-		return res;
-	}
-	
-	void ComputeW(float maxWSum = FLT_MAX, float m = 0.0f)
-	{
-		m = m == 0.0f ? 1 / this.M : m;
-		// biased but helps with reducing fireflies
-		float wSum = min(this.w_sum, maxWSum);
-		this.W = this.Target > 0.0 ? (m * wSum) / this.Target : 0.0;
-	}
-	
-	bool Update(float w, float3 Li, float3 wi, float target, inout RNG rng)
-	{
-		this.w_sum += w;
-		this.M += 1;
-		
-		if (rng.Uniform() < (w / max(1e-6f, this.w_sum)))
-		{
-			this.wi = wi;
-			this.Target = target;
-			this.Li = Li;
-			
-			return true;
-		}
-		
-		return false;
-	}
-	
-	bool Combine(SkyDIReservoir r, float M_max, float weight, float p_q, inout RNG rng)
-	{
-		float clampedM = min(r.M, M_max);
-		float weightedM = clampedM * weight;
-		float neighborRISweight = p_q * r.W * weightedM;
-		
-		float prevM = this.M;
-		
-		bool updated = Update(neighborRISweight, r.Li, r.wi, p_q, rng);
-
-		this.M = prevM + weightedM;
-		
-		return updated;
-	}
-	
-	float w_sum;
-	float W;
-	float M;
-	float3 wi;
-	float3 Li;
-	float Target;
-};
-
 namespace SkyDI_Util
 {
+	struct Reservoir
+	{
+		static Reservoir Init()
+		{
+			Reservoir res;
+		
+			res.Le = 0.0.xxx;
+			res.M = 0;
+			res.w_sum = 0;
+			res.W = 0;
+			res.wi = 0.0.xxx;
+			res.Target = 0;
+			res.NeedsShadowRay = false;
+			res.Visible = true;
+		
+			return res;
+		}
+	
+		static Reservoir Init(float w_sum, float W, half M, float3 wi, float3 le)
+		{
+			Reservoir res;
+		
+			res.Le = le;
+			res.M = M;
+			res.w_sum = w_sum;
+			res.W = W;
+			res.wi = wi;
+			res.Target = 0;
+			res.NeedsShadowRay = false;
+			res.Visible = true;
+		
+			return res;
+		}
+	
+		bool IsValid()
+		{
+			return !all(this.wi == 0);
+		}
+
+		bool Update(float w, float3 le, float3 wi, float3 target, inout RNG rng)
+		{
+			this.w_sum += w;
+			this.M += 1;
+		
+			if (rng.Uniform() < (w / max(1e-6f, this.w_sum)))
+			{
+				this.wi = wi;
+				this.Target = target;
+				this.Le = le;
+			
+				return true;
+			}
+		
+			return false;
+		}
+	
+		float w_sum;
+		float W;
+		float3 wi;
+		float3 Le;
+		float3 Target;
+		half M;
+		bool NeedsShadowRay;
+		bool Visible;
+	};
+
 	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::SurfaceInteraction surface, float sampleRayT,
 		float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj)
 	{
@@ -108,7 +94,7 @@ namespace SkyDI_Util
 		return prevUV;
 	}
 	
-	SkyDIReservoir ReadReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx)
+	Reservoir ReadReservoir(uint2 DTid, uint inputAIdx, uint inputBIdx)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 		Texture2D<float> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
@@ -124,45 +110,51 @@ namespace SkyDI_Util
 
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
-		float M = asfloat16(uint16_t(resA.z >> 16));
+		half M = asfloat16(uint16_t(resA.z >> 16));
 		
-		SkyDIReservoir r = SkyDIReservoir::Init(w_sum, W, M, wi, Li);
+		Reservoir r = Reservoir::Init(w_sum, W, M, wi, Li);
+
+		return r;
+	}
+
+	Reservoir PartialReadReservoir_Reuse(uint2 DTid, uint inputAIdx)
+	{
+		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+
+		const uint4 resA = g_reservoir_A[DTid];
+		const float W = asfloat(resA.w);
+		
+		uint3 temp1 = uint3(resA.x & 0xffff, 0, resA.x >> 16);
+		float3 wi = asfloat16(uint16_t3(temp1));
+		float wiNorm = saturate(dot(wi, wi));
+		wi.y = wiNorm > 0 ? sqrt(1 - wiNorm) : 1.0f;
+
+		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
+		float3 Li = asfloat16(uint16_t3(temp2));
+		half M = asfloat16(uint16_t(resA.z >> 16));
+		
+		Reservoir r = Reservoir::Init(0, W, M, wi, Li);
 
 		return r;
 	}
 	
-	// just wi
-	float3 PartialReadReservoir_ReuseWi(uint2 DTid, uint inputAIdx)
+	float PartialReadReservoir_WSum(uint2 DTid, uint inputBIdx)
 	{
-		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
-		const uint resAx = g_reservoir_A[DTid].x;
-		
-		uint3 temp1 = uint3(resAx & 0xffff, 0, resAx >> 16);
-		float3 wi = asfloat16(uint16_t3(temp1));
-		float wiNorm = saturate(dot(wi, wi));
-		wi.y = wiNorm > 0 ? sqrt(1 - wiNorm) : 1.0f;
-		
-		return wi;
+		Texture2D<float> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
+		return g_reservoir_B[DTid];
 	}
-
-	SkyDIReservoir PartialReadReservoir_ReuseRest(uint2 DTid, uint inputAIdx, float3 wi)
+	
+	float PartialReadReservoir_M(uint2 DTid, uint inputAIdx)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
-		const uint3 resA = g_reservoir_A[DTid].yzw;
-		
-		const float W = asfloat(resA.z);
-		
-		uint3 temp2 = uint3(resA.x & 0xffff, resA.x >> 16, resA.y & 0xffff);
-		float3 Li = asfloat16(uint16_t3(temp2));
-		float M = asfloat16(uint16_t(resA.y >> 16));
-		
-		SkyDIReservoir r = SkyDIReservoir::Init(0, W, M, wi, Li);
 
-		return r;
+		const uint resA_z = g_reservoir_A[DTid].z;
+		float M = asfloat16(uint16_t(resA_z >> 16));
+		return M;
 	}
 
 	// skips w_sum
-	SkyDIReservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx)
+	Reservoir PartialReadReservoir_Shading(uint2 DTid, uint inputAIdx)
 	{
 		Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 
@@ -176,38 +168,21 @@ namespace SkyDI_Util
 		
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
-		float M = asfloat16(uint16_t(resA.z >> 16));
+		half M = asfloat16(uint16_t(resA.z >> 16));
 
-		SkyDIReservoir r = SkyDIReservoir::Init(0, W, M, wi, Li);
+		Reservoir r = Reservoir::Init(0, W, M, wi, Li);
 
 		return r;
 	}
-
-	// skips w_sum
-	void PartialWriteReservoir(uint2 DTid, SkyDIReservoir r, uint outputAIdx)
-	{
-		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 	
-		uint16_t2 wi = asuint16(half2(r.wi.x, r.wi.z));
-		uint16_t3 Li = asuint16(half3(r.Li));
-		uint16_t M = asuint16(half(r.M));
-		
-		uint a_x = (uint(wi.y) << 16) | wi.x;
-		uint a_y = (uint(Li.y) << 16) | Li.x;
-		uint a_z = (uint(M) << 16) | Li.z;
-		uint a_w = asuint(r.W);
-		
-		g_outReservoir_A[DTid] = uint4(a_x, a_y, a_z, a_w);
-	}
-	
-	void WriteReservoir(uint2 DTid, SkyDIReservoir r, uint outputAIdx, uint outputBIdx)
+	void WriteReservoir(uint2 DTid, Reservoir r, uint outputAIdx, uint outputBIdx, half m_max)
 	{
 		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<float> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
 
 		uint16_t2 wi = asuint16(half2(r.wi.x, r.wi.z));
-		uint16_t3 Li = asuint16(half3(r.Li));
-		uint16_t M = asuint16(half(r.M));
+		uint16_t3 Li = asuint16(half3(r.Le));
+		uint16_t M = asuint16(min(r.M, m_max));
 		
 		uint a_x = (uint(wi.y) << 16) | wi.x;
 		uint a_y = (uint(Li.y) << 16) | Li.x;
