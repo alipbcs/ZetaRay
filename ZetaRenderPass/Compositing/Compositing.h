@@ -43,7 +43,7 @@ namespace ZetaRay::RenderPass
 		void Init(bool skyIllum);
 		bool IsInitialized() { return m_psos[0] != nullptr; }
 		void Reset();
-		void SetInscatteringEnablement(bool enable) { m_cbComposit.AccumulateInscattering = enable; }
+		void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
 		void SetSkyIllumEnablement(bool enable);
 		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }

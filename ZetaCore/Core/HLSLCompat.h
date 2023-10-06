@@ -17,6 +17,14 @@
 	#define half4_ ZetaRay::Math::half4
 	#define	int16_t2_ ZetaRay::Math::int16_t2
 	#define	uint4_(x) uint32_t x[4]
+
+	#define IN_PARAM(t) t&
+	#define OUT_PARAM(t) t&
+	#define row_major
+	#define CONST const
+
+	#define IS_CB_FLAG_SET(cb, flag) ((cb.Flags & (flag)) == (flag))
+	#define SET_CB_FLAG(cb, flag, val) (cb.Flags = (cb.Flags & ~(flag)) | ((val) * (flag)))
 #else
 	#define float2_ float2
 	#define float3_ float3
@@ -32,22 +40,13 @@
 	#define half4_ half4
 	#define	int16_t2_ int16_t2
 	#define uint4_(x) uint4 x
-#endif
 
-#ifdef __cplusplus
-#define IN_PARAM(t) t&
-#define OUT_PARAM(t) t&
-#define CONST const
-#else
-#define IN_PARAM(t) in t
-#define OUT_PARAM(t) out t
-#define CONST
-#endif // __cplusplus
+	#define IN_PARAM(t) in t
+	#define OUT_PARAM(t) out t
+	#define CONST
+	#define constexpr const
 
-#ifdef __cplusplus
-#ifndef row_major
-#define row_major
-#endif
+	#define IS_CB_FLAG_SET(flag) ((g_local.Flags & flag) == flag)
 #endif
 
 #endif // HLSL_COMPAT

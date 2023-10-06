@@ -9,6 +9,15 @@
 #define FIREFLY_FILTER_THREAD_GROUP_DIM_X 16u
 #define FIREFLY_FILTER_THREAD_GROUP_DIM_Y 8u
 
+namespace CB_COMPOSIT_FLAGS
+{
+	static constexpr uint32_t SUN_DI = 1 << 0;
+	static constexpr uint32_t SKY_DI = 1 << 1;
+	static constexpr uint32_t SPECULAR_INDIRECT = 1 << 2;
+	static constexpr uint32_t INSCATTERING = 1 << 4;
+	static constexpr uint32_t EMISSIVE_DI = 1 << 5;
+};
+
 struct cbCompositing
 {
 	uint32_t CompositedUAVDescHeapIdx;
@@ -22,14 +31,9 @@ struct cbCompositing
 	float DepthMappingExp;
 	float VoxelGridNearZ;
 	float VoxelGridFarZ;
-
 	float RoughnessCutoff;
-	uint16_t SunLighting;
-	uint16_t SkyLighting;
-	uint16_t DiffuseIndirect;
-	uint16_t SpecularIndirect;
-	uint16_t AccumulateInscattering;
-	uint16_t EmissiveLighting;
+
+	uint32_t Flags;
 };
 
 struct cbFireflyFilter

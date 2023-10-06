@@ -21,23 +21,9 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
 	inout BRDF::SurfaceInteraction surface)
 {
-#if 0
-	Texture2D<uint> g_sunShadowMask = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
-	
-	uint groupX = DTid.x >= 8 ? DTid.x >> 3 : 0;
-	uint groupY = DTid.y >= 4 ? DTid.y >> 2 : 0;
-	uint laneIdx = (DTid.y & (4 - 1)) * 8 + (DTid.x & (8 - 1));
-	
-	uint groupMask = g_sunShadowMask[uint2(groupX, groupY)];
-	uint isUnoccluded = groupMask & (1u << laneIdx);
-
-	if (!isUnoccluded)
-		return 0.0.xxx;
-#endif	
-
 	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
-		
+
 	surface.SetWi(-g_frame.SunDir, normal);
 	float3 f = BRDF::SurfaceBRDF(surface);
 	
@@ -98,29 +84,30 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	const float2 mr = g_metallicRoughness[DTid.xy];
 
 	bool isMetallic;
-	bool hasBaseColorTexture;
 	bool isEmissive;
-	GBuffer::DecodeMetallic(mr.x, isMetallic, hasBaseColorTexture, isEmissive);
+	GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
 	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	if(!isEmissive)
 	{
-		if (g_local.SunLighting)
+		if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SUN_DI))
 			color += SunDirectLighting(DTid.xy, baseColor, isMetallic, posW, normal, surface);
 
-		if (g_local.SkyLighting)
+		if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SKY_DI) && g_local.SkyDIDenoisedDescHeapIdx != 0)
 		{
 			Texture2D<float4> g_directDenoised = ResourceDescriptorHeap[g_local.SkyDIDenoisedDescHeapIdx];
-			float3 skyLo = g_directDenoised[DTid.xy].rgb;
+			float3 L_s = g_directDenoised[DTid.xy].rgb;
 		
-			color += skyLo;
+			color += L_s / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
 		}
 
 		const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
 		const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
 	
-		const bool includeIndDiff = g_local.DiffuseIndirect && !isMetallic;
-		const bool includeIndSpec = g_local.SpecularIndirect && (isMetallic || mr.y <= g_local.RoughnessCutoff);
+		const bool includeIndDiff = IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT) 
+			&& !isMetallic;
+		const bool includeIndSpec = IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT) 
+			&& (isMetallic || mr.y <= g_local.RoughnessCutoff);
 	
 		if (includeIndDiff)
 		{
@@ -146,13 +133,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		
 			color += L_indSpec;
 		}
-	
-		if (g_local.EmissiveLighting)
+
+		if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::EMISSIVE_DI) && g_local.EmissiveDIDenoisedDescHeapIdx != 0)
 		{
 			Texture2D<half4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDenoisedDescHeapIdx];
-			float3 L_d = g_emissive[DTid.xy].rgb;
+			float3 L_e = g_emissive[DTid.xy].rgb;
 
-			color += L_d / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
+			color += L_e / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
 		}
 	}
 	else
@@ -163,7 +150,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		color = L_e;
 	}
 	
-	if (g_local.AccumulateInscattering)
+	if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INSCATTERING))
 	{
 		if (linearDepth > 1e-4f)
 		{

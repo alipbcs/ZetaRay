@@ -61,33 +61,33 @@ void Compositing::Init(bool skyIllum)
 	}
 
 	memset(&m_cbComposit, 0, sizeof(m_cbComposit));
-	m_cbComposit.SunLighting = true;
-	m_cbComposit.SkyLighting = skyIllum;
-	m_cbComposit.DiffuseIndirect = true;
-	m_cbComposit.SpecularIndirect = true;
-	m_cbComposit.EmissiveLighting = true;
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, true);
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, skyIllum);
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT, true);
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, true);
 	m_cbComposit.RoughnessCutoff = 1.0f;
 
 	CreateLightAccumTexure();
 
 	ParamVariant p0;
 	p0.InitBool("Renderer", "Lighting", "Sun", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
-		m_cbComposit.SunLighting);
+		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
 	App::AddParam(p0);	
 
 	ParamVariant p2;
 	p2.InitBool("Renderer", "Lighting", "Diffuse Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetDiffuseIndirectEnablementCallback),
-		m_cbComposit.DiffuseIndirect);
+		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT));
 	App::AddParam(p2);
 
 	ParamVariant p6;
 	p6.InitBool("Renderer", "Lighting", "Specular Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
-		m_cbComposit.SpecularIndirect);
+		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT));
 	App::AddParam(p6);
 
 	ParamVariant p7;
 	p7.InitBool("Renderer", "Lighting", "Emissives", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
-		m_cbComposit.EmissiveLighting);
+		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
 	App::AddParam(p7);
 
 	ParamVariant p9;
@@ -136,7 +136,7 @@ void Compositing::Render(CommandList& cmdList)
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::COMPOSIT]);
 
-		if (m_cbComposit.AccumulateInscattering)
+		if (IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING))
 		{
 			Assert(m_cbComposit.InscatteringDescHeapIdx > 0, "Gpu descriptor for inscattering texture hasn't been set");
 			Assert(m_cbComposit.VoxelGridNearZ >= 0.0f, "Invalid voxel grid depth");
@@ -145,8 +145,6 @@ void Compositing::Render(CommandList& cmdList)
 		}
 
 		m_cbComposit.CompositedUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
-		//Assert(!m_cbComposit.EmissiveLighting || m_cbComposit.EmissiveDIDenoisedDescHeapIdx != 0, "emissive texture hasn't been set.");
-		m_cbComposit.EmissiveLighting = m_cbComposit.EmissiveDIDenoisedDescHeapIdx == 0 ? false : m_cbComposit.EmissiveLighting;
 
 		m_rootSig.SetRootConstants(0, sizeof(cbCompositing) / sizeof(DWORD), &m_cbComposit);
 		m_rootSig.End(computeCmdList);
@@ -210,7 +208,7 @@ void Compositing::CreateLightAccumTexure()
 
 void Compositing::SetSkyIllumEnablement(bool b)
 {
-	m_cbComposit.SkyLighting = b;
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, b);
 }
 
 void Compositing::SetFireflyFilterEnablement(const Support::ParamVariant& p)
@@ -220,22 +218,22 @@ void Compositing::SetFireflyFilterEnablement(const Support::ParamVariant& p)
 
 void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& p)
 {
-	m_cbComposit.SunLighting = p.GetBool();
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
 }
 
 void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p)
 {
-	m_cbComposit.DiffuseIndirect = p.GetBool();
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT, p.GetBool());
 }
 
 void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p)
 {
-	m_cbComposit.SpecularIndirect = p.GetBool();
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, p.GetBool());
 }
 
 void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p)
 {
-	m_cbComposit.EmissiveLighting = p.GetBool();
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, p.GetBool());
 }
 
 void Compositing::ReloadCompsiting()

@@ -176,6 +176,11 @@ namespace Math
 		swizzledDTid = swizzledGid * groupDim + GTid;
 	}
 	
+	bool IsFlagSet(uint32_t bitmask, uint32_t flag)
+	{
+		return (bitmask & flag) == flag;
+	}
+	
 	namespace Transform
 	{
 		template<typename FVec>
