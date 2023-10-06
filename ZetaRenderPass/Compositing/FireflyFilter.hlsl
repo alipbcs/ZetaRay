@@ -41,7 +41,7 @@ float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, i
 	float minLum = FLT_MAX;
 	float maxLum = 0.0;
 	float3 minColor = currColor;
-	float3 maxColor = currColor;
+	float3 maxColor = 0.0.xxx;
 	float currLum = Math::Color::LuminanceFromLinearRGB(currColor);
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -64,9 +64,10 @@ float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, i
 				continue;
 			
 			float2 neighborUV = (addr + 0.5) * rcpRenderDim;
+#if 0
 			if (!GeometryTest(neighborLinearDepth, neighborUV, normal, posW, linearDepth))
 				continue;
-			
+#endif
 			float3 neighborColor = g_input[addr].rgb;
 			float neighborLum = Math::Color::LuminanceFromLinearRGB(neighborColor);
 
