@@ -112,13 +112,10 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 
 	if (tlas.IsInitialized())
 	{
-		// diffuse indirect
-		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE,
-			rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_INDIRECT_DENOISED));
-
-		// specular indirect
+#if RESTIR_GI == 1
 		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE,
 			rayTracerData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SPECULAR_INDIRECT_DENOISED));
+#endif
 
 		// sky DI
 		if (settings.SkyIllumination)
@@ -137,7 +134,9 @@ void Light::Update(const RenderSettings& settings, LightData& data, const GBuffe
 			data.PerFrameDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_PER_FRAME::DENOISED_SHADOW_MASK));
 
 		// make sure compistor and indirect specular have matching roughness cutoffs
+#if RESTIR_GI == 1
 		data.CompositingPass.SetRoughnessCutoff(rayTracerData.ReSTIR_GI_SpecularPass.GetRoughnessCutoff());
+#endif
 
 		if (settings.Inscattering)
 		{
@@ -464,15 +463,12 @@ void Light::DeclareAdjacencies(const RenderSettings& settings, LightData& data, 
 			data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::RAW_SHADOW_MASK).ID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-		// indirect diffuse
-		renderGraph.AddInput(data.CompositingHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL).ID(),
-			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
 		// indirect specular
+#if RESTIR_GI == 1
 		renderGraph.AddInput(data.CompositingHandle,
 			rayTracerData.ReSTIR_GI_SpecularPass.GetOutput(ReSTIR_GI_Specular::SHADER_OUT_RES::CURR_DNSR_CACHE).ID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+#endif
 
 		// sky di
 		if (settings.SkyIllumination)

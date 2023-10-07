@@ -9,8 +9,6 @@ add_subdirectory(DirectLighting)
 add_subdirectory(FSR2)
 add_subdirectory(GBuffer)
 add_subdirectory(GUI)
-add_subdirectory(DiffuseIndirect)
-add_subdirectory(SpecularIndirect)
 add_subdirectory(Sky)
 add_subdirectory(SunShadow)
 add_subdirectory(TAA)
@@ -28,8 +26,6 @@ set(RENDERPASS_SRC
     ${RP_FSR2_SRC} 
     ${RP_GBUFFER_SRC} 
     ${RP_GUI_SRC} 
-    ${RP_DIFF_IND_SRC} 
-    ${RP_SPEC_IND_SRC}
     ${RP_SKY_SRC} 
     ${RP_SUN_SRC} 
     ${RP_TAA_SRC})

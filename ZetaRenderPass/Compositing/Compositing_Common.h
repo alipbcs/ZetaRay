@@ -13,7 +13,7 @@ namespace CB_COMPOSIT_FLAGS
 {
 	static constexpr uint32_t SUN_DI = 1 << 0;
 	static constexpr uint32_t SKY_DI = 1 << 1;
-	static constexpr uint32_t SPECULAR_INDIRECT = 1 << 2;
+	//static constexpr uint32_t SPECULAR_INDIRECT = 1 << 2;
 	static constexpr uint32_t INSCATTERING = 1 << 4;
 	static constexpr uint32_t EMISSIVE_DI = 1 << 5;
 };

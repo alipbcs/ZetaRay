@@ -101,39 +101,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 			color += L_s / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
 		}
 
-		const float3 diffuseReflectance = baseColor * ONE_OVER_PI;
-		const float diffuseReflectanceLum = Math::Color::LuminanceFromLinearRGB(diffuseReflectance);
-	
-		const bool includeIndDiff = IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT) 
-			&& !isMetallic;
-		const bool includeIndSpec = IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT) 
-			&& (isMetallic || mr.y <= g_local.RoughnessCutoff);
-	
-		if (includeIndDiff)
-		{
-			Texture2D<float4> g_diffuseTemporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRCacheDescHeapIdx];
-			float3 L_indDiff = g_diffuseTemporalCache[DTid.xy].rgb;
-			L_indDiff *= diffuseReflectance;
-		
-			if (includeIndSpec)
-				L_indDiff *= 0.5f;
-		
-			color += L_indDiff;
-		}
-	
-		if (includeIndSpec)
-		{
-			Texture2D<float4> g_specularTemporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRCacheDescHeapIdx];
-			float3 L_indSpec = g_specularTemporalCache[DTid.xy].rgb;
-
-			// check against diffuse can lead to discontinuities, but diffuse is 
-			// a more low-frequency signal, so sudden changes should be less common
-			if (includeIndDiff && diffuseReflectanceLum > 5e-4)
-				L_indSpec *= 0.5;
-		
-			color += L_indSpec;
-		}
-
 		if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::EMISSIVE_DI) && g_local.EmissiveDIDenoisedDescHeapIdx != 0)
 		{
 			Texture2D<half4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDenoisedDescHeapIdx];

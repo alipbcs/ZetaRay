@@ -4,7 +4,6 @@
 #include "../Common/GBuffers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
-#include "../DiffuseIndirect/Reservoir_Diffuse.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -233,63 +232,6 @@ float4 mainPS(VSOut psin) : SV_Target
 //		float l2 = Math::Color::LuminanceFromLinearRGB(exposedColor);
 //		display = HeatmapColor(l2 / max(l1, 1e-6));
 //	}
-	else if (g_local.DisplayOption == (int) DisplayOption::DIFFUSE_DNSR)
-	{
-		Texture2D<float4> g_temporalCache = ResourceDescriptorHeap[g_local.DiffuseDNSRTemporalCacheDescHeapIdx];
-		float4 integratedVals = g_temporalCache.SampleLevel(g_samPointClamp, uv, 0.0f);
-		display = integratedVals.rgb;
-		
-//		if (g_local.VisualizeOcclusion)
-//			display = display * 0.1 + float3(1.0 - integratedVals.w / 32.0f, 0, 0);
-	}
-	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR)
-	{
-		const float2 ss = round(psin.PosSS.xy * g_frame.RenderWidth / g_frame.DisplayWidth);
-		
-		DiffuseReservoir r = RGI_Diff_Util::PartialReadInputReservoir(ss, g_local.DiffuseTemporalReservoir_A_DescHeapIdx,
-				g_local.DiffuseTemporalReservoir_B_DescHeapIdx);
-
-		display = r.Li * r.GetW() * ONE_OVER_PI;
-			
-//		if (g_local.VisualizeOcclusion)
-//			display = display * 0.1 + float3(r.M <= 1, 0, 0);
-	}
-	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR)
-	{
-		DiffuseReservoir r = RGI_Diff_Util::PartialReadInputReservoir(int2(psin.PosSS.xy), g_local.DiffuseSpatialReservoir_A_DescHeapIdx,
-				g_local.DiffuseSpatialReservoir_B_DescHeapIdx);
-
-		display = r.Li * r.GetW() * ONE_OVER_PI;
-		
-//		if (g_local.VisualizeOcclusion)
-//			display = display * 0.1 + float3(r.M == 1, 0, 0);
-	}
-#if 0
-	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_SPECULAR_TEMPORAL)
-	{
-		SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Shading(int2(psin.PosSS.xy), 
-			g_local.SpecularTemporalReservoir_A_DescHeapIdx,
-			g_local.SpecularTemporalReservoir_B_DescHeapIdx, 
-			g_local.SpecularTemporalReservoir_D_DescHeapIdx);
-
-		display = r.EvaluateRISEstimate();
-	}
-	else if (g_local.DisplayOption == (int) DisplayOption::ReSTIR_GI_SPECULAR_SPATIAL)
-	{
-		SpecularReservoir r = RGI_Spec_Util::PartialReadReservoir_Shading(int2(psin.PosSS.xy),
-			g_local.SpecularSpatialReservoir_A_DescHeapIdx,
-			g_local.SpecularSpatialReservoir_B_DescHeapIdx,
-			g_local.SpecularSpatialReservoir_D_DescHeapIdx);
-
-		display = r.EvaluateRISEstimate();
-	}
-	else if (g_local.DisplayOption == (int) DisplayOption::SPECULAR_DNSR)
-	{
-		Texture2D<float4> g_temporalCache = ResourceDescriptorHeap[g_local.SpecularDNSRTemporalCacheDescHeapIdx];
-		float4 integratedVals = g_temporalCache.SampleLevel(g_samPointClamp, uv, 0.0f);
-		display = integratedVals.xyz;
-	}
-#endif
 	
 	return float4(display, 1.0f);
 }

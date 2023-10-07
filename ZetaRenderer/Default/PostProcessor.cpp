@@ -145,22 +145,11 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 			data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
 	}
 
-	// diffuse indirect reservoirs
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_A,
-		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_TEMPORAL_RESERVOIR_A));
-
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B,
-		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_TEMPORAL_RESERVOIR_B));
-
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A,
-		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_SPATIAL_RESERVOIR_A));
-
-	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B,
-		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_SPATIAL_RESERVOIR_B));
-
 	// denoised indirect diffuse
+#if RESTIR_GI == 1
 	data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::DIFFUSE_INDIRECT_DENOISED,
 		rayTracerData.PerFrameDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_PER_FRAME::DIFFUSE_INDIRECT_DENOISED));
+#endif
 
 	data.GuiPass.Update();
 }
@@ -315,39 +304,6 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 		exposureTex.ID(),
 		D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-	if (const_cast<RayTracerData&>(rayTracerData).RtAS.GetTLAS().IsInitialized())
-	{
-		// indirect diffuse reservoirs
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_A).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_B).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::TEMPORAL_RESERVOIR_C).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_A).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_B).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::SPATIAL_RESERVOIR_C).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-
-		// denoised indirect diffuse
-		renderGraph.AddInput(data.DisplayHandle,
-			rayTracerData.ReSTIR_GI_DiffusePass.GetOutput(ReSTIR_GI_Diffuse::SHADER_OUT_RES::DNSR_TEMPORAL_CACHE_POST_SPATIAL).ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
-	}
-
 	// backbuffer
 	renderGraph.AddOutput(data.DisplayHandle,
 		App::GetRenderer().GetCurrBackBuffer().ID(),
@@ -367,4 +323,3 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 		App::GetRenderer().GetCurrBackBuffer().ID(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET);
 }
-

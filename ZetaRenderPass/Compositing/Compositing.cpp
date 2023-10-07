@@ -64,8 +64,7 @@ void Compositing::Init(bool skyIllum)
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, true);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, skyIllum);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
-	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT, true);
-	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, true);
+	//SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, true);
 	m_cbComposit.RoughnessCutoff = 1.0f;
 
 	CreateLightAccumTexure();
@@ -73,17 +72,12 @@ void Compositing::Init(bool skyIllum)
 	ParamVariant p0;
 	p0.InitBool("Renderer", "Lighting", "Sun", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
-	App::AddParam(p0);	
+	App::AddParam(p0);
 
-	ParamVariant p2;
-	p2.InitBool("Renderer", "Lighting", "Diffuse Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetDiffuseIndirectEnablementCallback),
-		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT));
-	App::AddParam(p2);
-
-	ParamVariant p6;
-	p6.InitBool("Renderer", "Lighting", "Specular Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
-		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT));
-	App::AddParam(p6);
+	//ParamVariant p6;
+	//p6.InitBool("Renderer", "Lighting", "Specular Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
+	//	IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT));
+	//App::AddParam(p6);
 
 	ParamVariant p7;
 	p7.InitBool("Renderer", "Lighting", "Emissives", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
@@ -117,7 +111,7 @@ void Compositing::Render(CommandList& cmdList)
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
-	
+
 	const uint32_t w = App::GetRenderer().GetRenderWidth();
 	const uint32_t h = App::GetRenderer().GetRenderHeight();
 	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
@@ -200,7 +194,7 @@ void Compositing::CreateLightAccumTexure()
 		ResourceFormats::LIGHT_ACCUM,
 		D3D12_RESOURCE_STATE_COMMON,
 		CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET | CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
-		1, 
+		1,
 		&clearValue);
 
 	Direct3DUtil::CreateTexture2DUAV(m_hdrLightAccum, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_UAV));
@@ -221,15 +215,10 @@ void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& 
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
 }
 
-void Compositing::SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p)
-{
-	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::DIFFUSE_INDIRECT, p.GetBool());
-}
-
-void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p)
-{
-	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, p.GetBool());
-}
+//void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p)
+//{
+//	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, p.GetBool());
+//}
 
 void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p)
 {

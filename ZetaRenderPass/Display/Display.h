@@ -30,11 +30,6 @@ namespace ZetaRay::RenderPass
 		{
 			COMPOSITED,
 			EXPOSURE,
-			DIFFUSE_INDIRECT_DENOISED,
-			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_A,
-			ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B,
-			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A,
-			ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B,
 			COUNT
 		};
 
@@ -59,21 +54,6 @@ namespace ZetaRay::RenderPass
 				break;
 			case SHADER_IN_GPU_DESC::EXPOSURE:
 				m_cbLocal.ExposureDescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::DIFFUSE_INDIRECT_DENOISED:
-				m_cbLocal.DiffuseDNSRTemporalCacheDescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_A:
-				m_cbLocal.DiffuseTemporalReservoir_A_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_TEMPORAL_RESERVOIR_B:
-				m_cbLocal.DiffuseTemporalReservoir_B_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_A:
-				m_cbLocal.DiffuseSpatialReservoir_A_DescHeapIdx = dechHeapIdx;
-				break;
-			case SHADER_IN_GPU_DESC::ReSTIR_GI_DIFFUSE_SPATIAL_RESERVOIR_B:
-				m_cbLocal.DiffuseSpatialReservoir_B_DescHeapIdx = dechHeapIdx;
 				break;
 			default:
 				break;
@@ -145,8 +125,7 @@ namespace ZetaRay::RenderPass
 		struct Params
 		{
 			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
-				"MetalnessRoughness", "Emissive", "Depth", "Curvature", "ExposureHeatmap", "DiffuseDNSR", "ReSTIR_GI_Diffuse_Temporal", 
-				"ReSTIR_GI_Diffuse_Spatial"};
+				"MetalnessRoughness", "Emissive", "Depth", "Curvature", "ExposureHeatmap" };
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
 			inline static const char* Tonemappers[] = { "None", "ACES", "Neutral", "AgX" };

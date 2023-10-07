@@ -22,8 +22,6 @@ namespace ZetaRay::RenderPass
 	{
 		enum class SHADER_IN_GPU_DESC
 		{
-			DIFFUSE_DNSR_CACHE,
-			SPECULAR_DNSR_CACHE,
 			SKY_DI_DENOISED,
 			INSCATTERING,
 			SUN_SHADOW,
@@ -54,18 +52,15 @@ namespace ZetaRay::RenderPass
 
 			switch (input)
 			{
-			case SHADER_IN_GPU_DESC::DIFFUSE_DNSR_CACHE:
-				m_cbComposit.DiffuseDNSRCacheDescHeapIdx = descHeapIdx;
-				return;
 			case SHADER_IN_GPU_DESC::INSCATTERING:
 				m_cbComposit.InscatteringDescHeapIdx = descHeapIdx;
 				return;
 			case SHADER_IN_GPU_DESC::SUN_SHADOW:
 				m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
 				return;
-			case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
-				m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
-				return;
+			//case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
+			//	m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
+			//	return;
 			case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
 				m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
 				return;
@@ -131,8 +126,7 @@ namespace ZetaRay::RenderPass
 
 		void SetFireflyFilterEnablement(const Support::ParamVariant& p);
 		void SetSunLightingEnablementCallback(const Support::ParamVariant& p);
-		void SetDiffuseIndirectEnablementCallback(const Support::ParamVariant& p);
-		void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p);
+		//void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p);
 		void SetEmissiveEnablementCallback(const Support::ParamVariant& p);
 
 		void ReloadCompsiting();

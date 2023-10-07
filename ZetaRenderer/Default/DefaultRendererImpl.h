@@ -4,8 +4,6 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#include <DiffuseIndirect/ReSTIR_GI_Diffuse.h>
-#include <SpecularIndirect/ReSTIR_GI_Specular.h>
 #include <Sky/DirectLighting/SkyDI.h>
 #include <Clear/Clear.h>
 #include <GBuffer/GBufferPass.h>
@@ -21,6 +19,8 @@
 #include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
 #include <DirectLighting/DirectLighting.h>
+
+#define RESTIR_GI 0
 
 // Note: with a functional-style API dependencies become more clear, which 
 // results in fewer data-race issues and simpler debugging
@@ -192,12 +192,6 @@ namespace ZetaRay::DefaultRenderer
 		// Render Passes
 		Core::RenderNodeHandle RtASBuildHandle;
 
-		RenderPass::ReSTIR_GI_Diffuse ReSTIR_GI_DiffusePass;
-		Core::RenderNodeHandle ReSTIR_GI_DiffuseHandle;
-
-		RenderPass::ReSTIR_GI_Specular ReSTIR_GI_SpecularPass;
-		Core::RenderNodeHandle ReSTIR_GI_SpecularHandle;
-
 		RenderPass::SkyDI SkyDI_Pass;
 		Core::RenderNodeHandle SkyDI_Handle;
 
@@ -310,7 +304,6 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 	void OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data);
 	void Shutdown(RayTracerData& data);
 
-	void UpdateDescriptors(const RenderSettings& settings, RayTracerData& data);
 	void Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data);
 	void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph);
 	void DeclareAdjacencies(const RenderSettings& settings, RayTracerData& rtData, const GBufferData& gbuffData,
