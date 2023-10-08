@@ -30,7 +30,7 @@ float Mitchell1D(in float x, in float B, in float C)
 {
 	x = abs(2.0f * x);
 	const float oneDivSix = 1.0f / 6.0f;
-	
+
 	if (x > 1)
 	{
 		return ((-B - 6.0f * C) * x * x * x + (6.0f * B + 30.0f * C) * x * x +
@@ -70,21 +70,20 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 {
 	if(DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
 		return;
-	
+
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
 
 	RWTexture2D<float4> g_antiAliased = ResourceDescriptorHeap[g_local.CurrOutputDescHeapIdx];
 	Texture2D<float4> g_currSignal = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
-	
 	const float3 currColor = g_currSignal[DTid.xy].rgb;
-		
-	if (!g_local.TemporalIsValid || depth == 0.0)
+
+	if (!g_local.TemporalIsValid || depth == FLT_MAX)
 	{
 		g_antiAliased[DTid.xy].rgb = currColor;
 		return;
 	}
-	
+
 	float weightSum = Mitchell1D(0, 0.33f, 0.33f) * Mitchell1D(0, 0.33f, 0.33f);
 	float3 reconstructed = currColor * weightSum;
 	float3 firstMoment = currColor;
@@ -94,10 +93,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	float closestDepth = depth;
 	int2 closestDepthAddress = 0.0.xx;
 #endif
-	
+
 	// compute neighborhood's AABB
 	int numNeighbors = 1;
-	
+
 	[unroll]
 	for (int i = -1; i < 2; i++)
 	{
@@ -105,37 +104,41 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 		{
 			if(i == 0 && j == 0)
 				continue;
-			
+
 			int2 neighborAddrr = DTid.xy + int2(i, j);
 			if (any(neighborAddrr < 0) || any(neighborAddrr >= int2(g_frame.RenderWidth, g_frame.RenderHeight)))
 				continue;
-			
+
 			float3 neighborColor = max(g_currSignal[neighborAddrr].rgb, 0.0.xxx);
 			
 			float weight = Mitchell1D(i, 0.33f, 0.33f) * Mitchell1D(j, 0.33f, 0.33f);
 			weight *= 1.0 / (1.0 + Math::Color::LuminanceFromLinearRGB(neighborColor));
-			
+
 			reconstructed += neighborColor * weight;
 			weightSum += weight;
-			
+
 			firstMoment += neighborColor;
 			secondMoment += neighborColor * neighborColor;
 			
 			// motion vector signal might be aliased -- prefilter it by selecting the motion vector
 			// of the neighborhood pixel that is closest to the camera.
-		#if DEPTH_DILATION
+#if DEPTH_DILATION
 			float neighborDepth = g_depth[neighborAddrr];
+	#if RT_GBUFFER == 1
+			if (neighborDepth < closestDepth)
+	#else
 			if (neighborDepth > closestDepth)
+	#endif
 			{
 				closestDepth = neighborDepth;
 				closestDepthAddress = int2(i, j);
 			}
-		#endif
+#endif
 			
 			numNeighbors += 1;
 		}
 	}
-	
+
 	reconstructed /= max(weightSum, 1e-5);
 	
 	// sample history using motion vector
@@ -146,7 +149,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 #else
 	const float2 motionVec = g_motionVector[DTid.xy];
 #endif
-	
+
 	// motion vector is relative to texture space
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 currUV = (DTid.xy + 0.5f) / renderDim;
@@ -173,18 +176,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	// apply Bessel's correction to get an unbiased sample variance
 	std /= (numNeighbors - 1.0f);
 	std = sqrt(std);
-	
+
 	// form a confidene interval for the distrubution of color around the current pixel
 	const float3 clippedHistory = ClipAABB(mean - std, mean + std, history);
-	
+
 	// inverse-luminance filtering
 	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(reconstructed)));
 	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(clippedHistory)));
 	float3 result = (currWeight * reconstructed + histWeight * clippedHistory) / (currWeight + histWeight);
-	
+
 	// TODO on rare occasions, result can be NaN. figure out what's causing it
 	// temporay solution in the meantime -- NaN propagation is avoided at least
 	result = any(isnan(result)) ? reconstructed : result;
-	
+
 	g_antiAliased[DTid.xy].rgb = result;
 }

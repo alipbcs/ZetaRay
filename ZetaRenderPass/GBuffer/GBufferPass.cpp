@@ -183,6 +183,9 @@ void GBufferPass::Init(Span<DXGI_FORMAT> rtvs)
 
 void GBufferPass::Reset()
 {
+	// command signature holds a reference to root signature
+	m_cmdSig.Reset();
+
 	if (m_graphicsPso[0])
 	{
 		s_rpObjs.Clear();

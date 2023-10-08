@@ -4,6 +4,7 @@ set(CORE_SRC
         "${CORE_DIR}/CommandList.h"
         "${CORE_DIR}/CommandQueue.cpp"
         "${CORE_DIR}/CommandQueue.h"
+        "${CORE_DIR}/Config.h"
         "${CORE_DIR}/Constants.h"
         "${CORE_DIR}/dds.h"
         "${CORE_DIR}/DescriptorHeap.cpp"

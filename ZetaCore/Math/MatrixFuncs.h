@@ -65,6 +65,30 @@ namespace ZetaRay::Math
 			_mm_shuffle_ps(vTemp2, vTemp3, 0xdd));
 	}
 
+	// tranposes the 3x3 submatrix in vM, sets the last element of each row to M[2][3],
+	// and sets the last row to (0, 0, 0, 1)
+	ZetaInline v_float4x4 __vectorcall transpose3x3(v_float4x4 vM)
+	{
+		//		0  1  2              0  3  6
+		// M =	3  4  5     -->  M = 1  4  7
+		//      6  7  8              2  5  8
+		v_float4x4 ret;
+		const __m128 vOne = _mm_set1_ps(1.0f);
+		const __m128 vZero = _mm_setzero_ps();
+
+		// 0  1  3  4
+		const __m128 vTemp0 = _mm_shuffle_ps(vM.vRow[0], vM.vRow[1], V_SHUFFLE_XYZW(0, 1, 0, 1));
+		// 2  _  5  _
+		const __m128 vTemp1 = _mm_shuffle_ps(vM.vRow[0], vM.vRow[1], V_SHUFFLE_XYZW(2, 0, 2, 0));
+
+		ret.vRow[0] = _mm_shuffle_ps(vTemp0, vM.vRow[2], V_SHUFFLE_XYZW(0, 2, 0, 3));
+		ret.vRow[1] = _mm_shuffle_ps(vTemp0, vM.vRow[2], V_SHUFFLE_XYZW(1, 3, 1, 3));
+		ret.vRow[2] = _mm_shuffle_ps(vTemp1, vM.vRow[2], V_SHUFFLE_XYZW(0, 2, 2, 3));
+		ret.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);
+
+		return ret;
+	}
+
 	ZetaInline __m128 __vectorcall mul(const v_float4x4 M, const __m128& v)
 	{
 		// (v.x, v.x, v.x, v.x)
@@ -471,51 +495,34 @@ namespace ZetaRay::Math
 		return t0;
 	}
 
-	// TODO complete
-	/*
-	ZetaInline __m128 __vectorcall quatFromRotationMat(const v_float4x4 vR)
+	// Ref: https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
+	// "Converting a Rotation Matrix to a Quaternion", Mike Day, Insomniac Games.
+	ZetaInline float4 __vectorcall quatFromRotationMat1(const v_float4x4 vM)
 	{
-		// q4 = 0.5f * (sqrt(trace(R) + 1)
-		// q1 = (R_23 - R_32) / (4 * q_4)
-		// q2 = (R_31 - R_13) / (4 * q_4)
-		// q3 = (R_12 - R_21) / (4 * q_4)
+		float4a row0 = store(vM.vRow[0]);
+		float4a row1 = store(vM.vRow[1]);
+		float4a row2 = store(vM.vRow[2]);
 
-		const __m128 vOne = _mm_set1_ps(1.0f);
-		const __m128 vTwo = _mm_set1_ps(2.0f);
-		const __m128 vOneDiv2 = _mm_set1_ps(0.5f);
-		const __m128 vFour = _mm_set1_ps(4.0f);
+		float t[4];
+		float4 q[4];
 
-		__m128 vTrace = _mm_add_ps(vR.vRow[0], _mm_shuffle_ps(vR.vRow[1], vR.vRow[1], V_SHUFFLE_XYZW(1, 1, 1, 1)));
-		vTrace = _mm_add_ps(vTrace, _mm_shuffle_ps(vR.vRow[2], vR.vRow[2], V_SHUFFLE_XYZW(2, 2, 2, 2)));
-		vTrace = _mm_shuffle_ps(vTrace, vTrace, V_SHUFFLE_XYZW(0, 0, 0, 0));
+		t[0] = 1 + row0.x - row1.y - row2.z;
+		t[1] = 1 - row0.x + row1.y - row2.z;
+		t[2] = 1 - row0.x - row1.y + row2.z;
+		t[3] = 1 + row0.x + row1.y + row2.z;
 
-		__m128 vQ4 = _mm_add_ps(vTrace, vOne);
-		vQ4 = _mm_sqrt_ps(vQ4);
-		__m128 vFourQ4 = _mm_mul_ps(vQ4, vTwo);
-		vQ4 = _mm_mul_ps(vOneDiv2, vQ4);
+		q[0] = float4(t[0], row0.y + row1.x, row2.x + row0.z, row1.z - row2.y);
+		q[1] = float4(row0.y + row1.x, t[1], row1.z + row2.y, row2.x - row0.z);
+		q[2] = float4(row2.x + row0.z, row1.z + row2.y, t[2], row0.y - row1.x);
+		q[3] = float4(row1.z - row2.y, row2.x - row0.z, row0.y - row1.x, t[3]);
 
-		int mask = _mm_movemask_ps(_mm_cmpgt_ps(_mm_set1_ps(FLT_EPSILON), vQ4));
-		//Assert((mask & 0x1) == 0, "Divide by zero");
+		int i = (row2.z >= 0) * (2 + (row0.x >= -row1.y)) + (row2.z < 0) * (row1.y >= row0.x);
+		float4 q_i = q[i];
+		float t_i = t[i];
+		q_i *= 0.5f / sqrtf(t_i);
 
-		// q4 = 0
-		if ((mask & 0x1) == 0)
-		{
-			v_float4x4 vRT = transpose(vR);
-			v_float4x4 vRsubRT = sub(vR, vRT);
-
-			__m128 vQ = _mm_insert_ps(vQ4, vRsubRT.vRow[1], 0x80);	 // (R_23 - R_32)
-			vQ = _mm_insert_ps(vQ, vRsubRT.vRow[2], 0x10);			 // (R_31 - R_13)
-			vQ = _mm_insert_ps(vQ, vRsubRT.vRow[0], 0x60);			 // (R_12 - R_21)
-			vQ = _mm_insert_ps(_mm_div_ps(vQ, vFourQ4), vQ, 0xf0);
-
-			return vQ;
-		}
-		else
-		{
-
-		}
+		return q_i;
 	}
-	*/
 
 	ZetaInline v_float4x4 __vectorcall translate(float x, float y, float z)
 	{
@@ -652,7 +659,7 @@ namespace ZetaRay::Math
 
 		// for "row" matrices, sqaure roots of eigenvalues of MM^T are the singular values
 		// M M^T = (SR)(SR)^T = S R R^T S^T = S S^T = S^2
-		const v_float4x4 vM3x3T = transpose(vM3x3);
+		const v_float4x4 vM3x3T = transpose3x3(vM3x3);
 		const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
 
 		// eigenvalues of diagonal matrices are the diagonal entries
@@ -668,8 +675,12 @@ namespace ZetaRay::Math
 		const __m128 vInvSDiag = _mm_div_ps(vOne, vS);
 		const v_float4x4 vSinv = scale(vInvSDiag);
 		const v_float4x4 vR = mul(vSinv, vM3x3);
+#if 0
 		const __m128 vQ = quatFromRotationMat(vR);
 		r = store(vQ);
+#else
+		r = quatFromRotationMat1(vR);
+#endif
 	}
 
 	ZetaInline v_float4x4 __vectorcall lookAtLH(float4a cameraPos, float4a focus, float4a up)

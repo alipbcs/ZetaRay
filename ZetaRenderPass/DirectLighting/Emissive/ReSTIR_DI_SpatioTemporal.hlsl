@@ -124,7 +124,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 			L_e = RDI_Util::EmissiveTriangleLi(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 #if TARGET_WITH_VISIBILITY == 1
-			L_e *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, linearDepth, emissive.ID);
+			L_e *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, emissive.ID);
 #endif
 		}
 
@@ -177,11 +177,10 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 norma
 		numBrdfCandidates, rng, target);
 
 	// temporal resampling
-	RDI_Util::TemporalCandidate temporalCandidate = RDI_Util::TemporalCandidate::Init();
-	
 	if (g_local.TemporalResampling)
 	{
-		temporalCandidate = RDI_Util::FindTemporalCandidates(DTid, posW, normal, linearDepth, roughness, prevUV, g_frame, rng);
+		RDI_Util::TemporalCandidate temporalCandidate = RDI_Util::FindTemporalCandidates(DTid, posW, normal, 
+			linearDepth, roughness, prevUV, g_frame, rng);
 
 		if (temporalCandidate.valid)
 		{
@@ -235,11 +234,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[swizzledDTid];
 	
-	if (depth == 0)
+#if RT_GBUFFER == 1
+	const float linearDepth = depth;
+#else
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
+
+	if (linearDepth == FLT_MAX)
 		return;
 
 	// reconstruct position from depth buffer
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
@@ -247,7 +251,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
 
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];

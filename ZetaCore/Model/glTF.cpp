@@ -27,6 +27,8 @@ using namespace ZetaRay::App;
 using namespace ZetaRay::Model::glTF::Asset;
 using namespace ZetaRay::Core::Direct3DUtil;
 
+#define CHECK_QUATERNION_VALID 0
+
 //--------------------------------------------------------------------------------------
 // glTF
 //--------------------------------------------------------------------------------------
@@ -769,6 +771,7 @@ namespace
 					(float)node.rotation[2],
 					(float)node.rotation[3]);
 
+#if CHECK_QUATERNION_VALID == 1
 				// check ||quaternion|| = 1
 				__m128 vV = _mm_loadu_ps(&transform.Rotation.x);
 				__m128 vLength = _mm_dp_ps(vV, vV, 0xff);
@@ -777,6 +780,7 @@ namespace
 				__m128 vDiff = _mm_sub_ps(vLength, vOne);
 				float d = _mm_cvtss_f32(abs(vDiff));
 				Check(d < 1e-6f, "Invalid rotation quaternion.");
+#endif
 			}
 		}
 
@@ -794,25 +798,36 @@ namespace
 			{
 				const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
 
-				float oneDotEmissvieFactor = meshPrim.material->emissive_factor[0];
-				oneDotEmissvieFactor += meshPrim.material->emissive_factor[1];
-				oneDotEmissvieFactor += meshPrim.material->emissive_factor[2];
+				float oneDotEmissvieFactor = 0;
 
-				uint8_t rtInsMask = meshPrim.material &&
+				if (meshPrim.material)
+				{
+					oneDotEmissvieFactor = meshPrim.material->emissive_factor[0];
+					oneDotEmissvieFactor += meshPrim.material->emissive_factor[1];
+					oneDotEmissvieFactor += meshPrim.material->emissive_factor[2];
+				}
+
+				const uint8_t rtInsMask = meshPrim.material &&
 					(meshPrim.material->emissive_texture.texture || oneDotEmissvieFactor > 1e-4f) ?
-					RT_AS_SUBGROUP::EMISSIVE : RT_AS_SUBGROUP::NON_EMISSIVE;
+					RT_AS_SUBGROUP::EMISSIVE : 
+					RT_AS_SUBGROUP::NON_EMISSIVE;
 
 				// parent-child relationships will be w.r.t. the last mesh primitive
 				currInstanceID = SceneCore::InstanceID(sceneID, nodeIdx, meshIdx, primIdx);
 
+				const bool isOpaque = meshPrim.material && meshPrim.material->alpha_mode != cgltf_alpha_mode_opaque ?
+					false :
+					true;
+
 				glTF::Asset::InstanceDesc desc{
 					.LocalTransform = transform,
-						.MeshIdx = meshIdx,
-						.ID = currInstanceID,
-						.ParentID = parentId,
-						.MeshPrimIdx = primIdx,
-						.RtMeshMode = RT_MESH_MODE::STATIC,
-						.RtInstanceMask = rtInsMask };
+					.MeshIdx = meshIdx,
+					.ID = currInstanceID,
+					.ParentID = parentId,
+					.MeshPrimIdx = primIdx,
+					.RtMeshMode = RT_MESH_MODE::STATIC,
+					.RtInstanceMask = rtInsMask,
+					.IsOpaque = isOpaque };
 
 				SceneCore& scene = App::GetScene();
 				scene.AddInstance(sceneID, ZetaMove(desc));

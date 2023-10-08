@@ -165,7 +165,7 @@ namespace ZetaRay::Scene::Internal
 
 		bool RebuildFlag() { return m_rebuildFlag; }
 		void Clear();
-		Model::glTF::Asset::EmissiveInstance* FindEmissive(uint64_t ID);
+		Util::Optional<Model::glTF::Asset::EmissiveInstance*> FindEmissive(uint64_t ID);
 		bool IsStale() { return !m_emissivesTrisCpu.empty(); };
 		void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
 			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);

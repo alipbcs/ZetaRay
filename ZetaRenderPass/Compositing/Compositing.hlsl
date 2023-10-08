@@ -21,8 +21,8 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
 	inout BRDF::SurfaceInteraction surface)
 {
-	Texture2D<half2> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
-	float shadowVal = g_sunShadowTemporalCache[DTid.xy].x;
+	Texture2D<half> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
+	float shadowVal = g_sunShadowTemporalCache[DTid].x;
 
 	surface.SetWi(-g_frame.SunDir, normal);
 	float3 f = BRDF::SurfaceBRDF(surface);
@@ -43,6 +43,43 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 po
 	return L_i;
 }
 
+float3 SkyColor(uint2 DTid)
+{
+	float3 w = RT::GeneratePinholeCameraRay(DTid, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+		g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz);
+	
+	float3 rayOrigin = float3(0, 1e-1, 0);
+	rayOrigin.y += g_frame.PlanetRadius;
+
+	float3 wTemp = w;
+	// cos(a - b) = cos a cos b + sin a sin b
+	wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - w.y * w.y) * g_frame.SunSinAngularRadius;
+
+	float t;
+	bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, wTemp, t);
+
+	// a disk that's supposed to be the sun
+	if (dot(-w, g_frame.SunDir) >= g_frame.SunCosAngularRadius && !intersectedPlanet)
+	{
+		return g_frame.SunIlluminance;
+	}
+	// sample the sky texture
+	else
+	{
+		float2 thetaPhi = Math::SphericalFromCartesian(w);
+		
+		const float u = thetaPhi.y * ONE_OVER_2_PI;
+		float v = thetaPhi.x * ONE_OVER_PI;
+		
+		float s = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
+		v = (thetaPhi.x - PI_OVER_2) * 0.5f;
+		v = 0.5f + s * sqrt(abs(v) * ONE_OVER_PI);
+
+		Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
+		return g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);		
+	}
+}
+
 //--------------------------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------------------------
@@ -55,20 +92,30 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 
-	if (depth == 0.0)
+#if RT_GBUFFER == 1
+	const float linearDepth = depth;
+#else
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
+
+	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
+	
+	if (linearDepth == FLT_MAX)
+	{
+		g_hdrLightAccum[DTid.xy].rgb = SkyColor(DTid.xy);
 		return;
+	}
 
 	float3 color = 0.0.xxx;
 	
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
-		uint2(g_frame.RenderWidth, g_frame.RenderHeight),
+		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
 	
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	
@@ -137,6 +184,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		}
 	}
 
-	RWTexture2D<float4> g_hdrLightAccum = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
+	//g_hdrLightAccum[DTid.xy].rgb = baseColor;
 	g_hdrLightAccum[DTid.xy].rgb = color;
 }

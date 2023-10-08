@@ -2,12 +2,12 @@ include("${CMAKE_INCLUDE_DIR}/CompileHLSL.cmake")
 
 add_subdirectory(AutoExposure)
 add_subdirectory(Common)
-add_subdirectory(Clear)
 add_subdirectory(Compositing)
 add_subdirectory(Display)
 add_subdirectory(DirectLighting)
 add_subdirectory(FSR2)
 add_subdirectory(GBuffer)
+add_subdirectory(GBufferRT)
 add_subdirectory(GUI)
 add_subdirectory(Sky)
 add_subdirectory(SunShadow)
@@ -18,22 +18,27 @@ set(RENDERPASS_SRC
     "${ZETA_RENDER_PASS_DIR}/RenderPass.h"
 	${RENDERPASS_SRC} 
     ${RP_AUTO_EXPOSURE_SRC} 
-    ${RP_CLEAR_SRC} 
     ${RP_COMMON_SRC} 
     ${RP_COMPOSITING_SRC} 
     ${RP_DI_SRC} 
     ${RP_DISPLAY_SRC} 
     ${RP_FSR2_SRC} 
     ${RP_GBUFFER_SRC} 
+    ${RP_GBUFFER_RT_SRC} 
     ${RP_GUI_SRC} 
     ${RP_SKY_SRC} 
     ${RP_SUN_SRC} 
     ${RP_TAA_SRC})
         
 file(GLOB_RECURSE ALL_SHADERS "${ZETA_RENDER_PASS_DIR}/*.hlsl")
+set(SHADER_INCLUDES ${RP_COMMON_SRC} 
+    ${ZETA_CORE_DIR}/RayTracing/RtCommon.h
+    ${ZETA_CORE_DIR}/Core/Config.h
+    ${ZETA_CORE_DIR}/Core/Material.h
+    ${ZETA_CORE_DIR}/Core/Material.h)
 
 foreach(HLSL ${ALL_SHADERS})
-    CompileHLSL(${HLSL} "${RP_COMMON_SRC}" CSOS)
+    CompileHLSL(${HLSL} "${SHADER_INCLUDES}" CSOS)
     set(ALL_CSOS ${ALL_CSOS} ${CSOS})
 endforeach()
 
@@ -47,7 +52,7 @@ endif()
 # build ZetaRenderPass as a static library
 add_library(ZetaRenderPass STATIC ${RENDERPASS_SRC})
 add_dependencies(ZetaRenderPass ZetaCore CompileShaders)
-target_include_directories(ZetaRenderPass AFTER PUBLIC ${EXTERNAL_DIR} ${ZETA_CORE_DIR} ${EXTERNAL_DIR}/ImGui)
+target_include_directories(ZetaRenderPass AFTER PUBLIC ${EXTERNAL_DIR} ${ZETA_CORE_DIR} ${ZETA_RENDER_PASS_DIR} ${EXTERNAL_DIR}/ImGui)
 set_target_properties(ZetaRenderPass PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 source_group(TREE "${ZETA_RENDER_PASS_DIR}" FILES ${RENDERPASS_SRC})

@@ -410,7 +410,6 @@ void GuiPass::Render(CommandList& cmdList)
 	directCmdList.IASetVertexAndIndexBuffers(vbv, ibv);
 
 	Assert(m_cpuDescriptors[SHADER_IN_CPU_DESC::RTV].ptr > 0, "RTV hasn't been set.");
-	Assert(m_cpuDescriptors[SHADER_IN_CPU_DESC::DEPTH_BUFFER].ptr > 0, "DSV hasn't been set.");
 	directCmdList.OMSetRenderTargets(1, &m_cpuDescriptors[SHADER_IN_CPU_DESC::RTV], true, nullptr);
 
 	// Setup blend factor

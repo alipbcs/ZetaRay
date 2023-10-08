@@ -29,7 +29,7 @@ using namespace ZetaRay::App;
 //--------------------------------------------------------------------------------------
 
 void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuffer& frameConstsBuff,
-	const GBufferData& gbuffData, const LightData& lightData)
+	const GBufferData& gbuffData, const RayTracerData& rtData)
 {
 	auto& renderer = App::GetRenderer();
 	const int currIdx = renderer.GlobaIdxForDoubleBufferedResources();
@@ -63,23 +63,22 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	frameConsts.CameraNear = cam.GetNearZ();
 	frameConsts.AspectRatio = cam.GetAspectRatio();
 	frameConsts.PixelSpreadAngle = cam.GetPixelSpreadAngle();
-	frameConsts.TanHalfFOV = tanf(0.5f * cam.GetFOV());
-	frameConsts.CurrProj = cam.GetCurrProj();
+	frameConsts.TanHalfFOV = cam.GetTanHalfFOV();
 	frameConsts.PrevView = frameConsts.CurrView;
 	frameConsts.CurrView = float3x4(cam.GetCurrView());
-	frameConsts.PrevViewProj = frameConsts.CurrViewProj;
-	frameConsts.CurrViewProj = store(vVP);
 	frameConsts.PrevViewInv = frameConsts.CurrViewInv;
 	frameConsts.CurrViewInv = float3x4(cam.GetViewInv());
-	frameConsts.PrevProjectionJitter = frameConsts.CurrProjectionJitter;
-	frameConsts.CurrProjectionJitter = cam.GetProjOffset();
+	frameConsts.PrevCameraJitter = frameConsts.CurrCameraJitter;
+	frameConsts.CurrCameraJitter = cam.GetCurrJitter();
+	frameConsts.PrevViewProj = frameConsts.CurrViewProj;
+	frameConsts.CurrViewProj = store(vVP);
 
 	// frame gbuffer srv desc. table
-	frameConsts.CurrGBufferDescHeapOffset = gbuffData.SRVDescTable[currIdx].GPUDesciptorHeapIndex();
-	frameConsts.PrevGBufferDescHeapOffset = gbuffData.SRVDescTable[1 - currIdx].GPUDesciptorHeapIndex();
+	frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDesciptorHeapIndex();
+	frameConsts.PrevGBufferDescHeapOffset = gbuffData.SrvDescTable[1 - currIdx].GPUDesciptorHeapIndex();
 
 	// env. map SRV
-	frameConsts.EnvMapDescHeapOffset = lightData.ConstDescTable.GPUDesciptorHeapIndex((int)LightData::DESC_TABLE_CONST::ENV_MAP_SRV);
+	frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
 	float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, frameConsts.PrevViewInv.m[2].z);
 	float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, frameConsts.CurrViewInv.m[2].z);
@@ -197,7 +196,7 @@ namespace ZetaRay::DefaultRenderer
 	void SetSkyIllumEnablement(const ParamVariant& p)
 	{
 		g_data->m_settings.SkyIllumination = p.GetBool();
-		g_data->m_lightData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
+		g_data->m_postProcessorData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
 	}
 
 	void SetAccumulation(const ParamVariant& p)
@@ -216,10 +215,11 @@ namespace ZetaRay::DefaultRenderer
 
 		const Camera& cam = App::GetCamera();
 		v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
+
+		// for 1st frame
 		v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
 		v_float4x4 vVP = mul(vCurrV, vP);
 
-		// for 1st frame
 		g_data->m_frameConstants.PrevViewProj = store(vVP);
 		g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
 		g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
@@ -264,20 +264,15 @@ namespace ZetaRay::DefaultRenderer
 			{
 				GBuffer::Init(g_data->m_settings, g_data->m_gbuffData);
 			});
-		auto h1 = ts.EmplaceTask("Light_Init", []()
-			{
-				Light::Init(g_data->m_settings, g_data->m_lightData);
-			});
 		auto h2 = ts.EmplaceTask("RayTracer_Init", []()
 			{
 				RayTracer::Init(g_data->m_settings, g_data->m_raytracerData);
 			});
 		auto h3 = ts.EmplaceTask("PostProcessor_Init", []()
 			{
-				PostProcessor::Init(g_data->m_settings, g_data->m_postProcessorData, g_data->m_lightData);
+				PostProcessor::Init(g_data->m_settings, g_data->m_postProcessorData);
 			});
 
-		ts.AddOutgoingEdge(h1, h3);
 		ts.Sort();
 		ts.Finalize();
 		App::Submit(ZetaMove(ts));
@@ -399,48 +394,35 @@ namespace ZetaRay::DefaultRenderer
 	{
 		g_data->m_settings.AntiAliasing = g_data->PendingAA;
 
-		auto h0 = ts.EmplaceTask("SceneRenderer::GBuff", []()
+		auto h0 = ts.EmplaceTask("SceneRenderer::GBuffer_RT", []()
 			{
 				GBuffer::Update(g_data->m_gbuffData);
-			});
-
-		auto h1 = ts.EmplaceTask("SceneRenderer::RT_Post", []()
-			{
 				RayTracer::Update(g_data->m_settings, g_data->m_renderGraph, g_data->m_raytracerData);
 				PostProcessor::Update(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
-					g_data->m_lightData, g_data->m_raytracerData);
-			});
-
-		auto h2 = ts.EmplaceTask("SceneRenderer::Light_FrameConsts", []()
-			{
-				Common::UpdateFrameConstants(g_data->m_frameConstants, g_data->m_frameConstantsBuff, g_data->m_gbuffData, g_data->m_lightData);
-				Light::Update(g_data->m_settings, g_data->m_lightData, g_data->m_gbuffData, g_data->m_raytracerData);
+					g_data->m_raytracerData);
+				Common::UpdateFrameConstants(g_data->m_frameConstants, g_data->m_frameConstantsBuff, g_data->m_gbuffData, 
+					g_data->m_raytracerData);
 			});
 
 		auto h3 = ts.EmplaceTask("SceneRenderer::RenderGraph", []()
 			{
 				g_data->m_renderGraph.BeginFrame();
 
-				GBuffer::Register(g_data->m_gbuffData, g_data->m_renderGraph);
-				Light::Register(g_data->m_settings, g_data->m_lightData, g_data->m_raytracerData, g_data->m_renderGraph);
+				GBuffer::Register(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
 				RayTracer::Register(g_data->m_settings, g_data->m_raytracerData, g_data->m_renderGraph);
 				PostProcessor::Register(g_data->m_settings, g_data->m_postProcessorData, g_data->m_renderGraph);
 
 				g_data->m_renderGraph.MoveToPostRegister();
 
-				GBuffer::DeclareAdjacencies(g_data->m_gbuffData, g_data->m_lightData, g_data->m_renderGraph);
-				Light::DeclareAdjacencies(g_data->m_settings, g_data->m_lightData, g_data->m_gbuffData,
-					g_data->m_raytracerData, g_data->m_renderGraph);
+				GBuffer::DeclareAdjacencies(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
 				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData,
 					g_data->m_renderGraph);
 				PostProcessor::DeclareAdjacencies(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
-					g_data->m_lightData, g_data->m_raytracerData, g_data->m_renderGraph);
+					g_data->m_raytracerData, g_data->m_renderGraph);
 			});
 
 		// RenderGraph should go last
-		ts.AddOutgoingEdge(h0, h2);
-		ts.AddOutgoingEdge(h2, h3);
-		ts.AddOutgoingEdge(h1, h3);
+		ts.AddOutgoingEdge(h0, h3);
 	}
 
 	void Render(TaskSet& ts)
@@ -451,7 +433,6 @@ namespace ZetaRay::DefaultRenderer
 	void Shutdown()
 	{
 		GBuffer::Shutdown(g_data->m_gbuffData);
-		Light::Shutdown(g_data->m_lightData);
 		RayTracer::Shutdown(g_data->m_raytracerData);
 		PostProcessor::Shutdown(g_data->m_postProcessorData);
 
@@ -465,9 +446,8 @@ namespace ZetaRay::DefaultRenderer
 	{
 		// following order is important
 		GBuffer::OnWindowSizeChanged(g_data->m_settings, g_data->m_gbuffData);
-		Light::OnWindowSizeChanged(g_data->m_settings, g_data->m_lightData);
 		RayTracer::OnWindowSizeChanged(g_data->m_settings, g_data->m_raytracerData);
-		PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_lightData);
+		PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_raytracerData);
 
 		g_data->m_renderGraph.Reset();
 	}

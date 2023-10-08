@@ -96,6 +96,26 @@ namespace ZetaRay::Core::Direct3DUtil
         return bufferDesc;
     }
 
+    inline D3D12_RESOURCE_DESC1 BufferResourceDesc1(UINT64 w,
+        D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE)
+    {
+        D3D12_RESOURCE_DESC1 bufferDesc;
+
+        bufferDesc.Dimension = D3D12_RESOURCE_DIMENSION_BUFFER;
+        bufferDesc.Alignment = 0;
+        bufferDesc.Width = w;
+        bufferDesc.Height = 1;
+        bufferDesc.DepthOrArraySize = 1;
+        bufferDesc.MipLevels = 1;
+        bufferDesc.Format = DXGI_FORMAT_UNKNOWN;
+        bufferDesc.SampleDesc.Count = 1;
+        bufferDesc.SampleDesc.Quality = 0;
+        bufferDesc.Layout = D3D12_TEXTURE_LAYOUT_ROW_MAJOR;
+        bufferDesc.Flags = f;
+
+        return bufferDesc;
+    }
+
     inline D3D12_RESOURCE_DESC Tex1D(DXGI_FORMAT format, UINT64 width,
         uint16_t arraySize = 1, uint16_t mipLevels = 1,
         D3D12_RESOURCE_FLAGS flags = D3D12_RESOURCE_FLAG_NONE,

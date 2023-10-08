@@ -104,55 +104,6 @@ namespace Math
 	{
 		return 0.5f * length(cross(v1 - v0, v2 - v0));
 	}
-	
-	// Samples a texture with Catmull-Rom filtering, using 9 texture fetches instead of 16.
-	// Ref: https://gist.github.com/TheRealMJP/c83b8c0f46b63f3a88a5986f4fa982b1
-	template<typename T>
-	float3 SampleTextureCatmullRom_5Tap(in Texture2D<T> tex, in SamplerState linearSampler, in float2 uv, in float2 texSize)
-	{
-		// We're going to sample a a 4x4 grid of texels surrounding the target UV coordinate. We'll do this by rounding
-		// down the sample location to get the exact center of our "starting" texel. The starting texel will be at
-		// location [1, 1] in the grid, where [0, 0] is the top left corner.
-		float2 samplePos = uv * texSize;
-		float2 texPos1 = floor(samplePos - 0.5f) + 0.5f;
-
-		// Compute the fractional offset from our starting texel to our original sample location, which we'll
-		// feed into the Catmull-Rom spline function to get our filter weights.
-		float2 f = samplePos - texPos1;
-
-		// Compute the Catmull-Rom weights using the fractional offset that we calculated earlier.
-		// These equations are pre-expanded based on our knowledge of where the texels will be located,
-		// which lets us avoid having to evaluate a piece-wise function.
-		float2 w0 = f * (-0.5f + f * (1.0f - 0.5f * f));
-		float2 w1 = 1.0f + f * f * (-2.5f + 1.5f * f);
-		float2 w2 = f * (0.5f + f * (2.0f - 1.5f * f));
-		float2 w3 = f * f * (-0.5f + 0.5f * f);
-
-		// Work out weighting factors and sampling offsets that will let us use bilinear filtering to
-		// simultaneously evaluate the middle 2 samples from the 4x4 grid.
-		float2 w12 = w1 + w2;
-		float2 offset12 = w2 / (w1 + w2);
-
-	    // Compute the final UV coordinates we'll use for sampling the texture
-		float2 texPos0 = texPos1 - 1;
-		float2 texPos3 = texPos1 + 2;
-		float2 texPos12 = texPos1 + offset12;
-
-		texPos0 /= texSize;
-		texPos3 /= texSize;
-		texPos12 /= texSize;
-
-		float3 result = 0.0f;
-		result += tex.SampleLevel(linearSampler, float2(texPos12.x, texPos0.y), 0.0f).xyz * w12.x * w0.y;
-
-		result += tex.SampleLevel(linearSampler, float2(texPos0.x, texPos12.y), 0.0f).xyz * w0.x * w12.y;
-		result += tex.SampleLevel(linearSampler, float2(texPos12.x, texPos12.y), 0.0f).xyz * w12.x * w12.y;
-		result += tex.SampleLevel(linearSampler, float2(texPos3.x, texPos12.y), 0.0f).xyz * w3.x * w12.y;
-
-		result += tex.SampleLevel(linearSampler, float2(texPos12.x, texPos3.y), 0.0f).xyz * w12.x * w3.y;
-
-		return result;
-	}
 
 	// Breaks the image into tiles of dimesnion (N, dispatchDim.y)
 	// dispatchDim: same as DispatchThreads() arguments. Must be a power of 2.
@@ -184,28 +135,28 @@ namespace Math
 	namespace Transform
 	{
 		template<typename FVec>
-		FVec LinearDepthFromNDC(FVec zNDC, float near)
+		FVec LinearDepthFromNDC(FVec z_NDC, float near)
 		{
-			return select(zNDC == 0.0f, FLT_MAX, near / zNDC);
+			return select(z_NDC == 0.0f, FLT_MAX, near / z_NDC);
 		}
 		
 		float2 NDCFromUV(float2 uv)
 		{
-			float2 posNDC = uv * 2.0f - 1.0f;
-			posNDC.y = -posNDC.y;
+			float2 ndc = uv * 2.0f - 1.0f;
+			ndc.y = -ndc.y;
 	
-			return posNDC;
+			return ndc;
 		}
 
-		float2 UVFromNDC(float2 posNDC)
+		float2 UVFromNDC(float2 ndc)
 		{
-			return posNDC * float2(0.5, -0.5) + 0.5f;
+			return ndc * float2(0.5, -0.5) + 0.5f;
 		}
 
-		float2 ScreenSpaceFromNDC(float2 posNDC, float2 screenDim)
+		float2 ScreenSpaceFromNDC(float2 ndc, float2 screenDim)
 		{
 			// [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
-			float2 posSS = posNDC * float2(0.5f, -0.5f) + 0.5f;
+			float2 posSS = ndc * float2(0.5f, -0.5f) + 0.5f;
 			posSS *= screenDim;
 
 			return posSS;
@@ -219,38 +170,29 @@ namespace Math
 			return uv;
 		}
 
-		float3 WorldPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float3x4 viewInv, float2 projJitter = 0.0.xx)
+		float3 WorldPosFromUV(float2 uv, float2 screenDim, float z_view, float tanHalfFOV, float aspectRatio, 
+			float3x4 viewInv, float2 jitter = 0.0)
 		{
-			const float2 posNDC = NDCFromUV(uv) - projJitter;
-			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
-			const float yView = posNDC.y * tanHalfFOV;
-			float3 posW = float3(xView, yView, 1.0f) * linearDepth;
+			float2 posV = NDCFromUV(uv) + jitter / screenDim;
+			posV *= tanHalfFOV;
+			posV.x *= aspectRatio;
+			float3 posW = float3(posV, 1.0f) * z_view;
 			posW = mul(viewInv, float4(posW, 1.0f));
 	
 			return posW;
 		}
 
-		float3 WorldPosFromScreenSpace(float2 posSS, float2 screenDim, float linearDepth, float tanHalfFOV,
-			float aspectRatio, float3x4 viewInv, float2 projJitter = 0.0.xx)
+		float3 WorldPosFromScreenSpace(float2 posSS, float2 screenDim, float z_view, float tanHalfFOV,
+			float aspectRatio, float3x4 viewInv, float2 jitter = 0.0)
 		{
-			const float2 uv = (posSS + 0.5f) / screenDim;
-			const float2 posNDC = NDCFromUV(uv) - projJitter;
-			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
-			const float yView = posNDC.y * tanHalfFOV;
-			float3 posW = float3(xView, yView, 1.0f) * linearDepth;
+			float2 uv = (posSS + 0.5f + jitter) / screenDim;
+			float2 posV = NDCFromUV(uv);
+			posV *= tanHalfFOV;
+			posV.x *= aspectRatio;
+			float3 posW = float3(posV, 1.0f) * z_view;
 			posW = mul(viewInv, float4(posW, 1.0f));
 	
 			return posW;
-		}
-		
-		float3 ViewPosFromUV(float2 uv, float linearDepth, float tanHalfFOV, float aspectRatio, float2 projJitter)
-		{
-			const float2 posNDC = NDCFromUV(uv) - projJitter;
-			const float xView = posNDC.x * tanHalfFOV * aspectRatio;
-			const float yView = posNDC.y * tanHalfFOV;
-			float3 posV = float3(xView, yView, 1.0f) * linearDepth;
-	
-			return posV;
 		}
 		
 		float3 TangentSpaceToWorldSpace(float2 bumpNormal2, float3 tangentW, float3 normalW, float scale)
@@ -460,27 +402,21 @@ namespace Math
 
 		// Encodes unit float3 normal as float2 in [0, 1]
 		// reference: https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
-		float2 OctWrap(float2 v)
+		float2 SignNotZero(float2 v) 
 		{
-			//return (1.0f - abs(v.yx)) * (v.xy >= 0.0f ? 1.0f : -1.0f);
-			return (1.0f - abs(v.yx)) * select(v.xy >= 0.0f, 1.0f, -1.0f);
+			return float2((v.x >= 0.0) ? +1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
 		}
- 
+
 		float2 EncodeUnitVector(float3 n)
 		{
-			n /= (abs(n.x) + abs(n.y) + abs(n.z));
-			n.xy = n.z >= 0.0f ? n.xy : OctWrap(n.xy);
-			n.xy = n.xy * 0.5f + 0.5f;
-	
-			return n.xy;
+			float2 p = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
+			return (n.z <= 0.0) ? ((1.0 - abs(p.yx)) * SignNotZero(p)) : p;
 		}
- 
+
 		float3 DecodeUnitVector(float2 u)
 		{
-			float2 f = u * 2.0f - 1.0f;
- 
 		    // https://twitter.com/Stubbesaurus/status/937994790553227264
-			float3 n = float3(f.x, f.y, 1.0f - abs(f.x) - abs(f.y));
+			float3 n = float3(u.x, u.y, 1.0f - abs(u.x) - abs(u.y));
 			float t = saturate(-n.z);
 			//n.xy += n.xy >= 0.0f ? -t : t;
 			n.xy += select(n.xy >= 0.0f, -t, t);
@@ -488,22 +424,27 @@ namespace Math
 			return normalize(n);
 		}
 
-		int16_t2 EncodeAsSNORM2(float2 u)
+		int16_t2 EncodeAsSNorm2(float2 u)
 		{
 			return int16_t2(round(u * float((1 << 15) - 1)));
 		}
-		
-		float2 DecodeSNORM2(int16_t2 u)
+
+		int16_t3 EncodeAsSNorm3(float3 u)
+		{
+			return int16_t3(round(u * float((1 << 15) - 1)));
+		}
+
+		float2 DecodeSNorm2(int16_t2 u)
 		{
 			return u / float((1 << 15) - 1);
 		}
 
-		float3 DecodeSNORM3(int16_t3 u)
+		float3 DecodeSNorm3(int16_t3 u)
 		{
 			return u / float((1 << 15) - 1);
 		}
 
-		float4 DecodeSNORM4(int16_t4 u)
+		float4 DecodeSNorm4(int16_t4 u)
 		{
 			return u / float((1 << 15) - 1);
 		}

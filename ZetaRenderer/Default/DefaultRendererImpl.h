@@ -4,10 +4,13 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#include <Clear/Clear.h>
+#if RT_GBUFFER == 1
+#include <GBufferRT/GBufferRT.h>
+#else
+#include <GBuffer/Clear.h>
 #include <GBuffer/GBufferPass.h>
+#endif
 #include <SunShadow/SunShadow.h>
-#include <Sky/SkyDome.h>
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
 #include <AutoExposure/AutoExposure.h>
@@ -18,8 +21,6 @@
 #include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
 #include <DirectLighting/DirectLighting.h>
-
-#define RESTIR_GI 0
 
 // Note: with a functional-style API dependencies become more clear, which 
 // results in fewer data-race issues and simpler debugging
@@ -57,13 +58,13 @@ namespace ZetaRay::DefaultRenderer
 	{
 		enum GBUFFER
 		{
-			GBUFFER_BASE_COLOR,
-			GBUFFER_NORMAL,
-			GBUFFER_METALLIC_ROUGHNESS,
-			GBUFFER_MOTION_VECTOR,
-			GBUFFER_EMISSIVE_COLOR,
-			GBUFFER_CURVATURE,
-			GBUFFER_DEPTH,
+			BASE_COLOR,
+			NORMAL,
+			METALLIC_ROUGHNESS,
+			MOTION_VECTOR,
+			EMISSIVE_COLOR,
+			CURVATURE,
+			DEPTH,
 			COUNT
 		};
 
@@ -72,10 +73,10 @@ namespace ZetaRay::DefaultRenderer
 			DXGI_FORMAT_R8G8B8A8_UNORM,
 			DXGI_FORMAT_R16G16_SNORM,
 			DXGI_FORMAT_R8G8_UNORM,
-			DXGI_FORMAT_R16G16_FLOAT,
+			DXGI_FORMAT_R16G16_SNORM,
 			DXGI_FORMAT_R11G11B10_FLOAT,
 			DXGI_FORMAT_R16_FLOAT,
-			DXGI_FORMAT_D32_FLOAT
+			Core::Constants::DEPTH_BUFFER_FORMAT
 		};
 
 		// previous frame's gbuffers are required for denoising and ReSTIR
@@ -87,73 +88,34 @@ namespace ZetaRay::DefaultRenderer
 		Core::GpuMemory::Texture DepthBuffer[2];
 		Core::GpuMemory::Texture Curvature;
 
-		Core::DescriptorTable SRVDescTable[2];
+		Core::DescriptorTable SrvDescTable[2];
+
+#if RT_GBUFFER == 1
+		Core::DescriptorTable UavDescTable[2];
+#else
 		Core::DescriptorTable RTVDescTable[2];
 		Core::DescriptorTable DSVDescTable[2];
+#endif
 
-		RenderPass::GBufferPass GBuffPass;
-		Core::RenderNodeHandle GBuffPassHandle;
+#if RT_GBUFFER == 1
+		RenderPass::GBufferRT GBufferPass;
+#else
+		RenderPass::GBufferPass GBufferPass;
+#endif
+		Core::RenderNodeHandle GBufferPassHandle;
 
+#if RT_GBUFFER == 0
 		RenderPass::ClearPass ClearPass;
 		Core::RenderNodeHandle ClearHandle;
-	};
-
-	struct alignas(64) LightData
-	{
-		static const int SKY_LUT_WIDTH = 256;
-		static const int SKY_LUT_HEIGHT = 128;
-
-		enum class DESC_TABLE_CONST
-		{
-			ENV_MAP_SRV,
-			INSCATTERING_SRV,
-			COUNT
-		};
-
-		enum class DESC_TABLE_WND_SIZE_CONST
-		{
-			DENOISED_DIRECT_LIGHITNG,
-			COUNT
-		};
-
-		enum class DESC_TABLE_PER_FRAME
-		{
-			DENOISED_SHADOW_MASK,
-			COUNT
-		};
-
-		Core::DescriptorTable ConstDescTable;
-		Core::DescriptorTable WndConstDescTable;
-		Core::DescriptorTable PerFrameDescTable;
-
-		Core::DescriptorTable HdrLightAccumRTV;
-
-		// Render Passes
-		RenderPass::SunShadow SunShadowPass;
-		Core::RenderNodeHandle SunShadowHandle;
-
-		RenderPass::SkyDome SkyDomePass;
-		Core::RenderNodeHandle SkyDomeHandle;
-
-		RenderPass::Compositing CompositingPass;
-		Core::RenderNodeHandle CompositingHandle;
-
-		RenderPass::Sky SkyPass;
-		Core::RenderNodeHandle SkyHandle;
-
-		RenderPass::EmissiveTriangleLumen EmissiveTriLumen;
-		Core::RenderNodeHandle EmissiveTriLumenHandle;
-
-		RenderPass::EmissiveTriangleAliasTable EmissiveAliasTable;
-		Core::RenderNodeHandle EmissiveAliasTableHandle;
-
-		RenderPass::DirectLighting DirecLightingPass;
-		Core::RenderNodeHandle DirecLightingHandle;
+#endif
 	};
 
 	struct alignas(64) PostProcessData
 	{
 		// Render Passes
+		RenderPass::Compositing CompositingPass;
+		Core::RenderNodeHandle CompositingHandle;
+
 		RenderPass::TAA TaaPass;
 		Core::RenderNodeHandle TaaHandle;
 		RenderPass::FSR2Pass Fsr2Pass;
@@ -182,6 +144,9 @@ namespace ZetaRay::DefaultRenderer
 
 	struct alignas(64) RayTracerData
 	{
+		static constexpr int SKY_LUT_WIDTH = 256;
+		static constexpr int SKY_LUT_HEIGHT = 128;
+
 		// Scene BVH
 		RT::TLAS RtAS;
 
@@ -191,28 +156,41 @@ namespace ZetaRay::DefaultRenderer
 		// Render Passes
 		Core::RenderNodeHandle RtASBuildHandle;
 
+		RenderPass::SunShadow SunShadowPass;
+		Core::RenderNodeHandle SunShadowHandle;
+
 		RenderPass::SkyDI SkyDI_Pass;
 		Core::RenderNodeHandle SkyDI_Handle;
+
+		RenderPass::Sky SkyPass;
+		Core::RenderNodeHandle SkyHandle;
+
+		RenderPass::EmissiveTriangleLumen EmissiveTriLumen;
+		Core::RenderNodeHandle EmissiveTriLumenHandle;
+
+		RenderPass::EmissiveTriangleAliasTable EmissiveAliasTable;
+		Core::RenderNodeHandle EmissiveAliasTableHandle;
+
+		RenderPass::DirectLighting DirecLightingPass;
+		Core::RenderNodeHandle DirecLightingHandle;
 
 		// descriptor tables
 		enum class DESC_TABLE_WND_SIZE_CONST
 		{
-			SPECULAR_INDIRECT_DENOISED,
 			SKY_DI_DENOISED,
+			DIRECT_LIGHITNG_DENOISED,
+			SUN_SHADOW_DENOISED,
 			COUNT
 		};
 
-		enum class DESC_TABLE_PER_FRAME
+		enum class DESC_TABLE_CONST
 		{
-			DIFFUSE_TEMPORAL_RESERVOIR_A,
-			DIFFUSE_TEMPORAL_RESERVOIR_B,
-			DIFFUSE_SPATIAL_RESERVOIR_A,
-			DIFFUSE_SPATIAL_RESERVOIR_B,
-			DIFFUSE_INDIRECT_DENOISED,
+			ENV_MAP_SRV,
+			INSCATTERING_SRV,
 			COUNT
 		};
 
-		Core::DescriptorTable PerFrameDescTable;
+		Core::DescriptorTable ConstDescTable;
 		Core::DescriptorTable WndConstDescTable;
 	};
 
@@ -225,7 +203,6 @@ namespace ZetaRay::DefaultRenderer
 		RenderSettings m_settings;
 
 		GBufferData m_gbuffData;
-		LightData m_lightData;
 		PostProcessData m_postProcessorData;
 		RayTracerData m_raytracerData;
 
@@ -255,7 +232,7 @@ using Data = ZetaRay::DefaultRenderer::PrivateData;
 namespace ZetaRay::DefaultRenderer::Common
 {
 	void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::GpuMemory::DefaultHeapBuffer& frameConstsBuff,
-		const GBufferData& gbuffData, const LightData& lightData);
+		const GBufferData& gbuffData, const RayTracerData& rtData);
 }
 
 //--------------------------------------------------------------------------------------
@@ -271,26 +248,9 @@ namespace ZetaRay::DefaultRenderer::GBuffer
 
 	// Assigns meshes to GBufferRenderPass instances and prepares draw call arguments
 	void Update(GBufferData& gbuffData);
-	void Register(GBufferData& data, Core::RenderGraph& renderGraph);
-	void DeclareAdjacencies(GBufferData& data, const LightData& lightData, Core::RenderGraph& renderGraph);
-}
-
-//--------------------------------------------------------------------------------------
-// Light
-//--------------------------------------------------------------------------------------
-
-namespace ZetaRay::DefaultRenderer::Light
-{
-	void Init(const RenderSettings& settings, LightData& data);
-	void OnWindowSizeChanged(const RenderSettings& settings, LightData& data);
-	void Shutdown(LightData& data);
-
-	void Register(const RenderSettings& settings, LightData& data, const RayTracerData& rayTracerData,
+	void Register(GBufferData& data, const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
+	void DeclareAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
 		Core::RenderGraph& renderGraph);
-	void Update(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
-		const RayTracerData& rayTracerData);
-	void DeclareAdjacencies(const RenderSettings& settings, LightData& data, const GBufferData& gbuffData,
-		const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
 }
 
 //--------------------------------------------------------------------------------------
@@ -315,17 +275,17 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 
 namespace ZetaRay::DefaultRenderer::PostProcessor
 {
-	void Init(const RenderSettings& settings, PostProcessData& data, const LightData& lightData);
+	void Init(const RenderSettings& settings, PostProcessData& data);
 	void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
-		const LightData& lightData);
+		const RayTracerData& rtData);
 	void Shutdown(PostProcessData& data);
 
-	void UpdateWndDependentDescriptors(const RenderSettings& settings, PostProcessData& data, const LightData& lightData);
-	void UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data, const LightData& lightData);
+	void UpdateWndDependentDescriptors(const RenderSettings& settings, PostProcessData& data);
+	void UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data);
 	void UpdatePasses(const RenderSettings& settings, PostProcessData& data);
-	void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData, const LightData& lightData,
+	void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
 		const RayTracerData& rayTracerData);
 	void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph);
 	void DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
-		const LightData& lightData, const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
+		const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
 }

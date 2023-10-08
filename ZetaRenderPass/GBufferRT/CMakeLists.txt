@@ -1,0 +1,9 @@
+set(RP_GBUFFER_RT_DIR ${ZETA_RENDER_PASS_DIR}/GBufferRT)
+set(RP_GBUFFER_RT_SRC
+    ${RP_GBUFFER_RT_DIR}/GBufferRT.cpp
+    ${RP_GBUFFER_RT_DIR}/GBufferRT.h
+    ${RP_GBUFFER_RT_DIR}/GBufferRT_Common.h
+    ${RP_GBUFFER_RT_DIR}/GBufferRT.hlsl
+    ${RP_GBUFFER_RT_DIR}/GBufferRT_Inline.hlsl
+    ${RP_GBUFFER_RT_DIR}/GBufferRT.hlsli)
+set(RP_GBUFFER_RT_SRC ${RP_GBUFFER_RT_SRC} PARENT_SCOPE)

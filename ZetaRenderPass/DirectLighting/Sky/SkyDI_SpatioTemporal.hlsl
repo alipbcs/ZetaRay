@@ -47,22 +47,20 @@ RaytracingAccelerationStructure g_bvh : register(t0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-bool Visibility(float3 pos, float3 wi, float3 normal, float linearDepth)
+bool Visibility(float3 pos, float3 wi, float3 normal)
 {
 	if(wi.y < 0)
 		return false;
 
-	float tMin;
-	const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin);
+	const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
 	RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
-		RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
 		RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 		RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
 	RayDesc ray;
 	ray.Origin = adjustedOrigin;
-	ray.TMin = tMin;
+	ray.TMin = 0;
 	ray.TMax = FLT_MAX;
 	ray.Direction = wi;
 
@@ -83,7 +81,7 @@ float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::Sur
 	out float3 Lo)
 {
 #if TARGET_WITH_VISIBILITY
-	const bool vis = Visibility(pos, wi, normal, linearDepth);
+	const bool vis = Visibility(pos, wi, normal);
 	if (!vis)
 		return 0.0;
 #endif
@@ -203,7 +201,7 @@ struct PairwiseMIS
 
 #if TARGET_WITH_VISIBILITY == 1
 			if(Math::Color::LuminanceFromLinearRGB(currTarget) > 1e-5)
-				currTarget *= Visibility(posW_c, r_i.wi, normal_c, linearDepth_c);
+				currTarget *= Visibility(posW_c, r_i.wi, normal_c);
 #endif
 
 			const float targetLum = Math::Color::LuminanceFromLinearRGB(currTarget);
@@ -222,7 +220,7 @@ struct PairwiseMIS
 
 #if TARGET_WITH_VISIBILITY == 1
 			if(Math::Color::LuminanceFromLinearRGB(brdfCosTheta_i) > 1e-5)
-				brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i, linearDepth_c);
+				brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i);
 #endif
 
 			J_curr_to_temporal = JacobianReconnectionShift(posW_c, r_c.wi, posW_i);
@@ -382,15 +380,16 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 
 		// plane-based heuristic
 		float prevDepth = g_prevDepth[samplePosSS];
+#if RT_GBUFFER == 0
 		prevDepth = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
-
+#endif
 		float3 prevPos = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 			renderDim,
 			prevDepth,
 			g_frame.TanHalfFOV,
 			g_frame.AspectRatio,
 			g_frame.PrevViewInv,
-			g_frame.PrevProjectionJitter);
+			g_frame.PrevCameraJitter);
 
 		if(!PlaneHeuristic(prevPos, normal, posW, linearDepth))
 			continue;
@@ -428,7 +427,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 	return candidate;
 }
 
-void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, float linearDepth, bool metallic,
+void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, bool metallic,
 	BRDF::SurfaceInteraction surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
 	SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
@@ -455,7 +454,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, f
 			targetLumAtPrev = Math::Color::LuminanceFromLinearRGB(targetAtPrev);
 
 #if TARGET_WITH_VISIBILITY == 1
-			targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal, linearDepth);
+			targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal);
 #endif
 		}
 
@@ -476,7 +475,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, f
 		float targetLumAtCurr = Math::Color::LuminanceFromLinearRGB(currTarget);
 	
 #if TARGET_WITH_VISIBILITY == 1
-		targetLumAtCurr *= Visibility(posW, prev.wi, normal, linearDepth);
+		targetLumAtCurr *= Visibility(posW, prev.wi, normal);
 #endif
 		
 		// w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
@@ -563,7 +562,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.PrevViewInv,
-				g_frame.PrevProjectionJitter);
+				g_frame.PrevCameraJitter);
 			bool valid = PlaneHeuristic(posW_i, normal, posW, linearDepth);
 
 			const float2 mr_i = g_prevMetallicRoughness[posSS_i];
@@ -623,10 +622,10 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 nor
 			surface, rng);
 
 		if(candidate.valid)
-			TemporalResample(candidate, posW, normal, linearDepth, metallic, surface, r, rng);
+			TemporalResample(candidate, posW, normal, metallic, surface, r, rng);
 	}
 
-	float m_max = 2 + smoothstep(0, 0.6, roughness * roughness) * g_local.M_max;
+	float m_max = 1 + smoothstep(0, 0.6, roughness * roughness) * g_local.M_max;
 	
 	SkyDI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
 			g_local.CurrReservoir_B_DescHeapIdx, half(m_max));
@@ -668,11 +667,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[swizzledDTid];
 	
-	if(depth == 0)
-		return;
-		
-	// reconstruct position from depth buffer
+#if RT_GBUFFER == 1
+	const float linearDepth = depth;
+#else
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
+
+	if (linearDepth == FLT_MAX)
+		return;
+
+	// reconstruct position from depth buffer
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
@@ -680,12 +684,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
-	
+		g_frame.CurrCameraJitter);
+
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[swizzledDTid]);
-		
+
 	// roughness and metallic mask
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];

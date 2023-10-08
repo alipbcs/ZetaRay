@@ -37,6 +37,7 @@ namespace ZetaRay::Model::glTF::Asset
 		int MeshPrimIdx;
 		RT_MESH_MODE RtMeshMode;
 		uint8_t RtInstanceMask;
+		bool IsOpaque;
 	};
 
 	struct MaterialDesc

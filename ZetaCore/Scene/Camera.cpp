@@ -62,6 +62,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 {
 	m_posW = float4a(posw, 1.0f);
 	m_FOV = fov;
+	m_tanHalfFOV = tanf(0.5f * m_FOV);
 	m_nearZ = nearZ;
 	m_farZ = FLT_MAX;
 	m_aspectRatio = aspectRatio;
@@ -72,7 +73,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 	m_pixelSampleAreaHeight = 1.0f / App::GetRenderer().GetRenderHeight();
 
 	// "Ray Tracing Gems", ch. 20, eq. (30)
-	m_pixelSpreadAngle = atanf(2 * tanf(0.5f * m_FOV) / App::GetRenderer().GetRenderHeight());
+	m_pixelSpreadAngle = atanf(2 * m_tanHalfFOV / App::GetRenderer().GetRenderHeight());
 
 	v_float4x4 vView;
 
@@ -117,10 +118,10 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 		m_frictionCoeff, 1, 16, 1);
 	App::AddParam(coeff);
 
-	ParamVariant clampTo0;
-	clampTo0.InitBool("Scene", "Camera", "Clamp Small V0 To 0", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
-		m_clampSmallV0ToZero);
-	App::AddParam(clampTo0);
+	//ParamVariant clampTo0;
+	//clampTo0.InitBool("Scene", "Camera", "Clamp Small V0 To 0", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
+	//	m_clampSmallV0ToZero);
+	//App::AddParam(clampTo0);
 
 	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
 }
@@ -167,14 +168,16 @@ void Camera::Update(const Motion& m)
 		const uint64_t frame = App::GetTimer().GetTotalFrameCount();
 		//m_currJitter = k_halton[frame & 0x7];	// frame % 8
 		m_currJitter = k_halton[frame % m_jitterPhaseCount];	// frame % jitterPhaseCount
-		
+
+#if RT_GBUFFER == 0
 		// shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
 		// Jitter is relative to unit pixel offset -- [-0.5, -0.5] x [+0.5, +0.5]
 		// NDC is relative to [-1, -1] x [+1, +1], therfore multiply by 2
-		m_currProjOffset = m_currJitter * float2(m_pixelSampleAreaWidth, m_pixelSampleAreaHeight) * float2(2.0f, -2.0f);
+		float2 projOffset = m_currJitter * float2(m_pixelSampleAreaWidth, m_pixelSampleAreaHeight) * float2(2.0f, -2.0f);
 
-		m_proj.m[2].x = m_currProjOffset.x;
-		m_proj.m[2].y = m_currProjOffset.y;
+		m_proj.m[2].x = projOffset.x;
+		m_proj.m[2].y = projOffset.y;
+#endif
 	}
 }
 
@@ -197,7 +200,7 @@ void Camera::OnWindowSizeChanged()
 
 	UpdateProj();
 
-	m_pixelSpreadAngle = atanf(2 * tanf(0.5f * m_FOV) / renderfHeight);
+	m_pixelSpreadAngle = atanf(2 * m_tanHalfFOV / renderfHeight);
 
 	m_pixelSampleAreaWidth = 1.0f / renderWidth;
 	m_pixelSampleAreaHeight = 1.0f / renderfHeight;
@@ -271,6 +274,8 @@ void Camera::RotateY(float dt)
 void Camera::SetFOV(const ParamVariant& p)
 {
 	m_FOV = Math::DegreeToRadians(p.GetFloat().m_val);
+	m_tanHalfFOV = tanf(0.5f * m_FOV);
+
 	UpdateProj();
 }
 
@@ -282,7 +287,6 @@ void Camera::SetJitteringEnabled(const ParamVariant& p)
 	m_proj.m[2].y = 0.0f;
 
 	m_currJitter = float2(0.0f, 0.0f);
-	m_currProjOffset = float2(0.0f, 0.0f);
 }
 
 void Camera::SetFrictionCoeff(const Support::ParamVariant& p)

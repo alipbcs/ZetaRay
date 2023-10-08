@@ -961,6 +961,37 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
 	return DefaultHeapBuffer(name, r);
 }
 
+DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
+	bool isRtAs, bool allowUAV, bool initToZero)
+{
+	D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+
+	if (isRtAs)
+		f |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
+
+	const D3D12_HEAP_PROPERTIES heapDesc = Direct3DUtil::DefaultHeapProp();
+	const D3D12_RESOURCE_DESC1 bufferDesc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
+
+	D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
+	if (!initToZero)
+		heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
+
+	auto* device = App::GetRenderer().GetDevice();
+	ID3D12Resource* r;
+
+	CheckHR(device->CreateCommittedResource3(&heapDesc,
+		heapFlags,
+		&bufferDesc,
+		D3D12_BARRIER_LAYOUT_UNDEFINED,
+		nullptr,
+		nullptr,
+		0,
+		nullptr,
+		IID_PPV_ARGS(&r)));
+
+	return DefaultHeapBuffer(name, r);
+}
+
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, bool allowUAV, void* data, 
 	bool forceSeperateUploadBuffer)
 {

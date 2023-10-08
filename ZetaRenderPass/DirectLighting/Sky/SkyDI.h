@@ -93,7 +93,7 @@ namespace ZetaRay::RenderPass
 		struct DefaultParamVals
 		{
 			static constexpr float MinRoughnessToResample = 0.1f;
-			static constexpr int TemporalM_max = 15;
+			static constexpr int TemporalM_max = 14;
 			static constexpr int DNSRTspp_Diffuse = 16;
 			static constexpr int DNSRTspp_Specular = 16;
 		};

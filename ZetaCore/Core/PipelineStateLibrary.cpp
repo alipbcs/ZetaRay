@@ -66,13 +66,13 @@ void PipelineStateLibrary::Init(const char* name)
 		if (FAILED(hr))
 		{
 			if (hr == E_INVALIDARG)
-				LOG_UI(WARNING, "PSO cache %s is corrupted.\n", m_psoLibPath1.Get());
+				LOG_UI_INFO("PSO cache %s is corrupted.\n", m_psoLibPath1.Get());
 
 			if (hr == D3D12_ERROR_DRIVER_VERSION_MISMATCH)
-				LOG_UI(WARNING, "PSO cache %s has driver mismatch.\n", m_psoLibPath1.Get());
+				LOG_UI_INFO("PSO cache %s has driver mismatch.\n", m_psoLibPath1.Get());
 
 			if (hr == D3D12_ERROR_ADAPTER_NOT_FOUND)
-				LOG_UI(WARNING, "PSO cache %s was created using a different hardware than the one being used right now.\n", m_psoLibPath1.Get());
+				LOG_UI_INFO("PSO cache %s was created using a different hardware than the one being used right now.\n", m_psoLibPath1.Get());
 
 			Check(hr == E_INVALIDARG || hr == D3D12_ERROR_DRIVER_VERSION_MISMATCH || hr == D3D12_ERROR_ADAPTER_NOT_FOUND,
 				"CreatePipelineLibrary() failed with HRESULT %d", hr);

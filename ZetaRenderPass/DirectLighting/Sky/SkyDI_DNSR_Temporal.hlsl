@@ -56,15 +56,17 @@ float Reactivity(float roughness, float ndotwo, float parallax)
 
 float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
 {
+	float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+
 	float3 prevPos[4];
-	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], prevDepths.x, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
-	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], prevDepths.y, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
-	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], prevDepths.z, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
-	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], prevDepths.w, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
+	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, g_frame.TanHalfFOV, 
+		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
@@ -78,8 +80,8 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 
 float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
 {
-	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-		g_frame.PrevViewInv, g_frame.PrevProjectionJitter);
+	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+		prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 
 	float planeDist = dot(currNormal, prevPos - currPos);
 	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
@@ -93,10 +95,10 @@ float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float roughness)
 		dot(currNormal, prevNormals[1]),
 		dot(currNormal, prevNormals[2]),
 		dot(currNormal, prevNormals[3])));
-	
+
 	float normalExp = lerp(16, 64, 1 - roughness);
 	float4 weight = pow(cosTheta, normalExp);
-	
+
 	return weight;
 }
 
@@ -113,12 +115,12 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 	return w;
 }
 
-void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, float2 prevUV,
-	out float tspp, out float3 color)
+void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
+	float2 prevUV, out float tspp, out float3 color)
 {
 	color = 0.0.xxx;
 	tspp = 0;
-	
+
 	//	p0-----------p1
 	//	|-------------|
 	//	|--prev-------|
@@ -133,7 +135,9 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+#if RT_GBUFFER == 0
 	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
+#endif
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -241,7 +245,11 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	for (int i = 0; i < 5; i++)
 	{
 		prevDepths[i].x = g_prevDepth.SampleLevel(g_samLinearClamp, prevUVs[i], 0.0f);
+#if RT_GBUFFER == 1
+		prevDepths[i].y = prevDepths[i].x;
+#else
 		prevDepths[i].y = Math::Transform::LinearDepthFromNDC(prevDepths[i].x, g_frame.CameraNear);
+#endif
 	}
 
 	float weights[5];
@@ -354,15 +362,17 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 			
 	// geometry weight
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	float4 prevDepthsNDC = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	float4 prevLinearDepths = Math::Transform::LinearDepthFromNDC(prevDepthsNDC, g_frame.CameraNear);
+	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
+#if RT_GBUFFER == 0
+	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
+#endif
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
 	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
 	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
 	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
-	weights *= GeometryTest(prevLinearDepths, prevUVs, normal, posW, linearDepth);
+	weights *= GeometryTest(prevDepths, prevUVs, normal, posW, linearDepth);
 	
 	// normal weight
 	GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -440,11 +450,12 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 	
 	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
 	const float3 prevSurfacePosW = Math::Transform::WorldPosFromUV(prevSurfaceUV,
+		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		prevSurfaceLinearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.PrevViewInv, 
-		g_frame.PrevProjectionJitter);
+		g_frame.PrevCameraJitter);
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	const float ndotwo = saturate(dot(normal, wo));
@@ -475,8 +486,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_currDepth[DTid.xy];
 
+#if RT_GBUFFER == 1
+	const float linearDepth = depth;
+#else
+	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
+
 	// skip sky pixels
-	if (depth == 0.0)
+	if (linearDepth == FLT_MAX)
 		return;
 
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -499,14 +516,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
 
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 posW = Math::Transform::WorldPosFromUV(currUV,
+		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
 
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
 	const float2 motionVec = g_motionVector[DTid.xy];

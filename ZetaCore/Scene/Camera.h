@@ -45,9 +45,9 @@ namespace ZetaRay::Scene
 		float GetFOV() const { return m_FOV; }
 		float GetNearZ() const { return m_nearZ; }
 		float GetFarZ() const { return m_farZ; }
+		float GetTanHalfFOV() const { return m_tanHalfFOV; }
 		float GetPixelSpreadAngle() const { return m_pixelSpreadAngle; }
 		Math::float2 GetCurrJitter() const { return m_currJitter; }
-		Math::float2 GetProjOffset() const { return m_currProjOffset; }
 		Math::float3 GetBasisX() const { return Math::float3(m_basisX.x, m_basisX.y, m_basisX.z); }
 		Math::float3 GetBasisY() const { return Math::float3(m_basisY.x, m_basisY.y, m_basisY.z); }
 		Math::float3 GetBasisZ() const { return Math::float3(m_basisZ.x, m_basisZ.y, m_basisZ.z); }
@@ -99,15 +99,15 @@ namespace ZetaRay::Scene
 			Math::float2(-0.46875f, 0.09259259259259256f),
 			Math::float2(0.03125f, 0.4259259259259258f),
 			Math::float2(-0.21875f, -0.42592592592592593f)
-		};		
+		};
 		
 		float m_FOV;
 		float m_aspectRatio;
 		float m_nearZ;
 		float m_farZ;
+		float m_tanHalfFOV;
 		float m_pixelSpreadAngle;
-		Math::float2 m_currJitter;
-		Math::float2 m_currProjOffset;
+		Math::float2 m_currJitter = Math::float2(0);
 		float m_pixelSampleAreaWidth;
 		float m_pixelSampleAreaHeight;
 		int m_jitterPhaseCount;

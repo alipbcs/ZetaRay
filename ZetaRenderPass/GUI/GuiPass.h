@@ -20,7 +20,6 @@ namespace ZetaRay::RenderPass
 		enum SHADER_IN_CPU_DESC
 		{
 			RTV,
-			DEPTH_BUFFER,
 			COUNT
 		};
 

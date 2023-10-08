@@ -152,19 +152,21 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 				m_bvh.Update(toUpdateInstances);
 		});
 
-	auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
-		{
-			//m_frameInstances.clear();
-			m_frameInstances.free_memory();
-			m_frameInstances.reserve(m_IDtoTreePos.size());
+#if RT_GBUFFER == 0
+		auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
+			{
+				//m_frameInstances.clear();
+				m_frameInstances.free_memory();
+				m_frameInstances.reserve(m_IDtoTreePos.size());
 
-			const Camera& camera = App::GetCamera();
-			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
+				const Camera& camera = App::GetCamera();
+				m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
 
-			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
-		});
-
-	sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
+				App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
+			});
+		
+		sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
+#endif
 
 	const uint32_t numInstances = m_emissives.NumEmissiveInstances();
 	m_staleEmissives = false;
@@ -409,6 +411,8 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	{
 		m_numStaticInstances++;
 		m_staleStaticInstances = true;
+		m_numOpaqueInstances += instance.IsOpaque;
+		m_numNonOpaqueInstances += !instance.IsOpaque;
 	}
 	else
 		m_numDynamicInstances++;
@@ -427,7 +431,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	}
 	
 	const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
-		instance.RtMeshMode, instance.RtInstanceMask);
+		instance.RtMeshMode, instance.RtInstanceMask, instance.IsOpaque);
 
 	// update instance "dictionary"
 	{
@@ -462,7 +466,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 }
 
 int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
-	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask)
+	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque)
 {
 	while(treeLevel >= m_sceneGraph.size())
 		m_sceneGraph.emplace_back(m_memoryPool);
@@ -496,7 +500,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
 	rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
 	// set rebuild flag to true when there's new any instance
-	rearrange(currLevel.m_rtFlags, insertIdx, SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0));
+	rearrange(currLevel.m_rtFlags, insertIdx, SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0, isOpaque));
 	rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
 	// shift base offset of parent's right siblings to right by one
@@ -544,13 +548,15 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
-float4x3 SceneCore::GetPrevToWorld(uint64_t key)
+bool SceneCore::GetPrevToWorld(uint64_t key, float4x3& M_prev)
 {
 	const auto idx = BinarySearch(Span(m_prevToWorlds), key, [](const PrevToWorld& p) {return p.ID; });
-	if (idx != -1)
-		return m_prevToWorlds[idx].W;
+	if (idx == -1)
+		return false;
+		
+	M_prev = m_prevToWorlds[idx].W;
 
-	return float4x3(store(identity()));
+	return true;
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
@@ -643,18 +649,18 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 					Assert(f.MeshMode != RT_MESH_MODE::STATIC, "Transformation of static meshes can't change");
 					Assert(!f.RebuildFlag, "Rebuild & update flags can't be set at the same time.");
 
-					m_sceneGraph[level + 1].m_rtFlags[j] = SetRtFlags(f.MeshMode, f.InstanceMask, 0, 1);
+					m_sceneGraph[level + 1].m_rtFlags[j] = SetRtFlags(f.MeshMode, f.InstanceMask, 0, 1, f.IsOpaque);
 
-					auto* emissive = m_emissives.FindEmissive(ID);
+					auto* emissive = m_emissives.FindEmissive(ID).value();
 					if (emissive)
 						modifiedEmissives.push_back(*emissive);
 				}
 
+				m_sceneGraph[level + 1].m_toWorlds[j] = float4x3(store(newW));
+
 				m_prevToWorlds.emplace_back(PrevToWorld{ 
 					.W = m_sceneGraph[level + 1].m_toWorlds[j], 
 					.ID = m_sceneGraph[level + 1].m_IDs[j] });
-
-				m_sceneGraph[level + 1].m_toWorlds[j] = float4x3(store(newW));
 			}
 		}
 	}
@@ -806,7 +812,9 @@ void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances)
 			continue;
 		
 		// undo previous transformation
-		v_float4x4 vPrevW_inv = load4x3(GetPrevToWorld(e.InstanceID));
+		float4x3 PrevW_inv;
+		GetPrevToWorld(e.InstanceID, PrevW_inv);
+		v_float4x4 vPrevW_inv = load4x3(PrevW_inv);
 		vPrevW_inv = inverseSRT(vPrevW_inv);
 		// then apply the new transformation
 		const v_float4x4 vNewW = mul(vPrevW_inv, vCurrW);

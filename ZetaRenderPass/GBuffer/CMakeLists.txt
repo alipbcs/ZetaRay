@@ -1,5 +1,7 @@
 set(RP_GBUFFER_DIR ${ZETA_RENDER_PASS_DIR}/GBuffer)
 set(RP_GBUFFER_SRC
+    ${RP_GBUFFER_DIR}/Clear.cpp
+    ${RP_GBUFFER_DIR}/Clear.h
     ${RP_GBUFFER_DIR}/GBufferPass.cpp
     ${RP_GBUFFER_DIR}/GBufferPass.h
     ${RP_GBUFFER_DIR}/GBuffer_Common.h

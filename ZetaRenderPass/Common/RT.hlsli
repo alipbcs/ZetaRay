@@ -2,48 +2,28 @@
 #define RT_H
 
 #include "../../ZetaCore/RayTracing/RtCommon.h"
+#include "../Common/Math.hlsli"
 
 namespace RT
 {
-	// posTS is the texture space position ([0, 1] * [0, 1])
-	// basisX, basisY, basisZ are view-space basis vectors 
-	// projWindowZ is equal to 1 / tan(FOV / 2) == ProjectionMatrix[1][1]
-	float3 GeneratePinholeCameraRayWorldSpace(float2 posTS, float aspectRatio, float tanHalfFOV,
-		float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ)
+	// basis*: view-space basis vectors in world-space coordinates
+	float3 GeneratePinholeCameraRay(uint2 pixel, float2 renderDim, float aspectRatio, float tanHalfFOV,
+		float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ, float2 jitter = 0)
 	{
-		float2 posNDC = posTS * 2.0f - 1.0f;
-		posNDC.y *= -1.0f;
-		posNDC.x *= aspectRatio;
-	
-		float3 posV = float3(posNDC.x * tanHalfFOV, posNDC.y * tanHalfFOV, 1.0f);
-		float3 dirW = posV.x * viewBasisX + posV.y * viewBasisY + posV.z * viewBasisZ;
-	
-		return normalize(dirW);
-	}
+		float2 uv = (pixel + 0.5f + jitter) / renderDim;
+		float2 ndc = Math::Transform::NDCFromUV(uv);
+		ndc *= tanHalfFOV;
+		ndc.x *= aspectRatio;
 
-	// projWindowZ is equal to 1 / tan(FOV / 2) == ProjectionMatrix[1][1]
-	float3 GeneratePinholeCameraRayViewSpace(float2 posTS, float aspectRatio, float projWindowZ)
-	{
-		// Texture space [0, 1] -> NDC space [-1, 1]
-		float2 posNDC = posTS * 2.0 - 1.0f;
-	
-		// in Direct3D +y on screen goes down
-		posNDC.y = -posNDC.y;
-	
-		// projection window is at distance d(==1 / tand(FOV/2)) from camera with height 2 and 
-		// width 2 * aspectRatio. So for any point on the projection window:
-		// x is in [-aspectRatio, +aspectRatio]
-		// y is in [-1, 1]
-		// z = 1 / tand(FOV/2)
-		posNDC.x *= aspectRatio;
-		float3 posV = float3(posNDC, projWindowZ);
-	
-		return normalize(posV);
+		float3 dirV = float3(ndc, 1);
+		float3 dirW = dirV.x * viewBasisX + dirV.y * viewBasisY + dirV.z * viewBasisZ;
+
+		return normalize(dirW);
 	}
 
 	// Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
 	// Geometric Normal points outward for rays exiting the surface, else should be flipped.
-	float3 OffsetRayRTG(float3 pos, float3 geometricNormal, out float offset)
+	float3 OffsetRayRTG(float3 pos, float3 geometricNormal)
 	{
 		static const float origin = 1.0f / 32.0f;
 		static const float float_scale = 1.0f / 65536.0f;
@@ -61,34 +41,17 @@ namespace RT
 			abs(pos.y) < origin ? pos.y + float_scale * geometricNormal.y : p_i.y,
 			abs(pos.z) < origin ? pos.z + float_scale * geometricNormal.z : p_i.z);
 		
-		offset = length(adjusted - pos);
-		
 		return adjusted;
 	}
 
-	// Mitigates self-intersection. Not ideal, but seems to give decent results for now
-	float3 OffsetRay(float3 origin, float3 normal)
+	float3 OffsetRay2(float3 origin, float3 dir, float3 normal, float minNormalBias = 5e-6f, float maxNormalBias = 1e-4)
 	{
-		// necessary for when cos(normal, wi) ~ 0, e.g. sun is at the horizon
-		return origin + normal * 1e-4f;
+		const float maxBias = max(minNormalBias, maxNormalBias);
+		const float normalBias = lerp(maxBias, minNormalBias, saturate(dot(normal, dir)));
+
+		return origin + dir * normalBias;
 	}
 
-	float RayTMin(float linearDepth)
-	{
-		return lerp(1e-4, 4e-3, linearDepth / 30.0f);
-	}
-	
-	// Mitigates self-intersection. Not ideal, but gives ok results for now
-	float3 OffsetRay(float3 origin, float3 normal, float linearDepth, out float tMin, float normalOffset = 1e-4f)
-	{
-		// necessary for when cos(normal, wi) ~ 0, e.g. sun is at the horizon
-		const float3 adjustedOrigin = origin + normal * normalOffset;
-		// floating-point error and subsequently depth precision decreases farther from the camera
-		tMin = lerp(1e-4, 4e-3, linearDepth / 30.0f);
-
-		return adjustedOrigin;
-	}
-	
 	// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
 	// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
 	// Ray Tracing Gems 1, 2019.
@@ -104,22 +67,32 @@ namespace RT
 	//		5. goto 3	
 	struct RayCone
 	{
-		static RayCone InitFromGBuffer(float pixelSpreadAngle, float surfaceSpreadAngle, float t)
+		static RayCone Init(float pixelSpreadAngle)
 		{
 			RayCone r;
+
+			r.Width = 0;
+			r.SpreadAngle = half(pixelSpreadAngle);
 	
+			return r;
+		}
+
+		static RayCone InitFromPrimaryHit(float pixelSpreadAngle, float surfaceSpreadAngle, float t)
+		{
+			RayCone r;
+
 			r.Width = half(pixelSpreadAngle * t);
 			r.SpreadAngle = half(pixelSpreadAngle + surfaceSpreadAngle);
 	
 			return r;
 		}
-		
+
 		void Update(float t, float surfaceSpreadAngle)
 		{
-			this.Width += half(t * this.SpreadAngle);
-			this.SpreadAngle += half(surfaceSpreadAngle);
+			this.Width = half(this.Width + t * this.SpreadAngle);
+			this.SpreadAngle = half(this.SpreadAngle + surfaceSpreadAngle);
 		}
-	
+
 		float Lambda(float3 v0, float3 v1, float3 v2, float2 t0, float2 t1, float2 t2, float ndotwo)
 		{
 			float P_a = length(cross((v1 - v0), (v2 - v0)));
@@ -136,7 +109,7 @@ namespace RT
 			float mip = lambda * w * h;
 			return 0.5f * log2(mip);
 		}
-		
+
 		half Width;
 		half SpreadAngle;
 	};

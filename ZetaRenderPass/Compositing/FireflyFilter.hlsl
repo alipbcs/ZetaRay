@@ -21,11 +21,12 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal, float3 centerPos, float centerLinearDepth)
 {
 	float3 samplePos = Math::Transform::WorldPosFromUV(sampleUV,
+		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		sampleLinearDepth,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
 	
 	float planeDist = dot(centerNormal, samplePos - centerPos);
 	float weight = abs(planeDist) <= 0.01 * centerLinearDepth;
@@ -100,7 +101,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
+#if RT_GBUFFER == 1
+	const float linearDepth = depth;
+#else
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
 	
 	RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
 	float3 color = g_composited[DTid.xy].rgb;
@@ -117,7 +122,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);

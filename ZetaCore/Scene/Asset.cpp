@@ -330,11 +330,11 @@ void EmissiveBuffer::Clear()
 	//m_emissivesTrisCpu.free_memory();
 }
 
-Asset::EmissiveInstance* EmissiveBuffer::FindEmissive(uint64_t ID)
+Optional<Asset::EmissiveInstance*> EmissiveBuffer::FindEmissive(uint64_t ID)
 {
 	auto idx = BinarySearch(Span(m_emissivesInstances), ID, [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
 	if (idx != -1)
 		return &m_emissivesInstances[idx];
 
-	return nullptr;
+	return {};
 }

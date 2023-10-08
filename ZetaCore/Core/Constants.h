@@ -1,17 +1,22 @@
 #pragma once
 
 #include "Device.h"
+#include "Config.h"
 
 namespace ZetaRay::Core::Constants
 {
 	static constexpr int NUM_BACK_BUFFERS = 3;
 	static constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
+#if RT_GBUFFER == 1
+	static constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_R32_FLOAT;
+#else
 	static constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_D32_FLOAT;
+#endif
 
-	static constexpr int NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS = 8192;
+	static constexpr int NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS = 4096;
 	static constexpr int NUM_CBV_SRV_UAV_DESC_HEAP_CPU_DESCRIPTORS = 128;
 	static constexpr int NUM_RTV_DESC_HEAP_DESCRIPTORS = 32;
-	static constexpr int NUM_DSV_DESC_HEAP_DESCRIPTORS = 16;
+	static constexpr int NUM_DSV_DESC_HEAP_DESCRIPTORS = 8;
 	static constexpr int MAX_SWAPCHAIN_FRAME_LATENCY = 2;
 
 	static constexpr D3D12_RESOURCE_STATES VALID_BUFFER_STATES =

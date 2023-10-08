@@ -207,6 +207,7 @@ void SkyDI::OnWindowResized()
 {
 	CreateOutputs();
 	m_isTemporalReservoirValid = false;
+	m_currTemporalIdx = 0;
 }
 
 void SkyDI::Render(CommandList& cmdList)
@@ -578,7 +579,7 @@ void SkyDI::ReloadTemporalPass()
 {
 	const int i = (int)SHADERS::TEMPORAL_RESAMPLE;
 
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_SpatioTemporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_SpatioTemporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -586,7 +587,7 @@ void SkyDI::ReloadDNSRTemporal()
 {
 	const int i = (int)SHADERS::DNSR_TEMPORAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_DNSR_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_DNSR_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -594,6 +595,6 @@ void SkyDI::ReloadDNSRSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "Sky\\DirectLighting\\SkyDI_DNSR_Spatial.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_DNSR_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }

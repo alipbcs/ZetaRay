@@ -2,6 +2,7 @@
 
 #include "../Core/GpuMemory.h"
 #include "../Utility/SmallVector.h"
+#include "RtCommon.h"
 
 namespace ZetaRay::Core
 {
@@ -19,21 +20,19 @@ namespace ZetaRay::RT
 	{
 		void Rebuild(Core::ComputeCmdList& cmdList);
 		void DoCompaction(Core::ComputeCmdList& cmdList);
-		void CopyCompactionSize(Core::ComputeCmdList& cmdList);
 		void CompactionCompletedCallback();
 		void FillMeshTransformBufferForBuild();
 		void Clear();
 
-		// TODO release scratch & transform buffers in the next frame
-		Core::GpuMemory::DefaultHeapBuffer m_blasBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_compactedBlasBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
-		
-		Core::GpuMemory::DefaultHeapBuffer m_postBuildInfo;
+		Core::GpuMemory::DefaultHeapBuffer m_buffer;
+		Core::GpuMemory::DefaultHeapBuffer m_bufferCompacted;
+		Core::GpuMemory::DefaultHeapBuffer m_scratch;
+
+		uint32_t m_compactionInfoStartOffset;
 		Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
 
-		// each element containa a 3x4 affine transformation matrix
-		Core::GpuMemory::DefaultHeapBuffer m_perMeshTransformForBuild;
+		// 3x4 affine transformation matrix for each triangle mesh
+		Core::GpuMemory::DefaultHeapBuffer m_perMeshTransform;
 	};
 
 	struct DynamicBLAS
@@ -66,8 +65,9 @@ namespace ZetaRay::RT
 		void Render(Core::CommandList& cmdList);
 		void BuildFrameMeshInstanceData();
 		void BuildStaticBLASTransforms();
-		Core::GpuMemory::DefaultHeapBuffer& GetTLAS() { return m_tlasBuffer;  };
+		const Core::GpuMemory::DefaultHeapBuffer& GetTLAS() const { return m_tlasBuffer;  };
 		void Clear();
+		bool IsReady() const { return m_ready; };
 
 	private:
 		void RebuildTLAS(Core::ComputeCmdList& cmdList);
@@ -79,13 +79,13 @@ namespace ZetaRay::RT
 		Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
 		Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
-
-		// CmdList->BuildAS() updates in-place which means shaders from the previous frame
-		// might still be referencing the TLAS when RebuildTLAS is submitted
 		Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
 		Core::GpuMemory::DefaultHeapBuffer m_scratchBuff;
 		Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
 
+		Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
+
 		uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
+		bool m_ready = false;
 	};
 }

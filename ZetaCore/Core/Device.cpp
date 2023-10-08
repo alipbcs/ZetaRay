@@ -7,15 +7,9 @@ using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::App;
 
-// PIX crashes & NSight doesn't work when the debug layer is enabled
-#define ENABLE_DEBUG_LAYER
-
-// ID3D12Device::SetStablePowerState requires the system to be in developer mode, uncomment the following to enable
-//#define DEVELOPER_MODE_ENABLED
-
-void DeviceObjects::InitializeAdapter() noexcept
+void DeviceObjects::InitializeAdapter()
 {
-#if defined(_DEBUG) && defined(ENABLE_DEBUG_LAYER)
+#if defined(_DEBUG) && defined(DIREC3D_DEBUG_LAYER)
 	{
 		ComPtr<ID3D12Debug> debugController;
 		CheckHR(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
@@ -60,7 +54,7 @@ void DeviceObjects::CreateDevice()
 	CheckHR(device->QueryInterface(IID_PPV_ARGS(m_device.GetAddressOf())));
 	device->Release();
 
-#if defined(_DEBUG) && defined(ENABLE_DEBUG_LAYER)
+#if defined(_DEBUG) && defined(DIREC3D_DEBUG_LAYER)
 	ID3D12InfoQueue* infoQueue;
 	CheckHR(m_device->QueryInterface(&infoQueue));
 
@@ -85,11 +79,11 @@ void DeviceObjects::CreateDevice()
 
 	infoQueue->Release();
 
-#ifdef DEVELOPER_MODE_ENABLED
+#endif // _DEBUG
+	
+#ifdef STABLE_GPU_POWER_STATE
 	CheckHR(device->SetStablePowerState(true));
 #endif
-
-#endif // _DEBUG
 
 	// Hardware-accelerated RT
 	D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature;

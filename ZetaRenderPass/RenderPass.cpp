@@ -42,5 +42,7 @@ void RpObjects::Clear()
 		}
 
 		m_psoLib.ClearAndFlushToDisk();
+		uint32_t reftCount = m_rootSig.Reset();
+		Assert(reftCount == 0, "unexpected ref count.");
 	}
 }

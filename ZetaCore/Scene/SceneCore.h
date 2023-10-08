@@ -29,28 +29,32 @@ namespace ZetaRay::Scene
 	{
 		Model::RT_MESH_MODE MeshMode;
 		uint8_t InstanceMask;
+		bool IsOpaque;
 		bool RebuildFlag;
 		bool UpdateFlag;
 	};
+
+	// 7        6     5         4       3     2     1     0
+	//  meshmode    update    build   opaque     instance
+	ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update, bool isOpaque)
+	{
+		return ((uint8_t)m << 6) | instanceMask | (isOpaque << 3) | (rebuild << 4) | (update << 5);
+	}
+	ZetaInline RT_Flags GetRtFlags(uint8_t f)
+	{
+		return RT_Flags{
+			.MeshMode = (Model::RT_MESH_MODE)(f >> 6),
+			.InstanceMask = (uint8_t)(f & 0x7),
+			.IsOpaque = bool((f >> 3) & 0x1),
+			.RebuildFlag = bool((f >> 4) & 0x1),
+			.UpdateFlag = bool((f >> 5) & 0x1) };
+	}
 
 	struct RT_AS_Info
 	{
 		uint32_t GeometryIndex;
 		uint32_t InstanceID;
 	};
-
-	ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update)
-	{
-		return ((uint8_t)m << 6) | instanceMask | (rebuild << 4) | (update << 5);
-	}
-	ZetaInline RT_Flags GetRtFlags(uint8_t f)
-	{
-		return RT_Flags{
-			.MeshMode = (Model::RT_MESH_MODE)(f >> 6),
-			.InstanceMask = (uint8_t)(f & 0xf),
-			.RebuildFlag = bool((f >> 4) & 0x1),
-			.UpdateFlag = bool((f >> 5) & 0x1) };
-	}
 
 	class SceneCore
 	{
@@ -134,7 +138,7 @@ namespace ZetaRay::Scene
 		// Instance
 		//
 		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance);
-		Math::float4x3 GetPrevToWorld(uint64_t id);
+		bool GetPrevToWorld(uint64_t id, Math::float4x3& M_prev);
 		
 		//
 		// emissive
@@ -178,6 +182,8 @@ namespace ZetaRay::Scene
 		}
 
 		ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
+		ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
+		ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
 		ZetaInline Util::Span<Math::BVH::BVHInput> GetFrameInstances() { return m_frameInstances; }
 
 		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true);
@@ -210,7 +216,7 @@ namespace ZetaRay::Scene
 		ZetaInline TreePos* FindTreePosFromID(uint64_t id) { return m_IDtoTreePos.find(id); }
 
 		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
-			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask);
+			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
 
 		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
 		void RebuildBVH();
@@ -284,6 +290,8 @@ namespace ZetaRay::Scene
 
 		uint32_t m_numStaticInstances = 0;
 		uint32_t m_numDynamicInstances = 0;
+		uint32_t m_numOpaqueInstances = 0;
+		uint32_t m_numNonOpaqueInstances = 0;
 		bool m_staleEmissives = false;
 
 		// TODO this is managed by TLAS, is there a better way?

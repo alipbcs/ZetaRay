@@ -186,6 +186,9 @@ float4 mainPS(VSOut psin) : SV_Target
 	{
 		GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 		float z = g_depth.SampleLevel(g_samPointClamp, uv, 0);
+#if RT_GBUFFER == 1
+		z = g_frame.CameraNear / z;
+#endif
 		display = z.xxx;
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::NORMAL)
@@ -218,7 +221,8 @@ float4 mainPS(VSOut psin) : SV_Target
 			GBUFFER_OFFSET::EMISSIVE_COLOR];
 		GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 			GBUFFER_OFFSET::BASE_COLOR];
-		display =  g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.05 + g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb;
+		display = g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb + 
+			g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.01;
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::CURVATURE)
 	{

@@ -51,7 +51,7 @@ source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
 
 # build ZetaCore as a static library
 add_library(ZetaCore STATIC ${CORE_SRC} ${IMGUI_SRC} ${NATVIS_SRC})
-target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR} ${IMGUI_DIR})
+target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR} ${ZETA_CORE_DIR} ${IMGUI_DIR})
 set_target_properties(ZetaCore PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 # 

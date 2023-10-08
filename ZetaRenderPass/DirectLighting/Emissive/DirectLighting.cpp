@@ -591,7 +591,6 @@ void DirectLighting::Init()
 		1);											// step
 	App::AddParam(tsppSpecular);
 
-
 	ParamVariant dnsrSpatialFilterDiffuse;
 	dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
 		fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), m_cbDnsrSpatial.FilterDiffuse);
@@ -631,6 +630,7 @@ void DirectLighting::OnWindowResized()
 {
 	CreateOutputs();
 	m_isTemporalReservoirValid = false;
+	m_currTemporalIdx = 0;
 }
 
 void DirectLighting::Update()

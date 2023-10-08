@@ -32,8 +32,17 @@ namespace ZetaRay
 			uint32_t BaseIdxOffset;
 			snorm4_ Rotation;
 			half3_ Scale;
-			uint16_t MatID;
+			uint16_t MatIdx;
 			uint32_t BaseEmissiveTriOffset;
+
+			float3_ Translation;
+			snorm4_ PrevRotation;
+			half3_ PrevScale;
+			half3_ dTranslation;
+
+			// inline alpha stuff to avoid loading material data in anyhit shaders
+			uint16_t BaseColorTex;
+			uint16_t AlphaFactor_Cuttoff;
 		};
 
 		struct EmissiveTriangle

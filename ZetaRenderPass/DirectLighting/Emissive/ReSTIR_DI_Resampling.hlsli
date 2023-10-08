@@ -125,25 +125,21 @@ namespace RDI_Util
 		bool metallic;
 	};
 
-	bool Visibility(RaytracingAccelerationStructure g_sceneBVH, float3 pos, float3 wi, float rayT,
-		float3 normal, float linearDepth, uint triID)
+	bool Visibility(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
+		float3 normal, uint triID)
 	{
-		// HACK use a larger offset to avoid intersection with decals
-		float tMin;
-		const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin, 6e-3f);
+		const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
-		RayQuery<RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
-			RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
-			RAY_FLAG_FORCE_OPAQUE> rayQuery;
-	
+		RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> rayQuery;
+
 		RayDesc ray;
 		ray.Origin = adjustedOrigin;
-		ray.TMin = tMin;
+		ray.TMin = 0;
 		ray.TMax = rayT;
 		ray.Direction = wi;
 
 		// Initialize
-		rayQuery.TraceRayInline(g_sceneBVH, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
+		rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
 
 		// Traversal
 		rayQuery.Proceed();
@@ -160,13 +156,12 @@ namespace RDI_Util
 		return true;
 	}
 
-	bool VisibilityApproximate(RaytracingAccelerationStructure g_sceneBVH, float3 pos, float3 wi, float rayT,
-		float3 normal, float linearDepth, uint triID)
+	bool VisibilityApproximate(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
+		float3 normal, uint triID)
 	{
 		// HACK use a larger offset to avoid intersection with decals
-		float q = wi.y < 0 ? 1e-4f : 1e-2f;
-		float tMin;
-		const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin, q);
+		//const float3 adjustedOrigin = RT::OffsetRay2(pos, wi, normal, 1e-6);
+		const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
 		// To test for occlusion against some light source at distance t_l we need to check if 
 		// the ray hits any geometry for which t_hit < t_l. According to dxr specs, for any committed triangle 
@@ -176,19 +171,18 @@ namespace RDI_Util
 		// could be the light source itself -- t_hit ~= t_ray. In this scenario, occlusion is inconclusive 
 		// as there may or may not be other occluders along the ray with t < t_hit. As an approximation, 
 		// the following decreases t_l by a small amount to avoid the situation described above.
-		RayQuery<RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
-			RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
+		RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH| 
 			RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
 		RayDesc ray;
 		ray.Origin = adjustedOrigin;
-		ray.TMin = tMin;
+		ray.TMin = 0;
 		ray.TMax = 0.995f * rayT;
 		ray.Direction = wi;
 
 		// Initialize
-		rayQuery.TraceRayInline(g_sceneBVH, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
+		rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
 
 		// Traversal
 		rayQuery.Proceed();
@@ -280,7 +274,7 @@ namespace RDI_Util
 
 #if TARGET_WITH_VISIBILITY == 1
 				if(Math::Color::LuminanceFromLinearRGB(currTarget) > 1e-5)
-					currTarget *= VisibilityApproximate(g_bvh, posW_c, emissive_i.wi, emissive_i.t, normal_c, linearDepth_c, emissive_i.ID);
+					currTarget *= VisibilityApproximate(g_bvh, posW_c, emissive_i.wi, emissive_i.t, normal_c, emissive_i.ID);
 #endif
 
 				const float targetLum = Math::Color::LuminanceFromLinearRGB(currTarget);
@@ -301,7 +295,7 @@ namespace RDI_Util
 
 #if TARGET_WITH_VISIBILITY == 1
 				if(Math::Color::LuminanceFromLinearRGB(brdfCosTheta_i) > 1e-5)
-					brdfCosTheta_i *= VisibilityApproximate(g_bvh, posW_i, wi_i, t_i, normal_i, linearDepth_c, target_c.lightID);
+					brdfCosTheta_i *= VisibilityApproximate(g_bvh, posW_i, wi_i, t_i, normal_i, target_c.lightID);
 #endif
 			}
 
@@ -398,23 +392,22 @@ namespace RDI_Util
 		return ret;
 	}
 
-	bool FindClosestHit(float3 pos, float3 normal, float3 wi, float linearDepth, 
-		RaytracingAccelerationStructure g_sceneBVH, StructuredBuffer<RT::MeshInstance> g_frameMeshData,
+	bool FindClosestHit(float3 pos, float3 normal, float3 wi, float linearDepth,
+		RaytracingAccelerationStructure g_bvh, StructuredBuffer<RT::MeshInstance> g_frameMeshData,
 		out BrdfHitInfo hitInfo)
 	{
-		float tMin;
-		const float3 adjustedOrigin = RT::OffsetRay(pos, normal, linearDepth, tMin);
+		const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
-		RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
+		RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
 		RayDesc ray;
 		ray.Origin = adjustedOrigin;
-		ray.TMin = tMin;
+		ray.TMin = 0;
 		ray.TMax = FLT_MAX;
 		ray.Direction = wi;
 
 		// Initialize
-		rayQuery.TraceRayInline(g_sceneBVH, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
+		rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
 
 		// Traversal
 		rayQuery.Proceed();
@@ -496,15 +489,16 @@ namespace RDI_Util
 
 			// plane-based heuristic
 			float prevDepth = g_prevDepth[samplePosSS];
+#if RT_GBUFFER == 0
 			prevDepth = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
-
+#endif
 			const float3 prevPos = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				prevDepth,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.PrevViewInv,
-				g_frame.PrevProjectionJitter);
+				g_frame.PrevCameraJitter);
 
 			if(!RDI_Util::PlaneHeuristic(prevPos, normal, posW, linearDepth))
 				continue;
@@ -569,9 +563,9 @@ namespace RDI_Util
 		float targetLumAtPrev = Math::Color::LuminanceFromLinearRGB(targetAtPrev);
 
 		// should use previous frame's bvh
-#if TARGET_WITH_VISIBILITY == 1
-		targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPosW, wi, t, prevNormal, prevLinearDepth, lightID);
-#endif
+	#if TARGET_WITH_VISIBILITY == 1
+		targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPosW, wi, t, prevNormal, lightID);
+	#endif
 
 		return targetLumAtPrev;
 	}
@@ -586,7 +580,7 @@ namespace RDI_Util
 		float3 target = le * BRDF::SurfaceBRDF(surface) * dwdA;
 	
 #if TARGET_WITH_VISIBILITY == 1
-		target *= VisibilityApproximate(g_bvh, posW, prevEmissive.wi, prevEmissive.t, normal, linearDepth, prevEmissive.ID);
+		target *= VisibilityApproximate(g_bvh, posW, prevEmissive.wi, prevEmissive.t, normal, prevEmissive.ID);
 #endif
 
 		return target;
@@ -712,17 +706,21 @@ namespace RDI_Util
 			if (Math::IsWithinBounds(posSS_i, renderDim))
 			{
 				const float depth_i = g_prevDepth[posSS_i];
-				if (depth_i == 0.0)
+#if RT_GBUFFER == 1
+				const float linearDepth_i = depth_i;
+#else
+				const float linearDepth_i = Math::Transform::LinearDepthFromNDC(depth_i, g_frame.CameraNear);
+#endif
+				if (depth_i == FLT_MAX)
 					continue;
 
-				const float linearDepth_i = Math::Transform::LinearDepthFromNDC(depth_i, g_frame.CameraNear);
 				float3 posW_i = Math::Transform::WorldPosFromScreenSpace(posSS_i,
 					renderDim,
 					linearDepth_i,
 					g_frame.TanHalfFOV,
 					g_frame.AspectRatio,
 					g_frame.PrevViewInv,
-					g_frame.PrevProjectionJitter);
+					g_frame.PrevCameraJitter);
 				bool valid = PlaneHeuristic(posW_i, normal, posW, linearDepth);
 
 				const float2 mr_i = g_prevMetallicRoughness[posSS_i];

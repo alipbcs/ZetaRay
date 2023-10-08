@@ -1,7 +1,6 @@
 set(DEFAULT_RENDERER_DIR "${ZETA_RENDERER_DIR}/Default")
 set(DEFAULT_RENDERER_SRC
     "${DEFAULT_RENDERER_DIR}/GBuffer.cpp"
-    "${DEFAULT_RENDERER_DIR}/Light.cpp"
     "${DEFAULT_RENDERER_DIR}/PostProcessor.cpp"
     "${DEFAULT_RENDERER_DIR}/RayTracer.cpp"
     "${DEFAULT_RENDERER_DIR}/DefaultRenderer.cpp"

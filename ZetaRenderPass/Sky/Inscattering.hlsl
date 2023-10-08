@@ -11,7 +11,7 @@
 
 ConstantBuffer<cbSky> g_local : register(b0, space0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1, space0);
-RaytracingAccelerationStructure g_sceneBVH : register(t0, space0);
+RaytracingAccelerationStructure g_bvh : register(t0, space0);
 
 //--------------------------------------------------------------------------------------
 // Globals
@@ -55,7 +55,7 @@ float EvaluateVisibility(float3 pos, float3 wi)
 	ray.Direction = wi;
 	
 	// initialize
-	rayQuery.TraceRayInline(g_sceneBVH, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
+	rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
 	
 	// traversal
 	rayQuery.Proceed();

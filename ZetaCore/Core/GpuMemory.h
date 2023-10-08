@@ -202,7 +202,9 @@ namespace ZetaRay::Core::GpuMemory
 	ReadbackHeapBuffer GetReadbackHeapBuffer(uint32_t sizeInBytes);
 
 	DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
-		D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero = false);
+		D3D12_RESOURCE_STATES initialState, bool allowUAV, bool initToZero = false);
+	DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
+		bool isRtAs, bool allowUAV, bool initToZero = false);
 	DefaultHeapBuffer GetDefaultHeapBufferAndInit(const char* name,
 		uint32_t sizeInBytes,
 		bool allowUAV, 

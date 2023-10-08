@@ -51,12 +51,12 @@ PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness
 	float2 motionVec, float localCurvature)
 {
 	PS_OUT psout;
-	
+
 	psout.BaseColor = baseColor;
 	psout.Normal.xy = Math::Encoding::EncodeUnitVector(sn);
-	psout.MotionVec = motionVec;	
+	psout.MotionVec = clamp(motionVec, -1, 1);
 	psout.MetallicRoughness = float2(metalness, roughness);
-	psout.Emissive = emissive;
+	psout.Emissive = max(0, emissive);
 	psout.Curvature = localCurvature;
 	
 	return psout;
@@ -85,8 +85,8 @@ VSOut mainVS(uint vtxID : SV_VertexID)
 	// (W^T)^-1 = (g_instance.CurrWorld)^-1
 	float3x3 worldInvT = Math::Inverse(((float3x3) mesh.CurrWorld));
 	
-	float3 n = Math::Encoding::DecodeSNORM3(vtx.NormalL);
-	float3 t = Math::Encoding::DecodeSNORM3(vtx.TangentU);
+	float3 n = Math::Encoding::DecodeSNorm3(vtx.NormalL);
+	float3 t = Math::Encoding::DecodeSNorm3(vtx.TangentU);
 	
 	vsout.PosSS = posH;
 	vsout.PosH = posH.xyw;
@@ -166,39 +166,36 @@ PS_OUT mainPS(VSOut psin)
 
 	uint16_t emissiveTex = mat.GetEmissiveTex();
 	float emissiveStrength = mat.GetEmissiveStrength();
-	
+
 	if (emissiveTex != -1)
 	{
 		EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[g_frame.EmissiveMapsDescHeapOffset + emissiveTex];
 		emissiveColorNormalScale.rgb *= g_emissiveMap.SampleBias(g_samAnisotropicWrap, psin.TexUV, g_frame.MipBias).xyz;
 	}
-	
+
 	emissiveColorNormalScale.rgb *= emissiveStrength;
-	
-	// undo camera jitter. since the jitter was applied relative to NDC space, NDC pos must be used
-	float2 prevUnjitteredPosNDC = psin.PosHPrev.xy / psin.PosHPrev.z;
-	prevUnjitteredPosNDC -= g_frame.PrevProjectionJitter;
 
-	float2 currUnjitteredPosNDC = psin.PosH.xy / psin.PosH.z;
-	currUnjitteredPosNDC -= g_frame.CurrProjectionJitter;
-
-	// NDC to texture space position: [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
-	float2 prevPosTS = Math::Transform::UVFromNDC(prevUnjitteredPosNDC);
-	float2 currPosTS = Math::Transform::UVFromNDC(currUnjitteredPosNDC);
-	float2 motionVecTS = currPosTS - prevPosTS;
+	float2 prevPosNDC = psin.PosHPrev.xy / psin.PosHPrev.z;
+	float2 currPosNDC = psin.PosH.xy / psin.PosH.z;
+	float2 prevUV = Math::Transform::UVFromNDC(prevPosNDC);
+	float2 currUV = Math::Transform::UVFromNDC(currPosNDC);
+	// undo camera jitter
+	prevUV -= g_frame.PrevCameraJitter / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	currUV -= g_frame.CurrCameraJitter / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	float2 motionVec = currUV - prevUV;
 	
-	float3 posV = float3(currUnjitteredPosNDC, psin.PosH.z);
+	float3 posV = float3(currPosNDC, psin.PosH.z);
 	posV.x *= g_frame.TanHalfFOV * g_frame.AspectRatio * psin.PosH.z;
 	posV.y *= g_frame.TanHalfFOV * psin.PosH.z;
 	float3 posW = mul(g_frame.CurrViewInv, float4(posV, 1.0f));
-	
+
 	// eq. (31) in Ray Tracing Gems 1, ch. 20
 	float3 dNdX = ddx(shadingNormal);
 	float3 dNdY = ddy(shadingNormal);
 	float phi = length(dNdX + dNdY);
 	float s = sign(dot(ddx(posW), dNdX) + dot(ddy(posW), dNdY));
 	float k = 2.0f * phi * s;
-	
+
 //	float3 T = ddx(psin.PosW);
 //	float3 B = ddy(psin.PosW);
 //	float3 geometricNormal = normalize(cross(T, B));
@@ -218,7 +215,7 @@ PS_OUT mainPS(VSOut psin)
 							shadingNormal,
 							metalnessAlphaCuttoff.x,
 							roughness,
-	                        motionVecTS, 
+	                        motionVec, 
 							k);
 
 	return psout;
