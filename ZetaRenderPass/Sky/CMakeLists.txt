@@ -9,6 +9,4 @@ set(RP_SKY_SRC
     ${RP_SKY_DIR}/SkyDome.hlsl
     ${RP_SKY_DIR}/Sky_Common.h)
 
-add_subdirectory(DirectLighting)
-
-set(RP_SKY_SRC ${RP_SKY_SRC} ${RP_SKY_DI_SRC} PARENT_SCOPE)
+set(RP_SKY_SRC ${RP_SKY_SRC} PARENT_SCOPE)

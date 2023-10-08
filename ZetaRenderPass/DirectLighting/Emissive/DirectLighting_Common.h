@@ -1,8 +1,8 @@
 #ifndef DIRECT_LIGHTING_COMMON_H
 #define DIRECT_LIGHTING_COMMON_H
 
-#include "../../ZetaCore/Core/HLSLCompat.h"
-#include "../../ZetaCore/RayTracing/RtCommon.h"
+#include "../../../ZetaCore/Core/HLSLCompat.h"
+#include "../../../ZetaCore/RayTracing/RtCommon.h"
 
 #define ESTIMATE_TRI_LUMEN_GROUP_DIM_X 256u
 #define ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI 64

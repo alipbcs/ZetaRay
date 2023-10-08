@@ -21,7 +21,7 @@ set(RENDERPASS_SRC
     ${RP_CLEAR_SRC} 
     ${RP_COMMON_SRC} 
     ${RP_COMPOSITING_SRC} 
-    ${RP_DL_SRC} 
+    ${RP_DI_SRC} 
     ${RP_DISPLAY_SRC} 
     ${RP_FSR2_SRC} 
     ${RP_GBUFFER_SRC} 

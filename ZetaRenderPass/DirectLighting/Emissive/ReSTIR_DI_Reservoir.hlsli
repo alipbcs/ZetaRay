@@ -2,7 +2,7 @@
 #define RESTIR_DI_RESERVOIR_H
 
 #include "DirectLighting_Common.h"
-#include "../Common/Sampling.hlsli"
+#include "../../Common/Sampling.hlsli"
 
 #define KAHAN_SUMMATION 0
 

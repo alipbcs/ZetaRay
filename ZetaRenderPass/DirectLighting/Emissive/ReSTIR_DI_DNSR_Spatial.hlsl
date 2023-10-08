@@ -1,9 +1,9 @@
 #include "DirectLighting_Common.h"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/BRDF.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/Common.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define NUM_SAMPLES 8

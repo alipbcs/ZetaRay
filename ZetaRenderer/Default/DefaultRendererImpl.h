@@ -4,7 +4,6 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#include <Sky/DirectLighting/SkyDI.h>
 #include <Clear/Clear.h>
 #include <GBuffer/GBufferPass.h>
 #include <SunShadow/SunShadow.h>

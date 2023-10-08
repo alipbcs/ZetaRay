@@ -1,9 +1,9 @@
 #include "DirectLighting_Common.h"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/BRDF.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/Common.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/Common.hlsli"
 
 #define DISOCCLUSION_TEST_RELATIVE_DELTA 0.005f
 #define VIEW_ANGLE_EXP 0.5f

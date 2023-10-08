@@ -1,8 +1,8 @@
 #include "ReSTIR_DI.hlsli"
 #include "ReSTIR_DI_Resampling.hlsli"
-#include "../Common/Common.hlsli"
-#include "../Common/BRDF.hlsli"
-#include "../../ZetaCore/Core/Material.h"
+#include "../../Common/Common.hlsli"
+#include "../../Common/BRDF.hlsli"
+#include "../../../ZetaCore/Core/Material.h"
 
 #define THREAD_GROUP_SWIZZLING 1
 

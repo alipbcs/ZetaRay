@@ -1082,8 +1082,8 @@ void DirectLighting::ReloadSpatioTemporal()
 		(int)SHADERS::SPATIO_TEMPORAL;
 
 	s_rpObjs.m_psoLib.Reload(i, presampling ?
-		"DirectLighting\\ReSTIR_DI_SpatioTemporal_LP.hlsl" :
-		"DirectLighting\\ReSTIR_DI_SpatioTemporal.hlsl",
+		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_LP.hlsl" :
+		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl",
 		true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
@@ -1092,7 +1092,7 @@ void DirectLighting::ReloadDnsrTemporal()
 {
 	const int i = (int)SHADERS::DNSR_TEMPORAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\ReSTIR_DI_DNSR_Temporal.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 
@@ -1100,7 +1100,7 @@ void DirectLighting::ReloadDnsrSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
+	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
 	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
 }
 

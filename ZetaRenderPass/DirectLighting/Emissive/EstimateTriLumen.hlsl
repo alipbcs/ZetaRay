@@ -1,11 +1,11 @@
 #include "DirectLighting_Common.h"
-#include "../Common/Common.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/Sampling.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/RT.hlsli"
-#include "../../ZetaCore/Core/Material.h"
+#include "../../Common/Common.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/Sampling.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/RT.hlsli"
+#include "../../../ZetaCore/Core/Material.h"
 
 #define NUM_SAMPLES_PER_LANE (ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI / ESTIMATE_TRI_LUMEN_WAVE_LEN)
 

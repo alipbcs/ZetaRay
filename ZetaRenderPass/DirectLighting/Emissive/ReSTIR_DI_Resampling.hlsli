@@ -4,12 +4,12 @@
 #include "DirectLighting_Common.h"
 #include "ReSTIR_DI_Reservoir.hlsli"
 #include "ReSTIR_DI.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/Sampling.hlsli"
-#include "../Common/BRDF.hlsli"
-#include "../Common/RT.hlsli"
-#include "../Common/GBuffers.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
+#include "../../Common/FrameConstants.h"
+#include "../../Common/Sampling.hlsli"
+#include "../../Common/BRDF.hlsli"
+#include "../../Common/RT.hlsli"
+#include "../../Common/GBuffers.hlsli"
+#include "../../Common/StaticTextureSamplers.hlsli"
 
 namespace RDI_Util
 {

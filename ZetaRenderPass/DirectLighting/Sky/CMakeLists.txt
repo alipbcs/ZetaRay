@@ -1,4 +1,4 @@
-set(RP_SKY_DI_DIR ${ZETA_RENDER_PASS_DIR}/Sky/DirectLighting)
+set(RP_SKY_DI_DIR ${ZETA_RENDER_PASS_DIR}/DirectLighting/Sky)
 set(RP_SKY_DI_SRC
 	${RP_SKY_DI_DIR}/SkyDI.cpp
     ${RP_SKY_DI_DIR}/SkyDI.h

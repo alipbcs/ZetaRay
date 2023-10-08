@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../RenderPass.h"
+#include "../../RenderPass.h"
 #include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
