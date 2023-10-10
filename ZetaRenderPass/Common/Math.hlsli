@@ -428,19 +428,18 @@ namespace Math
 			return q;
 		}
 
-		// Rotate u using rotation quaternion q by computing q * u * q* where
-		//		* is quaternion multiplication
-		//		q* is the conjugate of q
-		// Ref: https://gamedev.stackexchange.com/questions/28395/rotating-vector3-by-a-quaternion
-		float3 RotateVector(float3 u, float4 q)
+		// Rotate v using unit quaternion rotation q by computing q * u * q* where
+		//		* denotes quaternion multiplication
+		//		q* denotes the conjugate of q
+		// Ref: https://fgiesen.wordpress.com/2019/02/09/rotating-a-single-vector-using-a-quaternion/
+		float3 RotateVector(float3 v, float4 q)
 		{
 			float3 imaginary = q.xyz;
 			float real = q.w;
 	
-			float3 rotated = 2.0f * dot(imaginary, u) * imaginary +
-					(real * real - dot(imaginary, imaginary)) * u +
-					2.0f * real * cross(imaginary, u);
-
+			float3 t = cross(2 * imaginary, v);
+			float3 rotated = v + real * t + cross(imaginary, t);
+			
 			return rotated;
 		}
 	}
