@@ -373,10 +373,10 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 	
 	float3 prevNormals[4];
-	prevNormals[0] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = Math::Encoding::DecodeUnitNormal(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
@@ -497,7 +497,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	float3 Li_d = float3(g_colorA[DTid.xy].a, g_colorB[DTid.xy].rg);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
+	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
 
 	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
 	const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);

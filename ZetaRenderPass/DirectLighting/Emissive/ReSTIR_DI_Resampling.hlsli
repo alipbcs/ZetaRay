@@ -135,7 +135,7 @@ namespace RDI_Util
 		RayQuery<RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
 			RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
 			RAY_FLAG_FORCE_OPAQUE> rayQuery;
-
+	
 		RayDesc ray;
 		ray.Origin = adjustedOrigin;
 		ray.TMin = tMin;
@@ -521,7 +521,7 @@ namespace RDI_Util
 
 			// normal heuristic
 			const float2 prevNormalEncoded = g_prevNormal[samplePosSS];
-			const float3 prevNormal = Math::Encoding::DecodeUnitNormal(prevNormalEncoded);
+			const float3 prevNormal = Math::Encoding::DecodeUnitVector(prevNormalEncoded);
 			const float normalSimilarity = dot(prevNormal, normal);
 			
 			// roughness heuristic
@@ -753,7 +753,7 @@ namespace RDI_Util
 
 		for (int i = 0; i < k; i++)
 		{
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_prevNormal[samplePosSS[i]]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
 			const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
 			const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);

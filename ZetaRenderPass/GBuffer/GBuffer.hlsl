@@ -53,7 +53,7 @@ PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness
 	PS_OUT psout;
 	
 	psout.BaseColor = baseColor;
-	psout.Normal.xy = Math::Encoding::EncodeUnitNormal(sn);
+	psout.Normal.xy = Math::Encoding::EncodeUnitVector(sn);
 	psout.MotionVec = motionVec;	
 	psout.MetallicRoughness = float2(metalness, roughness);
 	psout.Emissive = emissive;
@@ -78,21 +78,24 @@ VSOut mainVS(uint vtxID : SV_VertexID)
 
 	float4 prevPosH = float4(mul(mesh.PrevWorld, float4(vtx.PosL, 1.0f)), 1.0f);
 	prevPosH = mul(g_frame.PrevViewProj, prevPosH);
-		
+
 	// W (4x3)
 	// W^T (3x4) = g_instance.CurrWorld
 	// (W^-1)^T = (W^T)^-1   (assuming W is invertible)
 	// (W^T)^-1 = (g_instance.CurrWorld)^-1
 	float3x3 worldInvT = Math::Inverse(((float3x3) mesh.CurrWorld));
 	
+	float3 n = Math::Encoding::DecodeSNORM3(vtx.NormalL);
+	float3 t = Math::Encoding::DecodeSNORM3(vtx.TangentU);
+	
 	vsout.PosSS = posH;
 	vsout.PosH = posH.xyw;
 	vsout.PosHPrev = prevPosH.xyw;
-	vsout.NormalW = mul(vtx.NormalL, worldInvT);
+	vsout.NormalW = mul(n, worldInvT);
 	vsout.TexUV = vtx.TexUV;
-	vsout.TangentW = mul((float3x3) mesh.CurrWorld, vtx.TangentU);
+	vsout.TangentW = mul((float3x3) mesh.CurrWorld, t);
 	vsout.MatID = mesh.IdxInMatBuff;
-	
+
 	return vsout;
 }
 

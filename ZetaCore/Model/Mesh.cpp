@@ -78,8 +78,8 @@ void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex>& vertices, Vector<uint32_t>
 			float x = -halfWidth + j * dx;
 
 			vertices[i * n + j].Position = float3(x, 0.0f, z);
-			vertices[i * n + j].Normal = float3(0.0f, 1.0f, 0.0f);
-			vertices[i * n + j].Tangent = float3(1.0f, 0.0f, 0.0f);
+			vertices[i * n + j].Normal = snorm3(0.0f, 1.0f, 0.0f);
+			vertices[i * n + j].Tangent = snorm3(1.0f, 0.0f, 0.0f);
 
 			// Stretch texture over grid.
 			vertices[i * n + j].TexUV.x = j * du;
@@ -156,7 +156,7 @@ void PrimitiveMesh::ComputeSphere(Vector<Vertex>& vertices, Vector<uint32_t>& in
 			float2 textureCoordinate(u, v);
 			float3 tangent(0.0f, 0.0f, 0.0f);
 
-			vertices.emplace_back(normal * radius, normal, textureCoordinate, tangent);
+			vertices.emplace_back(normal * radius, snorm3(normal), textureCoordinate, snorm3(tangent));
 		}
 	}
 
@@ -241,7 +241,7 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
 			float3 normal = tangent.cross(bitangent);
 			normal.normalize();
 
-			vertices.emplace_back(pos, normal, uv, tangent);
+			vertices.emplace_back(pos, snorm3(normal), uv, snorm3(tangent));
 		}
 	}
 
@@ -284,11 +284,11 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
 		float u = x / height + 0.5f;
 		float v = z / height + 0.5f;
 
-		vertices.emplace_back(float3(x, y, z), float3(0.0f, 1.0f, 0.0f), float2(u, v), float3(1.0f, 0.0f, 0.0f));
+		vertices.emplace_back(float3(x, y, z), snorm3(0.0f, 1.0f, 0.0f), float2(u, v), snorm3(1.0f, 0.0f, 0.0f));
 	}
 
 	// Cap center vertex.
-	vertices.emplace_back(float3(0.0f, y, 0.0f), float3(0.0f, 1.0f, 0.0f), float2(0.5f, 0.5f), float3(1.0f, 0.0f, 0.0f));
+	vertices.emplace_back(float3(0.0f, y, 0.0f), snorm3(0.0f, 1.0f, 0.0f), float2(0.5f, 0.5f), snorm3(1.0f, 0.0f, 0.0f));
 
 	// Index of center vertex.
 	uint32_t centerIndex = (uint32_t)vertices.size() - 1;
@@ -319,11 +319,11 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
 		float u = x / height + 0.5f;
 		float v = z / height + 0.5f;
 
-		vertices.emplace_back(float3(x, y, z), float3(0.0f, -1.0f, 0.0f), float2(u, v), float3(1.0f, 0.0f, 0.0f));
+		vertices.emplace_back(float3(x, y, z), snorm3(0.0f, -1.0f, 0.0f), float2(u, v), snorm3(1.0f, 0.0f, 0.0f));
 	}
 
 	// Cap center vertex.
-	vertices.emplace_back(float3(0.0f, y, 0.0f), float3(0.0f, -1.0f, 0.0f), float2(0.5f, 0.5f), float3(1.0f, 0.0f, 0.0f));
+	vertices.emplace_back(float3(0.0f, y, 0.0f), snorm3(0.0f, -1.0f, 0.0f), float2(0.5f, 0.5f), snorm3(1.0f, 0.0f, 0.0f));
 
 	// Cache the index of center vertex.
 	centerIndex = (uint32_t)vertices.size() - 1;
@@ -370,8 +370,8 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
 		normal.normalize();
 
 		// Duplicate the top vertex for distinct normals
-		vertices.emplace_back(topOffset, normal, float2(0.0f, 0.0f), float3(0.0f, 0.0f, 0.0f));
-		vertices.emplace_back(pt, normal, float2(u, 1.0f), float3(0.0f, 0.0f, 0.0f));
+		vertices.emplace_back(topOffset, snorm3(normal), float2(0.0f, 0.0f), snorm3(0.0f, 0.0f, 0.0f));
+		vertices.emplace_back(pt, snorm3(normal), float2(u, 1.0f), snorm3(0.0f, 0.0f, 0.0f));
 
 		indices.push_back((uint32_t)(i * 2));
 		indices.push_back((uint32_t)((i * 2 + 3) % (stride * 2)));
@@ -406,7 +406,7 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
 		float3 position = (circleVector * radius) + (normal * height);
 		float2 textureCoordinate = float2(circleVector.x, circleVector.y) * textureScale + float2(0.5f, 0.5f);
 
-		vertices.emplace_back(position, normal, textureCoordinate, float3(0.0f, 0.0f, 0.0f));
+		vertices.emplace_back(position, snorm3(normal), textureCoordinate, snorm3(0.0f, 0.0f, 0.0f));
 	}
 
 	// compute the tangents
@@ -459,8 +459,8 @@ void PrimitiveMesh::ComputeTorus(Vector<Vertex>& vertices, Vector<uint32_t>& ind
 			vN = normalize(vN);
 			_mm_store_ps(reinterpret_cast<float*>(&normal), vN);
 
-			vertices.emplace_back(float3(position.x, position.y, position.z), float3(normal.x, normal.y, normal.z),
-				textureCoordinate, float3(0.0f, 0.0f, 0.0f));
+			vertices.emplace_back(float3(position.x, position.y, position.z), snorm3(normal.x, normal.y, normal.z),
+				textureCoordinate, snorm3(0.0f, 0.0f, 0.0f));
 
 			// And create indices for two triangles.
 			size_t nextI = (i + 1) % stride;
@@ -740,7 +740,7 @@ namespace
 				float2 textureCoordinate(mirroredU, v);
 
 				// Output this vertex.
-				vertices.emplace_back(position, -normal, textureCoordinate, float3(0.0f, 0.0f, 0.0f));
+				vertices.emplace_back(position, snorm3(-normal), textureCoordinate, snorm3(0.0f, 0.0f, 0.0f));
 			}
 		}
 	}

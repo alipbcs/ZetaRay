@@ -171,7 +171,7 @@ namespace
 			const float3* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[baseOffset + i].Normal = half3(curr->x, curr->y, -curr->z);
+			vertices[baseOffset + i].Normal = snorm3(curr->x, curr->y, -curr->z);
 		}
 	}
 
@@ -210,7 +210,7 @@ namespace
 			const float4* curr = start + i;
 
 			// glTF uses a right-handed coordinate system with +Y as up
-			vertices[baseOffset + i].Tangent = half3(curr->x, curr->y, -curr->z);
+			vertices[baseOffset + i].Tangent = snorm3(curr->x, curr->y, -curr->z);
 		}
 	}
 
@@ -454,22 +454,22 @@ namespace
 		int offset, int size, const Span<DDSImage> ddsImages)
 	{
 		auto getAlphaMode = [](cgltf_alpha_mode m)
-		{
-			switch (m)
 			{
-			case cgltf_alpha_mode_opaque:
-				return Material::ALPHA_MODE::OPAQUE_;
-			case cgltf_alpha_mode_mask:
-				return Material::ALPHA_MODE::MASK;
-			case cgltf_alpha_mode_blend:
-				return Material::ALPHA_MODE::BLEND;
-			default:
-				break;
-			}
+				switch (m)
+				{
+				case cgltf_alpha_mode_opaque:
+					return Material::ALPHA_MODE::OPAQUE_;
+				case cgltf_alpha_mode_mask:
+					return Material::ALPHA_MODE::MASK;
+				case cgltf_alpha_mode_blend:
+					return Material::ALPHA_MODE::BLEND;
+				default:
+					break;
+				}
 
-			Assert(false, "invalid alpha mode.");
-			return Material::ALPHA_MODE::OPAQUE_;
-		};
+				Assert(false, "invalid alpha mode.");
+				return Material::ALPHA_MODE::OPAQUE_;
+			};
 
 		for (int m = offset; m != offset + size; m++)
 		{
@@ -477,7 +477,6 @@ namespace
 			Check(mat.has_pbr_metallic_roughness, "material is not supported.");
 
 			glTF::Asset::MaterialDesc desc;
-
 			desc.Index = m;
 			desc.AlphaMode = getAlphaMode(mat.alpha_mode);
 			desc.AlphaCuttoff = (float)mat.alpha_cutoff;

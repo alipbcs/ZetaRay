@@ -30,7 +30,7 @@ namespace ZetaRay
 		{
 			uint32_t BaseVtxOffset;
 			uint32_t BaseIdxOffset;
-			half4_ Rotation;
+			snorm4_ Rotation;
 			half3_ Scale;
 			uint16_t MatID;
 			uint32_t BaseEmissiveTriOffset;
@@ -67,8 +67,8 @@ namespace ZetaRay
 			float3_ Vtx0;
 
 #if ENCODE_EMISSIVE_POS == 1
-			int16_t2_ V0V1;
-			int16_t2_ V0V2;
+			snorm2_ V0V1;
+			snorm2_ V0V2;
 			half2_ EdgeLengths;
 #else
 			float3_ Vtx1;
@@ -208,7 +208,7 @@ namespace ZetaRay
 				ID = id;
 			}
 
-			ZetaInline void __vectorcall StoreEdge(__m128i vEdge, int16_t2_& e)
+			ZetaInline void __vectorcall StoreEdge(__m128i vEdge, snorm2_& e)
 			{
 				vEdge = _mm_and_si128(vEdge, _mm_set1_epi32(0xffff));
 

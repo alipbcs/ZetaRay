@@ -4,9 +4,9 @@
 struct Vertex
 {
 	float3 PosL;
-	half3 NormalL;
+	int16_t3 NormalL;
 	float2 TexUV;
-	half3 TangentU;
+	int16_t3 TangentU;
 };
 
 namespace Common

@@ -148,7 +148,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 				g_frame.CurrProjectionJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_currNormal[samplePosSS]);
 			const float w_n = EdgeStoppingNormal_Diffuse(normal, sampleNormal, roughness);
 					
 			const float3 sampleColor = g_temporalCache_Diffuse[samplePosSS].rgb;
@@ -232,7 +232,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 				g_frame.CurrProjectionJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 
-			const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_currNormal[samplePosSS]);
 			const float w_n = EdgeStoppingNormal_Specular(normal, sampleNormal, alpha);
 
 			const float3 sampleColor = g_temporalCache_Specular[samplePosSS].rgb;
@@ -312,7 +312,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_currNormal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitVector(g_currNormal[swizzledDTid]);
 
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];

@@ -407,7 +407,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 
 		// normal heuristic
 		const float2 prevNormalEncoded = g_prevNormal[samplePosSS];
-		const float3 prevNormal = Math::Encoding::DecodeUnitNormal(prevNormalEncoded);
+		const float3 prevNormal = Math::Encoding::DecodeUnitVector(prevNormalEncoded);
 		const float normalSimilarity = dot(prevNormal, normal);
 			
 		// roughness heuristic
@@ -590,7 +590,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 
 	for (int i = 0; i < k; i++)
 	{
-		const float3 sampleNormal = Math::Encoding::DecodeUnitNormal(g_prevNormal[samplePosSS[i]]);
+		const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
 		const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
 		const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
@@ -684,7 +684,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[swizzledDTid]);
+	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[swizzledDTid]);
 		
 	// roughness and metallic mask
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

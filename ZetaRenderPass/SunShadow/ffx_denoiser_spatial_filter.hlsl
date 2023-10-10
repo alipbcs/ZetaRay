@@ -175,7 +175,7 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 {
     // Load our center sample
 	const float2 shadow_center = g_FFX_DNSR_shared_input[GTid.y][GTid.x];
-	const float3 currNormal = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
+	const float3 currNormal = Math::Encoding::DecodeUnitVector(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
 
 	weight_sum = 1.0f;
 	shadow_sum = shadow_center;
@@ -203,7 +203,7 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 			const int2 did_idx = DTid + step;
 
 			float neighborDepth = g_FFX_DNSR_shared_depth[gtid_idx.y][gtid_idx.x];
-			float3 neighborNormal = Math::Encoding::DecodeUnitNormal(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
+			float3 neighborNormal = Math::Encoding::DecodeUnitVector(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
 			float2 shadow_neigh = g_FFX_DNSR_shared_input[gtid_idx.y][gtid_idx.x];
 
 			float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == 0.0f) ? 0 : 1; // Zero weight for sky pixels

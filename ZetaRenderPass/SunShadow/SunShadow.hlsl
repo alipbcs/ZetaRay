@@ -80,7 +80,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		g_frame.CurrProjectionJitter);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid.xy]);
+	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
 
 	float3 wi = -g_frame.SunDir;
 	

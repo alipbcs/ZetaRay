@@ -86,7 +86,7 @@ float FFX_DNSR_Shadows_ReadPreviousDepth(uint2 DTid)
 float3 FFX_DNSR_Shadows_ReadNormals(uint2 DTid)
 {
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitNormal(g_normal[DTid]);
+	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid]);
 
 	return normal;
 }

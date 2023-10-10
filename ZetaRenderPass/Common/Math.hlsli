@@ -467,7 +467,7 @@ namespace Math
 			return (1.0f - abs(v.yx)) * select(v.xy >= 0.0f, 1.0f, -1.0f);
 		}
  
-		float2 EncodeUnitNormal(float3 n)
+		float2 EncodeUnitVector(float3 n)
 		{
 			n /= (abs(n.x) + abs(n.y) + abs(n.z));
 			n.xy = n.z >= 0.0f ? n.xy : OctWrap(n.xy);
@@ -476,7 +476,7 @@ namespace Math
 			return n.xy;
 		}
  
-		float3 DecodeUnitNormal(float2 u)
+		float3 DecodeUnitVector(float2 u)
 		{
 			float2 f = u * 2.0f - 1.0f;
  
@@ -489,7 +489,22 @@ namespace Math
 			return normalize(n);
 		}
 
+		int16_t2 EncodeAsSNORM2(float2 u)
+		{
+			return int16_t2(round(u * float((1 << 15) - 1)));
+		}
+		
 		float2 DecodeSNORM2(int16_t2 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
+
+		float3 DecodeSNORM3(int16_t3 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
+
+		float4 DecodeSNORM4(int16_t4 u)
 		{
 			return u / float((1 << 15) - 1);
 		}
