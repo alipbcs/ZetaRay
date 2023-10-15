@@ -64,7 +64,7 @@ void FFX_DNSR_Shadows_ReadTileMetadata(uint2 Gid, out bool is_cleared, out bool 
 
 void FFX_DNSR_Shadows_WriteTemporalCache(uint2 DTid, float2 meanVar)
 {
-	RWTexture2D<float2> g_outTemporalCache = ResourceDescriptorHeap[g_local.OutTemporalCacheHeapIdx];
+	RWTexture2D<float2> g_outTemporalCache = ResourceDescriptorHeap[g_local.OutTemporalDescHeapIdx];
 	g_outTemporalCache[DTid] = meanVar;
 }
 
@@ -72,14 +72,14 @@ void FFX_DNSR_Shadows_LoadWithOffset(int2 DTid, int2 offset, out float2 normal, 
 {
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	Texture2D<half2> g_outTemporalCache = ResourceDescriptorHeap[g_local.InTemporalCacheHeapIdx];
+	Texture2D<half2> g_temporalCache = ResourceDescriptorHeap[g_local.InTemporalDescHeapIdx];
 
 	DTid += offset;
 	const int2 p = clamp(DTid, 0.0.xx, int2(g_frame.RenderWidth, g_frame.RenderHeight) - 1);
     
 	depth = g_depth[p];
 	normal = g_normal[p];
-	input = g_outTemporalCache[p];
+	input = g_temporalCache[p];
 }
 
 void FFX_DNSR_Shadows_StoreWithOffsetInGroupSharedMemory(int2 GTid, int2 offset, float2 normal, half2 input, float depth)
@@ -182,7 +182,11 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 
 	const float variance = max(FFX_DNSR_Shadows_FilterVariance(GTid), g_local.MinFilterVar);
 	const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
+#if RT_GBUFFER == 1
+	const float currLinearDepth = depth;
+#else
 	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 currPos = Math::Transform::WorldPosFromScreenSpace(DTid, 
         renderDim,
@@ -190,7 +194,7 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio, 
         g_frame.CurrViewInv,
-		g_frame.CurrProjectionJitter);
+		g_frame.CurrCameraJitter);
     
     // Iterate filter kernel
 	for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; ++y)
@@ -206,17 +210,19 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 			float3 neighborNormal = Math::Encoding::DecodeUnitVector(g_FFX_DNSR_shared_normal[gtid_idx.y][gtid_idx.x]);
 			float2 shadow_neigh = g_FFX_DNSR_shared_input[gtid_idx.y][gtid_idx.x];
 
-			float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == 0.0f) ? 0 : 1; // Zero weight for sky pixels
+			float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == FLT_MAX) ? 0 : 1; // Zero weight for sky pixels
 
             // Fetch our filtering values
+#if RT_GBUFFER == 0
 			neighborDepth = Math::Transform::LinearDepthFromNDC(neighborDepth, g_frame.CameraNear);
+#endif
 			float3 posNeighbor = Math::Transform::WorldPosFromScreenSpace(did_idx,
                 renderDim,
                 neighborDepth,
                 g_frame.TanHalfFOV,
                 g_frame.AspectRatio,
                 g_frame.CurrViewInv,
-				g_frame.CurrProjectionJitter);
+				g_frame.CurrCameraJitter);
             
             // Evaluate the edge-stopping function
 			float w = Kernel[abs(y)][abs(x)]; // kernel weight
@@ -265,7 +271,7 @@ float2 FFX_DNSR_Shadows_FilterSoftShadowsPass(uint2 Gid, uint2 GTid, uint2 DTid,
     [branch]
 	if (is_cleared)
 	{
-		if (passNum != 0)
+		//if (passNum != 0)
 		{
 			results.x = all_in_light ? 1.0 : 0.0;
 			writeResults = true;
@@ -287,9 +293,12 @@ float2 FFX_DNSR_Shadows_FilterSoftShadowsPass(uint2 Gid, uint2 GTid, uint2 DTid,
 [numthreads(DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
+	if(DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
+		return;
+	
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
-	const bool isShadowReceiver = depth > 0.0;
+	const bool isShadowReceiver = depth != FLT_MAX;
 
 	bool writeResutls;
 	float2 results = FFX_DNSR_Shadows_FilterSoftShadowsPass(Gid.xy, GTid.xy, DTid.xy, g_local.PassNum, g_local.StepSize,
@@ -297,4 +306,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
 	if (writeResutls)
 		FFX_DNSR_Shadows_WriteTemporalCache(DTid.xy, results);
+	
+	if(g_local.WriteDenoised)
+	{
+		RWTexture2D<float> g_outDenoised = ResourceDescriptorHeap[g_local.DenoisedDescHeapIdx];
+		g_outDenoised[DTid.xy] = results.x;
+	}
 }

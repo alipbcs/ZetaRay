@@ -41,32 +41,6 @@ SunShadow::SunShadow()
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
 		D3D12_SHADER_VISIBILITY_ALL,					// visibility
 		GlobalResource::RT_SCENE_BVH);
-
-	// Owen-Scrambled Sobol Sequence
-	m_rootSig.InitAsBufferSRV(3,						// root idx
-		1,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SOBOL_SEQ_32);
-
-	// scrambling tile
-	m_rootSig.InitAsBufferSRV(4,						// root idx
-		2,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE_32);
-
-	// ranking tile
-	m_rootSig.InitAsBufferSRV(5,						// root idx
-		3,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		Sampler::SCRAMBLING_TILE_32);
-
-	m_oldNumSpatialPasses = m_numSpatialPasses;
 }
 
 SunShadow::~SunShadow() 
@@ -76,6 +50,9 @@ SunShadow::~SunShadow()
 
 void SunShadow::Init()
 {
+	// required for correct barriers
+	Assert(m_currTemporalIdx == 0, "Initial temporal index must be zero.");
+
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -112,10 +89,10 @@ void SunShadow::Init()
 		fastdelegate::MakeDelegate(this, &SunShadow::DoSoftShadowsCallback), m_doSoftShadows);
 	App::AddParam(softShadows);
 
-	ParamVariant numSpatialPasses;
-	numSpatialPasses.InitInt("Renderer", "Sun", "#SpatialFilterPasses",
-		fastdelegate::MakeDelegate(this, &SunShadow::NumSpatialFilterPassesCallback), m_numSpatialPasses, 0, 3, 1);
-	App::AddParam(numSpatialPasses);
+	ParamVariant denoise;
+	denoise.InitBool("Renderer", "Sun", "Denoise",
+		fastdelegate::MakeDelegate(this, &SunShadow::DenoiseCallback), m_denoise);
+	App::AddParam(denoise);
 
 	ParamVariant minVar;
 	minVar.InitFloat("Renderer", "Sun", "MinFilterVariance",
@@ -145,6 +122,8 @@ void SunShadow::Reset()
 void SunShadow::OnWindowResized()
 {
 	CreateResources();
+	m_temporalCB.IsTemporalValid = false;
+	m_currTemporalIdx = 0;
 }
 
 void SunShadow::Render(CommandList& cmdList)
@@ -158,45 +137,6 @@ void SunShadow::Render(CommandList& cmdList)
 	const uint32_t w = renderer.GetRenderWidth();
 	const uint32_t h = renderer.GetRenderWidth();
 
-	const int originalTemporalCacheIdx = m_currTemporalCacheOutIdx;
-
-	int temporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
-		(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
-	int temporalCacheUAV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
-		(int)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
-
-	auto swapTemporalCaches = [this, &temporalCacheSRV, &temporalCacheUAV]()
-	{
-		m_currTemporalCacheOutIdx = (m_currTemporalCacheOutIdx + 1) & 0x1;
-
-		temporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
-			(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
-		temporalCacheUAV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
-			(int)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
-	};
-
-	auto swapAndTransitionTemporalCaches = [this, &computeCmdList, &temporalCacheSRV, &temporalCacheUAV]()
-	{
-		m_currTemporalCacheOutIdx = (m_currTemporalCacheOutIdx + 1) & 0x1;
-
-		temporalCacheSRV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_A_SRV :
-			(int)DESC_TABLE::TEMPORAL_CACHE_B_SRV;
-		temporalCacheUAV = m_currTemporalCacheOutIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_B_UAV :
-			(int)DESC_TABLE::TEMPORAL_CACHE_A_UAV;
-
-		D3D12_RESOURCE_BARRIER postBarriers[] =
-		{
-			Direct3DUtil::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].Resource(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			Direct3DUtil::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].Resource(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
-		};
-
-		computeCmdList.ResourceBarrier(postBarriers, ZetaArrayLen(postBarriers));
-	};
-
 	// shadow mask
 	{
 		computeCmdList.PIXBeginEvent("SunShadowTrace");
@@ -206,6 +146,16 @@ void SunShadow::Render(CommandList& cmdList)
 
 		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SHADOW_MASK]);
+
+		auto barrier = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
+			D3D12_BARRIER_SYNC_NONE,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_NO_ACCESS,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+
+		computeCmdList.ResourceBarrier(barrier);
 
 		cbSunShadow localCB;
 		localCB.OutShadowMaskDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::SHADOW_MASK_UAV);
@@ -227,32 +177,46 @@ void SunShadow::Render(CommandList& cmdList)
 
 	// temporal pass
 	{
-		computeCmdList.PIXBeginEvent("SunShadowDNSR_Temporal");
+		computeCmdList.PIXBeginEvent("SunShadowDnsr_Temporal");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDNSR_Temporal");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDnsr_Temporal");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL_PASS]);
 
-		D3D12_RESOURCE_BARRIER barriers[] =
-		{
-			Direct3DUtil::TransitionBarrier(m_shadowMask.Resource(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-			Direct3DUtil::TransitionBarrier(m_metadata.Resource(),
-				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS)
-		};
+		D3D12_TEXTURE_BARRIER barriers[2];
+
+		barriers[0] = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+		barriers[1] = Direct3DUtil::TextureBarrier(m_metadata.Resource(),
+			D3D12_BARRIER_SYNC_NONE,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_NO_ACCESS,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
 
 		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+
+		int temporalCacheSRV = m_currTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_0_SRV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_1_SRV;
+		int temporalCacheUAV = m_currTemporalIdx == 1 ? (int)DESC_TABLE::TEMPORAL_CACHE_1_UAV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_0_UAV;
 
 		m_temporalCB.ShadowMaskSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::SHADOW_MASK_SRV);
 		m_temporalCB.MomentsUAVHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::MOMENTS_UAV);
 		m_temporalCB.MetadataUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_UAV);
-		m_temporalCB.PrevTemporalCacheHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
-		m_temporalCB.CurrTemporalCacheHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
+		m_temporalCB.PrevTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
+		m_temporalCB.CurrTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
 		m_temporalCB.NumShadowMaskThreadGroupsX = (uint16_t)CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
 		m_temporalCB.NumShadowMaskThreadGroupsY = (uint16_t)CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
+		m_temporalCB.DenoisedDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DENOISED_UAV);
+		m_temporalCB.Denoise = m_denoise;
 
 		m_rootSig.SetRootConstants(0, sizeof(cbFFX_DNSR_Temporal) / sizeof(DWORD), &m_temporalCB);
 		m_rootSig.End(computeCmdList);
@@ -270,67 +234,82 @@ void SunShadow::Render(CommandList& cmdList)
 
 	// spatial filter
 	{
-		computeCmdList.PIXBeginEvent("SunShadowDNSR_Spatial");
+		computeCmdList.PIXBeginEvent("SunShadowDnsr_Spatial");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDNSR_Spatial");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDnsr_Spatial");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL_FILTER]);
 
-		swapTemporalCaches();
-
-		D3D12_RESOURCE_BARRIER preBarriers[] =
-		{
-			Direct3DUtil::TransitionBarrier(m_metadata.Resource(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE),
-			Direct3DUtil::TransitionBarrier(m_temporalCache[m_currTemporalCacheOutIdx].Resource(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-			Direct3DUtil::TransitionBarrier(m_temporalCache[1 - m_currTemporalCacheOutIdx].Resource(),
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE),
-			Direct3DUtil::TransitionBarrier(m_shadowMask.Resource(),
-				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
-				D3D12_RESOURCE_STATE_UNORDERED_ACCESS),
-		};
-
-		computeCmdList.ResourceBarrier(preBarriers, ZetaArrayLen(preBarriers));
-
 		const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
 		const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
+		m_spatialCB.MetadataSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_SRV);
 
-		for (int i = 0; i < m_numSpatialPasses; i++)
+		D3D12_TEXTURE_BARRIER barriers[3];
+
+		barriers[0] = Direct3DUtil::TextureBarrier(m_metadata.Resource(),
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+		barriers[1] = Direct3DUtil::TextureBarrier(m_temporalCache[m_currTemporalIdx].Resource(),
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+			D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+
+		if (m_temporalCB.IsTemporalValid)
 		{
-			m_spatialCB.PassNum = (uint16_t)i;
-			m_spatialCB.StepSize = 1 << i;
-
-			m_spatialCB.MetadataSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_SRV);
-			m_spatialCB.InTemporalCacheHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
-			m_spatialCB.OutTemporalCacheHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
-
-			m_rootSig.SetRootConstants(0, sizeof(cbFFX_DNSR_Spatial) / sizeof(DWORD), &m_spatialCB);
-			m_rootSig.End(computeCmdList);
-
-			computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
-			
-			// swap temporal caches
-			if(i != m_numSpatialPasses - 1)
-				swapAndTransitionTemporalCaches();
+			barriers[2] = Direct3DUtil::TextureBarrier(m_temporalCache[1 - m_currTemporalIdx].Resource(),
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_SHADER_RESOURCE,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
 		}
+		else
+		{
+			barriers[2] = Direct3DUtil::TextureBarrier(m_temporalCache[1 - m_currTemporalIdx].Resource(),
+				D3D12_BARRIER_SYNC_NONE,
+				D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+				D3D12_BARRIER_ACCESS_NO_ACCESS,
+				D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+		}
+
+		computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+			
+		// ping-pong between temporal 0 & 1
+		int temporalCacheSRV = m_currTemporalIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_0_SRV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_1_SRV;
+		int temporalCacheUAV = m_currTemporalIdx == 0 ? (int)DESC_TABLE::TEMPORAL_CACHE_1_UAV :
+			(int)DESC_TABLE::TEMPORAL_CACHE_0_UAV;
+
+		m_spatialCB.PassNum = 0;
+		m_spatialCB.StepSize = 1;
+		m_spatialCB.WriteDenoised = m_denoise;
+		m_spatialCB.InTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
+		m_spatialCB.OutTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
+		m_spatialCB.DenoisedDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DENOISED_UAV);
+
+		m_rootSig.SetRootConstants(0, sizeof(cbFFX_DNSR_Spatial) / sizeof(DWORD), &m_spatialCB);
+		m_rootSig.End(computeCmdList);
+
+		computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
 		// record the timestamp after execution
 		gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-		// [hack] render graph is unaware of renderpass-internal transitions. Restore the initial state to avoid
-		// render graph and actual state getting out of sync
-		if(m_currTemporalCacheOutIdx != originalTemporalCacheIdx)
-			swapAndTransitionTemporalCaches();
-
+		
 		computeCmdList.PIXEndEvent();
 	}
 
-	m_currTemporalCacheOutIdx = (m_currTemporalCacheOutIdx + 1) & 0x1;
+	m_currTemporalIdx = 1 - m_currTemporalIdx;
 	m_temporalCB.IsTemporalValid = true;
 }
 
@@ -347,7 +326,7 @@ void SunShadow::CreateResources()
 		m_shadowMask = GpuMemory::GetTexture2D("SunShadowMask",
 			texWidth, texHeight,
 			ResourceFormats::SHADOW_MASK,
-			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 		Direct3DUtil::CreateTexture2DSRV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_SRV));
@@ -362,7 +341,7 @@ void SunShadow::CreateResources()
 		m_metadata = GpuMemory::GetTexture2D("SunShadowMetadata",
 			texWidth, texHeight,
 			ResourceFormats::THREAD_GROUP_METADATA,
-			D3D12_RESOURCE_STATE_COMMON,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 		Direct3DUtil::CreateTexture2DSRV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_SRV));
@@ -374,7 +353,7 @@ void SunShadow::CreateResources()
 		m_moments = GpuMemory::GetTexture2D("SunShadowMoments",
 			w, h,
 			ResourceFormats::MOMENTS,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
 		Direct3DUtil::CreateTexture2DUAV(m_moments, m_descTable.CPUHandle((uint32_t)DESC_TABLE::MOMENTS_UAV));
@@ -382,43 +361,52 @@ void SunShadow::CreateResources()
 
 	// temporal cache
 	{
-		m_temporalCache[0] = GpuMemory::GetTexture2D("SunShadowTemporalCache_A",
+		// start in uav layout to avoid a layout-change barrier
+		m_temporalCache[0] = GpuMemory::GetTexture2D("SunShadowTemporal_0",
 			w, h,
 			ResourceFormats::TEMPORAL_CACHE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+
+		m_temporalCache[1] = GpuMemory::GetTexture2D("SunShadowTemporal_1",
+			w, h,
+			ResourceFormats::TEMPORAL_CACHE,
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+
+		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_0_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_0_UAV));
+
+		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_1_SRV));
+		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_1_UAV));
+	}
+
+	// denoised
+	{
+		m_denoised = GpuMemory::GetTexture2D("SunShadowDenoised",
+			w, h,
+			ResourceFormats::DENOISED,
 			D3D12_RESOURCE_STATE_COMMON,
 			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		m_temporalCache[1] = GpuMemory::GetTexture2D("ShadowTemporalCache_B",
-			w, h,
-			ResourceFormats::TEMPORAL_CACHE,
-			D3D12_RESOURCE_STATE_COMMON,
-			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_SRV));
-		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_A_UAV));
-
-		Direct3DUtil::CreateTexture2DSRV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_SRV));
-		Direct3DUtil::CreateTexture2DUAV(m_temporalCache[1], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_B_UAV));
+		Direct3DUtil::CreateTexture2DUAV(m_denoised, m_descTable.CPUHandle((uint32_t)DESC_TABLE::DENOISED_UAV));
 	}
 }
 
 void SunShadow::DoSoftShadowsCallback(const Support::ParamVariant& p)
 {
 	m_doSoftShadows = p.GetBool();
-
-	if (!m_doSoftShadows)
-	{
-		m_oldNumSpatialPasses = m_numSpatialPasses;
-		m_numSpatialPasses = 0;
-	}
-	else
-		m_numSpatialPasses = m_oldNumSpatialPasses;
 }
 
-void SunShadow::NumSpatialFilterPassesCallback(const Support::ParamVariant& p)
+void SunShadow::DenoiseCallback(const Support::ParamVariant& p)
 {
-	m_numSpatialPasses = p.GetInt().m_val;
+	m_denoise = p.GetBool();
 }
+
+//void SunShadow::NumSpatialFilterPassesCallback(const Support::ParamVariant& p)
+//{
+//	m_numSpatialPasses = p.GetInt().m_val;
+//}
 
 void SunShadow::MinFilterVarianceCallback(const Support::ParamVariant& p)
 {

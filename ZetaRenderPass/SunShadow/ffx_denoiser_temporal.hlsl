@@ -39,7 +39,7 @@ ConstantBuffer<cbFFX_DNSR_Temporal> g_local : register(b1);
 //--------------------------------------------------------------------------------------
 
 #define KERNEL_RADIUS 8
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.01f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.0025f
 
 groupshared int g_FFX_DNSR_Shadows_false_count;
 groupshared float g_FFX_DNSR_Shadows_neighborhood[8][24];
@@ -111,7 +111,7 @@ float3 FFX_DNSR_Shadows_ReadPreviousMomentsBuffer(int2 history_pos)
 
 float FFX_DNSR_Shadows_ReadHistory(float2 histUV)
 {
-	Texture2D<float2> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalCacheHeapIdx];
+	Texture2D<float2> g_prevTemporalCache = ResourceDescriptorHeap[g_local.PrevTemporalDescHeapIdx];
 	return g_prevTemporalCache.SampleLevel(g_samLinearClamp, histUV, 0).x;
 }
 
@@ -134,7 +134,7 @@ void FFX_DNSR_Shadows_WriteTileMetadata(uint2 Gid, uint2 GTid, bool is_cleared, 
 
 void FFX_DNSR_Shadows_WriteTemporalCache(uint2 DTid, float2 meanVar)
 {
-	RWTexture2D<float2> g_outTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalCacheHeapIdx];
+	RWTexture2D<float2> g_outTemporalCache = ResourceDescriptorHeap[g_local.CurrTemporalDescHeapIdx];
 	g_outTemporalCache[DTid] = meanVar;
 }
 
@@ -165,7 +165,11 @@ bool FFX_DNSR_Shadows_ThreadGroupAllTrue(bool val)
 
 float FFX_DNSR_Shadows_GetLinearDepth(uint2 did, float depth)
 {
+#if RT_GBUFFER == 1
+    return depth;
+#else
 	return Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
 }
 
 void FFX_DNSR_Shadows_SearchSpatialRegion(uint2 Gid, out bool all_in_light, out bool all_in_shadow)
@@ -212,24 +216,35 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 	const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 prevUV = currUV - velocity;
 	float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
+
+#if RT_GBUFFER == 1
+    const float currLinearDepth = depth;
+#else
 	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
+#endif
 
 	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, 
+        float2(g_frame.RenderWidth, g_frame.RenderHeight),
         currLinearDepth,
         g_frame.TanHalfFOV,
         g_frame.AspectRatio,
         g_frame.CurrViewInv,
-        g_frame.CurrProjectionJitter);
+        g_frame.CurrCameraJitter);
 
     GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float prevDepth = Math::Transform::LinearDepthFromNDC(g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0), g_frame.CameraNear);
+    float prevDepth = g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0);
+
+#if RT_GBUFFER == 0
+	prevDepth = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
+#endif
 	
 	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, 
+        float2(g_frame.RenderWidth, g_frame.RenderHeight),
         prevDepth, 
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio,
 		g_frame.PrevViewInv,
-        g_frame.PrevProjectionJitter);
+        g_frame.PrevCameraJitter);
 	
 	const float planeDist = dot(normal, prevPos - currPos);
     
@@ -382,7 +397,7 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid)
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float depth = FFX_DNSR_Shadows_ReadDepth(DTid);
     
-	const bool is_shadow_receiver = all(DTid.xy < (uint2) renderDim) || (depth > 0.0);
+	const bool is_shadow_receiver = all(DTid.xy < (uint2) renderDim) && (depth != FLT_MAX);
 	const bool skip_sky = FFX_DNSR_Shadows_ThreadGroupAllTrue(!is_shadow_receiver);
     
     if (skip_sky)
@@ -498,5 +513,19 @@ void FFX_DNSR_Shadows_TileClassification(uint Gidx, uint2 Gid)
 [numthreads(DNSR_TEMPORAL_THREAD_GROUP_SIZE_X, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
+    if(!g_local.Denoise)
+    {
+        const uint2 tile_index = FFX_DNSR_Shadows_GetTileIndexFromPixelPosition(DTid.xy);
+	    const uint shadow_tile = FFX_DNSR_Shadows_ReadRaytracedShadowMask(tile_index);
+
+        const bool hit_light = shadow_tile & FFX_DNSR_Shadows_GetBitMaskFromPixelPosition(DTid.xy);
+        const float shadow_current = hit_light ? 1.0 : 0.0;
+
+        RWTexture2D<float> g_outDenoised = ResourceDescriptorHeap[g_local.DenoisedDescHeapIdx];
+		g_outDenoised[DTid.xy] = shadow_current;
+
+        return;
+    }
+    
 	FFX_DNSR_Shadows_TileClassification(Gidx, Gid.xy);
 }

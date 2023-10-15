@@ -23,25 +23,28 @@ struct cbFFX_DNSR_Temporal
 	uint32_t ShadowMaskSRVDescHeapIdx;
 	uint32_t MetadataUAVDescHeapIdx;
 	uint32_t MomentsUAVHeapIdx;
-	uint32_t PrevTemporalCacheHeapIdx;
-	uint32_t CurrTemporalCacheHeapIdx;
+	uint32_t PrevTemporalDescHeapIdx;
+	uint32_t CurrTemporalDescHeapIdx;
+	uint32_t DenoisedDescHeapIdx;
 	uint16_t NumShadowMaskThreadGroupsX;
 	uint16_t NumShadowMaskThreadGroupsY;
 
 	uint16_t IsTemporalValid;
-	uint16_t pad;
+	uint16_t Denoise;
 };
 
 struct cbFFX_DNSR_Spatial
 {
 	uint32_t MetadataSRVDescHeapIdx;
-	uint32_t InTemporalCacheHeapIdx;
-	uint32_t OutTemporalCacheHeapIdx;
+	uint32_t InTemporalDescHeapIdx;
+	uint32_t OutTemporalDescHeapIdx;
+	uint32_t DenoisedDescHeapIdx;
 	float EdgeStoppingNormalExp;
 	float EdgeStoppingShadowStdScale;
 	float MinFilterVar;
-	uint16_t PassNum;
-	uint16_t StepSize;
+	uint32_t PassNum;
+	uint32_t StepSize;
+	uint32_t WriteDenoised;
 };
 
 #endif
