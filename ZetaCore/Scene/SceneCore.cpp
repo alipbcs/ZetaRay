@@ -423,11 +423,10 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	// get parent's index from the hashmap
 	if (instance.ParentID != ROOT_ID)
 	{
-		TreePos* p = FindTreePosFromID(instance.ParentID);
-		Assert(p, "instance with ID %llu was not found in the scene graph.", instance.ParentID);
+		const TreePos& p = FindTreePosFromID(instance.ParentID).value();
 
-		treeLevel = p->Level + 1;
-		parentIdx = p->Offset;
+		treeLevel = p.Level + 1;
+		parentIdx = p.Offset;
 	}
 	
 	const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
@@ -513,9 +512,8 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tOffset, bool isSorted)
 {
 #ifdef _DEBUG
-	TreePos *p = FindTreePosFromID(id);
-	Assert(p, "instance with ID %llu was not found in the scene graph.", id);
-	Assert(GetRtFlags(m_sceneGraph[p->Level].m_rtFlags[p->Offset]).MeshMode != RT_MESH_MODE::STATIC, "Static instance can't be animated.");
+	TreePos& p = FindTreePosFromID(id).value();
+	Assert(GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC, "Static instance can't be animated.");
 #endif // _DEBUG
 
 	Check(keyframes.size() > 1, "Invalid animation");
@@ -548,17 +546,6 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
-bool SceneCore::GetPrevToWorld(uint64_t key, float4x3& M_prev)
-{
-	const auto idx = BinarySearch(Span(m_prevToWorlds), key, [](const PrevToWorld& p) {return p.ID; });
-	if (idx == -1)
-		return false;
-		
-	M_prev = m_prevToWorlds[idx].W;
-
-	return true;
-}
-
 void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
 	SmallVector<RT::EmissiveTriangle>&& emissiveTris)
 {
@@ -589,10 +576,8 @@ void SceneCore::RebuildBVH()
 			if (meshID == NULL_MESH)
 				continue;
 
-			TriangleMesh* mesh = m_meshes.GetMesh(meshID);
-			Assert(mesh, "mesh with id %llu was not found", meshID);
-
-			v_AABB vBox(mesh->m_AABB);
+			const TriangleMesh& mesh = *m_meshes.GetMesh(meshID).value();
+			v_AABB vBox(mesh.m_AABB);
 			v_float4x4 vM = load4x3(m_sceneGraph[level].m_toWorlds[i]);
 
 			// transform AABB to world space
@@ -632,9 +617,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))
 				{
 					const uint64_t meshID = m_sceneGraph[level + 1].m_meshIDs[j];
-					TriangleMesh* mesh = m_meshes.GetMesh(meshID);
-					Assert(mesh, "mesh with id %llu was not found", meshID);
-
+					TriangleMesh* mesh = m_meshes.GetMesh(meshID).value();
 					v_AABB vOldBox(mesh->m_AABB);
 					vOldBox = transform(prevW, vOldBox);
 					v_AABB vNewBox = transform(newW, vOldBox);
@@ -791,10 +774,8 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec)
 				Assert(false, "Instance ID for current animation was not found.");
 		}
 
-		TreePos* t = FindTreePosFromID(insID);
-		Assert(t, "instance with ID %llu was not found in the scene graph.", insID);
-
-		m_sceneGraph[t->Level].m_localTransforms[t->Offset] = update.M;
+		TreePos t = FindTreePosFromID(insID).value();
+		m_sceneGraph[t.Level].m_localTransforms[t.Offset] = update.M;
 	}
 }
 
@@ -812,8 +793,7 @@ void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances)
 			continue;
 		
 		// undo previous transformation
-		float4x3 PrevW_inv;
-		GetPrevToWorld(e.InstanceID, PrevW_inv);
+		float4x3& PrevW_inv = *GetPrevToWorld(e.InstanceID).value();
 		v_float4x4 vPrevW_inv = load4x3(PrevW_inv);
 		vPrevW_inv = inverseSRT(vPrevW_inv);
 		// then apply the new transformation

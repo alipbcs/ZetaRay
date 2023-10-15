@@ -7,6 +7,7 @@
 #include "../Core/GpuMemory.h"
 #include "../Model/glTFAsset.h"
 #include "../RayTracing/RtCommon.h"
+#include <Utility/Optional.h>
 
 namespace ZetaRay::App::Filesystem
 {
@@ -88,9 +89,13 @@ namespace ZetaRay::Scene::Internal
 		//void Remove(uint64_t id, uint64_t nextFenceVal);
 
 		// Note: not thread safe
-		ZetaInline Material* Get(uint64_t id)
+		ZetaInline Util::Optional<Material*> Get(uint64_t id)
 		{
-			return m_matTable.find(id);
+			auto* mat = m_matTable.find(id);
+			if (mat)
+				return mat;
+
+			return {};
 		}
 
 		void Recycle(uint64_t completedFenceVal);
@@ -132,9 +137,13 @@ namespace ZetaRay::Scene::Internal
 		void RebuildBuffers();
 		
 		// Note: not thread safe
-		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id)
+		ZetaInline Util::Optional<Model::TriangleMesh*> GetMesh(uint64_t id)
 		{
-			return m_meshes.find(id);
+			auto mesh = m_meshes.find(id);
+			if (mesh)
+				return mesh;
+
+			return {};
 		}
 
 		const Core::GpuMemory::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }

@@ -4,6 +4,8 @@
 #include "../Math/BVH.h"
 #include "Asset.h"
 #include "SceneRenderer.h"
+#include <Utility/Optional.h>
+#include <Utility/Utility.h>
 #include <xxHash/xxhash.h>
 
 namespace ZetaRay::Model
@@ -112,7 +114,7 @@ namespace ZetaRay::Scene
 		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices);
-		ZetaInline Model::TriangleMesh* GetMesh(uint64_t id)
+		ZetaInline Util::Optional<Model::TriangleMesh*> GetMesh(uint64_t id)
 		{
 			return m_meshes.GetMesh(id);
 		}
@@ -124,7 +126,7 @@ namespace ZetaRay::Scene
 		// Material
 		//
 		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages);
-		ZetaInline Material* GetMaterial(uint64_t id)
+		ZetaInline Util::Optional<Material*> GetMaterial(uint64_t id)
 		{
 			return m_matBuffer.Get(id);
 		}
@@ -138,7 +140,14 @@ namespace ZetaRay::Scene
 		// Instance
 		//
 		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance);
-		bool GetPrevToWorld(uint64_t id, Math::float4x3& M_prev);
+		ZetaInline Util::Optional<Math::float4x3*> GetPrevToWorld(uint64_t id)
+		{
+			const auto idx = Util::BinarySearch(Util::Span(m_prevToWorlds), id, [](const PrevToWorld& p) {return p.ID; });
+			if (idx != -1)
+				return &m_prevToWorlds[idx].W;
+
+			return {};
+		}
 		
 		//
 		// emissive
@@ -149,31 +158,25 @@ namespace ZetaRay::Scene
 		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
 		bool AreEmissivesStale() const { return m_staleEmissives; }
 
-		ZetaInline Math::float4x3 GetToWorld(uint64_t id)
+		ZetaInline const Math::float4x3& GetToWorld(uint64_t id) const
 		{
-			TreePos* p = FindTreePosFromID(id);
-			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
-
-			return m_sceneGraph[p->Level].m_toWorlds[p->Offset];
+			const TreePos& p = FindTreePosFromID(id).value();
+			return m_sceneGraph[p.Level].m_toWorlds[p.Offset];
 		}
 
-		ZetaInline uint64_t GetInstanceMeshID(uint64_t id)
+		ZetaInline uint64_t GetInstanceMeshID(uint64_t id) const
 		{
-			TreePos* p = FindTreePosFromID(id);
-			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
-
-			return m_sceneGraph[p->Level].m_meshIDs[p->Offset];
+			const TreePos& p = FindTreePosFromID(id).value();
+			return m_sceneGraph[p.Level].m_meshIDs[p.Offset];
 		}
 
-		ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id)
+		ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id) const
 		{
-			TreePos* p = FindTreePosFromID(id);
-			Assert(p, "instance with ID %llu was not found in the scene graph.", id);
-
-			return m_sceneGraph[p->Level].m_rtASInfo[p->Offset];
+			const TreePos& p = FindTreePosFromID(id).value();
+			return m_sceneGraph[p.Level].m_rtASInfo[p.Offset];
 		}
 
-		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id)
+		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id) const
 		{
 			auto* e = m_instanceVisibilityIdx.find(id);
 			Assert(e, "instance with ID %llu was not found.", id);
@@ -213,7 +216,14 @@ namespace ZetaRay::Scene
 			int Offset;
 		};
 
-		ZetaInline TreePos* FindTreePosFromID(uint64_t id) { return m_IDtoTreePos.find(id); }
+		ZetaInline Util::Optional<TreePos> FindTreePosFromID(uint64_t id) const
+		{ 
+			auto pos = m_IDtoTreePos.find(id);
+			if (pos)
+				return *pos;
+
+			return {};
+		}
 
 		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
 			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);

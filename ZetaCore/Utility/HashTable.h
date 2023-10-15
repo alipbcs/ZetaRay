@@ -57,7 +57,7 @@ namespace ZetaRay::Util
 
 		// returns NULL if an element with the given key is not found
 		// Note: in contrast to find(), find_entry() only returns NULL when the table is empty
-		T* find(uint64_t key)
+		T* find(uint64_t key) const
 		{
 			Entry* e = find_entry(key);
 			if (e && e->Key != NULL_KEY)
@@ -258,7 +258,7 @@ namespace ZetaRay::Util
 		}
 
 	private:
-		Entry* find_entry(uint64_t key)
+		Entry* find_entry(uint64_t key) const
 		{
 			const size_t n = bucket_count();
 			if (n == 0)

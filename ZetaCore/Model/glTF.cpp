@@ -637,8 +637,7 @@ namespace
 
 						// material is needed emissive texture index
 						const uint64_t matID = SceneCore::MaterialID(context.SceneID, meshPrimInfo.MaterialIdx);
-						Material* mat = scene.GetMaterial(matID);
-						Assert(mat, "material with id %llu was not found", matID);
+						Material* mat = scene.GetMaterial(matID).value();
 
 						const int nodeIdx = (int)(&node - context.Model->nodes);
 						const uint64_t currInstanceID = SceneCore::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
