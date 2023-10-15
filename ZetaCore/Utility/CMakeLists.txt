@@ -4,6 +4,7 @@ set(UTIL_SRC
     "${UTIL_DIR}/Error.h"
     "${UTIL_DIR}/Function.h"
     "${UTIL_DIR}/HashTable.h"
+    "${UTIL_DIR}/Optional.h"
     "${UTIL_DIR}/RNG.h"
     "${UTIL_DIR}/SmallVector.h"
     "${UTIL_DIR}/Span.h"

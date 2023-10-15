@@ -8,6 +8,7 @@ set(TEST_SRC
     "${TEST_DIR}/TestMath.cpp"
     "${TEST_DIR}/TestAliasTable.cpp"
     "${TEST_DIR}/TestOffsetAllocator.cpp"
+    "${TEST_DIR}/TestOptional.cpp"
     "${TEST_DIR}/main.cpp")
 
 add_executable(Tests ${TEST_SRC})
