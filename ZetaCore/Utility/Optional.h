@@ -16,16 +16,23 @@ namespace ZetaRay::Util
 
 		Optional(const T& v)
 			requires std::is_copy_constructible_v<T>
-			: m_hasValue(true)
+		: m_hasValue(true)
 		{
 			new (reinterpret_cast<T*>(m_value)) T(v);
+
+			// treat null as not containing a value
+			if constexpr (std::is_pointer_v<T>)
+				m_hasValue = v != nullptr;
 		}
 		Optional& operator=(const T& other)
-			requires std::is_move_assignable_v<T>
+			requires std::is_copy_constructible_v<T>
 		{
 			reset();
 			new (reinterpret_cast<T*>(m_value)) T(other);
 			m_hasValue = true;
+
+			if constexpr (std::is_pointer_v<T>)
+				m_hasValue = other != nullptr;
 
 			return *this;
 		}
@@ -34,13 +41,19 @@ namespace ZetaRay::Util
 			: m_hasValue(true)
 		{
 			new (reinterpret_cast<T*>(m_value)) T(ZetaMove(v));
+
+			if constexpr (std::is_pointer_v<T>)
+				m_hasValue = v != nullptr;
 		}
 		Optional& operator=(T&& other)
-			requires std::is_move_assignable_v<T>
+			requires std::is_move_constructible_v<T>
 		{
 			reset();
 			new (reinterpret_cast<T*>(m_value)) T(ZetaMove(other));
 			m_hasValue = true;
+
+			if constexpr (std::is_pointer_v<T>)
+				m_hasValue = other != nullptr;
 
 			return *this;
 		}
@@ -52,6 +65,9 @@ namespace ZetaRay::Util
 		}
 		Optional& operator=(const Optional<T>& other)
 		{
+			if (this == &other)
+				return *this;
+
 			reset();
 
 			if (other.m_hasValue)
@@ -73,6 +89,9 @@ namespace ZetaRay::Util
 		}
 		Optional& operator=(Optional<T>&& other)
 		{
+			if (this == &other)
+				return *this;
+
 			reset();
 
 			if (other.m_hasValue)

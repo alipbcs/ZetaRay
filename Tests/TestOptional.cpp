@@ -92,4 +92,23 @@ TEST_SUITE("Optional")
 		o1.reset();
 		CHECK(!o1);
 	}
+
+	TEST_CASE("Null pointer")
+	{
+		int a = 45;
+
+		Optional<int*> o1(&a);
+		CHECK(o1);
+		
+		o1 = nullptr;
+		CHECK(!o1);
+
+		Optional<int*> o2(nullptr);
+		CHECK(!o2);
+
+		Optional<int*> o3(&a);
+		CHECK(o3);
+		o3 = ZetaMove(o2);
+		CHECK(!o3);
+	}
 };
