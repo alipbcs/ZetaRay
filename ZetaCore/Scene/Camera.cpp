@@ -118,12 +118,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 		m_frictionCoeff, 1, 16, 1);
 	App::AddParam(coeff);
 
-	//ParamVariant clampTo0;
-	//clampTo0.InitBool("Scene", "Camera", "Clamp Small V0 To 0", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
-	//	m_clampSmallV0ToZero);
-	//App::AddParam(clampTo0);
-
-	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
+	m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
 void Camera::Update(const Motion& m)
@@ -165,9 +160,9 @@ void Camera::Update(const Motion& m)
 
 	if (m_jitteringEnabled)
 	{
-		const uint64_t frame = App::GetTimer().GetTotalFrameCount();
-		//m_currJitter = k_halton[frame & 0x7];	// frame % 8
-		m_currJitter = k_halton[frame % m_jitterPhaseCount];	// frame % jitterPhaseCount
+		const uint32_t frame = App::GetTimer().GetTotalFrameCount() % m_jitterPhaseCount;
+		m_currJitter.x = Halton(frame + 1, 2) - 0.5f;
+		m_currJitter.y = Halton(frame + 1, 3) - 0.5f;
 
 #if RT_GBUFFER == 0
 		// shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
@@ -205,7 +200,7 @@ void Camera::OnWindowSizeChanged()
 	m_pixelSampleAreaWidth = 1.0f / renderWidth;
 	m_pixelSampleAreaHeight = 1.0f / renderfHeight;
 
-	m_jitterPhaseCount = int(8 * powf(App::GetUpscalingFactor(), 2.0f));
+	m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
 /*

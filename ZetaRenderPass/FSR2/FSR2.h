@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 
 namespace ZetaRay::Core
@@ -11,7 +10,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-	struct FSR2Pass final
+	struct FSR2Pass
 	{
 		enum class SHADER_IN_RES
 		{
@@ -31,12 +30,16 @@ namespace ZetaRay::RenderPass
 		FSR2Pass() = default;
 		~FSR2Pass();
 
+		FSR2Pass(FSR2Pass&&) = delete;
+		FSR2Pass& operator=(FSR2Pass&&) = delete;
+
 		void Init();
-		bool IsInitialized();
+		bool IsInitialized() { return m_initialized; }
+		void Activate();
 		void OnWindowResized();
 		void SetInput(SHADER_IN_RES i, ID3D12Resource* res)
 		{
-			Assert((int)i < (int)SHADER_IN_RES::COUNT, "out-of-bound access");
+			Assert((int)i < (int)SHADER_IN_RES::COUNT, "out-of-bound access.");
 
 			switch (i)
 			{
@@ -62,8 +65,9 @@ namespace ZetaRay::RenderPass
 		void Render(Core::CommandList& cmdList);
 
 	private:
-		static constexpr DXGI_FORMAT UPSCALED_RES_FORMAT = DXGI_FORMAT_R16G16B16A16_FLOAT;
-
 		ID3D12Resource* m_inputResources[(int)SHADER_IN_RES::COUNT] = { 0 };
+		uint16_t m_displayWidth = 0;
+		uint16_t m_displayHeight = 0;
+		bool m_initialized = false;
 	};
 }

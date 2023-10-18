@@ -491,6 +491,8 @@ namespace ZetaRay::AppImpl
 				g_app->m_displayWidth, g_app->m_displayHeight);
 			g_app->m_scene.OnWindowSizeChanged();
 
+			g_app->m_camera.OnWindowSizeChanged();
+
 			ImGuiIO& io = ImGui::GetIO();
 			io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
 		}
@@ -1058,6 +1060,7 @@ namespace ZetaRay::AppImpl
 
 			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
 			g_app->m_scene.OnWindowSizeChanged();
+			g_app->m_camera.OnWindowSizeChanged();
 
 			g_app->m_issueResize = false;
 		}

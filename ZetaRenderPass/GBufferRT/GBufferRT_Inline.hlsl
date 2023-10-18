@@ -211,7 +211,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
     {
         RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
 		g_depth[swizzledDTid] = FLT_MAX;
-		return;
+
+        RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
+        float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
+        float3 motion = g_frame.CameraPos - prevCameraPos;
+        float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
+        motionNDC.x /= g_frame.AspectRatio;
+        float2 motionUV = Math::Transform::UVFromNDC(motionNDC);
+        g_outMotion[swizzledDTid] = motionUV;
+        
+        return;
     }
 
     uint matIdx = rayPayload.matIdx;

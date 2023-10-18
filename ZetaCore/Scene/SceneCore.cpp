@@ -125,7 +125,6 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
 
 void SceneCore::OnWindowSizeChanged()
 {
-	//m_camera.OnWindowSizeChanged();
 	m_rendererInterface.OnWindowSizeChanged();
 }
 

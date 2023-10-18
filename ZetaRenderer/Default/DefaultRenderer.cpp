@@ -40,9 +40,15 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	frameConsts.RenderHeight = renderer.GetRenderHeight();
 	frameConsts.DisplayWidth = renderer.GetDisplayWidth();
 	frameConsts.DisplayHeight = renderer.GetDisplayHeight();
+#if RT_GBUFFER == 1
+	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
+		powf(2.0f, -(float)frameConsts.RenderWidth / frameConsts.DisplayWidth) :
+		1.0f;
+#else
 	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
 		log2f((float)frameConsts.RenderWidth / frameConsts.DisplayWidth) - 1.0f :
 		0.0f;
+#endif
 
 	frameConsts.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
 	frameConsts.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
@@ -129,6 +135,9 @@ namespace ZetaRay::DefaultRenderer
 		switch (u)
 		{
 		case AA::FSR2:
+			if (!g_data->m_postProcessorData.Fsr2Pass.IsInitialized())
+				g_data->m_postProcessorData.Fsr2Pass.Init();
+
 			newUpscaleFactor = 1.5f;
 			break;
 		case AA::NONE:

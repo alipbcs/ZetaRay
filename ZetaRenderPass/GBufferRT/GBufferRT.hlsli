@@ -161,10 +161,10 @@ namespace GBufferRT
         g_outMetallicRoughness[DTid] = float2(metalness, roughness);
 
         RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
-        g_outEmissive[DTid] = emissive;
+        g_outEmissive[DTid] = max(0, emissive);
 
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
-        g_outMotion[DTid] = clamp(motionVec, -1, 1);
+        g_outMotion[DTid] = motionVec;
     }
 
     float2 IntegrateBump(float2 x)
@@ -192,6 +192,7 @@ namespace GBufferRT
         ConstantBuffer<cbGBufferRt> g_local, StructuredBuffer<Material> g_materials)
     {
         const Material mat = g_materials[NonUniformResourceIndex(matIdx)];
+        grads *= g_frame.MipBias;
 
         float3 baseColor = Math::Color::UnpackRGBA(mat.BaseColorFactor).rgb;
         float4 emissiveColorNormalScale = Math::Color::UnpackRGBA(mat.EmissiveFactorNormalScale);

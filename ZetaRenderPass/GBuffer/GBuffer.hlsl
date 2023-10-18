@@ -54,7 +54,7 @@ PS_OUT PackGBuffer(float3 baseColor, float3 emissive, float3 sn, float metalness
 
 	psout.BaseColor = baseColor;
 	psout.Normal.xy = Math::Encoding::EncodeUnitVector(sn);
-	psout.MotionVec = clamp(motionVec, -1, 1);
+	psout.MotionVec = motionVec;
 	psout.MetallicRoughness = float2(metalness, roughness);
 	psout.Emissive = max(0, emissive);
 	psout.Curvature = localCurvature;

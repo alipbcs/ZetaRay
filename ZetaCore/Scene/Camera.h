@@ -54,6 +54,8 @@ namespace ZetaRay::Scene
 		const Math::ViewFrustum& GetCameraFrustumViewSpace() const { return m_viewFrustum; }
 
 	private:
+		static constexpr int BASE_PHASE_COUNT = 16;
+
 		void UpdateProj();
 		void SetFOV(const Support::ParamVariant& p);
 		void SetJitteringEnabled(const Support::ParamVariant& p);
@@ -77,29 +79,6 @@ namespace ZetaRay::Scene
 		Math::float4a m_basisZ;
 
 		Math::ViewFrustum m_viewFrustum;
-
-		// Halton (2, 3) sequence (starting from offset 1) shifted to [-0.5, 0.5]
-		inline static const Math::float2 k_halton[18] =
-		{
-			Math::float2(0.0f, -0.16666666666666669f),
-			Math::float2(-0.25f, 0.16666666666666663f),
-			Math::float2(0.25f, -0.3888888888888889f),
-			Math::float2(-0.375f, -0.05555555555555558f),
-			Math::float2(0.125f, 0.2777777777777777f),
-			Math::float2(-0.125f, -0.2777777777777778f),
-			Math::float2(0.375f, 0.05555555555555558f),
-			Math::float2(-0.4375f, 0.38888888888888884f),
-			Math::float2(0.0625f, -0.46296296296296297f),
-			Math::float2(-0.1875f, -0.12962962962962965f),
-			Math::float2(0.3125f, 0.20370370370370372f),
-			Math::float2(-0.3125f, -0.35185185185185186f),
-			Math::float2(0.1875f, -0.018518518518518545f),
-			Math::float2(-0.0625f, 0.31481481481481466f),
-			Math::float2(0.4375f, -0.24074074074074076f),
-			Math::float2(-0.46875f, 0.09259259259259256f),
-			Math::float2(0.03125f, 0.4259259259259258f),
-			Math::float2(-0.21875f, -0.42592592592592593f)
-		};
 		
 		float m_FOV;
 		float m_aspectRatio;
