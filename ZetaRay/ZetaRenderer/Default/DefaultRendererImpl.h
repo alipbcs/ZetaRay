@@ -4,12 +4,7 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#if RT_GBUFFER == 1
 #include <GBufferRT/GBufferRT.h>
-#else
-#include <GBuffer/Clear.h>
-#include <GBuffer/GBufferPass.h>
-#endif
 #include <SunShadow/SunShadow.h>
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
@@ -89,25 +84,10 @@ namespace ZetaRay::DefaultRenderer
 		Core::GpuMemory::Texture Curvature;
 
 		Core::DescriptorTable SrvDescTable[2];
-
-#if RT_GBUFFER == 1
 		Core::DescriptorTable UavDescTable[2];
-#else
-		Core::DescriptorTable RTVDescTable[2];
-		Core::DescriptorTable DSVDescTable[2];
-#endif
 
-#if RT_GBUFFER == 1
 		RenderPass::GBufferRT GBufferPass;
-#else
-		RenderPass::GBufferPass GBufferPass;
-#endif
 		Core::RenderNodeHandle GBufferPassHandle;
-
-#if RT_GBUFFER == 0
-		RenderPass::ClearPass ClearPass;
-		Core::RenderNodeHandle ClearHandle;
-#endif
 	};
 
 	struct alignas(64) PostProcessData

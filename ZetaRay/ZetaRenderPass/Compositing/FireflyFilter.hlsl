@@ -60,7 +60,7 @@ float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, i
 			if (any(addr) < 0 || any(addr >= renderDim))
 				continue;
 			
-			const float neighborLinearDepth = Math::Transform::LinearDepthFromNDC(g_depth[addr], g_frame.CameraNear);
+			const float neighborLinearDepth = g_depth[addr];
 			if (neighborLinearDepth == FLT_MAX)
 				continue;
 			
@@ -100,17 +100,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		return;
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float depth = g_depth[DTid.xy];
-#if RT_GBUFFER == 1
-	const float linearDepth = depth;
-#else
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-#endif
+	const float linearDepth = g_depth[DTid.xy];
 	
 	RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.CompositedUAVDescHeapIdx];
 	float3 color = g_composited[DTid.xy].rgb;
 	
-	if (depth == 0.0)
+	if (linearDepth == FLT_MAX)
 	{
 		g_composited[DTid.xy].rgb = color;
 		return;

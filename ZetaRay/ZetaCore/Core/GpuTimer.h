@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Core/Constants.h"
+#include <Core/Config.h>
 #include "GpuMemory.h"
 #include "../Utility/Span.h"
 #include <atomic>

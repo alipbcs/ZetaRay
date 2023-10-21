@@ -135,9 +135,6 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-#if RT_GBUFFER == 0
-	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
-#endif
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -245,11 +242,7 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	for (int i = 0; i < 5; i++)
 	{
 		prevDepths[i].x = g_prevDepth.SampleLevel(g_samLinearClamp, prevUVs[i], 0.0f);
-#if RT_GBUFFER == 1
 		prevDepths[i].y = prevDepths[i].x;
-#else
-		prevDepths[i].y = Math::Transform::LinearDepthFromNDC(prevDepths[i].x, g_frame.CameraNear);
-#endif
 	}
 
 	float weights[5];
@@ -363,9 +356,6 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	// geometry weight
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-#if RT_GBUFFER == 0
-	prevDepths = Math::Transform::LinearDepthFromNDC(prevDepths, g_frame.CameraNear);
-#endif
 	
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
@@ -484,13 +474,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 		return;
 
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float depth = g_currDepth[DTid.xy];
-
-#if RT_GBUFFER == 1
-	const float linearDepth = depth;
-#else
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-#endif
+	const float linearDepth = g_currDepth[DTid.xy];
 
 	// skip sky pixels
 	if (linearDepth == FLT_MAX)

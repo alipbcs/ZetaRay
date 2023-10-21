@@ -232,14 +232,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		return;
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	const float depth = g_depth[swizzledDTid];
+	const float linearDepth = g_depth[swizzledDTid];
 	
-#if RT_GBUFFER == 1
-	const float linearDepth = depth;
-#else
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-#endif
-
 	if (linearDepth == FLT_MAX)
 		return;
 

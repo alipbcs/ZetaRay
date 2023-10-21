@@ -1,6 +1,6 @@
 #include "../Utility/Error.h"
 #include "Device.h"
-#include "Constants.h"
+#include "Config.h"
 #include "../App/Common.h"
 
 using namespace ZetaRay;

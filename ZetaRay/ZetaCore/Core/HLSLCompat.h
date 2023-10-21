@@ -1,8 +1,6 @@
 #ifndef HLSL_COMPAT
 #define HLSL_COMPAT
 
-#include "Config.h"
-
 #ifdef __cplusplus
 	#include <cstdint>
 	#include "../Math/Matrix.h"

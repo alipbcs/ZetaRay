@@ -489,9 +489,6 @@ namespace RDI_Util
 
 			// plane-based heuristic
 			float prevDepth = g_prevDepth[samplePosSS];
-#if RT_GBUFFER == 0
-			prevDepth = Math::Transform::LinearDepthFromNDC(prevDepth, g_frame.CameraNear);
-#endif
 			const float3 prevPos = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				prevDepth,
@@ -705,13 +702,9 @@ namespace RDI_Util
 
 			if (Math::IsWithinBounds(posSS_i, renderDim))
 			{
-				const float depth_i = g_prevDepth[posSS_i];
-#if RT_GBUFFER == 1
-				const float linearDepth_i = depth_i;
-#else
-				const float linearDepth_i = Math::Transform::LinearDepthFromNDC(depth_i, g_frame.CameraNear);
-#endif
-				if (depth_i == FLT_MAX)
+				const float linearDepth_i = g_prevDepth[posSS_i];
+
+				if (linearDepth_i == FLT_MAX)
 					continue;
 
 				float3 posW_i = Math::Transform::WorldPosFromScreenSpace(posSS_i,

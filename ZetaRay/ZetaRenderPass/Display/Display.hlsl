@@ -186,9 +186,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	{
 		GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 		float z = g_depth.SampleLevel(g_samPointClamp, uv, 0);
-#if RT_GBUFFER == 1
 		z = g_frame.CameraNear / z;
-#endif
 		display = z.xxx;
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::NORMAL)

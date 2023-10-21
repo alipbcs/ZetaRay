@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Constants.h"
+#include "Config.h"
 #include "DescriptorHeap.h"
 #include "GpuTimer.h"
 #include "../Utility/Span.h"

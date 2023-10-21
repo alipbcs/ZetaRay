@@ -164,7 +164,7 @@ void Camera::Update(const Motion& m)
 		m_currJitter.x = Halton(frame + 1, 2) - 0.5f;
 		m_currJitter.y = Halton(frame + 1, 3) - 0.5f;
 
-#if RT_GBUFFER == 0
+#if 0
 		// shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
 		// Jitter is relative to unit pixel offset -- [-0.5, -0.5] x [+0.5, +0.5]
 		// NDC is relative to [-1, -1] x [+1, +1], therfore multiply by 2

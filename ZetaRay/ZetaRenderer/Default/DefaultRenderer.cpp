@@ -40,7 +40,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	frameConsts.RenderHeight = renderer.GetRenderHeight();
 	frameConsts.DisplayWidth = renderer.GetDisplayWidth();
 	frameConsts.DisplayHeight = renderer.GetDisplayHeight();
-#if RT_GBUFFER == 1
+#if 1
 	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
 		powf(2.0f, -(float)frameConsts.RenderWidth / frameConsts.DisplayWidth) :
 		1.0f;

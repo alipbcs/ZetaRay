@@ -138,11 +138,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 
 		if (all(samplePosSS < renderDim) && all(samplePosSS > 0))
 		{
-#if RT_GBUFFER == 1
 			const float sampleDepth = g_currDepth[samplePosSS];
-#else
-			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
-#endif
 			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				sampleDepth,
@@ -226,11 +222,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 
 		if (all(samplePosSS < renderDim) && all(samplePosSS > 0))
 		{
-#if RT_GBUFFER == 1
 			const float sampleDepth = g_currDepth[samplePosSS];
-#else
-			const float sampleDepth = Math::Transform::LinearDepthFromNDC(g_currDepth[samplePosSS], g_frame.CameraNear);
-#endif			
 			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				sampleDepth,
@@ -293,13 +285,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-
-#if RT_GBUFFER == 1
 	const float linearDepth = g_depth[swizzledDTid];
-#else
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(g_depth[swizzledDTid], g_frame.CameraNear);
-#endif
-	
+
 	// skip sky pixels
 	if (linearDepth == FLT_MAX)
 		return;

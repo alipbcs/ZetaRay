@@ -124,11 +124,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 			// of the neighborhood pixel that is closest to the camera.
 #if DEPTH_DILATION
 			float neighborDepth = g_depth[neighborAddrr];
-	#if RT_GBUFFER == 1
 			if (neighborDepth < closestDepth)
-	#else
-			if (neighborDepth > closestDepth)
-	#endif
 			{
 				closestDepth = neighborDepth;
 				closestDepthAddress = int2(i, j);

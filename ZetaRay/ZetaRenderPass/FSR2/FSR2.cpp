@@ -9,9 +9,7 @@
 #include <Core/PipelineStateLibrary.h>
 #include <Utility/Utility.h>
 #include <Support/Task.h>
-#if RT_GBUFFER == 1
 #include <GBufferRT/GenerateDepthBuffer.h>
-#endif
 
 #include <FSR2/Include/ffx_fsr2.h>
 #include <FSR2/Include/shaders/ffx_fsr2_resources.h>
@@ -150,9 +148,7 @@ namespace
 
 		PipelineStateLibrary m_psoLib;
 		DllWrapper m_dll;
-#if RT_GBUFFER == 1
 		GenerateRasterDepth m_rasterDepth;
-#endif
 	};
 
 	FSR2_Data* g_fsr2Data = nullptr;
@@ -1062,11 +1058,9 @@ void FSR2Pass::Activate()
 	// render graph performs the transition to UAV prior to recording
 	g_fsr2Data->m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
-#if RT_GBUFFER == 1
 	const int rw = renderer.GetRenderWidth();
 	const int rh = renderer.GetRenderHeight();
 	g_fsr2Data->m_rasterDepth.Resize(rw, rh);
-#endif
 
 	Assert(g_fsr2Data->m_currMapIdx == FFX_FSR2_PASS_COUNT, "Unaccounted PSOs.");
 	std::sort(g_fsr2Data->m_psoToPassMap, g_fsr2Data->m_psoToPassMap + FFX_FSR2_PASS_COUNT,
@@ -1159,11 +1153,7 @@ void FSR2Pass::Render(CommandList& cmdList)
 
 	g_fsr2Data->m_cmdList = &static_cast<ComputeCmdList&>(cmdList);
 	g_fsr2Data->m_color = m_inputResources[(int)SHADER_IN_RES::COLOR];
-#if RT_GBUFFER == 1
 	g_fsr2Data->m_depth = g_fsr2Data->m_rasterDepth.m_depthBuffer.Resource();
-#else
-	g_fsr2Data->m_depth = m_inputResources[(int)SHADER_IN_RES::DEPTH];
-#endif
 	g_fsr2Data->m_motionVec = m_inputResources[(int)SHADER_IN_RES::MOTION_VECTOR];
 	g_fsr2Data->m_exposure = m_inputResources[(int)SHADER_IN_RES::EXPOSURE];
 
@@ -1213,13 +1203,8 @@ void FSR2Pass::Render(CommandList& cmdList)
 	params.output.state = FFX_RESOURCE_STATE_UNORDERED_ACCESS;
 	params.exposure.resource = g_fsr2Data->m_exposure;
 	params.exposure.state = FFX_RESOURCE_STATE_COMPUTE_READ;
-#if RT_GBUFFER == 1
 	params.jitterOffset.x = -camera.GetCurrJitter().x;
 	params.jitterOffset.y = -camera.GetCurrJitter().y;
-#else
-	params.jitterOffset.x = camera.GetCurrJitter().x;
-	params.jitterOffset.y = camera.GetCurrJitter().y;
-#endif
 	params.cameraNear = FLT_MAX;
 	params.cameraFar = camera.GetNearZ();
 	params.cameraFovAngleVertical = camera.GetFOV();
@@ -1241,9 +1226,7 @@ void FSR2Pass::Render(CommandList& cmdList)
 	// record the timestamp prior to execution
 	const uint32_t queryIdx = gpuTimer.BeginQuery(*g_fsr2Data->m_cmdList, "FSR2");
 
-#if RT_GBUFFER == 1
 	g_fsr2Data->m_rasterDepth.Render(*g_fsr2Data->m_cmdList);
-#endif
 
 	//CheckFSR(ffxFsr2ContextDispatch(&g_fsr2Data->m_ctx, &params));
 	CheckFSR(g_fsr2Data->m_dll.FpDispatch(&g_fsr2Data->m_ctx, &params));

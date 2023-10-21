@@ -6,7 +6,6 @@ add_subdirectory(Compositing)
 add_subdirectory(Display)
 add_subdirectory(DirectLighting)
 add_subdirectory(FSR2)
-add_subdirectory(GBuffer)
 add_subdirectory(GBufferRT)
 add_subdirectory(GUI)
 add_subdirectory(Sky)
@@ -23,7 +22,6 @@ set(RENDERPASS_SRC
     ${RP_DI_SRC} 
     ${RP_DISPLAY_SRC} 
     ${RP_FSR2_SRC} 
-    ${RP_GBUFFER_SRC} 
     ${RP_GBUFFER_RT_SRC} 
     ${RP_GUI_SRC} 
     ${RP_SKY_SRC} 
@@ -33,8 +31,6 @@ set(RENDERPASS_SRC
 file(GLOB_RECURSE ALL_SHADERS "${ZETA_RENDER_PASS_DIR}/*.hlsl")
 set(SHADER_INCLUDES ${RP_COMMON_SRC} 
     ${ZETA_CORE_DIR}/RayTracing/RtCommon.h
-    ${ZETA_CORE_DIR}/Core/Config.h
-    ${ZETA_CORE_DIR}/Core/Material.h
     ${ZETA_CORE_DIR}/Core/Material.h)
 
 foreach(HLSL ${ALL_SHADERS})

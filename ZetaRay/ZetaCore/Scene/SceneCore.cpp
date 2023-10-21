@@ -151,7 +151,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 				m_bvh.Update(toUpdateInstances);
 		});
 
-#if RT_GBUFFER == 0
+#if 0
 		auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
 			{
 				//m_frameInstances.clear();

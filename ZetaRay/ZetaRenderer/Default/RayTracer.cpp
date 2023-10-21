@@ -172,13 +172,8 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 {
 	// Acceleration-structure rebuild/update
 	{
-#if RT_GBUFFER == 1
 		fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.RtAS, &TLAS::Render);
 		data.RtASBuildHandle = renderGraph.RegisterRenderPass("RT_AS_Build", RENDER_NODE_TYPE::COMPUTE, dlg1);
-#else
-		fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.RtAS, &TLAS::Render);
-		data.RtASBuildHandle = renderGraph.RegisterRenderPass("RT_AS_Build", RENDER_NODE_TYPE::ASYNC_COMPUTE, dlg1);
-#endif
 	}
 
 	const bool tlasReady = data.RtAS.IsReady();

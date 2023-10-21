@@ -182,11 +182,7 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 
 	const float variance = max(FFX_DNSR_Shadows_FilterVariance(GTid), g_local.MinFilterVar);
 	const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
-#if RT_GBUFFER == 1
 	const float currLinearDepth = depth;
-#else
-	const float currLinearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-#endif
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float3 currPos = Math::Transform::WorldPosFromScreenSpace(DTid, 
         renderDim,
@@ -213,9 +209,6 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 			float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == FLT_MAX) ? 0 : 1; // Zero weight for sky pixels
 
             // Fetch our filtering values
-#if RT_GBUFFER == 0
-			neighborDepth = Math::Transform::LinearDepthFromNDC(neighborDepth, g_frame.CameraNear);
-#endif
 			float3 posNeighbor = Math::Transform::WorldPosFromScreenSpace(did_idx,
                 renderDim,
                 neighborDepth,

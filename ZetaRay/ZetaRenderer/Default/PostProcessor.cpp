@@ -266,9 +266,7 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
 	// compositing
-#if RT_GBUFFER == 1
 	if (tlasReady)
-#endif
 	{
 		// g-buffers
 		renderGraph.AddInput(data.CompositingHandle,
