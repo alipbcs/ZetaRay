@@ -137,7 +137,7 @@ namespace
 		inline static constexpr const char* ASSET_DIR = "..\\Assets";
 		inline static constexpr const char* TOOLS_DIR = "..\\Tools";
 		inline static constexpr const char* DXC_PATH = "..\\Tools\\dxc\\bin\\x64\\dxc.exe";
-		inline static constexpr const char* RENDER_PASS_DIR = "..\\ZetaRenderPass";
+		inline static constexpr const char* RENDER_PASS_DIR = "..\\ZetaRay\\ZetaRenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
 

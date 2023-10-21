@@ -73,9 +73,9 @@ endif()
 # 
 set(EXTERNAL_DIR "${CMAKE_SOURCE_DIR}/External")
 set(TOOLS_DIR "${CMAKE_SOURCE_DIR}/Tools")
-set(ZETA_CORE_DIR "${CMAKE_SOURCE_DIR}/ZetaCore")
-set(ZETA_RENDER_PASS_DIR "${CMAKE_SOURCE_DIR}/ZetaRenderPass")
-set(ZETA_RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRenderer")
+set(ZETA_CORE_DIR "${CMAKE_SOURCE_DIR}/ZetaRay/ZetaCore")
+set(ZETA_RENDER_PASS_DIR "${CMAKE_SOURCE_DIR}/ZetaRay/ZetaRenderPass")
+set(ZETA_RENDERER_DIR "${CMAKE_SOURCE_DIR}/ZetaRay/ZetaRenderer")
 set(ASSET_DIR "${CMAKE_SOURCE_DIR}/Assets")
 set(CSO_DIR_DEBUG "${ASSET_DIR}/CSO/Debug")
 set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
@@ -85,9 +85,7 @@ set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
 # 
 SetupDXC(DXC_BIN_DIR)
 
-add_subdirectory(ZetaCore)
-add_subdirectory(ZetaRenderPass)
-add_subdirectory(ZetaRenderer)
+add_subdirectory(ZetaRay)
 add_subdirectory(Samples)
 
 if(BUILD_TESTS)
