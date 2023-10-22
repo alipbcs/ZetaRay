@@ -1,13 +1,10 @@
 #include "glTF.h"
-#include "glTFAsset.h"
 #include "../Math/MatrixFuncs.h"
 #include "../Math/Surface.h"
 #include "../Math/Quaternion.h"
 #include "../Scene/SceneCore.h"
-#include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
 #include "../Core/RendererCore.h"
-#include "../Core/GpuMemory.h"
 #include "../App/Log.h"
 #include "../Utility/Utility.h"
 #include <algorithm>

@@ -2,7 +2,6 @@
 
 #include <Core/Config.h>
 #include "GpuMemory.h"
-#include "../Utility/Span.h"
 #include <atomic>
 
 namespace ZetaRay::Core

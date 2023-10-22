@@ -1,10 +1,8 @@
 #pragma once
 
-#include "../Model/glTFAsset.h"
 #include "../Math/BVH.h"
 #include "Asset.h"
 #include "SceneRenderer.h"
-#include <Utility/Optional.h>
 #include <Utility/Utility.h>
 #include <xxHash/xxhash.h>
 
@@ -106,7 +104,7 @@ namespace ZetaRay::Scene
 		void Update(double dt, Support::TaskSet& sceneTS, Support::TaskSet& sceneRendererTS);
 		void Render(Support::TaskSet& ts) { m_rendererInterface.Render(ts); };
 
-	 	ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
+		ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
 
 		//
 		// Mesh
@@ -148,11 +146,11 @@ namespace ZetaRay::Scene
 
 			return {};
 		}
-		
+
 		//
 		// emissive
 		//
-		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
+		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
 			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
 		size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
 		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
@@ -176,18 +174,16 @@ namespace ZetaRay::Scene
 			return m_sceneGraph[p.Level].m_rtASInfo[p.Offset];
 		}
 
-		ZetaInline uint32_t GetInstanceVisibilityIndex(uint64_t id) const
+		ZetaInline RT_Flags GetInstanceRtFlags(uint64_t id) const
 		{
-			auto* e = m_instanceVisibilityIdx.find(id);
-			Assert(e, "instance with ID %llu was not found.", id);
-
-			return *e;
+			const TreePos& p = FindTreePosFromID(id).value();
+			return Scene::GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
 		}
 
 		ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
 		ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
 		ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
-		ZetaInline Util::Span<Math::BVH::BVHInput> GetFrameInstances() { return m_frameInstances; }
+		ZetaInline Util::Span<uint64_t> GetViewFrustumInstances() { return m_viewFrustumInstances; }
 
 		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true);
 
@@ -217,7 +213,7 @@ namespace ZetaRay::Scene
 		};
 
 		ZetaInline Util::Optional<TreePos> FindTreePosFromID(uint64_t id) const
-		{ 
+		{
 			auto pos = m_IDtoTreePos.find(id);
 			if (pos)
 				return *pos;
@@ -310,7 +306,7 @@ namespace ZetaRay::Scene
 		//
 		// previous frame's ToWorld transformations
 		//
-	
+
 		struct PrevToWorld
 		{
 			Math::float4x3 W;
@@ -322,21 +318,17 @@ namespace ZetaRay::Scene
 		//
 		// BVH
 		//
-
 		Math::BVH m_bvh;
 		bool m_rebuildBVHFlag = false;
 
 		//
 		// instances
 		//
-
-		Util::SmallVector<Math::BVH::BVHInput, App::FrameAllocator> m_frameInstances;
-		Util::HashTable<uint32_t> m_instanceVisibilityIdx;
+		Util::SmallVector<uint64_t, App::FrameAllocator> m_viewFrustumInstances;
 
 		//
 		// assets
 		//
-
 		Internal::MaterialBuffer m_matBuffer;
 		Internal::MeshContainer m_meshes;
 		Internal::EmissiveBuffer m_emissives;

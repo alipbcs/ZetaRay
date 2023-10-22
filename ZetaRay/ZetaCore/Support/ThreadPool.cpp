@@ -1,11 +1,13 @@
 #include "ThreadPool.h"
-#include "../App/Timer.h"
-#include "Task.h"
-#include "../Core/Device.h"
+#include "../Win32/Win32.h"
 #include "../App/Log.h"
 
 #define LOG_TASK_TIMINGS 0
 #define ENABLE_TIMINGS 0
+
+#if ENABLE_TIMINGS == 1
+#include "../App/Timer.h"
+#endif
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::App;

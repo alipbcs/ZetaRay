@@ -6,7 +6,6 @@
 #include "../App/Filesystem.h"
 #include "../Core/Material.h"
 #include "../Model/Mesh.h"
-#include "../Support/ThreadSafeMemoryArena.h"
 
 namespace ZetaRay::Model::glTF::Asset
 {

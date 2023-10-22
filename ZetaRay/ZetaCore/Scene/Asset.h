@@ -1,10 +1,7 @@
 #pragma once
 
-#include "../Model/Mesh.h"
-#include "../Core/Material.h"
 #include "../Utility/HashTable.h"
 #include "../Core/DescriptorHeap.h"
-#include "../Core/GpuMemory.h"
 #include "../Model/glTFAsset.h"
 #include "../RayTracing/RtCommon.h"
 #include <Utility/Optional.h>

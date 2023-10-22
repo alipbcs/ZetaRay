@@ -4,8 +4,6 @@
 #include "../Core/CommandList.h"
 #include "../Scene/SceneCore.h"
 #include "../Math/MatrixFuncs.h"
-#include "../Model/Mesh.h"
-#include "RtCommon.h"
 #include "../Core/SharedShaderResources.h"
 #include "../Math/Color.h"
 
@@ -45,11 +43,6 @@ namespace
 
 		return f;
 	}
-
-	struct BLASTransform
-	{
-		float M[3][4];
-	};
 }
 
 //--------------------------------------------------------------------------------------

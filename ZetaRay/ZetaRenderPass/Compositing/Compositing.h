@@ -45,7 +45,6 @@ namespace ZetaRay::RenderPass
 		void SetSkyIllumEnablement(bool enable);
 		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }
-		void SetRoughnessCutoff(float cuttoff) { m_cbComposit.RoughnessCutoff = cuttoff; }
 		void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
 		{
 			Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");

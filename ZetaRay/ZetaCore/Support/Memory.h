@@ -7,7 +7,9 @@
 namespace ZetaRay::Support
 {
 	template<typename T>
-	concept AllocatorType = std::is_copy_constructible_v<T> && 
+	concept AllocatorType = 
+		std::is_copy_constructible_v<T> && 
+		std::is_copy_assignable_v<T> &&
 		requires(T t, size_t s, size_t a, void* mem)
 		{
 			{ t.AllocateAligned(s, a) } -> std::same_as<void*>;

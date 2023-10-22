@@ -1,12 +1,8 @@
 #include "Asset.h"
-#include "../Core/DescriptorHeap.h"
 #include "../Core/RendererCore.h"
-#include "../Core/GpuMemory.h"
 #include "../Core/SharedShaderResources.h"
-#include "../App/Filesystem.h"
 #include "SceneRenderer.h"
 #include "SceneCore.h"
-#include "../Model/glTFAsset.h"
 #include "../Utility/Utility.h"
 #include <algorithm>
 

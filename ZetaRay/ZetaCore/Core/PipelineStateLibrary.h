@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Core/Device.h"
-#include "../Utility/SmallVector.h"
 #include "../App/Filesystem.h"
 #include <atomic>
 

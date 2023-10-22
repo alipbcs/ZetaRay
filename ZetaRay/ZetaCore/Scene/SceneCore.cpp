@@ -155,21 +155,21 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 	auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
 		{
 			//m_frameInstances.clear();
-			m_frameInstances.free_memory();
-			m_frameInstances.reserve(m_IDtoTreePos.size());
+			m_viewFrustumInstances.free_memory();
+			m_viewFrustumInstances.reserve(m_IDtoTreePos.size());
 
 			const Camera& camera = App::GetCamera();
-			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
+			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_viewFrustumInstances);
 
-			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
+			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_viewFrustumInstances.size()), (uint32_t)m_IDtoTreePos.size());
 		});
-		
+
 	sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
 #endif
 
 	const uint32_t numInstances = m_emissives.NumEmissiveInstances();
 	m_staleEmissives = false;
-	
+
 	// full rebuild of the emissive buffers for the first time
 	if (numInstances && m_emissives.RebuildFlag() && m_rendererInterface.IsRTASBuilt())
 	{
@@ -335,24 +335,24 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
 	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, MutableSpan<DDSImage> ddsImages)
-	{
-		auto idx = BinarySearch(Span(ddsImages), ID, [](const DDSImage& obj) {return obj.ID; });
-		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
+		{
+			auto idx = BinarySearch(Span(ddsImages), ID, [](const DDSImage& obj) {return obj.ID; });
+			Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
 
-		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
-	};
+			tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
+		};
 
 	AcquireSRWLockExclusive(&m_matLock);
 
 	{
 		uint32_t tableOffset = uint32_t(-1);	// i.e. index in GPU descriptor table
-		
+
 		if (matDesc.BaseColorTexPath != uint64_t(-1))
 		{
 			addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
 			m_baseColTableOffsetToID[tableOffset] = matDesc.BaseColorTexPath;
 		}
-		
+
 		mat.BaseColorTexture = tableOffset;
 	}
 
@@ -363,7 +363,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 			addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
 			m_normalTableOffsetToID[tableOffset] = matDesc.NormalTexPath;
 		}
-		
+
 		mat.NormalTexture = tableOffset;
 	}
 
@@ -374,7 +374,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 			addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", m_metallicRoughnessDescTable, tableOffset, ddsImages);
 			m_metallicRoughnessTableOffsetToID[tableOffset] = matDesc.MetallicRoughnessTexPath;
 		}
-		
+
 		mat.MetallicRoughnessTexture = tableOffset;
 	}
 
@@ -385,7 +385,7 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 			addTex(matDesc.EmissiveTexPath, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
 			m_emissiveTableOffsetToID[tableOffset] = matDesc.EmissiveTexPath;
 		}
-		
+
 		mat.SetEmissiveTex(tableOffset);
 		mat.SetEmissiveStrength(matDesc.EmissiveStrength);
 	}
@@ -415,10 +415,10 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 	}
 	else
 		m_numDynamicInstances++;
-	
+
 	int treeLevel = 1;
 	int parentIdx = 0;
-	
+
 	// get parent's index from the hashmap
 	if (instance.ParentID != ROOT_ID)
 	{
@@ -427,7 +427,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		treeLevel = p.Level + 1;
 		parentIdx = p.Offset;
 	}
-	
+
 	const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
 		instance.RtMeshMode, instance.RtInstanceMask, instance.IsOpaque);
 
@@ -438,7 +438,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 		m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
 		// adjust tree positions of shifted instances
-		for(int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
+		for (int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
 		{
 			uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
 			TreePos* p = m_IDtoTreePos.find(insID);
@@ -466,7 +466,7 @@ void SceneCore::AddInstance(uint64_t sceneID, glTF::Asset::InstanceDesc&& instan
 int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
 	uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque)
 {
-	while(treeLevel >= m_sceneGraph.size())
+	while (treeLevel >= m_sceneGraph.size())
 		m_sceneGraph.emplace_back(m_memoryPool);
 
 	auto& parentLevel = m_sceneGraph[treeLevel - 1];
@@ -482,12 +482,12 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 	// append it to end, then keep swapping it back until it's at insertIdx
 	auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
 		(Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args)
-		{
-			vec.emplace_back(T(ZetaForward(args)...));
+	{
+		vec.emplace_back(T(ZetaForward(args)...));
 
-			for (int i = (int)vec.size() - 1; i != insertIdx; --i)
-				std::swap(vec[i], vec[i - 1]);
-		};
+		for (int i = (int)vec.size() - 1; i != insertIdx; --i)
+			std::swap(vec[i], vec[i - 1]);
+	};
 
 	float4x3 I = float4x3(store(identity()));
 
@@ -545,7 +545,7 @@ void SceneCore::AddAnimation(uint64_t id, Vector<Keyframe>&& keyframes, float tO
 	m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
-void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances, 
+void SceneCore::AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
 	SmallVector<RT::EmissiveTriangle>&& emissiveTris)
 {
 	if (emissiveTris.empty())
@@ -560,8 +560,6 @@ void SceneCore::RebuildBVH()
 {
 	SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
 	allInstances.reserve(m_IDtoTreePos.size());
-
-	m_instanceVisibilityIdx.resize(m_IDtoTreePos.size());
 
 	const int numLevels = (int)m_sceneGraph.size();
 	uint32_t currInsIdx = 0;
@@ -584,8 +582,6 @@ void SceneCore::RebuildBVH()
 			const uint64_t insID = m_sceneGraph[level].m_IDs[i];
 
 			allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .ID = insID });
-
-			m_instanceVisibilityIdx.emplace(insID, currInsIdx++);
 		}
 	}
 
@@ -622,7 +618,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 					v_AABB vNewBox = transform(newW, vOldBox);
 					const uint64_t ID = m_sceneGraph[level + 1].m_IDs[j];
 
-					toUpdateInstances.emplace_back(BVH::BVHUpdateInput{ 
+					toUpdateInstances.emplace_back(BVH::BVHUpdateInput{
 						.OldBox = store(vOldBox),
 						.NewBox = store(vNewBox),
 						.ID = ID });
@@ -640,14 +636,14 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 
 				m_sceneGraph[level + 1].m_toWorlds[j] = float4x3(store(newW));
 
-				m_prevToWorlds.emplace_back(PrevToWorld{ 
-					.W = m_sceneGraph[level + 1].m_toWorlds[j], 
+				m_prevToWorlds.emplace_back(PrevToWorld{
+					.W = m_sceneGraph[level + 1].m_toWorlds[j],
 					.ID = m_sceneGraph[level + 1].m_IDs[j] });
 			}
 		}
 	}
 
-	std::sort(m_prevToWorlds.begin(), m_prevToWorlds.end(), 
+	std::sort(m_prevToWorlds.begin(), m_prevToWorlds.end(),
 		[](const PrevToWorld& lhs, const PrevToWorld& rhs)
 		{
 			return lhs.ID < rhs.ID;
@@ -741,7 +737,7 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdateOut, App::FrameA
 
 void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec)
 {
-	for(auto& update : animVec)
+	for (auto& update : animVec)
 	{
 		uint64_t insID = uint64_t(-1);
 
@@ -790,7 +786,7 @@ void SceneCore::UpdateEmissives(Util::MutableSpan<EmissiveInstance> instances)
 		const v_float4x4 vCurrW = load4x3(GetToWorld(e.InstanceID));
 		if (equal(vCurrW, I))
 			continue;
-		
+
 		// undo previous transformation
 		const float4x3& PrevW_inv = *GetPrevToWorld(e.InstanceID).value();
 		v_float4x4 vPrevW_inv = load4x3(PrevW_inv);

@@ -9,8 +9,7 @@ namespace ZetaRay::Util
 	//--------------------------------------------------------------------------------------
 	// Vector
 	// 
-	// Vector cannot be directly constructed; it only provides a common interface for SmallVector.
-	// As a result, usage doesn't require knowing the inline storage size N.
+	// Cannot be directly constructed -- base class for SmallVector.
 	//--------------------------------------------------------------------------------------
 
 	template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator>
@@ -105,15 +104,6 @@ namespace ZetaRay::Util
 			return m_end;
 		}
 
-		ZetaInline const T* cbegin() const
-		{
-			return m_beg;
-		}
-
-		ZetaInline const T* cend() const
-		{
-			return m_end;
-		}
 
 		ZetaInline T* data()
 		{
@@ -240,7 +230,7 @@ namespace ZetaRay::Util
 
 		void pop_back(size_t num = 1)
 		{
-			Assert(size() >= num, "attempting to pop more items than Vector's size.");
+			Assert(size() >= num, "Number of elements to pop exceeds Vector's size.");
 
 			if constexpr (!std::is_trivially_destructible_v<T>)
 			{
@@ -328,7 +318,7 @@ namespace ZetaRay::Util
 				}
 			}
 			else
-				Assert(false, "calling reserve() for a non-copyable and non-movable T when Vector is non-empty is invalid.");
+				Assert(false, "Calling reserve() for a non-copyable and non-movable T when Vector is non-empty is invalid.");
 
 			m_end += num;
 		}
@@ -336,11 +326,11 @@ namespace ZetaRay::Util
 		// Erases an element by swapping it with the last element. Returns a pointer to the next element.
 		T* erase(size_t pos)
 		{
-			static_assert(std::is_swappable_v<T>, "T is not swappable");
+			static_assert(std::is_swappable_v<T>, "T is not swappable.");
 			const size_t n = size();
 			Assert(pos < n, "Out-of-bound access.");
-			Assert(!empty(), "attempting to erase from an empty Vector");
-			Assert(pos < n, "invalid arg");
+			Assert(!empty(), "Attempting to erase from an empty Vector");
+			Assert(pos < n, "Invalid index position.");
 
 			if (pos == n - 1)
 			{
@@ -357,10 +347,10 @@ namespace ZetaRay::Util
 		// Erases an element by swapping it with the last element. Returns a pointer to the next element.
 		T* erase(T& item)
 		{
-			static_assert(std::is_swappable_v<T>, "T is not swappable");
+			static_assert(std::is_swappable_v<T>, "T is not swappable.");
 			const size_t n = size();
 			const size_t pos = &item - m_beg;
-			Assert(!empty(), "attempting to erase from an empty Vector");
+			Assert(!empty(), "Attempting to erase from an empty Vector.");
 			Assert(pos >= 0 && pos < n, "Out-of-bound access.");
 
 			if (pos == n - 1)
@@ -378,7 +368,7 @@ namespace ZetaRay::Util
 		void push_front(const T& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
-			static_assert(std::is_swappable_v<T>, "T is not swappable");
+			static_assert(std::is_swappable_v<T>, "T is not swappable.");
 
 			emplace_back(val);
 
@@ -391,7 +381,7 @@ namespace ZetaRay::Util
 		void push_front(T&& val)
 		{
 			static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
-			static_assert(std::is_swappable_v<T>, "T is not swappable");
+			static_assert(std::is_swappable_v<T>, "T is not swappable.");
 
 			emplace_back(ZetaMove(val));
 
@@ -481,7 +471,6 @@ namespace ZetaRay::Util
 		Vector& operator=(const Vector& other)
 		{
 			static_assert(std::is_copy_assignable_v<T>, "T cannot be copy-assigned.");
-			static_assert(std::is_copy_assignable_v<Allocator>, "Allocator cannot be copy-assigned.");
 
 			if (this == &other)
 				return *this;
@@ -606,7 +595,7 @@ namespace ZetaRay::Util
 
 				// adjust the pointers
 				m_end = m_beg + other.size();
-				Assert(size() == other.size(), "these must be equal");
+				Assert(size() == other.size(), "these must be equal.");
 				
 				other.clear();
 			}
@@ -657,7 +646,7 @@ namespace ZetaRay::Util
 					}
 				}
 				else
-					Assert(false, "calling reserve() for a non-copyable and non-movable type T when Vector is non-empty is invalid.");
+					Assert(false, "Calling reserve() for a non-copyable and non-movable type T when Vector is non-empty is invalid.");
 
 				// destruct old elements
 				if constexpr (!std::is_trivially_destructible_v<T>)
@@ -702,9 +691,10 @@ namespace ZetaRay::Util
 
 	//--------------------------------------------------------------------------------------
 	// SmallVector 
-	// Dynamic array with inline storage to hold a static number (template argument) of elements 
-	// within the object. Inspired by the following talk:
-	// “High Performance Code 201: Hybrid Data Structures"
+	// 
+	// Dynamic array with inline storage that holds a static number of elements within the 
+	// object. Inspired by the following talk:
+	// Chandler Carruth, “High Performance Code 201: Hybrid Data Structures", CppCon 2016.
 	//--------------------------------------------------------------------------------------
 
 	constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)

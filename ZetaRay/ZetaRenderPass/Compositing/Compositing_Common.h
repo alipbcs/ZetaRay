@@ -31,7 +31,6 @@ struct cbCompositing
 	float DepthMappingExp;
 	float VoxelGridNearZ;
 	float VoxelGridFarZ;
-	float RoughnessCutoff;
 
 	uint32_t Flags;
 };

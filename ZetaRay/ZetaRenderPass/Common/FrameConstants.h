@@ -64,7 +64,7 @@ namespace ZetaRay
 		uint32_t NumFramesCameraStatic;
 		uint32_t CameraStatic;
 		uint32_t Accumulate;
-		uint32_t pad2;
+		uint32_t pad;
 	};
 #ifdef __cplusplus
 }

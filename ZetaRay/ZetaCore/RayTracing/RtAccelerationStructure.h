@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Core/GpuMemory.h"
-#include "../Utility/SmallVector.h"
 #include "RtCommon.h"
 
 namespace ZetaRay::Core
@@ -12,6 +11,11 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RT
 {
+	struct BLASTransform
+	{
+		float M[3][4];
+	};
+
 	//--------------------------------------------------------------------------------------
 	// BLAS
 	//--------------------------------------------------------------------------------------

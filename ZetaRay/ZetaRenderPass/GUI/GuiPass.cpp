@@ -618,7 +618,7 @@ void GuiPass::RenderProfiler()
 				break;
 
 			case Stat::ST_TYPE::ST_FLOAT:
-				ImGui::Text("\t%s: %f", s.GetName(), s.GetFloat());
+				ImGui::Text("\t%s: %.2f", s.GetName(), s.GetFloat());
 				break;
 
 			case Stat::ST_TYPE::ST_UINT64:

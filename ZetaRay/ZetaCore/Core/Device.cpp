@@ -1,4 +1,3 @@
-#include "../Utility/Error.h"
 #include "Device.h"
 #include "Config.h"
 #include "../App/Common.h"

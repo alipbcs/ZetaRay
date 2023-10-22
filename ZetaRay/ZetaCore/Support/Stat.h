@@ -106,7 +106,7 @@ namespace ZetaRay::Support
 		}
 
 		static constexpr size_t GROUP_LEN = 16;
-		static constexpr size_t NAME_LEN = 20;
+		static constexpr size_t NAME_LEN = 32;
 
 		char m_group[GROUP_LEN];
 		char m_name[NAME_LEN];
