@@ -35,6 +35,9 @@ namespace ZetaRay::Util
 
 	template<typename T>
 	struct Span;
+
+	template<typename T>
+	struct MutableSpan;
 }
 
 namespace ZetaRay::App
@@ -126,11 +129,11 @@ namespace ZetaRay::App
 
 	void AddParam(Support::ParamVariant& p);
 	void RemoveParam(const char* group, const char* subgroup, const char* name);
-	Util::RWSynchronizedVariable<Util::Span<Support::ParamVariant>> GetParams();
+	Util::RWSynchronizedVariable<Util::MutableSpan<Support::ParamVariant>> GetParams();
 
 	void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg);
 	void RemoveShaderReloadHandler(const char* name);
-	Util::RSynchronizedVariable<Util::Span<ShaderReloadHandler>> GetShaderReloadHandlers();
+	Util::RSynchronizedVariable<Util::MutableSpan<ShaderReloadHandler>> GetShaderReloadHandlers();
 
 	// these could be implemented as template functions, but then the implementation has to be in the header,
 	// which means including some heavy-to-compile headers here. Considering App.h is included in most of the 

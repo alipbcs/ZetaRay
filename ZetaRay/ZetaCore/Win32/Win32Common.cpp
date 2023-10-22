@@ -7,7 +7,7 @@ using namespace ZetaRay;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
 
-int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str)
+int Common::WideToCharStr(const wchar_t* wideStr, MutableSpan<char> str)
 {
 	int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
 	Assert(str.size() > size, "buffer overflow");
@@ -17,7 +17,7 @@ int Common::WideToCharStr(const wchar_t* wideStr, Span<char> str)
     return size;
 }
 
-int Common::CharToWideStr(const char* str, Util::Span<wchar_t> wideStr)
+int Common::CharToWideStr(const char* str, Util::MutableSpan<wchar_t> wideStr)
 {
     int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
     Assert(wideStr.size() > size, "buffer overflow");

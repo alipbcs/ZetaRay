@@ -152,19 +152,19 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 		});
 
 #if 0
-		auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
-			{
-				//m_frameInstances.clear();
-				m_frameInstances.free_memory();
-				m_frameInstances.reserve(m_IDtoTreePos.size());
+	auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
+		{
+			//m_frameInstances.clear();
+			m_frameInstances.free_memory();
+			m_frameInstances.reserve(m_IDtoTreePos.size());
 
-				const Camera& camera = App::GetCamera();
-				m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
+			const Camera& camera = App::GetCamera();
+			m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_frameInstances);
 
-				App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
-			});
+			App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_frameInstances.size()), (uint32_t)m_IDtoTreePos.size());
+		});
 		
-		sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
+	sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
 #endif
 
 	const uint32_t numInstances = m_emissives.NumEmissiveInstances();
@@ -320,7 +320,7 @@ void SceneCore::AddMeshes(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh
 	ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& matDesc, Span<glTF::Asset::DDSImage> ddsImages)
+void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& matDesc, MutableSpan<glTF::Asset::DDSImage> ddsImages)
 {
 	Assert(matDesc.Index >= 0, "invalid material index.");
 	const uint64_t matFromSceneID = MaterialID(sceneID, matDesc.Index);
@@ -334,9 +334,9 @@ void SceneCore::AddMaterial(uint64_t sceneID, const glTF::Asset::MaterialDesc& m
 	mat.SetAlphaMode(matDesc.AlphaMode);
 	mat.SetDoubleSided(matDesc.DoubleSided);
 
-	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, Span<DDSImage> ddsImages)
+	auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, MutableSpan<DDSImage> ddsImages)
 	{
-		auto idx = BinarySearch(ddsImages, ID, [](const DDSImage& obj) {return obj.ID; });
+		auto idx = BinarySearch(Span(ddsImages), ID, [](const DDSImage& obj) {return obj.ID; });
 		Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
 
 		tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
@@ -616,7 +616,7 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 				if (!m_rebuildBVHFlag && !equal(newW, prevW))
 				{
 					const uint64_t meshID = m_sceneGraph[level + 1].m_meshIDs[j];
-					TriangleMesh* mesh = m_meshes.GetMesh(meshID).value();
+					const TriangleMesh* mesh = m_meshes.GetMesh(meshID).value();
 					v_AABB vOldBox(mesh->m_AABB);
 					vOldBox = transform(prevW, vOldBox);
 					v_AABB vNewBox = transform(newW, vOldBox);
@@ -779,7 +779,7 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdateOut> animVec)
 }
 
 // TODO following is untested
-void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances)
+void SceneCore::UpdateEmissives(Util::MutableSpan<EmissiveInstance> instances)
 {
 	auto emissvies = m_emissives.EmissiveInstances();
 	auto tris = m_emissives.EmissiveTriagnles();
@@ -792,7 +792,7 @@ void SceneCore::UpdateEmissives(Util::Span<EmissiveInstance> instances)
 			continue;
 		
 		// undo previous transformation
-		float4x3& PrevW_inv = *GetPrevToWorld(e.InstanceID).value();
+		const float4x3& PrevW_inv = *GetPrevToWorld(e.InstanceID).value();
 		v_float4x4 vPrevW_inv = load4x3(PrevW_inv);
 		vPrevW_inv = inverseSRT(vPrevW_inv);
 		// then apply the new transformation

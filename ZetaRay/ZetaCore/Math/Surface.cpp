@@ -9,7 +9,7 @@ using namespace ZetaRay::Math;
 // Surfaces
 //--------------------------------------------------------------------------------------
 
-void ZetaRay::Math::ComputeMeshTangentVectors(Span<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices)
+void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span<uint32_t> indices, bool rhsIndices)
 {
 	float3* tangents = new float3[vertices.size()];
 	memset(tangents, 0, sizeof(float3) * vertices.size());

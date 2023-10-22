@@ -10,6 +10,9 @@ namespace ZetaRay::Util
 {
 	template<typename T>
 	struct Span;
+
+	template<typename T>
+	struct MutableSpan;
 }
 
 namespace ZetaRay::Math
@@ -126,8 +129,8 @@ namespace ZetaRay::Math
 	// at least minNumElems elements
 	size_t SubdivideRangeWithMin(size_t n,
 		size_t maxNumGroups,
-		Util::Span<size_t> offsets,
-		Util::Span<size_t> sizes,
+		Util::MutableSpan<size_t> offsets,
+		Util::MutableSpan<size_t> sizes,
 		size_t minNumElems = 0);
 
 	// Ref: https://walbourn.github.io/directxmath-f16c-and-fma/

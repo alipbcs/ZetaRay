@@ -89,7 +89,7 @@ namespace ZetaRay::Scene::Internal
 		//void Remove(uint64_t id, uint64_t nextFenceVal);
 
 		// Note: not thread safe
-		ZetaInline Util::Optional<Material*> Get(uint64_t id)
+		ZetaInline Util::Optional<const Material*> Get(uint64_t id) const
 		{
 			auto* mat = m_matTable.find(id);
 			if (mat)
@@ -137,7 +137,7 @@ namespace ZetaRay::Scene::Internal
 		void RebuildBuffers();
 		
 		// Note: not thread safe
-		ZetaInline Util::Optional<Model::TriangleMesh*> GetMesh(uint64_t id)
+		ZetaInline Util::Optional<const Model::TriangleMesh*> GetMesh(uint64_t id) const
 		{
 			auto mesh = m_meshes.find(id);
 			if (mesh)
@@ -183,7 +183,7 @@ namespace ZetaRay::Scene::Internal
 		ZetaInline uint32_t NumEmissiveTriangles() const { return (uint32_t)m_emissivesTrisCpu.size(); }
 
 		Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
-		Util::Span<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
+		Util::MutableSpan<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
 
 	private:
 		Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;

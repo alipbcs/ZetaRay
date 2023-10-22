@@ -18,7 +18,7 @@ namespace ZetaRay::Math
 	}
 
 	// Computes AABB that encloses the given mesh. Assumes vtxStride - (posOffset + sizeof(float3)) >= sizeof(float)
-	ZetaInline v_AABB __vectorcall compueMeshAABB(void* data, uint32_t posOffset, uint32_t vtxStride, uint32_t numVertices)
+	ZetaInline v_AABB __vectorcall compueMeshAABB(const void* data, uint32_t posOffset, uint32_t vtxStride, uint32_t numVertices)
 	{
 		uintptr_t dataPtr = (uintptr_t)data + posOffset;
 		float3* currPos = reinterpret_cast<float3*>(dataPtr);

@@ -901,7 +901,7 @@ namespace
 		// check if PSO already exists in PSO lib
 		g_fsr2Data->m_passes[pass].PSO = g_fsr2Data->m_psoLib.GetComputePSO(pass,
 			g_fsr2Data->m_passes[pass].RootSig.Get(),
-			Span(shaderBlob.data, shaderBlob.size));
+			MutableSpan(shaderBlob.data, shaderBlob.size));
 
 		// to figure out each PSO corresponds to which pass
 		Assert(g_fsr2Data->m_currMapIdx < FFX_FSR2_PASS_COUNT, "Invalid pass idx");

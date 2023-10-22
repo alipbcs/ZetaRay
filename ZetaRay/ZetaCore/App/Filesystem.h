@@ -32,8 +32,8 @@ namespace ZetaRay::App::Filesystem
         Filesystem::Path& Append(Util::StrView str);
         Filesystem::Path& ToParent();
         Filesystem::Path& Directory();
-        void Stem(Util::Span<char> buff, size_t* outStrLen = nullptr) const;
-        void Extension(Util::Span<char> buff, size_t* outStrLen = nullptr) const;
+        void Stem(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
+        void Extension(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
         ZetaInline char* Get() { return m_path.begin(); }
         ZetaInline Util::StrView GetView() const { return Util::StrView(m_path.begin(), m_path.size()); }
         ZetaInline size_t Length() const { return m_path.size(); }

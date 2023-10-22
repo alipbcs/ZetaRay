@@ -25,7 +25,7 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-	void AddParamRange(Span<ParamVariant> params, size_t offset, size_t count)
+	void AddParamRange(MutableSpan<ParamVariant> params, size_t offset, size_t count)
 	{
 		std::sort(params.begin() + offset, params.begin() + offset + count, [](ParamVariant& p1, ParamVariant& p2)
 			{
@@ -856,7 +856,7 @@ void GuiPass::CameraTab()
 void GuiPass::ParameterTab()
 {
 	auto paramsView = App::GetParams();
-	Span<ParamVariant> params = paramsView.Variable();
+	MutableSpan<ParamVariant> params = paramsView.Variable();
 	char currGroup[ParamVariant::MAX_GROUP_LEN];
 
 	ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
@@ -994,7 +994,7 @@ void GuiPass::GpuTimingsTab()
 void GuiPass::ShaderReloadTab()
 {
 	auto reloadHandlers = App::GetShaderReloadHandlers();
-	Span<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
+	MutableSpan<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
 
 	if (!handlers.empty())
 	{

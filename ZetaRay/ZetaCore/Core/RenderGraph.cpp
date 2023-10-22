@@ -233,7 +233,7 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end)
 		return -1;
 
 	end = (end == -1) ? m_lastResIdx.load(std::memory_order_relaxed) - 1 : end;
-	auto idx = BinarySearch(Span(m_frameResources), key, [](ResourceMetadata& r) {return r.ID; }, beg, end);
+	auto idx = BinarySearch(Span(m_frameResources), key, [](const ResourceMetadata& r) {return r.ID; }, beg, end);
 	return (int)idx;
 }
 

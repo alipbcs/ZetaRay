@@ -110,7 +110,7 @@ Filesystem::Path& Filesystem::Path::Directory()
     return *this;
 }
 
-void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const
+void Filesystem::Path::Stem(MutableSpan<char> buff, size_t* outStrLen) const
 {
     const size_t len = strlen(m_path.begin());
 
@@ -146,7 +146,7 @@ void Filesystem::Path::Stem(Span<char> buff, size_t* outStrLen) const
         *outStrLen = s - 1;
 }
 
-void Filesystem::Path::Extension(Util::Span<char> buff, size_t* outStrLen) const
+void Filesystem::Path::Extension(Util::MutableSpan<char> buff, size_t* outStrLen) const
 {
     const size_t len = strlen(m_path.begin());
 

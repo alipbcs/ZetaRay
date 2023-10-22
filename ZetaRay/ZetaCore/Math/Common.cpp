@@ -43,7 +43,7 @@ float3 Math::SphericalToCartesian(float theta, float phi)
 	return float3(sinTheta * cosf(phi), cosf(theta), -sinTheta * sinf(phi));
 }
 
-size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, Span<size_t> offsets, Span<size_t> sizes, size_t minNumElems)
+size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, MutableSpan<size_t> offsets, MutableSpan<size_t> sizes, size_t minNumElems)
 {
 	Assert(offsets.size() >= maxNumGroups, "out-of-bound access in offsets array.");
 	Assert(sizes.size() >= maxNumGroups, "out-of-bound access in sizes array.");
@@ -76,7 +76,7 @@ float Math::KahanSum(Span<float> data)
 	float compensation = 0.0;
 
 	// align to 32-byte boundary
-	float* curr = data.data();
+	const float* curr = data.data();
 	while ((reinterpret_cast<uintptr_t>(curr) & 31) != 0)
 	{
 		float corrected = *curr - compensation;

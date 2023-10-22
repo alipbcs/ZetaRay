@@ -97,13 +97,13 @@ namespace
 		size_t* MeshThreadSizes;
 		size_t* ImgThreadOffsets;
 		size_t* ImgThreadSizes;
-		Span<Vertex> Vertices;
+		MutableSpan<Vertex> Vertices;
 		std::atomic_uint32_t& CurrVtxOffset;
-		Span<uint32_t> Indices;
+		MutableSpan<uint32_t> Indices;
 		std::atomic_uint32_t& CurrIdxOffset;
-		Span<Mesh> Meshes;
+		MutableSpan<Mesh> Meshes;
 		std::atomic_uint32_t& CurrMeshPrimOffset;
-		Span<EmissiveMeshPrim> EmissiveMeshPrims;
+		MutableSpan<EmissiveMeshPrim> EmissiveMeshPrims;
 		uint32_t* EmissiveMeshPrimCounterPerWorker;
 		Vector<RT::EmissiveTriangle>& RTEmissives;
 		Vector<EmissiveInstance>& EmissiveInstances;
@@ -112,7 +112,7 @@ namespace
 		uint32_t NumEmissiveTris;
 	};
 
-	void ResetEmissiveSubsets(Span<EmissiveMeshPrim> subsets)
+	void ResetEmissiveSubsets(MutableSpan<EmissiveMeshPrim> subsets)
 	{
 		if (subsets.empty())
 			return;
@@ -135,7 +135,7 @@ namespace
 			subsets[subsets.size() - 1 - i].MeshID = uint64_t(-1);
 	}
 
-	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
+	void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -156,7 +156,7 @@ namespace
 		}
 	}
 
-	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
+	void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec3, "Invalid type for NORMAL attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -177,7 +177,7 @@ namespace
 		}
 	}
 
-	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
+	void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec2, "Invalid type for TEXCOORD_0 attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -196,7 +196,7 @@ namespace
 		}
 	}
 
-	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, Span<Vertex> vertices, uint32_t baseOffset)
+	void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_vec4, "Invalid type for TANGENT attribute.");
 		Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -216,7 +216,7 @@ namespace
 		}
 	}
 
-	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, Span<uint32_t> indices, uint32_t baseOffset)
+	void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<uint32_t> indices, uint32_t baseOffset)
 	{
 		Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
 		Check(accessor.stride != -1, "Invalid index stride.");
@@ -252,10 +252,10 @@ namespace
 	}
 
 	void ProcessMeshes(const cgltf_data& model, uint64_t sceneID, size_t offset, size_t size,
-		Span<Vertex> vertices, std::atomic_uint32_t& vertexCounter,
-		Span<uint32_t> indices, std::atomic_uint32_t& idxCounter,
-		Span<Mesh> meshes, std::atomic_uint32_t& meshCounter,
-		Span<EmissiveMeshPrim> emissivesPrims, uint32_t& emissivePrimCount)
+		MutableSpan<Vertex> vertices, std::atomic_uint32_t& vertexCounter,
+		MutableSpan<uint32_t> indices, std::atomic_uint32_t& idxCounter,
+		MutableSpan<Mesh> meshes, std::atomic_uint32_t& meshCounter,
+		MutableSpan<EmissiveMeshPrim> emissivesPrims, uint32_t& emissivePrimCount)
 	{
 		SceneCore& scene = App::GetScene();
 
@@ -367,7 +367,7 @@ namespace
 						ProcessTangents(model, *prim.attributes[tangentIt].data, vertices, currVtxOffset);
 					else
 					{
-						Math::ComputeMeshTangentVectors(Span(vertices.begin() + currVtxOffset, numVertices),
+						Math::ComputeMeshTangentVectors(MutableSpan(vertices.begin() + currVtxOffset, numVertices),
 							Span(indices.begin() + currIdxOffset, numIndices),
 							false);
 					}
@@ -413,7 +413,7 @@ namespace
 	}
 
 	void LoadDDSImages(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-		size_t offset, size_t size, Span<DDSImage> ddsImages)
+		size_t offset, size_t size, MutableSpan<DDSImage> ddsImages)
 	{
 		UploadHeapArena arena(64 * 1024 * 1024);
 
@@ -453,7 +453,7 @@ namespace
 	}
 
 	void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-		int offset, int size, const Span<DDSImage> ddsImages)
+		int offset, int size, const MutableSpan<DDSImage> ddsImages)
 	{
 		auto getAlphaMode = [](cgltf_alpha_mode m)
 			{
@@ -576,7 +576,7 @@ namespace
 				if (meshPrim.material)
 				{
 					const uint64_t meshID = SceneCore::MeshID(context.SceneID, (int)meshIdx, primIdx);
-					const auto idx = BinarySearch(context.EmissiveMeshPrims, meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
+					const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
 					// does this node have an emissive material assigned to it?
 					if (idx != -1)
@@ -625,7 +625,7 @@ namespace
 				if (meshPrim.material)
 				{
 					const uint64_t meshID = SceneCore::MeshID(context.SceneID, (int)meshIdx, primIdx);
-					const auto idx = BinarySearch(context.EmissiveMeshPrims, meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
+					const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
 					if (idx != -1)
 					{
@@ -637,7 +637,7 @@ namespace
 
 						// material is needed emissive texture index
 						const uint64_t matID = SceneCore::MaterialID(context.SceneID, meshPrimInfo.MaterialIdx);
-						Material* mat = scene.GetMaterial(matID).value();
+						const Material* mat = scene.GetMaterial(matID).value();
 
 						const int nodeIdx = (int)(&node - context.Model->nodes);
 						const uint64_t currInstanceID = SceneCore::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
@@ -1017,7 +1017,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 			// to be the worst case -- total number of mesh primitives. as such there may be a number of "null"
 			// entries in the EmissiveMeshPrims. now that the actual size is known, adjust the Span range
 			// accordingly
-			tc.EmissiveMeshPrims = Span(tc.EmissiveMeshPrims.data(), numEmissives);
+			tc.EmissiveMeshPrims = MutableSpan(tc.EmissiveMeshPrims.data(), numEmissives);
 			NumEmissiveInstancesAndTriangles(tc);
 		});
 
@@ -1028,10 +1028,10 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 		auto procMesh = ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
 			{
 				ProcessMeshes(*tc.Model, tc.SceneID, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx],
-				tc.Vertices, tc.CurrVtxOffset,
-				tc.Indices, tc.CurrIdxOffset,
-				tc.Meshes, tc.CurrMeshPrimOffset,
-				tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCounterPerWorker[rangeIdx]);
+					tc.Vertices, tc.CurrVtxOffset,
+					tc.Indices, tc.CurrIdxOffset,
+					tc.Meshes, tc.CurrMeshPrimOffset,
+					tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCounterPerWorker[rangeIdx]);
 			});
 
 		ts.AddOutgoingEdge(procMesh, procEmissiveMeshPrims);

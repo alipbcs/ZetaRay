@@ -164,7 +164,7 @@ namespace dbg
         SymCleanup(process);
     }
 
-    void fail(Span<char> buff, const char* msg)
+    void fail(MutableSpan<char> buff, const char* msg)
     {
         int curr = stbsp_snprintf(buff.data(), (int)buff.size(), "%s\n\n", msg);
         size_t bytesLeft = buff.size() - curr;

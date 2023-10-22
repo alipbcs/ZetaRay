@@ -251,7 +251,7 @@ ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key)
 	if (m_compiledPSOs.empty())
 		return nullptr;
 
-	auto idx = BinarySearch(Span(m_compiledPSOs), key, [](Entry& e) {return e.Key; });
+	auto idx = BinarySearch(Span(m_compiledPSOs), key, [](const Entry& e) {return e.Key; });
 	if (idx != -1)
 		return m_compiledPSOs[idx].PSO;
 
@@ -263,7 +263,7 @@ bool PipelineStateLibrary::UpdatePSO(Entry e)
 	if (m_compiledPSOs.empty())
 		return false;
 
-	auto i = BinarySearch(Span(m_compiledPSOs), e.Key, [](Entry& e) {return e.Key; });
+	auto i = BinarySearch(Span(m_compiledPSOs), e.Key, [](const Entry& e) {return e.Key; });
 
 	if (i != -1)
 	{
@@ -282,7 +282,7 @@ bool PipelineStateLibrary::RemovePSO(uint64_t nameID)
 	if (m_compiledPSOs.empty())
 		return false;
 
-	auto i = BinarySearch(Span(m_compiledPSOs), nameID, [](Entry& e) {return e.Key; });
+	auto i = BinarySearch(Span(m_compiledPSOs), nameID, [](const Entry& e) {return e.Key; });
 
 	if (i == -1)
 		return false;

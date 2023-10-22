@@ -90,7 +90,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 				if (meshID == SceneCore::NULL_MESH)
 					continue;
 
-				TriangleMesh* mesh = scene.GetMesh(meshID).value();
+				const TriangleMesh* mesh = scene.GetMesh(meshID).value();
 
 				meshDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
 				// force mesh to be opaque when possible to avoid invoking any-hit shaders
@@ -287,7 +287,7 @@ void StaticBLAS::Clear()
 void DynamicBLAS::Rebuild(ComputeCmdList& cmdList)
 {
 	SceneCore& scene = App::GetScene();
-	TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
+	const TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GpuVA();
 	const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
@@ -343,7 +343,7 @@ void DynamicBLAS::Rebuild(ComputeCmdList& cmdList)
 void DynamicBLAS::Update(ComputeCmdList& cmdList)
 {
 	SceneCore& scene = App::GetScene();
-	TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
+	const TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GpuVA();
 	const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
@@ -751,7 +751,7 @@ void TLAS::BuildFrameMeshInstanceData()
 		float alpha = float((mat->BaseColorFactor >> 24) & 0xff) / 255.0f;
 		m_frameInstanceData[currInstance].AlphaFactor_Cuttoff = Float2ToRG8(float2(alpha, mat->GetAlphaCuttoff()));
 
-		float4x3& M_prev = *scene.GetPrevToWorld(currTreeLevel.m_IDs[levelIdx]).value();
+		const float4x3& M_prev = *scene.GetPrevToWorld(currTreeLevel.m_IDs[levelIdx]).value();
 		v_float4x4 vM_prev = load4x3(M_prev);
 		float4a t_prev;
 		float4a r_prev;

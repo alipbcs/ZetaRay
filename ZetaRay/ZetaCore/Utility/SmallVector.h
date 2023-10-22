@@ -120,6 +120,11 @@ namespace ZetaRay::Util
 			return m_beg;
 		}
 
+		ZetaInline const T* data() const
+		{
+			return m_beg;
+		}
+
 		ZetaInline T& back()
 		{
 			Assert(size() > 0, "Vector is empty");

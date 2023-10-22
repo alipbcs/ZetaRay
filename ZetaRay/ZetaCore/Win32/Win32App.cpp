@@ -1555,14 +1555,14 @@ namespace ZetaRay
 		return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
 	}
 
-	RWSynchronizedVariable<Span<ParamVariant>> App::GetParams()
+	RWSynchronizedVariable<MutableSpan<ParamVariant>> App::GetParams()
 	{
-		return RWSynchronizedVariable<Span<ParamVariant>>(g_app->m_params, g_app->m_paramLock);
+		return RWSynchronizedVariable<MutableSpan<ParamVariant>>(g_app->m_params, g_app->m_paramLock);
 	}
 
-	RSynchronizedVariable<Span<ShaderReloadHandler>> App::GetShaderReloadHandlers()
+	RSynchronizedVariable<MutableSpan<ShaderReloadHandler>> App::GetShaderReloadHandlers()
 	{
-		return RSynchronizedVariable<Span<ShaderReloadHandler>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
+		return RSynchronizedVariable<MutableSpan<ShaderReloadHandler>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
 	}
 
 	RWSynchronizedVariable<Span<Stat>> App::GetStats()

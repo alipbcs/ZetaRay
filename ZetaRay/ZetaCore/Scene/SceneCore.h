@@ -114,7 +114,7 @@ namespace ZetaRay::Scene
 		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices);
-		ZetaInline Util::Optional<Model::TriangleMesh*> GetMesh(uint64_t id)
+		ZetaInline Util::Optional<const Model::TriangleMesh*> GetMesh(uint64_t id) const
 		{
 			return m_meshes.GetMesh(id);
 		}
@@ -125,8 +125,8 @@ namespace ZetaRay::Scene
 		//
 		// Material
 		//
-		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::Span<Model::glTF::Asset::DDSImage> ddsImages);
-		ZetaInline Util::Optional<Material*> GetMaterial(uint64_t id)
+		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::MutableSpan<Model::glTF::Asset::DDSImage> ddsImages);
+		ZetaInline Util::Optional<const Material*> GetMaterial(uint64_t id) const
 		{
 			return m_matBuffer.Get(id);
 		}
@@ -140,7 +140,7 @@ namespace ZetaRay::Scene
 		// Instance
 		//
 		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance);
-		ZetaInline Util::Optional<Math::float4x3*> GetPrevToWorld(uint64_t id)
+		ZetaInline Util::Optional<const Math::float4x3*> GetPrevToWorld(uint64_t id) const
 		{
 			const auto idx = Util::BinarySearch(Util::Span(m_prevToWorlds), id, [](const PrevToWorld& p) {return p.ID; });
 			if (idx != -1)
@@ -239,7 +239,7 @@ namespace ZetaRay::Scene
 
 		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec);
 		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec);
-		void UpdateEmissives(Util::Span<Model::glTF::Asset::EmissiveInstance> instances);
+		void UpdateEmissives(Util::MutableSpan<Model::glTF::Asset::EmissiveInstance> instances);
 
 		bool m_isPaused = false;
 
@@ -310,7 +310,7 @@ namespace ZetaRay::Scene
 		//
 		// previous frame's ToWorld transformations
 		//
-		
+	
 		struct PrevToWorld
 		{
 			Math::float4x3 W;

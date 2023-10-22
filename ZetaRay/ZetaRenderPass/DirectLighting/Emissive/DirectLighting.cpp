@@ -22,7 +22,7 @@ using namespace ZetaRay::App;
 
 namespace
 {
-	void Normalize(Span<float> weights)
+	void Normalize(MutableSpan<float> weights)
 	{
 		// compute the sum of weights
 		const int64_t N = weights.size();
@@ -62,7 +62,7 @@ namespace
 	}
 
 	// Ref: https://www.keithschwarz.com/darts-dice-coins/
-	void BuildAliasTable(Span<float> probs, Span<EmissiveTriangleSample> table)
+	void BuildAliasTable(MutableSpan<float> probs, MutableSpan<EmissiveTriangleSample> table)
 	{
 		const int64_t N = probs.size();
 		const float oneDivN = 1.0f / N;
@@ -403,7 +403,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 		m_readback->Map();
 
 		float* data = reinterpret_cast<float*>(m_readback->MappedMemory());
-		BuildAliasTable(Span(data, m_currNumTris), table);
+		BuildAliasTable(MutableSpan(data, m_currNumTris), table);
 
 		m_readback->Unmap();
 	}

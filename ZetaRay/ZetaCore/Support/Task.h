@@ -133,7 +133,7 @@ namespace ZetaRay::Support
 		void Finalize(WaitObject* waitObj = nullptr);
 
 		ZetaInline int GetSize() { return m_currSize; }
-		ZetaInline Util::Span<Task> GetTasks() { return Util::Span(m_tasks, m_currSize); }
+		ZetaInline Util::MutableSpan<Task> GetTasks() { return Util::MutableSpan(m_tasks, m_currSize); }
 
 	private:
 		struct TaskMetadata
