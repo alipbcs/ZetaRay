@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include "GBufferRT_Common.h"
 
@@ -17,7 +16,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct GBufferRT
+	struct GBufferRT : public RenderPassBase
 	{
 		enum class SHADER_IN_GPU_DESC
 		{
@@ -108,8 +107,6 @@ namespace ZetaRay::RenderPass
 			"GBufferRT_Inline_cs.cso"
 		};
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 		ComPtr<ID3D12StateObject> m_rtPSO;
 		ShaderTable m_shaderTable;

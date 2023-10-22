@@ -15,7 +15,7 @@ using namespace ZetaRay::Scene;
 //--------------------------------------------------------------------------------------
 
 GenerateRasterDepth::GenerateRasterDepth()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
 	m_rootSig.InitAsConstants(0,
@@ -31,12 +31,9 @@ GenerateRasterDepth::GenerateRasterDepth()
 		D3D12_SHADER_VISIBILITY_ALL,
 		Scene::GlobalResource::FRAME_CONSTANTS_BUFFER);
 
-	s_rpObjs.Init("RasterDepth", m_rootSig, 0, nullptr, D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);
+	RenderPassBase::InitRenderPass("RasterDepth", D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);
 
-	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0,
-		s_rpObjs.m_rootSig.Get(),
-		COMPILED_CS);
-
+	m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS);
 	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
 }
 
@@ -46,8 +43,8 @@ GenerateRasterDepth::~GenerateRasterDepth()
 
 	if (m_pso)
 	{
-		s_rpObjs.m_psoLib.ClearAndFlushToDisk();
-		s_rpObjs.m_rootSig.Reset();
+		m_psoLib.ClearAndFlushToDisk();
+		m_rootSigObj.Reset();
 	}
 	
 	m_depthBuffer.Reset(false);
@@ -69,7 +66,7 @@ void GenerateRasterDepth::Render(ComputeCmdList& computeCmdList)
 {
 	computeCmdList.PIXBeginEvent("GenerateRasterDepth");
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 	const uint32_t w = App::GetRenderer().GetRenderWidth();
 	const uint32_t h = App::GetRenderer().GetRenderHeight();

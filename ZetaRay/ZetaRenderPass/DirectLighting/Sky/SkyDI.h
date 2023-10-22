@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "SkyDI_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct SkyDI final
+	struct SkyDI final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -126,8 +125,6 @@ namespace ZetaRay::RenderPass
 			Core::GpuMemory::Texture Specular;
 		};
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		Reservoir m_temporalReservoir[2];
 		Core::GpuMemory::Texture m_colorA;
 		Core::GpuMemory::Texture m_colorB;

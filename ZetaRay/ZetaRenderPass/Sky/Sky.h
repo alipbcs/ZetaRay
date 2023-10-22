@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "Sky_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct Sky final
+	struct Sky final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -90,8 +89,6 @@ namespace ZetaRay::RenderPass
 
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = { "SkyViewLUT_cs.cso", "Inscattering_cs.cso" };
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		Core::GpuMemory::Texture m_lut;
 		Core::GpuMemory::Texture m_voxelGrid;
 		Core::DescriptorTable m_descTable;

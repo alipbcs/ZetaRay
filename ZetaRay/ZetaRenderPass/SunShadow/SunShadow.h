@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "SunShadow_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct SunShadow final
+	struct SunShadow final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -95,8 +94,6 @@ namespace ZetaRay::RenderPass
 			static constexpr float EdgeStoppingShadowStdScale = 0.5f;
 		};
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 		Core::GpuMemory::Texture m_shadowMask;
 		Core::GpuMemory::Texture m_metadata;

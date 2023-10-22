@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "Display_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct DisplayPass final
+	struct DisplayPass final : public RenderPassBase
 	{
 		enum class SHADER_IN_CPU_DESC
 		{
@@ -95,8 +94,6 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		RpObjects s_rpObjs;
-
 		inline static constexpr const char* COMPILED_VS[(int)PS_SHADERS::COUNT] = { "Display_vs.cso" };
 		inline static constexpr const char* COMPILED_PS[(int)PS_SHADERS::COUNT] = { "Display_ps.cso" };
 		inline static constexpr const char* COMPILED_CS[(int)CS_SHADERS::COUNT] = {
@@ -105,7 +102,6 @@ namespace ZetaRay::RenderPass
 			"DoF_GaussianFilter_cs.cso",
 		};
 
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_psosPS[(int)PS_SHADERS::COUNT] = { 0 };
 		ID3D12PipelineState* m_psosCS[(int)CS_SHADERS::COUNT] = { 0 };
 		Core::GpuMemory::Texture m_lut;

@@ -18,7 +18,7 @@ using namespace ZetaRay::Support;
 //--------------------------------------------------------------------------------------
 
 SunShadow::SunShadow()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,												// root idx
@@ -63,12 +63,12 @@ void SunShadow::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("SunShadow", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("SunShadow", flags, samplers);
 
 	auto createPSO = [this](int i)
 	{
-		m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psos[i] = m_psoLib.GetComputePSO(i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	};
 
@@ -112,10 +112,10 @@ void SunShadow::Reset()
 {
 	if (IsInitialized())
 	{
-		s_rpObjs.Clear();
-
 		m_shadowMask.Reset();
 		m_descTable.Reset();
+
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -144,7 +144,7 @@ void SunShadow::Render(CommandList& cmdList)
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowTrace");
 
-		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SHADOW_MASK]);
 
 		auto barrier = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
@@ -422,22 +422,22 @@ void SunShadow::ReloadDNSRTemporal()
 {
 	const int i = (int)SHADERS::DNSR_TEMPORAL_PASS;
 
-	s_rpObjs.m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_temporal.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_temporal.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
 
 void SunShadow::ReloadDNSRSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL_FILTER;
 
-	s_rpObjs.m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_spatial_filter.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_spatial_filter.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
 
 void SunShadow::ReloadSunShadowTrace()
 {
 	const int i = (int)SHADERS::SHADOW_MASK;
 
-	s_rpObjs.m_psoLib.Reload(i, "SunShadow\\SunShadow.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "SunShadow\\SunShadow.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }

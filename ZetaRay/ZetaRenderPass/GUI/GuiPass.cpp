@@ -168,9 +168,8 @@ namespace
 //--------------------------------------------------------------------------------------
 
 GuiPass::GuiPass()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
-{
-}
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+{}
 
 GuiPass::~GuiPass()
 {
@@ -209,7 +208,7 @@ void GuiPass::Init()
 			D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 		auto samplers = App::GetRenderer().GetStaticSamplers();
-		s_rpObjs.Init("GuiPass", m_rootSig, samplers.size(), samplers.data(), flags);
+		RenderPassBase::InitRenderPass("GuiPass", flags, samplers);
 	}
 
 	// PSO
@@ -250,25 +249,27 @@ void GuiPass::Init()
 		psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
 		// use an arbitrary number as "nameID" since there's only one shader
-		m_pso = s_rpObjs.m_psoLib.GetGraphicsPSO(0, psoDesc, s_rpObjs.m_rootSig.Get(), COMPILED_VS[0], COMPILED_PS[0]);
+		m_pso = m_psoLib.GetGraphicsPSO(0, psoDesc, m_rootSigObj.Get(), COMPILED_VS[0], COMPILED_PS[0]);
 	}
 }
 
 void GuiPass::Reset()
 {
 	if (IsInitialized())
-		s_rpObjs.Clear();
-
-	m_imguiFontTex.Reset();
-	m_fontTexSRV.Reset();
-
-	for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 	{
-		m_imguiFrameBuffs[i].IndexBuffer.Reset();
-		m_imguiFrameBuffs[i].VertexBuffer.Reset();
-	}
+		m_imguiFontTex.Reset();
+		m_fontTexSRV.Reset();
 
-	m_cachedTimings.free_memory();
+		for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
+		{
+			m_imguiFrameBuffs[i].IndexBuffer.Reset();
+			m_imguiFrameBuffs[i].VertexBuffer.Reset();
+		}
+
+		m_cachedTimings.free_memory();
+
+		RenderPassBase::ResetRenderPass();
+	}
 }
 
 void GuiPass::UpdateBuffers()
@@ -350,7 +351,7 @@ void GuiPass::Render(CommandList& cmdList)
 	// record the timestamp prior to execution
 	const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "ImGui");
 
-	directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 	directCmdList.SetPipelineState(m_pso);
 
 	RenderSettings();

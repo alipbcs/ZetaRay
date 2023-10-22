@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "DirectLighting_Common.h"
@@ -20,7 +19,7 @@ namespace ZetaRay::Support
 namespace ZetaRay::RenderPass
 {
 	// a compute shader that estimates lumen for each emissive triangle
-	struct EmissiveTriangleLumen
+	struct EmissiveTriangleLumen final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -58,9 +57,6 @@ namespace ZetaRay::RenderPass
 			"EstimateTriLumen_cs.cso"
 		};
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
-
 		Core::GpuMemory::DefaultHeapBuffer m_halton;
 		Core::GpuMemory::DefaultHeapBuffer m_lumen;
 		Core::GpuMemory::ReadbackHeapBuffer m_readback;
@@ -97,7 +93,7 @@ namespace ZetaRay::RenderPass
 		int m_emissiveTriHandle = -1;
 	};
 
-	struct DirectLighting
+	struct DirectLighting final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
 		{
@@ -214,8 +210,6 @@ namespace ZetaRay::RenderPass
 			Core::GpuMemory::Texture Specular;
 		};
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		Core::DescriptorTable m_descTable;
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 

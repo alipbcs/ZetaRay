@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "TAA_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct TAA final
+	struct TAA final : public RenderPassBase
 	{
 		enum class SHADER_IN_DESC
 		{
@@ -63,20 +62,6 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbTAA) / sizeof(DWORD);
 
-		RpObjects s_rpObjs;
-
-		inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
-
-		// ping-pong between input & output
-		Core::GpuMemory::Texture m_antiAliased[2];
-		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
-
-		Core::RootSignature m_rootSig;
-		ID3D12PipelineState* m_pso = nullptr;
-
-		// local constant buffer cache
-		cbTAA m_localCB;
-
 		enum class DESC_TABLE
 		{
 			TEX_A_SRV,
@@ -86,12 +71,20 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		Core::DescriptorTable m_descTable;
-		bool m_isTemporalTexValid;
+		inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
 
 		struct DefaultParamVals
 		{
 			static constexpr float BlendWeight = 0.1f;
 		};
+
+		// ping-pong between input & output
+		Core::GpuMemory::Texture m_antiAliased[2];
+		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
+
+		ID3D12PipelineState* m_pso = nullptr;
+		cbTAA m_localCB;
+		Core::DescriptorTable m_descTable;
+		bool m_isTemporalTexValid;
 	};
 }

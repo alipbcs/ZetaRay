@@ -16,7 +16,7 @@ using namespace ZetaRay::Support;
 //--------------------------------------------------------------------------------------
 
 TAA::TAA()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,								// root idx
@@ -51,10 +51,10 @@ void TAA::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("TAA", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("TAA", flags, samplers);
 
 	// use an arbitrary number as "nameID" since there's only one shader
-	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
+	m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS[0]);
 
 	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateResources();
@@ -77,7 +77,6 @@ void TAA::Reset()
 {
 	if (IsInitialized())
 	{
-		s_rpObjs.Clear();
 		App::RemoveParam("Renderer", "TAA", "BlendWeight");
 		App::RemoveShaderReloadHandler("TAA");
 
@@ -86,6 +85,8 @@ void TAA::Reset()
 
 		m_descTable.Reset();
 		m_pso = nullptr;
+
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -118,7 +119,7 @@ void TAA::Render(CommandList& cmdList)
 	// record the timestamp prior to execution
 	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "TAA");
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 	computeCmdList.SetPipelineState(m_pso);
 
 	m_rootSig.SetRootConstants(0, sizeof(cbTAA) / sizeof(DWORD), &m_localCB);
@@ -167,6 +168,6 @@ void TAA::BlendWeightCallback(const ParamVariant& p)
 
 void TAA::ReloadShader()
 {
-	s_rpObjs.m_psoLib.Reload(0, "TAA\\TAA.hlsl", true);
-	m_pso = s_rpObjs.m_psoLib.GetComputePSO(0, s_rpObjs.m_rootSig.Get(), COMPILED_CS[0]);
+	m_psoLib.Reload(0, "TAA\\TAA.hlsl", true);
+	m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS[0]);
 }

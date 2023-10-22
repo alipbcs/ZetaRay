@@ -169,7 +169,7 @@ namespace
 //--------------------------------------------------------------------------------------
 
 EmissiveTriangleLumen::EmissiveTriangleLumen()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
 	m_rootSig.InitAsConstants(0,		// root idx
@@ -228,12 +228,12 @@ void EmissiveTriangleLumen::Init()
 
 	auto& renderer = App::GetRenderer();
 	auto samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("EmissiveTriangleLumen", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("EmissiveTriangleLumen", flags, samplers);
 
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psos[i] = m_psoLib.GetComputePSO(i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	}
 
@@ -255,14 +255,14 @@ void EmissiveTriangleLumen::Reset()
 {
 	if (IsInitialized())
 	{
-		s_rpObjs.Clear();
-
 		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
 			m_psos[i] = nullptr;
 
 		m_halton.Reset();
 		m_lumen.Reset();
 		m_readback.Reset();
+
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -304,7 +304,7 @@ void EmissiveTriangleLumen::Render(CommandList& cmdList)
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 	const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_currNumTris, ESTIMATE_TRI_LUMEN_NUM_TRIS_PER_GROUP);
 	Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
@@ -440,7 +440,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 //--------------------------------------------------------------------------------------
 
 DirectLighting::DirectLighting()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,
@@ -526,12 +526,12 @@ void DirectLighting::Init()
 
 	auto& renderer = App::GetRenderer();
 	auto samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("DirectLighting", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("DirectLighting", flags, samplers);
 
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psos[i] = m_psoLib.GetComputePSO(i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	}
 
@@ -617,12 +617,12 @@ void DirectLighting::Reset()
 {
 	if (IsInitialized())
 	{
-		s_rpObjs.Clear();
-
 		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
 			m_psos[i] = nullptr;
 
 		m_descTable.Reset();
+
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -664,7 +664,7 @@ void DirectLighting::Render(CommandList& cmdList)
 	const uint32_t w = renderer.GetRenderWidth();
 	const uint32_t h = renderer.GetRenderHeight();
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 	const bool doPresampling = m_sampleSets.IsInitialized();
 
 	// presampling
@@ -1081,26 +1081,26 @@ void DirectLighting::ReloadSpatioTemporal()
 	const int i = presampling ? (int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
 		(int)SHADERS::SPATIO_TEMPORAL;
 
-	s_rpObjs.m_psoLib.Reload(i, presampling ?
+	m_psoLib.Reload(i, presampling ?
 		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_LP.hlsl" :
 		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl",
 		true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
 
 void DirectLighting::ReloadDnsrTemporal()
 {
 	const int i = (int)SHADERS::DNSR_TEMPORAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
 
 void DirectLighting::ReloadDnsrSpatial()
 {
 	const int i = (int)SHADERS::DNSR_SPATIAL;
 
-	s_rpObjs.m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
 

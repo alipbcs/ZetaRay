@@ -17,9 +17,8 @@ using namespace ZetaRay::Support;
 //--------------------------------------------------------------------------------------
 
 AutoExposure::AutoExposure()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
-{
-}
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+{}
 
 AutoExposure::~AutoExposure()
 {
@@ -57,7 +56,7 @@ void AutoExposure::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	s_rpObjs.Init("AutoExposure", m_rootSig, 0, nullptr, flags);
+	RenderPassBase::InitRenderPass("AutoExposure", flags);
 	m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 
 	m_minLum = DefaultParamVals::MinLum;
@@ -92,9 +91,9 @@ void AutoExposure::Init()
 		DefaultParamVals::LumMapExp, 1e-1f, 1.0f, 1e-2f);
 	App::AddParam(p3);
 
-	m_psos[(int)SHADERS::HISTOGRAM] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::HISTOGRAM, s_rpObjs.m_rootSig.Get(),
+	m_psos[(int)SHADERS::HISTOGRAM] = m_psoLib.GetComputePSO((int)SHADERS::HISTOGRAM, m_rootSigObj.Get(),
 		COMPILED_CS[(int)SHADERS::HISTOGRAM]);
-	m_psos[(int)SHADERS::EXPECTED_VALUE] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::EXPECTED_VALUE, s_rpObjs.m_rootSig.Get(),
+	m_psos[(int)SHADERS::EXPECTED_VALUE] = m_psoLib.GetComputePSO((int)SHADERS::EXPECTED_VALUE, m_rootSigObj.Get(),
 		COMPILED_CS[(int)SHADERS::EXPECTED_VALUE]);
 
 	CreateResources();
@@ -104,10 +103,10 @@ void AutoExposure::Reset()
 {
 	if (m_psos[0] || m_psos[1])
 	{
-		s_rpObjs.Clear();
 		m_exposure.Reset();
 		m_counter.Reset();
 		m_hist.Reset();
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -125,7 +124,7 @@ void AutoExposure::Render(CommandList& cmdList)
 	const uint32_t h = renderer.GetRenderHeight();
 
 	computeCmdList.PIXBeginEvent("AutoExposure");
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 	// record the timestamp prior to execution
 	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "AutoExposure");

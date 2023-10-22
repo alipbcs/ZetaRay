@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "Compositing_Common.h"
@@ -18,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	struct Compositing final
+	struct Compositing final : public RenderPassBase
 	{
 		enum class SHADER_IN_GPU_DESC
 		{
@@ -85,9 +84,6 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_UAV = 0;
 		static constexpr int NUM_GLOBS = 1;
 		static constexpr int NUM_CONSTS = sizeof(cbCompositing) / sizeof(DWORD);
-
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 
 		struct ResourceFormats
 		{

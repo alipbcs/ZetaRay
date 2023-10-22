@@ -19,7 +19,7 @@ using namespace ZetaRay::Core::Direct3DUtil;
 //--------------------------------------------------------------------------------------
 
 DisplayPass::DisplayPass()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,												// root idx
@@ -55,7 +55,7 @@ void DisplayPass::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("Display", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("Display", flags, samplers);
 	CreatePSOs();
 
 	memset(&m_cbLocal, 0, sizeof(m_cbLocal));
@@ -166,7 +166,7 @@ void DisplayPass::Reset()
 	{
 		m_dofGather.Reset();
 		m_dofFiltered.Reset();
-		s_rpObjs.Clear();
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -192,7 +192,7 @@ void DisplayPass::Render(CommandList& cmdList)
 	if (m_dof)
 	{
 		ComputeCmdList& computeCmdList = static_cast<GraphicsCmdList&>(cmdList);
-		computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 		// DoF - CoC
 		{
@@ -383,7 +383,7 @@ void DisplayPass::Render(CommandList& cmdList)
 		// record the timestamp prior to execution
 		const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Display");
 
-		directCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+		directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 		directCmdList.SetPipelineState(m_psosPS[(int)PS_SHADERS::DISPLAY]);
 
 		if (m_dof)
@@ -449,9 +449,9 @@ void DisplayPass::CreatePSOs()
 	// disable triangle culling
 	psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
-	m_psosPS[(int)PS_SHADERS::DISPLAY] = s_rpObjs.m_psoLib.GetGraphicsPSO((int)PS_SHADERS::DISPLAY,
+	m_psosPS[(int)PS_SHADERS::DISPLAY] = m_psoLib.GetGraphicsPSO((int)PS_SHADERS::DISPLAY,
 		psoDesc,
-		s_rpObjs.m_rootSig.Get(),
+		m_rootSigObj.Get(),
 		COMPILED_VS[(int)PS_SHADERS::DISPLAY],
 		COMPILED_PS[(int)PS_SHADERS::DISPLAY]);
 
@@ -462,8 +462,8 @@ void DisplayPass::CreatePSOs()
 			continue;
 #endif
 
-		m_psosCS[i] = s_rpObjs.m_psoLib.GetComputePSO((int)PS_SHADERS::COUNT + i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psosCS[i] = m_psoLib.GetComputePSO((int)PS_SHADERS::COUNT + i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	}
 }

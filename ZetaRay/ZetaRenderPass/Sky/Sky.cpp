@@ -16,7 +16,7 @@ using namespace ZetaRay::Scene;
 //--------------------------------------------------------------------------------------
 
 Sky::Sky()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
 	m_rootSig.InitAsConstants(0,				// root idx
@@ -64,10 +64,10 @@ void Sky::Init(int lutWidth, int lutHeight, bool doInscattering)
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = renderer.GetStaticSamplers();
-	s_rpObjs.Init("Sky", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("Sky", flags, samplers);
 
-	m_psos[(int)SHADERS::SKY_LUT] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
-		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
+	m_psos[(int)SHADERS::SKY_LUT] = m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
+		m_rootSigObj.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
 
 	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 
@@ -87,13 +87,12 @@ void Sky::Reset()
 {
 	if (IsInitialized())
 	{
-		//App::RemoveShaderReloadHandler("SkyViewLUT");
-		s_rpObjs.Clear();
-
 		m_descTable.Reset();
 		m_lut.Reset();
 	
 		SetInscatteringEnablement(false);
+
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -136,8 +135,8 @@ void Sky::SetInscatteringEnablement(bool b)
 		
 		//App::AddShaderReloadHandler("Inscattering", fastdelegate::MakeDelegate(this, &Sky::ReloadInscatteringShader));
 
-		m_psos[(int)SHADERS::INSCATTERING] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING,
-			s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
+		m_psos[(int)SHADERS::INSCATTERING] = m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING,
+			m_rootSigObj.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
 	}
 	else
 	{
@@ -162,7 +161,7 @@ void Sky::Render(CommandList& cmdList)
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 	m_rootSig.SetRootConstants(0, sizeof(m_localCB) / sizeof(DWORD), &m_localCB);
 	m_rootSig.End(computeCmdList);
 
@@ -270,14 +269,14 @@ void Sky::VoxelGridFarZCallback(const ParamVariant& p)
 
 void Sky::ReloadInscatteringShader()
 {
-	s_rpObjs.m_psoLib.Reload((int)SHADERS::INSCATTERING, "Sky\\Inscattering.hlsl", true);
-	m_psos[(int)SHADERS::INSCATTERING] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING, 
-		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
+	m_psoLib.Reload((int)SHADERS::INSCATTERING, "Sky\\Inscattering.hlsl", true);
+	m_psos[(int)SHADERS::INSCATTERING] = m_psoLib.GetComputePSO((int)SHADERS::INSCATTERING, 
+		m_rootSigObj.Get(), COMPILED_CS[(int)SHADERS::INSCATTERING]);
 }
 
 void Sky::ReloadSkyLUTShader()
 {
-	s_rpObjs.m_psoLib.Reload((int)SHADERS::SKY_LUT, "Sky\\SkyViewLUT.hlsl", true);
-	m_psos[(int)SHADERS::SKY_LUT] = s_rpObjs.m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
-		s_rpObjs.m_rootSig.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
+	m_psoLib.Reload((int)SHADERS::SKY_LUT, "Sky\\SkyViewLUT.hlsl", true);
+	m_psos[(int)SHADERS::SKY_LUT] = m_psoLib.GetComputePSO((int)SHADERS::SKY_LUT,
+		m_rootSigObj.Get(), COMPILED_CS[(int)SHADERS::SKY_LUT]);
 }

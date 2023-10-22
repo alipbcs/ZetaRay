@@ -2,7 +2,6 @@
 
 #include "../RenderPass.h"
 #include <Core/GpuMemory.h>
-#include <Core/RootSignature.h>
 #include <Core/DescriptorHeap.h>
 
 namespace ZetaRay::Core
@@ -12,7 +11,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-	struct GenerateRasterDepth
+	struct GenerateRasterDepth final : public RenderPassBase
 	{
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 0;
@@ -31,8 +30,6 @@ namespace ZetaRay::RenderPass
 
 		inline static constexpr const char* COMPILED_CS = "GenerateDepthBuffer_cs.cso";
 
-		RpObjects s_rpObjs;
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;
 		Core::GpuMemory::Texture m_depthBuffer;
 		Core::DescriptorTable m_descTable;

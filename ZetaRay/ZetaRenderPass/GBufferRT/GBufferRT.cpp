@@ -23,7 +23,7 @@ using namespace ZetaRay::Util;
 //--------------------------------------------------------------------------------------
 
 GBufferRT::GBufferRT()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
 	m_rootSig.InitAsCBV(0,
@@ -98,7 +98,7 @@ void GBufferRT::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	s_rpObjs.Init("ReSTIR_GI_Spec", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("GBufferRT", flags, samplers);
 
 #if TRACE_INLINE == 0
 	CreateRTPSO();
@@ -106,8 +106,8 @@ void GBufferRT::Init()
 #else
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psos[i] = m_psoLib.GetComputePSO(i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	}
 #endif
@@ -133,8 +133,8 @@ void GBufferRT::Reset()
 {
 	if (IsInitialized())
 	{
-		s_rpObjs.Clear();
 		m_shaderTable.ShaderRecords.Reset();
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -149,7 +149,7 @@ void GBufferRT::Render(CommandList& cmdList)
 	const uint32_t w = renderer.GetRenderWidth();
 	const uint32_t h = renderer.GetRenderHeight();
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 	// record the timestamp prior to execution
 	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "GBufferRT");
@@ -214,7 +214,7 @@ void GBufferRT::CreateRTPSO()
 
 	// 2. Global root signature
 	D3D12_GLOBAL_ROOT_SIGNATURE rootSig;
-	rootSig.pGlobalRootSignature = s_rpObjs.m_rootSig.Get();
+	rootSig.pGlobalRootSignature = m_rootSigObj.Get();
 
 	subobjects[1].Type = D3D12_STATE_SUBOBJECT_TYPE_GLOBAL_ROOT_SIGNATURE;
 	subobjects[1].pDesc = &rootSig;
@@ -276,6 +276,6 @@ void GBufferRT::ReloadGBufferInline()
 {
 	const int i = (int)SHADERS::GBUFFER_RT_INLINE;
 
-	s_rpObjs.m_psoLib.Reload(i, "GBufferRT\\GBufferRT_Inline.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(i, "GBufferRT\\GBufferRT_Inline.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }

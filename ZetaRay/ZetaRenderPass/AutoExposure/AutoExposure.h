@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include "AutoExposure_Common.h"
@@ -13,7 +12,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-	struct AutoExposure final
+	struct AutoExposure final : public RenderPassBase
 	{
 		enum class SHADER_IN_DESC
 		{
@@ -54,8 +53,6 @@ namespace ZetaRay::RenderPass
 
 		void CreateResources();
 
-		RpObjects s_rpObjs;
-
 		Core::GpuMemory::Texture m_exposure;
 		Core::GpuMemory::DefaultHeapBuffer m_counter;
 		Core::GpuMemory::DefaultHeapBuffer m_hist;
@@ -78,7 +75,6 @@ namespace ZetaRay::RenderPass
 			COUNT
 		};
 
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { nullptr };
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
 		{

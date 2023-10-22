@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../RenderPass.h"
-#include <Core/RootSignature.h>
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
 #include <Core/GpuTimer.h>
@@ -15,7 +14,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-	struct GuiPass final
+	struct GuiPass final : public RenderPassBase
 	{
 		enum SHADER_IN_CPU_DESC
 		{
@@ -56,12 +55,9 @@ namespace ZetaRay::RenderPass
 		static constexpr int NUM_GLOBS = 0;
 		static constexpr int NUM_CONSTS = sizeof(cbGuiPass) / sizeof(DWORD);
 
-		RpObjects s_rpObjs;
-
 		inline static constexpr const char* COMPILED_VS[] = { "ImGui_vs.cso" };
 		inline static constexpr const char* COMPILED_PS[] = { "ImGui_ps.cso" };
 
-		Core::RootSignature m_rootSig;
 		ID3D12PipelineState* m_pso = nullptr;
 
 		struct ImGuiFrameBufferData

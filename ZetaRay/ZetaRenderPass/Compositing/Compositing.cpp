@@ -16,7 +16,7 @@ using namespace ZetaRay::Support;
 //--------------------------------------------------------------------------------------
 
 Compositing::Compositing()
-	: m_rootSig(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
+	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
 	m_rootSig.InitAsConstants(0,				// root idx
@@ -51,12 +51,12 @@ void Compositing::Init(bool skyIllum)
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-	s_rpObjs.Init("Compositing", m_rootSig, samplers.size(), samplers.data(), flags);
+	RenderPassBase::InitRenderPass("Compositing", flags, samplers);
 
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i,
-			s_rpObjs.m_rootSig.Get(),
+		m_psos[i] = m_psoLib.GetComputePSO(i,
+			m_rootSigObj.Get(),
 			COMPILED_CS[i]);
 	}
 
@@ -64,8 +64,6 @@ void Compositing::Init(bool skyIllum)
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, true);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, skyIllum);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
-	//SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, true);
-	m_cbComposit.RoughnessCutoff = 1.0f;
 
 	CreateLightAccumTexure();
 
@@ -97,7 +95,7 @@ void Compositing::Reset()
 	if (IsInitialized())
 	{
 		m_hdrLightAccum.Reset();
-		s_rpObjs.Clear();
+		RenderPassBase::ResetRenderPass();
 	}
 }
 
@@ -116,7 +114,7 @@ void Compositing::Render(CommandList& cmdList)
 	const uint32_t h = App::GetRenderer().GetRenderHeight();
 	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
 
-	computeCmdList.SetRootSignature(m_rootSig, s_rpObjs.m_rootSig.Get());
+	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
 	// compositing
 	{
@@ -229,6 +227,6 @@ void Compositing::ReloadCompsiting()
 {
 	const int i = (int)SHADERS::COMPOSIT;
 
-	s_rpObjs.m_psoLib.Reload(0, "Compositing\\Compositing.hlsl", true);
-	m_psos[i] = s_rpObjs.m_psoLib.GetComputePSO(i, s_rpObjs.m_rootSig.Get(), COMPILED_CS[i]);
+	m_psoLib.Reload(0, "Compositing\\Compositing.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }

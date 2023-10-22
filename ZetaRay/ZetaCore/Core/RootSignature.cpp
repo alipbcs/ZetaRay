@@ -7,6 +7,11 @@
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Util;
+
+//--------------------------------------------------------------------------------------
+// RootSignature
+//--------------------------------------------------------------------------------------
 
 RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nConsts)
 	: m_numParams(nCBV + nSRV + nUAV + (nConsts > 0)),
@@ -116,14 +121,14 @@ void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint
 }
 
 void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& rootSig, 
-	UINT numStaticSamplers, const D3D12_STATIC_SAMPLER_DESC* samplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
+	Span<D3D12_STATIC_SAMPLER_DESC> samplers, D3D12_ROOT_SIGNATURE_FLAGS flags)
 {
 	D3D12_VERSIONED_ROOT_SIGNATURE_DESC rootSigDesc{};
 	rootSigDesc.Version = D3D_ROOT_SIGNATURE_VERSION_1_1;
 	rootSigDesc.Desc_1_1.NumParameters = m_numParams;
 	rootSigDesc.Desc_1_1.pParameters = m_params;
-	rootSigDesc.Desc_1_1.NumStaticSamplers = numStaticSamplers;
-	rootSigDesc.Desc_1_1.pStaticSamplers = samplers;
+	rootSigDesc.Desc_1_1.NumStaticSamplers = UINT(samplers.size());
+	rootSigDesc.Desc_1_1.pStaticSamplers = samplers.data();
 	rootSigDesc.Desc_1_1.Flags = flags;
 
 	ComPtr<ID3DBlob> pOutBlob, pErrorBlob;

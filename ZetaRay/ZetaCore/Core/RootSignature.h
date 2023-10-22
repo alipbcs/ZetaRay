@@ -2,6 +2,12 @@
 
 #include "Device.h"
 
+namespace ZetaRay::Util
+{
+	template<typename T>
+	struct Span;
+}
+
 namespace ZetaRay::Core
 {
 	class GraphicsCmdList;
@@ -66,8 +72,7 @@ namespace ZetaRay::Core
 
 		void Finalize(const char* name,
 			ComPtr<ID3D12RootSignature>& rootSig,
-			UINT numStaticSamplers = 0,
-			const D3D12_STATIC_SAMPLER_DESC* samplers = nullptr,
+			Util::Span<D3D12_STATIC_SAMPLER_DESC> samplers,
 			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE);
 
 		void Begin();

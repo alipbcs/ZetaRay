@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Core/PipelineStateLibrary.h>
+#include <Core/RootSignature.h>
 
 namespace ZetaRay::Core
 {
@@ -9,23 +10,28 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-	struct RpObjects
+	struct RenderPassBase
 	{
-		void Init(const char* name,
-			Core::RootSignature& rootSigInstance,
-			size_t numStaticSamplers = 0,
-			const D3D12_STATIC_SAMPLER_DESC* samplers = nullptr,
-			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE);
+	protected:
+		RenderPassBase(int nRootCBV, int nRootSRV, int nRootUAV, int nRootGlobs, int nRootConsts);
+		~RenderPassBase();
 
-		void Clear();
+		RenderPassBase(RenderPassBase&&) = delete;
+		RenderPassBase& operator=(RenderPassBase&&) = delete;
+
+		void InitRenderPass(const char* name,
+			D3D12_ROOT_SIGNATURE_FLAGS flags = D3D12_ROOT_SIGNATURE_FLAG_NONE,
+			Util::Span<D3D12_STATIC_SAMPLER_DESC> samplers = Util::Span<D3D12_STATIC_SAMPLER_DESC>(nullptr, 0));
+
+		void ResetRenderPass();
 
 		Core::PipelineStateLibrary m_psoLib;
-		ComPtr<ID3D12RootSignature> m_rootSig;
+
+		Core::RootSignature m_rootSig;
+		ComPtr<ID3D12RootSignature> m_rootSigObj;
 
 		// destruction should be guarded by a fence to make sure GPU is done with 
 		// the objects used by this renderpass
 		ComPtr<ID3D12Fence> m_fence;
-
-		int m_refCount = 0;
 	};
 }
