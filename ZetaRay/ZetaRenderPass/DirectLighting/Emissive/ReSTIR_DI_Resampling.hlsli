@@ -649,7 +649,7 @@ namespace RDI_Util
 		r.M = newM;
 	}
 
-	void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW, float3 normal, 
+	void SpatialResample(uint2 DTid, int numSamples, float radius, float3 posW, float3 normal, 
 		float linearDepth, float roughness, BRDF::SurfaceInteraction surface, uint prevReservoir_A_DescHeapIdx, 
 		uint prevReservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
 		RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout Target target, inout RNG rng)
@@ -681,7 +681,7 @@ namespace RDI_Util
 		const float cosTheta = cos(theta);
 
 		const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
-		PairwiseMIS pairwiseMIS = PairwiseMIS::Init(numSamples, r);
+		PairwiseMIS pairwiseMIS = PairwiseMIS::Init(uint16_t(numSamples), r);
 
 		float3 samplePosW[4];
 		int16_t2 samplePosSS[4];

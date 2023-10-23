@@ -153,7 +153,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 #if TARGET_WITH_VISIBILITY == 0
 	if (target.needsShadowRay)
 	{
-		if (!RDI_Util::VisibilityApproximate(g_bvh, posW, target.wi, target.rayT, normal, linearDepth, target.lightID))
+		if (!RDI_Util::VisibilityApproximate(g_bvh, posW, target.wi, target.rayT, normal, target.lightID))
 		{
 			target.visible = false; 
 			r.W = 0;
@@ -167,7 +167,8 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 }
 
 RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, float roughness, 
-	uint sampleSetIdx, BRDF::SurfaceInteraction surface, float2 prevUV, inout RDI_Util::Target target, inout RNG rng)
+	float3 baseColor, uint sampleSetIdx, BRDF::SurfaceInteraction surface, float2 prevUV, inout RDI_Util::Target target, 
+	inout RNG rng)
 {
 	// light sampling is less effective for glossy surfaces or when light source is close to surface
 	const uint numBrdfCandidates = roughness > 0.06 && roughness < g_local.MaxRoughnessExtraBrdfSampling ? MAX_NUM_BRDF_SAMPLES : 1;
@@ -199,14 +200,26 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 norma
 	// spatial resampling
 	if(g_local.SpatialResampling)
 	{
-		RDI_Util::SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, posW, normal, linearDepth, 
+#if TARGET_WITH_VISIBILITY == 1
+		// spatial resampling is really expensive -- use a heuristic to decide when extra samples 
+		// have a noticeable impact
+		bool extraSample = normal.y < -0.1 && 
+			roughness > 0.075 && 
+			Math::Color::LuminanceFromLinearRGB(baseColor) > 0.5f;
+
+		int numSamples = MIN_NUM_SPATIAL_SAMPLES + extraSample;
+#else
+		int numSamples = MIN_NUM_SPATIAL_SAMPLES + 1;
+#endif	
+		
+		RDI_Util::SpatialResample(DTid, numSamples, SPATIAL_SEARCH_RADIUS, posW, normal, linearDepth, 
 			roughness, surface, g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
 			g_frame, g_emissives, g_bvh, r, target, rng);
 	}
 
 #if TARGET_WITH_VISIBILITY == 0
 	if (target.needsShadowRay)
-		target.visible = RDI_Util::VisibilityApproximate(g_bvh, posW, target.wi, target.rayT, normal, linearDepth, target.lightID);
+		target.visible = RDI_Util::VisibilityApproximate(g_bvh, posW, target.wi, target.rayT, normal, target.lightID);
 #endif
 
 	return r;
@@ -283,8 +296,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 	RDI_Util::Target target = RDI_Util::Target::Init();
 
-	RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, posW, normal, linearDepth, mr.y, sampleSetIdx, 
-		surface, prevUV, target, rng);
+	RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, posW, normal, linearDepth, mr.y, baseColor, 
+		sampleSetIdx, surface, prevUV, target, rng);
 
 	if(g_local.Denoise)
 	{
