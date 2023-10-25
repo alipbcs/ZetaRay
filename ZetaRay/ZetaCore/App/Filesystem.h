@@ -35,6 +35,7 @@ namespace ZetaRay::App::Filesystem
         void Stem(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
         void Extension(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
         ZetaInline char* Get() { return m_path.begin(); }
+        ZetaInline const char* Get() const { return m_path.begin(); }
         ZetaInline Util::StrView GetView() const { return Util::StrView(m_path.begin(), m_path.size()); }
         ZetaInline size_t Length() const { return m_path.size(); }
         void ConvertToBackslashes();

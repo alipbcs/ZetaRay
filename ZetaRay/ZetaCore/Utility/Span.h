@@ -160,7 +160,7 @@ namespace ZetaRay::Util
 		{
 		}
 
-		ZetaInline bool empty()
+		ZetaInline bool empty() const
 		{
 			return m_ptr == nullptr;
 		}
@@ -187,7 +187,7 @@ namespace ZetaRay::Util
 			return m_size;
 		}
 
-		ZetaInline const char* data()
+		ZetaInline const char* data() const
 		{
 			return m_ptr;
 		}

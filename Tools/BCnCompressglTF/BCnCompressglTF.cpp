@@ -74,7 +74,7 @@ namespace
         EMISSIVE
     };
 
-    const char* GetTexFormat(TEXTURE_TYPE t) noexcept
+    const char* GetTexFormat(TEXTURE_TYPE t)
     {
         switch (t)
         {
@@ -92,7 +92,7 @@ namespace
         }
     }
 
-    void CreateDevice(ID3D11Device** pDevice) noexcept
+    void CreateDevice(ID3D11Device** pDevice)
     {
         Assert(pDevice, "invalid arg.");
         *pDevice = nullptr;
@@ -133,7 +133,58 @@ namespace
         }
     }
 
-    bool CompressedExists(const Filesystem::Path& imagePath, const Filesystem::Path& outDir) noexcept
+    void DecodeURI_Inplace(Filesystem::Path& str)
+    {
+        const unsigned char* beg = reinterpret_cast<const unsigned char*>(str.Get());
+        const int N = (int)str.Length();
+        int curr = 0;
+        bool needsConversion = false;
+        Filesystem::Path converted;
+        converted.Resize(str.Length());
+
+        auto hexToDecimal = [](unsigned char c)
+            {
+                if (c >= 48 && c <= 57)
+                    return c - 48;
+                if (c >= 65 && c <= 70)
+                    return c - 65 + 10;
+                if (c >= 97 && c <= 102)
+                    return c - 97 + 10;
+
+                return -1;
+            };
+
+        unsigned char* out = reinterpret_cast<unsigned char*>(converted.Get());
+
+        while (curr < N)
+        {
+            unsigned char c = *(beg + curr);
+
+            if (c == '%')
+            {
+                needsConversion = true;
+
+                int d1 = hexToDecimal(*(beg + curr + 1));
+                Check(d1 != -1, "Unrecognized percent-encoding.");
+                int d2 = hexToDecimal(*(beg + curr + 2));
+                Check(d2 != -1, "Unrecognized percent-encoding.");
+
+                unsigned char newC = (unsigned char)((d1 << 4) + d2);
+                *(out++) = newC;
+                curr += 3;
+
+                continue;
+            }
+
+            *(out++) = c;
+            curr++;
+        }
+
+        if (needsConversion)
+            str.Reset(converted.GetView());
+    }
+
+    bool CompressedExists(const Filesystem::Path& imagePath, const Filesystem::Path& outDir)
     {
         char filename[MAX_PATH];
         size_t fnLen;
@@ -239,7 +290,7 @@ namespace
         return true;
     }
 
-    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath) noexcept
+    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath)
     {
         std::string s;
         char filename[MAX_PATH];
@@ -252,6 +303,7 @@ namespace
 
             // extract the image file name
             Filesystem::Path p((StrView(s.data(), s.size())));
+            DecodeURI_Inplace(p);
             p.Stem(filename, &fnLen);
 
             // change the extension to dds
@@ -295,7 +347,7 @@ namespace
         printf("glTF scene file with modified image URIs has been written to %s...\n", convertedPath.Get());
     }
 
-    ZetaInline bool IsASCII(const Filesystem::Path& path) noexcept
+    ZetaInline bool IsASCII(const Filesystem::Path& path)
     {
         auto view = path.GetView();
 
@@ -306,57 +358,6 @@ namespace
         }
 
         return true;
-    }
-
-    void DecodeURI_Inplace(Filesystem::Path& str) noexcept
-    {
-        unsigned char* beg = reinterpret_cast<unsigned char*>(str.Get());
-        const int N = (int)str.Length();
-        int curr = 0;
-        bool needsConversion = false;
-        Filesystem::Path converted;
-        converted.Resize(str.Length());
-
-        auto hexToDecimal = [](unsigned char c)
-        {
-            if (c >= 48 && c <= 57)
-                return c - 48;
-            if (c >= 65 && c <= 70)
-                return c - 65 + 10;
-            if (c >= 97 && c <= 102)
-                return c - 97 + 10;
-
-            return -1;
-        };
-
-        unsigned char* out = reinterpret_cast<unsigned char*>(converted.Get());
-
-        while (curr < N)
-        {
-            unsigned char c = *(beg + curr);
-
-            if (c == '%')
-            {
-                needsConversion = true;
-
-                int d1 = hexToDecimal(*(beg + curr + 1));
-                Check(d1 != -1, "Unrecognized percent-encoding.");
-                int d2 = hexToDecimal(*(beg + curr + 2));
-                Check(d2 != -1, "Unrecognized percent-encoding.");
-
-                unsigned char newC = (unsigned char)((d1 << 4) + d2);
-                *(out++) = newC;
-                curr += 3;
-
-                continue;
-            }
-
-            *(out++) = c;
-            curr++;
-        }
-
-        if(needsConversion)
-            str.Reset(converted.GetView());
     }
 }
 
@@ -496,7 +497,7 @@ int main(int argc, char* argv[])
                     break;
 
                 std::string texPath = data["images"][i]["uri"];
-                printf("WARNING: Following texture is used both as a %s map and a %s map:\n%s", n1, n2, texPath.c_str());
+                printf("WARNING: Following texture is used both as a(n) %s map and a(n) %s map:\n%s\n", n1, n2, texPath.c_str());
 
                 i = -1;
                 isValid = false;

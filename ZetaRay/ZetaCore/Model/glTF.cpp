@@ -421,8 +421,7 @@ namespace
 			const cgltf_image& image = model.images[m];
 			if (image.uri)
 			{
-				Filesystem::Path p(App::GetAssetDir());
-				p.Append(modelDir.GetView());
+				Filesystem::Path p(modelDir.GetView());
 				p.Append(image.uri);
 				p.Extension(ext);
 
@@ -488,8 +487,7 @@ namespace
 				{
 					Check(baseColView.texture->image, "textureView doesn't point to any image.");
 
-					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.GetView());
+					Filesystem::Path p(modelDir.GetView());
 					p.Append(baseColView.texture->image->uri);
 
 					desc.BaseColorTexPath = XXH3_64bits(p.Get(), p.Length());
@@ -507,8 +505,7 @@ namespace
 					Check(normalView.texture->image, "textureView doesn't point to any image.");
 					const char* texPath = normalView.texture->image->uri;
 
-					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.GetView());
+					Filesystem::Path p(modelDir.GetView());
 					p.Append(normalView.texture->image->uri);
 					desc.NormalTexPath = XXH3_64bits(p.Get(), p.Length());
 
@@ -523,8 +520,7 @@ namespace
 				{
 					Check(metallicRoughnessView.texture->image, "textureView doesn't point to any image.");
 
-					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.GetView());
+					Filesystem::Path p(modelDir.GetView());
 					p.Append(metallicRoughnessView.texture->image->uri);
 					desc.MetallicRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
@@ -541,8 +537,7 @@ namespace
 					Check(emissiveView.texture->image, "textureView doesn't point to any image.");
 					const char* texPath = emissiveView.texture->image->uri;
 
-					Filesystem::Path p(App::GetAssetDir());
-					p.Append(modelDir.GetView());
+					Filesystem::Path p(modelDir.GetView());
 					p.Append(emissiveView.texture->image->uri);
 					desc.EmissiveTexPath = XXH3_64bits(p.Get(), p.Length());
 				}
@@ -744,7 +739,7 @@ namespace
 		{
 			if (node.has_scale)
 			{
-				Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative or zero scale factors are not supported.");
+				Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative scale factors are not supported.");
 				transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
 			}
 
@@ -904,7 +899,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 	cgltf_data* model = nullptr;
 	Checkgltf(cgltf_parse_file(&options, pathToglTF.GetView().data(), &model));
 
-	Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
+	//Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
 	// load buffers
 	Check(model->buffers_count == 1, "invalid number of buffers");
