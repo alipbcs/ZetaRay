@@ -1,11 +1,12 @@
 #ifndef COMMON_H
 #define COMMON_H
 
+// 32 bytes
 struct Vertex
 {
 	float3 PosL;
-	int16_t3 NormalL;
 	float2 TexUV;
+	int16_t3 NormalL;
 	int16_t3 TangentU;
 };
 
@@ -120,7 +121,7 @@ namespace Common
 		swizzledGid = uint2(swizzledGidx % dispatchDim.x, swizzledGidx / dispatchDim.x);
 		swizzledDTid = swizzledGid * groupDim + GTid;
 	}
-	
+		
 	uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid, uint16_t2 groupDim, uint16_t dispatchDimX, uint16_t tileWidth,
 		uint16_t log2TileWidth, uint16_t numGroupsInTile)
 	{
