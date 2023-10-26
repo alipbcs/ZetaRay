@@ -135,7 +135,7 @@ namespace
 		inline static constexpr const char* ASSET_DIR = "..\\Assets";
 		inline static constexpr const char* TOOLS_DIR = "..\\Tools";
 		inline static constexpr const char* DXC_PATH = "..\\Tools\\dxc\\bin\\x64\\dxc.exe";
-		inline static constexpr const char* RENDER_PASS_DIR = "..\\ZetaRay\\ZetaRenderPass";
+		inline static constexpr const char* RENDER_PASS_DIR = "..\\Source\\ZetaRenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
 
@@ -1071,13 +1071,13 @@ namespace ZetaRay::AppImpl
 		int ret = -1;
 		__m256i vKey = _mm256_set1_epi32(id);
 
-		for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8) 
+		for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8)
 		{
 			__m256i vIDs = _mm256_load_si256((__m256i*)(g_app->m_threadIDs + i));
 			__m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
 			int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
 
-			if (mask != 0) 
+			if (mask != 0)
 			{
 				ret = i + _tzcnt_u32(mask);
 				break;
