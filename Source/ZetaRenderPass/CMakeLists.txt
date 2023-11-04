@@ -8,6 +8,7 @@ add_subdirectory(DirectLighting)
 add_subdirectory(FSR2)
 add_subdirectory(GBufferRT)
 add_subdirectory(GUI)
+add_subdirectory(PreLighting)
 add_subdirectory(Sky)
 add_subdirectory(SunShadow)
 add_subdirectory(TAA)
@@ -15,7 +16,6 @@ add_subdirectory(TAA)
 set(RENDERPASS_SRC 
 	"${ZETA_RENDER_PASS_DIR}/RenderPass.cpp"
     "${ZETA_RENDER_PASS_DIR}/RenderPass.h"
-	${RENDERPASS_SRC} 
     ${RP_AUTO_EXPOSURE_SRC} 
     ${RP_COMMON_SRC} 
     ${RP_COMPOSITING_SRC} 
@@ -24,6 +24,7 @@ set(RENDERPASS_SRC
     ${RP_FSR2_SRC} 
     ${RP_GBUFFER_RT_SRC} 
     ${RP_GUI_SRC} 
+    ${RP_PRE_LIGHTING_SRC} 
     ${RP_SKY_SRC} 
     ${RP_SUN_SRC} 
     ${RP_TAA_SRC})

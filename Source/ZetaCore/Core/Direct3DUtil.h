@@ -430,10 +430,10 @@ namespace ZetaRay::Core::Direct3DUtil
     D3D12_GRAPHICS_PIPELINE_STATE_DESC GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
         int numRenderTargets,
         DXGI_FORMAT* rtvFormats,
-        DXGI_FORMAT dsvFormat,
+        DXGI_FORMAT dsvFormat = DXGI_FORMAT_UNKNOWN,
+        D3D12_DEPTH_STENCIL_DESC* depthStencilDesc = nullptr,
         D3D12_RASTERIZER_DESC* rasterizerDesc = nullptr,
         D3D12_BLEND_DESC* blendDesc = nullptr,
-        D3D12_DEPTH_STENCIL_DESC* depthStencilDesc = nullptr,
         D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology = D3D12_PRIMITIVE_TOPOLOGY_TYPE_TRIANGLE);
 
     uint64_t GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc);

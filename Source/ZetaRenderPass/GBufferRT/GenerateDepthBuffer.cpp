@@ -20,7 +20,6 @@ GenerateRasterDepth::GenerateRasterDepth()
 	// root constants
 	m_rootSig.InitAsConstants(0,
 		1,
-		0,
 		0);
 
 	// frame constants
@@ -28,7 +27,6 @@ GenerateRasterDepth::GenerateRasterDepth()
 		1,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		Scene::GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	RenderPassBase::InitRenderPass("RasterDepth", D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);

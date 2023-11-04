@@ -12,7 +12,6 @@ namespace ZetaRay::Core::Constants
 {
 	static constexpr int NUM_BACK_BUFFERS = 3;
 	static constexpr DXGI_FORMAT BACK_BUFFER_FORMAT = DXGI_FORMAT_R8G8B8A8_UNORM_SRGB;
-	static constexpr DXGI_FORMAT DEPTH_BUFFER_FORMAT = DXGI_FORMAT_R32_FLOAT;
 
 	static constexpr int NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS = 4096;
 	static constexpr int NUM_CBV_SRV_UAV_DESC_HEAP_CPU_DESCRIPTORS = 128;

@@ -22,19 +22,16 @@ DisplayPass::DisplayPass()
 	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
-	m_rootSig.InitAsCBV(0,												// root idx
-		0,																// register
-		0,																// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
-		D3D12_SHADER_VISIBILITY_ALL,									// visibility
+	m_rootSig.InitAsCBV(0,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
-	m_rootSig.InitAsConstants(1,				// root idx
-		NUM_CONSTS,								// num DWORDs
-		1,										// register
-		0,										// register space
-		D3D12_SHADER_VISIBILITY_ALL);
+	m_rootSig.InitAsConstants(1,
+		NUM_CONSTS,
+		1);
 }
 
 DisplayPass::~DisplayPass()
@@ -436,8 +433,7 @@ void DisplayPass::CreatePSOs()
 	DXGI_FORMAT rtvFormats[1] = { Constants::BACK_BUFFER_FORMAT };
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(nullptr,
 		1,
-		rtvFormats,
-		Constants::DEPTH_BUFFER_FORMAT);
+		rtvFormats);
 
 	// no blending required
 

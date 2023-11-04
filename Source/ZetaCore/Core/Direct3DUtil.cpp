@@ -1040,9 +1040,9 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DUtil::GetPSODesc(const D3D12_INPUT_LA
     int numRenderTargets, 
     DXGI_FORMAT* rtvFormats, 
     DXGI_FORMAT dsvFormat, 
+    D3D12_DEPTH_STENCIL_DESC* depthStencilDesc, 
     D3D12_RASTERIZER_DESC* rasterizerDesc, 
     D3D12_BLEND_DESC* blendDesc, 
-    D3D12_DEPTH_STENCIL_DESC* depthStencilDesc, 
     D3D12_PRIMITIVE_TOPOLOGY_TYPE primitiveTopology)
 {
     //DXGI_FORMAT unknownFormats[D3D12_SIMULTANEOUS_RENDER_TARGET_COUNT] = { DXGI_FORMAT_UNKNOWN };

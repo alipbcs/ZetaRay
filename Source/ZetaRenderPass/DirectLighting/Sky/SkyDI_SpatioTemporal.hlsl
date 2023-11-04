@@ -3,7 +3,6 @@
 #include "../../Common/FrameConstants.h"
 #include "../../Common/GBuffers.hlsli"
 #include "../../Common/BRDF.hlsli"
-#include "../../Common/Sampling.hlsli"
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/Volumetric.hlsli"
@@ -77,7 +76,7 @@ bool Visibility(float3 pos, float3 wi, float3 normal)
 	return true;
 }
 
-float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::SurfaceInteraction surface, 
+float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::ShadingData surface, 
 	out float3 Lo)
 {
 #if TARGET_WITH_VISIBILITY
@@ -98,7 +97,7 @@ float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::Sur
 	
 	Lo = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 		
-	const float3 brdfCosTheta = BRDF::SurfaceBRDF(surface, true);
+	const float3 brdfCosTheta = BRDF::CombinedBRDF(surface, true);
 	const float3 target = Lo * brdfCosTheta;
 
 	return target;
@@ -186,8 +185,8 @@ struct PairwiseMIS
 	}
 
 	void Stream(SkyDI_Util::Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-		BRDF::SurfaceInteraction surface_c, SkyDI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
-		float w_sum_i, BRDF::SurfaceInteraction surface_i, inout RNG rng)
+		BRDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
+		float w_sum_i, BRDF::ShadingData surface_i, inout RNG rng)
 	{
 		float3 currTarget;
 		float m_i;
@@ -196,7 +195,7 @@ struct PairwiseMIS
 		if(r_i.IsValid())
 		{
 			surface_c.SetWi(r_i.wi, normal_c);
-			const float3 brdfCosTheta_c = BRDF::SurfaceBRDF(surface_c);
+			const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
 			currTarget = r_i.Le * brdfCosTheta_c;
 
 #if TARGET_WITH_VISIBILITY == 1
@@ -216,7 +215,7 @@ struct PairwiseMIS
 		if(r_c.IsValid())
 		{
 			surface_i.SetWi(r_c.wi, normal_i);
-			brdfCosTheta_i = BRDF::SurfaceBRDF(surface_i);
+			brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
 
 #if TARGET_WITH_VISIBILITY == 1
 			if(Math::Color::LuminanceFromLinearRGB(brdfCosTheta_i) > 1e-5)
@@ -262,7 +261,7 @@ struct PairwiseMIS
 };
 
 SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic,
-	float roughness, BRDF::SurfaceInteraction surface, inout RNG rng)
+	float roughness, BRDF::ShadingData surface, inout RNG rng)
 {
 	SkyDI_Util::Reservoir r = SkyDI_Util::Reservoir::Init();
 
@@ -346,7 +345,7 @@ float PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float 
 }
 
 TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic, 
-	float roughness, BRDF::SurfaceInteraction surface, inout RNG rng)
+	float roughness, BRDF::ShadingData surface, inout RNG rng)
 {
 	TemporalCandidate candidate = TemporalCandidate::Init();
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -425,7 +424,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 }
 
 void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, bool metallic,
-	BRDF::SurfaceInteraction surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
+	BRDF::ShadingData surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
 	SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
 	const half newM = r.M + prev.M;
@@ -442,12 +441,12 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 			const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
 			const float3 prevWo = normalize(prevCameraPos - candidate.posW);
 
-			BRDF::SurfaceInteraction prevSurface = BRDF::SurfaceInteraction::Init(candidate.normal, prevWo,
+			BRDF::ShadingData prevSurface = BRDF::ShadingData::Init(candidate.normal, prevWo,
 				metallic, candidate.roughness, prevBaseColor);
 
 			prevSurface.SetWi(r.wi, candidate.normal);
 
-			const float3 targetAtPrev = r.Le * BRDF::SurfaceBRDF(prevSurface);
+			const float3 targetAtPrev = r.Le * BRDF::CombinedBRDF(prevSurface);
 			targetLumAtPrev = Math::Color::LuminanceFromLinearRGB(targetAtPrev);
 
 #if TARGET_WITH_VISIBILITY == 1
@@ -468,7 +467,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 	{
 		// compute target at current pixel with temporal reservoir's sample
 		surface.SetWi(prev.wi, normal);
-		const float3 currTarget = prev.Le * BRDF::SurfaceBRDF(surface);
+		const float3 currTarget = prev.Le * BRDF::CombinedBRDF(surface);
 		float targetLumAtCurr = Math::Color::LuminanceFromLinearRGB(currTarget);
 	
 #if TARGET_WITH_VISIBILITY == 1
@@ -499,7 +498,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 }
 
 void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW, float3 normal, 
-	float linearDepth, float roughness, BRDF::SurfaceInteraction surface, uint prevReservoir_A_DescHeapIdx, 
+	float linearDepth, float roughness, BRDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
 	uint prevReservoir_B_DescHeapIdx, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
 	static const half2 k_hammersley[8] =
@@ -590,7 +589,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 		const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
 		const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
-		BRDF::SurfaceInteraction surface_i = BRDF::SurfaceInteraction::Init(sampleNormal, wo_i,
+		BRDF::ShadingData surface_i = BRDF::ShadingData::Init(sampleNormal, wo_i,
 			sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
 
 		SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], g_local.PrevReservoir_A_DescHeapIdx);
@@ -605,7 +604,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 }
 
 SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
-	bool metallic, float roughness, float3 baseColor, BRDF::SurfaceInteraction surface, inout RNG rng)
+	bool metallic, float roughness, float3 baseColor, BRDF::ShadingData surface, inout RNG rng)
 {
 	SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, linearDepth, metallic, roughness,
 		surface, rng);
@@ -698,7 +697,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, metallic, mr.y, baseColor);
+	BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor);
 
 	RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 

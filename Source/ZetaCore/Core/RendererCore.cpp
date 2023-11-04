@@ -436,7 +436,7 @@ void RendererCore::InitStaticSamplers()
 	pointWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	pointWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	pointWrap.MipLODBias = 0;
-	pointWrap.MaxAnisotropy = 16;
+	pointWrap.MaxAnisotropy = 0;
 	pointWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	pointWrap.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	pointWrap.MinLOD = 0.0f;
@@ -451,7 +451,7 @@ void RendererCore::InitStaticSamplers()
 	pointClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	pointClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	pointClamp.MipLODBias = 0;
-	pointClamp.MaxAnisotropy = 16;
+	pointClamp.MaxAnisotropy = 0;
 	pointClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	pointClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	pointClamp.MinLOD = 0.0f;
@@ -466,7 +466,7 @@ void RendererCore::InitStaticSamplers()
 	linearWrap.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	linearWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
 	linearWrap.MipLODBias = 0;
-	linearWrap.MaxAnisotropy = 16;
+	linearWrap.MaxAnisotropy = 0;
 	linearWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	linearWrap.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	linearWrap.MinLOD = 0.0f;
@@ -481,7 +481,7 @@ void RendererCore::InitStaticSamplers()
 	linearClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	linearClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
 	linearClamp.MipLODBias = 0;
-	linearClamp.MaxAnisotropy = 16;
+	linearClamp.MaxAnisotropy = 0;
 	linearClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
 	linearClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
 	linearClamp.MinLOD = 0.0f;
@@ -535,21 +535,6 @@ void RendererCore::InitStaticSamplers()
 	imguiSampler.RegisterSpace = 0;
 	imguiSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-	D3D12_STATIC_SAMPLER_DESC minPoint;
-	minPoint.Filter = D3D12_FILTER_MINIMUM_MIN_MAG_LINEAR_MIP_POINT;
-	minPoint.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	minPoint.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	minPoint.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-	minPoint.MipLODBias = 0;
-	minPoint.MaxAnisotropy = 16;
-	minPoint.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-	minPoint.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-	minPoint.MinLOD = 0.0f;
-	minPoint.MaxLOD = D3D12_FLOAT32_MAX;
-	minPoint.ShaderRegister = 7;
-	minPoint.RegisterSpace = 0;
-	minPoint.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
-
 	m_staticSamplers[0] = pointWrap;
 	m_staticSamplers[1] = pointClamp;
 	m_staticSamplers[2] = linearWrap;
@@ -557,7 +542,6 @@ void RendererCore::InitStaticSamplers()
 	m_staticSamplers[4] = anisotropicWrap;
 	m_staticSamplers[5] = anisotropicClamp;
 	m_staticSamplers[6] = imguiSampler;
-	m_staticSamplers[7] = minPoint;
 }
 
 void RendererCore::SetVSync(const ParamVariant& p)

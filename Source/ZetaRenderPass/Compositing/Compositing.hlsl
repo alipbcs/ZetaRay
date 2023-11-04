@@ -19,13 +19,13 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 //--------------------------------------------------------------------------------------
 
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
-	inout BRDF::SurfaceInteraction surface)
+	inout BRDF::ShadingData surface)
 {
 	Texture2D<half> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
 	float shadowVal = g_sunShadowTemporalCache[DTid].x;
 
 	surface.SetWi(-g_frame.SunDir, normal);
-	float3 f = BRDF::SurfaceBRDF(surface);
+	float3 f = BRDF::CombinedBRDF(surface);
 	
 	const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
 	const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -127,7 +127,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	bool isMetallic;
 	bool isEmissive;
 	GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
+	BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	if(!isEmissive)
 	{
@@ -178,6 +178,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		}
 	}
 
-	//g_hdrLightAccum[DTid.xy].rgb = baseColor;
 	g_hdrLightAccum[DTid.xy].rgb = color;
 }

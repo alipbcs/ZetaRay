@@ -18,81 +18,6 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-	// a compute shader that estimates lumen for each emissive triangle
-	struct EmissiveTriangleLumen final : public RenderPassBase
-	{
-		enum class SHADER_OUT_RES
-		{
-			TRI_LUMEN,
-			READBACK_BUFF,
-			COUNT
-		};
-
-		EmissiveTriangleLumen();
-		~EmissiveTriangleLumen();
-
-		Core::GpuMemory::DefaultHeapBuffer& GetLumenBuffer() { return m_lumen; }
-		Core::GpuMemory::ReadbackHeapBuffer& GetReadbackBuffer() { return m_readback; }
-
-		void Init();
-		bool IsInitialized() const { return m_psos[0] != nullptr; };
-		void Reset();
-		void Update();
-		void Render(Core::CommandList& cmdList);
-
-	private:
-		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 2;
-		static constexpr int NUM_UAV = 1;
-		static constexpr int NUM_GLOBS = 2;
-		static constexpr int NUM_CONSTS = sizeof(cb_ReSTIR_DI_EstimateTriLumen) / sizeof(DWORD);
-
-		enum class SHADERS
-		{
-			ESTIMATE_TRIANGLE_LUMEN,
-			COUNT
-		};
-
-		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
-			"EstimateTriLumen_cs.cso"
-		};
-
-		Core::GpuMemory::DefaultHeapBuffer m_halton;
-		Core::GpuMemory::DefaultHeapBuffer m_lumen;
-		Core::GpuMemory::ReadbackHeapBuffer m_readback;
-		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-		uint32_t m_currNumTris;
-	};
-
-	struct EmissiveTriangleAliasTable
-	{
-		enum class SHADER_OUT_RES
-		{
-			ALIAS_TABLE,
-			COUNT
-		};
-
-		EmissiveTriangleAliasTable() = default;
-		~EmissiveTriangleAliasTable() = default;
-
-		Core::GpuMemory::DefaultHeapBuffer& GetOutput(SHADER_OUT_RES i)
-		{
-			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
-			return m_aliasTable;
-		}
-
-		void Update(Core::GpuMemory::ReadbackHeapBuffer* readback);
-		void SetEmissiveTriPassHandle(Core::RenderNodeHandle& emissiveTriHandle);
-		void Render(Core::CommandList& cmdList);
-
-	private:
-		Core::GpuMemory::DefaultHeapBuffer m_aliasTable;
-		Core::GpuMemory::UploadHeapBuffer m_aliasTableUpload;
-		Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
-		uint32_t m_currNumTris = 0;
-		int m_emissiveTriHandle = -1;
-	};
-
 	struct DirectLighting final : public RenderPassBase
 	{
 		enum class SHADER_OUT_RES
@@ -108,25 +33,28 @@ namespace ZetaRay::RenderPass
 		bool IsInitialized() const { return m_psos[0] != nullptr; };
 		void Reset();
 		void OnWindowResized();
+		void SetLightPresamplingEnabled(bool b, int numSampleSets, int sampleSetSize) 
+		{ 
+			Assert(!b || (b && numSampleSets && sampleSetSize), "presampling is enabled, but number of sample sets is zero.");
 
+			m_preSampling = b;
+			m_cbSpatioTemporal.NumSampleSets = b ? (uint16_t)numSampleSets : 0;
+			m_cbSpatioTemporal.SampleSetSize = b ? (uint16_t)sampleSetSize : 0;
+		}
 		const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
 		{
 			Assert(i == SHADER_OUT_RES::DENOISED, "Invalid shader output.");
 			return m_denoised;
 		}
-
-		void Update();
 		void Render(Core::CommandList& cmdList);
 
 	private:
 		static constexpr int NUM_CBV = 1;
 		static constexpr int NUM_SRV = 5;
-		static constexpr int NUM_UAV = 1;
-		static constexpr int NUM_GLOBS = 4;
+		static constexpr int NUM_UAV = 0;
+		static constexpr int NUM_GLOBS = 6;
 		static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cb_ReSTIR_DI_SpatioTemporal) / sizeof(DWORD),
 			Math::Max(sizeof(cb_ReSTIR_DI_DNSR_Temporal) / sizeof(DWORD), sizeof(cb_ReSTIR_DI_DNSR_Spatial) / sizeof(DWORD)));
-
-		void CreateOutputs();
 
 		struct ResourceFormats
 		{
@@ -169,10 +97,6 @@ namespace ZetaRay::RenderPass
 
 		struct DefaultParamVals
 		{
-			static constexpr int NUM_SAMPLE_SETS = 128;
-			static constexpr int SAMPLE_SET_SIZE = 512;
-			static constexpr float EMISSIVE_SET_MEM_BUDGET_MB = 1.5;
-			static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) / sizeof(LightSample));
 			static constexpr int M_MAX = 25;
 			static constexpr int DNSR_TSPP_DIFFUSE = 16;
 			static constexpr int DNSR_TSPP_SPECULAR = 16;
@@ -180,7 +104,6 @@ namespace ZetaRay::RenderPass
 
 		enum class SHADERS
 		{
-			PRESAMPLING,
 			SPATIO_TEMPORAL,
 			SPATIO_TEMPORAL_LIGHT_PRESAMPLING,
 			DNSR_TEMPORAL,
@@ -189,7 +112,6 @@ namespace ZetaRay::RenderPass
 		};
 
 		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
-			"ReSTIR_DI_Presample_cs.cso",
 			"ReSTIR_DI_SpatioTemporal_cs.cso",
 			"ReSTIR_DI_SpatioTemporal_LP_cs.cso",
 			"ReSTIR_DI_DNSR_Temporal_cs.cso",
@@ -218,7 +140,6 @@ namespace ZetaRay::RenderPass
 		Core::GpuMemory::Texture m_colorB;
 		DenoiserCache m_dnsrCache[2];
 		Core::GpuMemory::Texture m_denoised;
-		Core::GpuMemory::DefaultHeapBuffer m_sampleSets;
 
 		uint32_t m_currNumTris = 0;
 		int m_currTemporalIdx = 0;
@@ -226,10 +147,13 @@ namespace ZetaRay::RenderPass
 		bool m_isDnsrTemporalCacheValid = false;
 		bool m_doTemporalResampling = true;
 		bool m_doSpatialResampling = true;
+		bool m_preSampling = false;
 		
 		cb_ReSTIR_DI_SpatioTemporal m_cbSpatioTemporal;
 		cb_ReSTIR_DI_DNSR_Temporal m_cbDnsrTemporal;
 		cb_ReSTIR_DI_DNSR_Spatial m_cbDnsrSpatial;
+
+		void CreateOutputs();
 
 		// param callbacks
 		void TemporalResamplingCallback(const Support::ParamVariant& p);

@@ -612,5 +612,3 @@ uint64_t BVH::CastRay(Math::Ray& r)
 
 	return closestID;
 }
-
-

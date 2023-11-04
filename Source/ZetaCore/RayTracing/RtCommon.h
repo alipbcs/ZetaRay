@@ -9,10 +9,11 @@
 
 #define ENCODE_EMISSIVE_POS 1
 
-// Meshes present in an Acceleration Structure, can be subdivided into groups
+// From DXR docs:
+// "Meshes present in an acceleration structure can be subdivided into groups
 // based on a specified 8-bit mask value. During ray travesal, instance mask from 
 // the ray and corresponding mask from each mesh are ANDed together. Mesh is skipped
-// if the result is zero.
+// if the result is zero".
 namespace RT_AS_SUBGROUP
 {
 	static const uint32_t EMISSIVE = 0x1;
@@ -275,6 +276,32 @@ namespace ZetaRay
 				return EmissiveFactor_Signs & (1u << DoubleSidedBit);
 			}
 #endif
+		};
+
+		// Given discrete probability distribution P with N outcomes, such that for outcome i and random variable x,
+		//      P[i] = P[x = i],
+		// 
+		// alias table is a lookup table of length N for P. To draw samples from P, draw a discrete uniform sample x 
+		// in [0, N), then
+		// 
+		// 1. draw another uniform sample u in [0, 1)
+		// 2. if u <= AliasTable[x].P_Curr, return x
+		// 3. return AliasTable[x].Alias
+		struct EmissiveTriangleSample
+		{
+			// cache the probabilities for both outcomes to avoid another (random) memory access at the
+			// cost of extra storage
+			float CachedP_Orig;
+			float CachedP_Alias;
+			float P_Curr;
+			uint32_t Alias;
+		};
+
+		struct LightSample
+		{
+			float Pdf;
+			uint32_t Index;
+			RT::EmissiveTriangle Tri;
 		};
 	}
 #ifdef __cplusplus

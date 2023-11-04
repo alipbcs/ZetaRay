@@ -56,19 +56,19 @@ namespace ZetaRay::Core
 		RootSignature& operator=(const RootSignature&) = delete;
 
 		void InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32_t registerNum,
-			uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
+			uint32_t registerSpace = 0, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 		void InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
-			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false);
+			D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id = nullptr, bool isOptional = false,
+			D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 		void InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
-			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false);
+			D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id = nullptr, bool isOptional = false,
+			D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 		void InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace,
-			D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL,
-			const char* id = nullptr, bool isOptional = false);
+			D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id = nullptr, bool isOptional = false,
+			D3D12_SHADER_VISIBILITY visibility = D3D12_SHADER_VISIBILITY_ALL);
 
 		void Finalize(const char* name,
 			ComPtr<ID3D12RootSignature>& rootSig,
@@ -86,9 +86,8 @@ namespace ZetaRay::Core
 		void End(ComputeCmdList& ctx);
 
 	private:
-		static constexpr int MAX_NUM_PARAMS = 11;
-		//static constexpr int MAX_NUM_ROOT_DESCRIPTORS = 9;
-		static constexpr int MAX_NUM_ROOT_CONSTANTS = 24;
+		static constexpr int MAX_NUM_PARAMS = 9;
+		static constexpr int MAX_NUM_ROOT_CONSTANTS = 20;
 
 		const uint32_t m_numParams;
 		const uint32_t m_numCBVs;

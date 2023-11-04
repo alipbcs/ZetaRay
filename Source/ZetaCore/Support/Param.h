@@ -230,6 +230,5 @@ namespace ZetaRay::Support
 			EnumParam m_enum;
 			bool m_bool;
 		};
-
 	};
 }

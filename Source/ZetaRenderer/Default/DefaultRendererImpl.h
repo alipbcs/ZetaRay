@@ -58,7 +58,6 @@ namespace ZetaRay::DefaultRenderer
 			METALLIC_ROUGHNESS,
 			MOTION_VECTOR,
 			EMISSIVE_COLOR,
-			CURVATURE,
 			DEPTH,
 			COUNT
 		};
@@ -70,8 +69,7 @@ namespace ZetaRay::DefaultRenderer
 			DXGI_FORMAT_R8G8_UNORM,
 			DXGI_FORMAT_R16G16_FLOAT,
 			DXGI_FORMAT_R11G11B10_FLOAT,
-			DXGI_FORMAT_R16_FLOAT,
-			Core::Constants::DEPTH_BUFFER_FORMAT
+			DXGI_FORMAT_R32_FLOAT
 		};
 
 		// previous frame's gbuffers are required for denoising and ReSTIR
@@ -81,7 +79,6 @@ namespace ZetaRay::DefaultRenderer
 		Core::GpuMemory::Texture MotionVec;
 		Core::GpuMemory::Texture EmissiveColor;
 		Core::GpuMemory::Texture DepthBuffer[2];
-		Core::GpuMemory::Texture Curvature;
 
 		Core::DescriptorTable SrvDescTable[2];
 		Core::DescriptorTable UavDescTable[2];
@@ -145,8 +142,8 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::Sky SkyPass;
 		Core::RenderNodeHandle SkyHandle;
 
-		RenderPass::EmissiveTriangleLumen EmissiveTriLumen;
-		Core::RenderNodeHandle EmissiveTriLumenHandle;
+		RenderPass::PreLighting PreLightingPass;
+		Core::RenderNodeHandle PreLightingPassHandle;
 
 		RenderPass::EmissiveTriangleAliasTable EmissiveAliasTable;
 		Core::RenderNodeHandle EmissiveAliasTableHandle;
@@ -157,6 +154,7 @@ namespace ZetaRay::DefaultRenderer
 		// descriptor tables
 		enum class DESC_TABLE_WND_SIZE_CONST
 		{
+			CURVATURE,
 			SKY_DI_DENOISED,
 			DIRECT_LIGHITNG_DENOISED,
 			SUN_SHADOW_DENOISED,

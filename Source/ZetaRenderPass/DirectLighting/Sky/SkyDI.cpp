@@ -22,25 +22,22 @@ SkyDI::SkyDI()
 	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// root constants
-	m_rootSig.InitAsConstants(0,		// root idx
-		NUM_CONSTS,						// num DWORDs
-		1,								// register
-		0);								// register space
+	m_rootSig.InitAsConstants(0,
+		NUM_CONSTS,
+		1);
 
 	// frame constants
-	m_rootSig.InitAsCBV(1,												// root idx
-		0,																// register
-		0,																// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
-		D3D12_SHADER_VISIBILITY_ALL,									// visibility
+	m_rootSig.InitAsCBV(1,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// BVH
-	m_rootSig.InitAsBufferSRV(2,						// root idx
-		0,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+	m_rootSig.InitAsBufferSRV(2,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
 		GlobalResource::RT_SCENE_BVH);
 }
 

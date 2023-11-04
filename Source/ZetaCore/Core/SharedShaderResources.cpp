@@ -9,7 +9,7 @@ using namespace ZetaRay::Core::GpuMemory;
 // SharedShaderResources
 //--------------------------------------------------------------------------------------
 
-const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuff(uint64_t id)
+const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(uint64_t id)
 {
 	std::shared_lock<std::shared_mutex> lock(m_uploadHeapMtx);
 	auto buff = m_uploadHeapBuffs.find(id);
@@ -19,10 +19,10 @@ const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuff(uint64_t id)
 	return nullptr;
 }
 
-const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuff(std::string_view id)
+const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(std::string_view id)
 {
 	uint64_t h = XXH3_64bits(id.data(), id.size());
-	return GetUploadHeapBuff(h);
+	return GetUploadHeapBuffer(h);
 }
 
 void SharedShaderResources::InsertOrAssingUploadHeapBuffer(std::string_view id, UploadHeapBuffer& buf)
@@ -43,7 +43,7 @@ void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const Up
 //	m_uploadHeapBuffs.erase(id);
 //}
 
-const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuff(uint64_t id)
+const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
 	std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
 	auto* it = m_defaultHeapBuffs.find(id);
@@ -53,10 +53,10 @@ const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuff(uint64_t id)
 	return *it;
 }
 
-const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuff(std::string_view id)
+const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
 {
 	uint64_t h = XXH3_64bits(id.data(), id.size());
-	return GetDefaultHeapBuff(h);
+	return GetDefaultHeapBuffer(h);
 }
 
 void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf)

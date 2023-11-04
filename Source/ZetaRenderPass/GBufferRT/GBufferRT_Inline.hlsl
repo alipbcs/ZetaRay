@@ -11,10 +11,10 @@
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cbGBufferRt> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
-StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t2);
-StructuredBuffer<Vertex> g_sceneVertices : register(t3);
-StructuredBuffer<uint> g_sceneIndices : register(t4);
+StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t1);
+StructuredBuffer<Vertex> g_sceneVertices : register(t2);
+StructuredBuffer<uint> g_sceneIndices : register(t3);
+StructuredBuffer<Material> g_materials : register(t4);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -133,11 +133,11 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         float3 v1_n = Math::Encoding::DecodeSNorm3(V1.NormalL);
         float3 v2_n = Math::Encoding::DecodeSNorm3(V2.NormalL);
         float3 normal = v0_n + bary.x * (v1_n - v0_n) + bary.y * (v2_n - v0_n);
-        // transform normal using the inverse tranpose
-        // (M^-1)^T = ((SR)^-1)^T
-        //          = (R^-1 S^-1)^T
-        //          = (S^-1)^T (R^T)^T
-        //          = S^-1 R
+        // transform normal using the inverse transpose
+        // (M^-1)^T = ((RS)^-1)^T
+        //          = (S^-1 R^-1)^T
+        //          = (R^T)^T (S^-1)^T
+        //          = R S^-1
         normal *= 1.0f / meshData.Scale;
         normal = Math::Transform::RotateVector(normal, q);
         normal = normalize(normal);
@@ -207,11 +207,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
 
     RayPayload rayPayload = PrimaryHitData(cameraRayDir);
 	
+    // ray missed the scene
     if(rayPayload.t == FLT_MAX)
     {
         RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
 		g_depth[swizzledDTid] = FLT_MAX;
 
+        // just the camera motion
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         float3 motion = g_frame.CameraPos - prevCameraPos;
@@ -223,19 +225,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         return;
     }
 
-    uint matIdx = rayPayload.matIdx;
-    float3 normal = rayPayload.normal;
-    float3 tangent = rayPayload.tangent;
-    
     float2 currUV = (swizzledDTid + 0.5 + g_frame.CurrCameraJitter) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
     float2 prevUV = Math::Transform::UVFromNDC(rayPayload.prevPosNDC);
     float2 motionVec = currUV - prevUV;
 
+    // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.
 	float4 grads = GBufferRT::UVDifferentials(swizzledDTid, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
         rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
 	float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
+    // save the view-space z, so that position can be reconstructed
     float3 posV = mul(g_frame.CurrView, float4(posW, 1.0f));
-    GBufferRT::ApplyTextureMaps(swizzledDTid, posV.z, rayPayload.uv, matIdx, normal, tangent, motionVec, 
-		grads, posW, g_frame, g_local, g_materials);
+    GBufferRT::ApplyTextureMaps(swizzledDTid, posV.z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
+        rayPayload.tangent, motionVec, grads, posW, g_frame, g_local, g_materials);
 }

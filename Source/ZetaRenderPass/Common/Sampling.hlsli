@@ -35,7 +35,7 @@ struct RNG
 	// A seperate pcg PRNG instance for each thread or pixel, seeded with unique values
 	static RNG Init(uint2 pixel, uint frame)
 	{
-		RNG rng;		
+		RNG rng;
 #if 0
 		rng.State = RNG::Pcg(pixel.x + RNG::Pcg(pixel.y + RNG::Pcg(frame)));
 #else
@@ -214,11 +214,6 @@ namespace Sampling
 	// Area = 0.5f * abs(cross(v1 - v0, v2 - v0))
 	float2 UniformSampleTriangle(float2 u)
 	{
-#if 0
-		float b1 = 1.0 - sqrt(u.x);
-		float b2 = (1.0 - b1) * u.y;
-		return float2(b1, b2);
-#else
 		// Ref: Eric Heitz. A Low-Distortion Map Between Triangle and Square. 2019.
 		float b1, b2;
 		
@@ -234,7 +229,6 @@ namespace Sampling
 		}
 
 		return float2(b1, b2);
-#endif
 	}
 
 	//--------------------------------------------------------------------------------------
@@ -246,34 +240,6 @@ namespace Sampling
 
 	// Sample index: frame number % 32
 	// Sample dimension: e.g. (0, 1) for the diffuse indirect, (2, 3) for area light, etc.
-	float BlueNoiseErrorDistribution(ByteAddressBuffer g_owenScrambledSobolSeq,
-		ByteAddressBuffer g_rankingTile, ByteAddressBuffer g_scramblingTile,
-		int pixel_i, int pixel_j, int sampleIndex, int sampleDimension)
-	{
-		// wrap arguments
-		pixel_i = pixel_i & 127;
-		pixel_j = pixel_j & 127;
-		sampleIndex = sampleIndex & 255;
-		sampleDimension = sampleDimension & 255;
-
-		// xor index based on optimized ranking
-		uint idxInBytes = (sampleDimension + (pixel_i + pixel_j * 128) * 8) * sizeof(uint);
-		int rankedSampleIndex = sampleIndex ^ g_rankingTile.Load<uint>(idxInBytes);
-
-		// fetch value in sequence
-		idxInBytes = (sampleDimension + rankedSampleIndex * 256) * sizeof(uint);
-		int value = g_owenScrambledSobolSeq.Load<uint>(idxInBytes);
-
-		// If the dimension is optimized, xor sequence value based on optimized scrambling
-		idxInBytes = ((sampleDimension & 7) + (pixel_i + pixel_j * 128) * 8) * sizeof(uint);
-		value = value ^ g_scramblingTile.Load<uint>(idxInBytes);
-
-		// convert to float and return
-		float v = (0.5f + value) / 256.0f;
-
-		return v;
-	}
-
 	float BlueNoiseErrorDistribution(StructuredBuffer<uint16_t> g_owenScrambledSobolSeq,
 		StructuredBuffer<uint16_t> g_rankingTile, StructuredBuffer<uint16_t> g_scramblingTile,
 		int pixel_i, int pixel_j, int sampleIndex, int sampleDimension)

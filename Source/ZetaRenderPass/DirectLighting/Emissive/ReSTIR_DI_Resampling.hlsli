@@ -5,11 +5,9 @@
 #include "ReSTIR_DI_Reservoir.hlsli"
 #include "ReSTIR_DI.hlsli"
 #include "../../Common/FrameConstants.h"
-#include "../../Common/Sampling.hlsli"
 #include "../../Common/BRDF.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/GBuffers.hlsli"
-#include "../../Common/StaticTextureSamplers.hlsli"
 
 namespace RDI_Util
 {
@@ -87,14 +85,6 @@ namespace RDI_Util
 		// store visibility seperately as biased version doesn't include it in target
 		bool needsShadowRay;
 		bool visible;
-	};
-
-	struct EmissiveTriSample
-	{
-		float3 pos;
-		float3 normal;
-		float2 bary;
-		float pdf;
 	};
 
 	struct BrdfHitInfo
@@ -252,8 +242,8 @@ namespace RDI_Util
 		}
 
 		void Stream(Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-			BRDF::SurfaceInteraction surface_c, Reservoir r_i, float3 posW_i, float3 normal_i, float w_sum_i, 
-			BRDF::SurfaceInteraction surface_i, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
+			BRDF::ShadingData surface_c, Reservoir r_i, float3 posW_i, float3 normal_i, float w_sum_i, 
+			BRDF::ShadingData surface_i, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
 			RaytracingAccelerationStructure g_bvh, Target target_c, inout RNG rng)
 		{
 			float3 currTarget;
@@ -269,7 +259,7 @@ namespace RDI_Util
 				dwdA = emissive_i.dWdA();
 
 				surface_c.SetWi(emissive_i.wi, normal_c);
-				const float3 brdfCosTheta_c = BRDF::SurfaceBRDF(surface_c);
+				const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
 				currTarget = r_i.Le * brdfCosTheta_c * dwdA;
 
 #if TARGET_WITH_VISIBILITY == 1
@@ -291,7 +281,7 @@ namespace RDI_Util
 				t_i = length(target_c.lightPos - posW_i);
 				wi_i = (target_c.lightPos - posW_i) / t_i;
 				surface_i.SetWi(wi_i, normal_i);
-				brdfCosTheta_i = BRDF::SurfaceBRDF(surface_i);
+				brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
 
 #if TARGET_WITH_VISIBILITY == 1
 				if(Math::Color::LuminanceFromLinearRGB(brdfCosTheta_i) > 1e-5)
@@ -343,58 +333,8 @@ namespace RDI_Util
 		Target target_s;
 	};
 
-	uint SampleAliasTable(StructuredBuffer<EmissiveTriangleSample> g_aliasTable, uint numEmissiveTriangles, inout RNG rng, out float pdf)
-	{
-		uint u0 = rng.UintRange(0, numEmissiveTriangles);
-		EmissiveTriangleSample s = g_aliasTable[u0];
-
-		float u1 = rng.Uniform();
-		if (u1 <= s.P_Curr)
-		{
-			pdf = s.CachedP_Orig;
-			return u0;
-		}
-
-		pdf = s.CachedP_Alias;
-		return s.Alias;
-	}
-
-	uint UnformSampleSampleSet(uint sampleSetIdx, StructuredBuffer<LightSample> g_sampleSets, uint sampleSetSize, inout RNG rng, 
-		out RT::EmissiveTriangle tri, out float pdf)
-	{
-		uint u = rng.UintRange(0, sampleSetSize);
-
-		LightSample s = g_sampleSets[sampleSetIdx * sampleSetSize + u];
-		tri = s.Tri;
-		pdf = s.Pdf;
-
-		return s.Index;
-	}
-
-	EmissiveTriSample SampleEmissiveTriangleSurface(float3 posW, RT::EmissiveTriangle tri, inout RNG rng)
-	{
-		EmissiveTriSample ret;
-
-		float2 u = rng.Uniform2D();
-		ret.bary = Sampling::UniformSampleTriangle(u);
-
-		const float3 vtx1 = tri.V1();
-		const float3 vtx2 = tri.V2();
-		ret.pos = (1.0f - ret.bary.x - ret.bary.y) * tri.Vtx0 + ret.bary.x * vtx1 + ret.bary.y * vtx2;
-		ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
-		float twoArea = length(ret.normal);
-		twoArea = max(twoArea, 1e-6);
-		ret.pdf = all(ret.normal == 0) ? 1.0f : 1.0f / (0.5f * twoArea);
-
-		ret.normal = all(ret.normal == 0) ? ret.normal : ret.normal / twoArea;
-		ret.normal = tri.IsDoubleSided() && dot(posW - ret.pos, ret.normal) < 0 ? ret.normal * -1.0f : ret.normal;
-
-		return ret;
-	}
-
-	bool FindClosestHit(float3 pos, float3 normal, float3 wi, float linearDepth,
-		RaytracingAccelerationStructure g_bvh, StructuredBuffer<RT::MeshInstance> g_frameMeshData,
-		out BrdfHitInfo hitInfo)
+	bool FindClosestHit(float3 pos, float3 normal, float3 wi, RaytracingAccelerationStructure g_bvh, 
+		StructuredBuffer<RT::MeshInstance> g_frameMeshData, out BrdfHitInfo hitInfo)
 	{
 		const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
@@ -428,29 +368,6 @@ namespace RDI_Util
 		}
 
 		return false;
-	}
-
-	// assumes area light is diffuse
-	float3 EmissiveTriangleLi(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset)
-	{
-		const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor_Signs);
-		const float emissiveStrength = tri.GetEmissiveStrength();
-		float3 L_e = emissiveFactor * emissiveStrength;
-
-		if (Math::Color::LuminanceFromLinearRGB(L_e) <= 1e-5)
-			return 0.0.xxx;
-
-		uint16_t emissiveTex = tri.GetEmissiveTex();
-		if (emissiveTex != -1)
-		{
-			const uint offset = NonUniformResourceIndex(emissiveMapsDescHeapOffset + emissiveTex);
-			EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-
-			float2 texUV = (1.0f - bary.x - bary.y) * tri.UV0 + bary.x * tri.UV1 + bary.y * tri.UV2;
-			L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, texUV, 0).rgb;
-		}
-
-		return L_e;
 	}
 
 	float PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth)
@@ -537,7 +454,7 @@ namespace RDI_Util
 
 	float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, uint2 posSS, float3 prevPosW, 
 		float3 prevNormal, bool prevMetallic, float prevRoughness, float prevLinearDepth, ConstantBuffer<cbFrameConstants> g_frame,
-		RaytracingAccelerationStructure g_bvh, out BRDF::SurfaceInteraction prevSurface)
+		RaytracingAccelerationStructure g_bvh, out BRDF::ShadingData prevSurface)
 	{
 		GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
 			GBUFFER_OFFSET::BASE_COLOR];
@@ -546,7 +463,7 @@ namespace RDI_Util
 		const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
 		const float3 prevWo = normalize(prevCameraPos - prevPosW);
 
-		prevSurface = BRDF::SurfaceInteraction::Init(prevNormal, prevWo, prevMetallic, prevRoughness, prevBaseColor);
+		prevSurface = BRDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness, prevBaseColor);
 
 		const float t = length(lightPos - prevPosW);
 		const float3 wi = (lightPos - prevPosW) / t;
@@ -556,7 +473,7 @@ namespace RDI_Util
 		cosThetaPrime = all(lightNormal == 0) ? 1 : cosThetaPrime;
 		const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
-		const float3 targetAtPrev = le * BRDF::SurfaceBRDF(prevSurface) * dwdA;
+		const float3 targetAtPrev = le * BRDF::CombinedBRDF(prevSurface) * dwdA;
 		float targetLumAtPrev = Math::Color::LuminanceFromLinearRGB(targetAtPrev);
 
 		// should use previous frame's bvh
@@ -567,14 +484,14 @@ namespace RDI_Util
 		return targetLumAtPrev;
 	}
 
-	float3 TargetAtCurrentPixel(float3 le, float3 posW, float3 normal, float linearDepth, BRDF::SurfaceInteraction surface, 
+	float3 TargetAtCurrentPixel(float3 le, float3 posW, float3 normal, float linearDepth, BRDF::ShadingData surface, 
 		RaytracingAccelerationStructure g_bvh, inout EmissiveData prevEmissive, out float dwdA)
 	{
 		prevEmissive.SetSurfacePos(posW);
 		dwdA = prevEmissive.dWdA();
 
 		surface.SetWi(prevEmissive.wi, normal);
-		float3 target = le * BRDF::SurfaceBRDF(surface) * dwdA;
+		float3 target = le * BRDF::CombinedBRDF(surface) * dwdA;
 	
 #if TARGET_WITH_VISIBILITY == 1
 		target *= VisibilityApproximate(g_bvh, posW, prevEmissive.wi, prevEmissive.t, normal, prevEmissive.ID);
@@ -583,7 +500,7 @@ namespace RDI_Util
 		return target;
 	}
 
-	void TemporalResample1(float3 posW, float3 normal, float roughness, float linearDepth, BRDF::SurfaceInteraction surface, 
+	void TemporalResample1(float3 posW, float3 normal, float roughness, float linearDepth, BRDF::ShadingData surface, 
 		uint PrevReservoir_A_DescHeapIdx, uint PrevReservoir_B_DescHeapIdx, TemporalCandidate candidate,
 		ConstantBuffer<cbFrameConstants> g_frame, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
 		RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout RNG rng, inout Target target)
@@ -596,7 +513,7 @@ namespace RDI_Util
 
 			if(Math::Color::LuminanceFromLinearRGB(r.Le) > 1e-6)
 			{
-				BRDF::SurfaceInteraction prevSurface;
+				BRDF::ShadingData prevSurface;
 				targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, target.lightNormal, 
 					target.lightID, candidate.posSS, candidate.posW, 
 					candidate.normal, candidate.metallic, candidate.roughness, 
@@ -650,7 +567,7 @@ namespace RDI_Util
 	}
 
 	void SpatialResample(uint2 DTid, int numSamples, float radius, float3 posW, float3 normal, 
-		float linearDepth, float roughness, BRDF::SurfaceInteraction surface, uint prevReservoir_A_DescHeapIdx, 
+		float linearDepth, float roughness, BRDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
 		uint prevReservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
 		RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout Target target, inout RNG rng)
 	{
@@ -748,7 +665,7 @@ namespace RDI_Util
 			const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
 			const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
-			BRDF::SurfaceInteraction surface_i = BRDF::SurfaceInteraction::Init(sampleNormal, wo_i,
+			BRDF::ShadingData surface_i = BRDF::ShadingData::Init(sampleNormal, wo_i,
 				sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
 				
 			// TODO is capping M needed?

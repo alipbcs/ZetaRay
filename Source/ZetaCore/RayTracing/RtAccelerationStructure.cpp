@@ -736,7 +736,7 @@ void TLAS::BuildFrameMeshInstanceData()
 		m_frameInstanceData[currInstance].Rotation = snorm4(r);
 		m_frameInstanceData[currInstance].Scale = half3(s);
 		m_frameInstanceData[currInstance].Translation = float3(t.x, t.y, t.z);
-		m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : -1;
+		m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : uint32_t(-1);
 		m_frameInstanceData[currInstance].BaseColorTex = mat->BaseColorTexture == uint32_t(-1) 
 			? uint16_t(-1) :
 			(uint16_t)mat->BaseColorTexture;

@@ -9,18 +9,18 @@
 // described by a normal distribution function (NDF), a shadowing-masking function (G) and a 
 // microsurface BRDF that describes how each microsurface scatters light. Commonly, a perfect 
 // specular (mirror) BRDF is assumed for microsurfaces. Furthermore, product of NDF and G gives 
-// visible area of each microsurface.
+// the visible area of each microsurface.
 //
 // Therefore, macrosurface BRDF is the integral of contributions of scatterd lights from 
 // individual visible microsurfaces where each microsurface scatters light according to its 
-// microsurface BRDF (assumed to be perfect mirror). 	
+// microsurface BRDF (assumed to be perfect mirror).
 //
 // Solving above gives the macrosruface BRDF as:
 //		f(p, wi, wo) = (F(wo, h) * NDF(h) * G(wi, wo, h)) / (4 * |n.wi| * |n.wo|)
 //
-//		where h is the half vector = normalize(wi + wo)
+// where h is the half vector = normalize(wi + wo).
 //
-// Finally, a choice for NDF and G functions needs to be made (G is dependent on chosen NDF).
+// Finally, a choice for NDF and G functions needs to be made (G is dependent on the chosen NDF).
 // Here GGX normal distribution with height-correlated Smith shadowing-masking function
 // is used.
 
@@ -108,7 +108,7 @@ namespace BRDF
 	{
 		// Section 3.2: transforming the view direction to the hemisphere configuration
 		float3 Vh = normalize(float3(alpha_x * wo.x, alpha_y * wo.y, wo.z));
-	
+
 #if USE_VNDF_SPHERICAL_CAPS == 0
 		// Ref: E. Heitz, "Sampling the GGX Distribution of VisibleNormals," Journal of Computer Graphics Techniques, 2018.
 		
@@ -116,7 +116,7 @@ namespace BRDF
 		float lensq = Vh.x * Vh.x + Vh.y * Vh.y;
 		float3 T1 = lensq > 0 ? float3(-Vh.y, Vh.x, 0) * rsqrt(lensq) : float3(1, 0, 0);
 		float3 T2 = cross(Vh, T1);
-	
+
 		// Section 4.2: parameterization of the projected area
 		float r = sqrt(u.x);
 		float phi = TWO_PI * u.y;
@@ -130,7 +130,7 @@ namespace BRDF
 		float3 Nh = t1 * T1 + t2 * T2 + sqrt(saturate(1.0 - t1 * t1 - t2 * t2)) * Vh;
 #else
 		// Ref: J. Dupuy and A. Benyoub, "Sampling Visible GGX Normals with Spherical Caps," High Performance Graphics, 2023.
-		
+
 		// sample a spherical cap in (-wi.z, 1]
 		float phi = TWO_PI * u.x;
 		float z = mad((1.0f - u.y), (1.0f + wo.z), -wo.z);
@@ -139,15 +139,15 @@ namespace BRDF
 		float y = sinTheta * sin(phi);
 		float3 c = float3(x, y, z);
 		// compute halfway direction;
-		float3 Nh = c + Vh;		
+		float3 Nh = c + Vh;
 #endif
-		
+
 		// Section 3.4: transforming the normal back to the ellipsoid configuration
 		float3 Ne = normalize(float3(alpha_x * Nh.x, alpha_y * Nh.y, max(0.0f, Nh.z)));
-	
+
 		return Ne;
 	}
-	
+
 	// Approximates how closely specular lobe dominant direction is aligned with reflected
 	// direction. Dominant direction tends to shift away from reflected direction as roughness
 	// or view angle increases (off-specular peak).
@@ -159,21 +159,17 @@ namespace BRDF
 		
 		return saturate(f);
 	}
-	
+
 	//--------------------------------------------------------------------------------------
-	// Utitlity structure that contains all the surface-related data
+	// Utility structure containing needed data for BRDF evaluation
 	//--------------------------------------------------------------------------------------
 
-	struct SurfaceInteraction
+	struct ShadingData
 	{
-		// BRDF(w_i, w_o) indicates how incoming light from direction w_i is scattered towards direction 
-		// w_o (both w_i and w_o point out from the surface). Filling the related data for BRDF computations 
-		// is done in two steps as w_i isn't usually known until later on
-		
-		static SurfaceInteraction Init(float3 sn, float3 wo, float metallic, float roughness, float3 baseColor)
+		static ShadingData Init(float3 sn, float3 wo, float metallic, float roughness, float3 baseColor)
 		{
-			SurfaceInteraction si;
-			
+			ShadingData si;
+
 			si.wo = wo;
 			si.ndotwo = clamp(dot(sn, wo), 1e5f, 1.0f);
 			si.alpha = roughness * roughness;
@@ -184,7 +180,7 @@ namespace BRDF
 			
 			return si;
 		}
-			
+
 		void SetWi(float3 wi, float3 shadingNormal)
 		{
 			float3 wh = normalize(wi + this.wo);	
@@ -193,17 +189,20 @@ namespace BRDF
 			this.whdotwo = saturate(dot(wh, this.wo)); // == whdotwi
 			this.F = FresnelSchlick(this.F0, this.whdotwo);
 		}
-	
-		// Apparently artists work with an "interface" value of roughness that is perceptively linear 
-		// i.e. what's in a roughness texture. That value needs to be remapped to the alpha value 
-		// that's used in BRDF equations as (artist) roughness != alpha. Literature suggests 
-		// alpha = (artist) roughness^2, which means artists are setting the square root of alpha.
-		//float roughness;
+
+		bool IsMetallic()
+		{
+			return dot(this.diffuseReflectance, 1) == 0;
+		}
+
+		// Roughness textures actually contain an "interface" value of roughness that is perceptively 
+		// linear. That value needs to be remapped to the alpha value that's used in BRDF equations. 
+		// Literature suggests alpha = roughness^2.
 		float alpha;
-	
+
 		// various equations (GGX, lambda, etc) contain the alpha squared term, precalculate it beforehand
 		float alphaSq;
-	
+
 		float3 wo;
 		float ndotwi; // wi is either sampled by BRDF sampling methods or directly provided
 		float ndotwo;
@@ -219,15 +218,23 @@ namespace BRDF
 	// Lambertian
 	//--------------------------------------------------------------------------------------
 
-	float3 LambertianBRDF(float3 diffuseReflectance, float ndotwi)
+	// Note that multiplication by ndotwi is not part of the Lambertian BRDF and is included for convenience
+	float3 LambertianBRDF(ShadingData surface)
 	{
-		return diffuseReflectance * (ndotwi * ONE_OVER_PI);
+		return (surface.diffuseReflectance * ONE_OVER_PI) * surface.ndotwi;
 	}
 
-//	float3 LambertianBrdfDivPdf(SurfaceInteraction surface)
-//	{
-//		return surface.diffuseReflectance;
-//	}
+	// pdf of cosine-weighted hemisphere sampling
+	float LambertianBRDFPdf(ShadingData surface)
+	{
+		return surface.ndotwi * ONE_OVER_PI;
+	}
+
+	// Lambertain BRDF times ndotwi divided by pdf of cosine-weighted hemisphere sampling
+	float3 LambertianBrdfDivPdf(ShadingData surface)
+	{
+		return surface.diffuseReflectance;
+	}
 
 	float3 SampleLambertianBrdf(float3 normal, float2 u, out float pdf)
 	{
@@ -238,7 +245,7 @@ namespace BRDF
 
 		// transform wi from local space to world space
 		float3 wiWorld = Math::Transform::RotateVector(wiLocal, q);
-#else	
+#else
 		float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 		
 		float3 T;
@@ -248,12 +255,12 @@ namespace BRDF
 #endif			
 		return wiWorld;
 	}	
-	
+
 	//--------------------------------------------------------------------------------------
-	// Specular Microfacet Model
+	// Microfacet Model
 	//--------------------------------------------------------------------------------------
 
-	float3 SpecularBRDFGGXSmith(SurfaceInteraction surface, bool guardDelta = false)
+	float3 SpecularBRDFGGXSmith(ShadingData surface, bool guardDelta = false)
 	{
 		float NDF = surface.DeltaNDF && guardDelta ? abs(1 - surface.ndotwh) < 5e-4 : GGX(surface.ndotwh, surface.alphaSq);
 		float G2Div4NdotLNdotV = SmithHeightCorrelatedG2ForGGX(surface.alphaSq, surface.ndotwi, surface.ndotwo);
@@ -267,16 +274,16 @@ namespace BRDF
 	//		vndf(wi) = vndf(wh) * 1 / (4 * hdotwi)
 	//               = GGX(wh) * G1(ndotwo) / (4 * ndotwo)
 	// Note that hdotwo = hdotwi.
-	float SpecularBRDFGGXSmithPdf(SurfaceInteraction surface)
+	float SpecularBRDFGGXSmithPdf(ShadingData surface)
 	{
 		float NDF = surface.DeltaNDF ? abs(1 - surface.ndotwh) <= 1e-5 : GGX(surface.ndotwh, surface.alphaSq);
 		float G1 = SmithG1ForGGX(surface.alphaSq, surface.ndotwo);
-		float pdf = (NDF * G1) / (4.0f * saturate(surface.ndotwo));
+		float pdf = (NDF * G1) / (4.0f * surface.ndotwo);
 	
 		return pdf;
 	}
 
-	float3 SampleSpecularBRDFGGXSmith(SurfaceInteraction surface, float3 shadingNormal, float2 u)
+	float3 SampleSpecularBRDFGGXSmith(float3 wo, float alpha, float3 shadingNormal, float2 u)
 	{		
 		// build an orthonormal coord. system C around the surface normal such that it points towards +Z
 		float3 b1;
@@ -287,7 +294,7 @@ namespace BRDF
 		// M = [b1 b2 n] goes from C to world space, so we need its inverse. Since
 		// M is an orthogonal matrix, its inverse is just its transpose
 		float3x3 worldToLocal = float3x3(b1, b2, shadingNormal);
-		float3 woLocalLH = mul(worldToLocal, surface.wo);
+		float3 woLocalLH = mul(worldToLocal, wo);
 		
 		// Transformations between the VNDF space (right handed with +Z as up) and C (left handed with 
 		// +Z as up) can be performed using the following:
@@ -296,23 +303,28 @@ namespace BRDF
 		//		 T_VndfToC = | 0 -1  0 |,	 T_CToVndf = (T_VndfToC)^-1 = (T_VndfToC)^T = T_VndfToC
 		//                   | 0  0  1 | 
 		float3 woLocalRH = float3(woLocalLH.x, -woLocalLH.y, woLocalLH.z);
-		float3 whLocalRH = SampleGGXVNDF(woLocalRH, surface.alpha, surface.alpha, u);
+		float3 whLocalRH = SampleGGXVNDF(woLocalRH, alpha, alpha, u);
 		
 		// now reverse the transformations in LIFO order
 		float3 whLocalLH = float3(whLocalRH.x, -whLocalRH.y, whLocalRH.z);
 		float3 whWorld = whLocalLH.x * b1 + whLocalLH.y * b2 + whLocalLH.z * shadingNormal;
 		
 		// reflect wo about the plane with normal wh (each microsurface is a perfect mirror)
-		float3 wi = reflect(-surface.wo, whWorld);
+		float3 wi = reflect(-wo, whWorld);
 	
 		return wi;
+	}
+
+	float3 SampleSpecularBRDFGGXSmith(ShadingData surface, float3 shadingNormal, float2 u)
+	{
+		return SampleSpecularBRDFGGXSmith(surface.wo, surface.alpha, shadingNormal, u);
 	}
 	
 	// When VNDF is used for sampling the incident direction (wi), the expression 
 	//		f(wi, wo) * cos(theta) / Pdf(wi)
 	//
 	// is simplified to F * G2 / G1.
-	float3 SpecularBRDFGGXSmithDivPdf(SurfaceInteraction surface)
+	float3 SpecularBRDFGGXSmithDivPdf(ShadingData surface)
 	{
 		return surface.F * SmithHeightCorrelatedG2OverG1(surface.alphaSq, surface.ndotwi, surface.ndotwo);
 	}
@@ -322,13 +334,13 @@ namespace BRDF
 	//--------------------------------------------------------------------------------------
 
 	// diffuse plus specular BRDFs times ndotwi at given surface point
-	float3 SurfaceBRDF(SurfaceInteraction surface, bool guardDelta = false)
+	float3 CombinedBRDF(ShadingData surface, bool guardDelta = false)
 	{
 		if (surface.ndotwi <= 0.0f || surface.ndotwo <= 0.0f)
-			return 0.0.xxx;
-	
+			return 0.0;
+
 		float3 specularBrdf = SpecularBRDFGGXSmith(surface, guardDelta);
-		float3 diffuseBrdf = (1.0f.xxx - surface.F) * LambertianBRDF(surface.diffuseReflectance, surface.ndotwi);
+		float3 diffuseBrdf = (1.0f - surface.F) * LambertianBRDF(surface);
 
 		return diffuseBrdf + specularBrdf;
 	}

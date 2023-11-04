@@ -104,33 +104,6 @@ namespace Math
 	{
 		return 0.5f * length(cross(v1 - v0, v2 - v0));
 	}
-
-	// Breaks the image into tiles of dimesnion (N, dispatchDim.y)
-	// dispatchDim: same as DispatchThreads() arguments. Must be a power of 2.
-	// Gid: SV_GroupID
-	// GTid: SV_GroupThreadID
-	// groupDim: e.g. [numthreads(8, 8, 1)] -> (8, 8)
-	// N: number of horizontal blocks in each tile, common values are 8, 16, 32. Corresponds
-	// to maximum horizontal extent which threads acceess image value (e.g. accessing pixel
-	// values in a block which N horizontal blocks further). N must be a power of 2.
-	void SwizzleGroupID(in uint2 Gid, in uint2 GTid, uint2 groupDim, in uint2 dispatchDim, in int N,
-		out uint2 swizzledDTid, out uint2 swizzledGid)
-	{
-		const uint groupIDFlattened = Gid.y * dispatchDim.x + Gid.x;
-		const uint numGroupsInTile = N * dispatchDim.y;
-		const uint tileID = groupIDFlattened / numGroupsInTile;
-		const uint groupIDinTileFlattened = groupIDFlattened % numGroupsInTile;
-		const uint2 groupIDinTile = uint2(groupIDinTileFlattened % N, groupIDinTileFlattened / N);
-		const uint swizzledGidx = groupIDinTile.y * dispatchDim.x + tileID * N + groupIDinTile.x;
-	
-		swizzledGid = uint2(swizzledGidx % dispatchDim.x, swizzledGidx / dispatchDim.x);
-		swizzledDTid = swizzledGid * groupDim + GTid;
-	}
-	
-	bool IsFlagSet(uint32_t bitmask, uint32_t flag)
-	{
-		return (bitmask & flag) == flag;
-	}
 	
 	namespace Transform
 	{

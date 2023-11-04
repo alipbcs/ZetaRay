@@ -18,7 +18,24 @@ using namespace ZetaRay::Support;
 
 AutoExposure::AutoExposure()
 	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
-{}
+{
+	// frame constants
+	m_rootSig.InitAsCBV(0,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
+		GlobalResource::FRAME_CONSTANTS_BUFFER);
+
+	// root constants
+	m_rootSig.InitAsConstants(1,
+		NUM_CONSTS,
+		1);
+
+	m_rootSig.InitAsBufferUAV(2,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
+}
 
 AutoExposure::~AutoExposure()
 {
@@ -27,25 +44,6 @@ AutoExposure::~AutoExposure()
 
 void AutoExposure::Init()
 {
-	// frame constants
-	m_rootSig.InitAsCBV(0,
-		0,
-		0,
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE, 
-		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::FRAME_CONSTANTS_BUFFER);
-
-	// root constants
-	m_rootSig.InitAsConstants(1,
-		NUM_CONSTS,
-		1,
-		0);
-		
-	m_rootSig.InitAsBufferUAV(2,
-		0,
-		0,
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
-
 	D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |

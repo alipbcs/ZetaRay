@@ -73,7 +73,7 @@ namespace SkyDI_Util
 		bool Visible;
 	};
 
-	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::SurfaceInteraction surface, float sampleRayT,
+	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::ShadingData surface, float sampleRayT,
 		float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj)
 	{
 		float pixelWidth = 2.0 * tanHalfFOV * linearDepth / max(surface.ndotwo, 1e-4);

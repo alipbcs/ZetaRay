@@ -1,8 +1,6 @@
-// This implmentation uses a top-down approach to build the BVH. 
-// 
 // References:
-// 1. Physically Based Rendering 3rd Ed.
-// 2. Real-time Collision Detection
+// 1. M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2016.
+// 2. C. Ericson, Real-time Collision Detection, Morgan Kaufmann, 2005.
 
 #pragma once
 
@@ -56,11 +54,11 @@ namespace ZetaRay::Math
 			const Math::float4x4a& viewToWorld,
 			Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
 
-		// Casts a ray into the BVH and returns the closest-hit intersection. Given Ray has to 
+		// Casts a ray into the BVH and returns the closest-hit intersection. Ray is assumed to 
 		// be in world space
 		uint64_t CastRay(Math::Ray& r);
 
-		// Returns the AABB that encompasses the scene
+		// Returns AABB that contains the scene
 		Math::AABB GetWorldAABB() 
 		{
 			Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
@@ -107,8 +105,6 @@ namespace ZetaRay::Math
 
 			int Parent = -1;
 		};
-
-		static constexpr int qfgh = sizeof(Node);
 
 		// Recursively builds a BVH (subtree) for the given range
 		int BuildSubtree(int base, int count, int parent);

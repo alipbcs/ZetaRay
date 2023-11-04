@@ -57,8 +57,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex)
 	//const uint binSizeInWave = WaveMultiPrefixCountBits(true, waveBinMask);
 	const uint binSizeInWave = dot(1, countbits(waveBinMask));
 	
-	// add in the offset corresponding to number of prior uints
-	// firstbitlow returns -1 if not bit is set, so logical or with -1 doesn't change it from -1
+	// Add number of prior 32-bits (firstbitlow returns -1 if no bit is set, so logical or of 
+	// any value with -1 doesn't change it from -1)
 	const uint4 firstSetLanes = firstbitlow(waveBinMask) | uint4(0x0, 0x20, 0x40, 0x60);
 	// min between uint(-1) and anything else returns the latter
 	const uint writerLane = min(min(min(firstSetLanes.x, firstSetLanes.y), firstSetLanes.z), firstSetLanes.w);

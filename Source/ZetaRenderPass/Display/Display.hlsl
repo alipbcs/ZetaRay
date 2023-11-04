@@ -222,12 +222,6 @@ float4 mainPS(VSOut psin) : SV_Target
 		display = g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb + 
 			g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.01;
 	}
-	else if (g_local.DisplayOption == (int) DisplayOption::CURVATURE)
-	{
-		GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-			GBUFFER_OFFSET::CURVATURE];
-		display = g_curvature.SampleLevel(g_samPointClamp, uv, 0).rrr;
-	}
 //	else if (g_local.DisplayOption == (int) DisplayOption::EXPOSURE_HEATMAP)
 //	{
 //		float l1 = Math::Color::LuminanceFromLinearRGB(display);

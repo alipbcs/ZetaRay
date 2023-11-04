@@ -14,9 +14,9 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_ReSTIR_DI_SpatioTemporal> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
 StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t1);
-StructuredBuffer<EmissiveTriangleSample> g_aliasTable : register(t2);
+StructuredBuffer<RT::EmissiveTriangleSample> g_aliasTable : register(t2);
 #ifdef USE_PRESAMPLED_SETS 
-StructuredBuffer<LightSample> g_sampleSets : register(t3);
+StructuredBuffer<RT::LightSample> g_sampleSets : register(t3);
 #endif
 StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t4);
 
@@ -24,8 +24,9 @@ StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t4);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float linearDepth, float roughness,
-	BRDF::SurfaceInteraction surface, uint sampleSetIdx, int numBrdfCandidates, inout RNG rng, inout RDI_Util::Target target)
+RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float roughness,
+	BRDF::ShadingData surface, uint sampleSetIdx, int numBrdfCandidates, inout RNG rng, 
+	inout RDI_Util::Target target)
 {
 	RDI_Util::Reservoir r = RDI_Util::Reservoir::Init();
 	target.needsShadowRay = false;
@@ -38,7 +39,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 
 		// check if closest hit is a light source
 		RDI_Util::BrdfHitInfo hitInfo;
-		bool hitEmissive = RDI_Util::FindClosestHit(posW, normal, wi, linearDepth, g_bvh, g_frameMeshData, hitInfo);
+		bool hitEmissive = RDI_Util::FindClosestHit(posW, normal, wi, g_bvh, g_frameMeshData, hitInfo);
 
 		RT::EmissiveTriangle emissive;
 		float3 L_e = 0.0.xxx;
@@ -50,7 +51,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		if (hitEmissive)
 		{
 			emissive = g_emissives[hitInfo.emissiveTriIdx];
-			L_e = RDI_Util::EmissiveTriangleLi(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
+			L_e = RT::EmissiveTriangleLi(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 			const float3 vtx1 = emissive.V1();
 			const float3 vtx2 = emissive.V2();
@@ -76,7 +77,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 
 			// target = Le * BRDF(wi, wo) * |ndotwi|
 			// source = P(wi)
-			currTarget = L_e * BRDF::SurfaceBRDF(surface) * dwdA;
+			currTarget = L_e * BRDF::CombinedBRDF(surface) * dwdA;
 			w_i = m_i * Math::Color::LuminanceFromLinearRGB(currTarget);
 		}
 
@@ -101,27 +102,27 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 #ifdef USE_PRESAMPLED_SETS
 		RT::EmissiveTriangle emissive;
 		float lightSourcePdf;
-		uint emissiveIdx = RDI_Util::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, g_local.SampleSetSize, rng, emissive, lightSourcePdf);
+		uint emissiveIdx = RT::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, g_local.SampleSetSize, rng, emissive, lightSourcePdf);
 #else
 		float lightSourcePdf;
-		const uint emissiveIdx = RDI_Util::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
+		const uint emissiveIdx = RT::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
 		RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
 #endif
 
 		// sample light source surface
-		const RDI_Util::EmissiveTriSample lightSample = RDI_Util::SampleEmissiveTriangleSurface(posW, emissive, rng);
+		const RT::EmissiveTriSample lightSample = RT::SampleEmissiveTriangleSurface(posW, emissive, rng);
 
 		const float t = length(lightSample.pos - posW);
 		const float3 wi = (lightSample.pos - posW) / t;
 		const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
 		surface.SetWi(wi, normal);
-		float3 currTarget = BRDF::SurfaceBRDF(surface) * dwdA;
+		float3 currTarget = BRDF::CombinedBRDF(surface) * dwdA;
 		float3 L_e = 0.0.xxx;
 			
 		if (Math::Color::LuminanceFromLinearRGB(currTarget) > 1e-6)
 		{
-			L_e = RDI_Util::EmissiveTriangleLi(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+			L_e = RT::EmissiveTriangleLi(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 #if TARGET_WITH_VISIBILITY == 1
 			L_e *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, emissive.ID);
@@ -167,14 +168,14 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 }
 
 RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, float roughness, 
-	float3 baseColor, uint sampleSetIdx, BRDF::SurfaceInteraction surface, float2 prevUV, inout RDI_Util::Target target, 
+	float3 baseColor, uint sampleSetIdx, BRDF::ShadingData surface, float2 prevUV, inout RDI_Util::Target target, 
 	inout RNG rng)
 {
 	// light sampling is less effective for glossy surfaces or when light source is close to surface
 	const uint numBrdfCandidates = roughness > 0.06 && roughness < g_local.MaxRoughnessExtraBrdfSampling ? MAX_NUM_BRDF_SAMPLES : 1;
 
 	// initial candidates
-	RDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, linearDepth, roughness, surface, sampleSetIdx,
+	RDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, roughness, surface, sampleSetIdx,
 		numBrdfCandidates, rng, target);
 
 	// temporal resampling
@@ -280,7 +281,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
-	BRDF::SurfaceInteraction surface = BRDF::SurfaceInteraction::Init(normal, wo, isMetallic, mr.y, baseColor);
+	BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor);
 
 	// get a unique per-group index
 	RNG rng = RNG::Init(Gid.xy, g_frame.FrameNum);

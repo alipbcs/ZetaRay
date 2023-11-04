@@ -1,11 +1,8 @@
-#include "DirectLighting_Common.h"
-#include "../../Common/Common.hlsli"
-#include "../../Common/FrameConstants.h"
-#include "../../Common/Sampling.hlsli"
-#include "../../Common/StaticTextureSamplers.hlsli"
-#include "../../Common/GBuffers.hlsli"
-#include "../../Common/RT.hlsli"
-#include "../../../ZetaCore/Core/Material.h"
+#include "PreLighting_Common.h"
+#include "../Common/FrameConstants.h"
+#include "../Common/GBuffers.hlsli"
+#include "../Common/RT.hlsli"
+#include "../../ZetaCore/Core/Material.h"
 
 #define NUM_SAMPLES_PER_LANE (ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI / ESTIMATE_TRI_LUMEN_WAVE_LEN)
 
@@ -13,10 +10,10 @@
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cb_ReSTIR_DI_EstimateTriLumen> g_local : register(b0);
+ConstantBuffer<cbEstimateTriLumen> g_local : register(b0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 StructuredBuffer<RT::EmissiveTriangle> g_emissvies : register(t0);
-ByteAddressBuffer g_halton : register(t1);
+ByteAddressBuffer g_halton : register(t2);
 RWByteAddressBuffer g_lumen : register(u0);
 
 //--------------------------------------------------------------------------------------

@@ -171,7 +171,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 	m_staleEmissives = false;
 
 	// full rebuild of the emissive buffers for the first time
-	if (numInstances && m_emissives.RebuildFlag() && m_rendererInterface.IsRTASBuilt())
+	if (numInstances && m_emissives.RebuildFlag())
 	{
 		const uint32_t numTris = m_emissives.NumEmissiveTriangles();
 		m_staleEmissives = true;

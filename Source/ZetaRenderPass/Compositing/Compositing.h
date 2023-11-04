@@ -56,9 +56,6 @@ namespace ZetaRay::RenderPass
 			case SHADER_IN_GPU_DESC::SUN_SHADOW:
 				m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
 				return;
-			//case SHADER_IN_GPU_DESC::SPECULAR_DNSR_CACHE:
-			//	m_cbComposit.SpecularDNSRCacheDescHeapIdx = descHeapIdx;
-			//	return;
 			case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
 				m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
 				return;

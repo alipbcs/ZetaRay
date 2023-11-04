@@ -13,6 +13,10 @@ namespace ZetaRay::Core::GpuMemory
 {
 	static constexpr uint64_t INVALID_ID = uint64_t(-1);
 
+	//
+	// Types
+	//
+	
 	struct UploadHeapBuffer
 	{
 		UploadHeapBuffer() = default;
@@ -180,6 +184,10 @@ namespace ZetaRay::Core::GpuMemory
 		uint64_t m_ID = INVALID_ID;
 		ID3D12Resource* m_resource = nullptr;
 	};
+
+	//
+	// API
+	//
 
 	enum CREATE_TEXTURE_FLAGS
 	{

@@ -9,10 +9,10 @@
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cbGBufferRt> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
-StructuredBuffer<Material> g_materials : register(t1);
-StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t2);
-StructuredBuffer<Vertex> g_sceneVertices : register(t3);
-StructuredBuffer<uint> g_sceneIndices : register(t4);
+StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t1);
+StructuredBuffer<Vertex> g_sceneVertices : register(t2);
+StructuredBuffer<uint> g_sceneIndices : register(t3);
+StructuredBuffer<Material> g_materials : register(t4);
 
 //--------------------------------------------------------------------------------------
 // Payload and State Subobjects
@@ -173,11 +173,11 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	float3 v1_n = Math::Encoding::DecodeSNorm3(V1.NormalL);
 	float3 v2_n = Math::Encoding::DecodeSNorm3(V2.NormalL);
 	float3 normal = v0_n + attr.barycentrics.x * (v1_n - v0_n) + attr.barycentrics.y * (v2_n - v0_n);
-	// transform normal using the inverse tranpose
-	// (M^-1)^T = ((SR)^-1)^T
-	//          = (R^-1 S^-1)^T
-	//          = (S^-1)^T (R^T)^T
-	//          = S^-1 R
+	// transform normal using the inverse transpose
+	// (M^-1)^T = ((RS)^-1)^T
+	//          = (S^-1 R^-1)^T
+	//          = (R^T)^T (S^-1)^T
+	//          = R S^-1
 	normal *= 1.0f / meshData.Scale;
 	normal = Math::Transform::RotateVector(normal, q);
 	normal = normalize(normal);

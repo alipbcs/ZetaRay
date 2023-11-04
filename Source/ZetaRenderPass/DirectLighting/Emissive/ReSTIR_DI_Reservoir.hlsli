@@ -21,7 +21,7 @@ namespace RDI_Util
 			res.LightIdx = -1;
 			res.Bary = 0.0.xx;
 #if KAHAN_SUMMATION == 1
-		res.Compensation = 0.0f;
+			res.Compensation = 0.0f;
 #endif
 			return res;
 		}
@@ -36,7 +36,7 @@ namespace RDI_Util
 			res.LightIdx = lightIdx;
 			res.Bary = bary;
 #if KAHAN_SUMMATION == 1
-		res.Compensation = 0.0f;
+			res.Compensation = 0.0f;
 #endif
 
 			return res;
@@ -50,10 +50,10 @@ namespace RDI_Util
 		bool Update(float w, float3 le, uint lightIdx, float2 bary, inout RNG rng)
 		{
 #if KAHAN_SUMMATION == 1
-		float corrected = w - this.Compensation;
-		float newSum = this.w_sum + corrected;
-		this.Compensation = (newSum - this.w_sum) - corrected;
-		this.w_sum = newSum;
+			float corrected = w - this.Compensation;
+			float newSum = this.w_sum + corrected;
+			this.Compensation = (newSum - this.w_sum) - corrected;
+			this.w_sum = newSum;
 #else
 			this.w_sum += w;
 #endif
@@ -73,7 +73,7 @@ namespace RDI_Util
 
 		float w_sum;
 #if KAHAN_SUMMATION == 1
-	precise float Compensation;
+		precise float Compensation;
 #endif
 		float W;
 		float3 Le;

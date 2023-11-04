@@ -4,9 +4,7 @@
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <RayTracing/Sampler.h>
-#include <Math/Sampling.h>
 #include <Scene/SceneCore.h>
-#include <Core/RenderGraph.h>
 #include <Core/SharedShaderResources.h>
 
 using namespace ZetaRay;
@@ -20,421 +18,6 @@ using namespace ZetaRay::RT;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
 
-namespace
-{
-	void Normalize(MutableSpan<float> weights)
-	{
-		// compute the sum of weights
-		const int64_t N = weights.size();
-		const float sum = Math::KahanSum(weights);
-		Assert(!IsNaN(sum), "sum of weights was NaN.");
-
-		// multiply each probability by N so that mean becomes 1 instead of 1 / N
-		const float sumRcp = N / sum;
-
-		// align to 32 bytes
-		float* curr = weights.data();
-		while ((reinterpret_cast<uintptr_t>(curr) & 31) != 0)
-		{
-			*curr *= sumRcp;
-			curr++;
-		}
-
-		const int64_t startOffset = curr - weights.data();
-
-		// largest multiple of 8 that is smaller than N
-		int64_t numToSumSIMD = N - startOffset;
-		numToSumSIMD -= numToSumSIMD & 7;
-
-		const float* end = curr + numToSumSIMD;
-		__m256 vSumRcp = _mm256_broadcast_ss(&sumRcp);
-
-		for (; curr < end; curr += 8)
-		{
-			__m256 V = _mm256_load_ps(curr);
-			V = _mm256_mul_ps(V, vSumRcp);
-
-			_mm256_store_ps(curr, V);
-		}
-
-		for (int64_t i = startOffset + numToSumSIMD; i < N; i++)
-			weights[i] *= sumRcp;
-	}
-
-	// Ref: https://www.keithschwarz.com/darts-dice-coins/
-	void BuildAliasTable(MutableSpan<float> probs, MutableSpan<EmissiveTriangleSample> table)
-	{
-		const int64_t N = probs.size();
-		const float oneDivN = 1.0f / N;
-		Normalize(probs);
-
-		for (int64_t i = 0; i < N; i++)
-		{
-			table[i].CachedP_Orig = probs[i] * oneDivN;
-#ifdef _DEBUG
-			table[i].Alias = uint32_t(-1);
-#endif
-		}
-
-		// maintain an index buffer since original ordering of elements must be preserved
-		SmallVector<uint32_t, App::LargeFrameAllocator> larger;
-		larger.reserve(N);
-
-		SmallVector<uint32_t, App::LargeFrameAllocator> smaller;
-		smaller.reserve(N);
-
-		for (int64_t i = 0; i < N; i++)
-		{
-			if (probs[i] < 1.0f)
-				smaller.push_back((uint32_t)i);
-			else
-				larger.push_back((uint32_t)i);
-		}
-
-#ifdef _DEBUG
-		int64_t numInsertions = 0;
-#endif // _DEBUG
-
-		// in each iteration, pick two probabilities such that one is smaller than 1.0 and the other larger 
-		// than 1.0. Use the latter to bring up the former to 1.0.
-		while (!smaller.empty() && !larger.empty())
-		{
-			const uint32_t smallerIdx = smaller.back();
-			smaller.pop_back();
-			const float smallerProb = probs[smallerIdx];
-
-			const uint32_t largerIdx = larger.back();
-			float largerProb = probs[largerIdx];
-			Assert(largerProb >= 1.0f, "should be >= 1.0");
-
-			EmissiveTriangleSample& e = table[smallerIdx];
-			Assert(e.Alias == -1, "Every element must be inserted exactly one time.");
-			e.Alias = largerIdx;
-			e.P_Curr = smallerProb;
-
-			// = largerProb - (1.0f - smallerProb);
-			largerProb = (smallerProb + largerProb) - 1.0f;
-			probs[largerIdx] = largerProb;
-
-			if (largerProb < 1.0f)
-			{
-				larger.pop_back();
-				smaller.push_back(largerIdx);
-			}
-
-#ifdef _DEBUG
-			numInsertions++;
-#endif
-		}
-
-		while (!larger.empty())
-		{
-			size_t idx = larger.back();
-			larger.pop_back();
-			Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
-
-			// alias should point to itself
-			table[idx].Alias = (uint32_t)idx;
-			table[idx].P_Curr = 1.0f;
-
-#ifdef _DEBUG
-			numInsertions++;
-#endif
-		}
-
-		while (!smaller.empty())
-		{
-			size_t idx = smaller.back();
-			smaller.pop_back();
-			Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
-
-			// alias should point to itself
-			table[idx].Alias = (uint32_t)idx;
-			table[idx].P_Curr = 1.0f;
-
-#ifdef _DEBUG
-			numInsertions++;
-#endif
-		}
-
-		Assert(numInsertions == N, "Some elements were not inserted.");
-
-		for (int64_t i = 0; i < N; i++)
-			table[i].CachedP_Alias = table[table[i].Alias].CachedP_Orig;
-	}
-}
-
-//--------------------------------------------------------------------------------------
-// EmissiveTriangleLumen
-//--------------------------------------------------------------------------------------
-
-EmissiveTriangleLumen::EmissiveTriangleLumen()
-	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
-{
-	// root constants
-	m_rootSig.InitAsConstants(0,		// root idx
-		NUM_CONSTS,						// num DWORDs
-		0,								// register
-		0);								// register space
-
-	// frame constants
-	m_rootSig.InitAsCBV(1,												// root idx
-		1,																// register
-		0,																// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
-		D3D12_SHADER_VISIBILITY_ALL,									// visibility
-		GlobalResource::FRAME_CONSTANTS_BUFFER);
-
-	// emissive triangles
-	m_rootSig.InitAsBufferSRV(2,						// root idx
-		0,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		GlobalResource::EMISSIVE_TRIANGLE_BUFFER);
-
-	// halton
-	m_rootSig.InitAsBufferSRV(3,						// root idx
-		1,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
-		nullptr,
-		true);
-
-	// lumen
-	m_rootSig.InitAsBufferUAV(4,						// root idx
-		0,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
-}
-
-EmissiveTriangleLumen::~EmissiveTriangleLumen()
-{
-	Reset();
-}
-
-void EmissiveTriangleLumen::Init()
-{
-	const D3D12_ROOT_SIGNATURE_FLAGS flags =
-		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_HULL_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
-		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
-
-	auto& renderer = App::GetRenderer();
-	auto samplers = renderer.GetStaticSamplers();
-	RenderPassBase::InitRenderPass("EmissiveTriangleLumen", flags, samplers);
-
-	for (int i = 0; i < (int)SHADERS::COUNT; i++)
-	{
-		m_psos[i] = m_psoLib.GetComputePSO(i,
-			m_rootSigObj.Get(),
-			COMPILED_CS[i]);
-	}
-
-	float2 samples[ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI];
-
-	for (int i = 0; i < ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI; i++)
-	{
-		samples[i].x = Halton(i + 1, 2);
-		samples[i].y = Halton(i + 1, 3);
-	}
-
-	m_halton = GpuMemory::GetDefaultHeapBufferAndInit("Halton",
-		ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI * sizeof(float2),
-		false,
-		samples);
-}
-
-void EmissiveTriangleLumen::Reset()
-{
-	if (IsInitialized())
-	{
-		for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-			m_psos[i] = nullptr;
-
-		m_halton.Reset();
-		m_lumen.Reset();
-		m_readback.Reset();
-
-		RenderPassBase::ResetRenderPass();
-	}
-}
-
-void EmissiveTriangleLumen::Update()
-{
-	if (!App::GetScene().AreEmissivesStale())
-	{
-		m_lumen.Reset();
-		m_readback.Reset();
-		return;
-	}
-
-	const size_t currBuffLen = m_lumen.IsInitialized() ? m_lumen.Desc().Width / sizeof(float) : 0;
-	m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
-	Assert(m_currNumTris, "Redundant call.");
-
-	if (currBuffLen < m_currNumTris)
-	{
-		const uint32_t sizeInBytes = m_currNumTris * sizeof(float);
-
-		m_lumen = GpuMemory::GetDefaultHeapBuffer("TriLumen",
-			sizeInBytes,
-			D3D12_RESOURCE_STATE_COMMON,
-			true);
-
-		m_readback = GpuMemory::GetReadbackHeapBuffer(sizeInBytes);
-	}
-}
-
-void EmissiveTriangleLumen::Render(CommandList& cmdList)
-{
-	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
-		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
-	Assert(m_readback.IsInitialized(), "no readback buffer.");
-	Assert(!m_readback.IsMapped(), "readback buffer can't be mapped while in use by the GPU.");
-	Assert(m_lumen.IsInitialized(), "no lumen buffer.");
-	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
-
-	auto& renderer = App::GetRenderer();
-	auto& gpuTimer = renderer.GetGpuTimer();
-
-	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-
-	const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_currNumTris, ESTIMATE_TRI_LUMEN_NUM_TRIS_PER_GROUP);
-	Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
-
-	// record the timestamp prior to execution
-	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateTriLumen");
-
-	computeCmdList.PIXBeginEvent("EstimateTriLumen");
-	computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_TRIANGLE_LUMEN]);
-
-	computeCmdList.ResourceBarrier(m_lumen.Resource(),
-		D3D12_RESOURCE_STATE_COPY_SOURCE,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
-	cb_ReSTIR_DI_EstimateTriLumen cb;
-	cb.TotalNumTris = m_currNumTris;
-	m_rootSig.SetRootConstants(0, sizeof(cb_ReSTIR_DI_EstimateTriLumen) / sizeof(DWORD), &cb);
-	
-	m_rootSig.SetRootSRV(3, m_halton.GpuVA());
-	m_rootSig.SetRootUAV(4, m_lumen.GpuVA());
-	
-	m_rootSig.End(computeCmdList);
-
-	computeCmdList.Dispatch(dispatchDimX, 1, 1);
-
-	computeCmdList.ResourceBarrier(m_lumen.Resource(), 
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		D3D12_RESOURCE_STATE_COPY_SOURCE);
-
-	// copy results to readback buffer, so alias table can be computed on the cpu
-	computeCmdList.CopyBufferRegion(m_readback.Resource(),
-		0,
-		m_lumen.Resource(),
-		0,
-		m_currNumTris * sizeof(float));
-
-	// record the timestamp after execution
-	gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-	cmdList.PIXEndEvent();
-}
-
-//--------------------------------------------------------------------------------------
-// EmissiveTriangleAliasTable
-//--------------------------------------------------------------------------------------
-
-void EmissiveTriangleAliasTable::Update(ReadbackHeapBuffer* readback)
-{
-	Assert(readback, "null resource.");
-	m_readback = readback;
-
-	const size_t currBuffLen = m_aliasTable.IsInitialized() ? m_aliasTable.Desc().Width / sizeof(float) : 0;
-	m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
-	Assert(m_currNumTris, "redundant call.");
-
-	if (currBuffLen < m_currNumTris)
-	{
-		m_aliasTable = GpuMemory::GetDefaultHeapBuffer("AliasTable",
-			m_currNumTris * sizeof(EmissiveTriangleSample),
-			D3D12_RESOURCE_STATE_COMMON,
-			false);
-
-		auto& r = App::GetRenderer().GetSharedShaderResources();
-		r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE, m_aliasTable);
-	}
-}
-
-void EmissiveTriangleAliasTable::SetEmissiveTriPassHandle(Core::RenderNodeHandle& emissiveTriHandle)
-{
-	Assert(emissiveTriHandle.IsValid(), "invalid handle.");
-	m_emissiveTriHandle = emissiveTriHandle.Val;
-}
-
-void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
-{
-	Assert(m_readback, "Readback buffer hasn't been set.");
-	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
-		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
-	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
-
-	auto& renderer = App::GetRenderer();
-	auto& scene = App::GetScene();
-
-	SmallVector<EmissiveTriangleSample, App::LargeFrameAllocator> table;
-	table.resize(m_currNumTris);
-
-	const uint64_t fence = scene.GetRenderGraph()->GetCompletionFence(RenderNodeHandle(m_emissiveTriHandle));
-	Assert(fence != uint64_t(-1), "invalid fence value.");
-
-	// wait until GPU finishes copying data to readback buffer
-	//renderer.WaitForComputeQueueFenceCPU(fence);
-	renderer.WaitForDirectQueueFenceCPU(fence);
-
-	{
-		// safe to map, related fence has passed
-		m_readback->Map();
-
-		float* data = reinterpret_cast<float*>(m_readback->MappedMemory());
-		BuildAliasTable(MutableSpan(data, m_currNumTris), table);
-
-		m_readback->Unmap();
-	}
-
-	auto& gpuTimer = renderer.GetGpuTimer();
-
-	// record the timestamp prior to execution
-	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "UploadAliasTable");
-
-	computeCmdList.PIXBeginEvent("UploadAliasTable");
-
-	// schedule a copy
-	const uint32_t sizeInBytes = sizeof(EmissiveTriangleSample) * m_currNumTris;
-	m_aliasTableUpload = GpuMemory::GetUploadHeapBuffer(sizeInBytes);
-	m_aliasTableUpload.Copy(0, sizeInBytes, table.data());
-	computeCmdList.CopyBufferRegion(m_aliasTable.Resource(), 
-		0,
-		m_aliasTableUpload.Resource(),
-		m_aliasTableUpload.Offset(),
-		sizeInBytes);
-
-	computeCmdList.ResourceBarrier(m_aliasTable.Resource(), 
-		D3D12_RESOURCE_STATE_COPY_DEST, 
-		D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-	// record the timestamp after execution
-	gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-	cmdList.PIXEndEvent();
-}
-
 //--------------------------------------------------------------------------------------
 // DirectLighting
 //--------------------------------------------------------------------------------------
@@ -447,21 +30,18 @@ DirectLighting::DirectLighting()
 		0,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,
 		NUM_CONSTS,
-		1,
-		0);
+		1);
 
 	// BVH
 	m_rootSig.InitAsBufferSRV(2,
 		0,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::RT_SCENE_BVH);
 
 	// emissive triangles
@@ -469,7 +49,6 @@ DirectLighting::DirectLighting()
 		1,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::EMISSIVE_TRIANGLE_BUFFER);
 
 	// alias table
@@ -477,7 +56,6 @@ DirectLighting::DirectLighting()
 		2,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE);
 
 	// sample set SRV
@@ -485,8 +63,7 @@ DirectLighting::DirectLighting()
 		3,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
-		nullptr,
+		GlobalResource::PRESAMPLED_EMISSIVE_SETS,
 		true);
 
 	// mesh buffer
@@ -494,17 +71,7 @@ DirectLighting::DirectLighting()
 		4,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::RT_FRAME_MESH_INSTANCES);
-
-	// sample set UAV
-	m_rootSig.InitAsBufferUAV(7,
-		0,
-		0,
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE,
-		D3D12_SHADER_VISIBILITY_ALL,
-		nullptr,
-		true);
 }
 
 DirectLighting::~DirectLighting()
@@ -607,8 +174,8 @@ void DirectLighting::Init()
 	//App::AddParam(fireflyFilter);
 
 	App::AddShaderReloadHandler("ReSTIR_DI_SpatioTemporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
-	App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
-	App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrSpatial));
+	//App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
+	//App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrSpatial));
 
 	m_isTemporalReservoirValid = false;
 }
@@ -633,26 +200,6 @@ void DirectLighting::OnWindowResized()
 	m_currTemporalIdx = 0;
 }
 
-void DirectLighting::Update()
-{
-	m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
-
-	if (!m_currNumTris || m_currNumTris < DefaultParamVals::MIN_NUM_LIGHTS_PRESAMPLING)
-		return;
-
-	const size_t currBuffLen = m_sampleSets.IsInitialized() ? m_sampleSets.Desc().Width / sizeof(LightSample) : 0;
-
-	if (currBuffLen < m_currNumTris)
-	{
-		const size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * sizeof(LightSample);
-
-		m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
-			sizeInBytes,
-			D3D12_RESOURCE_STATE_COMMON,
-			true);
-	}
-}
-
 void DirectLighting::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
@@ -665,53 +212,12 @@ void DirectLighting::Render(CommandList& cmdList)
 	const uint32_t h = renderer.GetRenderHeight();
 
 	computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-	const bool doPresampling = m_sampleSets.IsInitialized();
-
-	// presampling
-	if (doPresampling)
-	{
-		constexpr uint32_t numSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
-		const uint32_t dispatchDimX = CeilUnsignedIntDiv(numSamples, RESTIR_DI_PRESAMPLE_GROUP_DIM_X);
-		Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
-
-		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_Presample");
-
-		computeCmdList.PIXBeginEvent("ReSTIR_DI_Presample");
-		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::PRESAMPLING]);
-
-		// "buffers MAY be initially accessed in an ExecuteCommandLists scope without a Barrier...Additionally, a buffer 
-		// or texture using a queue-specific common layout can use D3D12_BARRIER_ACCESS_UNORDERED_ACCESS without a barrier."
-		// Ref: https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html
-#if 0
-		D3D12_BUFFER_BARRIER barrier = Direct3DUtil::BufferBarrier(m_sampleSets.Resource(),
-			D3D12_BARRIER_SYNC_NONE,
-			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-			D3D12_BARRIER_ACCESS_NO_ACCESS,
-			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
-
-		computeCmdList.ResourceBarrier(barrier);
-#endif
-
-		cb_ReSTIR_DI_Presampling cb;
-		cb.NumTotalSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
-		cb.NumEmissiveTriangles = m_currNumTris;
-
-		m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
-		m_rootSig.SetRootUAV(7, m_sampleSets.GpuVA());
-
-		m_rootSig.End(computeCmdList);
-
-		computeCmdList.Dispatch(dispatchDimX, 1, 1);
-
-		// record the timestamp after execution
-		gpuTimer.EndQuery(computeCmdList, queryIdx);
-
-		cmdList.PIXEndEvent();
-	}
 
 	// resampling
 	{
+		Assert(!m_preSampling || (m_cbSpatioTemporal.NumSampleSets && m_cbSpatioTemporal.SampleSetSize),
+			"Light presampling is enabled, yet number & size of sets hasn't been set.");
+
 		const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_TEMPORAL_GROUP_DIM_X);
 		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_TEMPORAL_GROUP_DIM_Y);
 
@@ -720,15 +226,9 @@ void DirectLighting::Render(CommandList& cmdList)
 
 		computeCmdList.PIXBeginEvent("ReSTIR_DI_SpatioTemporal");
 
-		computeCmdList.SetPipelineState(doPresampling ? 
+		computeCmdList.SetPipelineState(m_preSampling ? 
 			m_psos[(int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING] : 
 			m_psos[(int)SHADERS::SPATIO_TEMPORAL]);
-
-		D3D12_BUFFER_BARRIER bufferBarrier = Direct3DUtil::BufferBarrier(doPresampling ? m_sampleSets.Resource() : nullptr,
-			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-			D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
 
 		SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
 
@@ -786,10 +286,7 @@ void DirectLighting::Render(CommandList& cmdList)
 				D3D12_BARRIER_ACCESS_SHADER_RESOURCE));
 		}
 
-		// skip transitioning presample buffer if not used
-		D3D12_BARRIER_GROUP barrierGroups[2] = { Direct3DUtil::BarrierGroup(textureBarriers.data(), (UINT)textureBarriers.size()),
-			Direct3DUtil::BarrierGroup(bufferBarrier) };
-		computeCmdList.ResourceBarrier(barrierGroups, doPresampling ? 2 : 1);
+		computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
 
 		m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
 		m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
@@ -798,8 +295,6 @@ void DirectLighting::Render(CommandList& cmdList)
 		m_cbSpatioTemporal.SpatialResampling = m_doSpatialResampling && m_isTemporalReservoirValid;
 		m_cbSpatioTemporal.NumEmissiveTriangles = m_currNumTris;
 		m_cbSpatioTemporal.OneDivNumEmissiveTriangles = 1.0f / float(m_cbSpatioTemporal.NumEmissiveTriangles);
-		m_cbSpatioTemporal.NumSampleSets = DefaultParamVals::NUM_SAMPLE_SETS;
-		m_cbSpatioTemporal.SampleSetSize = DefaultParamVals::SAMPLE_SET_SIZE;
 		
 		{
 			auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_A_SRV : DESC_TABLE::RESERVOIR_1_A_SRV;
@@ -818,8 +313,6 @@ void DirectLighting::Render(CommandList& cmdList)
 		m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
 
 		m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
-		if (doPresampling)
-			m_rootSig.SetRootSRV(5, m_sampleSets.GpuVA());
 
 		m_rootSig.End(computeCmdList);
 
@@ -1077,11 +570,10 @@ void DirectLighting::DnsrSpatialFilterSpecularCallback(const Support::ParamVaria
 
 void DirectLighting::ReloadSpatioTemporal()
 {
-	const bool presampling = m_sampleSets.IsInitialized();
-	const int i = presampling ? (int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
+	const int i = m_preSampling ? (int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
 		(int)SHADERS::SPATIO_TEMPORAL;
 
-	m_psoLib.Reload(i, presampling ?
+	m_psoLib.Reload(i, m_preSampling ?
 		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_LP.hlsl" :
 		"DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl",
 		true);

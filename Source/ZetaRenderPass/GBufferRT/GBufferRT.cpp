@@ -30,54 +30,47 @@ GBufferRT::GBufferRT()
 		0,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
 	m_rootSig.InitAsConstants(1,
 		NUM_CONSTS,
-		1,
-		0);
+		1);
 
 	// BVH
 	m_rootSig.InitAsBufferSRV(2,
 		0,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::RT_SCENE_BVH);
 
-	// material buffer
+	// mesh buffer
 	m_rootSig.InitAsBufferSRV(3,
 		1,
 		0,
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::MATERIAL_BUFFER);
-
-	// mesh buffer
-	m_rootSig.InitAsBufferSRV(4,
-		2,
-		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-		D3D12_SHADER_VISIBILITY_ALL,
 		GlobalResource::RT_FRAME_MESH_INSTANCES);
 	
 	// scene VB
+	m_rootSig.InitAsBufferSRV(4,
+		2,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
+		GlobalResource::SCENE_VERTEX_BUFFER);
+
+	// scene IB
 	m_rootSig.InitAsBufferSRV(5,
 		3,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::SCENE_VERTEX_BUFFER);
+		GlobalResource::SCENE_INDEX_BUFFER);
 
-	// scene IB
+	// material buffer
 	m_rootSig.InitAsBufferSRV(6,
 		4,
 		0,
 		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-		D3D12_SHADER_VISIBILITY_ALL,
-		GlobalResource::SCENE_INDEX_BUFFER);
+		GlobalResource::MATERIAL_BUFFER);
 }
 
 GBufferRT::~GBufferRT()

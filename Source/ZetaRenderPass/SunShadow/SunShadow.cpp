@@ -21,25 +21,22 @@ SunShadow::SunShadow()
 	: RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
 	// frame constants
-	m_rootSig.InitAsCBV(0,												// root idx
-		0,																// register
-		0,																// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,	// flags
-		D3D12_SHADER_VISIBILITY_ALL,									// visibility
+	m_rootSig.InitAsCBV(0,
+		0,
+		0,	
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
 		GlobalResource::FRAME_CONSTANTS_BUFFER);
 
 	// root constants
-	m_rootSig.InitAsConstants(1,		// root idx
-		NUM_CONSTS,						// num DWORDs
-		1,								// register
-		0);								// register space
+	m_rootSig.InitAsConstants(1,
+		NUM_CONSTS,
+		1);
 
 	// BVH
-	m_rootSig.InitAsBufferSRV(2,						// root idx
-		0,												// register
-		0,												// register space
-		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,			// flags
-		D3D12_SHADER_VISIBILITY_ALL,					// visibility
+	m_rootSig.InitAsBufferSRV(2,
+		0,
+		0,
+		D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
 		GlobalResource::RT_SCENE_BVH);
 }
 
@@ -177,10 +174,10 @@ void SunShadow::Render(CommandList& cmdList)
 
 	// temporal pass
 	{
-		computeCmdList.PIXBeginEvent("SunShadowDnsr_Temporal");
+		computeCmdList.PIXBeginEvent("ShadowDnsr_Temporal");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDnsr_Temporal");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Temporal");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL_PASS]);
 
@@ -234,10 +231,10 @@ void SunShadow::Render(CommandList& cmdList)
 
 	// spatial filter
 	{
-		computeCmdList.PIXBeginEvent("SunShadowDnsr_Spatial");
+		computeCmdList.PIXBeginEvent("ShadowDnsr_Spatial");
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowDnsr_Spatial");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Spatial");
 
 		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL_FILTER]);
 

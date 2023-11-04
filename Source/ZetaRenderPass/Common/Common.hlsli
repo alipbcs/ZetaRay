@@ -153,6 +153,11 @@ namespace Common
 	
 		return swizzledDTid;
 	}
+
+	bool IsFlagSet(uint32_t bitmask, uint32_t flag)
+	{
+		return (bitmask & flag) == flag;
+	}
 }
 
 #endif // COMMON_H

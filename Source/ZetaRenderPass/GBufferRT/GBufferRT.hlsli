@@ -94,6 +94,7 @@ namespace GBufferRT
                               dpdu[dim[1]], dpdv[dim[1]]);
         
         float det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
+        // since A is not invertible, linear system doesn't have a solution
         if (abs(det) < 1e-8f)
             return 0;
 
@@ -161,6 +162,7 @@ namespace GBufferRT
         g_outMetallicRoughness[DTid] = float2(metalness, roughness);
 
         RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
+        // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
         g_outEmissive[DTid] = max(0, emissive);
 
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];

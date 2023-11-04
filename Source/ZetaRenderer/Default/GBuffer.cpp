@@ -160,24 +160,6 @@ void GBuffer::CreateGBuffers(GBufferData& data)
 				DXGI_FORMAT_R32_FLOAT);
 		}
 	}
-
-	// curvature
-	{
-		data.Curvature = ZetaMove(GpuMemory::GetTexture2D("GBuffer_Curvature", 
-			width, height,
-			GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::CURVATURE],
-			D3D12_RESOURCE_STATE_COMMON,
-			texFlags,
-			1,
-			clearValuePtr));
-
-		//UAV
-		Direct3DUtil::CreateTexture2DUAV(data.Curvature, data.UavDescTable[0].CPUHandle(GBufferData::GBUFFER::CURVATURE));
-		Direct3DUtil::CreateTexture2DUAV(data.Curvature, data.UavDescTable[1].CPUHandle(GBufferData::GBUFFER::CURVATURE));
-		// SRV
-		Direct3DUtil::CreateTexture2DSRV(data.Curvature, data.SrvDescTable[0].CPUHandle(GBufferData::GBUFFER::CURVATURE));
-		Direct3DUtil::CreateTexture2DSRV(data.Curvature, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::CURVATURE));
-	}
 }
 
 void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data)
@@ -200,7 +182,6 @@ void GBuffer::Shutdown(GBufferData& data)
 	
 	data.EmissiveColor.Reset();
 	data.MotionVec.Reset();
-	data.Curvature.Reset();
 }
 
 void GBuffer::Update(GBufferData& gbufferData)
@@ -219,8 +200,6 @@ void GBuffer::Update(GBufferData& gbufferData)
 		gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::EMISSIVE_COLOR));
 	gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::DEPTH_UAV,
 		gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::DEPTH));
-	//gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::CURVATURE_UAV,
-	//	gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::CURVATURE));
 }
 
 void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
@@ -246,7 +225,6 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
 
 	renderGraph.RegisterResource(data.MotionVec.Resource(), data.MotionVec.ID());
 	renderGraph.RegisterResource(data.EmissiveColor.Resource(), data.EmissiveColor.ID());
-	renderGraph.RegisterResource(data.Curvature.Resource(), data.Curvature.ID());
 }
 
 void GBuffer::DeclareAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
@@ -271,5 +249,4 @@ void GBuffer::DeclareAdjacencies(GBufferData& data, const RayTracerData& rayTrac
 	renderGraph.AddOutput(data.GBufferPassHandle, data.MotionVec.ID(), gbufferOutState);
 	renderGraph.AddOutput(data.GBufferPassHandle, data.EmissiveColor.ID(), gbufferOutState);
 	renderGraph.AddOutput(data.GBufferPassHandle, data.DepthBuffer[outIdx].ID(), depthBuffOutState);
-	renderGraph.AddOutput(data.GBufferPassHandle, data.Curvature.ID(), gbufferOutState);
 }

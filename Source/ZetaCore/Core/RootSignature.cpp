@@ -9,6 +9,136 @@ using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 
+namespace
+{
+	template <typename T>
+	requires std::same_as<T, GraphicsCmdList> || std::same_as<T, ComputeCmdList>
+	void End_Internal(T& ctx, uint32_t rootCBVBitMap, uint32_t rootSRVBitMap, uint32_t rootUAVBitMap, 
+		uint32_t globalsBitMap, uint32_t& modifiedBitMap, uint32_t& modifiedGlobalsBitMap, uint32_t optionalBitMap,
+		int rootConstantsIdx, Span<uint32_t> rootConstants, Span<D3D12_GPU_VIRTUAL_ADDRESS> rootDescriptors,
+		Span<uint64_t> globals)
+	{
+		// root constants
+		if (rootConstantsIdx != -1 && (modifiedBitMap & (1 << rootConstantsIdx)))
+		{
+			ctx.SetRoot32BitConstants(rootConstantsIdx, (uint32_t)rootConstants.size(), rootConstants.data(), 0);
+			modifiedBitMap ^= (1 << rootConstantsIdx);
+		}
+
+		uint32_t mask;
+		DWORD nextParam;
+
+		// root CBV
+		mask = rootCBVBitMap;
+		while (_BitScanForward(&nextParam, mask))
+		{
+			mask ^= (1 << nextParam);
+
+			if ((1 << nextParam) & globalsBitMap)
+				continue;
+
+			if ((modifiedBitMap & (1 << nextParam)) == 0)
+				continue;
+
+			modifiedBitMap ^= (1 << nextParam);
+
+			if (rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0))
+				ctx.SetRootConstantBufferView(nextParam, rootDescriptors[nextParam]);
+			else
+				Assert(optionalBitMap & (1 << nextParam), "Root CBV in parameter %d has not been set", nextParam);
+		}
+
+		// root SRV
+		mask = rootSRVBitMap;
+		while (_BitScanForward(&nextParam, mask))
+		{
+			mask ^= (1 << nextParam);
+
+			if ((1 << nextParam) & globalsBitMap)
+				continue;
+
+			if ((modifiedBitMap & (1 << nextParam)) == 0)
+				continue;
+
+			modifiedBitMap ^= (1 << nextParam);
+
+			if (rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0))
+				ctx.SetRootShaderResourceView(nextParam, rootDescriptors[nextParam]);
+			else
+				Assert(optionalBitMap & (1 << nextParam), "Root SRV in parameter %d has not been set", nextParam);
+		}
+
+		// root UAV
+		mask = rootUAVBitMap;
+		while (_BitScanForward(&nextParam, mask))
+		{
+			mask ^= (1 << nextParam);
+
+			if ((1 << nextParam) & globalsBitMap)
+				continue;
+
+			if ((modifiedBitMap & (1 << nextParam)) == 0)
+				continue;
+
+			modifiedBitMap ^= (1 << nextParam);
+
+			if (rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0))
+				ctx.SetRootUnorderedAccessView(nextParam, rootDescriptors[nextParam]);
+			else
+				Assert(optionalBitMap & (1 << nextParam), "Root UAV in parameter %d has not been set", nextParam);
+		}
+
+		// globals
+		SharedShaderResources& shared = App::GetRenderer().GetSharedShaderResources();
+
+		while (_BitScanForward(&nextParam, modifiedGlobalsBitMap))
+		{
+			uint32_t rootBitMap = (1 << nextParam);
+			modifiedGlobalsBitMap ^= rootBitMap;
+
+			if (rootBitMap & rootCBVBitMap)
+			{
+				auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+				if (defautlHeapBuff)
+					ctx.SetRootConstantBufferView(nextParam, defautlHeapBuff->GpuVA());
+				else
+				{
+					auto* uploadHeapBuff = shared.GetUploadHeapBuffer(globals[nextParam]);
+					if (uploadHeapBuff)
+						ctx.SetRootConstantBufferView(nextParam, uploadHeapBuff->GpuVA());
+					else
+						Assert(optionalBitMap & (1 << nextParam), "Global resource in parameter %d was not found.", nextParam);
+				}
+			}
+			else if (rootBitMap & rootSRVBitMap)
+			{
+				auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+				if (defautlHeapBuff)
+					ctx.SetRootShaderResourceView(nextParam, defautlHeapBuff->GpuVA());
+				else
+				{
+					auto* uploadHeapBuff = shared.GetUploadHeapBuffer(globals[nextParam]);
+					if (uploadHeapBuff)
+						ctx.SetRootShaderResourceView(nextParam, uploadHeapBuff->GpuVA());
+					else
+						Assert(optionalBitMap & (1 << nextParam), "Global resource in parameter %d was not found.", nextParam);
+				}
+			}
+			else if (rootBitMap & rootUAVBitMap)
+			{
+				// UAV must be a default heap buffer
+				auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+				if (defautlHeapBuff)
+					ctx.SetRootUnorderedAccessView(nextParam, defautlHeapBuff->GpuVA());
+				else
+					Assert(optionalBitMap & (1 << nextParam), "Global resource in parameter %d was not found.", nextParam);
+			}
+			else
+				Assert(false, "Root global was not found.");
+		}
+	}
+}
+
 //--------------------------------------------------------------------------------------
 // RootSignature
 //--------------------------------------------------------------------------------------
@@ -40,7 +170,7 @@ void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32
 }
 
 void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -67,7 +197,7 @@ void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t r
 }
 
 void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -94,7 +224,7 @@ void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint
 }
 
 void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint32_t registerSpace, 
-	D3D12_ROOT_DESCRIPTOR_FLAGS flags, D3D12_SHADER_VISIBILITY visibility, const char* id, bool isOptional)
+	D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
 	Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
 	Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
@@ -203,232 +333,14 @@ void RootSignature::SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 
 void RootSignature::End(GraphicsCmdList& ctx)
 {
-	// root constants
-	if (m_rootConstantsIdx != -1 && (m_modifiedBitMap & (1 << m_rootConstantsIdx)))
-	{
-		ctx.SetRoot32BitConstants(m_rootConstantsIdx, m_numRootConstants, m_rootConstants, 0);
-		m_modifiedBitMap ^= (1 << m_rootConstantsIdx);
-	}
-
-	uint32_t mask;
-	DWORD nextParam;
-
-	// root CBV
-	mask = m_rootCBVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root CBV in parameter %d has not been set", nextParam);
-		ctx.SetRootConstantBufferView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// root SRV
-	mask = m_rootSRVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root SRV in parameter %d has not been set", nextParam);
-		ctx.SetRootShaderResourceView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// root UAV
-	mask = m_rootUAVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root UAV in parameter %d has not been set", nextParam);
-		ctx.SetRootUnorderedAccessView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// globals
-	SharedShaderResources& shared = App::GetRenderer().GetSharedShaderResources();
-
-	while (_BitScanForward(&nextParam, m_modifiedGlobalsBitMap))
-	{
-		uint32_t rootBitMap = (1 << nextParam);
-		m_modifiedGlobalsBitMap ^= rootBitMap;
-
-		if (rootBitMap & m_rootCBVBitMap)
-		{
-			D3D12_GPU_VIRTUAL_ADDRESS va;
-			auto* uploadHeapBuff = shared.GetUploadHeapBuff(m_globals[nextParam]);
-			if (!uploadHeapBuff)
-			{
-				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
-
-				va = defautlHeapBuff->GpuVA();
-			}
-			else
-				va = uploadHeapBuff->GpuVA();
-
-			ctx.SetRootConstantBufferView(nextParam, va);
-		}
-		else if (rootBitMap & m_rootSRVBitMap)
-		{
-			D3D12_GPU_VIRTUAL_ADDRESS va;
-			auto* uploadHeapBuff = shared.GetUploadHeapBuff(m_globals[nextParam]);
-			if (!uploadHeapBuff)
-			{
-				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
-
-				va = defautlHeapBuff->GpuVA();
-			}
-			else
-				va = uploadHeapBuff->GpuVA();
-
-			ctx.SetRootShaderResourceView(nextParam, va);
-		}
-		else if (rootBitMap & m_rootUAVBitMap)
-		{
-			// UAV must be a default-heap buffer
-			auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-			Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Root param %d: Global resource with id %llu was not found.", nextParam, m_globals[nextParam]);
-			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GpuVA();
-			ctx.SetRootUnorderedAccessView(nextParam, va);
-		}
-		else
-			Assert(false, "Root global was not found.");
-	}
+	End_Internal(ctx, m_rootCBVBitMap, m_rootSRVBitMap, m_rootUAVBitMap, m_globalsBitMap, 
+		m_modifiedBitMap, m_modifiedGlobalsBitMap, m_optionalBitMap, m_rootConstantsIdx, 
+		Span(m_rootConstants, m_numRootConstants), m_rootDescriptors, m_globals);
 }
 
 void RootSignature::End(ComputeCmdList& ctx)
 {
-	// root constants
-	if (m_rootConstantsIdx != -1 && (m_modifiedBitMap & (1 << m_rootConstantsIdx)))
-	{
-		ctx.SetRoot32BitConstants(m_rootConstantsIdx, m_numRootConstants, m_rootConstants, 0);
-		m_modifiedBitMap ^= (1 << m_rootConstantsIdx);
-	}
-
-	uint32_t mask;
-	DWORD nextParam;
-
-	// root CBV
-	mask = m_rootCBVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root CBV in parameter %d has not been set", nextParam);
-		ctx.SetRootConstantBufferView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// root SRV
-	mask = m_rootSRVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root SRV in parameter %d has not been set", nextParam);
-		ctx.SetRootShaderResourceView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// root UAV
-	mask = m_rootUAVBitMap;
-	while (_BitScanForward(&nextParam, mask))
-	{
-		mask ^= (1 << nextParam);
-
-		if ((1 << nextParam) & m_globalsBitMap)
-			continue;
-
-		if ((m_modifiedBitMap & (1 << nextParam)) == 0)
-			continue;
-
-		m_modifiedBitMap ^= (1 << nextParam);
-		Assert(m_optionalBitMap & (1 << nextParam) || m_rootDescriptors[nextParam] != D3D12_GPU_VIRTUAL_ADDRESS(0), "Root UAV in parameter %d has not been set", nextParam);
-		ctx.SetRootUnorderedAccessView(nextParam, m_rootDescriptors[nextParam]);
-	}
-
-	// globals
-	SharedShaderResources& shared = App::GetRenderer().GetSharedShaderResources();
-
-	while (_BitScanForward(&nextParam, m_modifiedGlobalsBitMap))
-	{
-		uint32_t rootBitMap = (1 << nextParam);
-		m_modifiedGlobalsBitMap ^= rootBitMap;
-
-		if (rootBitMap & m_rootCBVBitMap)
-		{
-			D3D12_GPU_VIRTUAL_ADDRESS va;
-			auto* uploadHeapBuff = shared.GetUploadHeapBuff(m_globals[nextParam]);
-			if (!uploadHeapBuff)
-			{
-				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
-
-				va = defautlHeapBuff->GpuVA();
-			}
-			else
-				va = uploadHeapBuff->GpuVA();
-
-			ctx.SetRootConstantBufferView(nextParam, va);
-		}
-		else if (rootBitMap & m_rootSRVBitMap)
-		{
-			D3D12_GPU_VIRTUAL_ADDRESS va;
-			auto* uploadHeapBuff = shared.GetUploadHeapBuff(m_globals[nextParam]);
-			if (!uploadHeapBuff)
-			{
-				auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-				Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Global resource with id %llu was not found.", m_globals[nextParam]);
-
-				va = defautlHeapBuff->GpuVA();
-			}
-			else
-				va = uploadHeapBuff->GpuVA();
-
-			ctx.SetRootShaderResourceView(nextParam, va);
-		}
-		else if (rootBitMap & m_rootUAVBitMap)
-		{
-			// UAV must be a default-heap buffer
-			auto* defautlHeapBuff = shared.GetDefaultHeapBuff(m_globals[nextParam]);
-			Assert(defautlHeapBuff && defautlHeapBuff->IsInitialized(), "Root param %d: Global resource with id %llu was not found.", nextParam, m_globals[nextParam]);
-			D3D12_GPU_VIRTUAL_ADDRESS va = defautlHeapBuff->GpuVA();
-			ctx.SetRootUnorderedAccessView(nextParam, va);
-		}
-		else
-			Assert(false, "Root global was not found.");
-	}
+	End_Internal(ctx, m_rootCBVBitMap, m_rootSRVBitMap, m_rootUAVBitMap, m_globalsBitMap,
+		m_modifiedBitMap, m_modifiedGlobalsBitMap, m_optionalBitMap, m_rootConstantsIdx,
+		Span(m_rootConstants, m_numRootConstants), m_rootDescriptors, m_globals);
 }

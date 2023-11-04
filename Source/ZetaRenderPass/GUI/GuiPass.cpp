@@ -192,11 +192,9 @@ void GuiPass::Init()
 	// root signature
 	{
 		// root constants
-		m_rootSig.InitAsConstants(0,				// root idx
-			sizeof(cbGuiPass) / sizeof(DWORD),		// num DWORDs
-			0,										// register
-			0,										// register space
-			D3D12_SHADER_VISIBILITY_ALL);										
+		m_rootSig.InitAsConstants(0,
+			sizeof(cbGuiPass) / sizeof(DWORD),
+			0);
 
 		D3D12_ROOT_SIGNATURE_FLAGS flags =
 			D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
@@ -227,8 +225,7 @@ void GuiPass::Init()
 
 		D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(&inputLayout,
 			1,
-			rtv,
-			Constants::DEPTH_BUFFER_FORMAT);
+			rtv);
 
 		// blending
 		psoDesc.BlendState.RenderTarget[0].BlendEnable = true;
@@ -807,12 +804,11 @@ void GuiPass::RenderMainHeader()
 void GuiPass::InfoTab()
 {
 	auto& renderer = App::GetRenderer();
-	auto& timer = App::GetTimer();
-	ImGui::Text("Device: %s", renderer.GetDeviceDescription());
-	ImGui::Text("Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
-	ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
+	ImGui::Text(" - Device: %s", renderer.GetDeviceDescription());
+	ImGui::Text(" - Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
+	ImGui::Text(" - Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
 	ImGui::Text("");
-	ImGui::Text("Controls:");
+	ImGui::Text(" - Controls:");
 	ImGui::Text("\t- WASD+LMB moves the camera");
 	ImGui::Text("\t- MMB zooms in/out");
 }
@@ -824,12 +820,12 @@ void GuiPass::CameraTab()
 	float3 viewBasisX = camera.GetBasisX();
 	float3 viewBasisY = camera.GetBasisY();
 	float3 viewBasisZ = camera.GetBasisZ();
-	ImGui::Text("Camera Position: (%.3f, %.3f, %.3f)", camPos.x, camPos.y, camPos.z);
-	ImGui::Text("View Basis X: (%.3f, %.3f, %.3f)", viewBasisX.x, viewBasisX.y, viewBasisX.z);
-	ImGui::Text("View Basis Y: (%.3f, %.3f, %.3f)", viewBasisY.x, viewBasisY.y, viewBasisY.z);
-	ImGui::Text("View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
-	ImGui::Text("Aspect Ratio: %f", camera.GetAspectRatio());
-	ImGui::Text("Near Plane Z: %.3f", camera.GetNearZ());
+	ImGui::Text(" - Camera Position: (%.3f, %.3f, %.3f)", camPos.x, camPos.y, camPos.z);
+	ImGui::Text(" - View Basis X: (%.3f, %.3f, %.3f)", viewBasisX.x, viewBasisX.y, viewBasisX.z);
+	ImGui::Text(" - View Basis Y: (%.3f, %.3f, %.3f)", viewBasisY.x, viewBasisY.y, viewBasisY.z);
+	ImGui::Text(" - View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
+	ImGui::Text(" - Aspect Ratio: %f", camera.GetAspectRatio());
+	ImGui::Text(" - Near Plane Z: %.3f", camera.GetNearZ());
 
 	constexpr int plotFlags = ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText | ImPlotFlags_Equal;
 
