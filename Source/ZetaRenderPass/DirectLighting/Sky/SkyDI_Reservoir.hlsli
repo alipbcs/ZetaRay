@@ -81,7 +81,9 @@ namespace SkyDI_Util
 		// curvature computation above uses the opposite signs
 		k *= -1.0f;
 		k *= pixelWidth;
-		float reflectionRayT = sampleRayT / (1.0f - 2 * k * sampleRayT * surface.whdotwo);
+		// TODO fix
+		// float reflectionRayT = sampleRayT / (1.0f - 2 * k * sampleRayT * surface.whdotwo);
+		float reflectionRayT = sampleRayT / (1.0f - 2 * k * sampleRayT);
 	
 		// interpolate between virtual motion and surface motion using GGX dominant factor
 		// Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.

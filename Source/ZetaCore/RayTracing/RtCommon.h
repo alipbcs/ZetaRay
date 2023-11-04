@@ -287,7 +287,7 @@ namespace ZetaRay
 		// 1. draw another uniform sample u in [0, 1)
 		// 2. if u <= AliasTable[x].P_Curr, return x
 		// 3. return AliasTable[x].Alias
-		struct EmissiveTriangleSample
+		struct EmissiveLumenAliasTableEntry
 		{
 			// cache the probabilities for both outcomes to avoid another (random) memory access at the
 			// cost of extra storage
@@ -297,7 +297,7 @@ namespace ZetaRay
 			uint32_t Alias;
 		};
 
-		struct LightSample
+		struct PresampledEmissiveTriangle
 		{
 			float Pdf;
 			uint32_t Index;

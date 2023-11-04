@@ -71,7 +71,7 @@ namespace ZetaRay::RenderPass
 			static constexpr int NUM_SAMPLE_SETS = 128;
 			static constexpr int SAMPLE_SET_SIZE = 512;
 			static constexpr float EMISSIVE_SET_MEM_BUDGET_MB = 1.5;
-			static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) / sizeof(RT::LightSample));
+			static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) / sizeof(RT::PresampledEmissiveTriangle));
 		};
 
 		enum class DESC_TABLE

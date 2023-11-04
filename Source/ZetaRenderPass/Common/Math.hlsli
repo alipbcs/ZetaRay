@@ -15,14 +15,14 @@
 
 namespace Math
 {
-	// Returns whether pos is in [0, dim)
+	// Returns whether pos is in [0, dim).
 	template<typename T>
 	bool IsWithinBounds(T pos, T dim)
 	{
 		return all(pos >= 0) && all(pos < dim);
 	}
 
-	// Returns smallest floating point f' such that f' > f
+	// Returns smallest floating point f' such that f' > f.
 	float NextFloat32Up(float f)
 	{
 		uint u = asuint(f);
@@ -67,8 +67,8 @@ namespace Math
 		return float3x3(a, b, c);
 	}
 	
+	// Input in [-1, 1] and output in [0, PI]
 	// Ref: https://seblagarde.wordpress.com/2014/12/01/inverse-trigonometric-functions-gpu-optimization-for-amd-gcn-architecture/
-	// input in [-1, 1] and output in [0, PI]
 	template<typename T>
 	T ArcCos(T x)
 	{
@@ -78,7 +78,7 @@ namespace Math
 
 		return select((x >= 0), res, PI - res);
 	}
-	
+
 	float3 SphericalToCartesian(float r, float theta, float phi)
 	{
 		float sinTheta = sin(theta);
@@ -107,8 +107,8 @@ namespace Math
 	
 	namespace Transform
 	{
-		template<typename FVec>
-		FVec LinearDepthFromNDC(FVec z_NDC, float near)
+		template<typename T>
+		T LinearDepthFromNDC(T z_NDC, float near)
 		{
 			return select(z_NDC == 0.0f, FLT_MAX, near / z_NDC);
 		}
@@ -174,43 +174,36 @@ namespace Math
 			bumpNormal.z = sqrt(1.0f - saturate(dot(bumpNormal, bumpNormal)));
 			float3 scaledBumpNormal = bumpNormal * float3(scale, scale, 1.0f);
 			
-			// invalid scale or bump, normalize() leads to NaN
+			// Invalid scale or bump, normalize() leads to NaN
 			if (dot(scaledBumpNormal, scaledBumpNormal) < 1e-6f)
 				return normalW;
 			
 			scaledBumpNormal = normalize(scaledBumpNormal);
 
-		    // graham-schmidt orthogonalization
+		    // Graham-Schmidt orthogonalization
 			normalW = normalize(normalW);
 			tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
 
-			// change-of-coordinate transformation from TBN to world space
+			// Change-of-coordinate transformation from TBN to world space
 			float3 bitangentW = cross(normalW, tangentW);
 			float3x3 TangentSpaceToWorld = float3x3(tangentW, bitangentW, normalW);
 
 			return mul(scaledBumpNormal, TangentSpaceToWorld);
 		}
 		
+		// Builds an orthonormal TBN coordinate system.
 		// Ref: T. Duff, J. Burgess, P. Christensen, C. Hery, A. Kensler, M. Liani, 
 		// R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
-		// Note: modified to return an orthonormal TBN basis in a left-handed system with +Y up.
-		void revisedONB(float3 n_ws, out float3 b1, out float3 b2)
+		void revisedONB(float3 n, out float3 b1, out float3 b2)
 		{
-			// LHS to RHS with +Z up
-			const float3 n = float3(n_ws.x, n_ws.z, n_ws.y);
-			
 			const float s = n.z >= 0.0f ? 1.0f : -1.0f;
 			const float a = -1.0 / (s + n.z);
 			const float b = n.x * n.y * a;
-			// Changes to b1 & b2:
-			// 1. Transformed from RHS (+Z up) to LHS (+Y up)
-			// 2. Reordered to match LHS orientation
-			b1 = float3(b, -n.y, s + n.y * n.y * a);
-			b2 = float3(1.0 + s * n.x * n.x * a, -s * n.x, s * b);
+			b1 = float3(1.0 + s * n.x * n.x * a, s * b, -s * n.x);
+			b2 = float3(b, s + n.y * n.y * a, -n.y);
 		}
 
-		// Quaternion that rotates +Y to u
-		// u is assumed to be normalized
+		// Quaternion that rotates +Y to u. Assumes ||u|| = 1.
 		float4 QuaternionFromY(float3 u)
 		{
 			float4 q;
@@ -240,8 +233,7 @@ namespace Math
 			return q;
 		}
 		
-		// Quaternion that rotates u to +Y
-		// u is assumed to be normalized
+		// Quaternion that rotates u to +Y. Assumes ||u|| = 1.
 		float4 QuaternionToY(float3 u)
 		{
 			float4 q;
@@ -271,8 +263,7 @@ namespace Math
 			return q;
 		}
 		
-		// Quaternion that rotates +Z to u
-		// u is assumed to be normalized
+		// Quaternion that rotates +Z to u. Assumes ||u|| = 1.
 		float4 QuaternionFromZ(float3 u)
 		{
 			float4 q;
@@ -302,8 +293,7 @@ namespace Math
 			return q;
 		}
 		
-		// Quaternion that rotates u to +Z
-		// u is assumed to be normalized
+		// Quaternion that rotates u to +Z. Assumes ||u|| = 1.
 		float4 QuaternionToZ(float3 u)
 		{
 			float4 q;
@@ -333,9 +323,9 @@ namespace Math
 			return q;
 		}
 
-		// Rotate v using unit quaternion rotation q by computing q * u * q* where
+		// Rotates v using unit quaternion q by computing q * u * q* where
 		//		* denotes quaternion multiplication
-		//		q* denotes the conjugate of q
+		//		q* is the conjugate of q.
 		// Ref: https://fgiesen.wordpress.com/2019/02/09/rotating-a-single-vector-using-a-quaternion/
 		float3 RotateVector(float3 v, float4 q)
 		{
@@ -351,25 +341,23 @@ namespace Math
 
 	namespace Encoding
 	{
-		// Encode [0, 1] float as 8-bit unsigned integer (unorm)
-		uint Encode01FloatAsUNORM(float r)
+		uint EncodeAsUNorm(float u)
 		{
-			return round(clamp(r, 0.0f, 1.0f) * 255);
+			return round(clamp(u, 0.0f, 1.0f) * 255.0f);
 		}
 
-		// Decode 8-bit unsigned integer (unorm) to [0, 1] float
-		float DecodeUNORMTo01Float(uint i)
+		float DecodeUNorm(uint i)
 		{
 			return (i & 0xff) / 255.0f;
 		}
 
-		// Encodes unit float3 normal as float2 in [0, 1]
-		// reference: https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
 		float2 SignNotZero(float2 v) 
 		{
 			return float2((v.x >= 0.0) ? +1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
 		}
 
+		// Encodes 3D unit vector using octahedral mapping.
+		// Ref: https://knarkowicz.wordpress.com/2014/04/16/octahedron-normal-vector-encoding/
 		float2 EncodeUnitVector(float3 n)
 		{
 			float2 p = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
@@ -415,7 +403,7 @@ namespace Math
 
 	namespace Color
 	{
-		float LuminanceFromLinearRGB(float3 linearRGB)
+		float Luminance(float3 linearRGB)
 		{
 			return dot(float3(0.2126f, 0.7152f, 0.0722f), linearRGB);
 		}

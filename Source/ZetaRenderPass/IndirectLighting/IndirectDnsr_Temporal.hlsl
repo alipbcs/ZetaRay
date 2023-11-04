@@ -1,39 +1,111 @@
-#include "SkyDI_Common.h"
-#include "../../Common/GBuffers.hlsli"
-#include "../../Common/FrameConstants.h"
-#include "../../Common/BRDF.hlsli"
-#include "../../Common/StaticTextureSamplers.hlsli"
-#include "../../Common/Common.hlsli"
+#include "IndirectLighting_Common.h"
+#include "ReSTIR_GI_Common.hlsli"
+#include "ReSTIR_GI_Resampling.hlsli"
+#include "../Common/GBuffers.hlsli"
+#include "../Common/FrameConstants.h"
+#include "../Common/BRDF.hlsli"
+#include "../Common/StaticTextureSamplers.hlsli"
+#include "../Common/Common.hlsli"
 
-#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.0025f
-#define VIEW_ANGLE_EXP 0.5f
-#define ROUGHNESS_EXP_SCALE 0.65f
+#define DISOCCLUSION_TEST_RELATIVE_DELTA 0.015f
+// #define VIEW_ANGLE_EXP 0.7f
+// #define ROUGHNESS_EXP_SCALE 0.85f
+#define VIEW_ANGLE_EXP 0.75f
+#define ROUGHNESS_EXP_SCALE 0.7f
 
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_SkyDI_DNSR_Temporal> g_local : register(b1);
+ConstantBuffer<cbIndirectDnsrTemporal> g_local : register(b1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
+
+template<bool Specular>
+float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 normal, float3 posW, float roughness)
+{
+	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+	Texture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorASrvDescHeapIdx];	
+	Texture2D<float4> g_colorB = ResourceDescriptorHeap[g_local.ColorBSrvDescHeapIdx];	
+
+	float currLum = Math::Luminance(currColor);
+	if(currLum < 1e-4)
+		return currColor;
+	
+	float3 minColor = currColor;
+	float3 maxColor = 0.0.xxx;
+	float minLum = FLT_MAX;
+	float maxLum = 0;
+	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+	const int r = roughness < 0.3  ? 2 : 1;
+	
+	//[unroll]
+	for (int i = -r; i <= r; i++)
+	{
+		//[unroll]
+		for (int j = -r; j <= r; j++)
+		{
+			if (i == 0 && j == 0)
+				continue;
+			
+			int2 addr = int2(DTid.x + j, DTid.y + i);
+			if (any(addr) < 0 || any(addr >= renderDim))
+				continue;
+			
+			const float neighborLinearDepth = g_depth[addr];
+			if (neighborLinearDepth == FLT_MAX)
+				continue;
+			
+			// float2 neighborUV = (addr + 0.5) * rcpRenderDim;
+			// if (!GeometryTest2(neighborLinearDepth, neighborUV, normal, posW, linearDepth))
+			// 	continue;
+
+			float3 neighborColor;
+
+			if(Specular)
+				neighborColor = g_colorA[addr].rgb;
+			else
+				neighborColor = float3(g_colorA[addr].a, g_colorB[addr].rg);
+			
+			float neighborLum = Math::Luminance(neighborColor);
+
+			if (neighborLum < minLum)
+			{
+				minLum = neighborLum;
+				minColor = neighborColor;
+			}
+			else if (neighborLum > maxLum)
+			{
+				maxLum = neighborLum;
+				maxColor = neighborColor;
+			}
+		}
+	}
+	
+	float3 ret = currLum < minLum ? minColor : (currLum > maxLum ? maxColor : currColor);
+	ret = minLum <= maxLum ? ret : currColor;
+	
+	return ret;
+}
 
 // output range is [0, +inf)
 float Parallax(float3 currPos, float3 prevPos, float3 currCamPos, float3 prevCamPos)
 {
 	float3 v1 = normalize(currPos - currCamPos);
 	float3 v2 = normalize(prevPos - prevCamPos);
-	
+
 	// theta is the angle between v1 & v2
 	float cosTheta = saturate(dot(v1, v2));
 	float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
-	
+
 	float p = sinTheta / max(1e-6f, cosTheta);
 	p = pow(p, 0.2f);
 	p *= p >= 1e-4;
-	
+
 	return p;
 }
 
@@ -43,48 +115,53 @@ float Reactivity(float roughness, float ndotwo, float parallax)
 	a = pow(a, VIEW_ANGLE_EXP);
 	float b = 1.1f + roughness * roughness;
 	float parallaxSensitivity = (b + a) / (b - a); // range in [1, +inf)
-	
+
 	// exponetially less temporal accumulation as roughness goes to 0
 	float powScale = 1.0f + parallax * parallaxSensitivity;
 	float f = 1.0f - exp2(-200.0f * roughness * roughness);
-	
+
 	// exponentially higher reactivity depending on roughness, parallax and its sensitivity
 	f *= pow(roughness, ROUGHNESS_EXP_SCALE * powScale);
-		
+
 	return 1 - f;
 }
 
-float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
+float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float z_view)
 {
 	float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-
-	float3 prevPos[4];
-	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, g_frame.TanHalfFOV, 
-		g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 	
+	float3 prevPos[4];
+	prevPos[0] = Math::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, 
+		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[1] = Math::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, 
+		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[2] = Math::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, 
+		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	prevPos[3] = Math::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, 
+		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
 		dot(currNormal, prevPos[1] - currPos),
 		dot(currNormal, prevPos[2] - currPos),
 		dot(currNormal, prevPos[3] - currPos));
 
-	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+	float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * z_view;
 
 	return weights;
 }
 
-float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
+float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float z_view)
 {
-	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
-		prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+	float3 prevPos = Math::WorldPosFromUV(prevUV, 
+		float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+		prevDepth, 
+		g_frame.TanHalfFOV, 
+		g_frame.AspectRatio,
+		g_frame.PrevViewInv, 
+		g_frame.PrevCameraJitter);
 
 	float planeDist = dot(currNormal, prevPos - currPos);
-	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+	float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * z_view;
 
 	return weight;
 }
@@ -95,7 +172,7 @@ float4 NormalWeight(float3 prevNormals[4], float3 currNormal, float roughness)
 		dot(currNormal, prevNormals[1]),
 		dot(currNormal, prevNormals[2]),
 		dot(currNormal, prevNormals[3])));
-
+	
 	float normalExp = lerp(16, 64, 1 - roughness);
 	float4 weight = pow(cosTheta, normalExp);
 
@@ -107,15 +184,11 @@ float4 RoughnessWeight(float currRoughness, float4 prevRoughness)
 	float n = currRoughness * currRoughness * 0.99f + 0.01f;
 	float4 w = abs(currRoughness - prevRoughness) / n;
 	w = saturate(1.0f - w);
-	bool4 b1 = prevRoughness < g_local.MinRoughnessResample;
-	bool4 b2 = currRoughness < g_local.MinRoughnessResample;
-	// don't take roughness into account when there's been a sudden change
-	w = select(w, 1.0.xxxx, b1 ^ b2);
 
 	return w;
 }
 
-void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
+void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal, float z_view, float2 currUV, 
 	float2 prevUV, out float tspp, out float3 color)
 {
 	color = 0.0.xxx;
@@ -128,20 +201,21 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	//	p2-----------p3
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 f = prevUV * renderDim;
-	const float2 topLeft = floor(f - 0.5f); // e.g if p0 is at (20.5, 30.5), then topLeft would be (20, 30)
+	const float2 topLeft = floor(f - 0.5f);
 	const float2 offset = f - (topLeft + 0.5f);
 	const float2 topLeftTexelUV = (topLeft + 0.5f) / renderDim;
-			
+
 	// previous frame's depth
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	
+
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
 	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
 	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
 	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
-	const float4 geoWeights = GeometryTest(prevDepths, prevUVs, currNormal, currPos, linearDepth);
+	float4 geoWeights = GeometryTest(prevDepths, prevUVs, currNormal, currPos, z_view);
+	geoWeights *= prevDepths != FLT_MAX;
 
 	// weight must be zero for out-of-bound samples
 	const float4 isInBounds = float4(Math::IsWithinBounds(topLeft, renderDim),
@@ -153,7 +227,7 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];	
 	float4 prevMetallic = g_metallicRoughness.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	
+
 	bool4 isNeighborMetallic;
 	bool4 isNeighborEmissive;
 	GBuffer::DecodeMetallicEmissive(prevMetallic, isNeighborMetallic, isNeighborEmissive);	
@@ -168,7 +242,7 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	weights *= weights > 1e-3f;
 	const float weightSum = dot(1.0f, weights);
 
-	if (1e-3f < weightSum)
+	if (1e-4f < weightSum)
 	{
 		// uniformly distribute the total weight over the valid samples
 		weights /= weightSum;
@@ -179,7 +253,7 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 		
 		histTspp = max(1, histTspp);
 		tspp = round(dot(histTspp, weights));
-		
+
 		if (tspp > 0)
 		{
 			// color
@@ -201,7 +275,7 @@ void SampleTemporalCache_Bilinear(uint2 DTid, float3 currPos, float3 currNormal,
 	}
 }
 
-bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNormal, float linearDepth, float2 currUV, 
+bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNormal, float z_view, float2 currUV, 
 	float2 prevUV, out float tspp, out float3 color)
 {
 	color = 0.0.xxx;
@@ -251,7 +325,7 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	for (int j = 0; j < 5; j++)
 	{
 		float isInBounds = all(prevUVs[j] <= 1.0.xx) && all(prevUVs[j] >= 0.0f);
-		float geoWeight = GeometryTest(prevDepths[j].y, prevUVs[j], currNormal, currPos, linearDepth);
+		float geoWeight = GeometryTest(prevDepths[j].y, prevUVs[j], currNormal, currPos, z_view);
 		weights[j] = isInBounds * geoWeight;
 	}
 
@@ -289,56 +363,71 @@ bool SampleTemporalCache_CatmullRom(uint2 DTid, float3 currPos, float3 currNorma
 	return false;
 }
 
-void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, bool metallic, 
-	float roughness, float3 Li_d, float prevSurfaceLinearDepth, float2 prevSurfaceUV, bool motionVecValid)
+void TemporalAccumulation_Diffuse(uint2 DTid, float2 currUV, float3 posW, float3 normal, float z_view, bool metallic, 
+	float roughness, float3 Li_d, float prevSurfaceZ, float2 prevSurfaceUV, bool motionVecValid)
 {
 	float tspp = 0;
 	float3 color = 0.0.xxx;
 
-	if (IS_CB_FLAG_SET(CB_SKY_DI_DNSR_TEMPORAL_FLAGS::CACHE_VALID) && motionVecValid)
+	if (g_local.IsTemporalCacheValid && motionVecValid)
 	{
 		// try to use Catmull-Rom interpolation first
-		bool success = SampleTemporalCache_CatmullRom(DTid, posW, normal, linearDepth, currUV, prevSurfaceUV, 
+		bool success = SampleTemporalCache_CatmullRom(DTid, posW, normal, z_view, currUV, prevSurfaceUV, 
 			tspp, color);
-
+		
 		// if it failed, then interpolate history using bilinear filtering with custom weights
 		if (!success)
-			SampleTemporalCache_Bilinear(DTid, posW, normal, linearDepth, currUV, prevSurfaceUV, tspp, color);
+			SampleTemporalCache_Bilinear(DTid, posW, normal, z_view, currUV, prevSurfaceUV, tspp, color);
 	}
 
-	//float3 currColor = Math::Color::Luminance(color) < 1e-7 ? Li_d : lerp(color, Li_d, 1.0f / (1.0f + tspp));
+	//float3 currColor = dot(color, 1) <= 1e-5 ? Li_d : lerp(color, Li_d, 1.0f / (1.0f + tspp));
 	float3 currColor = lerp(color, Li_d, 1.0f / (1.0f + tspp));
-	float maxTspp = roughness < g_local.MinRoughnessResample ? 0 : g_local.MaxTsppDiffuse;
-	tspp = min(tspp + 1, maxTspp);
+	currColor = any(isnan(currColor)) ? float3(0, 0, 0) : currColor;
+	tspp = min(tspp + 1, g_local.MaxTsppDiffuse);
 
 	RWTexture2D<float4> g_currTemporalCache_Diffuse = ResourceDescriptorHeap[g_local.CurrTemporalCacheDiffuseDescHeapIdx];
 	g_currTemporalCache_Diffuse[DTid] = float4(currColor, tspp);
 }
 
-void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float linearDepth, float2 uv, bool metallic, float roughness,
-	float2 prevSurfaceUV, out float3 color, out float tspp)
+void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float z_view, bool metallic, 
+	float roughness, float2 prevSurfaceUV, out float3 color, out float tspp)
 {
 	color = 0.0.xxx;
 	tspp = 0.0;
+	float2 prevUV = FLT_MAX;
+	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
-	// reverse reproject using virtual motion
-	float2 prevUV = prevSurfaceUV;
-	
-	// if (roughness < g_local.MinRoughnessResample)
-	// {
-	// 	GBUFFER_CURVATURE g_curvature = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::CURVATURE];
-	// 	const float localCurvature = g_curvature[DTid.xy];
+	if(roughness >= MAX_ROUGHNESS_VIRTUAL_MOTION || g_frame.CameraStatic)
+		prevUV = prevSurfaceUV;
+	else
+	{
+		int2 prevPixel = prevSurfaceUV * renderDim;
+		float3 relfectedPos = RGI_Util::PartialReadReservoir_Pos(prevPixel, g_local.PrevReservoir_A_DescHeapIdx);
 
-	// 	prevUV = SkyDI_Util::VirtualMotionReproject(posW, roughness, surface, rayT, localCurvature, linearDepth,
-	// 		g_frame.TanHalfFOV, g_frame.PrevViewProj);
-	// }
-	
+		float3 wo = normalize(g_frame.CameraPos - posW);
+		float t = length(relfectedPos - posW);
+		float3 wi = (relfectedPos - posW) / t;
+		float3 wh = normalize(wi + wo);
+		float whdotwo = saturate(dot(wo, wh));
+
+		if(relfectedPos.x != FLT_MAX)
+		{
+			Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureDescHeapIdx];
+			float localCurvature = g_curvature[DTid];
+
+			prevUV = RGI_Util::VirtualMotionReproject(posW, roughness, wo, whdotwo, 0, t, localCurvature, 
+				z_view, g_frame);
+		}
+	}
+
+	if(prevUV.x == FLT_MAX)
+		return;
+
 	//	p0-----------p1
 	//	|-------------|
 	//	|--prev-------|
 	//	|-------------|
 	//	p2-----------p3
-	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 f = prevUV * renderDim;
 	const float2 topLeft = floor(f - 0.5f);
 	const float2 offset = f - (topLeft + 0.5f);
@@ -352,18 +441,18 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 
 	if (dot(1, weights) == 0)
 		return;
-			
+
 	// geometry weight
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-	float4 prevDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
-	
+	float4 prevLinearDepths = g_prevDepth.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 	float2 prevUVs[4];
 	prevUVs[0] = topLeftTexelUV;
 	prevUVs[1] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 0.0f);
 	prevUVs[2] = topLeftTexelUV + float2(0.0f, 1.0f / g_frame.RenderHeight);
 	prevUVs[3] = topLeftTexelUV + float2(1.0f / g_frame.RenderWidth, 1.0f / g_frame.RenderHeight);
-	weights *= GeometryTest(prevDepths, prevUVs, normal, posW, linearDepth);
-	
+	weights *= GeometryTest(prevLinearDepths, prevUVs, normal, posW, z_view);
+	weights *= prevLinearDepths != FLT_MAX;
+
 	// normal weight
 	GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 
@@ -371,12 +460,12 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	// x (0, 1)		y (1, 1)
 	const float4 prevNormalsXEncoded = g_prevNormal.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
-	
+
 	float3 prevNormals[4];
-	prevNormals[0] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
@@ -394,14 +483,14 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 									       offset.x * (1.0f - offset.y),
 									       (1.0f - offset.x) * offset.y,
 									       offset.x * offset.y);
-	
+
 	weights *= bilinearWeights;
 	weights *= weights > 1e-3f;
 	const float weightSum = dot(1.0f, weights);
 
 	if (weightSum < 1e-3f)
 		return;
-	
+
 	// uniformly distribute the weight over the nonzero samples
 	weights /= weightSum;
 
@@ -410,14 +499,14 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	float4 histTspp = g_prevTemporalCache.GatherAlpha(g_samPointClamp, topLeftTexelUV).wzxy;
 	histTspp = max(1, histTspp);
 	tspp = round(dot(histTspp, weights));
-		
+
 	if (tspp > 0)
 	{
 		float3 histColor[4];
 		const float4 histR = g_prevTemporalCache.GatherRed(g_samPointClamp, topLeftTexelUV).wzxy;
 		const float4 histG = g_prevTemporalCache.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 		const float4 histB = g_prevTemporalCache.GatherBlue(g_samPointClamp, topLeftTexelUV).wzxy;
-			
+
 		histColor[0] = float3(histR.x, histG.x, histB.x);
 		histColor[1] = float3(histR.y, histG.y, histB.y);
 		histColor[2] = float3(histR.z, histG.z, histB.z);
@@ -430,18 +519,21 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	}
 }
 
-void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float3 normal, float linearDepth, bool metallic, 
-	float roughness, float3 Li_s, float prevSurfaceLinearDepth, float2 prevSurfaceUV, bool motionVecValid)
+void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float3 normal, float z_view, bool metallic, 
+	float roughness, float3 Li_s, float prevSurfaceZ, float2 prevSurfaceUV, bool motionVecValid)
 {
 	float3 color = 0.0.xxx;
 	float tspp = 0;
-	if (IS_CB_FLAG_SET(CB_SKY_DI_DNSR_TEMPORAL_FLAGS::CACHE_VALID) && motionVecValid)
-		SampleTemporalCache_Virtual(DTid, posW, normal, linearDepth, currUV, metallic, roughness, prevSurfaceUV, color, tspp);
-	
+	if (g_local.IsTemporalCacheValid && motionVecValid)
+		SampleTemporalCache_Virtual(DTid, posW, normal, z_view, metallic, roughness, prevSurfaceUV, color, tspp);
+
+	if(g_local.FilterFirefly)
+		color = FilterFirefly<true>(color, DTid, z_view, normal, posW, roughness);
+
 	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
-	const float3 prevSurfacePosW = Math::Transform::WorldPosFromUV(prevSurfaceUV,
+	const float3 prevSurfacePosW = Math::WorldPosFromUV(prevSurfaceUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
-		prevSurfaceLinearDepth,
+		prevSurfaceZ,
 		g_frame.TanHalfFOV,
 		g_frame.AspectRatio,
 		g_frame.PrevViewInv, 
@@ -449,25 +541,25 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 
 	const float3 wo = normalize(g_frame.CameraPos - posW);
 	const float ndotwo = saturate(dot(normal, wo));
-
 	const float parallax = Parallax(posW, prevSurfacePosW, g_frame.CameraPos, prevCameraPos);
 	float reactivity = Reactivity(roughness, ndotwo, parallax);
-	float minTspp = metallic ? 0 : 1;
-	tspp = clamp((1 - reactivity) * g_local.MaxTsppSpecular, minTspp, g_local.MaxTsppSpecular);
+	tspp = clamp((1 - reactivity) * g_local.MaxTsppSpecular, 1, g_local.MaxTsppSpecular);
+
 	float3 currColor = dot(color, 1) <= 1e-5 ? Li_s : lerp(color, Li_s, 1.0f / (1.0f + tspp));
 
 	RWTexture2D<float4> g_currTemporalCache_Specular = ResourceDescriptorHeap[g_local.CurrTemporalCacheSpecularDescHeapIdx];
-	g_currTemporalCache_Specular[DTid.xy] = float4(currColor, tspp);
+	currColor = any(isnan(currColor)) ? 0 : currColor;
+	g_currTemporalCache_Specular[DTid.xy].xyzw = float4(currColor, tspp);
 }
 
 //--------------------------------------------------------------------------------------
 // main
 //--------------------------------------------------------------------------------------
 
-[numthreads(SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y, 1)]
+[numthreads(INDIRECT_DNSR_TEMPORAL_GROUP_DIM_X, INDIRECT_DNSR_TEMPORAL_GROUP_DIM_Y, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3 Gid : SV_GroupID)
 {
-	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_TEMPORAL_FLAGS::DENOISE))
+	if(!g_local.Denoise)
 		return;
 
 	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
@@ -476,7 +568,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float linearDepth = g_currDepth[DTid.xy];
 
-	// skip sky pixels
 	if (linearDepth == FLT_MAX)
 		return;
 
@@ -498,10 +589,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	float3 Li_d = float3(g_colorA[DTid.xy].a, g_colorB[DTid.xy].rg);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
 	const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromUV(currUV,
+	const float3 posW = Math::WorldPosFromUV(currUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -516,7 +607,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 
 	GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	float z = g_prevDepth.SampleLevel(g_samLinearClamp, prevSurfaceUV, 0.0f);	
-	const float prevSurfaceLinearDepth = motionVecValid ? Math::Transform::LinearDepthFromNDC(z, g_frame.CameraNear) : 0.0f;
+	const float prevSurfaceLinearDepth = motionVecValid ? z : FLT_MAX;
 
 	if(!isMetallic)
 	{

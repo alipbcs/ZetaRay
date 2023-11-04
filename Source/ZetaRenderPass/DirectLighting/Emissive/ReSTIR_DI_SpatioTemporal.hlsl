@@ -2,7 +2,7 @@
 #include "ReSTIR_DI_Resampling.hlsli"
 #include "../../Common/Common.hlsli"
 #include "../../Common/BRDF.hlsli"
-#include "../../../ZetaCore/Core/Material.h"
+#include "../../Common/LightSource.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 
@@ -14,9 +14,9 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_ReSTIR_DI_SpatioTemporal> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
 StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t1);
-StructuredBuffer<RT::EmissiveTriangleSample> g_aliasTable : register(t2);
+StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t2);
 #ifdef USE_PRESAMPLED_SETS 
-StructuredBuffer<RT::LightSample> g_sampleSets : register(t3);
+StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets : register(t3);
 #endif
 StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t4);
 
@@ -35,7 +35,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 	// brdf sampling
 	for (int s_b = 0; s_b < numBrdfCandidates; s_b++)
 	{
-		const float3 wi = BRDF::SampleSpecularBRDFGGXSmith(surface, normal, rng.Uniform2D());
+		const float3 wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
 
 		// check if closest hit is a light source
 		RDI_Util::BrdfHitInfo hitInfo;
@@ -51,7 +51,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		if (hitEmissive)
 		{
 			emissive = g_emissives[hitInfo.emissiveTriIdx];
-			L_e = RT::EmissiveTriangleLi(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
+			L_e = LightSource::Le_EmissiveTriangle(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 			const float3 vtx1 = emissive.V1();
 			const float3 vtx2 = emissive.V2();
@@ -65,7 +65,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 			const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
 
 			surface.SetWi(wi, normal);
-			float wiPdf = BRDF::SpecularBRDFGGXSmithPdf(surface);
+			float wiPdf = BRDF::GGXVNDFReflectionPdf(surface);
 
 			// solid angle measure to area measure
 			dwdA = saturate(dot(lightNormal, -wi)) / max(hitInfo.t * hitInfo.t, 1e-6f);
@@ -78,7 +78,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 			// target = Le * BRDF(wi, wo) * |ndotwi|
 			// source = P(wi)
 			currTarget = L_e * BRDF::CombinedBRDF(surface) * dwdA;
-			w_i = m_i * Math::Color::LuminanceFromLinearRGB(currTarget);
+			w_i = m_i * Math::Color::Luminance(currTarget);
 		}
 
 		// resample	
@@ -102,15 +102,15 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 #ifdef USE_PRESAMPLED_SETS
 		RT::EmissiveTriangle emissive;
 		float lightSourcePdf;
-		uint emissiveIdx = RT::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, g_local.SampleSetSize, rng, emissive, lightSourcePdf);
+		uint emissiveIdx = LightSource::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, g_local.SampleSetSize, rng, emissive, lightSourcePdf);
 #else
 		float lightSourcePdf;
-		const uint emissiveIdx = RT::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
+		const uint emissiveIdx = LightSource::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
 		RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
 #endif
 
 		// sample light source surface
-		const RT::EmissiveTriSample lightSample = RT::SampleEmissiveTriangleSurface(posW, emissive, rng);
+		const LightSource::EmissiveTriAreaSample lightSample = LightSource::SampleEmissiveTriangleSurface(posW, emissive, rng);
 
 		const float t = length(lightSample.pos - posW);
 		const float3 wi = (lightSample.pos - posW) / t;
@@ -120,9 +120,9 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		float3 currTarget = BRDF::CombinedBRDF(surface) * dwdA;
 		float3 L_e = 0.0.xxx;
 			
-		if (Math::Color::LuminanceFromLinearRGB(currTarget) > 1e-6)
+		if (Math::Color::Luminance(currTarget) > 1e-6)
 		{
-			L_e = RT::EmissiveTriangleLi(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+			L_e = LightSource::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 #if TARGET_WITH_VISIBILITY == 1
 			L_e *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, emissive.ID);
@@ -132,8 +132,8 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		currTarget *= L_e;
 		const float lightPdf = lightSourcePdf * lightSample.pdf;
 		// p_d in m_i's numerator and w_i's denominator cancel out
-		const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + numBrdfCandidates * BRDF::SpecularBRDFGGXSmithPdf(surface) * dwdA, 1e-6f);
-		const float w_i = m_i * Math::Color::LuminanceFromLinearRGB(currTarget);
+		const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + numBrdfCandidates * BRDF::GGXVNDFReflectionPdf(surface) * dwdA, 1e-6f);
+		const float w_i = m_i * Math::Color::Luminance(currTarget);
 
 		if (r.Update(w_i, L_e, emissiveIdx, lightSample.bary, rng))
 		{
@@ -148,7 +148,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		}
 	}
 
-	float targetLum = Math::Color::LuminanceFromLinearRGB(target.p_hat);
+	float targetLum = Math::Color::Luminance(target.p_hat);
 	r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 
 #if TARGET_WITH_VISIBILITY == 0
@@ -206,7 +206,7 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 norma
 		// have a noticeable impact
 		bool extraSample = normal.y < -0.1 && 
 			roughness > 0.075 && 
-			Math::Color::LuminanceFromLinearRGB(baseColor) > 0.5f;
+			Math::Color::Luminance(baseColor) > 0.5f;
 
 		int numSamples = MIN_NUM_SPATIAL_SAMPLES + extraSample;
 #else
@@ -307,18 +307,35 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 		// demodulate base color
 		float3 f_d = (1.0f - surface.F) * (1.0f - isMetallic) * surface.ndotwi * ONE_OVER_PI;
+		float3 f_s = 0;
+
 		// demodulate Fresnel for metallic surfaces to preserve texture detail
-		float3 f_s = !isMetallic ? 
-			BRDF::SpecularBRDFGGXSmith(surface) : 
-			BRDF::GGX(surface.ndotwh, surface.alphaSq) * 
-			BRDF::SmithHeightCorrelatedG2ForGGX(surface.alphaSq, surface.ndotwi, surface.ndotwo) * 
-			surface.ndotwi;
+		float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
+		if(isMetallic)
+		{
+			if(surface.deltaNDF)
+			{
+				// Divide by ndotwi is so that integrating brdf over hemisphere would give F (Frensel).
+				f_s = (surface.ndotwh >= MIN_N_DOT_H_PERFECT_SPECULAR) / surface.ndotwi;
+			}
+			else
+			{
+				float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
+				float NDF = BRDF::GGX(surface.ndotwh, alphaSq);
+				float G2Div_ndotwi_ndotwo = BRDF::SmithHeightCorrelatedG2ForGGX(alphaSq, surface.ndotwi, surface.ndotwo);
+				f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
+			}
+		}
+		else
+			f_s = BRDF::SpecularBRDFGGXSmith(surface);
 
 		float3 Li_d = r.Le * target.dwdA * f_d * target.visible * r.W;
 		float3 Li_s = r.Le * target.dwdA * f_s * target.visible * r.W;
-		float tmp = 1.0f - surface.whdotwo;
-		tmp = tmp * tmp * tmp * tmp * tmp;
-		uint tmpU = asuint(tmp);
+		float3 wh = normalize(surface.wo + target.wi);
+		float whdotwo = saturate(dot(wh, surface.wo));
+		float tmp = 1.0f - whdotwo;
+		float tmpSq = tmp * tmp;
+		uint tmpU = asuint(tmpSq * tmpSq * tmp);
 		half2 encoded = half2(asfloat16(uint16_t(tmpU & 0xffff)), asfloat16(uint16_t(tmpU >> 16)));
 
 		RWTexture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorAUavDescHeapIdx];

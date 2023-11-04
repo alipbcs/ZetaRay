@@ -1,7 +1,8 @@
 #include "PreLighting_Common.h"
 #include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
-#include "../Common/RT.hlsli"
+#include "../Common/Sampling.hlsli"
+#include "../Common/StaticTextureSamplers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 
 #define NUM_SAMPLES_PER_LANE (ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI / ESTIMATE_TRI_LUMEN_WAVE_LEN)
@@ -76,7 +77,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float3 vtx2 = tri.V2();
 	const float surfaceArea = max(TriangleArea(tri.Vtx0, vtx1, vtx2), 1e-5);
 	const float pdf = 1.0f / surfaceArea;
-	float mcEstimate = Math::Color::LuminanceFromLinearRGB(lumen) * PI / (pdf * ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI);
+	float mcEstimate = Math::Color::Luminance(lumen) * PI / (pdf * ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI);
 
 	if (laneIdx == 0)
 	{

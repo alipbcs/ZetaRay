@@ -124,7 +124,7 @@ float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 norm
 
 	float3 minColor = currColor;
 	float3 maxColor = 0.0.xxx;
-	float currLum = Math::Color::LuminanceFromLinearRGB(currColor);
+	float currLum = Math::Color::Luminance(currColor);
 	if(currLum < 1e-4)
 		return currColor;
 	
@@ -158,7 +158,7 @@ float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 norm
 //				continue;
 			
 			float3 neighborColor = g_colorA[addr].rgb;
-			float neighborLum = Math::Color::LuminanceFromLinearRGB(neighborColor);
+			float neighborLum = Math::Color::Luminance(neighborColor);
 
 			if (neighborLum < minLum)
 			{

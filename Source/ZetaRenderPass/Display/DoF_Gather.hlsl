@@ -79,7 +79,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const float coc = g_coc[DTid.xy];
 	
 	float3 color = depthOfField(composited, DTid.xy, depth, coc);
-	const float lum = Math::Color::LuminanceFromLinearRGB(color.rgb);
+	const float lum = Math::Color::Luminance(color.rgb);
 	const float waveMaxLum = WaveActiveMax(lum);
 	const uint numWaves = (DOF_GATHER_THREAD_GROUP_DIM_X * DOF_GATHER_THREAD_GROUP_DIM_Y) / WaveGetLaneCount();
 	const uint wave = Gidx / WaveGetLaneCount();

@@ -151,6 +151,9 @@ namespace ZetaRay::DefaultRenderer
 		RenderPass::DirectLighting DirecLightingPass;
 		Core::RenderNodeHandle DirecLightingHandle;
 
+		RenderPass::IndirectLighting IndirecLightingPass;
+		Core::RenderNodeHandle IndirecLightingHandle;
+
 		// descriptor tables
 		enum class DESC_TABLE_WND_SIZE_CONST
 		{
@@ -158,6 +161,7 @@ namespace ZetaRay::DefaultRenderer
 			SKY_DI_DENOISED,
 			DIRECT_LIGHITNG_DENOISED,
 			SUN_SHADOW_DENOISED,
+			INDIRECT_DENOISED,
 			COUNT
 		};
 

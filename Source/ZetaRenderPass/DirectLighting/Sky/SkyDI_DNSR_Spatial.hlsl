@@ -109,7 +109,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 
 	Texture2D<float4> g_temporalCache_Diffuse = ResourceDescriptorHeap[g_local.TemporalCacheDiffuseDescHeapIdx];
 	const float3 centerColor = g_temporalCache_Diffuse[DTid].rgb;
-	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
+	const float centerLum = Math::Color::Luminance(centerColor);
 
 	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE))
 		return centerColor;
@@ -162,7 +162,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 			const float w_n = EdgeStoppingNormal_Diffuse(normal, sampleNormal, roughness);
 					
 			const float3 sampleColor = g_temporalCache_Diffuse[samplePosSS].rgb;
-			const float sampleLum = Math::Color::LuminanceFromLinearRGB(sampleColor);
+			const float sampleLum = Math::Color::Luminance(sampleColor);
 			const float w_l = roughness > g_local.MinRoughnessResample ? EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_DIFFUSE, biasScale) : 1.0f;
 			
 			const float weight = w_z * w_n * w_l * k_gaussian[i];
@@ -201,7 +201,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 		return centerColor;
 	
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float centerLum = Math::Color::LuminanceFromLinearRGB(centerColor);
+	const float centerLum = Math::Color::Luminance(centerColor);
 	const float alpha = roughness * roughness;
 	const float u0 = rng.Uniform();
 	const uint offset = rng.UintRange(0, NUM_SAMPLES);
@@ -246,7 +246,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 			const float w_n = EdgeStoppingNormal_Specular(normal, sampleNormal, alpha);
 					
 			const float3 sampleColor = g_temporalCache_Specular[samplePosSS].rgb;
-			const float sampleLum = Math::Color::LuminanceFromLinearRGB(sampleColor);
+			const float sampleLum = Math::Color::Luminance(sampleColor);
 			const float w_l = EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_SPECULAR, 1);
 
 			const float sampleRoughness = g_metallicRoughness[samplePosSS].y;

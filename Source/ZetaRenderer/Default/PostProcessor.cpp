@@ -124,6 +124,10 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 				rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
 		}
 
+		// indirect lighting
+		data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT_DENOISED,
+			rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+
 		if (settings.Inscattering)
 		{
 			data.CompositingPass.SetInscatteringEnablement(true);
@@ -290,14 +294,14 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 			// sun shadow
 			renderGraph.AddInput(data.CompositingHandle,
 				rtData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED).ID(),
-				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 			// sky di
 			if (settings.SkyIllumination)
 			{
 				renderGraph.AddInput(data.CompositingHandle,
 					rtData.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			}
 
 			// emissive di
@@ -305,8 +309,13 @@ void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProce
 			{
 				renderGraph.AddInput(data.CompositingHandle,
 					rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
-					D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+					D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 			}
+
+			// indirect lighting
+			renderGraph.AddInput(data.CompositingHandle,
+				rtData.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+				D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
 			// inscattering
 			if (settings.Inscattering)

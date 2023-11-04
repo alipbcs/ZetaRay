@@ -149,7 +149,7 @@ void Camera::Update(const Motion& m)
 	if (m_clampSmallV0ToZero)
 	{
 		__m128 vForceIs0 = _mm_cmpeq_ps(vForce, _mm_setzero_ps());
-		__m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(1e-1f));
+		__m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(2e-1f));
 		__m128 vClamp = _mm_and_ps(vForceIs0, vV0Near0);
 		vInitialVelocity = _mm_blendv_ps(vInitialVelocity, _mm_setzero_ps(), vClamp);
 	}

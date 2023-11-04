@@ -127,10 +127,6 @@ namespace Sampling
 		return float3(x, y, z);
 	}
 
-	//--------------------------------------------------------------------------------------
-	// Sampling Shapes
-	//--------------------------------------------------------------------------------------
-
 	// Returns samples about the (0, 0, 1) axis
 	float3 UniformSampleCone(float2 u, float cosThetaMax, out float pdf)
 	{
@@ -184,7 +180,7 @@ namespace Sampling
 		return float2(r * cos(phi), r * sin(phi));
 	}
 
-	// Area = FOUR_PI;
+	// Area = FOUR_PI
 	float3 UniformSampleSphere(float2 u)
 	{
 		// Compute radius r (branchless).

@@ -62,21 +62,22 @@ void Compositing::Init(bool skyIllum)
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, true);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, skyIllum);
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
 	CreateLightAccumTexure();
 
 	ParamVariant p0;
-	p0.InitBool("Renderer", "Lighting", "Sun", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
+	p0.InitBool("Renderer", "Lighting", "Direct (Sun)", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
 	App::AddParam(p0);
 
-	//ParamVariant p6;
-	//p6.InitBool("Renderer", "Lighting", "Specular Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetSpecularIndirectEnablementCallback),
-	//	IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT));
-	//App::AddParam(p6);
+	ParamVariant p6;
+	p6.InitBool("Renderer", "Lighting", "Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetIndirectEnablementCallback),
+		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT));
+	App::AddParam(p6);
 
 	ParamVariant p7;
-	p7.InitBool("Renderer", "Lighting", "Emissives", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
+	p7.InitBool("Renderer", "Lighting", "Direct (Emissives)", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
 	App::AddParam(p7);
 
@@ -211,10 +212,10 @@ void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& 
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
 }
 
-//void Compositing::SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p)
-//{
-//	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SPECULAR_INDIRECT, p.GetBool());
-//}
+void Compositing::SetIndirectEnablementCallback(const Support::ParamVariant& p)
+{
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, p.GetBool());
+}
 
 void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p)
 {

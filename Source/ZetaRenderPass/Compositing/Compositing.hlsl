@@ -158,6 +158,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		color = L_e;
 	}
 	
+	if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && g_local.IndirectDenoisedDescHeapIdx != 0)
+	{
+		Texture2D<float4> g_indirectDenoised = ResourceDescriptorHeap[g_local.IndirectDenoisedDescHeapIdx];
+		color += g_indirectDenoised[DTid.xy].rgb / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
+	}
+	
 	if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INSCATTERING))
 	{
 		if (linearDepth > 1e-4f)
@@ -177,6 +183,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 			color += inscattering;
 		}
 	}
-
+	
 	g_hdrLightAccum[DTid.xy].rgb = color;
 }

@@ -46,7 +46,13 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
 			data.ConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
 	}
 
-	data.PreLightingPass.Init();
+	{
+		data.PreLightingPass.Init();
+
+		const Texture& curvature = data.PreLightingPass.GetCurvatureTexture();
+		Direct3DUtil::CreateTexture2DSRV(curvature, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
+	}
 	
 	if (settings.EmissiveLighting)
 	{
@@ -65,6 +71,14 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
 		Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
 			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
 	}
+
+	{
+		data.IndirecLightingPass.Init();
+
+		const Texture& denoised = data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED);
+		Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+	}
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data)
@@ -79,7 +93,13 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 			data.WndConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
 	}
 
-	data.PreLightingPass.OnWindowResized();
+	{
+		data.PreLightingPass.OnWindowResized();
+
+		const Texture& curvature = data.PreLightingPass.GetCurvatureTexture();
+		Direct3DUtil::CreateTexture2DSRV(curvature, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
+	}
 
 	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
 	{
@@ -98,6 +118,14 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 		Direct3DUtil::CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
 			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
 	}
+
+	{
+		data.IndirecLightingPass.OnWindowResized();
+
+		const Texture& denoised = data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED);
+		Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
+			(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+	}
 }
 
 void RayTracer::Shutdown(RayTracerData& data)
@@ -111,6 +139,7 @@ void RayTracer::Shutdown(RayTracerData& data)
 	data.SkyPass.Reset();
 	data.DirecLightingPass.Reset();
 	data.PreLightingPass.Reset();
+	data.IndirecLightingPass.Reset();
 }
 
 void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data)
@@ -144,10 +173,6 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 	data.RtAS.BuildStaticBLASTransforms();
 	data.RtAS.BuildFrameMeshInstanceData();
 
-	// TODO doesn't need to be called each frame
-	auto& r = App::GetRenderer().GetSharedShaderResources();
-	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_SCENE_BVH, data.RtAS.GetTLAS());
-
 	data.PreLightingPass.Update(settings.EmissiveLighting);
 	const bool lightPresampling = data.PreLightingPass.IsPresamplingEnabled();
 
@@ -163,7 +188,9 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 				(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
 		}
 
-		data.DirecLightingPass.SetLightPresamplingEnabled(data.PreLightingPass.IsPresamplingEnabled(),
+		data.DirecLightingPass.SetLightPresamplingEnabled(lightPresampling,
+			data.PreLightingPass.GetNumSampleSets(), data.PreLightingPass.GetSampleSetSize());
+		data.IndirecLightingPass.SetLightPresamplingEnabled(lightPresampling,
 			data.PreLightingPass.GetNumSampleSets(), data.PreLightingPass.GetSampleSetSize());
 
 		if (App::GetScene().AreEmissivesStale())
@@ -173,6 +200,12 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 			data.EmissiveAliasTable.SetRelaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
 		}
 	}
+
+	if (lightPresampling)
+		data.IndirecLightingPass.SetPresampledEmissiveSetGpuVa(data.PreLightingPass.GetPresampledSets().GpuVA());
+
+	data.IndirecLightingPass.SetCurvatureDescHeapOffset(data.WndConstDescTable.GPUDesciptorHeapIndex(
+		(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
 }
 
 void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, RenderGraph& renderGraph)
@@ -224,7 +257,10 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 		&PreLighting::Render);
 	data.PreLightingPassHandle = renderGraph.RegisterRenderPass("PreLighting", RENDER_NODE_TYPE::COMPUTE, dlg1);
 
-	// direct lighting
+	auto& curvatureTex = data.PreLightingPass.GetCurvatureTexture();
+	renderGraph.RegisterResource(const_cast<Texture&>(curvatureTex).Resource(), curvatureTex.ID(),
+		D3D12_RESOURCE_STATE_COMMON);
+
 	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
 	{
 		// read back emissive lumens and compute the alias table on CPU
@@ -247,6 +283,19 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 
 		if (tlasReady)
 		{
+			// pre lighting
+			if (data.PreLightingPass.IsPresamplingEnabled())
+			{
+				auto& presampled = data.PreLightingPass.GePresampledSets();
+				renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(presampled).Resource(), presampled.ID(),
+					D3D12_RESOURCE_STATE_COMMON);
+
+				auto& lvg = data.PreLightingPass.GetLightVoxelGrid();
+				renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(lvg).Resource(), lvg.ID(),
+					D3D12_RESOURCE_STATE_COMMON);
+			}
+
+			// direct lighting
 			fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DirecLightingPass,
 				&DirectLighting::Render);
 			data.DirecLightingHandle = renderGraph.RegisterRenderPass("DirectLighting", RENDER_NODE_TYPE::COMPUTE, dlg3);
@@ -263,6 +312,16 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 		data.SkyDI_Handle = renderGraph.RegisterRenderPass("SkyDI", RENDER_NODE_TYPE::COMPUTE, dlg2);
 
 		Texture& t = const_cast<Texture&>(data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED));
+		renderGraph.RegisterResource(t.Resource(), t.ID());
+	}
+
+	// indirect lighting
+	if (tlasReady)
+	{
+		fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.IndirecLightingPass, &IndirectLighting::Render);
+		data.IndirecLightingHandle = renderGraph.RegisterRenderPass("Indirect", RENDER_NODE_TYPE::COMPUTE, dlg2);
+
+		Texture& t = const_cast<Texture&>(data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED));
 		renderGraph.RegisterResource(t.Resource(), t.ID());
 	}
 }
@@ -303,6 +362,10 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 		}
 	}
 
+	renderGraph.AddOutput(data.PreLightingPassHandle,
+		data.PreLightingPass.GetCurvatureTexture().ID(),
+		D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
 	// direct lighting
 	if (settings.EmissiveLighting && numEmissives)
 	{
@@ -332,6 +395,17 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 					D3D12_RESOURCE_STATE_COPY_DEST);
 			}
 
+			if (data.PreLightingPass.IsPresamplingEnabled())
+			{
+				renderGraph.AddOutput(data.PreLightingPassHandle,
+					data.PreLightingPass.GePresampledSets().ID(),
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+
+				renderGraph.AddOutput(data.PreLightingPassHandle,
+					data.PreLightingPass.GetLightVoxelGrid().ID(),
+					D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+			}
+
 			// RT-AS
 			renderGraph.AddInput(data.DirecLightingHandle,
 				tlasID,
@@ -343,7 +417,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
-				gbuffData.Normal[outIdx].ID(),
+				gbuffData.BaseColor[1 - outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
@@ -351,11 +425,16 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
-				gbuffData.MetallicRoughness[outIdx].ID(),
+				gbuffData.MetallicRoughness[1 - outIdx].ID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			// curr g-buffers
+			renderGraph.AddInput(data.DirecLightingHandle,
+				gbuffData.Normal[outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
-				gbuffData.MetallicRoughness[1 - outIdx].ID(),
+				gbuffData.MetallicRoughness[outIdx].ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
@@ -371,7 +450,7 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			renderGraph.AddInput(data.DirecLightingHandle,
-				gbuffData.BaseColor[1 - outIdx].ID(),
+				gbuffData.EmissiveColor.ID(),
 				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 			// output
@@ -425,6 +504,19 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(data.SkyDI_Handle,
+			gbuffData.BaseColor[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.SkyDI_Handle,
+			gbuffData.Normal[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.SkyDI_Handle,
+			gbuffData.MetallicRoughness[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// curr g-buffers
+		renderGraph.AddInput(data.SkyDI_Handle,
 			gbuffData.Normal[outIdx].ID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
@@ -445,12 +537,83 @@ void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		renderGraph.AddInput(data.SkyDI_Handle,
-			gbuffData.BaseColor[1 - outIdx].ID(),
+			gbuffData.EmissiveColor.ID(),
 			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
 		// denoised output
 		renderGraph.AddOutput(data.SkyDI_Handle,
 			data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID(),
+			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+	}
+
+	// indirect
+	if (tlasReady)
+	{
+		if (settings.EmissiveLighting && numEmissives && data.PreLightingPass.IsPresamplingEnabled())
+		{
+			renderGraph.AddInput(data.IndirecLightingHandle,
+				data.PreLightingPass.GePresampledSets().ID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+			renderGraph.AddInput(data.IndirecLightingHandle,
+				data.PreLightingPass.GetLightVoxelGrid().ID(),
+				D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+		}
+
+		// RT-AS
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			tlasID,
+			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
+
+		// prev g-buffers
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.DepthBuffer[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.Normal[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.MetallicRoughness[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.BaseColor[1 - outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// curr g-buffers
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.Normal[outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.MetallicRoughness[outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.DepthBuffer[outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.BaseColor[outIdx].ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.EmissiveColor.ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			gbuffData.MotionVec.ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		renderGraph.AddInput(data.IndirecLightingHandle,
+			data.PreLightingPass.GetCurvatureTexture().ID(),
+			D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+		// denoised output
+		renderGraph.AddOutput(data.IndirecLightingHandle,
+			data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 	}
 }

@@ -233,8 +233,8 @@ namespace RDI_Util
 
 			const float cosThetaPrime = saturate(dot(target_c.lightNormal, -wi_i));
 			const float dwdA = cosThetaPrime / max(t_i * t_i, 1e-6);
-			const float p_i_y_c = Math::Color::LuminanceFromLinearRGB(r_c.Le * brdfCosTheta_i * dwdA);
-			const float p_c_y_c = Math::Color::LuminanceFromLinearRGB(target_c.p_hat);
+			const float p_i_y_c = Math::Color::Luminance(r_c.Le * brdfCosTheta_i * dwdA);
+			const float p_c_y_c = Math::Color::Luminance(target_c.p_hat);
 
 			const float numerator = r_i.M * p_i_y_c;
 			const bool denomGt0 = (p_c_y_c + numerator) > 0;	// both are positive
@@ -263,11 +263,11 @@ namespace RDI_Util
 				currTarget = r_i.Le * brdfCosTheta_c * dwdA;
 
 #if TARGET_WITH_VISIBILITY == 1
-				if(Math::Color::LuminanceFromLinearRGB(currTarget) > 1e-5)
+				if(Math::Color::Luminance(currTarget) > 1e-5)
 					currTarget *= VisibilityApproximate(g_bvh, posW_c, emissive_i.wi, emissive_i.t, normal_c, emissive_i.ID);
 #endif
 
-				const float targetLum = Math::Color::LuminanceFromLinearRGB(currTarget);
+				const float targetLum = Math::Color::Luminance(currTarget);
 				m_i = Compute_m_i(r_c, r_i, targetLum, w_sum_i);
 			}
 
@@ -284,7 +284,7 @@ namespace RDI_Util
 				brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
 
 #if TARGET_WITH_VISIBILITY == 1
-				if(Math::Color::LuminanceFromLinearRGB(brdfCosTheta_i) > 1e-5)
+				if(Math::Color::Luminance(brdfCosTheta_i) > 1e-5)
 					brdfCosTheta_i *= VisibilityApproximate(g_bvh, posW_i, wi_i, t_i, normal_i, target_c.lightID);
 #endif
 			}
@@ -293,7 +293,7 @@ namespace RDI_Util
 
 			if(r_i.IsValid())
 			{
-				const float w_i = m_i * Math::Color::LuminanceFromLinearRGB(currTarget) * r_i.W;
+				const float w_i = m_i * Math::Color::Luminance(currTarget) * r_i.W;
 
 				if (this.r_s.Update(w_i, r_i.Le, r_i.LightIdx, r_i.Bary, rng))
 				{
@@ -311,7 +311,7 @@ namespace RDI_Util
 
 		void End(Reservoir r_c, inout Target target_c, inout RNG rng)
 		{
-			const float w_c = Math::Color::LuminanceFromLinearRGB(target_c.p_hat) * r_c.W * this.m_c;
+			const float w_c = Math::Color::Luminance(target_c.p_hat) * r_c.W * this.m_c;
 
 			if(!this.r_s.Update(w_c, r_c.Le, r_c.LightIdx, r_c.Bary, rng))
 			{
@@ -320,7 +320,7 @@ namespace RDI_Util
 			}
 
 			this.r_s.M = this.M_s;
-			const float targetLum = Math::Color::LuminanceFromLinearRGB(target_c.p_hat);
+			const float targetLum = Math::Color::Luminance(target_c.p_hat);
 			this.r_s.W = targetLum > 0 ? this.r_s.w_sum / (targetLum * (1 + this.k)) : 0;
 			// TODO investigate
 			this.r_s.W = isnan(this.r_s.W) ? 0 : this.r_s.W;
@@ -474,7 +474,7 @@ namespace RDI_Util
 		const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
 		const float3 targetAtPrev = le * BRDF::CombinedBRDF(prevSurface) * dwdA;
-		float targetLumAtPrev = Math::Color::LuminanceFromLinearRGB(targetAtPrev);
+		float targetLumAtPrev = Math::Color::Luminance(targetAtPrev);
 
 		// should use previous frame's bvh
 	#if TARGET_WITH_VISIBILITY == 1
@@ -511,7 +511,7 @@ namespace RDI_Util
 		{
 			float targetLumAtPrev = 0.0f;
 
-			if(Math::Color::LuminanceFromLinearRGB(r.Le) > 1e-6)
+			if(Math::Color::Luminance(r.Le) > 1e-6)
 			{
 				BRDF::ShadingData prevSurface;
 				targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, target.lightNormal, 
@@ -520,7 +520,7 @@ namespace RDI_Util
 					linearDepth, g_frame, g_bvh, prevSurface);
 			}
 
-			const float p_curr = r.M * Math::Color::LuminanceFromLinearRGB(target.p_hat);
+			const float p_curr = r.M * Math::Color::Luminance(target.p_hat);
 			const float m_curr = p_curr / max(p_curr + prevM * targetLumAtPrev, 1e-6);
 			r.w_sum *= m_curr;
 		}
@@ -535,7 +535,7 @@ namespace RDI_Util
 			EmissiveData prevEmissive = EmissiveData::Init(prev, g_emissives);
 			float dwdA;
 			const float3 currTarget = TargetAtCurrentPixel(prev.Le, posW, normal, linearDepth, surface, g_bvh, prevEmissive, dwdA);
-			const float targetLumAtCurr = Math::Color::LuminanceFromLinearRGB(currTarget);
+			const float targetLumAtCurr = Math::Color::Luminance(currTarget);
 
 			// w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
 			if(targetLumAtCurr > 1e-6)
@@ -561,7 +561,7 @@ namespace RDI_Util
 			}
 		}
 
-		float targetLum = Math::Color::LuminanceFromLinearRGB(target.p_hat);
+		float targetLum = Math::Color::Luminance(target.p_hat);
 		r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 		r.M = newM;
 	}

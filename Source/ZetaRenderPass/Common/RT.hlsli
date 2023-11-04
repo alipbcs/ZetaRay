@@ -2,26 +2,24 @@
 #define RT_H
 
 #include "../../ZetaCore/RayTracing/RtCommon.h"
-#include "../../ZetaCore/Core/Material.h"
 #include "../Common/Math.hlsli"
-#include "../Common/Sampling.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
 
 namespace RT
 {
+	// Usage (starting from the GBuffer):
+	//
+	//		1. surfaceSpreadAngle = GetSurfaceSpreadAngleFromGBuffer()
+	//		2. RayCone rc = Init()
+	//		3. Trace a ray to find the next path vertex.
+	//		4. rc.Update(hitT, 0)
+	//			4.1 lambda = rc.Lambda(...)
+	//			4.2 mip = rc.TextureMipmapOffset(lambda, ...)
+	//			4.2 Do texture sampling using mip
+	//		5. goto 3	
+	//
 	// Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
 	// and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
 	// Ray Tracing Gems 1, 2019.
-	//
-	// Usage (starting from the GBuffer):
-	//		1. surfaceSpreadAngle = GetSurfaceSpreadAngleFromGBuffer()
-	//		2. RayCone rc = Init()
-	//		3. trace a ray to find the next vertex
-	//		4. rc.Update(hitT, 0)
-	//			4.1 lambda = rc.ComputeLambda(...)
-	//			4.2 mipmapBias = rc.ComputeTextureMipmapOffset(lambda, ...)
-	//			4.2 Do texture sampling using mipmapBias...
-	//		5. goto 3	
 	struct RayCone
 	{
 		static RayCone Init(float pixelSpreadAngle)
@@ -61,6 +59,23 @@ namespace RT
 			return lambda;
 		}
 
+		float Lambda(float TaDivPa, float ndotwo)
+		{
+			float lambda = TaDivPa;
+			lambda *= this.Width * this.Width;
+			lambda /= (ndotwo * ndotwo);
+
+			return lambda;
+		}
+
+		static float TaDivPa(float3 v0, float3 v1, float3 v2, float2 t0, float2 t1, float2 t2)
+		{
+			float P_a = length(cross((v1 - v0), (v2 - v0)));
+			float T_a = abs((t1.x - t0.x) * (t2.y - t0.y) - (t2.x - t0.x) * (t1.y - t0.y));
+
+			return T_a / P_a;
+		}
+
 		static float TextureMipmapOffset(float lambda, float w, float h)
 		{
 			float mip = lambda * w * h;
@@ -69,14 +84,6 @@ namespace RT
 
 		half Width;
 		half SpreadAngle;
-	};
-
-	struct EmissiveTriSample
-	{
-		float3 pos;
-		float3 normal;
-		float2 bary;
-		float pdf;
 	};
 
 	// basis*: view-space basis vectors in world-space coordinates
@@ -94,8 +101,8 @@ namespace RT
 		return normalize(dirW);
 	}
 
-	// Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
 	// Geometric Normal points outward for rays exiting the surface, else should be flipped.
+	// Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
 	float3 OffsetRayRTG(float3 pos, float3 geometricNormal)
 	{
 		static const float origin = 1.0f / 32.0f;
@@ -125,77 +132,22 @@ namespace RT
 		return origin + dir * normalBias;
 	}
 
-	uint SampleAliasTable(StructuredBuffer<RT::EmissiveTriangleSample> g_aliasTable, uint numEmissiveTriangles, 
-		inout RNG rng, out float pdf)
+	// Returns 1 / (n_1 p_1 + n_2 p_2) * f / p_1
+	template<typename T>
+	T BalanceHeuristic(float p_1, float p_2, T f, float n_1 = 1, float n_2 = 1)
 	{
-		uint u0 = rng.UintRange(0, numEmissiveTriangles);
-		RT::EmissiveTriangleSample s = g_aliasTable[u0];
-
-		float u1 = rng.Uniform();
-		if (u1 <= s.P_Curr)
-		{
-			pdf = s.CachedP_Orig;
-			return u0;
-		}
-
-		pdf = s.CachedP_Alias;
-		return s.Alias;
+		return f / max(p_1 * n_1 + p_2 * n_2, 1e-6f);
 	}
 
-	uint UnformSampleSampleSet(uint sampleSetIdx, StructuredBuffer<RT::LightSample> g_sampleSets, uint sampleSetSize, 
-		inout RNG rng, out RT::EmissiveTriangle tri, out float pdf)
+	// Returns (n_1 p_1) / ((n_1 p_1)^2 + (n_2 p_2)^2) * f / p_1
+	template<typename T>
+	T PowerHeuristic(float p_1, float p_2, T f, float n_1 = 1, float n_2 = 1)
 	{
-		uint u = rng.UintRange(0, sampleSetSize);
+		float a = n_1 * p_1;
+		float b = n_2 * p_2;
 
-		RT::LightSample s = g_sampleSets[sampleSetIdx * sampleSetSize + u];
-		tri = s.Tri;
-		pdf = s.Pdf;
-
-		return s.Index;
+		return f * a / max(a * a + b * b, 1e-6f);
 	}
-
-	EmissiveTriSample SampleEmissiveTriangleSurface(float3 posW, RT::EmissiveTriangle tri, inout RNG rng)
-	{
-		EmissiveTriSample ret;
-
-		float2 u = rng.Uniform2D();
-		ret.bary = Sampling::UniformSampleTriangle(u);
-
-		const float3 vtx1 = tri.V1();
-		const float3 vtx2 = tri.V2();
-		ret.pos = (1.0f - ret.bary.x - ret.bary.y) * tri.Vtx0 + ret.bary.x * vtx1 + ret.bary.y * vtx2;
-		ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
-		float twoArea = length(ret.normal);
-		twoArea = max(twoArea, 1e-6);
-		ret.pdf = all(ret.normal == 0) ? 1.0f : 1.0f / (0.5f * twoArea);
-
-		ret.normal = all(ret.normal == 0) ? ret.normal : ret.normal / twoArea;
-		ret.normal = tri.IsDoubleSided() && dot(posW - ret.pos, ret.normal) < 0 ? ret.normal * -1.0f : ret.normal;
-
-		return ret;
-	}
-
-	// assumes area light is diffuse
-	float3 EmissiveTriangleLi(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset)
-	{
-		const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor_Signs);
-		const float emissiveStrength = tri.GetEmissiveStrength();
-		float3 L_e = emissiveFactor * emissiveStrength;
-
-		if (Math::Color::LuminanceFromLinearRGB(L_e) <= 1e-5)
-			return 0.0.xxx;
-
-		uint16_t emissiveTex = tri.GetEmissiveTex();
-		if (emissiveTex != -1)
-		{
-			const uint offset = NonUniformResourceIndex(emissiveMapsDescHeapOffset + emissiveTex);
-			EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-
-			float2 texUV = (1.0f - bary.x - bary.y) * tri.UV0 + bary.x * tri.UV1 + bary.y * tri.UV2;
-			L_e *= g_emissiveMap.SampleLevel(g_samLinearWrap, texUV, 0).rgb;
-		}
-
-		return L_e;
-	}}
+}
 
 #endif

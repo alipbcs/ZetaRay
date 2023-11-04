@@ -112,7 +112,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 			float3 neighborColor = max(g_currSignal[neighborAddrr].rgb, 0.0.xxx);
 			
 			float weight = Mitchell1D(i, 0.33f, 0.33f) * Mitchell1D(j, 0.33f, 0.33f);
-			weight *= 1.0 / (1.0 + Math::Color::LuminanceFromLinearRGB(neighborColor));
+			weight *= 1.0 / (1.0 + Math::Color::Luminance(neighborColor));
 
 			reconstructed += neighborColor * weight;
 			weightSum += weight;
@@ -177,8 +177,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
 	const float3 clippedHistory = ClipAABB(mean - std, mean + std, history);
 
 	// inverse-luminance filtering
-	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(reconstructed)));
-	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Math::Color::LuminanceFromLinearRGB(clippedHistory)));
+	const float currWeight = saturate(g_local.BlendWeight * rcp(1.0f + Math::Color::Luminance(reconstructed)));
+	const float histWeight = saturate((1.0f - g_local.BlendWeight) * rcp(1.0f + Math::Color::Luminance(clippedHistory)));
 	float3 result = (currWeight * reconstructed + histWeight * clippedHistory) / (currWeight + histWeight);
 
 	// TODO on rare occasions, result can be NaN. figure out what's causing it

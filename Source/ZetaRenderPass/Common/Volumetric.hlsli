@@ -38,7 +38,7 @@ namespace Volumetric
 		return 0.0596831f * (1.0f + cosTheta * cosTheta);
 	}
 
-	// Henyey–Greenstein phase function can used model Mie scattering. Used to describe light scattering
+	// Henyey-Greenstein phase function can used model Mie scattering. Used to describe light scattering
 	// from dust, smoke, fog and pollution like participating media
 	float PhaseHG(float cosTheta, float g)
 	{
@@ -48,7 +48,7 @@ namespace Volumetric
 		return ONE_OVER_4_PI * g2 / (denom * sqrt(denom));
 	}
 
-	// An approximation Henyey–Greenstein phase function that is faster to compute
+	// An approximation Henyey-Greenstein phase function that is faster to compute
 	float SchlickPhaseFunction(float cosTheta, float g)
 	{
 		float k = 1.55f * g - 0.55f * g * g * g;

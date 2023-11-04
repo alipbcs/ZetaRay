@@ -23,7 +23,7 @@ using namespace ZetaRay::Math;
 namespace
 {
 	// Ref: https://www.keithschwarz.com/darts-dice-coins/
-	void BuildAliasTable(MutableSpan<float> probs, MutableSpan<RT::EmissiveTriangleSample> table)
+	void BuildAliasTable(MutableSpan<float> probs, MutableSpan<RT::EmissiveLumenAliasTableEntry> table)
 	{
 		const int64_t N = probs.size();
 		const float oneDivN = 1.0f / N;
@@ -68,7 +68,7 @@ namespace
 			float largerProb = probs[largerIdx];
 			Assert(largerProb >= 1.0f, "should be >= 1.0");
 
-			RT::EmissiveTriangleSample & e = table[smallerIdx];
+			RT::EmissiveLumenAliasTableEntry& e = table[smallerIdx];
 			Assert(e.Alias == -1, "Every element must be inserted exactly one time.");
 			e.Alias = largerIdx;
 			e.P_Curr = smallerProb;
@@ -284,11 +284,11 @@ void PreLighting::Update(bool emissiveLighting)
 	// exceeds the threashold
 	m_doPresamplingThisFrame = true;
 
-	const size_t lightSetBuffLen = m_sampleSets.IsInitialized() ? m_sampleSets.Desc().Width / sizeof(RT::LightSample) : 0;
+	const size_t lightSetBuffLen = m_sampleSets.IsInitialized() ? m_sampleSets.Desc().Width / sizeof(RT::PresampledEmissiveTriangle) : 0;
 
 	if (lightSetBuffLen < m_currNumTris)
 	{
-		const size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * sizeof(RT::LightSample);
+		const size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * sizeof(RT::PresampledEmissiveTriangle);
 
 		m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
 			sizeInBytes,
@@ -464,7 +464,7 @@ void EmissiveTriangleAliasTable::Update(ReadbackHeapBuffer* readback)
 	if (currBuffLen < m_currNumTris)
 	{
 		m_aliasTable = GpuMemory::GetDefaultHeapBuffer("AliasTable",
-			m_currNumTris * sizeof(RT::EmissiveTriangleSample),
+			m_currNumTris * sizeof(RT::EmissiveLumenAliasTableEntry),
 			D3D12_RESOURCE_STATE_COMMON,
 			false);
 
@@ -489,7 +489,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 	auto& renderer = App::GetRenderer();
 	auto& scene = App::GetScene();
 
-	SmallVector<RT::EmissiveTriangleSample, App::LargeFrameAllocator> table;
+	SmallVector<RT::EmissiveLumenAliasTableEntry, App::LargeFrameAllocator> table;
 	table.resize(m_currNumTris);
 
 	const uint64_t fence = scene.GetRenderGraph()->GetCompletionFence(RenderNodeHandle(m_emissiveTriHandle));
@@ -518,7 +518,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 	computeCmdList.PIXBeginEvent("UploadAliasTable");
 
 	// schedule a copy
-	const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangleSample) * m_currNumTris;
+	const uint32_t sizeInBytes = sizeof(RT::EmissiveLumenAliasTableEntry) * m_currNumTris;
 	m_aliasTableUpload = GpuMemory::GetUploadHeapBuffer(sizeInBytes);
 	m_aliasTableUpload.Copy(0, sizeInBytes, table.data());
 	computeCmdList.CopyBufferRegion(m_aliasTable.Resource(), 

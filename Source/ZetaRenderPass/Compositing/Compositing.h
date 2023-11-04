@@ -25,6 +25,7 @@ namespace ZetaRay::RenderPass
 			INSCATTERING,
 			SUN_SHADOW,
 			EMISSIVE_DI_DENOISED,
+			INDIRECT_DENOISED,
 			COUNT
 		};
 
@@ -61,6 +62,9 @@ namespace ZetaRay::RenderPass
 				return;
 			case SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED:
 				m_cbComposit.EmissiveDIDenoisedDescHeapIdx = descHeapIdx;
+				return;
+			case SHADER_IN_GPU_DESC::INDIRECT_DENOISED:
+				m_cbComposit.IndirectDenoisedDescHeapIdx = descHeapIdx;
 				return;
 			default:
 				Assert(false, "unreachable case.");
@@ -118,7 +122,7 @@ namespace ZetaRay::RenderPass
 
 		void SetFireflyFilterEnablement(const Support::ParamVariant& p);
 		void SetSunLightingEnablementCallback(const Support::ParamVariant& p);
-		//void SetSpecularIndirectEnablementCallback(const Support::ParamVariant& p);
+		void SetIndirectEnablementCallback(const Support::ParamVariant& p);
 		void SetEmissiveEnablementCallback(const Support::ParamVariant& p);
 
 		void ReloadCompsiting();

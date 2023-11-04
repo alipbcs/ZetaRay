@@ -197,7 +197,7 @@ namespace GBufferRT
         float3 baseColor = Math::Color::UnpackRGBA(mat.BaseColorFactor).rgb;
         float4 emissiveColorNormalScale = Math::Color::UnpackRGBA(mat.EmissiveFactorNormalScale);
         float2 metalnessAlphaCuttoff = Math::Color::UnpackRG(mat.MetallicFactorAlphaCuttoff);
-        float roughness = mat.RoughnessFactor;
+        float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
         if (mat.BaseColorTexture != -1)
