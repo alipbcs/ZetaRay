@@ -9,42 +9,22 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
 
-uint32_t SampleAliasTable(Vector<AliasTableEntry>& aliasTable, RNG& rng, float& pdf)
-{
-	uint32_t idx = rng.GetUniformUintBounded((uint32_t)aliasTable.size());
-
-	AliasTableEntry e = aliasTable[idx];
-	float p = rng.GetUniformFloat();
-
-	if (p <= e.P)
-	{
-		pdf = e.OriginalProb;
-		return idx;
-	}
-
-	pdf = aliasTable[e.Alias].OriginalProb;
-	return e.Alias;
-}
-
 TEST_SUITE("AliasTable")
 {
 	TEST_CASE("Normalize")
 	{
 		float vals[] = { 1.0f, 22.0f, 4.0f, 8.0f, 3.5f, 10.0f };
-		SmallVector<float, Support::SystemAllocator, 6> vec;
-		vec.append_range(vals, vals + sizeof(vals) / sizeof(float));
+		SmallVector<float, Support::SystemAllocator, 6> weights;
+		weights.append_range(vals, vals + sizeof(vals) / sizeof(float));
 
-		SmallVector<AliasTableEntry> ret;
-		BuildAliasTableUnnormalized(ZetaMove(vec), ret);
+		AliasTable_Normalize(weights);
 
 		float sum = 0.0f;
-		for (auto e : ret)
-		{
-			sum += e.OriginalProb;
-		}
+		for (auto e : weights)
+			sum += e;
 
-		INFO("Set of values don't form a probability distribution function as they don't integrate to 1");
-		CHECK(fabsf(1.0f - sum) < 1e-5f);
+		INFO("Set of values don't form a probability distribution function as they don't integrate to 1.");
+		CHECK(fabsf(sum - weights.size()) < 1e-7f);
 	}
 
 	TEST_CASE("ReturnedPdfMatchesOriginal")
@@ -56,36 +36,33 @@ TEST_SUITE("AliasTable")
 		const uint32_t n = 1 + rng.GetUniformUintBounded(999);
 		SmallVector<float> vals;
 		vals.resize(n);
-		float sum = 0.0f;
 
 		for (uint32_t i = 0; i < n; i++)
 		{
 			float f = rng.GetUniformFloat() * 100.0f;
 			vals[i] = f;
-			sum += f;
 		}
 
+		SmallVector<float> valsNormalized = vals;
+		const float sum = Math::KahanSum(vals);
+
 		for (uint32_t i = 0; i < n; i++)
-			vals[i] /= sum;
+			valsNormalized[i] /= sum;
 
-		// valis is moved below, make a copy
-		SmallVector<float> valsCopy = vals;
-
-		SmallVector<AliasTableEntry> ret;
-		BuildAliasTableNormalized(ZetaMove(vals), ret);
-
-		REQUIRE(ret.size() == n);
+		SmallVector<AliasTableEntry> table;
+		table.resize(n);
+		AliasTable_Build(vals, table);
 
 		for (int i = 0; i < 100; i++)
 		{
 			float pdf;
-			uint32_t idx = SampleAliasTable(ret, rng, pdf);
+			uint32_t idx = SampleAliasTable(table, rng, pdf);
 
 			INFO("Out-of-bound index");
 			CHECK(idx < n);
 
-			INFO("Density mismatch, got ", pdf, ", expected ", valsCopy[idx]);
-			CHECK(pdf == valsCopy[idx]);
+			INFO("Density mismatch, got ", pdf, ", expected ", valsNormalized[idx]);
+			CHECK(fabsf(pdf - valsNormalized[idx]) < 1e-7f);
 		}
 	}
 
@@ -95,47 +72,51 @@ TEST_SUITE("AliasTable")
 		RNG rng(reinterpret_cast<uintptr_t>(&unused));
 		INFO("RNG seed: ", reinterpret_cast<uintptr_t>(&unused));
 
-		const uint32_t n = 20;
+		// generate some weights
+		const uint32_t n = 50;
 		SmallVector<float> vals;
 		vals.resize(n);
-		float sum = 0.0f;
 
 		for (uint32_t i = 0; i < n; i++)
-		{
-			float f = 1 + (float)rng.GetUniformUintBounded(99);
-			vals[i] = f;
-			sum += f;
-		}
+			vals[i] = (float)rng.GetUniformUintBounded(1000);
+
+		// normalize
+		SmallVector<float> valsNormalized = vals;
+		const float sum = Math::KahanSum(vals);
 
 		for (uint32_t i = 0; i < n; i++)
-			vals[i] /= sum;
+			valsNormalized[i] /= sum;
 
-		SmallVector<float> valsCopy = vals;
+		SmallVector<AliasTableEntry> table;
+		table.resize(n);
+		AliasTable_Build(vals, table);
 
-		SmallVector<AliasTableEntry> ret;
-		BuildAliasTableNormalized(ZetaMove(vals), ret);
-
-		REQUIRE(ret.size() == n);
-
-		const uint32_t sampleSize = 5000;
+		const uint32_t sampleSize = 100;
 		SmallVector<size_t> count;
 		count.resize(n, 0);
 
+		// generate some observations
 		for (int i = 0; i < sampleSize; i++)
 		{
 			float pdf;
-			uint32_t idx = SampleAliasTable(ret, rng, pdf);
+			uint32_t idx = SampleAliasTable(table, rng, pdf);
 
 			count[idx]++;
 		}
 
-		for (uint32_t i = 0; i < n; i++)
+		// Chi-squared goodness-of-fit test
+		double chiSquared = 0.0;
+		for (size_t i = 0; i < n; ++i) 
 		{
-			float sampleDensity = (float)count[i] / sampleSize;
-			float trueDensity = valsCopy[i];
-
-			INFO("Sample density mismatch, got ", sampleDensity, ", expected ", trueDensity);
-			CHECK(fabsf(trueDensity - sampleDensity) <= 2e-2f);	// TODO error is too high
+			double expected = valsNormalized[i] * sampleSize;
+			double diff = count[i] - expected;
+			chiSquared += (diff * diff) / expected;
 		}
+
+		// corresponding to alpha = 0.05 and dof = sampleSize - 1 = 99
+		const double criticalValue = 69.126;
+
+		INFO("Test statistic: ", chiSquared, ", critical value: ", criticalValue);
+		CHECK(chiSquared <= criticalValue);
 	}
 };

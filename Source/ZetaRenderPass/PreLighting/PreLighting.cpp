@@ -7,6 +7,7 @@
 #include <Scene/SceneCore.h>
 #include <Core/RenderGraph.h>
 #include <Core/SharedShaderResources.h>
+#include <Math/Sampling.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -21,51 +22,12 @@ using namespace ZetaRay::Math;
 
 namespace
 {
-	void Normalize(MutableSpan<float> weights)
-	{
-		// compute the sum of weights
-		const int64_t N = weights.size();
-		const float sum = Math::KahanSum(weights);
-		Assert(!IsNaN(sum), "sum of weights was NaN.");
-
-		// multiply each probability by N so that mean becomes 1 instead of 1 / N
-		const float sumRcp = N / sum;
-
-		// align to 32 bytes
-		float* curr = weights.data();
-		while ((reinterpret_cast<uintptr_t>(curr) & 31) != 0)
-		{
-			*curr *= sumRcp;
-			curr++;
-		}
-
-		const int64_t startOffset = curr - weights.data();
-
-		// largest multiple of 8 that is smaller than N
-		int64_t numToSumSIMD = N - startOffset;
-		numToSumSIMD -= numToSumSIMD & 7;
-
-		const float* end = curr + numToSumSIMD;
-		__m256 vSumRcp = _mm256_broadcast_ss(&sumRcp);
-
-		for (; curr < end; curr += 8)
-		{
-			__m256 V = _mm256_load_ps(curr);
-			V = _mm256_mul_ps(V, vSumRcp);
-
-			_mm256_store_ps(curr, V);
-		}
-
-		for (int64_t i = startOffset + numToSumSIMD; i < N; i++)
-			weights[i] *= sumRcp;
-	}
-
 	// Ref: https://www.keithschwarz.com/darts-dice-coins/
 	void BuildAliasTable(MutableSpan<float> probs, MutableSpan<RT::EmissiveTriangleSample> table)
 	{
 		const int64_t N = probs.size();
 		const float oneDivN = 1.0f / N;
-		Normalize(probs);
+		AliasTable_Normalize(probs);
 
 		for (int64_t i = 0; i < N; i++)
 		{
