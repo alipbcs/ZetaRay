@@ -49,7 +49,7 @@ namespace GBufferRT
         float3 dp20 = p2 - p0;
         
         float det = duv10.x * duv20.y - duv10.y * duv20.x;
-        if (abs(det) < 1e-8f)
+        if (abs(det) < 1e-7f)
         {
             float3 normal = normalize(cross(p1 - p0, p2 - p0));
             Math::Transform::revisedONB(normal, dpdu, dpdv);
@@ -61,43 +61,32 @@ namespace GBufferRT
         dpdv = (-duv20.x * dp10 + duv10.x * dp20) * invdet;
     }
 
-    // rate of change of uv coordinates w.r.t. screen space
+    // Rate of change of texture uv coordinates w.r.t. screen space
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
     float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, float t, float3 dpdu, float3 dpdv, 
         ConstantBuffer<cbFrameConstants> g_frame)
     {
-        // 1. form auxilary rays offset one pixel to the right and above of the main ray (r_x and r_y)
-        // 2. form the tangent plane at hit point (P)
-        // 3. approximating the surface around hit point using a first-order approximation there (same as P),
-        // hit points for auxilary rays can be solved for using the ray-plane intersection algorithm (p_x and p_y)
-        // 4. each triangle can be described as a parametric surface p = f(u, v). as triangle is planar,
-        // the first-order approximation is exact:
+        // 1. Form auxilary rays offset one pixel to right and above of main ray (r_x and r_y).
+        // 2. Form tangent plane at hit point (P).
+        // 3. Approximae surface around hit point using a first-order approximation at P. Hit 
+        // points for auxilary rays can be solved for using the ray-plane intersection 
+        // algorithm (denote by p_x and p_y).
+        // 4. Each triangle can be described as a parametric surface p = f(u, v). Since triangle 
+        // is planar, the first-order approximation is exact:
         //      p' - p0 = [dpdu dpdv] duv
-        // 5. since dpdu and dpdv are known, by replacing p_x and p_y for p' in above, ddx(uv) and ddy(uv) can 
-        // be approximated by solving the linear system
+        // 5. Since dpdu and dpdv are known, by replacing p_x and p_y for p' in above, ddx(uv) 
+        // and ddy(uv) can be approximated by solving the linear system.
 
-        float3 faceNormal = normalize(cross(dpdu, dpdv));
-        
-        int dim[2] = {0, 1};
-        if(abs(faceNormal.x) > abs(faceNormal.y) && abs(faceNormal.x) > abs(faceNormal.z))
-        {
-            dim[0] = 1;
-            dim[1] = 2;
-        }
-        else if(abs(faceNormal.y) > abs(faceNormal.z))
-        {
-            dim[0] = 0;
-            dim[1] = 2;
-        }
-
-        float2x2 A = float2x2(dpdu[dim[0]], dpdv[dim[0]],
-                              dpdu[dim[1]], dpdv[dim[1]]);
-        
-        float det = A[0][0] * A[1][1] - A[0][1] * A[1][0];
-        // since A is not invertible, linear system doesn't have a solution
-        if (abs(det) < 1e-8f)
+        // determinat of square matrix A^T A
+        float dpduDotdpdu = dot(dpdu, dpdu);
+        float dpdvDotdpdv = dot(dpdv, dpdv);
+        float dpduDotdpdv = dot(dpdu, dpdv);
+        float det = dpduDotdpdu * dpdvDotdpdv - dpduDotdpdv * dpduDotdpdv;
+        // A^T A is not invertible
+        if (abs(det) < 1e-7f)
             return 0;
 
+        float3 faceNormal = normalize(cross(dpdu, dpdv));
         float3 p = origin + t * dir;
         float d = -dot(faceNormal, p);
         
@@ -123,27 +112,36 @@ namespace GBufferRT
         
         // compute intersection with tangent plane at hit point
         float numerator = -dot(faceNormal, origin) - d;
+        
         float denom_x = dot(faceNormal, dir_x);
         denom_x = (denom_x < 0 ? -1 : 1) * max(abs(denom_x), 1e-8);
         float t_x = numerator / denom_x;
         float3 p_x = origin + t_x * dir_x;
 
-        // solve the linear system for ddx(uv) and ddy(uv).
-        float2 b_x = float2(p_x[dim[0]] - p[dim[0]], p_x[dim[1]] - p[dim[1]]);
-        float2 grads_x;
-        grads_x.x = (A[1][1] * b_x[0] - A[0][1] * b_x[1]) / det;
-        grads_x.y = (A[0][0] * b_x[1] - A[1][0] * b_x[0]) / det;
-
         float denom_y = dot(faceNormal, dir_y);
         denom_y = (denom_y < 0 ? -1 : 1) * max(abs(denom_y), 1e-8);
         float t_y = numerator / denom_y;
         float3 p_y = origin + t_y * dir_y;
-        float2 b_y = float2(p_y[dim[0]] - p[dim[0]], p_y[dim[1]] - p[dim[1]]);
-        float2 grads_y;
-        grads_y.x = (A[1][1] * b_y[0] - A[0][1] * b_y[1]) / det;
-        grads_y.y = (A[0][0] * b_y[1] - A[1][0] * b_y[0]) / det;
 
-        return float4(grads_x, grads_y);
+        // since the linear system described above is overdetermined, calculate
+        // the least-squares solution (denote by x_hat), which minimizes the L2-norm 
+        // of A x_hat - b when there's no solution:
+        //      x_hat = (A^TA)^-1 A^T b
+        // where A = [dpdu dpdv] and b = delta_p
+
+        // division by determinant happens below
+        float2x2 A_T_A_Inv = float2x2(dpdvDotdpdv, -dpduDotdpdv,
+                                     -dpduDotdpdv, dpduDotdpdu);
+        
+        float3 delta_p_x = p_x - p;
+        float2 b_x = float2(dot(dpdu, delta_p_x), dot(dpdv, delta_p_x));
+        float2 grads_x = mul(A_T_A_Inv, b_x) / det;
+
+        float3 delta_p_y = p_y - p;
+        float2 b_y = float2(dot(dpdu, delta_p_y), dot(dpdv, delta_p_y));
+        float2 grads_y = mul(A_T_A_Inv, b_y) / det;
+
+        return clamp(float4(grads_x, grads_y), 1e-7, 1e7);
     }
 
     void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, float roughness,
