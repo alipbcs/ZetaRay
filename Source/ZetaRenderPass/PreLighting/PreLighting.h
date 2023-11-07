@@ -37,7 +37,11 @@ namespace ZetaRay::RenderPass
 		Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
 		const Core::GpuMemory::Texture& GetCurvatureTexture() { return m_curvature; }
 		const Core::GpuMemory::DefaultHeapBuffer& GetPresampledSets() { return m_sampleSets; }
-		void Update();
+		// Releasing the lumen buffer and its readback buffer should happen after the alias table 
+		// has been calculated. Delegate that to code that that does that calculation.
+		auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseLumenBufferAndReadback); };
+
+		void Update(bool emissiveLighting);
 		void Render(Core::CommandList& cmdList);
 
 	private:
@@ -82,6 +86,7 @@ namespace ZetaRay::RenderPass
 		};
 
 		void CreateOutputs();
+		void ReleaseLumenBufferAndReadback();
 
 		Core::GpuMemory::DefaultHeapBuffer m_halton;
 		Core::GpuMemory::DefaultHeapBuffer m_lumen;
@@ -114,12 +119,14 @@ namespace ZetaRay::RenderPass
 
 		void Update(Core::GpuMemory::ReadbackHeapBuffer* readback);
 		void SetEmissiveTriPassHandle(Core::RenderNodeHandle& emissiveTriHandle);
+		void SetRelaseBuffersDlg(fastdelegate::FastDelegate0<> dlg) { m_releaseDlg = dlg; }
 		void Render(Core::CommandList& cmdList);
 
 	private:
 		Core::GpuMemory::DefaultHeapBuffer m_aliasTable;
 		Core::GpuMemory::UploadHeapBuffer m_aliasTableUpload;
 		Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
+		fastdelegate::FastDelegate0<> m_releaseDlg;
 		uint32_t m_currNumTris = 0;
 		int m_emissiveTriHandle = -1;
 	};

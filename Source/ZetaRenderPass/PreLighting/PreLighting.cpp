@@ -243,17 +243,15 @@ void PreLighting::OnWindowResized()
 	CreateOutputs();
 }
 
-void PreLighting::Update()
+void PreLighting::Update(bool emissiveLighting)
 {
 	m_estimateLumenThisFrame = false;
 	m_doPresamplingThisFrame = false;
 
-	if (!App::GetScene().AreEmissivesStale())
-	{
-		m_lumen.Reset();
-		m_readback.Reset();
-	}
-	else
+	if (!emissiveLighting)
+		return;
+
+	if (App::GetScene().AreEmissivesStale())
 	{
 		m_estimateLumenThisFrame = true;
 
@@ -282,6 +280,8 @@ void PreLighting::Update()
 	if (m_currNumTris < DefaultParamVals::MIN_NUM_LIGHTS_PRESAMPLING)
 		return;
 
+	// since the code reached there, we know emissive lighting is enabled and number of lights
+	// exceeds the threashold
 	m_doPresamplingThisFrame = true;
 
 	const size_t lightSetBuffLen = m_sampleSets.IsInitialized() ? m_sampleSets.Desc().Width / sizeof(RT::LightSample) : 0;
@@ -442,6 +442,12 @@ void PreLighting::CreateOutputs()
 	Direct3DUtil::CreateTexture2DUAV(m_curvature, m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_UAV));
 }
 
+void PreLighting::ReleaseLumenBufferAndReadback()
+{
+	m_lumen.Reset();
+	m_readback.Reset();
+}
+
 //--------------------------------------------------------------------------------------
 // EmissiveTriangleAliasTable
 //--------------------------------------------------------------------------------------
@@ -500,7 +506,8 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 		float* data = reinterpret_cast<float*>(m_readback->MappedMemory());
 		BuildAliasTable(MutableSpan(data, m_currNumTris), table);
 
-		m_readback->Unmap();
+		// unmapping happens automatically when readback buffer is released
+		//m_readback->Unmap();
 	}
 
 	auto& gpuTimer = renderer.GetGpuTimer();
@@ -528,4 +535,10 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 	gpuTimer.EndQuery(computeCmdList, queryIdx);
 
 	cmdList.PIXEndEvent();
+
+	// even though at this point this command list hasn't been submitted yet (only recorded),
+	// it's safe to release the buffers here -- this is because resource deallocation
+	// and signalling the related fence happens at the end of frame when all command 
+	// lists have been submitted
+	m_releaseDlg();
 }

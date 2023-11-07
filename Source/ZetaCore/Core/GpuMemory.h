@@ -29,7 +29,7 @@ namespace ZetaRay::Core::GpuMemory
 		ZetaInline bool IsInitialized() const { return m_resource != nullptr; }
 		ZetaInline ID3D12Resource* Resource() { return m_resource; }
 		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const { return m_resource->GetGPUVirtualAddress() + m_allocation.Offset; }
-		ZetaInline void* MappedMemeory() { return m_mappedMemory; }
+		ZetaInline void* MappedMemory() { return m_mappedMemory; }
 		ZetaInline const Support::OffsetAllocator::Allocation& Allocation() const { return m_allocation; }
 		ZetaInline uint32_t Offset() const { return m_allocation.Offset; }
 		void Copy(uint32_t offset, uint32_t numBytesToCopy, void* data);
@@ -71,7 +71,7 @@ namespace ZetaRay::Core::GpuMemory
 	struct ReadbackHeapBuffer
 	{
 		ReadbackHeapBuffer() = default;
-		explicit ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r);
+		explicit ReadbackHeapBuffer(ID3D12Resource* r);
 		~ReadbackHeapBuffer();
 		ReadbackHeapBuffer(ReadbackHeapBuffer&&);
 		ReadbackHeapBuffer& operator=(ReadbackHeapBuffer&&);
@@ -87,7 +87,7 @@ namespace ZetaRay::Core::GpuMemory
 		ZetaInline ID3D12Resource* Resource()
 		{
 			Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
-			return m_resource.Get();
+			return m_resource;
 		}
 		ZetaInline D3D12_RESOURCE_DESC Desc() const
 		{
@@ -104,12 +104,12 @@ namespace ZetaRay::Core::GpuMemory
 		ZetaInline bool IsMapped() const { return m_mappedMemory != nullptr; }
 		ZetaInline void* MappedMemory()
 		{
-			Assert(m_mappedMemory, "Resource is not mapped.");
+			//Assert(m_mappedMemory, "Resource is not mapped.");
 			return m_mappedMemory;
 		}
 
 	private:
-		ComPtr<ID3D12Resource> m_resource;
+		ID3D12Resource* m_resource = nullptr;
 		void* m_mappedMemory = nullptr;
 	};
 
@@ -208,6 +208,7 @@ namespace ZetaRay::Core::GpuMemory
 	void ReleaseUploadHeapArena(UploadHeapArena& arena);
 
 	ReadbackHeapBuffer GetReadbackHeapBuffer(uint32_t sizeInBytes);
+	void ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer);
 
 	DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
 		D3D12_RESOURCE_STATES initialState, bool allowUAV, bool initToZero = false);
@@ -231,10 +232,6 @@ namespace ZetaRay::Core::GpuMemory
 		D3D12_CLEAR_VALUE* clearVal = nullptr);
 
 	Texture GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
-		DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
-		uint32_t flags = 0, uint16_t mipLevels = 1);
-
-	Texture GetTextureCube(const char* name, uint64_t width, uint32_t height,
 		DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
 		uint32_t flags = 0, uint16_t mipLevels = 1);
 

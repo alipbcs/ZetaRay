@@ -148,7 +148,8 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 	auto& r = App::GetRenderer().GetSharedShaderResources();
 	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_SCENE_BVH, data.RtAS.GetTLAS());
 
-	data.PreLightingPass.Update();
+	data.PreLightingPass.Update(settings.EmissiveLighting);
+	const bool lightPresampling = data.PreLightingPass.IsPresamplingEnabled();
 
 	// recompute alias table only if there are stale emissives
 	if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
@@ -169,6 +170,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 		{
 			auto& readback = data.PreLightingPass.GetLumenReadbackBuffer();
 			data.EmissiveAliasTable.Update(&readback);
+			data.EmissiveAliasTable.SetRelaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
 		}
 	}
 }

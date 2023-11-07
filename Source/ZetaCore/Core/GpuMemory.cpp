@@ -129,7 +129,7 @@ namespace
 
 			UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer((uint32_t)totalSize);
 
-			CopyTextureFromUploadBuffer(uploadBuffer.Resource(), uploadBuffer.MappedMemeory(), uploadBuffer.Offset(),
+			CopyTextureFromUploadBuffer(uploadBuffer.Resource(), uploadBuffer.MappedMemory(), uploadBuffer.Offset(),
 				texture, (uint32_t)subResData.size(), firstSubresourceIndex, subResData, subresLayout,
 				subresNumRows, subresRowSize, postCopyState);
 
@@ -335,6 +335,11 @@ namespace
 
 		struct PendingResource
 		{
+			ZetaInline bool IsUploadHeapBuffer() const
+			{
+				return !Allocation.IsEmpty();
+			}
+
 			ID3D12Resource* Res;
 			uint64_t ReleaseFence;
 			void* MappedMemory = nullptr;
@@ -570,10 +575,9 @@ void DefaultHeapBuffer::Reset()
 // ReadbackHeapBuffer
 //--------------------------------------------------------------------------------------
 
-ReadbackHeapBuffer::ReadbackHeapBuffer(ComPtr<ID3D12Resource>&& r)
-{
-	m_resource.Swap(r);
-}
+ReadbackHeapBuffer::ReadbackHeapBuffer(ID3D12Resource* r)
+	: m_resource(r)
+{}
 
 ReadbackHeapBuffer::~ReadbackHeapBuffer()
 {
@@ -581,10 +585,9 @@ ReadbackHeapBuffer::~ReadbackHeapBuffer()
 }
 
 ReadbackHeapBuffer::ReadbackHeapBuffer(ReadbackHeapBuffer&& other)
-	: m_mappedMemory(std::exchange(other.m_mappedMemory, nullptr))
-{
-	m_resource.Swap(other.m_resource);
-}
+	: m_mappedMemory(std::exchange(other.m_mappedMemory, nullptr)),
+	m_resource(std::exchange(other.m_resource, nullptr))
+{}
 
 ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& other)
 {
@@ -593,20 +596,18 @@ ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& other)
 
 	Reset();
 
-	m_resource.Swap(other.m_resource);
+	m_resource = other.m_resource;
 	m_mappedMemory = other.m_mappedMemory;
 	other.m_mappedMemory = nullptr;
+	other.m_resource = nullptr;
 
 	return *this;
 }
 
 void ReadbackHeapBuffer::Reset()
 {
-	if (m_mappedMemory)
-	{
-		Assert(m_resource, "non-null mapped memory for null resource.");
-		m_resource->Unmap(0, nullptr);
-	}
+	if (m_resource)
+		GpuMemory::ReleaseReadbackHeapBuffer(*this);
 
 	m_resource = nullptr;
 	m_mappedMemory = nullptr;
@@ -778,12 +779,12 @@ void GpuMemory::Recycle()
 	// won't happen until next frame's update, which happens strictly after recycling has finished
 
 	{
-		// free the upload heap buffers here rather than on a background thread with the others as
-		// that would require synchronization
+		// release the upload heap buffers here rather than on a background thread with the others
+		// to avoid synchronization
 		const auto* first = std::partition(toDelete.begin(), toDelete.end(),
 			[](const GpuMemoryImplData::PendingResource& res)
 			{
-				return res.Allocation.IsEmpty();
+				return !res.IsUploadHeapBuffer();
 			});
 
 		const auto numUploadBuffers = toDelete.end() - first;
@@ -805,7 +806,7 @@ void GpuMemory::Recycle()
 				for (auto& r : ToDelete)
 				{
 					Assert(r.Res, "unexpected - attempting to release null resource.");
-					Assert(r.Allocation.IsEmpty(), "unexpected - small upload heap buffers shouldn't be released on a background thread.");
+					Assert(!r.IsUploadHeapBuffer(), "unexpected - small upload heap buffers shouldn't be released on a background thread.");
 
 					if (r.MappedMemory)
 						r.Res->Unmap(0, nullptr);
@@ -891,7 +892,7 @@ void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer)
 	g_data->m_toRelease.emplace_back(
 		GpuMemoryImplData::PendingResource{ .Res = buffer.Resource(),
 			.ReleaseFence = g_data->m_nextFenceVal,
-			.MappedMemory = buffer.MappedMemeory(),
+			.MappedMemory = buffer.MappedMemory(),
 			.Allocation = buffer.Allocation()});
 
 	ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
@@ -928,12 +929,31 @@ ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(uint32_t sizeInBytes)
 	D3D12_HEAP_PROPERTIES readbackHeap = Direct3DUtil::ReadbackHeapProp();
 	D3D12_RESOURCE_DESC desc = Direct3DUtil::BufferResourceDesc(sizeInBytes);
 
-	ComPtr<ID3D12Resource> buff;
+	ID3D12Resource* buffer;
 
 	CheckHR(device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE,
-		&desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(buff.GetAddressOf())));
+		&desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&buffer)));
 
-	return ReadbackHeapBuffer(ZetaMove(buff));
+#ifdef _DEBUG
+	buffer->SetName(L"Readback");
+#endif // _DEBUG
+
+	return ReadbackHeapBuffer(buffer);
+}
+
+void GpuMemory::ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer)
+{
+	Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
+	Assert(buffer.IsInitialized() || !buffer.IsMapped(), "non-null mapped memory for null resource.");
+
+	AcquireSRWLockExclusive(&g_data->m_pendingResourceLock);
+
+	g_data->m_toRelease.emplace_back(
+		GpuMemoryImplData::PendingResource{ .Res = buffer.Resource(),
+			.ReleaseFence = g_data->m_nextFenceVal,
+			.MappedMemory = buffer.MappedMemory()});
+
+	ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
 
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
@@ -1142,41 +1162,6 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
 
 	D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
 	D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex3D(format, width, height, depth, mipLevels, f);
-
-	ID3D12Resource* texture;
-	auto* device = App::GetRenderer().GetDevice();
-
-	D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
-	if ((flags & CREATE_TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
-		heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
-
-	CheckHR(device->CreateCommittedResource(&defaultHeap,
-		heapFlags,
-		&desc,
-		initialState,
-		nullptr,
-		IID_PPV_ARGS(&texture)));
-
-	return Texture(name, texture);
-}
-
-Texture GpuMemory::GetTextureCube(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
-	D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels)
-{
-	Assert(width < D3D12_REQ_TEXTURECUBE_DIMENSION, "Invalid width");
-	Assert(height < D3D12_REQ_TEXTURECUBE_DIMENSION, "Invalid height");
-	Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
-	Assert(!(flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL), "Texture Cube can't be used as Depth Stencil");
-
-	D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
-
-	if (flags & CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
-		f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
-	if (flags & CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-		f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
-
-	D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
-	D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex2D(format, width, height, 6, mipLevels, f);
 
 	ID3D12Resource* texture;
 	auto* device = App::GetRenderer().GetDevice();
