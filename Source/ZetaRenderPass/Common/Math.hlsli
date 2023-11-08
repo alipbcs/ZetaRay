@@ -193,30 +193,20 @@ namespace Math
 		
 		// Ref: T. Duff, J. Burgess, P. Christensen, C. Hery, A. Kensler, M. Liani, 
 		// R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
-		// Note: modified to return an orthonormal TBN basis in a left-handed system where N = n_Lhs
+		// Note: modified to return an orthonormal TBN basis in a left-handed system with +Y up.
 		void revisedONB(float3 n_ws, out float3 b1, out float3 b2)
 		{
 			// LHS to RHS with +Z up
 			const float3 n = float3(n_ws.x, n_ws.z, n_ws.y);
 			
-			// changes to b1 & b2:
-			// 1. transformed from RHS (+Z up) to LHS (+Y up)
-			// 2. reordered to match LHS orientation
-
-			if (n.z < 0.0f)
-			{
-				const float a = 1.0f / (1.0f - n.z);
-				const float b = n.x * n.y * a;
-				b1 = float3(b, -n.y, n.y * n.y * a - 1.0f);
-				b2 = float3(1.0f - n.x * n.x * a, n.x, -b);
-			}
-			else
-			{
-				const float a = 1.0f / (1.0f + n.z);
-				const float b = -n.x * n.y * a;
-				b1 = float3(b, -n.y, 1.0f - n.y * n.y * a);
-				b2 = float3(1.0f - n.x * n.x * a, -n.x, b);
-			}			
+			const float s = n.z >= 0.0f ? 1.0f : -1.0f;
+			const float a = -1.0 / (s + n.z);
+			const float b = n.x * n.y * a;
+			// Changes to b1 & b2:
+			// 1. Transformed from RHS (+Z up) to LHS (+Y up)
+			// 2. Reordered to match LHS orientation
+			b1 = float3(b, -n.y, s + n.y * n.y * a);
+			b2 = float3(1.0 + s * n.x * n.x * a, -s * n.x, s * b);
 		}
 
 		// Quaternion that rotates +Y to u
