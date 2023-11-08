@@ -187,7 +187,7 @@ namespace GBufferRT
 	    return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
     }
 
-    void ApplyTextureMaps(uint2 DTid, float t, float2 uv, uint matIdx, float3 normal, float3 tangent, 
+    void ApplyTextureMaps(uint2 DTid, float t, float2 uv, uint matIdx, float3 geoNormal, float3 tangent, 
         float2 motionVec, float4 grads, float3 posW, ConstantBuffer<cbFrameConstants> g_frame, 
         ConstantBuffer<cbGBufferRt> g_local, StructuredBuffer<Material> g_materials)
     {
@@ -198,6 +198,7 @@ namespace GBufferRT
         float4 emissiveColorNormalScale = Math::Color::UnpackRGBA(mat.EmissiveFactorNormalScale);
         float2 metalnessAlphaCuttoff = Math::Color::UnpackRG(mat.MetallicFactorAlphaCuttoff);
         float roughness = mat.RoughnessFactor;
+        float3 shadingNormal = geoNormal;
 
         if (mat.BaseColorTexture != -1)
         {
@@ -214,17 +215,31 @@ namespace GBufferRT
             NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + mat.NormalTexture)];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
-            normal = Math::Transform::TangentSpaceToWorldSpace(bump2, tangent, normal, emissiveColorNormalScale.w);
+            shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, emissiveColorNormalScale.w);
         }
 
-        if (mat.IsDoubleSided())
+        float3 wo = g_frame.CameraPos - posW;
+
+        // reverse normal for double-sided meshes if facing away from camera
+        if (mat.IsDoubleSided() && dot(wo, geoNormal) < 0)
+            shadingNormal *= -1;
+
+        // Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
+        // yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
+        // as brdf evaluates to 0 in these regions. To mitigate the issue, rotate the bumped normal towards
+        // wo until their dot product becomes greater than zero:
+        //
+        // 1. Project bumped normal onto plane formed by normal vector wo
+        // 2. Slightly rotate the projection towards wo so that their dot product becomes greater than zero
+#if 1
+        if(dot(wo, geoNormal) > 0 && dot(wo, shadingNormal) < 0)
         {
-            float3 posV = mul(g_frame.CurrView, float4(posW, 1)).xyz;
-            float3 normalV = mul((float3x3) g_frame.CurrView, normal);
-        
-            if (dot(normalV, -posV) < 0)
-                normal *= -1;
+            wo = normalize(wo);
+            shadingNormal = shadingNormal - dot(shadingNormal, wo) * wo;
+            shadingNormal = 1e-4f * wo + shadingNormal;
+            shadingNormal = normalize(shadingNormal);
         }
+#endif
 
         if (mat.MetallicRoughnessTexture != -1)
         {
@@ -250,8 +265,8 @@ namespace GBufferRT
         // encode metalness along with some other stuff
         metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, mat.BaseColorTexture, 
             emissiveColorNormalScale.rgb);
-        
-        WriteToGBuffers(DTid, t, normal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
+
+        WriteToGBuffers(DTid, t, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
             emissiveColorNormalScale.rgb, motionVec, g_local);
     }
 }
