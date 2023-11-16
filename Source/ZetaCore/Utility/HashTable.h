@@ -67,7 +67,7 @@ namespace ZetaRay::Util
 		}
 
 		template<typename... Args>
-		bool emplace(uint64_t key, Args&&... args)
+		bool try_emplace(uint64_t key, Args&&... args)
 		{
 			Assert(key != NULL_KEY, "Invalid key");
 

@@ -16,31 +16,20 @@ using namespace ZetaRay::Math;
 //--------------------------------------------------------------------------------------
 
 TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices, 
-	size_t vtxBuffStartOffset,
-	size_t idxBuffStartOffset,
+	uint32_t vtxBuffStartOffset,
+	uint32_t idxBuffStartOffset,
 	uint32_t numIndices, 
-	uint64_t matID)
+	uint32_t matIdx)
 	: m_numIndices(numIndices),
-	m_materialID(matID),
+	m_materialIdx(matIdx),
 	m_vtxBuffStartOffset(vtxBuffStartOffset),
 	m_idxBuffStartOffset(idxBuffStartOffset) 
 {
-	Assert(vertices.size() > 0 && vertices.size() < UINT_MAX, "Invalid number of vertices.");
-	Assert(numIndices > 0, "#indices must be greater than zero.");
-	//Assert(sizeof(VertexPosNormalTexTangent) - (offsetof(VertexPosNormalTexTangent, Position) + sizeof(float3)) >= sizeof(float), "");
-
+	Assert(vertices.size() < UINT_MAX, "Number of vertices exceeded maximum allowed.");
 	m_numVertices = (uint32_t)vertices.size();
 
 	v_AABB vBox = compueMeshAABB(vertices.data(), offsetof(Vertex, Position), sizeof(Vertex), m_numVertices);
 	m_AABB = store(vBox);
-
-	//size_t sizeInBytes = sizeof(VertexPosNormalTexTangent) * vertices.size();
-	//m_vertexBuffer = App::GetRenderer().GetGpuMemory().GetDefaultHeapBufferAndInit("VertexBuffer", sizeInBytes,
-	//	D3D12_RESOURCE_STATE_VERTEX_AND_CONSTANT_BUFFER, false, vertices.begin());
-
-	//sizeInBytes = sizeof(uint32_t) * indices.size();
-	//m_indexBuffer = renderer.GetGpuMemory().GetDefaultHeapBufferAndInit("IndexBuffer", sizeInBytes,
-	//	D3D12_RESOURCE_STATE_INDEX_BUFFER, false, indices.begin());
 }
 
 //--------------------------------------------------------------------------------------

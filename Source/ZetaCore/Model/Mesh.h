@@ -6,36 +6,26 @@
 
 namespace ZetaRay::Model
 {
-	// Ref: https://microsoft.github.io/DirectX-Specs/d3d/Raytracing.html
-	// This information helps in deciding which acceleration structure flags
-	// to use and how or whether to group models together in one BLAS
 	enum class RT_MESH_MODE
 	{
-		// slow build time but fastest possible trace time
+		// Slow build time but fastest possible trace time
 		STATIC = 0,
 
-		// dynamic meshes that don't change drastically, (change in number of
-		// primitives constituting the mesh, fast-moving objects, ...), can be updated and is
-		// fast to rebuild
-		SEMI_DYNAMIC,
+		// Dynamic mesh that only needs to update its transform and doesn't need rebuilds
+		DYNAMIC_NO_REBUILD,
 
-		// dynamic mesh for which rebuilding is more efficient (w.r.t. acceleration
-		// structure quality) than updating due to their dynamic behavior
-		FULL_DYNAMIC,
-
-		// mesh that potentially many rays would hit, fastest trace and can be updated
-		PRIMARY
+		// Dynamic mesh that needs rebuild (due to e.g. change in number of vertices or topology)
+		//DYNAMIC_REBUILD,
 	};
 
 	struct TriangleMesh
 	{
 		TriangleMesh() = default;
-
 		TriangleMesh(Util::Span<Core::Vertex> vertices,
-			size_t vtxBuffStartOffset,
-			size_t idxBuffStartOffset,
+			uint32_t vtxBuffStartOffset,
+			uint32_t idxBuffStartOffset,
 			uint32_t numIndices,
-			uint64_t matID);
+			uint32_t matIdx);
 		
 		//inline D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const
 		//{
@@ -57,9 +47,9 @@ namespace ZetaRay::Model
 		//	return ibv;
 		//}
 
-		size_t m_vtxBuffStartOffset;
-		size_t m_idxBuffStartOffset;
-		uint64_t m_materialID;
+		uint32_t m_vtxBuffStartOffset;
+		uint32_t m_idxBuffStartOffset;
+		uint32_t m_materialIdx;
 		uint32_t m_numVertices;
 		uint32_t m_numIndices;
 		Math::AABB m_AABB;

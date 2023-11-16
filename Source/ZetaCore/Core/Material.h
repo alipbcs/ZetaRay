@@ -29,7 +29,7 @@ namespace ZetaRay
         
         Material()
             : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
-            RoughnessFactor(1.0f),
+            RoughnessFactor((1 << 16) - 1),
             BaseColorTexture(uint32_t(-1)),
             MetallicRoughnessTexture(uint32_t(-1)),
             NormalTexture(uint32_t(-1)),
@@ -87,6 +87,11 @@ namespace ZetaRay
             return uint16_t(EmissiveTexture_Strength & 0xffff);
         }
 
+        float GetRoughnessFactor() CONST
+        {
+            return RoughnessFactor / float((1 << 16) - 1);
+        }
+
 #ifdef __cplusplus
         void SetEmissiveTex(uint32_t idx)
         {
@@ -119,7 +124,7 @@ namespace ZetaRay
         uint32_t Packed;
 
         uint16_t MetallicFactorAlphaCuttoff;
-        half_ RoughnessFactor;
+        uint16_t RoughnessFactor;
     };
 #ifdef __cplusplus
 }

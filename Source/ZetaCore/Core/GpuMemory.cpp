@@ -139,7 +139,7 @@ namespace
 			m_hasWorkThisFrame = true;
 		}
 
-		void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, bool forceSeperate = false)
+		void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, uint32_t destOffset = 0, bool forceSeperate = false)
 		{
 			Assert(m_inBeginEndBlock, "not in begin-end block.");
 			Assert(buffer, "buffer was NULL");
@@ -153,15 +153,15 @@ namespace
 			}
 
 			// Note: GetCopyableFootprints() returns the padded size for a standalone resource, here
-			// we might be suballocating from a larger buffer
+			// we might be suballocating from a larger buffer.
 			UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer(sizeInBytes, 4, forceSeperate);
 			uploadBuffer.Copy(0, sizeInBytes, data);
 
 			// Note: can't use CopyResource() since the UploadHeap might not have the exact same size 
-			// as the dest resource due to subresource allocation
+			// as the destination resource due to subresource allocations.
 
 			m_directCmdList->CopyBufferRegion(buffer,
-				0,
+				destOffset,
 				uploadBuffer.Resource(),
 				uploadBuffer.Offset(),
 				sizeInBytes);
@@ -1022,15 +1022,15 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint3
 		false);
 
 	const int idx = GetThreadIndex(g_data->m_threadIDs);
-	g_data->m_uploaders[idx].UploadBuffer(buff.Resource(), data, sizeInBytes, forceSeperateUploadBuffer);
+	g_data->m_uploaders[idx].UploadBuffer(buff.Resource(), data, sizeInBytes, 0, forceSeperateUploadBuffer);
 
 	return buff;
 }
 
-void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data)
+void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, uint32_t destOffset)
 {
 	const int idx = GetThreadIndex(g_data->m_threadIDs);
-	g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes);
+	g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffset);
 }
 
 void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer)

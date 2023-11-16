@@ -455,6 +455,18 @@ namespace ZetaRay::Math
 		uint16_t w;
 	};
 
+	struct uint3
+	{
+		uint3() = default;
+		constexpr uint3(uint32_t e0, uint32_t e1, uint32_t e2)
+			: x(e0), y(e1), z(e2)
+		{}
+
+		uint32_t x;
+		uint32_t y;
+		uint32_t z;
+	};
+
 	struct snorm2
 	{
 		snorm2() = default;
@@ -743,5 +755,25 @@ namespace ZetaRay::Math
 	inline constexpr float4 operator-(const float4& v0)
 	{
 		return float4(-v0.x, -v0.y, -v0.z, -v0.w);
+	}
+
+	inline constexpr uint3 operator+(uint3 v, uint32_t m)
+	{
+		return uint3(v.x + m, v.y + m, v.z + m);
+	}
+
+	inline constexpr uint3 operator*(uint3 v, uint32_t m)
+	{
+		return uint3(v.x * m, v.y * m, v.z * m);
+	}
+
+	inline constexpr uint3 operator>>(uint3 v, uint32_t m)
+	{
+		return uint3(v.x >> m, v.y >> m, v.z >> m);
+	}
+
+	inline constexpr uint3 operator^(uint3 v, uint3 m)
+	{
+		return uint3(v.x ^ m.x, v.y ^ m.y, v.z ^ m.z);
 	}
 }

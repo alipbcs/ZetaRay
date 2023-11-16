@@ -148,7 +148,19 @@ namespace ZetaRay::Math
 		return static_cast<uint16_t>(_mm_cvtsi128_si32(V2));
 	}
 
+	ZetaInline uint16_t FloatToUnorm16(float value)
+	{
+		__m128 V1 = _mm_set_ss(value);
+		constexpr float m = float((1 << 16) - 1);
+		V1 = _mm_mul_ps(V1, _mm_set1_ps(m));
+		V1 = _mm_round_ps(V1, 0);
+		__m128i V2 = _mm_cvtps_epi32(V1);
+		int ret = _mm_cvtsi128_si32(V2);
+
+		return static_cast<uint16_t>(ret);
+	}
+
 	// A summation algorithm that guards against the worst-case loss of precision when summing
-	// a large sequence of floating=point numbers
+	// a large sequence of floating-point numbers.
 	float KahanSum(Util::Span<float> data);
 }

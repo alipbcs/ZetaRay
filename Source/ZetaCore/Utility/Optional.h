@@ -16,7 +16,7 @@ namespace ZetaRay::Util
 
 		Optional(const T& v)
 			requires std::is_copy_constructible_v<T>
-		: m_hasValue(true)
+			: m_hasValue(true)
 		{
 			new (reinterpret_cast<T*>(m_value)) T(v);
 

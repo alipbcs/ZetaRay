@@ -28,18 +28,10 @@ namespace
 			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
 			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_COMPACTION;
 		}
-		else if (t == RT_MESH_MODE::SEMI_DYNAMIC)
-		{
-			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
-			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-		}
-		else if (t == RT_MESH_MODE::FULL_DYNAMIC)
-			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
-		else if (t == RT_MESH_MODE::PRIMARY)
-		{
+		else if (t == RT_MESH_MODE::DYNAMIC_NO_REBUILD)
 			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_TRACE;
-			f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_ALLOW_UPDATE;
-		}
+		//else if (t == RT_MESH_MODE::DYNAMIC_REBUILD)
+		//	f |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PREFER_FAST_BUILD;
 
 		return f;
 	}
@@ -177,8 +169,6 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 		sizeof(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE_DESC));
 
 	cmdList.PIXEndEvent();
-
-	scene.m_staleStaticInstances = false;
 }
 
 void StaticBLAS::FillMeshTransformBufferForBuild()
@@ -277,119 +267,30 @@ void StaticBLAS::Clear()
 // DynamicBLAS
 //--------------------------------------------------------------------------------------
 
-void DynamicBLAS::Rebuild(ComputeCmdList& cmdList)
+DynamicBlasBuildItem DynamicBLAS::Rebuild()
 {
+	DynamicBlasBuildItem ret;
+
 	SceneCore& scene = App::GetScene();
 	const TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
 
 	const auto sceneVBGpuVa = scene.GetMeshVB().GpuVA();
 	const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
 
-	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
-	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
-	geoDesc.Triangles.IndexCount = mesh->m_numIndices;
-	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
-	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-	geoDesc.Triangles.VertexCount = mesh->m_numVertices;
-	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
+	ret.GeoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
+	ret.GeoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+	ret.GeoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
+	ret.GeoDesc.Triangles.IndexCount = mesh->m_numIndices;
+	ret.GeoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
+	ret.GeoDesc.Triangles.Transform3x4 = 0;
+	ret.GeoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
+	ret.GeoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
+	ret.GeoDesc.Triangles.VertexCount = mesh->m_numVertices;
+	ret.GeoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
 
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
-	buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-	buildDesc.Inputs.Flags = GetBuildFlagsForRtAS(RT_MESH_MODE::SEMI_DYNAMIC);
-	buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	buildDesc.Inputs.NumDescs = 1;
-	buildDesc.Inputs.pGeometryDescs = &geoDesc;
+	ret.BlasBufferOffset = &m_blasBufferOffset;
 
-	auto* device = App::GetRenderer().GetDevice();
-
-	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuild;
-	device->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &prebuild);
-
-	Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
-
-	// TODO Rt memory manager for suballocating BLASes, scratch memoeries, etc.
-	m_blasBuffer = GpuMemory::GetDefaultHeapBuffer("DynamicBLAS",
-		(uint32_t)prebuild.ResultDataMaxSizeInBytes,
-		D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
-		true);
-
-	m_scratchBuffer = GpuMemory::GetDefaultHeapBuffer("DynamicBLAS_scratch",
-		(uint32_t)prebuild.ScratchDataSizeInBytes,
-		D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-		true);
-
-	buildDesc.DestAccelerationStructureData = m_blasBuffer.GpuVA();
-	buildDesc.ScratchAccelerationStructureData = m_scratchBuffer.GpuVA();
-	buildDesc.SourceAccelerationStructureData = 0;
-
-	cmdList.PIXBeginEvent("DynamicBLASBuild");
-	cmdList.BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
-	cmdList.PIXEndEvent();
-
-	m_frameBuilt = (uint32_t)App::GetTimer().GetTotalFrameCount();
-}
-
-void DynamicBLAS::Update(ComputeCmdList& cmdList)
-{
-	SceneCore& scene = App::GetScene();
-	const TriangleMesh* mesh = scene.GetMesh(m_meshID).value();
-
-	const auto sceneVBGpuVa = scene.GetMeshVB().GpuVA();
-	const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
-
-	D3D12_RAYTRACING_GEOMETRY_DESC geoDesc;
-	geoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-	geoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-	geoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
-	geoDesc.Triangles.IndexCount = mesh->m_numIndices;
-	geoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
-	geoDesc.Triangles.Transform3x4 = 0;
-	geoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
-	geoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-	geoDesc.Triangles.VertexCount = mesh->m_numVertices;
-	geoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
-
-	D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
-	buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
-	buildDesc.Inputs.Flags = GetBuildFlagsForRtAS(RT_MESH_MODE::SEMI_DYNAMIC);
-	buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
-	buildDesc.Inputs.NumDescs = 1;
-	buildDesc.Inputs.pGeometryDescs = &geoDesc;
-
-	buildDesc.Inputs.Flags |= D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BUILD_FLAG_PERFORM_UPDATE;
-
-	auto* device = App::GetRenderer().GetDevice();
-
-	D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuild;
-	device->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &prebuild);
-
-	Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
-
-	if (prebuild.ScratchDataSizeInBytes > m_scratchBuffer.Desc().Width)
-	{
-		m_scratchBuffer = GpuMemory::GetDefaultHeapBuffer("DynamicBLAS_scratch",
-			(uint32_t)prebuild.ScratchDataSizeInBytes,
-			D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
-			true);
-	}
-
-	buildDesc.DestAccelerationStructureData = m_blasBuffer.GpuVA();
-	buildDesc.ScratchAccelerationStructureData = m_scratchBuffer.GpuVA();
-	buildDesc.SourceAccelerationStructureData = m_blasBuffer.GpuVA();
-
-	cmdList.PIXBeginEvent("DynamicBLASUpdate");
-	cmdList.BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
-	cmdList.PIXEndEvent();
-}
-
-void DynamicBLAS::Clear()
-{
-	m_blasBuffer.Reset();
-	m_scratchBuffer.Reset();
+	return ret;
 }
 
 //--------------------------------------------------------------------------------------
@@ -418,40 +319,41 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
 		return;
 
 	SmallVector<D3D12_RAYTRACING_INSTANCE_DESC, App::FrameAllocator, 1> tlasInstances;
-	tlasInstances.reserve(numInstances);
+	tlasInstances.resize(numInstances);
 
-	if (scene.m_numStaticInstances)
+	const bool hasStaticInstances = scene.m_numStaticInstances > 0;
+
+	if (hasStaticInstances)
 	{
-		tlasInstances.push_back(D3D12_RAYTRACING_INSTANCE_DESC{
+		tlasInstances[0] = D3D12_RAYTRACING_INSTANCE_DESC{
 				.InstanceID = 0,
 				.InstanceMask = RT_AS_SUBGROUP::ALL,
 				.InstanceContributionToHitGroupIndex = 0,
 				.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE,
 				.AccelerationStructure = m_staticBLAS.m_buffer.GpuVA()
-			});
+			};
 
-		// identity transform for static BLAS instance
-		auto& instance = tlasInstances.back();
-
-		memset(&instance.Transform, 0, sizeof(BLASTransform));
-		instance.Transform[0][0] = 1.0f;
-		instance.Transform[1][1] = 1.0f;
-		instance.Transform[2][2] = 1.0f;
+		// Identity transform for static BLAS instance
+		memset(&tlasInstances[0].Transform, 0, sizeof(BLASTransform));
+		tlasInstances[0].Transform[0][0] = 1.0f;
+		tlasInstances[0].Transform[1][1] = 1.0f;
+		tlasInstances[0].Transform[2][2] = 1.0f;
 	}	
-	
-	int currInstance = (int)tlasInstances.size();
+
 	const int numStaticInstances = scene.m_numStaticInstances;
 
-	// following traversal order must match the one in RebuildOrUpdateBLASes()
+	// Following traversal order must match the one in RebuildOrUpdateBLASes()
 	D3D12_RAYTRACING_INSTANCE_DESC instance;
+	int currDynamicInstance = 0;
+	const auto dynamicBlasGpuVa = m_dynamicBlasBuffer.IsInitialized() ? m_dynamicBlasBuffer.GpuVA() : 0;
 
-	// skip the first level
+	// Skip the first level
 	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
 	{
 		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
 		const auto& rtFlagVec = currTreeLevel.m_rtFlags;
 
-		// add one TLAS instance for every dynamic mesh
+		// Add one TLAS instance for every dynamic mesh
 		for (int i = 0; i < rtFlagVec.size(); i++)
 		{
 			if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
@@ -461,11 +363,11 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
 
 			if (flags.MeshMode != RT_MESH_MODE::STATIC)
 			{
-				instance.InstanceID = numStaticInstances + Math::Max(currInstance - 1, 0);	// -1 is for not counting static blas instance
+				instance.InstanceID = numStaticInstances + currDynamicInstance;
 				instance.InstanceMask = flags.InstanceMask;
 				instance.InstanceContributionToHitGroupIndex = 0;
 				instance.Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
-				instance.AccelerationStructure = m_dynamicBLASes[Math::Max(currInstance - 1, 0)].m_blasBuffer.GpuVA();
+				instance.AccelerationStructure = dynamicBlasGpuVa + m_dynamicBLASes[currDynamicInstance].m_blasBufferOffset;
 
 				auto& M = currTreeLevel.m_toWorlds[i];
 
@@ -478,12 +380,12 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
 
 				currTreeLevel.m_rtASInfo[i].InstanceID = instance.InstanceID;
 
-				tlasInstances[currInstance++] = instance;
+				tlasInstances[hasStaticInstances + currDynamicInstance++] = instance;
 			}
 		}
 	}
 
-	Assert(currInstance == numInstances, "bug");
+	Assert(hasStaticInstances + currDynamicInstance == numInstances, "bug");
 	const uint32_t sizeInBytes = sizeof(D3D12_RAYTRACING_INSTANCE_DESC) * numInstances;
 
 	if (!m_tlasInstanceBuff.IsInitialized() || m_tlasInstanceBuff.Desc().Width < sizeInBytes)
@@ -541,21 +443,23 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList)
 			true);
 	}
 
-	if (!m_scratchBuff.IsInitialized() || m_scratchBuff.Desc().Width < prebuildInfo.ScratchDataSizeInBytes)
+	if (!m_scratchBuffer.IsInitialized() || m_scratchBuffer.Desc().Width < prebuildInfo.ScratchDataSizeInBytes)
 	{
-		m_scratchBuff = GpuMemory::GetDefaultHeapBuffer("TLAS_scratch",
+		m_scratchBuffer = GpuMemory::GetDefaultHeapBuffer("TLAS_scratch",
 			(uint32_t)prebuildInfo.ScratchDataSizeInBytes,
 			D3D12_RESOURCE_STATE_COMMON,
 			true);
 	}
 
 	buildDesc.DestAccelerationStructureData = m_tlasBuffer.GpuVA();
-	buildDesc.ScratchAccelerationStructureData = m_scratchBuff.GpuVA();
+	// Note that scratch buffer is reused for dynamic BLAS builds & TLAS with overlapping
+	// addresses, but due to inserted barrier, it's safe.
+	buildDesc.ScratchAccelerationStructureData = m_scratchBuffer.GpuVA();
 	buildDesc.SourceAccelerationStructureData = 0;
 
 	cmdList.BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
 
-	// even though TLAS was created with an initial stete of D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
+	// Even though TLAS was created with an initial stete of D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 	// the debug layer warns that "D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ and 
 	// D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE can only be used with resources 
 	// created using D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE or with a legacy InitialState 
@@ -570,6 +474,8 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList)
 
 	cmdList.ResourceBarrier(barrier);
 #endif
+
+	m_ready = true;
 }
 
 void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
@@ -593,95 +499,148 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
 	// become idle."
 	SmallVector<D3D12_BUFFER_BARRIER, App::FrameAllocator> uavBarriers;
 
-	if (scene.m_staleStaticInstances)
+	if (scene.m_hasNewStaticInstances)
 	{
 		m_staticBLASrebuiltFrame = (uint32_t)App::GetTimer().GetTotalFrameCount();
 		m_staticBLAS.Rebuild(cmdList);
 
 		D3D12_BUFFER_BARRIER barrier = Direct3DUtil::BufferBarrier(m_staticBLAS.m_buffer.Resource(),
 			D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,
-			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_BARRIER_SYNC_COMPUTE_SHADING,
 			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,
 			D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ);
 
 		uavBarriers.push_back(barrier);
+
+		scene.m_hasNewStaticInstances = false;
 	}
 	// TODO use a fence instead of assuming the worst case
-	else if (m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - Constants::NUM_BACK_BUFFERS)
+	else if (scene.m_numStaticInstances > 0 && m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - Constants::NUM_BACK_BUFFERS)
 	{
-		m_ready = true;
 		m_staticBLAS.DoCompaction(cmdList);
 	}
-	else if (m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - Constants::NUM_BACK_BUFFERS - 1)
+	else if (scene.m_numStaticInstances > 0 && m_staticBLASrebuiltFrame == App::GetTimer().GetTotalFrameCount() - Constants::NUM_BACK_BUFFERS - 1)
 		m_staticBLAS.CompactionCompletedCallback();
-	
-	// do a sort only if there's been one or more insertions
-	bool needsSort = false;
 
-	// skip the first level
-	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
+	if (scene.m_hasNewDynamicInstances)
 	{
-		const auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
-		const auto& rtFlagVec = currTreeLevel.m_rtFlags;
+		RebuildDynamicBLASes(cmdList);
 
-		// check if any of the dynamic instances needs to be rebuilt or updated
-		for (int i = 0; i < rtFlagVec.size(); i++)
-		{
-			const Scene::RT_Flags flags = Scene::GetRtFlags(rtFlagVec[i]);
-			Assert((flags.RebuildFlag & flags.UpdateFlag) == 0, "Rebuild & update flags can't be set at the same time.");
+		// One barrier covers all of the builds
+		D3D12_BUFFER_BARRIER barrier = Direct3DUtil::BufferBarrier(m_dynamicBlasBuffer.Resource(),
+			D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE,
+			D3D12_BARRIER_SYNC_BUILD_RAYTRACING_ACCELERATION_STRUCTURE | D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS | D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_WRITE,
+			D3D12_BARRIER_ACCESS_RAYTRACING_ACCELERATION_STRUCTURE_READ);
 
-			if (flags.MeshMode != RT_MESH_MODE::STATIC)
-			{
-				if (flags.RebuildFlag)
-				{
-					int idx = FindDynamicBLAS(currTreeLevel.m_IDs[i]);
+		uavBarriers.push_back(barrier);
 
-					// this instance was encountered for the first time. Scene must've set the build flag in this scenario
-					if (idx == -1)
-					{
-						m_dynamicBLASes.emplace_back(currTreeLevel.m_IDs[i], currTreeLevel.m_meshIDs[i]);
-						needsSort = true;
-						idx = (int)m_dynamicBLASes.size() - 1;
-					}
-					
-					m_dynamicBLASes[idx].Rebuild(cmdList);
-					//uavBarriers.push_back(Direct3DUtil::UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.Resource()));
-				}
-				else if (flags.UpdateFlag)
-				{
-					int idx = FindDynamicBLAS(currTreeLevel.m_IDs[i]);
-					Assert(idx != -1, "Instance was set for update, but was never inserted in the TLAS");
-
-					m_dynamicBLASes[idx].Update(cmdList);
-					//uavBarriers.push_back(Direct3DUtil::UAVBarrier(m_dynamicBLASes[idx].m_blasBuffer.Resource()));
-				}
-			}
-		}
-	}
-
-	// TODO fix
-	if (needsSort)
-	{
-		//std::sort(m_dynamicBLASes.begin(), m_dynamicBLASes.end(),
-		//	[](const DynamicBLAS& b1, const DynamicBLAS& b2)
-		//	{
-		//		return b1.m_instanceID < b2.m_instanceID;
-		//	});
+		scene.m_hasNewDynamicInstances = false;
 	}
 
 	if (!uavBarriers.empty())
 		cmdList.ResourceBarrier(uavBarriers.data(), (uint32_t)uavBarriers.size());
 }
 
+void TLAS::RebuildDynamicBLASes(Core::ComputeCmdList& cmdList)
+{
+	SceneCore& scene = App::GetScene();
+
+	SmallVector<DynamicBlasBuildItem, App::FrameAllocator> blasBuilds;
+	m_dynamicBLASes.clear();
+
+	// Skip the first level
+	for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
+	{
+		auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
+		auto& rtFlagVec = currTreeLevel.m_rtFlags;
+
+		for (int i = 0; i < rtFlagVec.size(); i++)
+		{
+			Scene::RT_Flags flags = Scene::GetRtFlags(rtFlagVec[i]);
+			Assert((flags.RebuildFlag & flags.UpdateFlag) == 0, "Rebuild & update flags can't be set at the same time.");
+
+			if (flags.MeshMode != RT_MESH_MODE::STATIC)
+			{
+				m_dynamicBLASes.emplace_back(currTreeLevel.m_IDs[i], currTreeLevel.m_meshIDs[i]);
+
+				auto buildItem = m_dynamicBLASes.back().Rebuild();
+				blasBuilds.push_back(buildItem);
+
+				rtFlagVec[i] = Scene::SetRtFlags(flags.MeshMode, flags.InstanceMask, 0, 0, flags.IsOpaque);
+			}
+		}
+	}
+
+	if (!blasBuilds.empty())
+	{
+		auto* device = App::GetRenderer().GetDevice();
+		uint32_t currBuildSizeInBytes = 0;
+		uint32_t currScratchSize = 0;
+
+		for (auto& b : blasBuilds)
+		{
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
+			buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+			buildDesc.Inputs.Flags = GetBuildFlagsForRtAS(RT_MESH_MODE::DYNAMIC_NO_REBUILD);
+			buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+			buildDesc.Inputs.NumDescs = 1;
+			buildDesc.Inputs.pGeometryDescs = &b.GeoDesc;
+
+			D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuild;
+			device->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &prebuild);
+
+			Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
+
+			currBuildSizeInBytes = Math::AlignUp(currBuildSizeInBytes, uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
+			*b.BlasBufferOffset = currBuildSizeInBytes;
+			currBuildSizeInBytes += (uint32_t)prebuild.ResultDataMaxSizeInBytes;
+
+			currScratchSize = Math::AlignUp(currScratchSize, uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
+			b.ScratchBufferOffset = currScratchSize;
+			currScratchSize += (uint32_t)prebuild.ScratchDataSizeInBytes;
+		}
+
+		m_dynamicBlasBuffer = GpuMemory::GetDefaultHeapBuffer("DynamicBLAS",
+			currBuildSizeInBytes,
+			true,
+			true);
+
+		if (!m_scratchBuffer.IsInitialized() || m_scratchBuffer.Desc().Width < currScratchSize)
+		{
+			m_scratchBuffer = GpuMemory::GetDefaultHeapBuffer("DynamicBLAS_scratch",
+				currScratchSize,
+				D3D12_RESOURCE_STATE_COMMON,
+				true);
+		}
+
+		for (auto& b : blasBuilds)
+		{
+			D3D12_BUILD_RAYTRACING_ACCELERATION_STRUCTURE_DESC buildDesc;
+			buildDesc.Inputs.Type = D3D12_RAYTRACING_ACCELERATION_STRUCTURE_TYPE_BOTTOM_LEVEL;
+			buildDesc.Inputs.Flags = GetBuildFlagsForRtAS(RT_MESH_MODE::DYNAMIC_NO_REBUILD);
+			buildDesc.Inputs.DescsLayout = D3D12_ELEMENTS_LAYOUT_ARRAY;
+			buildDesc.Inputs.NumDescs = 1;
+			buildDesc.Inputs.pGeometryDescs = &b.GeoDesc;
+
+			buildDesc.DestAccelerationStructureData = m_dynamicBlasBuffer.GpuVA() + *b.BlasBufferOffset;
+			buildDesc.ScratchAccelerationStructureData = m_scratchBuffer.GpuVA() + b.ScratchBufferOffset;
+			buildDesc.SourceAccelerationStructureData = 0;
+
+			cmdList.PIXBeginEvent("DynamicBLASBuild");
+			cmdList.BuildRaytracingAccelerationStructure(&buildDesc, 0, nullptr);
+			cmdList.PIXEndEvent();
+		}
+	}
+}
+
 void TLAS::Clear()
 {
-	for (auto& buff : m_dynamicBLASes)
-		buff.Clear();
-
 	m_framesMeshInstances.Reset();
 	m_tlasBuffer.Reset();
-	m_scratchBuff.Reset();
+	m_scratchBuffer.Reset();
 	m_staticBLAS.Clear();
+	m_dynamicBlasBuffer.Reset();
 	m_tlasInstanceBuff.Reset();
 }
 
@@ -709,7 +668,7 @@ void TLAS::BuildFrameMeshInstanceData()
 			return;
 
 		const TriangleMesh* mesh = scene.GetMesh(currTreeLevel.m_meshIDs[levelIdx]).value();
-		const Material* mat = scene.GetMaterial(mesh->m_materialID).value();
+		const Material* mat = scene.GetMaterial(mesh->m_materialIdx).value();
 
 		const EmissiveInstance* emissiveInstance = sceneHasEmissives && (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE) ?
 			scene.m_emissives.FindEmissive(currTreeLevel.m_IDs[levelIdx]).value() :
@@ -770,7 +729,7 @@ void TLAS::BuildFrameMeshInstanceData()
 	// TLAS instance for Dynamic BLAS d where 0 <= d < D has InstanceID of N + d
 	// With this setup, every instance can use GeometryIndex() + InstanceID() to index into the mesh instance buffer
 
-	const bool rebuildStatic = App::GetScene().m_staleStaticInstances;
+	const bool rebuildStatic = App::GetScene().m_hasNewStaticInstances;
 
 	// static meshes
 	if (rebuildStatic)
@@ -821,33 +780,6 @@ void TLAS::BuildStaticBLASTransforms()
 {
 	SceneCore& scene = App::GetScene();
 
-	if (scene.m_staleStaticInstances)
+	if (scene.m_hasNewStaticInstances)
 		m_staticBLAS.FillMeshTransformBufferForBuild();
-}
-
-int TLAS::FindDynamicBLAS(uint64_t key)
-{
-	int beg = 0;
-	int end = (int)m_dynamicBLASes.size();
-	int mid = (int)m_dynamicBLASes.size() >> 1;
-
-	while (true)
-	{
-		if (end - beg <= 2)
-			break;
-
-		if (m_dynamicBLASes[mid].m_instanceID < key)
-			beg = mid + 1;
-		else
-			end = mid + 1;
-
-		mid = beg + ((end - beg) >> 1);
-	}
-
-	if (m_dynamicBLASes[beg].m_instanceID == key)
-		return beg;
-	else if (m_dynamicBLASes[mid].m_instanceID == key)
-		return mid;
-
-	return -1;
 }

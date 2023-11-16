@@ -10,12 +10,12 @@ namespace ZetaRay::App
 		~Timer() = default;
 
 		// Returns elapsed time since the last time Tick() was called
-		double GetElapsedTime() const { return m_delta; }
+		ZetaInline double GetElapsedTime() const { return m_delta; }
 
 		// Get total number of updates since start of the program
-		uint64_t GetTotalFrameCount() const { return m_frameCount; }
-		int GetFramesPerSecond() const { return m_fps; }
-		int64_t GetCounterFreq() const { return m_counterFreqSec; }
+		ZetaInline uint64_t GetTotalFrameCount() const { return m_frameCount; }
+		ZetaInline int GetFramesPerSecond() const { return m_fps; }
+		ZetaInline int64_t GetCounterFreq() const { return m_counterFreqSec; }
 
 		void Start();
 		void Resume();
@@ -23,7 +23,7 @@ namespace ZetaRay::App
 		void Tick();
 
 		// Get total time since the start of the program.
-		double GetTotalTime() const
+		ZetaInline double GetTotalTime() const
 		{
 			int64_t numCounts;
 
@@ -54,7 +54,7 @@ namespace ZetaRay::App
 		uint64_t m_frameCount = 0;
 
 		// total number of counts since the program started
-		double m_totalTime = 0.0;
+		//double m_totalTime = 0.0;
 
 		// frames per-second
 		int64_t m_framesInLastSecond = 0;

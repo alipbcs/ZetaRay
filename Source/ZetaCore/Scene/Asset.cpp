@@ -109,13 +109,15 @@ void TexSRVDescriptorTable::Clear()
 // MaterialBuffer
 //--------------------------------------------------------------------------------------
 
-void MaterialBuffer::Init(uint64_t id)
+uint32_t MaterialBuffer::Add(Material& mat)
 {
-	Assert(k_bufferID == -1, "This ID shouldn't be reassigned to after the first time.");
-	k_bufferID = id;
+	uint32_t idx = (uint32_t)m_materials.size() - 1;
+	Add(mat, idx);
+
+	return idx;
 }
 
-void MaterialBuffer::Add(uint64_t id, Material& mat)
+void MaterialBuffer::Add(Material& mat, uint32_t idx)
 {
 	// find first free slot in buffer (i.e. first-fit)
 	DWORD freeIdx = DWORD(-1);
@@ -126,7 +128,7 @@ void MaterialBuffer::Add(uint64_t id, Material& mat)
 			break;
 	}
 
-	Assert(freeIdx != -1, "No free slot found");
+	Assert(freeIdx != -1, "No free slot found.");
 	m_inUseBitset[i] |= (1llu << freeIdx);		// set the slot to occupied
 
 	freeIdx += i << 6;		// each uint64_t covers 64 slots
@@ -134,7 +136,7 @@ void MaterialBuffer::Add(uint64_t id, Material& mat)
 
 	// set offset in input material
 	mat.SetGpuBufferIndex(freeIdx);
-	m_matTable.insert_or_assign(id, mat);
+	m_materials[idx] = mat;
 
 	m_stale = true;
 }
@@ -144,19 +146,15 @@ void MaterialBuffer::UpdateGPUBufferIfStale()
 	if (!m_stale)
 		return;
 
-	Assert(!m_matTable.empty(), "Stale flag is set, yet there aren't any materials.");
-
-	auto it = m_matTable.begin_it();
+	Assert(!m_materials.empty(), "Stale flag is set, yet there aren't any materials.");
 
 	SmallVector<Material, FrameAllocator> buffer;
-	buffer.resize(m_matTable.size());
+	buffer.resize(m_materials.size());
 
-	while (it != m_matTable.end_it())
+	for(auto& mat : m_materials)
 	{
-		const uint32_t indexInBuffer = it->Val.GpuBufferIndex();
-		buffer[indexInBuffer] = it->Val;
-
-		it = m_matTable.next_it(it);
+		const uint32_t indexInBuffer = mat.GpuBufferIndex();
+		buffer[indexInBuffer] = mat;
 	}
 
 	auto& renderer = App::GetRenderer();
@@ -167,34 +165,20 @@ void MaterialBuffer::UpdateGPUBufferIfStale()
 		buffer.data());
 
 	auto& r = renderer.GetSharedShaderResources();
-	r.InsertOrAssignDefaultHeapBuffer(k_bufferID, m_buffer);
+	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::MATERIAL_BUFFER, m_buffer);
 
 	m_stale = false;
 }
 
-void MaterialBuffer::Recycle(uint64_t completedFenceVal)
+void MaterialBuffer::ResizeAdditionalMaterials(uint32_t num)
 {
-	for (auto it = m_pending.begin(); it != m_pending.end();)
-	{
-		// GPU is finished with this material
-		if (it->FenceVal <= completedFenceVal)
-		{
-			// set the slot to free
-			const int idx = it->Offset >> 6;
-			Assert(idx < NUM_MASKS, "Invalid index.");
-			m_inUseBitset[idx] |= (1llu << (it->Offset & 63));
-
-			it = m_pending.erase(*it);
-		}
-		else
-			it++;
-	}
+	m_materials.resize(m_materials.size() + num);
 }
 
 void MaterialBuffer::Clear()
 {
 	// Assumes CPU-GPU synchronization has been performed, so that GPU is done with the material buffer.
-	// DefaultHeapBuffer's destructor takes care of the rest
+	// DefaultHeapBuffer's destructor takes care of the rest.
 	m_buffer.Reset();
 }
 
@@ -202,33 +186,45 @@ void MaterialBuffer::Clear()
 // MeshContainer
 //--------------------------------------------------------------------------------------
 
-void MeshContainer::Add(uint64_t id, Span<Vertex> vertices, Span<uint32_t> indices, uint64_t matID)
+uint32_t MeshContainer::Add(SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices,
+	uint32_t matIdx)
 {
-	const size_t vtxOffset = m_vertices.size();
-	const size_t idxOffset = m_indices.size();
+	const uint32_t vtxOffset = (uint32_t)m_vertices.size();
+	const uint32_t idxOffset = (uint32_t)m_indices.size();
 
-	m_meshes.emplace(id, vertices, vtxOffset, idxOffset, (uint32_t)indices.size(), matID);
+	const uint32_t meshIdx = (uint32_t)m_meshes.size();
+	const uint64_t meshFromSceneID = SceneCore::MeshID(meshIdx, 0);
+	bool success = m_meshes.try_emplace(meshFromSceneID, vertices, vtxOffset, idxOffset, (uint32_t)indices.size(), matIdx);
+	Check(success, "mesh with given ID (from mesh index %u) already exists.", meshIdx);
 
 	m_vertices.append_range(vertices.begin(), vertices.end());
 	m_indices.append_range(indices.begin(), indices.end());
+
+	return meshIdx;
 }
 
-void MeshContainer::AddBatch(uint64_t sceneID, SmallVector<Model::glTF::Asset::Mesh>&& meshes, 
+void MeshContainer::AddBatch(SmallVector<Model::glTF::Asset::Mesh>&& meshes, 
 	SmallVector<Core::Vertex>&& vertices, SmallVector<uint32_t>&& indices)
 {
-	const size_t vtxOffset = m_vertices.size();
-	const size_t idxOffset = m_indices.size();
+	const uint32_t vtxOffset = (uint32_t)m_vertices.size();
+	const uint32_t idxOffset = (uint32_t)m_indices.size();
 
+	// Each mesh primitive + material index combo must be unique
 	for (auto& mesh : meshes)
 	{
-		const uint64_t meshFromSceneID = SceneCore::MeshID(sceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
-		const uint64_t matFromSceneID = mesh.MaterialIdx != -1 ? SceneCore::MaterialID(sceneID, mesh.MaterialIdx) : SceneCore::DEFAULT_MATERIAL;
+		const uint64_t meshFromSceneID = SceneCore::MeshID(mesh.MeshIdx, mesh.MeshPrimIdx);
+		const uint32_t matFromSceneID = mesh.MaterialIdx != -1 ? 
+			// Offset by one to account for default material at slot 0.
+			mesh.MaterialIdx + 1 : 
+			SceneCore::DEFAULT_MATERIAL_IDX;
 
-		m_meshes.emplace(meshFromSceneID, Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices), 
+		bool success = m_meshes.try_emplace(meshFromSceneID, Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices),
 			vtxOffset + mesh.BaseVtxOffset,
 			idxOffset + mesh.BaseIdxOffset,
 			mesh.NumIndices, 
 			matFromSceneID);
+
+		Assert(success, "Mesh with ID %llu already exists.", meshFromSceneID);
 	}
 
 	if (m_vertices.empty())
@@ -287,8 +283,8 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveIns
 {
 	if (m_emissivesTrisCpu.empty())
 	{
-		m_emissivesTrisCpu = ZetaMove(emissiveTris);
 		m_emissivesInstances = ZetaMove(emissiveInstances);
+		m_emissivesTrisCpu = ZetaMove(emissiveTris);
 	}
 	else
 	{
@@ -301,9 +297,13 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveIns
 		{
 			return a1.InstanceID < a2.InstanceID;
 		});
+
+#if 0
+	m_initialPos.resize(m_emissivesTrisCpu.size());
+#endif
 }
 
-void EmissiveBuffer::RebuildEmissiveBuffer()
+void EmissiveBuffer::AllocateAndCopyEmissiveBuffer()
 {
 	if (m_emissivesTrisCpu.empty())
 		return;
@@ -317,7 +317,22 @@ void EmissiveBuffer::RebuildEmissiveBuffer()
 	auto& r = App::GetRenderer().GetSharedShaderResources();
 	r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_emissiveTrisGpu);
 
-	m_rebuildFlag = false;
+	m_firstTime = false;
+}
+
+void EmissiveBuffer::UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx)
+{
+	Assert(minTriIdx < m_emissivesTrisCpu.size(), "invalid index.");
+	Assert(maxTriIdx < m_emissivesTrisCpu.size(), "invalid index.");
+	Assert(minTriIdx <= maxTriIdx, "invalid incices.");
+
+	const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangle) * (maxTriIdx - minTriIdx);
+	const uintptr_t start = reinterpret_cast<uintptr_t>(m_emissivesTrisCpu.data()) + minTriIdx * sizeof(RT::EmissiveTriangle);
+
+	GpuMemory::UploadToDefaultHeapBuffer(m_emissiveTrisGpu,
+		sizeInBytes,
+		reinterpret_cast<void*>(start),
+		minTriIdx * sizeof(RT::EmissiveTriangle));
 }
 
 void EmissiveBuffer::Clear()

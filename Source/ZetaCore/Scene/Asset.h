@@ -66,8 +66,8 @@ namespace ZetaRay::Scene::Internal
 	};
 
 	//--------------------------------------------------------------------------------------
-	// MaterialBuffer: a wrapper over an upload-heap buffer containing all the materials required
-	// for the current frame
+	// MaterialBuffer: wrapper over a GPU buffer containing all the materials required
+	// for rendering.
 	//--------------------------------------------------------------------------------------
 
 	struct MaterialBuffer
@@ -78,33 +78,20 @@ namespace ZetaRay::Scene::Internal
 		MaterialBuffer(const MaterialBuffer&) = delete;
 		MaterialBuffer& operator=(const MaterialBuffer&) = delete;
 
-		void Init(uint64_t id);
-
-		// Allocates an entry for the given material. Index to the allocated entry is also set
-		void Add(uint64_t id, Material& mat);
+		uint32_t Add(Material& mat);
+		void Add(Material& mat, uint32_t idx);
 		void UpdateGPUBufferIfStale();
-		//void Remove(uint64_t id, uint64_t nextFenceVal);
+		void ResizeAdditionalMaterials(uint32_t num);
 
-		// Note: not thread safe
-		ZetaInline Util::Optional<const Material*> Get(uint64_t id) const
+		ZetaInline Util::Optional<const Material*> Get(uint32_t idx) const
 		{
-			auto* mat = m_matTable.find(id);
-			if (mat)
-				return mat;
+			if(idx >= m_materials.size())
+				return {};
 
-			return {};
+			return &m_materials[idx];
 		}
 
-		void Recycle(uint64_t completedFenceVal);
 		void Clear();
-
-		struct ToBeRemoved
-		{
-			uint64_t FenceVal;
-			uint16_t Offset;
-		};
-
-		Util::SmallVector<ToBeRemoved> m_pending;
 
 	private:
 		static constexpr int MAX_NUM_MATERIALS = 2048;
@@ -113,11 +100,8 @@ namespace ZetaRay::Scene::Internal
 		uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
 
 		Core::GpuMemory::DefaultHeapBuffer m_buffer;
-			
-		// references to elements are not stable
-		Util::HashTable<Material> m_matTable;
+		Util::SmallVector<Material> m_materials;
 
-		uint64_t k_bufferID = uint64_t (-1);
 		bool m_stale = false;
 	};
 
@@ -127,8 +111,9 @@ namespace ZetaRay::Scene::Internal
 
 	struct MeshContainer
 	{
-		void Add(uint64_t id, Util::Span<Core::Vertex> vertices, Util::Span<uint32_t> indices, uint64_t matID);
-		void AddBatch(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
+		uint32_t Add(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices, 
+			uint32_t matIdx);
+		void AddBatch(Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
 			Util::SmallVector<uint32_t>&& indices);
 		void Reserve(size_t numVertices, size_t numIndices);
 		void RebuildBuffers();
@@ -163,29 +148,38 @@ namespace ZetaRay::Scene::Internal
 
 	struct EmissiveBuffer
 	{
+		struct InitialPos
+		{
+			Math::float3 Vtx0;
+			Math::float3 Vtx1;
+			Math::float3 Vtx2;
+		};
+
 		EmissiveBuffer() = default;
 		~EmissiveBuffer() = default;
 
 		EmissiveBuffer(const EmissiveBuffer&) = delete;
 		MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
 
-		bool RebuildFlag() { return m_rebuildFlag; }
+		bool IsFirstTime() const { return m_firstTime; }
 		void Clear();
 		Util::Optional<Model::glTF::Asset::EmissiveInstance*> FindEmissive(uint64_t ID);
-		bool IsStale() { return !m_emissivesTrisCpu.empty(); };
 		void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
 			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
-		void RebuildEmissiveBuffer();
+		void AllocateAndCopyEmissiveBuffer();
+		void UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx);
 		ZetaInline uint32_t NumEmissiveInstances() const { return (uint32_t)m_emissivesInstances.size(); }
 		ZetaInline uint32_t NumEmissiveTriangles() const { return (uint32_t)m_emissivesTrisCpu.size(); }
 
 		Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
+		Util::MutableSpan<InitialPos> InitialTriVtxPos() { return m_initialPos; }
 		Util::MutableSpan<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
 
 	private:
 		Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;
 		Util::SmallVector<RT::EmissiveTriangle> m_emissivesTrisCpu;
+		Util::SmallVector<InitialPos> m_initialPos;
 		Core::GpuMemory::DefaultHeapBuffer m_emissiveTrisGpu;
-		bool m_rebuildFlag = true;
+		bool m_firstTime = true;
 	};
 }

@@ -56,8 +56,7 @@ namespace ZetaRay::Model::glTF::Asset
 			BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
 			EmissiveFactor(0.0f, 0.0f, 0.0f),
 			EmissiveStrength(1.0f)
-		{
-		}
+		{}
 
 		// Unique index of each material within the glTF scene
 		int Index;

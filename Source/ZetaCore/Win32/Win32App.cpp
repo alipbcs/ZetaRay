@@ -1265,6 +1265,7 @@ namespace ZetaRay
 	{
 		MSG msg = {};
 		bool success = false;
+		g_app->m_timer.Start();
 
 		while (true)
 		{
@@ -1373,12 +1374,6 @@ namespace ZetaRay
 				// end frame
 				{
 					g_app->m_renderer.EndFrame(endFrameTS);
-
-					endFrameTS.EmplaceTask("Scene::Recycle", []()
-						{
-							g_app->m_scene.Recycle();
-						});
-
 					endFrameTS.Sort();
 				}
 

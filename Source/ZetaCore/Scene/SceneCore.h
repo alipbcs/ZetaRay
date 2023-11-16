@@ -3,7 +3,7 @@
 #include "../Math/BVH.h"
 #include "Asset.h"
 #include "SceneRenderer.h"
-#include <Utility/Utility.h>
+#include "../Utility/Utility.h"
 #include <xxHash/xxhash.h>
 
 namespace ZetaRay::Model
@@ -17,10 +17,23 @@ namespace ZetaRay::RT
 	struct TLAS;
 }
 
+namespace ZetaRay::Support
+{
+	struct ParamVariant;
+}
+
 namespace ZetaRay::Scene
 {
 	struct Keyframe
 	{
+		static Keyframe Identity()
+		{
+			Keyframe k;
+			k.Transform = Math::AffineTransformation::GetIdentity();
+
+			return k;
+		}
+
 		Math::AffineTransformation Transform;
 		float Time;
 	};
@@ -64,27 +77,19 @@ namespace ZetaRay::Scene
 	public:
 		static constexpr uint64_t ROOT_ID = uint64_t(-1);
 		static constexpr uint64_t NULL_MESH = uint64_t(-1);
-		static constexpr uint64_t DEFAULT_MATERIAL = uint64_t(0);
+		static constexpr uint32_t DEFAULT_MATERIAL_IDX = 0;
 
 		static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim)
 		{
-			StackStr(str, n, "instancee%d_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
+			StackStr(str, n, "instance_%llu_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
 			uint64_t instanceFromSceneID = XXH3_64bits(str, n);
 
 			return instanceFromSceneID;
 		}
 
-		static ZetaInline uint64_t MaterialID(uint64_t sceneID, int materialIdx)
+		static ZetaInline uint64_t MeshID(int meshIdx, int meshPrimIdx)
 		{
-			StackStr(str, n, "mat_%llu_%d", sceneID, materialIdx);
-			uint64_t matFromSceneID = XXH3_64bits(str, n);
-
-			return matFromSceneID;
-		}
-
-		static ZetaInline uint64_t MeshID(uint64_t sceneID, int meshIdx, int meshPrimIdx)
-		{
-			StackStr(str, n, "mesh_%llu_%d_%d", sceneID, meshIdx, meshPrimIdx);
+			StackStr(str, n, "mesh_%d_%d", meshIdx, meshPrimIdx);
 			uint64_t meshFromSceneID = XXH3_64bits(str, n);
 
 			return meshFromSceneID;
@@ -100,18 +105,20 @@ namespace ZetaRay::Scene
 		void Pause() { m_isPaused = true; }
 		void Resume() { m_isPaused = false; }
 		void OnWindowSizeChanged();
+		void Shutdown();
 
 		void Update(double dt, Support::TaskSet& sceneTS, Support::TaskSet& sceneRendererTS);
 		void Render(Support::TaskSet& ts) { m_rendererInterface.Render(ts); };
 
-		ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
-
 		//
 		// Mesh
 		//
-		void AddMeshes(uint64_t sceneID, Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
+		uint32_t AddMesh(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices, 
+			uint32_t matIdx, bool lock = true);
+		void AddMeshes(Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 			Util::SmallVector<Core::Vertex>&& vertices,
-			Util::SmallVector<uint32_t>&& indices);
+			Util::SmallVector<uint32_t>&& indices,
+			bool lock = true);
 		ZetaInline Util::Optional<const Model::TriangleMesh*> GetMesh(uint64_t id) const
 		{
 			return m_meshes.GetMesh(id);
@@ -123,11 +130,14 @@ namespace ZetaRay::Scene
 		//
 		// Material
 		//
-		void AddMaterial(uint64_t sceneID, const Model::glTF::Asset::MaterialDesc& mat, Util::MutableSpan<Model::glTF::Asset::DDSImage> ddsImages);
-		ZetaInline Util::Optional<const Material*> GetMaterial(uint64_t id) const
+		uint32_t AddMaterial(const Model::glTF::Asset::MaterialDesc& mat, bool lock = true);
+		void AddMaterial(const Model::glTF::Asset::MaterialDesc& mat,
+			Util::MutableSpan<Model::glTF::Asset::DDSImage> ddsImages, bool lock = true);
+		ZetaInline Util::Optional<const Material*> GetMaterial(uint32_t idx) const
 		{
-			return m_matBuffer.Get(id);
+			return m_matBuffer.Get(idx);
 		}
+		void ResizeAdditionalMaterials(uint32_t num);
 
 		ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.m_descTable.GPUDesciptorHeapIndex(); }
 		ZetaInline uint32_t GetNormalMapsDescHeapOffset() const { return m_normalDescTable.m_descTable.GPUDesciptorHeapIndex(); }
@@ -137,7 +147,7 @@ namespace ZetaRay::Scene
 		//
 		// Instance
 		//
-		void AddInstance(uint64_t sceneID, Model::glTF::Asset::InstanceDesc&& instance);
+		void AddInstance(Model::glTF::Asset::InstanceDesc& instance, bool lock = true);
 		ZetaInline Util::Optional<const Math::float4x3*> GetPrevToWorld(uint64_t id) const
 		{
 			const auto idx = Util::BinarySearch(Util::Span(m_prevToWorlds), id, [](const PrevToWorld& p) {return p.ID; });
@@ -146,15 +156,6 @@ namespace ZetaRay::Scene
 
 			return {};
 		}
-
-		//
-		// emissive
-		//
-		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
-			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
-		size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
-		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
-		bool AreEmissivesStale() const { return m_staleEmissives; }
 
 		ZetaInline const Math::float4x3& GetToWorld(uint64_t id) const
 		{
@@ -180,19 +181,30 @@ namespace ZetaRay::Scene
 			return Scene::GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
 		}
 
+		//
+		// Emissive
+		//
+		void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
+			Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
+		size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
+		size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
+		bool AreEmissivesStale() const { return m_staleEmissives; }
+
+		//
+		// Animation
+		//
+		void AddAnimation(uint64_t id, Util::MutableSpan<Keyframe> keyframes, float t_start, 
+			bool loop = true, bool isSorted = true);
+		void AnimateCallback(const Support::ParamVariant& p);
+
+		//
+		// Misc
+		//
+		ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
 		ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
 		ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
 		ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
 		ZetaInline Util::Span<uint64_t> GetViewFrustumInstances() { return m_viewFrustumInstances; }
-
-		void AddAnimation(uint64_t id, Util::Vector<Keyframe>&& keyframes, float tOffset, bool isSorted = true);
-
-		//
-		// Cleanup
-		//
-		void Recycle();
-		void Shutdown();
-
 		ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
 		ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
 
@@ -202,49 +214,17 @@ namespace ZetaRay::Scene
 		static constexpr uint32_t METALLIC_ROUGHNESS_DESC_TABLE_SIZE = 256;
 		static constexpr uint32_t EMISSIVE_DESC_TABLE_SIZE = 64;
 
-		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
-		// by order of declaration and destroyed in reverse order"
-		Support::MemoryPool m_memoryPool;
-
 		struct TreePos
 		{
 			int Level;
 			int Offset;
 		};
 
-		ZetaInline Util::Optional<TreePos> FindTreePosFromID(uint64_t id) const
-		{
-			auto pos = m_IDtoTreePos.find(id);
-			if (pos)
-				return *pos;
-
-			return {};
-		}
-
-		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
-			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
-
-		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
-		void RebuildBVH();
-
-		struct AnimationUpdateOut
+		struct AnimationUpdate
 		{
 			Math::AffineTransformation M;
-			int Offset;
+			uint64_t InstanceID;
 		};
-
-		void UpdateAnimations(float t, Util::Vector<AnimationUpdateOut, App::FrameAllocator>& animVec);
-		void UpdateLocalTransforms(Util::Span<AnimationUpdateOut> animVec);
-		void UpdateEmissives(Util::MutableSpan<Model::glTF::Asset::EmissiveInstance> instances);
-
-		bool m_isPaused = false;
-
-		//
-		// scene graph
-		//
-
-		// Maps instance ID to tree position
-		Util::HashTable<TreePos> m_IDtoTreePos;
 
 		struct Range
 		{
@@ -275,37 +255,9 @@ namespace ZetaRay::Scene
 			Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_toWorlds;
 			Util::SmallVector<uint64_t, Support::PoolAllocator> m_meshIDs;
 			Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;
-			// first six bits encode MeshInstanceFlags, last two bits indicate RT_MESH_MODE
 			Util::SmallVector<uint8_t, Support::PoolAllocator> m_rtFlags;
 			Util::SmallVector<RT_AS_Info, Support::PoolAllocator> m_rtASInfo;
 		};
-
-		Util::SmallVector<TreeLevel, Support::PoolAllocator> m_sceneGraph;
-
-		//
-		// scene metadata
-		//
-
-		// TODO use MemoryPool for these
-		struct SceneMetadata
-		{
-			Util::SmallVector<uint64_t> Meshes;
-			Util::SmallVector<uint64_t> MaterialIDs;
-			Util::SmallVector<uint64_t> Instances;
-		};
-
-		uint32_t m_numStaticInstances = 0;
-		uint32_t m_numDynamicInstances = 0;
-		uint32_t m_numOpaqueInstances = 0;
-		uint32_t m_numNonOpaqueInstances = 0;
-		bool m_staleEmissives = false;
-
-		// TODO this is managed by TLAS, is there a better way?
-		bool m_staleStaticInstances = false;
-
-		//
-		// previous frame's ToWorld transformations
-		//
 
 		struct PrevToWorld
 		{
@@ -313,7 +265,55 @@ namespace ZetaRay::Scene
 			uint64_t ID;
 		};
 
+		// Offset into "m_keyframes" array
+		struct AnimationMetadata
+		{
+			uint64_t InstanceID;
+			uint32_t StartOffset;
+			uint32_t Length;
+			float T0;
+			bool Loop;
+		};
+
+		ZetaInline Util::Optional<TreePos> FindTreePosFromID(uint64_t id) const
+		{
+			auto pos = m_IDtoTreePos.find(id);
+			if (pos)
+				return *pos;
+
+			return {};
+		}
+
+		int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
+			uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
+		void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
+		void RebuildBVH();
+		void UpdateAnimations(float t, Util::Vector<AnimationUpdate, App::FrameAllocator>& animVec);
+		void UpdateLocalTransforms(Util::Span<AnimationUpdate> animVec);
+		void UpdateEmissives(Util::MutableSpan<Model::glTF::Asset::EmissiveInstance> instances);
+
+		// Make sure memory pool is declared first; "members are guaranteed to be initialized 
+		// by order of declaration and destroyed in reverse order".
+		Support::MemoryPool m_memoryPool;
+
+		// Maps instance ID to tree position
+		Util::HashTable<TreePos> m_IDtoTreePos;
+		Util::SmallVector<TreeLevel, Support::PoolAllocator> m_sceneGraph;
+		// Previous frame's world transformation
 		Util::SmallVector<PrevToWorld, Support::PoolAllocator> m_prevToWorlds;
+		bool m_isPaused = false;
+
+		//
+		// Scene metadata
+		//
+		uint32_t m_numStaticInstances = 0;
+		uint32_t m_numDynamicInstances = 0;
+		uint32_t m_numOpaqueInstances = 0;
+		uint32_t m_numNonOpaqueInstances = 0;
+		bool m_hasNewStaticInstances = false;
+		bool m_hasNewDynamicInstances = false;
+		bool m_meshBufferStale = false;
+		bool m_dynamicInstanceNeedUpdate = false;
 
 		//
 		// BVH
@@ -322,32 +322,26 @@ namespace ZetaRay::Scene
 		bool m_rebuildBVHFlag = false;
 
 		//
-		// instances
+		// Instances
 		//
 		Util::SmallVector<uint64_t, App::FrameAllocator> m_viewFrustumInstances;
 
 		//
-		// assets
+		// Assets
 		//
-		Internal::MaterialBuffer m_matBuffer;
 		Internal::MeshContainer m_meshes;
-		Internal::EmissiveBuffer m_emissives;
+		Internal::MaterialBuffer m_matBuffer;
 		Internal::TexSRVDescriptorTable m_baseColorDescTable;
 		Internal::TexSRVDescriptorTable m_normalDescTable;
 		Internal::TexSRVDescriptorTable m_metallicRoughnessDescTable;
 		Internal::TexSRVDescriptorTable m_emissiveDescTable;
-
-		// mapping from descriptor-table offset to (hash) of the corresponding texture path.
-		// textures are only referenced from materials, which use descriptor table offsets
-		// to identify their target texture. But textures are stored in the hash table
-		// using hash(path), so this mapping is required
-		Util::HashTable<uint64_t> m_baseColTableOffsetToID;
-		Util::HashTable<uint64_t> m_normalTableOffsetToID;
-		Util::HashTable<uint64_t> m_metallicRoughnessTableOffsetToID;
-		Util::HashTable<uint64_t> m_emissiveTableOffsetToID;
-
-		ComPtr<ID3D12Fence> m_fence;
-		uint64_t m_nextFenceVal = 1;
+		
+		//
+		// Emissives
+		//
+		Internal::EmissiveBuffer m_emissives;
+		Util::SmallVector<uint64_t, App::FrameAllocator> m_toUpdateEmissives;
+		bool m_staleEmissives = false;
 
 		SRWLOCK m_matLock = SRWLOCK_INIT;
 		SRWLOCK m_meshLock = SRWLOCK_INIT;
@@ -355,40 +349,11 @@ namespace ZetaRay::Scene
 		SRWLOCK m_emissiveLock = SRWLOCK_INIT;
 
 		//
-		// animations
+		// Animation
 		//
-
-		// has to remain sorted by "Offset"
-		struct InstanceToAnimationMap
-		{
-			InstanceToAnimationMap() = default;
-			InstanceToAnimationMap(uint64_t id, int o)
-				: InstanceID(id),
-				Offset(o)
-			{}
-
-			uint64_t InstanceID;
-			int Offset;
-		};
-
-		// offsets into "m_keyframes"
-		struct AnimationOffset
-		{
-			AnimationOffset() = default;
-			AnimationOffset(int b, int e, float t)
-				: BegOffset(b),
-				EndOffset(e),
-				BegTimeOffset(t)
-			{}
-
-			int BegOffset;
-			int EndOffset;
-			float BegTimeOffset;
-		};
-
-		Util::SmallVector<InstanceToAnimationMap, Support::PoolAllocator> m_animOffsetToInstanceMap;
-		Util::SmallVector<AnimationOffset, Support::PoolAllocator> m_animationOffsets;
+		Util::SmallVector<AnimationMetadata, Support::PoolAllocator> m_animationMetadata;
 		Util::SmallVector<Keyframe, Support::PoolAllocator> m_keyframes;
+		bool m_animate = true;
 
 		//
 		// Scene Renderer

@@ -16,8 +16,15 @@ namespace ZetaRay::RT
 		float M[3][4];
 	};
 
+	struct DynamicBlasBuildItem
+	{
+		D3D12_RAYTRACING_GEOMETRY_DESC GeoDesc;
+		uint32_t* BlasBufferOffset;
+		uint32_t ScratchBufferOffset;
+	};
+
 	//--------------------------------------------------------------------------------------
-	// BLAS
+	// Static BLAS
 	//--------------------------------------------------------------------------------------
 
 	struct StaticBLAS
@@ -39,6 +46,10 @@ namespace ZetaRay::RT
 		Core::GpuMemory::DefaultHeapBuffer m_perMeshTransform;
 	};
 
+	//--------------------------------------------------------------------------------------
+	// Dynamic BLAS
+	//--------------------------------------------------------------------------------------
+
 	struct DynamicBLAS
 	{
 		DynamicBLAS() = default;
@@ -47,17 +58,11 @@ namespace ZetaRay::RT
 			m_meshID(meshID)
 		{}
 
-		void Rebuild(Core::ComputeCmdList& cmdList);
-		void Update(Core::ComputeCmdList& cmdList);
-		void Clear();
+		DynamicBlasBuildItem Rebuild();
 
-		// TODO release scratch & transform buffers in the next frame
-		Core::GpuMemory::DefaultHeapBuffer m_blasBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
-		
 		uint64_t m_instanceID = uint64_t(-1);
 		uint64_t m_meshID = uint64_t(-1);
-		uint32_t m_frameBuilt = uint32_t(-1);
+		uint32_t m_blasBufferOffset = 0;
 	};
 
 	//--------------------------------------------------------------------------------------
@@ -77,14 +82,15 @@ namespace ZetaRay::RT
 		void RebuildTLAS(Core::ComputeCmdList& cmdList);
 		void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
 		void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList);
-		int FindDynamicBLAS(uint64_t id);
+		void RebuildDynamicBLASes(Core::ComputeCmdList& cmdList);
 
 		StaticBLAS m_staticBLAS;
+		Core::GpuMemory::DefaultHeapBuffer m_dynamicBlasBuffer;
 		Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
 		Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
 		Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_scratchBuff;
+		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
 		Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
 
 		Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
