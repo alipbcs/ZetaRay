@@ -84,7 +84,7 @@ void DisplayPass::Init()
 
 	ParamVariant p7;
 	p7.InitFloat("Renderer", "Display", "Saturation", fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback), 
-		1, 0, 1.5f, 1e-2f);
+		1, 0.5, 1.5f, 1e-2f);
 	App::AddParam(p7);
 
 	ParamVariant dof;

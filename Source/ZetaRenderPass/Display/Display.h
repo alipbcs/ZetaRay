@@ -121,10 +121,10 @@ namespace ZetaRay::RenderPass
 		struct Params
 		{
 			inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
-				"MetalnessRoughness", "Emissive", "Depth", "Curvature", "ExposureHeatmap" };
+				"MetalnessRoughness", "Emissive", "Depth" };
 			static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");			
 
-			inline static const char* Tonemappers[] = { "None", "ACES", "Neutral", "AgX" };
+			inline static const char* Tonemappers[] = { "None", "ACES", "Neutral", "AgX (Default)", "AgX (Punchy)" };
 			static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
 		};
 

@@ -20,8 +20,6 @@ enum class DisplayOption
 	METALNESS_ROUGHNESS,
 	EMISSIVE,
 	DEPTH,
-	CURVATURE,
-	EXPOSURE_HEATMAP,
 	COUNT
 };
 
@@ -30,7 +28,8 @@ enum class Tonemapper
 	NONE,
 	ACES_FITTED,
 	NEUTRAL,
-	AgX,
+	AgX_DEFAULT,
+	AgX_PUNCHY,
 	COUNT
 };
 
