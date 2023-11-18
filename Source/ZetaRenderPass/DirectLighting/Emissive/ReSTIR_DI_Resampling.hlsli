@@ -8,6 +8,7 @@
 #include "../../Common/BRDF.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/GBuffers.hlsli"
+#include "../../Common/LightSource.hlsli"
 
 namespace RDI_Util
 {
@@ -22,8 +23,8 @@ namespace RDI_Util
 				RT::EmissiveTriangle tri = g_emissives[r.LightIdx];
 				ret.ID = tri.ID;
 
-				const float3 vtx1 = tri.V1();
-				const float3 vtx2 = tri.V2();
+				const float3 vtx1 = LightSource::DecodeEmissiveTriV1(tri);
+				const float3 vtx2 = LightSource::DecodeEmissiveTriV2(tri);
 				ret.lightPos = (1.0f - r.Bary.x - r.Bary.y) * tri.Vtx0 + r.Bary.x * vtx1 + r.Bary.y * vtx2;
 
 				ret.lightNormal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);

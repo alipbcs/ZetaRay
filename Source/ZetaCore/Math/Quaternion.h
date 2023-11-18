@@ -11,8 +11,8 @@ namespace ZetaRay::Math
 		const float s = sinf(0.5f * theta);
 		const float c = cosf(0.5f * theta);
 
-		// reminder: sign of cosine(theta) won't be taken into account by following!!
-		//const float c = sqrtf(1.0f - s * s);
+		// reminder: sign of cos(theta) won't be taken into account by the following:
+		// const float c = sqrtf(1.0f - s * s);
 
 		float4a axis(n, 1.0f);
 		float4a sc(s, s, s, c);
@@ -81,10 +81,10 @@ namespace ZetaRay::Math
 
 	ZetaInline __m128 __vectorcall slerp(const __m128 vQ1, const __m128 vQ2, float t)
 	{
-		// rotation by unit quaternions q and -q lead to same result, with the difference
+		// Rotation by unit quaternions q or -q gives the same result, with the difference
 		// that q rotates about axis n by angle theta, whereas -q rotates about angle -n by
-		// 2 * pi - theta. Dot product of two quaternions can be used to check if they are
-		// on the same hemispher. If on opposite hemispheres, negate one of them
+		// angle 2 * pi - theta. Dot product of two quaternions can be used to check if they are
+		// on the same hemisphere. If on opposite hemispheres, negate one of them.
 		const __m128 vOne = _mm_set1_ps(1.0f);
 		const __m128 vT = _mm_set1_ps(t);
 		__m128 vCosTheta = _mm_dp_ps(vQ1, vQ2, 0xff);
@@ -106,8 +106,8 @@ namespace ZetaRay::Math
 		vResSlerp = _mm_fmadd_ps(vQ2, vS2, vResSlerp);
 		vResSlerp = _mm_div_ps(vResSlerp, vSinTheta);
 
-		// if theta is near zero, use linear interpolation followed by normalization,
-		// otherwise, there might be a divide-by-zero
+		// If theta is near zero, use linear interpolation followed by normalization,
+		// otherwise, there might be a divide-by-zero.
 		const __m128 vOneMinEps = _mm_set1_ps(1.0f - FLT_EPSILON);
 		const __m128 vIsThetaNearZero = _mm_cmpgt_ps(vCosTheta, vOneMinEps);
 		const __m128 vResLerp = normalizeFast(lerp(vQ1, vQ2, t));

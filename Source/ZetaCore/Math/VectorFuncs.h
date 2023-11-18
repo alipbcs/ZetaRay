@@ -109,6 +109,15 @@ namespace ZetaRay::Math
 		return vS;
 	}
 
+	ZetaInline __m128 __vectorcall sign(__m128 v)
+	{
+		__m128 vOnePos = _mm_set1_ps(1.0f);
+		__m128 vOneNeg = _mm_set1_ps(-1.0f);
+		__m128 vSign = _mm_blendv_ps(vOneNeg, vOnePos, _mm_cmpge_ps(v, _mm_setzero_ps()));
+
+		return vSign;
+	}
+
 	// Returns v.x + v.z + v.z in the 1st element of output.
 	// Note: assumes fourth of element of v is zero.
 	ZetaInline __m128 __vectorcall hadd_float3(__m128 v)
@@ -120,15 +129,6 @@ namespace ZetaRay::Math
 		return vSum;
 	}	
 	
-	// Returns v.x + v.z + v.z + v.w in the 1st element of output.
-	ZetaInline __m128 __vectorcall hadd_float4(__m128 v)
-	{
-		__m128 vT = _mm_add_ps(v, _mm_movehl_ps(v, v));
-		__m128 vSum = _mm_add_ss(vT, _mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(1, 0, 0, 0)));
-		
-		return vSum;
-	}
-
 	ZetaInline __m128 __vectorcall encode_octahedral(__m128 v)
 	{
 		__m128 vAbs = abs(v);
@@ -136,11 +136,10 @@ namespace ZetaRay::Math
 		vAbs = _mm_shuffle_ps(vAbs, vAbs, V_SHUFFLE_XYZW(0, 0, 0, 0));
 		__m128 vEncodedPosZ = _mm_div_ps(v, vAbs);
 
-		__m128 vOnePos = _mm_set1_ps(1.0f);
-		__m128 vOneNeg = _mm_set1_ps(-1.0f);
-		__m128 vSign = _mm_blendv_ps(vOneNeg, vOnePos, _mm_cmpge_ps(v, _mm_setzero_ps()));
+		__m128 vOne = _mm_set1_ps(1.0f);
+		__m128 vSign = sign(v);
 		__m128 vEncoded_yx = abs(_mm_shuffle_ps(vEncodedPosZ, vEncodedPosZ, V_SHUFFLE_XYZW(1, 0, 0, 0)));
-		__m128 vEncodedNegZ = _mm_sub_ps(vOnePos, vEncoded_yx);
+		__m128 vEncodedNegZ = _mm_sub_ps(vOne, vEncoded_yx);
 		vEncodedNegZ = _mm_mul_ps(vEncodedNegZ, vSign);
 
 		__m128 vZ = _mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(2, 2, 2, 2));
@@ -150,29 +149,28 @@ namespace ZetaRay::Math
 		return vEncoded;
 	}
 
-	inline __m128 __vectorcall decode_octahedral(__m128 u)
+	ZetaInline __m128 __vectorcall decode_octahedral(__m128 u)
 	{
 		__m128 vAbs = abs(u);
 		vAbs = _mm_add_ps(vAbs, _mm_shuffle_ps(vAbs, vAbs, V_SHUFFLE_XYZW(1, 0, 0, 0)));
 
-		__m128 vOnePos = _mm_set1_ps(1.0f);
+		__m128 vOne = _mm_set1_ps(1.0f);
 		// first two elements are now equal to |u.x| + |u.y|
-		__m128 vN = _mm_sub_ps(vOnePos, vAbs);
+		__m128 vZ = _mm_sub_ps(vOne, vAbs);
 		
-		__m128 vGt0 = _mm_cmpge_ps(u, _mm_setzero_ps());
-
-		__m128 vPosT = saturate(negate(vN));
+		__m128 vPosT = saturate(negate(vZ));
 		__m128 vNegT = negate(vPosT);
+		__m128 vGt0 = _mm_cmpge_ps(u, _mm_setzero_ps());
 		__m128 vDecoded = _mm_blendv_ps(vPosT, vNegT, vGt0);
 		vDecoded = _mm_add_ps(u, vDecoded);
-		// set z element to vN.z and zero the last element
-		vDecoded = _mm_insert_ps(vDecoded, vN, 0x28);
+		// copy z and zero out the last element
+		vDecoded = _mm_insert_ps(vDecoded, vZ, 0x28);
 		vDecoded = normalize(vDecoded);
 
 		return vDecoded;
 	}
 
-	// Following function is ported from DirectXMath (under MIT License).
+	// Following is ported from DirectXMath (MIT License).
 	ZetaInline __m128 __vectorcall acos(const __m128 V)
 	{
 		__m128 nonnegative = _mm_cmpge_ps(V, _mm_setzero_ps());
@@ -226,7 +224,7 @@ namespace ZetaRay::Math
 		return t0;
 	}
 
-	// Following function is ported from DirectXMath (under MIT License).
+	// Following is ported from DirectXMath (MIT License).
 	// vTheta must be in -XM_PI <= theta < XM_PI
 	ZetaInline __m128 __vectorcall sin(__m128 vTheta)
 	{

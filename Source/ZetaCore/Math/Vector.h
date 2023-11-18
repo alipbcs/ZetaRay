@@ -330,14 +330,34 @@ namespace ZetaRay::Math
 		}
 
 		half2(float fx, float fy)
-			: x(FloatToHalf(fx)),
-			y(FloatToHalf(fy))
-		{}
+		{
+			float2 f(fx, fy);
+			
+			// &f does not need to be aligned and the last two elements are set to 0
+			__m128 vF = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&f)));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
 
-		explicit half2(float2 f)
-			: x(FloatToHalf(f.x)),
-			y(FloatToHalf(f.y))
-		{}
+			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+			alignas(16) uint16_t v[8];
+			_mm_store_si128((__m128i*)v, vH);
+
+			x = v[0];
+			y = v[1];
+		}
+
+		explicit half2(const float2& f)
+		{
+			// &f does not need to be aligned and the last two elements are set to 0
+			__m128 vF = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&(const_cast<float2&>(f)))));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
+
+			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+			alignas(16) uint16_t v[8];
+			_mm_store_si128((__m128i*)v, vH);
+
+			x = v[0];
+			y = v[1];
+		}
 
 		uint16_t x;
 		uint16_t y;
@@ -356,15 +376,24 @@ namespace ZetaRay::Math
 		}
 
 		half3(float fx, float fy, float fz)
-			: x(FloatToHalf(fx)),
-			y(FloatToHalf(fy)),
-			z(FloatToHalf(fz))
-		{}
+		{
+			float4a f(fx, fy, fz, 0);
+			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
+			__m128i vH = _mm_cvtps_ph(vF, 0);
 
-		explicit half3(float3 f)
+			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+			alignas(16) uint16_t v[8];
+			_mm_store_si128((__m128i*)v, vH);
+
+			x = v[0];
+			y = v[1];
+			z = v[2];
+		}
+
+		explicit half3(const float3& f)
 		{
 			// &v does not need to be aligned and the last two elements are set to 0
-			__m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&f)));
+			__m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&(const_cast<float3&>(f)))));
 			// &v.z does not need to be aligned
 			__m128 vZ = _mm_load_ss(&f.z);
 			__m128 vF = _mm_insert_ps(vXY, vZ, 0x20);
@@ -380,9 +409,9 @@ namespace ZetaRay::Math
 			z = v[2];
 		}
 
-		explicit half3(float4a f)
+		explicit half3(const float4a& f)
 		{
-			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
+			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&(const_cast<float4a&>(f))));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
 
 			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
@@ -413,15 +442,9 @@ namespace ZetaRay::Math
 		}
 
 		half4(float fx, float fy, float fz, float fw)
-			: x(FloatToHalf(fx)),
-			y(FloatToHalf(fy)),
-			z(FloatToHalf(fz)),
-			w(FloatToHalf(fw))
-		{}
-
-		explicit half4(float4 f)
 		{
-			__m128 vF = _mm_loadu_ps(reinterpret_cast<float*>(&f));
+			float4a f(fx, fy, fz, fw);
+			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
 
 			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
@@ -434,9 +457,9 @@ namespace ZetaRay::Math
 			w = v[3];
 		}
 
-		explicit half4(float4a f)
+		explicit half4(const float4& f)
 		{
-			__m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
+			__m128 vF = _mm_loadu_ps(reinterpret_cast<float*>(&(const_cast<float4&>(f))));
 			__m128i vH = _mm_cvtps_ph(vF, 0);
 
 			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable

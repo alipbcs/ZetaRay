@@ -53,8 +53,8 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 			emissive = g_emissives[hitInfo.emissiveTriIdx];
 			L_e = LightSource::Le_EmissiveTriangle(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
 
-			const float3 vtx1 = emissive.V1();
-			const float3 vtx2 = emissive.V2();
+			const float3 vtx1 = LightSource::DecodeEmissiveTriV1(emissive);
+			const float3 vtx2 = LightSource::DecodeEmissiveTriV2(emissive);
 			lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
 			float twoArea = length(lightNormal);
 			twoArea = max(twoArea, 1e-6);

@@ -19,6 +19,30 @@ namespace LightSource
 		float pdf;
 	};
 
+	float3 DecodeEmissiveTriV1(RT::EmissiveTriangle tri)
+	{
+#if ENCODE_EMISSIVE_POS == 1
+		float3 v0v1 = float3(tri.V0V1 / float((1 << 15) - 1), 0);
+		v0v1 = Math::Encoding::DecodeUnitVector(v0v1.xy);
+
+		return mad(v0v1, tri.EdgeLengths.x, tri.Vtx0);
+#else
+		return Vtx1;
+#endif
+	}
+
+	float3 DecodeEmissiveTriV2(RT::EmissiveTriangle tri)
+	{
+#if ENCODE_EMISSIVE_POS == 1
+		float3 v0v2 = float3(tri.V0V2 / float((1 << 15) - 1), 0);
+		v0v2 = Math::Encoding::DecodeUnitVector(v0v2.xy);
+		
+		return mad(v0v2, tri.EdgeLengths.y, tri.Vtx0);
+#else
+		return Vtx2;
+#endif
+	}
+
 	uint SampleAliasTable(StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable, uint numEmissiveTriangles, 
 		inout RNG rng, out float pdf)
 	{
@@ -55,8 +79,8 @@ namespace LightSource
 		float2 u = rng.Uniform2D();
 		ret.bary = Sampling::UniformSampleTriangle(u);
 
-		const float3 vtx1 = tri.V1();
-		const float3 vtx2 = tri.V2();
+		const float3 vtx1 = LightSource::DecodeEmissiveTriV1(tri);
+		const float3 vtx2 = LightSource::DecodeEmissiveTriV2(tri);
 		ret.pos = (1.0f - ret.bary.x - ret.bary.y) * tri.Vtx0 + ret.bary.x * vtx1 + ret.bary.y * vtx2;
 		ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
 		float twoArea = length(ret.normal);
@@ -105,7 +129,7 @@ namespace LightSource
 	float3 Le_EmissiveTriangle(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset, 
 		SamplerState s = g_samPointWrap)
 	{
-		const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor_Signs);
+		const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor);
 		const float emissiveStrength = tri.GetEmissiveStrength();
 		float3 L_e = emissiveFactor * emissiveStrength;
 

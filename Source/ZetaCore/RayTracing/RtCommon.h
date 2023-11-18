@@ -7,7 +7,22 @@
 #include "../Math/VectorFuncs.h"
 #endif
 
+// When enabled, instead of storing vertex positions directly, store normalized 
+// edge vector (e.g. v0v1) along with the corresponding edge length. Position can 
+// then be reconstructed as e.g. v1 = v0 + v0v1 * ||v1 - v0||. Saves 12 bytes per 
+// triangle.
 #define ENCODE_EMISSIVE_POS 1
+
+// Use 16-bit floats for storing triangle uv coordinates. Emissive textures tend 
+// to have lower resolutions, so the loss of precision might be acceptable. Saves
+// 12 bytes per triangle.
+#define EMISSIVE_UV_HALF 1
+
+#if EMISSIVE_UV_HALF == 1
+#define EMISSIVE_UV_TYPE half2_
+#else
+#define EMISSIVE_UV_TYPE float2_
+#endif
 
 // From DXR docs:
 // "Meshes present in an acceleration structure can be subdivided into groups
@@ -48,8 +63,6 @@ namespace ZetaRay
 
 		struct EmissiveTriangle
 		{
-			static const uint32_t V0V1SignBit = 24;
-			static const uint32_t V0V2SignBit = 25;
 			static const uint32_t TriIDPatchedBit = 26;
 			static const uint32_t DoubleSidedBit = 27;
 
@@ -59,7 +72,7 @@ namespace ZetaRay
 				const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
 				uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, bool doubleSided = true)
 				: ID(triIdx),
-				EmissiveFactor_Signs(emissiveFactor & 0xffffff),
+				EmissiveFactor(emissiveFactor & 0xffffff),
 				EmissiveTex_Strength(emissiveTex_Strength),
 				UV0(uv0),
 				UV1(uv1),
@@ -70,7 +83,7 @@ namespace ZetaRay
 				__m128 v2 = Math::loadFloat3(const_cast<Math::float3&>(vtx2));
 				StoreVertices(v0, v1, v2);
 
-				EmissiveFactor_Signs |= (doubleSided << DoubleSidedBit);
+				EmissiveFactor |= (doubleSided << DoubleSidedBit);
 			}
 #endif
 
@@ -86,12 +99,13 @@ namespace ZetaRay
 #endif
 
 			uint32_t ID;
-			uint32_t EmissiveFactor_Signs;
+			uint32_t EmissiveFactor;
 
-			float2_ UV0;
-			float2_ UV1;
-			float2_ UV2;
 			uint32_t EmissiveTex_Strength;
+
+			EMISSIVE_UV_TYPE UV0;
+			EMISSIVE_UV_TYPE UV1;
+			EMISSIVE_UV_TYPE UV2;
 
 #ifdef __cplusplus
 			ZetaInline void __vectorcall StoreVertices(__m128 v0, __m128 v1, __m128 v2)
@@ -117,8 +131,15 @@ namespace ZetaRay
 				__m256 vEdgeLengthsSplatted = _mm256_insertf128_ps(
 					_mm256_castps128_ps256(_mm_shuffle_ps(vEdgeLengths, vEdgeLengths, V_SHUFFLE_XYZW(0, 0, 0, 0))),
 					_mm_shuffle_ps(vEdgeLengths, vEdgeLengths, V_SHUFFLE_XYZW(1, 1, 1, 1)), 1);
-				// (v1 - v0, v2 - v0)
+				//  = normalize(v1 - v0, v2 - v0)
 				__m256 vE0E1Normalized = _mm256_div_ps(vE0E1, vEdgeLengthsSplatted);
+
+				// octahedral encoding
+				__m128 vE0 = _mm256_extractf128_ps(vE0E1Normalized, 0);
+				vE0 = Math::encode_octahedral(vE0);
+				__m128 vE1 = _mm256_extractf128_ps(vE0E1Normalized, 1);
+				vE1 = Math::encode_octahedral(vE1);
+				vE0E1Normalized = _mm256_insertf128_ps(_mm256_castps128_ps256(vE0), vE1, 1);
 
 				// encode using 16-bit SNORMs
 				__m256 vMax = _mm256_set1_ps((1 << 15) - 1);
@@ -137,17 +158,6 @@ namespace ZetaRay
 				__m128i vEdgeLengthsHalf = _mm_cvtps_ph(vEdgeLengths, 0);
 				int lengths = _mm_cvtsi128_si32(vEdgeLengthsHalf);
 				memcpy(&EdgeLengths, &lengths, sizeof(int));
-
-				// remember sign of z component
-				int cmpMask = _mm256_movemask_ps(_mm256_cmp_ps(vE0E1, _mm256_setzero_ps(), _CMP_GE_OQ));
-				int isPos0 = (cmpMask & (1 << 2)) == (1 << 2);
-				int isPos1 = (cmpMask & (1 << 6)) == (1 << 6);
-
-				// clear the sign bits
-				EmissiveFactor_Signs &= ~((1u << V0V1SignBit) | (1u << V0V2SignBit));
-
-				EmissiveFactor_Signs = EmissiveFactor_Signs | (isPos0 << V0V1SignBit);
-				EmissiveFactor_Signs = EmissiveFactor_Signs | (isPos1 << V0V2SignBit);
 #else
 				Vtx1 = Math::storeFloat3(v1);
 				Vtx2 = Math::storeFloat3(v2);
@@ -159,10 +169,6 @@ namespace ZetaRay
 				__m128 vOne = _mm_set1_ps(1.0f);
 
 #if ENCODE_EMISSIVE_POS == 1
-				bool signIsPosV1 = EmissiveFactor_Signs & (1u << V0V1SignBit);
-				bool signIsPosV2 = EmissiveFactor_Signs & (1u << V0V2SignBit);
-				__m128 V1Mask = _mm_setr_ps(1.0f, 1.0f, signIsPosV1 ? 1.0f : -1.0f, 1.0f);
-				__m128 V2Mask = _mm_setr_ps(1.0f, 1.0f, signIsPosV2 ? 1.0f : -1.0f, 1.0f);
 
 				alignas(16) int32_t packed[4] = { int32_t(V0V1.x), int32_t(V0V1.y),
 					int32_t(V0V2.x), int32_t(V0V2.y) };
@@ -175,25 +181,14 @@ namespace ZetaRay
 				__m128i vLengthsHalf = _mm_cvtsi32_si128(EdgeLengths.x | (EdgeLengths.y << 16));
 				__m128 vLengths = _mm_cvtph_ps(vLengthsHalf);
 
-				// z = sqrt(1 - x * x - y * y)
-				__m128 vZs = _mm_mul_ps(vE0E1, vE0E1);
-				vZs = _mm_hadd_ps(vZs, vZs);
-				vZs = _mm_sub_ps(vOne, vZs);
-				// due to precision loss, result could be negative, which leads to NaN in sqrt
-				vZs = _mm_max_ps(vZs, _mm_setzero_ps());
-				vZs = _mm_sqrt_ps(vZs);
-
-				// restore the z component
-				__m128 vV1 = _mm_insert_ps(vE0E1, vZs, 0x20);
-				// and restore its sign
-				vV1 = _mm_mul_ps(vV1, V1Mask);
 				// interpolate
 				__m128 vV0 = Math::loadFloat3(Vtx0);
+
+				__m128 vV1 = Math::decode_octahedral(vE0E1);
 				vV1 = _mm_fmadd_ps(vV1, _mm_broadcastss_ps(vLengths), vV0);
 				v1 = vV1;
 
-				__m128 vV2 = _mm_insert_ps(_mm_shuffle_ps(vE0E1, vE0E1, V_SHUFFLE_XYZW(2, 3, 3, 3)), vZs, 0x60);
-				vV2 = _mm_mul_ps(vV2, V2Mask);
+				__m128 vV2 = Math::decode_octahedral(_mm_movehl_ps(vE0E1, vE0E1));
 				vV2 = _mm_fmadd_ps(vV2, _mm_shuffle_ps(vLengths, vLengths, V_SHUFFLE_XYZW(1, 1, 1, 1)), vV0);
 				v2 = vV2;
 #else
@@ -209,12 +204,12 @@ namespace ZetaRay
 
 			ZetaInline bool IsIDPatched()
 			{
-				return EmissiveFactor_Signs & (1u << TriIDPatchedBit);
+				return EmissiveFactor & (1u << TriIDPatchedBit);
 			}
 
 			ZetaInline void ResetID(uint32_t id)
 			{
-				EmissiveFactor_Signs |= (1u << TriIDPatchedBit);
+				EmissiveFactor |= (1u << TriIDPatchedBit);
 				ID = id;
 			}
 
@@ -231,36 +226,6 @@ namespace ZetaRay
 #endif
 
 #ifndef __cplusplus
-			float3 V1()
-			{
-#if ENCODE_EMISSIVE_POS == 1
-				float sign = (EmissiveFactor_Signs & (1u << V0V1SignBit)) ? 1.0f : -1.0f;
-				float3 v0v1 = float3(V0V1 / float((1 << 15) - 1), 0.0f);
-				float z2 = 1 - v0v1.x * v0v1.x - v0v1.y * v0v1.y;
-				z2 = max(0, z2);
-				v0v1.z = sqrt(z2);
-				v0v1.z *= sign;
-				return mad(v0v1, EdgeLengths.x, Vtx0);
-#else
-				return Vtx1;
-#endif
-			}
-
-			float3 V2()
-			{
-#if ENCODE_EMISSIVE_POS == 1
-				float sign = (EmissiveFactor_Signs & (1u << V0V2SignBit)) ? 1.0f : -1.0f;
-				float3 v0v2 = float3(V0V2 / float((1 << 15) - 1), 0.0f);
-				float z2 = 1 - v0v2.x * v0v2.x - v0v2.y * v0v2.y;
-				z2 = max(0, z2);
-				v0v2.z = sqrt(z2);
-				v0v2.z *= sign;
-				return mad(v0v2, EdgeLengths.y, Vtx0);
-#else
-				return Vtx2;
-#endif			
-			}
-
 			uint16_t GetEmissiveTex()
 			{
 				return uint16_t(EmissiveTex_Strength & 0xffff);
@@ -273,7 +238,7 @@ namespace ZetaRay
 
 			bool IsDoubleSided()
 			{
-				return EmissiveFactor_Signs & (1u << DoubleSidedBit);
+				return EmissiveFactor & (1u << DoubleSidedBit);
 			}
 #endif
 		};

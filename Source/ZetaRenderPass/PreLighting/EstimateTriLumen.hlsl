@@ -2,6 +2,7 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/Sampling.hlsli"
+#include "../Common/LightSource.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 
@@ -69,12 +70,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	lumen = hasTexture ? WaveActiveSum(lumen) : ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI;
 
-	const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor_Signs);
+	const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor);
 	const float emissiveStrength = tri.GetEmissiveStrength();
 	lumen = lumen * emissiveFactor * emissiveStrength;
 
-	const float3 vtx1 = tri.V1();
-	const float3 vtx2 = tri.V2();
+	const float3 vtx1 = LightSource::DecodeEmissiveTriV1(tri);
+	const float3 vtx2 = LightSource::DecodeEmissiveTriV2(tri);
 	const float surfaceArea = max(TriangleArea(tri.Vtx0, vtx1, vtx2), 1e-5);
 	const float pdf = 1.0f / surfaceArea;
 	float mcEstimate = Math::Color::Luminance(lumen) * PI / (pdf * ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI);
