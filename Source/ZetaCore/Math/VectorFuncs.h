@@ -331,4 +331,15 @@ namespace ZetaRay::Math
 	ZetaInline __m128 __vectorcall loadFloat4(float4& v)
 	{
 		return _mm_loadu_ps(reinterpret_cast<float*>(&v));
-	}}
+	}
+
+	ZetaInline __m128 __vectorcall loadSNorm2(snorm2& v)
+	{
+		alignas(16) int32_t unpacked[4] = { int32_t(v.x), int32_t(v.y), 0, 0 };
+
+		__m128 vV = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(unpacked)));
+		vV = _mm_div_ps(vV, _mm_set1_ps((1 << 15) - 1));
+
+		return vV;
+	}
+}

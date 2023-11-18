@@ -9,6 +9,7 @@ set(MATH_SRC
     "${MATH_DIR}/Color.h"
     "${MATH_DIR}/Matrix.h"
     "${MATH_DIR}/MatrixFuncs.h"
+    "${MATH_DIR}/OctahedralVector.h"
     "${MATH_DIR}/Quaternion.h"
     "${MATH_DIR}/Sampling.cpp"
     "${MATH_DIR}/Sampling.h"

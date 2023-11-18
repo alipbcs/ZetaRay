@@ -169,9 +169,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	payload.uv = uv;
 
 	// normal
-	float3 v0_n = Math::Encoding::DecodeSNorm3(V0.NormalL);
-	float3 v1_n = Math::Encoding::DecodeSNorm3(V1.NormalL);
-	float3 v2_n = Math::Encoding::DecodeSNorm3(V2.NormalL);
+	float3 v0_n = Math::Encoding::DecodeOct16(V0.NormalL);
+	float3 v1_n = Math::Encoding::DecodeOct16(V1.NormalL);
+	float3 v2_n = Math::Encoding::DecodeOct16(V2.NormalL);
 	float3 normal = v0_n + attr.barycentrics.x * (v1_n - v0_n) + attr.barycentrics.y * (v2_n - v0_n);
 	// transform normal using the inverse transpose
 	// (M^-1)^T = ((RS)^-1)^T
@@ -184,9 +184,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     payload.normal = normal;
 
 	// tangent vector
-	float3 v0_t = Math::Encoding::DecodeSNorm3(V0.TangentU);
-	float3 v1_t = Math::Encoding::DecodeSNorm3(V1.TangentU);
-	float3 v2_t = Math::Encoding::DecodeSNorm3(V2.TangentU);
+	float3 v0_t = Math::Encoding::DecodeOct16(V0.TangentU);
+	float3 v1_t = Math::Encoding::DecodeOct16(V1.TangentU);
+	float3 v2_t = Math::Encoding::DecodeOct16(V2.TangentU);
 	float3 tangent = v0_t + attr.barycentrics.x * (v1_t - v0_t) + attr.barycentrics.y * (v2_t - v0_t);
 	tangent *= meshData.Scale;
 	tangent = Math::Transform::RotateVector(tangent, q);

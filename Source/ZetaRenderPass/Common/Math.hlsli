@@ -351,6 +351,31 @@ namespace Math
 			return (i & 0xff) / 255.0f;
 		}
 
+		int16_t2 EncodeAsSNorm2(float2 u)
+		{
+			return int16_t2(round(u * float((1 << 15) - 1)));
+		}
+
+		int16_t3 EncodeAsSNorm3(float3 u)
+		{
+			return int16_t3(round(u * float((1 << 15) - 1)));
+		}
+
+		float2 DecodeSNorm2(int16_t2 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
+
+		float3 DecodeSNorm3(int16_t3 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
+
+		float4 DecodeSNorm4(int16_t4 u)
+		{
+			return u / float((1 << 15) - 1);
+		}
+		
 		float2 SignNotZero(float2 v) 
 		{
 			return float2((v.x >= 0.0) ? +1.0 : -1.0, (v.y >= 0.0) ? +1.0 : -1.0);
@@ -375,29 +400,14 @@ namespace Math
 			return normalize(n);
 		}
 
-		int16_t2 EncodeAsSNorm2(float2 u)
+		float3 DecodeOct16(int16_t2 e)
 		{
-			return int16_t2(round(u * float((1 << 15) - 1)));
-		}
-
-		int16_t3 EncodeAsSNorm3(float3 u)
-		{
-			return int16_t3(round(u * float((1 << 15) - 1)));
-		}
-
-		float2 DecodeSNorm2(int16_t2 u)
-		{
-			return u / float((1 << 15) - 1);
-		}
-
-		float3 DecodeSNorm3(int16_t3 u)
-		{
-			return u / float((1 << 15) - 1);
-		}
-
-		float4 DecodeSNorm4(int16_t4 u)
-		{
-			return u / float((1 << 15) - 1);
+			float2 u = DecodeSNorm2(e);
+			float3 n = float3(u.x, u.y, 1.0f - abs(u.x) - abs(u.y));
+			float t = saturate(-n.z);
+			n.xy += select(n.xy >= 0.0f, -t, t);
+	
+			return normalize(n);
 		}
 	}
 

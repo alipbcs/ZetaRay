@@ -1,5 +1,6 @@
 #include "Surface.h"
 #include "../App/Log.h"
+#include <Math/VectorFuncs.h>
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
@@ -92,12 +93,12 @@ void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span
 	// assumes vertex normala are normalized
 	for(size_t i = 0; i < vertices.size(); i++)
 	{
-		float3 n = float3(vertices[i].Normal);
+		float3 n = vertices[i].Normal.decode();
 		float3 tangProjectedOnNormal = n.dot(tangents[i]) * n;
 		tangents[i] -= tangProjectedOnNormal;
 		tangents[i].normalize();
 
-		vertices[i].Tangent = snorm3(tangents[i]);
+		vertices[i].Tangent = oct16(tangents[i]);
 	}
 
 	if (numCollinearTris)

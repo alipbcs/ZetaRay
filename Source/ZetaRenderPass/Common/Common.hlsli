@@ -1,13 +1,13 @@
 #ifndef COMMON_H
 #define COMMON_H
 
-// 32 bytes
+// 28 bytes
 struct Vertex
 {
 	float3 PosL;
 	float2 TexUV;
-	int16_t3 NormalL;
-	int16_t3 TangentU;
+	int16_t2 NormalL;
+	int16_t2 TangentU;
 };
 
 namespace Common
