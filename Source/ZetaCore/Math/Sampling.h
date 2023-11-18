@@ -1,6 +1,7 @@
 #pragma once
 
 #include <Utility/Span.h>
+#include <Math/Vector.h>
 
 namespace ZetaRay::Util
 {
@@ -11,6 +12,8 @@ namespace ZetaRay::Math
 {
 	// Generates i'th index of the Halton low-discrepancy sequence for base b 
 	float Halton(int i, int b);
+
+	Math::float3 UniformSampleSphere(const Math::float2 u);
 
     struct AliasTableEntry
     {

@@ -1,5 +1,6 @@
 #include "Sampling.h"
 #include <Utility/RNG.h>
+#include <cmath>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Util;
@@ -175,4 +176,13 @@ float Math::Halton(int i, int b)
 	}
 
 	return r;
+}
+
+float3 Math::UniformSampleSphere(float2 u)
+{
+	float z = 1 - 2 * u.x;
+	float r = std::sqrt(Math::Max(0.0f, 1.0f - z * z));
+	float phi = 2 * Math::PI * u.y;
+
+	return float3(r * std::cos(phi), r * std::sin(phi), z);
 }

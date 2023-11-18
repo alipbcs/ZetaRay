@@ -2,6 +2,7 @@
 #include <Math/Quaternion.h>
 #include <Math/MatrixFuncs.h>
 #include <Utility/RNG.h>
+#include <Math/Sampling.h>
 #include <doctest/doctest.h>
 #include <DirectXMath.h>
 #include <DirectXCollision.h>
@@ -423,7 +424,6 @@ TEST_CASE("QuaternionFromRotationMat")
 	CHECK(fabsf(result.w - 0.9659258f) <= FLT_EPSILON);
 }
 
-
 /*
 TEST_CASE("PlaneTransformation")
 {
@@ -439,3 +439,29 @@ TEST_CASE("PlaneTransformation")
 	DirectX::XMPlaneTransform()
 }
 */
+
+TEST_CASE("Octahedral Encoding")
+{
+	int unused;
+	RNG rng(reinterpret_cast<uintptr_t>(&unused));
+	INFO("RNG seed: ", reinterpret_cast<uintptr_t>(&unused));
+
+	constexpr int N = 1000;
+
+	for (int i = 0; i < N; i++)
+	{
+		float2 u = float2(rng.GetUniformFloat(), rng.GetUniformFloat());
+		float3 n = UniformSampleSphere(u);
+
+		__m128 vN = loadFloat3(n);
+		__m128 e = encode_octahedral(vN);
+		__m128 d = decode_octahedral(e);
+		float3 decoded = storeFloat3(d);
+
+		float3 diff = decoded - n;
+		float l2 = diff.dot(diff);
+		float mse = sqrtf(l2) / 3.0f;
+
+		CHECK(mse <= 1e-6f);
+	}
+}
