@@ -409,6 +409,19 @@ namespace Math
 	
 			return normalize(n);
 		}
+		
+		// Octahedral encoding for unit vector in upper hemisphere (n.y >= 0).
+		float2 EncodeUnitHemisphereVector(float3 n)
+		{
+			float2 p = n.xz / (abs(n.x) + abs(n.y) + abs(n.z));
+			return p;
+		}
+
+		float3 DecodeUnitHemisphereVector(float2 u)
+		{
+			float3 n = float3(u.x, 1.0f - abs(u.x) - abs(u.y), u.y);
+			return normalize(n);
+		}
 	}
 
 	namespace Color

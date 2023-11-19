@@ -105,11 +105,11 @@ namespace SkyDI_Util
 		const float w_sum = g_reservoir_B[DTid];
 		const float W = asfloat(resA.w);
 		
-		uint3 temp1 = uint3(resA.x & 0xffff, 0, resA.x >> 16);
-		float3 wi = asfloat16(uint16_t3(temp1));
-		float wiNorm = saturate(dot(wi, wi));
-		wi.y = wiNorm > 0 ? sqrt(1 - wiNorm) : 1.0f;
-
+		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
+		int16_t2 temp1Snorm = asint16(temp1);
+		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
+		
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
 		half M = asfloat16(uint16_t(resA.z >> 16));
@@ -126,10 +126,10 @@ namespace SkyDI_Util
 		const uint4 resA = g_reservoir_A[DTid];
 		const float W = asfloat(resA.w);
 		
-		uint3 temp1 = uint3(resA.x & 0xffff, 0, resA.x >> 16);
-		float3 wi = asfloat16(uint16_t3(temp1));
-		float wiNorm = saturate(dot(wi, wi));
-		wi.y = wiNorm > 0 ? sqrt(1 - wiNorm) : 1.0f;
+		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
+		int16_t2 temp1Snorm = asint16(temp1);
+		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
 
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
@@ -163,10 +163,10 @@ namespace SkyDI_Util
 		const uint4 resA = g_reservoir_A[DTid];
 		const float W = asfloat(resA.w);
 		
-		uint3 temp1 = uint3(resA.x & 0xffff, 0, resA.x >> 16);
-		float3 wi = asfloat16(uint16_t3(temp1));
-		float wiNorm = saturate(dot(wi, wi));
-		wi.y = wiNorm > 0 ? sqrt(1 - wiNorm) : 1.0f;
+		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
+		int16_t2 temp1Snorm = asint16(temp1);
+		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
 		
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
@@ -182,11 +182,13 @@ namespace SkyDI_Util
 		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<float> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
 
-		uint16_t2 wi = asuint16(half2(r.wi.x, r.wi.z));
+		float2 wi = Math::Encoding::EncodeUnitHemisphereVector(r.wi);
+		int16_t2 wiSnorm = Math::Encoding::EncodeAsSNorm2(wi);
+
 		uint16_t3 Li = asuint16(half3(r.Le));
 		uint16_t M = asuint16(min(r.M, m_max));
 		
-		uint a_x = (uint(wi.y) << 16) | wi.x;
+		uint a_x = asuint16(wiSnorm.x) | (uint(asuint16(wiSnorm.y)) << 16);
 		uint a_y = (uint(Li.y) << 16) | Li.x;
 		uint a_z = (uint(M) << 16) | Li.z;
 		uint a_w = asuint(r.W);
