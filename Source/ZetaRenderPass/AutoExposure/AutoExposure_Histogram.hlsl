@@ -27,7 +27,7 @@ uint CalculateeBin(uint2 DTid)
 	
 	Texture2D<half4> g_input = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	const float3 color = g_input[DTid].rgb;
-	const float lum = Math::Color::Luminance(color);
+	const float lum = Math::Luminance(color);
 	
 	if (lum <= EPS)
 		return 0;

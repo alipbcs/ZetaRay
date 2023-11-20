@@ -14,20 +14,28 @@
 #define ESTIMATE_CURVATURE_GROUP_DIM_X 8u
 #define ESTIMATE_CURVATURE_GROUP_DIM_Y 8u
 
-struct cbEstimateTriLumen
-{
-	uint32_t TotalNumTris;
-};
+#define NUM_SAMPLES_PER_VOXEL 64
 
 struct cbPresampling
 {
 	uint32_t NumTotalSamples;
-	uint32_t NumEmissiveTriangles;
 };
 
 struct cbCurvature
 {
 	uint32_t OutputUAVDescHeapIdx;
+};
+
+struct cbLVG
+{
+	float Extents_x;
+	float Extents_y;
+	float Extents_z;
+	float Offset_y;
+	uint32_t GridDim_x;
+	uint32_t GridDim_y;
+	uint32_t GridDim_z;
+	uint32_t NumTotalSamples;
 };
 
 #endif

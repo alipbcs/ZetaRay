@@ -86,7 +86,7 @@ namespace ZetaRay::Core
 		void End(ComputeCmdList& ctx);
 
 	private:
-		static constexpr int MAX_NUM_PARAMS = 10;
+		static constexpr int MAX_NUM_PARAMS = 11;
 		static constexpr int MAX_NUM_ROOT_CONSTANTS = 20;
 
 		const uint32_t m_numParams;

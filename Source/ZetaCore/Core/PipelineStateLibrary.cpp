@@ -156,9 +156,9 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 	{
 		// dxc.exe -T cs_6_6 -Fo <shader>_cs.csp -E main ...
 #ifdef _DEBUG
-		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+		StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-		StackStr(cmdLine, n, "%s -T cs_6_6 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+		StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #endif // _DEBUG
 
 		HANDLE readPipe;

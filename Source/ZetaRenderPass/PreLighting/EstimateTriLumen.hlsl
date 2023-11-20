@@ -12,7 +12,6 @@
 // Root Signature
 //--------------------------------------------------------------------------------------
 
-ConstantBuffer<cbEstimateTriLumen> g_local : register(b0);
 ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 StructuredBuffer<RT::EmissiveTriangle> g_emissvies : register(t0);
 ByteAddressBuffer g_halton : register(t2);
@@ -38,7 +37,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	const uint wave = Gidx / ESTIMATE_TRI_LUMEN_WAVE_LEN;
 	const uint triIdx = Gid.x * ESTIMATE_TRI_LUMEN_NUM_TRIS_PER_GROUP + wave;
 
-	if (triIdx >= g_local.TotalNumTris)
+	if (triIdx >= g_frame.NumEmissiveTriangles)
 		return;	
 
 	const uint laneIdx = WaveGetLaneIndex();
@@ -70,15 +69,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	lumen = hasTexture ? WaveActiveSum(lumen) : ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI;
 
-	const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor);
+	const float3 emissiveFactor = Math::UnpackRGB(tri.EmissiveFactor);
 	const float emissiveStrength = tri.GetEmissiveStrength();
 	lumen = lumen * emissiveFactor * emissiveStrength;
 
-	const float3 vtx1 = LightSource::DecodeEmissiveTriV1(tri);
-	const float3 vtx2 = LightSource::DecodeEmissiveTriV2(tri);
+	const float3 vtx1 = Light::DecodeEmissiveTriV1(tri);
+	const float3 vtx2 = Light::DecodeEmissiveTriV2(tri);
 	const float surfaceArea = max(TriangleArea(tri.Vtx0, vtx1, vtx2), 1e-5);
 	const float pdf = 1.0f / surfaceArea;
-	float mcEstimate = Math::Color::Luminance(lumen) * PI / (pdf * ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI);
+	float mcEstimate = Math::Luminance(lumen) * PI / (pdf * ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI);
 
 	if (laneIdx == 0)
 	{

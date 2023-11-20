@@ -641,6 +641,55 @@ namespace ZetaRay::Math
 		int16_t w;
 	};
 
+	struct unorm2
+	{
+		unorm2() = default;
+
+		explicit unorm2(uint16_t u)
+			: x(u),
+			y(u)
+		{}
+
+		unorm2(uint16_t u, uint16_t v)
+			: x(u),
+			y(v)
+		{}
+
+		explicit unorm2(float2 u)
+		{
+			__m128 vV = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&u)));
+			__m128 vMax = _mm_set1_ps((1 << 16) - 1);
+			__m128 vTemp = _mm_mul_ps(vV, vMax);
+			vTemp = _mm_round_ps(vTemp, 0);
+			__m128i vEncoded = _mm_cvtps_epi32(vTemp);
+
+			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+			alignas(16) uint32_t a[4];
+			_mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
+
+			x = static_cast<uint16_t>(a[0]);
+			y = static_cast<uint16_t>(a[1]);
+		}
+
+		explicit unorm2(__m128 v)
+		{
+			__m128 vMax = _mm_set1_ps((1 << 16) - 1);
+			__m128 vTemp = _mm_mul_ps(v, vMax);
+			vTemp = _mm_round_ps(vTemp, 0);
+			__m128i vEncoded = _mm_cvtps_epi32(vTemp);
+
+			// doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+			alignas(16) uint32_t a[4];
+			_mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
+
+			x = static_cast<uint16_t>(a[0]);
+			y = static_cast<uint16_t>(a[1]);
+		}
+
+		uint16_t x;
+		uint16_t y;
+	};
+
 	inline float2::float2(const half2& h)
 		: x(HalfToFloat(h.x)),
 		y(HalfToFloat(h.y))
@@ -676,157 +725,157 @@ namespace ZetaRay::Math
 	// Operator Overloading
 	//--------------------------------------------------------------------------------------
 
-	inline constexpr float2 operator-(const float2& v1, const float2& v0)
+	ZetaInline constexpr float2 operator-(const float2& v1, const float2& v0)
 	{
 		return float2(v1.x - v0.x, v1.y - v0.y);
 	}		
 		
-	inline constexpr float2 operator+(const float2& v1, const float2& v0)
+	ZetaInline constexpr float2 operator+(const float2& v1, const float2& v0)
 	{
 		return float2(v1.x + v0.x, v1.y + v0.y);
 	}
 
-	inline constexpr float2 operator*(const float2& v0, const float2& v1)
+	ZetaInline constexpr float2 operator*(const float2& v0, const float2& v1)
 	{
 		return float2(v0.x * v1.x, v0.y * v1.y);
 	}
 
-	inline constexpr float2 operator*(const float2& v0, float f)
+	ZetaInline constexpr float2 operator*(const float2& v0, float f)
 	{
 		return float2(v0.x * f, v0.y * f);
 	}
 
-	inline constexpr float2 operator*(float f, const float2& v0)
+	ZetaInline constexpr float2 operator*(float f, const float2& v0)
 	{
 		return float2(v0.x * f, v0.y * f);
 	}
 
-	inline constexpr float2 operator/(const float2& v0, const float2& v1)
+	ZetaInline constexpr float2 operator/(const float2& v0, const float2& v1)
 	{
 		return float2(v0.x / v1.x, v0.y / v1.y);
 	}
 
-	inline constexpr float2 operator/(const float2& v0, float f)
+	ZetaInline constexpr float2 operator/(const float2& v0, float f)
 	{
 		return float2(v0.x / f, v0.y / f);
 	}
 
-	inline constexpr float2 operator/(float f, const float2& v0)
+	ZetaInline constexpr float2 operator/(float f, const float2& v0)
 	{
 		return float2(f / v0.x, f / v0.y);
 	}
 
-	inline constexpr float2 operator-(const float2& v0)
+	ZetaInline constexpr float2 operator-(const float2& v0)
 	{
 		return float2(-v0.x, -v0.y);
 	}
 
-	inline constexpr float3 operator+(const float3& v0, const float3& v1)
+	ZetaInline constexpr float3 operator+(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z);
 	}
 
-	inline constexpr float3 operator-(const float3& v1, const float3& v0)
+	ZetaInline constexpr float3 operator-(const float3& v1, const float3& v0)
 	{
 		return float3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
 	}
 
-	inline constexpr float3 operator*(const float3& v0, const float3& v1)
+	ZetaInline constexpr float3 operator*(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x * v1.x, v0.y * v1.y, v0.z * v1.z);
 	}
 
-	inline constexpr float3 operator*(const float3& v0, float f)
+	ZetaInline constexpr float3 operator*(const float3& v0, float f)
 	{
 		return float3(v0.x * f, v0.y * f, v0.z * f);
 	}
 
-	inline constexpr float3 operator*(float f, const float3& v0)
+	ZetaInline constexpr float3 operator*(float f, const float3& v0)
 	{
 		return float3(v0.x * f, v0.y * f, v0.z * f);
 	}
 
-	inline constexpr float3 operator/(const float3& v0, const float3& v1)
+	ZetaInline constexpr float3 operator/(const float3& v0, const float3& v1)
 	{
 		return float3(v0.x / v1.x, v0.y / v1.y, v0.z / v1.z);
 	}
 
-	inline constexpr float3 operator/(const float3& v0, float f)
+	ZetaInline constexpr float3 operator/(const float3& v0, float f)
 	{
 		return float3(v0.x / f, v0.y / f, v0.z / f);
 	}
 
-	inline constexpr float3 operator/(float f, const float3& v0)
+	ZetaInline constexpr float3 operator/(float f, const float3& v0)
 	{
 		return float3(f / v0.x, f / v0.y, f / v0.z);
 	}
 
-	inline constexpr float3 operator-(const float3& v0)
+	ZetaInline constexpr float3 operator-(const float3& v0)
 	{
 		return float3(-v0.x, -v0.y, -v0.z);
 	}
 
-	inline constexpr float4 operator+(const float4& v0, const float4& v1)
+	ZetaInline constexpr float4 operator+(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z, v0.w + v1.w);
 	}
 
-	inline constexpr float4 operator-(const float4& v1, const float4& v0)
+	ZetaInline constexpr float4 operator-(const float4& v1, const float4& v0)
 	{
 		return float4(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z, v1.w - v0.w);
 	}
 
-	inline constexpr float4 operator*(const float4& v0, const float4& v1)
+	ZetaInline constexpr float4 operator*(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x * v1.x, v0.y * v1.y, v0.z * v1.z, v0.w * v1.w);
 	}
 
-	inline constexpr float4 operator*(const float4& v0, float f)
+	ZetaInline constexpr float4 operator*(const float4& v0, float f)
 	{
 		return float4(v0.x * f, v0.y * f, v0.z * f, v0.w * f);
 	}
 
-	inline constexpr float4 operator*(float f, const float4& v0)
+	ZetaInline constexpr float4 operator*(float f, const float4& v0)
 	{
 		return float4(v0.x * f, v0.y * f, v0.z * f, v0.w * f);
 	}
 
-	inline constexpr float4 operator/(const float4& v0, const float4& v1)
+	ZetaInline constexpr float4 operator/(const float4& v0, const float4& v1)
 	{
 		return float4(v0.x / v1.x, v0.y / v1.y, v0.z / v1.z, v0.w / v1.w);
 	}
 
-	inline constexpr float4 operator/(const float4& v0, float f)
+	ZetaInline constexpr float4 operator/(const float4& v0, float f)
 	{
 		return float4(v0.x / f, v0.y / f, v0.z / f, v0.w / f);
 	}
 
-	inline constexpr float4 operator/(float f, const float4& v0)
+	ZetaInline constexpr float4 operator/(float f, const float4& v0)
 	{
 		return float4(f / v0.x, f / v0.y, f / v0.z, f / v0.w);
 	}
 
-	inline constexpr float4 operator-(const float4& v0)
+	ZetaInline constexpr float4 operator-(const float4& v0)
 	{
 		return float4(-v0.x, -v0.y, -v0.z, -v0.w);
 	}
 
-	inline constexpr uint3 operator+(uint3 v, uint32_t m)
+	ZetaInline constexpr uint3 operator+(uint3 v, uint32_t m)
 	{
 		return uint3(v.x + m, v.y + m, v.z + m);
 	}
 
-	inline constexpr uint3 operator*(uint3 v, uint32_t m)
+	ZetaInline constexpr uint3 operator*(uint3 v, uint32_t m)
 	{
 		return uint3(v.x * m, v.y * m, v.z * m);
 	}
 
-	inline constexpr uint3 operator>>(uint3 v, uint32_t m)
+	ZetaInline constexpr uint3 operator>>(uint3 v, uint32_t m)
 	{
 		return uint3(v.x >> m, v.y >> m, v.z >> m);
 	}
 
-	inline constexpr uint3 operator^(uint3 v, uint3 m)
+	ZetaInline constexpr uint3 operator^(uint3 v, uint3 m)
 	{
 		return uint3(v.x ^ m.x, v.y ^ m.y, v.z ^ m.z);
 	}

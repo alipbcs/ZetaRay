@@ -220,6 +220,26 @@ void PreLighting::Init()
 
 	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
+
+	ParamVariant extents;
+	extents.InitFloat3("Renderer", "Lighting", "Extents",
+		fastdelegate::MakeDelegate(this, &PreLighting::VoxelExtentsCallback),
+		m_voxelExtents,
+		0.1,
+		2,
+		0.1);
+	App::AddParam(extents);
+
+	ParamVariant offset_y;
+	offset_y.InitFloat("Renderer", "Lighting", "Y Offset",
+		fastdelegate::MakeDelegate(this, &PreLighting::YOffsetCallback),
+		m_yOffset,
+		0,
+		2,
+		0.1);
+	App::AddParam(offset_y);
+
+	App::AddShaderReloadHandler("BuildLightVoxelGrid", fastdelegate::MakeDelegate(this, &PreLighting::ReloadBuildLVG));
 }
 
 void PreLighting::Reset()
@@ -250,6 +270,20 @@ void PreLighting::Update(bool emissiveLighting)
 
 	if (!emissiveLighting)
 		return;
+
+	if (m_currNumTris && !m_lvg.IsInitialized())
+	{
+		const size_t sizeInBytes = NUM_SAMPLES_PER_VOXEL * m_voxelGridDim.x * m_voxelGridDim.y * m_voxelGridDim.z *
+			sizeof(RT::VoxelSample);
+
+		m_lvg = GpuMemory::GetDefaultHeapBuffer("LVG",
+			(uint32_t)sizeInBytes,
+			D3D12_RESOURCE_STATE_COMMON,
+			true);
+
+		auto& r = App::GetRenderer().GetSharedShaderResources();
+		r.InsertOrAssignDefaultHeapBuffer(GlobalResource::LIGHT_VOXEL_GRID, m_lvg);
+	}
 
 	if (App::GetScene().AreEmissivesStale())
 	{
@@ -284,11 +318,10 @@ void PreLighting::Update(bool emissiveLighting)
 	// exceeds the threashold
 	m_doPresamplingThisFrame = true;
 
-	const size_t lightSetBuffLen = m_sampleSets.IsInitialized() ? m_sampleSets.Desc().Width / sizeof(RT::PresampledEmissiveTriangle) : 0;
-
-	if (lightSetBuffLen < m_currNumTris)
+	if (!m_sampleSets.IsInitialized())
 	{
-		const size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * sizeof(RT::PresampledEmissiveTriangle);
+		constexpr size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * 
+			sizeof(RT::PresampledEmissiveTriangle);
 
 		m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
 			sizeInBytes,
@@ -332,10 +365,6 @@ void PreLighting::Render(CommandList& cmdList)
 			D3D12_RESOURCE_STATE_COPY_SOURCE,
 			D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		cbEstimateTriLumen cb;
-		cb.TotalNumTris = m_currNumTris;
-		m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
-
 		m_rootSig.SetRootSRV(4, m_halton.GpuVA());
 		m_rootSig.SetRootUAV(5, m_lumen.GpuVA());
 
@@ -358,7 +387,6 @@ void PreLighting::Render(CommandList& cmdList)
 		gpuTimer.EndQuery(computeCmdList, queryIdx);
 	}
 
-	// presampling
 	if (m_doPresamplingThisFrame)
 	{
 		constexpr uint32_t numSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
@@ -386,7 +414,6 @@ void PreLighting::Render(CommandList& cmdList)
 
 		cbPresampling cb;
 		cb.NumTotalSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
-		cb.NumEmissiveTriangles = m_currNumTris;
 
 		m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
 		m_rootSig.SetRootUAV(5, m_sampleSets.GpuVA());
@@ -426,6 +453,35 @@ void PreLighting::Render(CommandList& cmdList)
 		cmdList.PIXEndEvent();
 	}
 
+	if (m_buildLVGThisFrame)
+	{
+		// record the timestamp prior to execution
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "LightVoxelGrid");
+
+		computeCmdList.PIXBeginEvent("LightVoxelGrid");
+		computeCmdList.SetPipelineState(m_psos[(int)SHADERS::BUILD_LIGHT_VOXEL_GRID]);
+
+		cbLVG cb;
+		cb.GridDim_x = m_voxelGridDim.x;
+		cb.GridDim_y = m_voxelGridDim.y;
+		cb.GridDim_z = m_voxelGridDim.z;
+		cb.Extents_x = m_voxelExtents.x;
+		cb.Extents_y = m_voxelExtents.y;
+		cb.Extents_z = m_voxelExtents.z;
+		cb.NumTotalSamples = NUM_SAMPLES_PER_VOXEL * m_voxelGridDim.x * m_voxelGridDim.y * m_voxelGridDim.z;
+
+		m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
+		m_rootSig.SetRootUAV(5, m_lvg.GpuVA());
+		m_rootSig.End(computeCmdList);
+
+		computeCmdList.Dispatch(m_voxelGridDim.x, m_voxelGridDim.y, m_voxelGridDim.z);
+
+		// record the timestamp after execution
+		gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+		cmdList.PIXEndEvent();
+	}
+
 	cmdList.PIXEndEvent();
 }
 
@@ -446,6 +502,25 @@ void PreLighting::ReleaseLumenBufferAndReadback()
 {
 	m_lumen.Reset();
 	m_readback.Reset();
+	m_buildLVGThisFrame = true;
+}
+
+void PreLighting::ReloadBuildLVG()
+{
+	const int i = (int)SHADERS::BUILD_LIGHT_VOXEL_GRID;
+
+	m_psoLib.Reload(i, "PreLighting\\BuildLightVoxelGrid.hlsl", true);
+	m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+}
+
+void PreLighting::VoxelExtentsCallback(const Support::ParamVariant& p)
+{
+	m_voxelExtents = p.GetFloat3().m_val;
+}
+
+void PreLighting::YOffsetCallback(const Support::ParamVariant& p)
+{
+	m_yOffset = p.GetFloat().m_val;
 }
 
 //--------------------------------------------------------------------------------------

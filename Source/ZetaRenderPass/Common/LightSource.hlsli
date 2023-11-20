@@ -9,7 +9,7 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/Volumetric.hlsli"
 
-namespace LightSource
+namespace Light
 {
     struct EmissiveTriAreaSample
 	{
@@ -23,7 +23,7 @@ namespace LightSource
 	{
 #if ENCODE_EMISSIVE_POS == 1
 		float3 v0v1 = float3(tri.V0V1 / float((1 << 15) - 1), 0);
-		v0v1 = Math::Encoding::DecodeUnitVector(v0v1.xy);
+		v0v1 = Math::DecodeUnitVector(v0v1.xy);
 
 		return mad(v0v1, tri.EdgeLengths.x, tri.Vtx0);
 #else
@@ -35,7 +35,7 @@ namespace LightSource
 	{
 #if ENCODE_EMISSIVE_POS == 1
 		float3 v0v2 = float3(tri.V0V2 / float((1 << 15) - 1), 0);
-		v0v2 = Math::Encoding::DecodeUnitVector(v0v2.xy);
+		v0v2 = Math::DecodeUnitVector(v0v2.xy);
 		
 		return mad(v0v2, tri.EdgeLengths.y, tri.Vtx0);
 #else
@@ -60,27 +60,24 @@ namespace LightSource
 		return s.Alias;
 	}
 
-	uint UnformSampleSampleSet(uint sampleSetIdx, StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets, uint sampleSetSize, 
-		inout RNG rng, out RT::EmissiveTriangle tri, out float pdf)
+	
+	RT::PresampledEmissiveTriangle UnformSampleSampleSet(uint sampleSetIdx, StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets, 
+		uint sampleSetSize, inout RNG rng)
 	{
 		uint u = rng.UintRange(0, sampleSetSize);
-
-		RT::PresampledEmissiveTriangle s = g_sampleSets[sampleSetIdx * sampleSetSize + u];
-		tri = s.Tri;
-		pdf = s.Pdf;
-
-		return s.Index;
+		return g_sampleSets[sampleSetIdx * sampleSetSize + u];
 	}
 
-	EmissiveTriAreaSample SampleEmissiveTriangleSurface(float3 posW, RT::EmissiveTriangle tri, inout RNG rng)
+	EmissiveTriAreaSample SampleEmissiveTriangleSurface(float3 posW, RT::EmissiveTriangle tri, inout RNG rng, 
+		bool reverseNormalIfTwoSided = true)
 	{
 		EmissiveTriAreaSample ret;
 
 		float2 u = rng.Uniform2D();
 		ret.bary = Sampling::UniformSampleTriangle(u);
 
-		const float3 vtx1 = LightSource::DecodeEmissiveTriV1(tri);
-		const float3 vtx2 = LightSource::DecodeEmissiveTriV2(tri);
+		const float3 vtx1 = Light::DecodeEmissiveTriV1(tri);
+		const float3 vtx2 = Light::DecodeEmissiveTriV2(tri);
 		ret.pos = (1.0f - ret.bary.x - ret.bary.y) * tri.Vtx0 + ret.bary.x * vtx1 + ret.bary.y * vtx2;
 		ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
 		float twoArea = length(ret.normal);
@@ -88,7 +85,9 @@ namespace LightSource
 		ret.pdf = all(ret.normal == 0) ? 1.0f : 1.0f / (0.5f * twoArea);
 
 		ret.normal = all(ret.normal == 0) ? ret.normal : ret.normal / twoArea;
-		ret.normal = tri.IsDoubleSided() && dot(posW - ret.pos, ret.normal) < 0 ? ret.normal * -1.0f : ret.normal;
+		ret.normal = reverseNormalIfTwoSided && tri.IsDoubleSided() && dot(posW - ret.pos, ret.normal) < 0 ? 
+			ret.normal * -1.0f : 
+			ret.normal;
 
 		return ret;
 	}
@@ -129,11 +128,11 @@ namespace LightSource
 	float3 Le_EmissiveTriangle(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset, 
 		SamplerState s = g_samPointWrap)
 	{
-		const float3 emissiveFactor = Math::Color::UnpackRGB(tri.EmissiveFactor);
+		const float3 emissiveFactor = Math::UnpackRGB(tri.EmissiveFactor);
 		const float emissiveStrength = tri.GetEmissiveStrength();
 		float3 L_e = emissiveFactor * emissiveStrength;
 
-		if (Math::Color::Luminance(L_e) < 1e-5)
+		if (Math::Luminance(L_e) < 1e-5)
 			return 0.0.xxx;
 
 		uint16_t emissiveTex = tri.GetEmissiveTex();

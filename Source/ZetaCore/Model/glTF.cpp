@@ -435,7 +435,7 @@ namespace
 				{
 					if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
 					{
-						LOG_UI_WARNING("Texture in path %s was present in the glTF scene, but no textures referred to it, skipping...\n", p.Get());
+						LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but was not found in disk. Skipping...\n", p.Get());
 						continue;
 					}
 					else

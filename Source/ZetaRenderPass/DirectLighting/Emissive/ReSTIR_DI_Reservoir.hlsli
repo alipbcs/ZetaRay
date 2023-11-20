@@ -92,7 +92,7 @@ namespace RDI_Util
 
 		const float3 Le = asfloat16(uint16_t3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff));
 		const half M = asfloat16(uint16_t(resA.z >> 16));
-		const float2 bary = asfloat16(uint16_t2(resA.x & 0xffff, resA.x >> 16));
+		float2 bary = Math::DecodeUNorm2(uint16_t2(resA.x & 0xffff, resA.x >> 16));
 		const uint lightIdx = g_reservoir_B[DTid].x;
 
 		return Reservoir::Init(W, M, Le, lightIdx, bary);
@@ -115,7 +115,7 @@ namespace RDI_Util
 		
 		float3 Le = asfloat16(uint16_t3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff));
 		half M = asfloat16(uint16_t(resA.z >> 16));
-		float2 bary = asfloat16(uint16_t2(resA.x & 0xffff, resA.x >> 16));
+		float2 bary = Math::DecodeUNorm2(uint16_t2(resA.x & 0xffff, resA.x >> 16));
 
 		return Reservoir::Init(W, M, Le, lightIdx, bary);
 	}
@@ -139,7 +139,7 @@ namespace RDI_Util
 
 		uint16_t3 Le = asuint16(half3(r.Le));
 		uint16_t M = asuint16(min(r.M, m_max));
-		uint16_t2 bary = asuint16(half2(r.Bary));
+		uint16_t2 bary = Math::EncodeAsUNorm2(r.Bary);
 
 		uint a_x = (uint(bary.y) << 16) | bary.x;
 		uint a_y = (uint(Le.y) << 16) | Le.x;

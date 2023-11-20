@@ -69,7 +69,7 @@ float4 mainPS(VSOut psin) : SV_Target
 
 	if(g_local.Tonemapper != (int) Tonemapper::AgX_PUNCHY)
 	{
-		float3 desaturation = Math::Color::Luminance(display);
+		float3 desaturation = Math::Luminance(display);
 		display = lerp(desaturation, display, g_local.Saturation);
 	}
 		
@@ -84,7 +84,7 @@ float4 mainPS(VSOut psin) : SV_Target
 	{
 		GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 		float2 encodedNormal = g_normal.SampleLevel(g_samPointClamp, uv, 0);
-		display = Math::Encoding::DecodeUnitVector(encodedNormal.xy);
+		display = Math::DecodeUnitVector(encodedNormal.xy);
 		display = display * 0.5 + 0.5;
 	}
 	else if (g_local.DisplayOption == (int) DisplayOption::BASE_COLOR)

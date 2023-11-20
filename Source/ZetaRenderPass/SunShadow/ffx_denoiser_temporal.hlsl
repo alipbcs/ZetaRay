@@ -86,7 +86,7 @@ float FFX_DNSR_Shadows_ReadPreviousDepth(uint2 DTid)
 float3 FFX_DNSR_Shadows_ReadNormals(uint2 DTid)
 {
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid]);
 
 	return normal;
 }
@@ -214,7 +214,7 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 	float3 normal = FFX_DNSR_Shadows_ReadNormals(DTid);
 
     const float currLinearDepth = depth;
-	const float3 currPos = Math::Transform::WorldPosFromUV(currUV, 
+	const float3 currPos = Math::WorldPosFromUV(currUV, 
         float2(g_frame.RenderWidth, g_frame.RenderHeight),
         currLinearDepth,
         g_frame.TanHalfFOV,
@@ -224,7 +224,7 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 
     GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     float prevDepth = g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0);
-	const float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, 
+	const float3 prevPos = Math::WorldPosFromUV(prevUV, 
         float2(g_frame.RenderWidth, g_frame.RenderHeight),
         prevDepth, 
         g_frame.TanHalfFOV, 

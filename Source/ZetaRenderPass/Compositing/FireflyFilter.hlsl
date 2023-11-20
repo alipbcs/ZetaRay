@@ -20,7 +20,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 
 float GeometryTest(float sampleLinearDepth, float2 sampleUV, float3 centerNormal, float3 centerPos, float centerLinearDepth)
 {
-	float3 samplePos = Math::Transform::WorldPosFromUV(sampleUV,
+	float3 samplePos = Math::WorldPosFromUV(sampleUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		sampleLinearDepth,
 		g_frame.TanHalfFOV,
@@ -43,7 +43,7 @@ float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, i
 	float maxLum = 0.0;
 	float3 minColor = currColor;
 	float3 maxColor = 0.0.xxx;
-	float currLum = Math::Color::Luminance(currColor);
+	float currLum = Math::Luminance(currColor);
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
@@ -70,7 +70,7 @@ float3 FilterFirefly(RWTexture2D<float4> g_input, float3 currColor, int2 DTid, i
 				continue;
 #endif
 			float3 neighborColor = g_input[addr].rgb;
-			float neighborLum = Math::Color::Luminance(neighborColor);
+			float neighborLum = Math::Luminance(neighborColor);
 
 			if (neighborLum < minLum)
 			{
@@ -113,7 +113,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		return;
 	}
 
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
+	const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
 		uint2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -122,7 +122,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		g_frame.CurrCameraJitter);
 	
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
 	color = FilterFirefly(g_composited, color, DTid.xy, GTid.xy, linearDepth, normal, posW);
 	g_composited[DTid.xy].rgb = color;

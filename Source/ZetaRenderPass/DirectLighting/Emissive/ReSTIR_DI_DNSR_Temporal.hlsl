@@ -59,13 +59,13 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 	float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 	
 	float3 prevPos[4];
-	prevPos[0] = Math::Transform::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, 
+	prevPos[0] = Math::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, 
 		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[1] = Math::Transform::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, 
+	prevPos[1] = Math::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, 
 		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[2] = Math::Transform::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, 
+	prevPos[2] = Math::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, 
 		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
-	prevPos[3] = Math::Transform::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, 
+	prevPos[3] = Math::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, 
 		g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
 
 	float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
@@ -80,7 +80,7 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 
 float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
 {
-	float3 prevPos = Math::Transform::WorldPosFromUV(prevUV, 
+	float3 prevPos = Math::WorldPosFromUV(prevUV, 
 		float2(g_frame.RenderWidth, g_frame.RenderHeight), 
 		prevDepth, 
 		g_frame.TanHalfFOV, 
@@ -124,7 +124,7 @@ float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 norm
 
 	float3 minColor = currColor;
 	float3 maxColor = 0.0.xxx;
-	float currLum = Math::Color::Luminance(currColor);
+	float currLum = Math::Luminance(currColor);
 	if(currLum < 1e-4)
 		return currColor;
 	
@@ -158,7 +158,7 @@ float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 norm
 //				continue;
 			
 			float3 neighborColor = g_colorA[addr].rgb;
-			float neighborLum = Math::Color::Luminance(neighborColor);
+			float neighborLum = Math::Luminance(neighborColor);
 
 			if (neighborLum < minLum)
 			{
@@ -442,10 +442,10 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float l
 	const float4 prevNormalsYEncoded = g_prevNormal.GatherGreen(g_samPointClamp, topLeftTexelUV).wzxy;
 
 	float3 prevNormals[4];
-	prevNormals[0] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
-	prevNormals[1] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
-	prevNormals[2] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
-	prevNormals[3] = Math::Encoding::DecodeUnitVector(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
+	prevNormals[0] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.x, prevNormalsYEncoded.x));
+	prevNormals[1] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.y, prevNormalsYEncoded.y));
+	prevNormals[2] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.z, prevNormalsYEncoded.z));
+	prevNormals[3] = Math::DecodeUnitVector(float2(prevNormalsXEncoded.w, prevNormalsYEncoded.w));
 	weights *= NormalWeight(prevNormals, normal, roughness);
 
 	// roughness weight
@@ -511,7 +511,7 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 //		Li_s = FilterFirefly(Li_s, DTid, linearDepth, normal, posW, roughness);
 
 	const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
-	const float3 prevSurfacePosW = Math::Transform::WorldPosFromUV(prevSurfaceUV,
+	const float3 prevSurfacePosW = Math::WorldPosFromUV(prevSurfaceUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		prevSurfaceLinearDepth,
 		g_frame.TanHalfFOV,
@@ -570,10 +570,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 	float3 Li_d = float3(g_colorA[DTid.xy].a, g_colorB[DTid.xy].rg);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
 	const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromUV(currUV,
+	const float3 posW = Math::WorldPosFromUV(currUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,

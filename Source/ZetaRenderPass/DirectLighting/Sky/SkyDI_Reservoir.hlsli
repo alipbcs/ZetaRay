@@ -91,7 +91,7 @@ namespace SkyDI_Util
 		float3 virtualPos = posW - surface.wo * reflectionRayT * factor;
 	
 		float4 virtualPosNDC = mul(prevViewProj, float4(virtualPos, 1.0f));
-		float2 prevUV = Math::Transform::UVFromNDC(virtualPosNDC.xy / virtualPosNDC.w);
+		float2 prevUV = Math::UVFromNDC(virtualPosNDC.xy / virtualPosNDC.w);
 
 		return prevUV;
 	}
@@ -107,8 +107,8 @@ namespace SkyDI_Util
 		
 		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
 		int16_t2 temp1Snorm = asint16(temp1);
-		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
-		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
+		float2 wiEncoded = Math::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::DecodeUnitHemisphereVector(wiEncoded);
 		
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
@@ -128,8 +128,8 @@ namespace SkyDI_Util
 		
 		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
 		int16_t2 temp1Snorm = asint16(temp1);
-		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
-		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
+		float2 wiEncoded = Math::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::DecodeUnitHemisphereVector(wiEncoded);
 
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
@@ -165,8 +165,8 @@ namespace SkyDI_Util
 		
 		uint16_t2 temp1 = uint16_t2(uint16_t(resA.x & 0xffff), uint16_t(resA.x >> 16));
 		int16_t2 temp1Snorm = asint16(temp1);
-		float2 wiEncoded = Math::Encoding::DecodeSNorm2(temp1Snorm);
-		float3 wi = Math::Encoding::DecodeUnitHemisphereVector(wiEncoded);
+		float2 wiEncoded = Math::DecodeSNorm2(temp1Snorm);
+		float3 wi = Math::DecodeUnitHemisphereVector(wiEncoded);
 		
 		uint3 temp2 = uint3(resA.y & 0xffff, resA.y >> 16, resA.z & 0xffff);
 		float3 Li = asfloat16(uint16_t3(temp2));
@@ -182,8 +182,8 @@ namespace SkyDI_Util
 		RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
 		RWTexture2D<float> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
 
-		float2 wi = Math::Encoding::EncodeUnitHemisphereVector(r.wi);
-		int16_t2 wiSnorm = Math::Encoding::EncodeAsSNorm2(wi);
+		float2 wi = Math::EncodeUnitHemisphereVector(r.wi);
+		int16_t2 wiSnorm = Math::EncodeAsSNorm2(wi);
 
 		uint16_t3 Li = asuint16(half3(r.Le));
 		uint16_t M = asuint16(min(r.M, m_max));

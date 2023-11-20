@@ -1,15 +1,17 @@
 #include "DefaultRendererImpl.h"
 #include <App/App.h>
-#include <App/Timer.h>
 #include <RayTracing/RtAccelerationStructure.h>
 
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::DefaultRenderer;
-using namespace ZetaRay::DefaultRenderer::Settings;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
+
+//--------------------------------------------------------------------------------------
+// PostProcessor
+//--------------------------------------------------------------------------------------
 
 void PostProcessor::Init(const RenderSettings& settings, PostProcessData& data)
 {
@@ -122,6 +124,9 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		{
 			data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED,
 				rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
+
+			data.CompositingPass.SetLightVoxelGridParams(rtData.PreLightingPass.GetLightVoxelGridDim(),
+				rtData.PreLightingPass.GetLightVoxelGridExtents(), rtData.PreLightingPass.GetLightVoxelGridYOffset());
 		}
 
 		// indirect lighting
@@ -261,7 +266,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 	renderGraph.RegisterResource(nullptr, RenderGraph::DUMMY_RES::RES_1);
 }
 
-void PostProcessor::DeclareAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
+void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
 	const RayTracerData& rtData, RenderGraph& renderGraph)
 {
 	const Texture& composited = data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED);

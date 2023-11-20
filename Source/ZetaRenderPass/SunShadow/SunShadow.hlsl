@@ -65,7 +65,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		return;
 
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
+	float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
 		renderDim,
 		linearDepth, 
 		g_frame.TanHalfFOV, 
@@ -74,7 +74,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		g_frame.CurrCameraJitter);
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 	
 	float3 wi = -g_frame.SunDir;
 
@@ -87,7 +87,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		
 		float3 T;
 		float3 B;
-		Math::Transform::revisedONB(wi, T, B);
+		Math::revisedONB(wi, T, B);
 		wi = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * wi;
 	}
 	

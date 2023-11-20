@@ -109,7 +109,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 
 	Texture2D<float4> g_temporalCache_Diffuse = ResourceDescriptorHeap[g_local.TemporalCacheDiffuseDescHeapIdx];
 	const float3 centerColor = g_temporalCache_Diffuse[DTid].rgb;
-	const float centerLum = Math::Color::Luminance(centerColor);
+	const float centerLum = Math::Luminance(centerColor);
 
 	if (!IS_CB_FLAG_SET(CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE))
 		return centerColor;
@@ -149,7 +149,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 		if (all(samplePosSS < renderDim) && all(samplePosSS > 0))
 		{
 			const float sampleDepth = g_currDepth[samplePosSS];
-			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
+			const float3 samplePosW = Math::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				sampleDepth,
 				g_frame.TanHalfFOV,
@@ -158,11 +158,11 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 				g_frame.CurrCameraJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
-			const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::DecodeUnitVector(g_currNormal[samplePosSS]);
 			const float w_n = EdgeStoppingNormal_Diffuse(normal, sampleNormal, roughness);
 					
 			const float3 sampleColor = g_temporalCache_Diffuse[samplePosSS].rgb;
-			const float sampleLum = Math::Color::Luminance(sampleColor);
+			const float sampleLum = Math::Luminance(sampleColor);
 			const float w_l = roughness > g_local.MinRoughnessResample ? EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_DIFFUSE, biasScale) : 1.0f;
 			
 			const float weight = w_z * w_n * w_l * k_gaussian[i];
@@ -201,7 +201,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 		return centerColor;
 	
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float centerLum = Math::Color::Luminance(centerColor);
+	const float centerLum = Math::Luminance(centerColor);
 	const float alpha = roughness * roughness;
 	const float u0 = rng.Uniform();
 	const uint offset = rng.UintRange(0, NUM_SAMPLES);
@@ -233,7 +233,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 		if (all(samplePosSS < renderDim) && all(samplePosSS > 0))
 		{
 			const float sampleDepth = g_currDepth[samplePosSS];
-			const float3 samplePosW = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
+			const float3 samplePosW = Math::WorldPosFromScreenSpace(samplePosSS,
 				renderDim,
 				sampleDepth,
 				g_frame.TanHalfFOV,
@@ -242,11 +242,11 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 				g_frame.CurrCameraJitter);
 			const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 					
-			const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_currNormal[samplePosSS]);
+			const float3 sampleNormal = Math::DecodeUnitVector(g_currNormal[samplePosSS]);
 			const float w_n = EdgeStoppingNormal_Specular(normal, sampleNormal, alpha);
 					
 			const float3 sampleColor = g_temporalCache_Specular[samplePosSS].rgb;
-			const float sampleLum = Math::Color::Luminance(sampleColor);
+			const float sampleLum = Math::Luminance(sampleColor);
 			const float w_l = EdgeStoppingLuminance(centerLum, sampleLum, SIGMA_L_SPECULAR, 1);
 
 			const float sampleRoughness = g_metallicRoughness[samplePosSS].y;
@@ -301,7 +301,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 	const float2 currUV = (swizzledDTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromUV(currUV,
+	const float3 posW = Math::WorldPosFromUV(currUV,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -321,7 +321,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 	GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_currNormal[swizzledDTid]);
+	const float3 normal = Math::DecodeUnitVector(g_currNormal[swizzledDTid]);
 
 	GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::BASE_COLOR];

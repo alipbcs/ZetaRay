@@ -91,7 +91,7 @@ namespace RT
 		float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ, float2 jitter = 0)
 	{
 		float2 uv = (pixel + 0.5f + jitter) / renderDim;
-		float2 ndc = Math::Transform::NDCFromUV(uv);
+		float2 ndc = Math::NDCFromUV(uv);
 		ndc *= tanHalfFOV;
 		ndc.x *= aspectRatio;
 

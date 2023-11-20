@@ -51,34 +51,38 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		if (hitEmissive)
 		{
 			emissive = g_emissives[hitInfo.emissiveTriIdx];
-			L_e = LightSource::Le_EmissiveTriangle(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
+			L_e = Light::Le_EmissiveTriangle(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
 
-			const float3 vtx1 = LightSource::DecodeEmissiveTriV1(emissive);
-			const float3 vtx2 = LightSource::DecodeEmissiveTriV2(emissive);
+			const float3 vtx1 = Light::DecodeEmissiveTriV1(emissive);
+			const float3 vtx2 = Light::DecodeEmissiveTriV2(emissive);
 			lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
 			float twoArea = length(lightNormal);
 			twoArea = max(twoArea, 1e-6);
 			lightNormal = all(lightNormal == 0) ? 1.0.xxx : lightNormal / twoArea;
 			lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? lightNormal * -1.0f : lightNormal;
 
-			const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
-			const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
+			// skip backfacing lights
+			if(dot(-wi, lightNormal) > 0)
+			{
+				const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
+				const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
 
-			surface.SetWi(wi, normal);
-			float wiPdf = BRDF::GGXVNDFReflectionPdf(surface);
+				surface.SetWi(wi, normal);
+				float wiPdf = BRDF::GGXVNDFReflectionPdf(surface);
 
-			// solid angle measure to area measure
-			dwdA = saturate(dot(lightNormal, -wi)) / max(hitInfo.t * hitInfo.t, 1e-6f);
-			wiPdf *= dwdA;
+				// solid angle measure to area measure
+				dwdA = saturate(dot(lightNormal, -wi)) / max(hitInfo.t * hitInfo.t, 1e-6f);
+				wiPdf *= dwdA;
 
-			// balance heuristic
-			// wiPdf in m_i's numerator and w_i's denominator cancel out
-			const float m_i = 1.0f / max(numBrdfCandidates * wiPdf + NUM_LIGHT_CANDIDATES * lightPdf, 1e-6f);
+				// balance heuristic
+				// wiPdf in m_i's numerator and w_i's denominator cancel out
+				const float m_i = 1.0f / max(numBrdfCandidates * wiPdf + NUM_LIGHT_CANDIDATES * lightPdf, 1e-6f);
 
-			// target = Le * BRDF(wi, wo) * |ndotwi|
-			// source = P(wi)
-			currTarget = L_e * BRDF::CombinedBRDF(surface) * dwdA;
-			w_i = m_i * Math::Color::Luminance(currTarget);
+				// target = Le * BRDF(wi, wo) * |ndotwi|
+				// source = P(wi)
+				currTarget = L_e * BRDF::CombinedBRDF(surface) * dwdA;
+				w_i = m_i * Math::Luminance(currTarget);
+			}
 		}
 
 		// resample	
@@ -100,46 +104,60 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 	{
 		// sample a light source relative to its power
 #ifdef USE_PRESAMPLED_SETS
-		RT::EmissiveTriangle emissive;
-		float lightSourcePdf;
-		uint emissiveIdx = LightSource::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, g_local.SampleSetSize, rng, emissive, lightSourcePdf);
+		RT::PresampledEmissiveTriangle tri = Light::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, 
+			g_local.SampleSetSize, rng);
+
+		Light::EmissiveTriAreaSample lightSample;
+		lightSample.pos = tri.pos;
+		lightSample.normal = Math::DecodeOct16(tri.normal);
+		lightSample.bary = Math::DecodeUNorm2(tri.bary);
+
+		float3 Le = tri.le;
+		const float lightPdf = tri.pdf;
+		const uint emissiveIdx = tri.idx;
+		const uint lightID = tri.ID;
+
+		if(tri.twoSided && dot(posW - tri.pos, lightSample.normal) < 0)
+			lightSample.normal *= -1;
 #else
 		float lightSourcePdf;
-		const uint emissiveIdx = LightSource::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
+		const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, rng, lightSourcePdf);
 		RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
+
+		const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(posW, emissive, rng);
+
+		float3 Le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+		const float lightPdf = lightSourcePdf * lightSample.pdf;
+		uint lightID = emissive.ID;
 #endif
 
-		// sample light source surface
-		const LightSource::EmissiveTriAreaSample lightSample = LightSource::SampleEmissiveTriangleSurface(posW, emissive, rng);
+		float3 currTarget = 0;
 
 		const float t = length(lightSample.pos - posW);
 		const float3 wi = (lightSample.pos - posW) / t;
 		const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
-		surface.SetWi(wi, normal);
-		float3 currTarget = BRDF::CombinedBRDF(surface) * dwdA;
-		float3 L_e = 0.0.xxx;
-			
-		if (Math::Color::Luminance(currTarget) > 1e-6)
+		// skip backfacing lights
+		if(dot(lightSample.normal, -wi) > 0)
 		{
-			L_e = LightSource::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
-
+			surface.SetWi(wi, normal);
+			currTarget = Le * BRDF::CombinedBRDF(surface) * dwdA;
+				
 #if TARGET_WITH_VISIBILITY == 1
-			L_e *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, emissive.ID);
+			if (Math::Luminance(currTarget) > 1e-6)
+				currTarget *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, lightID);
 #endif
 		}
 
-		currTarget *= L_e;
-		const float lightPdf = lightSourcePdf * lightSample.pdf;
 		// p_d in m_i's numerator and w_i's denominator cancel out
 		const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + numBrdfCandidates * BRDF::GGXVNDFReflectionPdf(surface) * dwdA, 1e-6f);
-		const float w_i = m_i * Math::Color::Luminance(currTarget);
+		const float w_i = m_i * Math::Luminance(currTarget);
 
-		if (r.Update(w_i, L_e, emissiveIdx, lightSample.bary, rng))
+		if (r.Update(w_i, Le, emissiveIdx, lightSample.bary, rng))
 		{
 			target.p_hat = currTarget;
 			target.rayT = t;
-			target.lightID = emissive.ID;
+			target.lightID = lightID;
 			target.wi = wi;
 			target.lightNormal = lightSample.normal;
 			target.lightPos = lightSample.pos;
@@ -148,7 +166,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 		}
 	}
 
-	float targetLum = Math::Color::Luminance(target.p_hat);
+	float targetLum = Math::Luminance(target.p_hat);
 	r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 
 #if TARGET_WITH_VISIBILITY == 0
@@ -206,7 +224,7 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 norma
 		// have a noticeable impact
 		bool extraSample = normal.y < -0.1 && 
 			roughness > 0.075 && 
-			Math::Color::Luminance(baseColor) > 0.5f;
+			Math::Luminance(baseColor) > 0.5f;
 
 		int numSamples = MIN_NUM_SPATIAL_SAMPLES + extraSample;
 #else
@@ -253,7 +271,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// reconstruct position from depth buffer
 	const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
+	const float3 posW = Math::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -263,7 +281,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[swizzledDTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid.xy]);
 
 	// roughness and metallic mask
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

@@ -6,7 +6,6 @@
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::DefaultRenderer;
-using namespace ZetaRay::DefaultRenderer::Settings;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::RT;
 using namespace ZetaRay::Core;
@@ -133,7 +132,7 @@ void RayTracer::Shutdown(RayTracerData& data)
 	data.ConstDescTable.Reset();
 	data.WndConstDescTable.Reset();
 	data.RtAS.Clear();
-	data.RtSampler.Clear();
+	//data.RtSampler.Clear();
 	data.SkyDI_Pass.Reset();
 	data.SunShadowPass.Reset();
 	data.SkyPass.Reset();
@@ -192,6 +191,8 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 			data.PreLightingPass.GetNumSampleSets(), data.PreLightingPass.GetSampleSetSize());
 		data.IndirecLightingPass.SetLightPresamplingEnabled(lightPresampling,
 			data.PreLightingPass.GetNumSampleSets(), data.PreLightingPass.GetSampleSetSize());
+		data.IndirecLightingPass.SetLightVoxelGridParams(data.PreLightingPass.GetLightVoxelGridDim(), 
+			data.PreLightingPass.GetLightVoxelGridExtents(), data.PreLightingPass.GetLightVoxelGridYOffset());
 
 		if (App::GetScene().AreEmissivesStale())
 		{
@@ -200,9 +201,6 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 			data.EmissiveAliasTable.SetRelaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
 		}
 	}
-
-	if (lightPresampling)
-		data.IndirecLightingPass.SetPresampledEmissiveSetGpuVa(data.PreLightingPass.GetPresampledSets().GpuVA());
 
 	data.IndirecLightingPass.SetCurvatureDescHeapOffset(data.WndConstDescTable.GPUDesciptorHeapIndex(
 		(int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
@@ -326,7 +324,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 	}
 }
 
-void RayTracer::DeclareAdjacencies(const RenderSettings& settings, RayTracerData& data, const GBufferData& gbuffData, 
+void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& data, const GBufferData& gbuffData, 
 	RenderGraph& renderGraph)
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();

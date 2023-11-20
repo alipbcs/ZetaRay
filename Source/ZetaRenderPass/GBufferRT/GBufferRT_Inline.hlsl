@@ -36,7 +36,7 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 {
     const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(geoIdx + instanceID)];
 
-	float2 alphaFactor_cutoff = Math::Color::UnpackRG(meshData.AlphaFactor_Cuttoff);
+	float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
 	if(alphaFactor_cutoff.y == 1.0)
 	 	return false;
 
@@ -120,7 +120,7 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
         Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
 
-        float4 q = Math::Encoding::DecodeSNorm4(meshData.Rotation);
+        float4 q = Math::DecodeSNorm4(meshData.Rotation);
         // due to quantization, it's necessary to renormalize
         q = normalize(q);
 
@@ -129,9 +129,9 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         payload.uv = uv;
 
         // normal
-        float3 v0_n = Math::Encoding::DecodeOct16(V0.NormalL);
-        float3 v1_n = Math::Encoding::DecodeOct16(V1.NormalL);
-        float3 v2_n = Math::Encoding::DecodeOct16(V2.NormalL);
+        float3 v0_n = Math::DecodeOct16(V0.NormalL);
+        float3 v1_n = Math::DecodeOct16(V1.NormalL);
+        float3 v2_n = Math::DecodeOct16(V2.NormalL);
         float3 normal = v0_n + bary.x * (v1_n - v0_n) + bary.y * (v2_n - v0_n);
         // transform normal using the inverse transpose
         // (M^-1)^T = ((RS)^-1)^T
@@ -139,17 +139,17 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         //          = (R^T)^T (S^-1)^T
         //          = R S^-1
         normal *= 1.0f / meshData.Scale;
-        normal = Math::Transform::RotateVector(normal, q);
+        normal = Math::RotateVector(normal, q);
         normal = normalize(normal);
         payload.normal = normal;
 
         // tangent vector
-        float3 v0_t = Math::Encoding::DecodeOct16(V0.TangentU);
-        float3 v1_t = Math::Encoding::DecodeOct16(V1.TangentU);
-        float3 v2_t = Math::Encoding::DecodeOct16(V2.TangentU);
+        float3 v0_t = Math::DecodeOct16(V0.TangentU);
+        float3 v1_t = Math::DecodeOct16(V1.TangentU);
+        float3 v2_t = Math::DecodeOct16(V2.TangentU);
         float3 tangent = v0_t + bary.x * (v1_t - v0_t) + bary.y * (v2_t - v0_t);
         tangent *= meshData.Scale;
-        tangent = Math::Transform::RotateVector(tangent, q);
+        tangent = Math::RotateVector(tangent, q);
         tangent = normalize(tangent);
         payload.tangent = tangent;
 
@@ -164,7 +164,7 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         float3 hitPos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
         float3 posL = GBufferRT::InverseTransformTRS(hitPos, meshData.Translation, q, meshData.Scale);
         float3 prevTranslation = meshData.Translation - meshData.dTranslation;
-        float4 q_prev = Math::Encoding::DecodeSNorm4(meshData.PrevRotation);
+        float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
         // due to quantization, it's necessary to renormalize
         q_prev = normalize(q_prev);
         float3 posW_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
@@ -219,14 +219,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         float3 motion = g_frame.CameraPos - prevCameraPos;
         float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
         motionNDC.x /= g_frame.AspectRatio;
-        float2 motionUV = Math::Transform::UVFromNDC(motionNDC);
+        float2 motionUV = Math::UVFromNDC(motionNDC);
         g_outMotion[swizzledDTid] = motionUV;
         
         return;
     }
 
     float2 currUV = (swizzledDTid + 0.5 + g_frame.CurrCameraJitter) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    float2 prevUV = Math::Transform::UVFromNDC(rayPayload.prevPosNDC);
+    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC);
     float2 motionVec = currUV - prevUV;
 
     // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.

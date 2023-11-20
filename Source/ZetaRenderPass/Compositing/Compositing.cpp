@@ -67,24 +67,29 @@ void Compositing::Init(bool skyIllum)
 	CreateLightAccumTexure();
 
 	ParamVariant p0;
-	p0.InitBool("Renderer", "Lighting", "Direct (Sun)", fastdelegate::MakeDelegate(this, &Compositing::SetSunLightingEnablementCallback),
+	p0.InitBool("Renderer", "Lighting", "Direct (Sun)", fastdelegate::MakeDelegate(this, &Compositing::DirectSunCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
 	App::AddParam(p0);
 
 	ParamVariant p6;
-	p6.InitBool("Renderer", "Lighting", "Indirect", fastdelegate::MakeDelegate(this, &Compositing::SetIndirectEnablementCallback),
+	p6.InitBool("Renderer", "Lighting", "Indirect", fastdelegate::MakeDelegate(this, &Compositing::IndirectCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT));
 	App::AddParam(p6);
 
 	ParamVariant p7;
-	p7.InitBool("Renderer", "Lighting", "Direct (Emissives)", fastdelegate::MakeDelegate(this, &Compositing::SetEmissiveEnablementCallback),
+	p7.InitBool("Renderer", "Lighting", "Direct (Emissives)", fastdelegate::MakeDelegate(this, &Compositing::DirectEmissiveCallback),
 		IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
 	App::AddParam(p7);
 
 	ParamVariant p9;
-	p9.InitBool("Renderer", "Lighting", "Firefly Suppression", fastdelegate::MakeDelegate(this, &Compositing::SetFireflyFilterEnablement),
+	p9.InitBool("Renderer", "Lighting", "Firefly Suppression", fastdelegate::MakeDelegate(this, &Compositing::FireflyFilterCallback),
 		m_filterFirefly);
 	App::AddParam(p9);
+
+	ParamVariant p10;
+	p10.InitBool("Renderer", "Display", "Visualize LVG", fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
+		false);
+	App::AddParam(p10);
 
 	App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompsiting));
 }
@@ -202,24 +207,29 @@ void Compositing::SetSkyIllumEnablement(bool b)
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, b);
 }
 
-void Compositing::SetFireflyFilterEnablement(const Support::ParamVariant& p)
+void Compositing::FireflyFilterCallback(const Support::ParamVariant& p)
 {
 	m_filterFirefly = p.GetBool();
 }
 
-void Compositing::SetSunLightingEnablementCallback(const Support::ParamVariant& p)
+void Compositing::DirectSunCallback(const Support::ParamVariant& p)
 {
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
 }
 
-void Compositing::SetIndirectEnablementCallback(const Support::ParamVariant& p)
+void Compositing::IndirectCallback(const Support::ParamVariant& p)
 {
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, p.GetBool());
 }
 
-void Compositing::SetEmissiveEnablementCallback(const Support::ParamVariant& p)
+void Compositing::DirectEmissiveCallback(const Support::ParamVariant& p)
 {
 	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, p.GetBool());
+}
+
+void Compositing::VisualizeLVGCallback(const Support::ParamVariant& p)
+{
+	SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::VISUALIZE_LVG, p.GetBool());
 }
 
 void Compositing::ReloadCompsiting()

@@ -45,6 +45,18 @@ namespace ZetaRay::RenderPass
 		void SetSkyIllumEnablement(bool enable);
 		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
 		void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }
+		void SetLightVoxelGridParams(const Math::uint3& dim, const Math::float3& extents, float offset_y)
+		{
+			m_cbComposit.GridDim_x = (uint16_t)dim.x;
+			m_cbComposit.GridDim_y = (uint16_t)dim.y;
+			m_cbComposit.GridDim_z = (uint16_t)dim.z;
+
+			m_cbComposit.Extents_x = extents.x;
+			m_cbComposit.Extents_y = extents.y;
+			m_cbComposit.Extents_z = extents.z;
+
+			m_cbComposit.Offset_y = offset_y;
+		}
 		void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
 		{
 			Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
@@ -120,10 +132,11 @@ namespace ZetaRay::RenderPass
 
 		void CreateLightAccumTexure();
 
-		void SetFireflyFilterEnablement(const Support::ParamVariant& p);
-		void SetSunLightingEnablementCallback(const Support::ParamVariant& p);
-		void SetIndirectEnablementCallback(const Support::ParamVariant& p);
-		void SetEmissiveEnablementCallback(const Support::ParamVariant& p);
+		void FireflyFilterCallback(const Support::ParamVariant& p);
+		void DirectSunCallback(const Support::ParamVariant& p);
+		void IndirectCallback(const Support::ParamVariant& p);
+		void DirectEmissiveCallback(const Support::ParamVariant& p);
+		void VisualizeLVGCallback(const Support::ParamVariant& p);
 
 		void ReloadCompsiting();
 	};

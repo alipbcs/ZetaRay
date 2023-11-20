@@ -303,11 +303,16 @@ void TLAS::Render(CommandList& cmdList)
 		cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast");
 	ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
-	computeCmdList.PIXBeginEvent("TLAS_Build");
+	auto& gpuTimer = App::GetRenderer().GetGpuTimer();
+	const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "RtAS");
+	computeCmdList.PIXBeginEvent("RtAS");
+
 	RebuildOrUpdateBLASes(computeCmdList);
 	RebuildTLASInstances(computeCmdList);
 	RebuildTLAS(computeCmdList);
+	
 	computeCmdList.PIXEndEvent();
+	gpuTimer.EndQuery(computeCmdList, queryIdx);
 }
 
 void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)

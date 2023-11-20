@@ -39,8 +39,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
 	const float depth = g_depth[DTid.xy];
-	const float linearDepth = Math::Transform::LinearDepthFromNDC(depth, g_frame.CameraNear);
-	const float coc = CoC(linearDepth);
+	const float coc = CoC(depth);
 	
 	RWTexture2D<float> g_coc = ResourceDescriptorHeap[g_local.CoCUavDescHeapIdx];
 	g_coc[DTid.xy] = coc;

@@ -18,7 +18,6 @@ using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::DefaultRenderer;
-using namespace ZetaRay::DefaultRenderer::Settings;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
@@ -93,6 +92,9 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? frameConsts.NumFramesCameraStatic + 1 : 1;
 	frameConsts.CameraStatic = cameraStatic;
 
+	frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
+	frameConsts.OneDivNumEmissiveTriangles = 1.0f / frameConsts.NumEmissiveTriangles;
+
 	constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
 	if (!frameConstsBuff.IsInitialized())
@@ -150,59 +152,59 @@ namespace ZetaRay::DefaultRenderer
 		App::SetUpscaleFactor(newUpscaleFactor);
 	}
 
-	void ModifySunDir(const ParamVariant& p)
+	void SetSunDir(const ParamVariant& p)
 	{
 		float pitch = p.GetUnitDir().m_pitch;
 		float yaw = p.GetUnitDir().m_yaw;
 		g_data->m_frameConstants.SunDir = -Math::SphericalToCartesian(pitch, yaw);
 	}
 
-	void ModifySunLux(const ParamVariant& p)
+	void SetSunLux(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_val;
 	}
 
-	void ModifySunAngularRadius(const ParamVariant& p)
+	void SetSunAngularRadius(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.SunCosAngularRadius = cosf(p.GetFloat().m_val);
 	}
 
-	void ModifyRayleighSigmaSColor(const ParamVariant& p)
+	void SetRayleighSigmaSColor(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.RayleighSigmaSColor = p.GetFloat3().m_val;
 	}
 
-	void ModifyRayleighSigmaSScale(const ParamVariant& p)
+	void SetRayleighSigmaSScale(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.RayleighSigmaSScale = p.GetFloat().m_val;
 	}
 
-	void ModifyMieSigmaS(const ParamVariant& p)
+	void SetMieSigmaS(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.MieSigmaS = p.GetFloat().m_val;
 	}
 
-	void ModifyMieSigmaA(const ParamVariant& p)
+	void SetMieSigmaA(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.MieSigmaA = p.GetFloat().m_val;
 	}
 
-	void ModifyOzoneSigmaAColor(const ParamVariant& p)
+	void SetOzoneSigmaAColor(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.OzoneSigmaAColor = p.GetColor().m_val;
 	}
 
-	void ModifyOzoneSigmaAScale(const ParamVariant& p)
+	void SetOzoneSigmaAScale(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.OzoneSigmaAScale = p.GetFloat().m_val;
 	}
 
-	void ModifygForPhaseHG(const ParamVariant& p)
+	void SetgForPhaseHG(const ParamVariant& p)
 	{
 		g_data->m_frameConstants.g = p.GetFloat().m_val;
 	}
 
-	void SetSkyIllumEnablement(const ParamVariant& p)
+	void SetSkyDI(const ParamVariant& p)
 	{
 		g_data->m_settings.SkyIllumination = p.GetBool();
 		g_data->m_postProcessorData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
@@ -225,7 +227,7 @@ namespace ZetaRay::DefaultRenderer
 		const Camera& cam = App::GetCamera();
 		v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
 
-		// for 1st frame
+		// For 1st frame
 		v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
 		v_float4x4 vVP = mul(vCurrV, vP);
 
@@ -286,7 +288,7 @@ namespace ZetaRay::DefaultRenderer
 		ts.Finalize();
 		App::Submit(ZetaMove(ts));
 
-		// render settings
+		// Render settings
 		{
 			ParamVariant enableInscattering;
 			enableInscattering.InitBool("Renderer", "Lighting", "Inscattering",
@@ -295,23 +297,23 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(enableInscattering);
 
 			ParamVariant p6;
-			p6.InitEnum("Renderer", "Anti-Aliasing", "AA/Upscaling",
+			p6.InitEnum("Renderer", "Anti-Aliasing", "Method",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAA),
 				AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
 			App::AddParam(p6);
 		}
 
-		// sun
+		// Sun
 		{
 			ParamVariant p0;
 			p0.InitUnitDir("LightSource", "Sun", "(-)Dir",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifySunDir),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
 				-g_data->m_frameConstants.SunDir);
 			App::AddParam(p0);
 
 			ParamVariant p2;
 			p2.InitFloat("LightSource", "Sun", "Illuminance",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifySunLux),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunLux),
 				g_data->m_frameConstants.SunIlluminance,
 				1.0f,
 				100.0f,
@@ -320,7 +322,7 @@ namespace ZetaRay::DefaultRenderer
 
 			ParamVariant p3;
 			p3.InitFloat("LightSource", "Sun", "Angular Radius",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifySunAngularRadius),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularRadius),
 				acosf(g_data->m_frameConstants.SunCosAngularRadius),
 				0.004f,
 				0.02f,
@@ -328,17 +330,17 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(p3);
 		}
 
-		// atmosphere
+		// Atmosphere
 		{
 			ParamVariant p0;
 			p0.InitColor("Scene", "Atmosphere", "Rayleigh scattering color",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyRayleighSigmaSColor),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetRayleighSigmaSColor),
 				g_data->m_frameConstants.RayleighSigmaSColor);
 			App::AddParam(p0);
 
 			ParamVariant p1;
 			p1.InitFloat("Scene", "Atmosphere", "Rayleigh scattering scale",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyRayleighSigmaSScale),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetRayleighSigmaSScale),
 				g_data->m_frameConstants.RayleighSigmaSScale,
 				0.0f,
 				10.0f,
@@ -347,7 +349,7 @@ namespace ZetaRay::DefaultRenderer
 
 			ParamVariant p2;
 			p2.InitFloat("Scene", "Atmosphere", "Mie scattering coeff.",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyMieSigmaS),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaS),
 				Defaults::SIGMA_S_MIE,
 				1e-6f,
 				1e-1f,
@@ -356,7 +358,7 @@ namespace ZetaRay::DefaultRenderer
 
 			ParamVariant p3;
 			p3.InitFloat("Scene", "Atmosphere", "Mie absorption coeff.",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyMieSigmaA),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaA),
 				Defaults::SIGMA_A_MIE,
 				1e-6f,
 				10.0f,
@@ -365,7 +367,7 @@ namespace ZetaRay::DefaultRenderer
 
 			ParamVariant p4;
 			p4.InitFloat("Scene", "Atmosphere", "Ozone absorption scale",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyOzoneSigmaAScale),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAScale),
 				g_data->m_frameConstants.OzoneSigmaAScale,
 				0.0f,
 				10.0f,
@@ -374,13 +376,13 @@ namespace ZetaRay::DefaultRenderer
 
 			ParamVariant p6;
 			p6.InitColor("Scene", "Atmosphere", "Ozone absorption color",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifyOzoneSigmaAColor),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAColor),
 				g_data->m_frameConstants.OzoneSigmaAColor);
 			App::AddParam(p6);
 
 			ParamVariant p7;
 			p7.InitFloat("Scene", "Atmosphere", "g (HG Phase Function)",
-				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::ModifygForPhaseHG),
+				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetgForPhaseHG),
 				Defaults::g,
 				-0.99f,
 				0.99f,
@@ -389,7 +391,7 @@ namespace ZetaRay::DefaultRenderer
 		}
 
 		ParamVariant p8;
-		p8.InitBool("Renderer", "Lighting", "Sky Lighting", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyIllumEnablement),
+		p8.InitBool("Renderer", "Lighting", "Direct (Sky)", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
 			g_data->m_settings.SkyIllumination);
 		App::AddParam(p8);
 
@@ -423,10 +425,10 @@ namespace ZetaRay::DefaultRenderer
 
 				g_data->m_renderGraph.MoveToPostRegister();
 
-				GBuffer::DeclareAdjacencies(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
-				RayTracer::DeclareAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData,
+				GBuffer::AddAdjacencies(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
+				RayTracer::AddAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData,
 					g_data->m_renderGraph);
-				PostProcessor::DeclareAdjacencies(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
+				PostProcessor::AddAdjacencies(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
 					g_data->m_raytracerData, g_data->m_renderGraph);
 			});
 

@@ -10,20 +10,20 @@ namespace GBufferRT
 {
     int EncodeFloat2AsSNorm16(float2 u)
     {
-        int16_t2 encoded = Math::Encoding::EncodeAsSNorm2(u);
+        int16_t2 encoded = Math::EncodeAsSNorm2(u);
         return (uint(asuint16(encoded.y)) << 16) | asuint16(encoded.x);
     }
 
     float2 DecodeSNorm16ToFloat2(int e)
     {
         int16_t2 encoded = int16_t2(asint16(uint16_t(e & 0xffff)), asint16(uint16_t(e >> 16)));
-        return Math::Encoding::DecodeSNorm2(encoded);
+        return Math::DecodeSNorm2(encoded);
     }
 
     float3 TransformTRS(float3 pos, float3 translation, float4 rotation, float3 scale)
     {
         float3 transformed = pos * scale;
-        transformed = Math::Transform::RotateVector(transformed, rotation);
+        transformed = Math::RotateVector(transformed, rotation);
         transformed += translation;
 
         return transformed;
@@ -33,7 +33,7 @@ namespace GBufferRT
     {
         float3 transformed = pos - translation;
         float4 q_conjugate = float4(-rotation.xyz, rotation.w);
-        transformed = Math::Transform::RotateVector(transformed, q_conjugate);
+        transformed = Math::RotateVector(transformed, q_conjugate);
         transformed *= 1.0f / scale;
 
         return transformed;
@@ -52,7 +52,7 @@ namespace GBufferRT
         if (abs(det) < 1e-7f)
         {
             float3 normal = normalize(cross(p1 - p0, p2 - p0));
-            Math::Transform::revisedONB(normal, dpdu, dpdv);
+            Math::revisedONB(normal, dpdu, dpdv);
             return;
         }
 
@@ -151,7 +151,7 @@ namespace GBufferRT
         g_outDepth[DTid] = t;
 
         RWTexture2D<float2> g_outNormal = ResourceDescriptorHeap[g_local.NormalUavDescHeapIdx];
-        g_outNormal[DTid] = Math::Encoding::EncodeUnitVector(normal);
+        g_outNormal[DTid] = Math::EncodeUnitVector(normal);
 
         RWTexture2D<float3> g_outBaseColor = ResourceDescriptorHeap[g_local.BaseColorUavDescHeapIdx];
         g_outBaseColor[DTid] = baseColor;
@@ -194,9 +194,9 @@ namespace GBufferRT
         const Material mat = g_materials[NonUniformResourceIndex(matIdx)];
         grads *= g_frame.MipBias;
 
-        float3 baseColor = Math::Color::UnpackRGBA(mat.BaseColorFactor).rgb;
-        float4 emissiveColorNormalScale = Math::Color::UnpackRGBA(mat.EmissiveFactorNormalScale);
-        float2 metalnessAlphaCuttoff = Math::Color::UnpackRG(mat.MetallicFactorAlphaCuttoff);
+        float3 baseColor = Math::UnpackRGBA(mat.BaseColorFactor).rgb;
+        float4 emissiveColorNormalScale = Math::UnpackRGBA(mat.EmissiveFactorNormalScale);
+        float2 metalnessAlphaCuttoff = Math::UnpackRG(mat.MetallicFactorAlphaCuttoff);
         float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
@@ -215,7 +215,7 @@ namespace GBufferRT
             NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + mat.NormalTexture)];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
-            shadingNormal = Math::Transform::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, emissiveColorNormalScale.w);
+            shadingNormal = Math::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, emissiveColorNormalScale.w);
         }
 
         float3 wo = g_frame.CameraPos - posW;

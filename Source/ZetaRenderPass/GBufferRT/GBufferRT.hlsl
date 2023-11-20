@@ -87,7 +87,7 @@ void Raygen()
         float3 motion = g_frame.CameraPos - prevCameraPos;
         float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
         motionNDC.x /= g_frame.AspectRatio;
-        float2 motionUV = Math::Transform::UVFromNDC(motionNDC);
+        float2 motionUV = Math::UVFromNDC(motionNDC);
         g_outMotion[DispatchRaysIndex().xy] = motionUV;
 
 		return;
@@ -96,7 +96,7 @@ void Raygen()
 	uint matIdx = rayPayload.matIdx;
     float3 normal = rayPayload.normal;
     float3 tangent = rayPayload.tangent;
-    float2 prevUV = Math::Transform::UVFromNDC(rayPayload.prevPosNDC);
+    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC);
 	float2 currUV = (DispatchRaysIndex().xy + 0.5 + g_frame.CurrCameraJitter) / DispatchRaysDimensions().xy;
 	float2 motionVec = currUV - prevUV;
 
@@ -113,7 +113,7 @@ void Raygen()
 void TestOpacity(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
 	const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(GeometryIndex() + InstanceID())];
-	float2 alphaFactor_cutoff = Math::Color::UnpackRG(meshData.AlphaFactor_Cuttoff);
+	float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
 
 	if(alphaFactor_cutoff.y == 1.0)
 		IgnoreHit();
@@ -160,7 +160,7 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
 	Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
 
-	float4 q = Math::Encoding::DecodeSNorm4(meshData.Rotation);
+	float4 q = Math::DecodeSNorm4(meshData.Rotation);
 	// due to quantization, it's necessary to renormalize
 	q = normalize(q);
 
@@ -169,9 +169,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	payload.uv = uv;
 
 	// normal
-	float3 v0_n = Math::Encoding::DecodeOct16(V0.NormalL);
-	float3 v1_n = Math::Encoding::DecodeOct16(V1.NormalL);
-	float3 v2_n = Math::Encoding::DecodeOct16(V2.NormalL);
+	float3 v0_n = Math::DecodeOct16(V0.NormalL);
+	float3 v1_n = Math::DecodeOct16(V1.NormalL);
+	float3 v2_n = Math::DecodeOct16(V2.NormalL);
 	float3 normal = v0_n + attr.barycentrics.x * (v1_n - v0_n) + attr.barycentrics.y * (v2_n - v0_n);
 	// transform normal using the inverse transpose
 	// (M^-1)^T = ((RS)^-1)^T
@@ -179,17 +179,17 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	//          = (R^T)^T (S^-1)^T
 	//          = R S^-1
 	normal *= 1.0f / meshData.Scale;
-	normal = Math::Transform::RotateVector(normal, q);
+	normal = Math::RotateVector(normal, q);
 	normal = normalize(normal);
     payload.normal = normal;
 
 	// tangent vector
-	float3 v0_t = Math::Encoding::DecodeOct16(V0.TangentU);
-	float3 v1_t = Math::Encoding::DecodeOct16(V1.TangentU);
-	float3 v2_t = Math::Encoding::DecodeOct16(V2.TangentU);
+	float3 v0_t = Math::DecodeOct16(V0.TangentU);
+	float3 v1_t = Math::DecodeOct16(V1.TangentU);
+	float3 v2_t = Math::DecodeOct16(V2.TangentU);
 	float3 tangent = v0_t + attr.barycentrics.x * (v1_t - v0_t) + attr.barycentrics.y * (v2_t - v0_t);
 	tangent *= meshData.Scale;
-	tangent = Math::Transform::RotateVector(tangent, q);
+	tangent = Math::RotateVector(tangent, q);
 	tangent = normalize(tangent);
 	payload.tangent = tangent;
 
@@ -198,7 +198,7 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
 	float3 v2W = GBufferRT::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
 
 	// motion vector
-	float4 q_prev = Math::Encoding::DecodeSNorm4(meshData.PrevRotation);
+	float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
 	// due to quantization, it's necessary to renormalize
 	q_prev = normalize(q_prev);
 

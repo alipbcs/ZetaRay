@@ -26,12 +26,22 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	RNG rng = RNG::Init(DTid.x, g_frame.FrameNum);
 
 	float lightSourcePdf;
-	const uint emissiveIdx = LightSource::SampleAliasTable(g_aliasTable, g_local.NumEmissiveTriangles, rng, lightSourcePdf);
+	const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, rng, lightSourcePdf);
+
+	RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
+	const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(0, emissive, rng, false);
+
+	float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
 	RT::PresampledEmissiveTriangle s;
-	s.Tri = g_emissives[emissiveIdx];
-	s.Pdf = lightSourcePdf;
-	s.Index = emissiveIdx;
+	s.pos = lightSample.pos;
+	s.normal = Math::EncodeOct16(lightSample.normal);
+	s.le = half3(le);
+	s.bary = Math::EncodeAsUNorm2(lightSample.bary);;
+	s.twoSided = emissive.IsDoubleSided();
+	s.idx = emissiveIdx;
+	s.ID = emissive.ID;
+	s.pdf = lightSourcePdf * lightSample.pdf;
 
 	g_sampleSets[DTid.x] = s;
 }

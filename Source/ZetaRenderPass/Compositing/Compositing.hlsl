@@ -6,6 +6,8 @@
 #include "../../ZetaCore/Core/Material.h"
 #include "../Common/RT.hlsli"
 #include "../Common/Volumetric.hlsli"
+#include "../Common/LightVoxelGrid.hlsli"
+#include "../Common/Sampling.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -80,6 +82,15 @@ float3 SkyColor(uint2 DTid)
 	}
 }
 
+float3 MapIdxToColor(uint i) 
+{
+	float r = (i & 0xff) / 255.0f;
+	float g = ((i >> 8) & 0xff) / 255.0f;
+	float b = ((i >> 16) & 0xff) / 255.0f;
+
+	return float3(r, g, b);
+}
+
 //--------------------------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------------------------
@@ -103,7 +114,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
 	float3 color = 0.0.xxx;
 	
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
+	const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
 		float2(g_frame.RenderWidth, g_frame.RenderHeight),
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -118,7 +129,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 	float3 baseColor = g_baseColor[DTid.xy].rgb;
 
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[DTid.xy]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
 		GBUFFER_OFFSET::METALLIC_ROUGHNESS];
@@ -181,6 +192,20 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 		
 			half3 inscattering = g_voxelGrid.SampleLevel(g_samLinearClamp, posCube, 0.0f).rgb;
 			color += inscattering;
+		}
+	}
+	
+	if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::VISUALIZE_LVG))
+	{
+		int3 voxelIdx;
+		color = 0;
+		
+		if(LVG::MapPosToVoxel(posW, uint3(g_local.GridDim_x, g_local.GridDim_y, g_local.GridDim_z), 
+			float3(g_local.Extents_x, g_local.Extents_y, g_local.Extents_z), g_frame.CurrView, 
+			voxelIdx, g_local.Offset_y))
+		{
+			uint3 c = RNG::Pcg3d(voxelIdx);
+			color = baseColor * 0.1 + MapIdxToColor(c.x) * 0.05;
 		}
 	}
 	

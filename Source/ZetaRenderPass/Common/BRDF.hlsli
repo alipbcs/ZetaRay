@@ -255,7 +255,7 @@ namespace BRDF
 		
 		float3 T;
 		float3 B;
-		Math::Transform::revisedONB(normal, T, B);
+		Math::revisedONB(normal, T, B);
 		float3 wiWorld = wiLocal.x * T + wiLocal.y * B + wiLocal.z * normal;
 
 		return wiWorld;
@@ -312,7 +312,7 @@ namespace BRDF
 		// Build an orthonormal basis C around the normal such that it points towards +Z.
 		float3 b1;
 		float3 b2;
-		Math::Transform::revisedONB(shadingNormal, b1, b2);
+		Math::revisedONB(shadingNormal, b1, b2);
 		
 		// Transform wo from world space to C. M = [b1 b2 n] goes from C to world space, so 
 		// we need its inverse. Since M is an orthogonal matrix, its inverse is just its transpose.

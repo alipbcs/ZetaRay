@@ -264,9 +264,24 @@ namespace ZetaRay
 
 		struct PresampledEmissiveTriangle
 		{
-			float Pdf;
-			uint32_t Index;
-			RT::EmissiveTriangle Tri;
+			float3_ pos;
+			snorm2_ normal;
+			float pdf;
+			uint32_t ID;
+			uint32_t idx;
+			unorm2_ bary;
+			half3_ le;
+			uint16_t twoSided;
+		};
+
+		struct VoxelSample
+		{
+			float3_ pos;
+			snorm2_ normal;
+			float pdf;
+			uint32_t ID;
+			half3_ le;
+			uint16_t twoSided;
 		};
 	}
 #ifdef __cplusplus

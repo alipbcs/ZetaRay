@@ -16,6 +16,7 @@ namespace CB_COMPOSIT_FLAGS
 	static constexpr uint32_t INDIRECT = 1 << 2;
 	static constexpr uint32_t INSCATTERING = 1 << 4;
 	static constexpr uint32_t EMISSIVE_DI = 1 << 5;
+	static constexpr uint32_t VISUALIZE_LVG = 1 << 6;
 };
 
 struct cbCompositing
@@ -32,8 +33,17 @@ struct cbCompositing
 	float DepthMappingExp;
 	float VoxelGridNearZ;
 	float VoxelGridFarZ;
+	float Offset_y;
 
 	uint32_t Flags;
+
+	float Extents_x;
+	float Extents_y;
+	float Extents_z;
+	uint16_t GridDim_x;
+	uint16_t GridDim_y;
+	uint16_t GridDim_z;
+	uint16_t pad;
 };
 
 struct cbFireflyFilter

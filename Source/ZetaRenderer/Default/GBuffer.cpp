@@ -11,6 +11,10 @@ using namespace ZetaRay::Scene;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::DefaultRenderer;
 
+//--------------------------------------------------------------------------------------
+// GBuffer
+//--------------------------------------------------------------------------------------
+
 void GBuffer::Init(const RenderSettings& settings, GBufferData& data)
 {
 	for (int i = 0; i < 2; i++)
@@ -227,7 +231,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
 	renderGraph.RegisterResource(data.EmissiveColor.Resource(), data.EmissiveColor.ID());
 }
 
-void GBuffer::DeclareAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
+void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
 	RenderGraph& renderGraph)
 {
 	const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();

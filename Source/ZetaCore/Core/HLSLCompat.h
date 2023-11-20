@@ -18,7 +18,7 @@
 	#define	snorm2_ ZetaRay::Math::snorm2
 	#define	snorm3_ ZetaRay::Math::snorm3
 	#define	snorm4_ ZetaRay::Math::snorm4
-	#define	uint4_(x) uint32_t x[4]
+	#define	unorm2_ ZetaRay::Math::unorm2
 
 	#define IN_PARAM(t) t&
 	#define OUT_PARAM(t) t&
@@ -43,7 +43,7 @@
 	#define	snorm2_ int16_t2
 	#define	snorm3_ int16_t3
 	#define	snorm4_ int16_t4
-	#define uint4_(x) uint4 x
+	#define	unorm2_ uint16_t2
 
 	#define IN_PARAM(t) in t
 	#define OUT_PARAM(t) out t

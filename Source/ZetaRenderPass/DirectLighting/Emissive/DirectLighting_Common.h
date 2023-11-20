@@ -20,9 +20,6 @@
 
 struct cb_ReSTIR_DI_SpatioTemporal
 {
-	uint32_t NumEmissiveTriangles;
-	float OneDivNumEmissiveTriangles;
-
 	uint32_t PrevReservoir_A_DescHeapIdx;
 	uint32_t PrevReservoir_B_DescHeapIdx;
 	uint32_t CurrReservoir_A_DescHeapIdx;

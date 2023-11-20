@@ -44,11 +44,11 @@ float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 
 	const bool invalidY = abs(linearDepth - depthY) >= maxDepthDiscontinuity * linearDepth;
 	
 	const float3 normalX = evenGTid_x ? 
-		Math::Encoding::DecodeUnitVector(g_normal[GTid.y][GTid.x + 1].xy) : 
-		Math::Encoding::DecodeUnitVector(g_normal[GTid.y][GTid.x - 1].xy);
+		Math::DecodeUnitVector(g_normal[GTid.y][GTid.x + 1].xy) : 
+		Math::DecodeUnitVector(g_normal[GTid.y][GTid.x - 1].xy);
 	const float3 normalY = evenGTid_y ? 
-		Math::Encoding::DecodeUnitVector(g_normal[GTid.y + 1][GTid.x].xy) : 
-		Math::Encoding::DecodeUnitVector(g_normal[GTid.y - 1][GTid.x].xy);
+		Math::DecodeUnitVector(g_normal[GTid.y + 1][GTid.x].xy) : 
+		Math::DecodeUnitVector(g_normal[GTid.y - 1][GTid.x].xy);
 	const float3 normalddx = evenGTid_x ? normalX - normal : normal - normalX;
 	const float3 normalddy = evenGTid_y ? normalY - normal : normal - normalY;
 
@@ -82,7 +82,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// reconstruct position from depth buffer
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(DTid.xy,
+	const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -91,7 +91,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	GBUFFER_NORMAL g_shadingNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
 	const float2 encodedNormal = g_shadingNormal[DTid.xy];
-	const float3 normal = Math::Encoding::DecodeUnitVector(encodedNormal);
+	const float3 normal = Math::DecodeUnitVector(encodedNormal);
 
 	InitSharedMemory(GTid.xy, encodedNormal, linearDepth, posW);
 

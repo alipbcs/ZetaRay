@@ -174,10 +174,10 @@ struct PairwiseMIS
 			return;
 		}
 
-		const float target_i = Math::Color::Luminance(r_c.Le * brdfCosTheta_i);
+		const float target_i = Math::Luminance(r_c.Le * brdfCosTheta_i);
 		const float p_i_y_c = target_i * jacobianCurrToNeighbor;
 
-		const float p_c_y_c = Math::Color::Luminance(r_c.Target);
+		const float p_c_y_c = Math::Luminance(r_c.Target);
 
 		const float numerator = r_i.M * p_i_y_c;
 		const bool denomGt0 = (p_c_y_c + numerator) > 0; 
@@ -199,11 +199,11 @@ struct PairwiseMIS
 			currTarget = r_i.Le * brdfCosTheta_c;
 
 #if TARGET_WITH_VISIBILITY == 1
-			if(Math::Color::Luminance(currTarget) > 1e-5)
+			if(Math::Luminance(currTarget) > 1e-5)
 				currTarget *= Visibility(posW_c, r_i.wi, normal_c);
 #endif
 
-			const float targetLum = Math::Color::Luminance(currTarget);
+			const float targetLum = Math::Luminance(currTarget);
 			const float J_temporal_to_curr = JacobianReconnectionShift(posW_i, r_i.wi, posW_c);
 			m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i, J_temporal_to_curr);
 		}
@@ -218,7 +218,7 @@ struct PairwiseMIS
 			brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
 
 #if TARGET_WITH_VISIBILITY == 1
-			if(Math::Color::Luminance(brdfCosTheta_i) > 1e-5)
+			if(Math::Luminance(brdfCosTheta_i) > 1e-5)
 				brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i);
 #endif
 
@@ -230,7 +230,7 @@ struct PairwiseMIS
 		if(r_i.IsValid())
 		{
 			// Jacobian term cancels out with the same term in m_i's numerator
-			const float w_i = m_i * Math::Color::Luminance(currTarget) * r_i.W;
+			const float w_i = m_i * Math::Luminance(currTarget) * r_i.W;
 
 			if (this.r_s.Update(w_i, r_i.Le, r_i.wi, currTarget, rng))
 				this.r_s.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
@@ -241,13 +241,13 @@ struct PairwiseMIS
 
 	void End(SkyDI_Util::Reservoir r_c, inout RNG rng)
 	{
-		const float w_c = Math::Color::Luminance(r_c.Target) * r_c.W * this.m_c;
+		const float w_c = Math::Luminance(r_c.Target) * r_c.W * this.m_c;
 
 		if(this.r_s.Update(w_c, r_c.Le, r_c.wi, r_c.Target, rng))
 			this.r_s.NeedsShadowRay = this.r_s.NeedsShadowRay || r_c.NeedsShadowRay;
 
 		this.r_s.M = this.M_s;
-		const float targetLum = Math::Color::Luminance(r_s.Target);
+		const float targetLum = Math::Luminance(r_s.Target);
 		this.r_s.W = targetLum > 0 ? this.r_s.w_sum / (targetLum * (1 + this.k)) : 0;
 		// TODO investigate
 		this.r_s.W = isnan(this.r_s.W) ? 0 : this.r_s.W;
@@ -290,7 +290,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
 		// balance heuristic
 		// p_d in m_d's numerator and w_d's denominator cancel out
 		const float m_d = 1.0f / max(p_d + BRDF::GGXVNDFReflectionPdf(surface), 1e-6);
-		const float w_d = m_d * Math::Color::Luminance(target);
+		const float w_d = m_d * Math::Luminance(target);
 
 		if(r.Update(w_d, Lo, wi_d, target, rng))
 			r.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
@@ -311,13 +311,13 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
 
 		// p_s in m_s's numerator and w_s's denominator cancel out
 		const float m_s = 1.0f / max(p_s + p_d, 1e-6f);
-		const float w_s = m_s * Math::Color::Luminance(target);
+		const float w_s = m_s * Math::Luminance(target);
 
 		if(r.Update(w_s, Lo, wi_s, target, rng))
 			r.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
 	}
 
-	float targetLum = Math::Color::Luminance(r.Target);
+	float targetLum = Math::Luminance(r.Target);
 	r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 	
 #if !TARGET_WITH_VISIBILITY
@@ -379,7 +379,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 
 		// plane-based heuristic
 		float prevDepth = g_prevDepth[samplePosSS];
-		float3 prevPos = Math::Transform::WorldPosFromScreenSpace(samplePosSS,
+		float3 prevPos = Math::WorldPosFromScreenSpace(samplePosSS,
 			renderDim,
 			prevDepth,
 			g_frame.TanHalfFOV,
@@ -402,7 +402,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 
 		// normal heuristic
 		const float2 prevNormalEncoded = g_prevNormal[samplePosSS];
-		const float3 prevNormal = Math::Encoding::DecodeUnitVector(prevNormalEncoded);
+		const float3 prevNormal = Math::DecodeUnitVector(prevNormalEncoded);
 		const float normalSimilarity = dot(prevNormal, normal);
 			
 		// roughness heuristic
@@ -435,7 +435,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 
 		float targetLumAtPrev = 0.0f;
 
-		if(Math::Color::Luminance(r.Le) > 1e-6)
+		if(Math::Luminance(r.Le) > 1e-6)
 		{
 			const float3 prevBaseColor = g_prevBaseColor[candidate.posSS].rgb;
 			const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
@@ -447,14 +447,14 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 			prevSurface.SetWi(r.wi, candidate.normal);
 
 			const float3 targetAtPrev = r.Le * BRDF::CombinedBRDF(prevSurface);
-			targetLumAtPrev = Math::Color::Luminance(targetAtPrev);
+			targetLumAtPrev = Math::Luminance(targetAtPrev);
 
 #if TARGET_WITH_VISIBILITY == 1
 			targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal);
 #endif
 		}
 
-		const float p_curr = r.M * Math::Color::Luminance(r.Target);
+		const float p_curr = r.M * Math::Luminance(r.Target);
 		// p_temporal at sample (x) that would be mapped to current reservoir's sample (r.y),
 		// followed by division by Jacobian of the mapping. Easier to compute the inverse
 		// mapping and use the fact J(T(x) = y) = 1 / J(T^-1(y) = x) 
@@ -468,7 +468,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 		// compute target at current pixel with temporal reservoir's sample
 		surface.SetWi(prev.wi, normal);
 		const float3 currTarget = prev.Le * BRDF::CombinedBRDF(surface);
-		float targetLumAtCurr = Math::Color::Luminance(currTarget);
+		float targetLumAtCurr = Math::Luminance(currTarget);
 	
 #if TARGET_WITH_VISIBILITY == 1
 		targetLumAtCurr *= Visibility(posW, prev.wi, normal);
@@ -492,7 +492,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 		}
 	}
 
-	float targetLum = Math::Color::Luminance(r.Target);
+	float targetLum = Math::Luminance(r.Target);
 	r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 	r.M = newM;
 }
@@ -551,10 +551,9 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 			if (depth_i == 0.0)
 				continue;
 
-			const float linearDepth_i = Math::Transform::LinearDepthFromNDC(depth_i, g_frame.CameraNear);
-			float3 posW_i = Math::Transform::WorldPosFromScreenSpace(posSS_i,
+			float3 posW_i = Math::WorldPosFromScreenSpace(posSS_i,
 				renderDim,
-				linearDepth_i,
+				depth_i,
 				g_frame.TanHalfFOV,
 				g_frame.AspectRatio,
 				g_frame.PrevViewInv,
@@ -585,7 +584,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 
 	for (int i = 0; i < k; i++)
 	{
-		const float3 sampleNormal = Math::Encoding::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
+		const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
 		const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
 		const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
@@ -610,7 +609,7 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 nor
 		surface, rng);
 
 	// skip resampling for mirror-like metals & dark-colored glossy dielectrics
-	const bool resample = (roughness > g_local.MinRoughnessResample || (!metallic && Math::Color::Luminance(baseColor) > 1e-2));
+	const bool resample = (roughness > g_local.MinRoughnessResample || (!metallic && Math::Luminance(baseColor) > 1e-2));
 	
 	if (IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE) && resample) 
 	{
@@ -668,7 +667,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// reconstruct position from depth buffer
 	const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-	const float3 posW = Math::Transform::WorldPosFromScreenSpace(swizzledDTid,
+	const float3 posW = Math::WorldPosFromScreenSpace(swizzledDTid,
 		renderDim,
 		linearDepth,
 		g_frame.TanHalfFOV,
@@ -678,7 +677,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// shading normal
 	GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-	const float3 normal = Math::Encoding::DecodeUnitVector(g_normal[swizzledDTid]);
+	const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
 	// roughness and metallic mask
 	GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

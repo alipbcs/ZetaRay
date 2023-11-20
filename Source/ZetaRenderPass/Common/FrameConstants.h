@@ -65,6 +65,11 @@ namespace ZetaRay
 		uint32_t CameraStatic;
 		uint32_t Accumulate;
 		uint32_t pad;
+
+		float OneDivNumEmissiveTriangles;
+		uint32_t NumEmissiveTriangles;
+		uint32_t pad1;
+		uint32_t pad2;
 	};
 #ifdef __cplusplus
 }
