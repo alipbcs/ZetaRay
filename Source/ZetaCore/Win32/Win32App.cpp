@@ -153,6 +153,9 @@ namespace
 		bool m_minimized = false;
 		bool m_isFullScreen = false;
 		ImGuiMouseCursor m_imguiCursor = ImGuiMouseCursor_COUNT;
+		HWND m_mouseHwnd;
+		int m_imguiMouseTrackedArea = 0;   // 0: not tracked, 1: client are, 2: non-client area
+		int m_imguiMouseButtonsDown = 0;
 		bool m_imguiMouseTracked = false;
 		uint16_t m_dpi;
 		float m_upscaleFactor = 1.0f;
@@ -282,17 +285,29 @@ namespace ZetaRay::AppImpl
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 	}
 
-	void ImGuiUpdateMouseCursor()
+	// See https://learn.microsoft.com/en-us/windows/win32/tablet/system-events-and-mouse-messages
+	// Prefer to call this at the top of the message handler to avoid the possibility of other Win32 calls interfering with this.
+	ImGuiMouseSource GetMouseSourceFromMessageExtraInfo()
+	{
+		LPARAM extra_info = GetMessageExtraInfo();
+		if ((extra_info & 0xFFFFFF80) == 0xFF515700)
+			return ImGuiMouseSource_Pen;
+		if ((extra_info & 0xFFFFFF80) == 0xFF515780)
+			return ImGuiMouseSource_TouchScreen;
+		return ImGuiMouseSource_Mouse;
+	}
+
+	bool ImGuiUpdateMouseCursor()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 		if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
-			return;
+			return false;
 
 		ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
 		if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
 		{
 			// Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-			SetCursor(NULL);
+			SetCursor(nullptr);
 		}
 		else
 		{
@@ -311,40 +326,38 @@ namespace ZetaRay::AppImpl
 			case ImGuiMouseCursor_NotAllowed:   win32_cursor = IDC_NO; break;
 			}
 
-			SetCursor(::LoadCursor(NULL, win32_cursor));
+			SetCursor(LoadCursor(nullptr, win32_cursor));
 		}
+
+		return true;
 	}
 
 	void ImGuiUpdateMouse()
 	{
 		ImGuiIO& io = ImGui::GetIO();
 
-		const ImVec2 mouse_pos_prev = io.MousePos;
-		io.MousePos = ImVec2(-FLT_MAX, -FLT_MAX);
-
-		// Obtain focused and hovered window. We forward mouse input when focused or when hovered (and no other window is capturing)
-		HWND focused_window = GetForegroundWindow();
-		HWND hovered_window = g_app->m_hwnd;
-		HWND mouse_window = NULL;
-		if (hovered_window && (hovered_window == g_app->m_hwnd || IsChild(hovered_window, g_app->m_hwnd)))
-			mouse_window = hovered_window;
-		else if (focused_window && (focused_window == g_app->m_hwnd || IsChild(focused_window, g_app->m_hwnd)))
-			mouse_window = focused_window;
-		if (mouse_window == NULL)
-			return;
-
-		// Set OS mouse position from Dear ImGui if requested (rarely used, only when ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
-		if (io.WantSetMousePos)
+		HWND focused_window = ::GetForegroundWindow();
+		const bool is_app_focused = (focused_window == g_app->m_hwnd);
+		if (is_app_focused)
 		{
-			POINT pos = { (int)mouse_pos_prev.x, (int)mouse_pos_prev.y };
-			if (ClientToScreen(g_app->m_hwnd, &pos))
-				SetCursorPos(pos.x, pos.y);
-		}
+			// (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when 
+			// ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
+			if (io.WantSetMousePos)
+			{
+				POINT pos = { (int)io.MousePos.x, (int)io.MousePos.y };
+				if (ClientToScreen(g_app->m_hwnd, &pos))
+					SetCursorPos(pos.x, pos.y);
+			}
 
-		// Set Dear ImGui mouse position from OS position
-		POINT pos;
-		if (GetCursorPos(&pos) && ScreenToClient(mouse_window, &pos))
-			io.MousePos = ImVec2((float)pos.x, (float)pos.y);
+			// (Optional) Fallback to provide mouse position when focused (WM_MOUSEMOVE already provides this when hovered or captured)
+			// This also fills a short gap when clicking non-client area: WM_NCMOUSELEAVE -> modal OS move -> gap -> WM_NCMOUSEMOVE
+			if (!io.WantSetMousePos && g_app->m_imguiMouseTrackedArea == 0)
+			{
+				POINT pos;
+				if (GetCursorPos(&pos) && ::ScreenToClient(g_app->m_hwnd, &pos))
+					io.AddMousePosEvent((float)pos.x, (float)pos.y);
+			}
+		}
 
 		// Update OS mouse cursor with the cursor requested by imgui
 		ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
@@ -382,17 +395,17 @@ namespace ZetaRay::AppImpl
 
 		style.FramePadding = ImVec2(7.0f, 3.0f);
 		style.GrabMinSize = 13.0f;
-		style.FrameRounding = 4.0f;
-		style.GrabRounding = 5.0f;
+		style.FrameRounding = 2.5f;
+		style.GrabRounding = 2.5f;
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
 
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 
 		ImGuiIO& io = ImGui::GetIO();
 		io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
-
-		// TODO remove hard-coded path
-		io.IniFilename = "..//temp//imgui.ini";
+		io.IniFilename = nullptr;
+		io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
+		io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
 
 		io.UserData = &g_app->m_rebuildFontTexDlg;
 		LoadFont();
@@ -640,19 +653,18 @@ namespace ZetaRay::AppImpl
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
 
-		int button = 0;
-		if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
-			button = 0;
-		else if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK)
-			button = 1;
-		else if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK)
-			button = 2;
+		ImGuiIO& io = ImGui::GetIO();
 
-		if (!ImGui::IsAnyMouseDown() && GetCapture() == NULL)
+		ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
+		int button = 0;
+		if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK) { button = 0; }
+		if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK) { button = 1; }
+		if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK) { button = 2; }
+		if (g_app->m_imguiMouseButtonsDown == 0 && GetCapture() == nullptr)
 			SetCapture(g_app->m_hwnd);
 
-		ImGuiIO& io = ImGui::GetIO();
-		//io.MouseDown[button] = true;
+		g_app->m_imguiMouseButtonsDown |= 1 << button;
+		io.AddMouseSourceEvent(mouse_source);
 		io.AddMouseButtonEvent(button, true);
 
 		if (!io.WantCaptureMouse)
@@ -676,19 +688,17 @@ namespace ZetaRay::AppImpl
 
 		ImGuiIO& io = ImGui::GetIO();
 
+		ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
 		int button = 0;
-		if (message == WM_LBUTTONUP)
-			button = 0;
-		else if (message == WM_RBUTTONUP)
-			button = 1;
-		else if (message == WM_MBUTTONUP)
-			button = 2;
+		if (message == WM_LBUTTONUP) { button = 0; }
+		if (message == WM_RBUTTONUP) { button = 1; }
+		if (message == WM_MBUTTONUP) { button = 2; }
 
-		io.MouseDown[button] = false;
-
-		if (!ImGui::IsAnyMouseDown() && GetCapture() == g_app->m_hwnd)
+		g_app->m_imguiMouseButtonsDown &= ~(1 << button);
+		if (g_app->m_imguiMouseButtonsDown == 0 && GetCapture() == g_app->m_hwnd)
 			ReleaseCapture();
 
+		io.AddMouseSourceEvent(mouse_source);
 		io.AddMouseButtonEvent(button, false);
 
 		if (!io.WantCaptureMouse)
@@ -698,7 +708,7 @@ namespace ZetaRay::AppImpl
 		}
 	}
 
-	void OnMouseMove(UINT message, WPARAM btnState, LPARAM lParam)
+	void OnMouseMove(UINT message, WPARAM btnState, LPARAM lParam, HWND hwnd)
 	{
 		if (ImGui::GetCurrentContext() == nullptr)
 			return;
@@ -706,14 +716,29 @@ namespace ZetaRay::AppImpl
 		ImGuiIO& io = ImGui::GetIO();
 
 		// We need to call TrackMouseEvent in order to receive WM_MOUSELEAVE events
-		if (!g_app->m_imguiMouseTracked)
+		ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
+		const int area = (message == WM_MOUSEMOVE) ? 1 : 2;
+		g_app->m_mouseHwnd = hwnd;
+		if (g_app->m_imguiMouseTrackedArea != area)
 		{
-			TRACKMOUSEEVENT tme = { sizeof(tme), TME_LEAVE, g_app->m_hwnd, 0 };
-			TrackMouseEvent(&tme);
-			g_app->m_imguiMouseTracked = true;
+			TRACKMOUSEEVENT tme_cancel = { sizeof(tme_cancel), TME_CANCEL, hwnd, 0 };
+			TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
+			if (g_app->m_imguiMouseTrackedArea != 0)
+				TrackMouseEvent(&tme_cancel);
+
+			TrackMouseEvent(&tme_track);
+			g_app->m_imguiMouseTrackedArea = area;
 		}
 
-		io.AddMousePosEvent((float)GET_X_LPARAM(lParam), (float)GET_Y_LPARAM(lParam));
+		POINT mouse_pos = { (LONG)GET_X_LPARAM(lParam), (LONG)GET_Y_LPARAM(lParam) };
+		if (message == WM_NCMOUSEMOVE && ScreenToClient(hwnd, &mouse_pos) == FALSE) // WM_NCMOUSEMOVE are provided in absolute coordinates.
+			return;
+
+		io.AddMouseSourceEvent(mouse_source);
+		io.AddMousePosEvent((float)mouse_pos.x, (float)mouse_pos.y);
+
+		if (message != WM_MOUSEMOVE)
+			return;
 
 		if (!io.WantCaptureMouse)
 		{
@@ -925,6 +950,21 @@ namespace ZetaRay::AppImpl
 			AppImpl::OnKeyboard(message, wParam, lParam);
 			return 0;
 
+		case WM_MOUSELEAVE:
+		case WM_NCMOUSELEAVE:
+		{
+			const int area = (message == WM_MOUSELEAVE) ? 1 : 2;
+			if (g_app->m_imguiMouseTrackedArea == area)
+			{
+				if (g_app->m_mouseHwnd == hWnd)
+					g_app->m_mouseHwnd = nullptr;
+
+				g_app->m_imguiMouseTrackedArea = 0;
+				ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
+			}
+			break;
+		}
+
 		case WM_LBUTTONDOWN:
 		case WM_MBUTTONDOWN:
 		case WM_RBUTTONDOWN:
@@ -938,7 +978,8 @@ namespace ZetaRay::AppImpl
 			return 0;
 
 		case WM_MOUSEMOVE:
-			AppImpl::OnMouseMove(message, wParam, lParam);
+		case WM_NCMOUSEMOVE:
+			AppImpl::OnMouseMove(message, wParam, lParam, hWnd);
 			return 0;
 
 		case WM_MOUSEWHEEL:
@@ -950,6 +991,12 @@ namespace ZetaRay::AppImpl
 			OnDPIChanged(HIWORD(wParam), reinterpret_cast<RECT*>(lParam));
 			return 0;
 		}
+
+		case WM_SETCURSOR:
+			// This is required to restore cursor when transitioning from e.g resize borders to client area.
+			if (LOWORD(lParam) == HTCLIENT && AppImpl::ImGuiUpdateMouseCursor())
+				return 1;
+			return 0;
 
 		case WM_DESTROY:
 			AppImpl::OnDestroy();
@@ -1056,7 +1103,8 @@ namespace ZetaRay::AppImpl
 			const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 			const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
-			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+			g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, 
+				g_app->m_displayWidth, g_app->m_displayHeight);
 			g_app->m_scene.OnWindowSizeChanged();
 			g_app->m_camera.OnWindowSizeChanged();
 
@@ -1090,12 +1138,14 @@ namespace ZetaRay::AppImpl
 	}
 
 	template<size_t blockSize>
-	ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, size_t size, size_t alignment)
+	ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, 
+		size_t size, size_t alignment)
 	{
 		alignment = Math::Max(alignof(std::max_align_t), alignment);
 
 		// at most alignment - 1 extra bytes are required
-		Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE, "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
+		Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE, 
+			"allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
 
 		const int threadIdx = GetThreadIdx();
 		Assert(threadIdx != -1, "thread idx was not found");

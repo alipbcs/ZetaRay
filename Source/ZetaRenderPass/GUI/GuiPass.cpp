@@ -69,7 +69,7 @@ namespace
 				auto& fp = param.GetFloat3();
 				float3 v = fp.m_val;
 
-				if (ImGui::SliderFloat3(param.GetName(), reinterpret_cast<float*>(&v), fp.m_min, fp.m_max, "%.4f"))
+				if (ImGui::SliderFloat3(param.GetName(), reinterpret_cast<float*>(&v), fp.m_min, fp.m_max, "%.2f"))
 					param.SetFloat3(v);
 			}
 			else if (param.GetType() == PARAM_TYPE::PT_unit_dir)
@@ -161,6 +161,79 @@ namespace
 		ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
 		ImPlot::PlotLine("", arrow_x, arrow_y, ZetaArrayLen(arrow_x));
 	}
+
+	void ShowStyles()
+	{
+		if (ImGui::BeginTabItem("Colors"))
+		{
+			ImGuiStyle& style = ImGui::GetStyle();
+
+			static int output_dest = 0;
+			static bool output_only_modified = true;
+
+			static ImGuiTextFilter filter;
+			filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
+
+			static ImGuiColorEditFlags alpha_flags = 0;
+
+			ImGui::PushItemWidth(-160);
+			for (int i = 0; i < ImGuiCol_COUNT; i++)
+			{
+				const char* name = ImGui::GetStyleColorName(i);
+				if (!filter.PassFilter(name))
+					continue;
+				ImGui::PushID(i);
+				ImGui::ColorEdit4("##color", (float*)&style.Colors[i], ImGuiColorEditFlags_AlphaBar | alpha_flags);
+				ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
+				ImGui::TextUnformatted(name);
+				ImGui::PopID();
+			}
+
+			ImGui::PopItemWidth();
+			ImGui::EndTabItem();
+		}
+
+		if (ImGui::BeginTabItem("Sizes"))
+		{
+			ImGuiStyle& style = ImGui::GetStyle();
+
+			ImGui::Text("Main");
+			ImGui::SliderFloat2("WindowPadding", (float*)&style.WindowPadding, 0.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat2("FramePadding", (float*)&style.FramePadding, 0.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat2("CellPadding", (float*)&style.CellPadding, 0.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat2("ItemSpacing", (float*)&style.ItemSpacing, 0.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat2("ItemInnerSpacing", (float*)&style.ItemInnerSpacing, 0.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat2("TouchExtraPadding", (float*)&style.TouchExtraPadding, 0.0f, 10.0f, "%.0f");
+			ImGui::SliderFloat("IndentSpacing", &style.IndentSpacing, 0.0f, 30.0f, "%.0f");
+			ImGui::SliderFloat("ScrollbarSize", &style.ScrollbarSize, 1.0f, 20.0f, "%.0f");
+			ImGui::SliderFloat("GrabMinSize", &style.GrabMinSize, 1.0f, 20.0f, "%.0f");
+			ImGui::Text("Borders");
+			ImGui::SliderFloat("WindowBorderSize", &style.WindowBorderSize, 0.0f, 1.0f, "%.0f");
+			ImGui::SliderFloat("ChildBorderSize", &style.ChildBorderSize, 0.0f, 1.0f, "%.0f");
+			ImGui::SliderFloat("PopupBorderSize", &style.PopupBorderSize, 0.0f, 1.0f, "%.0f");
+			ImGui::SliderFloat("FrameBorderSize", &style.FrameBorderSize, 0.0f, 1.0f, "%.0f");
+			ImGui::SliderFloat("TabBorderSize", &style.TabBorderSize, 0.0f, 1.0f, "%.0f");
+			ImGui::Text("Rounding");
+			ImGui::SliderFloat("WindowRounding", &style.WindowRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("ChildRounding", &style.ChildRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("FrameRounding", &style.FrameRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("PopupRounding", &style.PopupRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("ScrollbarRounding", &style.ScrollbarRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("GrabRounding", &style.GrabRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("LogSliderDeadzone", &style.LogSliderDeadzone, 0.0f, 12.0f, "%.0f");
+			ImGui::SliderFloat("TabRounding", &style.TabRounding, 0.0f, 12.0f, "%.0f");
+			ImGui::Text("Alignment");
+			ImGui::SliderFloat2("WindowTitleAlign", (float*)&style.WindowTitleAlign, 0.0f, 1.0f, "%.2f");
+			int window_menu_button_position = style.WindowMenuButtonPosition + 1;
+			ImGui::Combo("ColorButtonPosition", (int*)&style.ColorButtonPosition, "Left\0Right\0");
+			ImGui::SliderFloat2("ButtonTextAlign", (float*)&style.ButtonTextAlign, 0.0f, 1.0f, "%.2f");
+			ImGui::SliderFloat2("SelectableTextAlign", (float*)&style.SelectableTextAlign, 0.0f, 1.0f, "%.2f");
+			ImGui::Text("Safe Area Padding");
+			ImGui::SliderFloat2("DisplaySafeAreaPadding", (float*)&style.DisplaySafeAreaPadding, 0.0f, 30.0f, "%.0f");
+
+			ImGui::EndTabItem();
+		}
+	}
 }
 
 //--------------------------------------------------------------------------------------
@@ -186,6 +259,7 @@ void GuiPass::Init()
 
 	ImGuiIO& io = ImGui::GetIO();
 	io.UserData = reinterpret_cast<void*>(&m_font.RebuildFontTexDlg);
+	io.ConfigWindowsResizeFromEdges = true;
 
 	RebuildFontTex();
 
@@ -463,14 +537,13 @@ void GuiPass::RenderSettings()
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 	const float wndPosX = ceilf(displayWidth * (1 - m_dbgWndWidthPct));
 
-	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
-	ImGui::SetWindowPos(ImVec2(wndPosX, 0.0f), ImGuiCond_Always);
-	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight),
-		ImGuiCond_Always);
+	ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
+	ImGui::SetWindowPos(ImVec2(wndPosX, 0.0f), ImGuiCond_Once);
+	ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight), 
+		ImGuiCond_Once);
 
 	m_logWndWidth = displayWidth - ImGui::GetWindowWidth();
 
-	//if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_DefaultOpen))
 	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
 	{
 		InfoTab();
@@ -489,87 +562,16 @@ void GuiPass::RenderSettings()
 		ImGui::Text("");
 	}
 
-	/*
-	if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
-	{
-		if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None))
-		{
-			if (ImGui::BeginTabItem("Colors"))
-			{
-				ImGuiStyle& style = ImGui::GetStyle();
+	//if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
+	//{
+	//	if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None))
+	//	{
+	//		ShowStyles();
+	//		ImGui::EndTabBar();
+	//	}
 
-				static int output_dest = 0;
-				static bool output_only_modified = true;
-
-				static ImGuiTextFilter filter;
-				filter.Draw("Filter colors", ImGui::GetFontSize() * 16);
-
-				static ImGuiColorEditFlags alpha_flags = 0;
-
-				ImGui::PushItemWidth(-160);
-				for (int i = 0; i < ImGuiCol_COUNT; i++)
-				{
-					const char* name = ImGui::GetStyleColorName(i);
-					if (!filter.PassFilter(name))
-						continue;
-					ImGui::PushID(i);
-					ImGui::ColorEdit4("##color", (float*)&style.Colors[i], ImGuiColorEditFlags_AlphaBar | alpha_flags);
-					ImGui::SameLine(0.0f, style.ItemInnerSpacing.x);
-					ImGui::TextUnformatted(name);
-					ImGui::PopID();
-				}
-
-				ImGui::PopItemWidth();
-				ImGui::EndTabItem();
-			}
-
-			if (ImGui::BeginTabItem("Sizes"))
-			{
-				ImGuiStyle& style = ImGui::GetStyle();
-
-				ImGui::Text("Main");
-				ImGui::SliderFloat2("WindowPadding", (float*)&style.WindowPadding, 0.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat2("FramePadding", (float*)&style.FramePadding, 0.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat2("CellPadding", (float*)&style.CellPadding, 0.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat2("ItemSpacing", (float*)&style.ItemSpacing, 0.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat2("ItemInnerSpacing", (float*)&style.ItemInnerSpacing, 0.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat2("TouchExtraPadding", (float*)&style.TouchExtraPadding, 0.0f, 10.0f, "%.0f");
-				ImGui::SliderFloat("IndentSpacing", &style.IndentSpacing, 0.0f, 30.0f, "%.0f");
-				ImGui::SliderFloat("ScrollbarSize", &style.ScrollbarSize, 1.0f, 20.0f, "%.0f");
-				ImGui::SliderFloat("GrabMinSize", &style.GrabMinSize, 1.0f, 20.0f, "%.0f");
-				ImGui::Text("Borders");
-				ImGui::SliderFloat("WindowBorderSize", &style.WindowBorderSize, 0.0f, 1.0f, "%.0f");
-				ImGui::SliderFloat("ChildBorderSize", &style.ChildBorderSize, 0.0f, 1.0f, "%.0f");
-				ImGui::SliderFloat("PopupBorderSize", &style.PopupBorderSize, 0.0f, 1.0f, "%.0f");
-				ImGui::SliderFloat("FrameBorderSize", &style.FrameBorderSize, 0.0f, 1.0f, "%.0f");
-				ImGui::SliderFloat("TabBorderSize", &style.TabBorderSize, 0.0f, 1.0f, "%.0f");
-				ImGui::Text("Rounding");
-				ImGui::SliderFloat("WindowRounding", &style.WindowRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("ChildRounding", &style.ChildRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("FrameRounding", &style.FrameRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("PopupRounding", &style.PopupRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("ScrollbarRounding", &style.ScrollbarRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("GrabRounding", &style.GrabRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("LogSliderDeadzone", &style.LogSliderDeadzone, 0.0f, 12.0f, "%.0f");
-				ImGui::SliderFloat("TabRounding", &style.TabRounding, 0.0f, 12.0f, "%.0f");
-				ImGui::Text("Alignment");
-				ImGui::SliderFloat2("WindowTitleAlign", (float*)&style.WindowTitleAlign, 0.0f, 1.0f, "%.2f");
-				int window_menu_button_position = style.WindowMenuButtonPosition + 1;
-				ImGui::Combo("ColorButtonPosition", (int*)&style.ColorButtonPosition, "Left\0Right\0");
-				ImGui::SliderFloat2("ButtonTextAlign", (float*)&style.ButtonTextAlign, 0.0f, 1.0f, "%.2f");
-				ImGui::SliderFloat2("SelectableTextAlign", (float*)&style.SelectableTextAlign, 0.0f, 1.0f, "%.2f");
-				ImGui::Text("Safe Area Padding");
-				ImGui::SliderFloat2("DisplaySafeAreaPadding", (float*)&style.DisplaySafeAreaPadding, 0.0f, 30.0f, "%.0f");
-				
-				ImGui::EndTabItem();
-			}
-
-			ImGui::EndTabBar();
-		}
-
-		ImGui::Text("");
-	}
-	*/
+	//	ImGui::Text("");
+	//}
 
 	if (ImGui::CollapsingHeader("Shader Hot-Reload", ImGuiTreeNodeFlags_None))
 	{
@@ -584,8 +586,7 @@ void GuiPass::RenderSettings()
 
 void GuiPass::RenderProfiler()
 {
-	const float w = App::GetRenderer().GetDisplayWidth() * m_dbgWndWidthPct;
-	//const float h = App::GetRenderer().GetDisplayHeight() * 0.7f;
+	const float w = ImGui::GetWindowWidth();
 
 	auto& renderer = App::GetRenderer();
 	auto& timer = App::GetTimer();
@@ -683,10 +684,16 @@ void GuiPass::RenderLogWindow()
 
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 
-	if(!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
+	if (!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
 		ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
 
-	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoResize))
+	if (!m_showLogsWindowFirstTime)
+	{
+		ImGui::SetNextWindowCollapsed(true, ImGuiCond_Always);
+		m_showLogsWindowFirstTime = true;
+	}
+
+	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
 	{
 		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
 
@@ -728,15 +735,13 @@ void GuiPass::RenderLogWindow()
 void GuiPass::RenderMainHeader()
 {
 	ImGuiStyle& style = ImGui::GetStyle();
-	ImGui::PushStyleColor(ImGuiCol_Tab, ImVec4(0.012286487f, 0.012286487f, 0.012286487f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_Tab, style.Colors[ImGuiCol_WindowBg]);
 	ImGui::PushStyleColor(ImGuiCol_TabActive, ImVec4(0.0295568369f, 0.0295568369f, 0.0295568369f, 1.0f));
+	ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(0.05098039215f, 0.05490196078f, 0.05490196078f, 1.0f));
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(15, style.ItemInnerSpacing.y));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.5f);
-
-	//const float spacingX = m_logWndWidth * 0.5f - m_headerSpacingX * 0.5f;
-	//ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(spacingX, style.ItemSpacing.y));
 
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
 	const float wndHeight = (m_headerWndHeightPct * displayHeight);
@@ -745,27 +750,21 @@ void GuiPass::RenderMainHeader()
 		ImGuiWindowFlags_NoResize);
 
 	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
-	ImVec2 wndSize = ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight);
-	ImGui::SetWindowSize(wndSize, ImGuiCond_Always);
+	ImGui::SetWindowSize(ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight), ImGuiCond_Always);
 
-	ImDrawList* drawList = ImGui::GetWindowDrawList();
-
-	ImVec2 p0 = ImGui::GetCursorScreenPos();
-	ImVec2 p1 = ImVec2(p0.x + ImGui::GetWindowWidth(), p0.y + ImGui::GetWindowHeight());
-	ImU32 col_a = ImGui::GetColorU32(style.Colors[ImGuiCol_WindowBg]);
-	ImU32 col_b = ImGui::GetColorU32(style.Colors[ImGuiCol_TabActive]);
-	drawList->AddRectFilledMultiColor(p0, p1, col_a, col_a, col_b, col_b);
+	m_headerWndHeight = ImGui::GetWindowHeight();
 
 	ImGui::Text("		");
 	ImGui::SameLine();
 	ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
 
 	const bool showMainWnd = ImGui::BeginTabItem("		Main		");
-	if (ImGui::IsItemHovered())
+	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNone))
+	{
+		ImGui::PopStyleVar(ImGuiStyleVar_WindowPadding);
 		ImGui::SetTooltip("Scene View");
-
-	//const bool resetSpacing = m_headerSpacingX == 0;
-	//m_headerSpacingX += resetSpacing ? ImGui::GetItemRectSize().x : 0;
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
+	}
 
 	if(showMainWnd)
 	{
@@ -775,10 +774,12 @@ void GuiPass::RenderMainHeader()
 
 	const bool renderGraphTab = ImGui::BeginTabItem("		Render Graph		");
 
-	//m_headerSpacingX += resetSpacing ? ImGui::GetItemRectSize().x : 0;
-
 	if (ImGui::IsItemHovered())
-		ImGui::SetTooltip("Render graph visualization (use RMB for panning).");
+	{
+		ImGui::PopStyleVar(ImGuiStyleVar_WindowPadding);
+		ImGui::SetTooltip("Render Graph Visualization (Use RMB for Panning).");
+		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
+	}
 
 	if(renderGraphTab)
 	{
@@ -795,7 +796,7 @@ void GuiPass::RenderMainHeader()
 
 	ImGui::EndTabBar();
 
-	ImGui::PopStyleColor(2);
+	ImGui::PopStyleColor(3);
 	ImGui::PopStyleVar(3);
 	
 	ImGui::End();
@@ -966,7 +967,7 @@ void GuiPass::GpuTimingsTab()
 	{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
 
-		ImGui::TableSetupColumn("RenderPass", ImGuiTableColumnFlags_None);
+		ImGui::TableSetupColumn("Render Pass", ImGuiTableColumnFlags_None);
 		ImGui::TableSetupColumn("Delta (ms)", ImGuiTableColumnFlags_None);
 		ImGui::TableHeadersRow();
 
