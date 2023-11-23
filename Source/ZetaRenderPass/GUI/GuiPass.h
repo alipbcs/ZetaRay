@@ -79,14 +79,12 @@ namespace ZetaRay::RenderPass
 		static constexpr float m_dbgWndWidthPct = 0.21f;
 		static constexpr float m_dbgWndHeightPct = 1.0f;
 		float m_logWndWidth = 0.0f;
-		float m_headerWndHeight = 0.0f;
 		static constexpr float m_logWndHeightPct = 0.21f;
 		static constexpr float m_headerWndHeightPct = 0.02f;
-		bool m_showLogsWindowFirstTime = false;
+		bool m_firstTime = true;
 		bool m_isFullScreen = false;
+		bool m_closeLogsTab = false;
 		int m_prevNumLogs = 0;
-		bool m_showLogsWindow = false;
-		//float m_headerSpacingX = 0;
 
 		Util::SmallVector<App::LogMessage> m_logs;
 

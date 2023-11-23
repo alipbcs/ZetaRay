@@ -7,6 +7,8 @@
 // Stack-allocated string with a maximum size of 256
 //--------------------------------------------------------------------------------------
 
+// Note: stbsp_snprintf always returns a zero-terminated string.
+
 #ifdef _DEBUG
 #define StackStr(buffName, lenName, formatStr, ...)                         \
     char buffName[512];                                                     \

@@ -427,7 +427,6 @@ void GuiPass::Render(CommandList& cmdList)
 
 	RenderSettings();
 	RenderMainHeader();
-	RenderLogWindow();
 	ImGui::Render();
 	UpdateBuffers();
 
@@ -658,7 +657,7 @@ void GuiPass::RenderProfiler()
 			ImPlot::SetupAxes("Moving Window", "Time (ms)", 0, ImPlotAxisFlags_NoHighlight);
 			ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max_ + 1.0, ImGuiCond_Always);
 			//ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
-			ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.1f, 0.35f, 0.95f, 1.0f));
+			ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.0074990317, 0.341914445, 0.77582234, 1.0f));
 
 			ImGuiStyle& style = ImGui::GetStyle();
 			ImVec4* colors = style.Colors;
@@ -678,57 +677,52 @@ void GuiPass::RenderProfiler()
 
 void GuiPass::RenderLogWindow()
 {
-	auto frameLogs = App::GetFrameLogs().Variable();
-	m_prevNumLogs = (int)m_logs.size();
-	m_logs.append_range(frameLogs.begin(), frameLogs.end());
+	ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(6/ 255.0f, 6 / 255.0f, 6 / 255.0f, 1.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
+
+	const float h_prev = ImGui::GetWindowSize().y;
+	
+	ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
+	const float logWndHeightPct = m_logWndHeightPct;
 
-	if (!m_showLogsWindow && m_logs.size() != m_prevNumLogs)
-		ImGui::SetNextWindowCollapsed(false, ImGuiCond_Always);
+	ImGui::SetWindowSize(ImVec2(m_logWndWidth, logWndHeightPct * displayHeight), ImGuiCond_Once);
+	ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
 
-	if (!m_showLogsWindowFirstTime)
+	ImGui::Text("#Items: %d\t", (int)m_logs.size());
+	ImGui::SameLine();
+
+	if (ImGui::Button("Clear"))
+		m_logs.clear();
+	
+	ImGui::SameLine();
+
+	if (ImGui::Button("Close"))
+		m_closeLogsTab = true;
+
+	ImGui::Separator();
+	
+	ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiChildFlags_AlwaysUseWindowPadding);
+
+	char* buf;
+	char* buf_end;
+
+	// TODO consider using ImGuiListClipper
+	for (auto& msg : m_logs)
 	{
-		ImGui::SetNextWindowCollapsed(true, ImGuiCond_Always);
-		m_showLogsWindowFirstTime = true;
+		ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
+		ImGui::TextColored(color, msg.Msg);
 	}
 
-	if (ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_HorizontalScrollbar))
-	{
-		const float wndHeight = ceilf(m_logWndHeightPct * displayHeight);
+	ImGui::PopStyleVar();
+	ImGui::PopStyleColor();
 
-		// TODO save the last position so that ImGuiCond_Always can be removed
-		ImGui::SetWindowPos(ImVec2(0, displayHeight - wndHeight), ImGuiCond_Always);
-		ImGui::SetWindowSize(ImVec2(m_logWndWidth, wndHeight), ImGuiCond_Always);
+	if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
+		ImGui::SetScrollHereY(1.0f);
 
-		if (ImGui::Button("Clear"))
-			m_logs.clear();
+	ImGui::EndChild();
 
-		ImGui::Separator();
-		ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiWindowFlags_HorizontalScrollbar);
-
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
-		char* buf;
-		char* buf_end;
-
-		// TODO consider using ImGuiListClipper
-		for (auto& msg : m_logs)
-		{
-			ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
-			ImGui::TextColored(color, msg.Msg);
-		}
-
-		ImGui::PopStyleVar();
-
-		if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
-			ImGui::SetScrollHereY(1.0f);
-
-		ImGui::EndChild();
-	}
-	else
-		ImGui::SetWindowPos(ImVec2(0, (float)displayHeight), ImGuiCond_Always);
-
-	m_showLogsWindow = !ImGui::IsWindowCollapsed();
 	ImGui::End();
 }
 
@@ -740,28 +734,27 @@ void GuiPass::RenderMainHeader()
 	ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(0.05098039215f, 0.05490196078f, 0.05490196078f, 1.0f));
 
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(15, style.ItemInnerSpacing.y));
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.5f);
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 
 	const int displayHeight = App::GetRenderer().GetDisplayHeight();
-	const float wndHeight = (m_headerWndHeightPct * displayHeight);
+	const float wndHeight = m_headerWndHeightPct * displayHeight;
 
 	ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | 
 		ImGuiWindowFlags_NoResize);
 
 	ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
-	ImGui::SetWindowSize(ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight), ImGuiCond_Always);
-
-	m_headerWndHeight = ImGui::GetWindowHeight();
+	ImGui::SetWindowSize(ImVec2(m_logWndWidth, wndHeight), ImGuiCond_Always);
 
 	ImGui::Text("		");
 	ImGui::SameLine();
 	ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
 
-	const bool showMainWnd = ImGui::BeginTabItem("		Main		");
+	auto flags = m_closeLogsTab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+	const bool showMainWnd = ImGui::BeginTabItem("		Main		", nullptr, flags);
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNone))
 	{
-		ImGui::PopStyleVar(ImGuiStyleVar_WindowPadding);
+		ImGui::PopStyleVar();
 		ImGui::SetTooltip("Scene View");
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 	}
@@ -776,21 +769,40 @@ void GuiPass::RenderMainHeader()
 
 	if (ImGui::IsItemHovered())
 	{
-		ImGui::PopStyleVar(ImGuiStyleVar_WindowPadding);
+		ImGui::PopStyleVar();
 		ImGui::SetTooltip("Render Graph Visualization (Use RMB for Panning).");
 		ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 	}
 
 	if(renderGraphTab)
 	{
-		const float fontHeight = ImGui::GetIO().Fonts[0].ConfigData[0].SizePixels;
-		float titleSize = style.FramePadding.y * 2.0f + fontHeight;
-		titleSize *= 1 - m_showLogsWindow;
-		const float logWndHeightPct = m_logWndHeightPct * m_showLogsWindow;
+		const float h_prev = ImGui::GetWindowHeight();
 
-		ImGui::SetWindowSize(ImVec2(m_logWndWidth, ceilf((1.0f - logWndHeightPct) * displayHeight) - titleSize), ImGuiCond_Always);
+		ImGui::Begin(" ", nullptr, ImGuiWindowFlags_NoMove);
+
+		ImGui::SetWindowSize(ImVec2(m_logWndWidth, displayHeight - h_prev), ImGuiCond_Once);
+		ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
+
 		App::GetScene().DebugDrawRenderGraph();
 		
+		ImGui::End();
+
+		ImGui::EndTabItem();
+	}
+
+	// Append the latest log messages
+	auto frameLogs = App::GetFrameLogs().Variable();
+	m_prevNumLogs = (int)m_logs.size();
+	m_logs.append_range(frameLogs.begin(), frameLogs.end());
+
+	flags = ImGuiTabItemFlags_None;
+	if (!m_firstTime && m_logs.size() != m_prevNumLogs)
+		flags = ImGuiTabItemFlags_SetSelected;
+
+	if(ImGui::BeginTabItem("		Logs		", nullptr, flags))
+	{
+		m_closeLogsTab = false;
+		RenderLogWindow();
 		ImGui::EndTabItem();
 	}
 
@@ -800,6 +812,8 @@ void GuiPass::RenderMainHeader()
 	ImGui::PopStyleVar(3);
 	
 	ImGui::End();
+
+	m_firstTime = false;
 }
 
 void GuiPass::InfoTab()
@@ -821,16 +835,33 @@ void GuiPass::CameraTab()
 	float3 viewBasisX = camera.GetBasisX();
 	float3 viewBasisY = camera.GetBasisY();
 	float3 viewBasisZ = camera.GetBasisZ();
+
 	ImGui::Text(" - Camera Position: (%.3f, %.3f, %.3f)", camPos.x, camPos.y, camPos.z);
+	ImGui::SameLine(275);
+	if (ImGui::Button("Copy##0"))
+	{
+		StackStr(buffer, n, "%.4f, %.4f, %.4f", camPos.x, camPos.y, camPos.z);
+		App::CopyToClipboard(buffer);
+	}
+	ImGui::SetItemTooltip("Copy vector to clipboard");
+
 	ImGui::Text(" - View Basis X: (%.3f, %.3f, %.3f)", viewBasisX.x, viewBasisX.y, viewBasisX.z);
 	ImGui::Text(" - View Basis Y: (%.3f, %.3f, %.3f)", viewBasisY.x, viewBasisY.y, viewBasisY.z);
 	ImGui::Text(" - View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
+	ImGui::SameLine(275);
+	if (ImGui::Button("Copy##1"))
+	{
+		StackStr(buffer, n, "%.4f, %.4f, %.4f", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
+		App::CopyToClipboard(buffer);
+	}
+	ImGui::SetItemTooltip("Copy vector to clipboard");
+
 	ImGui::Text(" - Aspect Ratio: %f", camera.GetAspectRatio());
 	ImGui::Text(" - Near Plane Z: %.3f", camera.GetNearZ());
 
 	constexpr int plotFlags = ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText | ImPlotFlags_Equal;
 
-	if (ImPlot::BeginPlot("Coodinate System", ImVec2(250.0f, 250.0f), plotFlags))
+	if (ImPlot::BeginPlot("Camera Coodinate System", ImVec2(250.0f, 250.0f), plotFlags))
 	{
 		constexpr int axisFlags = ImPlotAxisFlags_Lock | ImPlotAxisFlags_NoHighlight;
 		ImPlot::SetupAxes("X", "Z", axisFlags, axisFlags);
@@ -956,33 +987,30 @@ void GuiPass::GpuTimingsTab()
 	if (m_cachedTimings.empty())
 		return;
 
-	const ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | ImGuiTableFlags_RowBg | 
-		ImGuiTableFlags_BordersOuter | ImGuiTableFlags_BordersV | ImGuiTableFlags_Hideable;
+	constexpr ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | 
+		ImGuiTableFlags_Hideable | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | ImGuiTableFlags_Borders;
 
 	// When using ScrollX or ScrollY we need to specify a size for our table container!
 	// Otherwise by default the table will fit all available space, like a BeginChild() call.
 	const float TEXT_BASE_HEIGHT = ImGui::GetTextLineHeightWithSpacing();
-	ImVec2 outer_size = ImVec2(0.0f, TEXT_BASE_HEIGHT * 11);
+	ImVec2 outer_size = ImVec2(0, TEXT_BASE_HEIGHT * 11);
 	if (ImGui::BeginTable("table_scrolly", 2, flags, outer_size))
 	{
 		ImGui::TableSetupScrollFreeze(0, 1); // Make top row always visible
 
-		ImGui::TableSetupColumn("Render Pass", ImGuiTableColumnFlags_None);
-		ImGui::TableSetupColumn("Delta (ms)", ImGuiTableColumnFlags_None);
+		ImGui::TableSetupColumn("\t\tRender Pass", ImGuiTableColumnFlags_None);
+		ImGui::TableSetupColumn("\t\tDelta (ms)", ImGuiTableColumnFlags_None);
 		ImGui::TableHeadersRow();
-
-		ImU32 row_bg_color = ImGui::GetColorU32(ImVec4(7.0f / 255, 26.0f / 255, 56.0f / 255, 1.0f));
-		ImGui::TableSetBgColor(ImGuiTableBgTarget_RowBg0 + 0, row_bg_color);
 
 		for (int row = 0; row < (int)m_cachedTimings.size(); row++)
 		{
 			ImGui::TableNextRow();
 
 			ImGui::TableSetColumnIndex(0);
-			ImGui::Text("%s", m_cachedTimings[row].Name);
+			ImGui::Text(" %s", m_cachedTimings[row].Name);
 
 			ImGui::TableSetColumnIndex(1);
-			ImGui::Text("%.3f", (float)m_cachedTimings[row].Delta);
+			ImGui::Text("\t\t\t%.3f", (float)m_cachedTimings[row].Delta);
 		}
 
 		ImGui::EndTable();

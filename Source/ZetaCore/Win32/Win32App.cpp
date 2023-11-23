@@ -10,7 +10,7 @@
 #include "../Scene/Camera.h"
 #include "../Support/ThreadPool.h"
 #include "../Assets/Font/Font.h"
-#include <atomic>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 #define XXH_STATIC_LINKING_ONLY
 #define XXH_IMPLEMENTATION 
@@ -138,6 +138,13 @@ namespace
 		inline static constexpr const char* RENDER_PASS_DIR = "..\\Source\\ZetaRenderPass";
 		static constexpr int NUM_BACKGROUND_THREADS = 2;
 		static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
+		static constexpr int CLIPBOARD_LEN = 128;
+
+		struct alignas(64) TaskSignal
+		{
+			std::atomic_int32_t Indegree;
+			std::atomic_bool BlockFlag;
+		};
 
 		uint16_t m_processorCoreCount = 0;
 		HWND m_hwnd;
@@ -169,8 +176,6 @@ namespace
 		SceneCore m_scene;
 		Camera m_camera;
 
-		ZETA_THREAD_ID_TYPE alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
-
 		FrameMemory<512 * 1024> m_smallFrameMemory;
 		FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
 		FrameMemoryContext m_smallFrameMemoryContext;
@@ -178,7 +183,6 @@ namespace
 
 		SmallVector<ParamVariant> m_params;
 		SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
-
 		SmallVector<ShaderReloadHandler> m_shaderReloadHandlers;
 		SmallVector<Stat, FrameAllocator> m_frameStats;
 		FrameTime m_frameTime;
@@ -190,22 +194,14 @@ namespace
 		SRWLOCK m_statsLock = SRWLOCK_INIT;
 		SRWLOCK m_logLock = SRWLOCK_INIT;
 
-		struct alignas(64) TaskSignal
-		{
-			std::atomic_int32_t Indegree;
-			std::atomic_bool BlockFlag;
-		};
-
+		ZETA_THREAD_ID_TYPE alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
 		TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
 		std::atomic_int32_t m_currTaskSignalIdx = 0;
-
-		bool m_isInitialized = false;
-
 		Motion m_frameMotion;
 		SmallVector<LogMessage, FrameAllocator> m_frameLogs;
-
 		fastdelegate::FastDelegate0<> m_rebuildFontTexDlg;
-
+		char m_clipboard[CLIPBOARD_LEN];
+		bool m_isInitialized = false;
 		bool m_issueResize = false;
 	};
 
@@ -392,12 +388,18 @@ namespace ZetaRay::AppImpl
 		colors[ImGuiCol_HeaderActive] = colors[ImGuiCol_WindowBg];
 		colors[ImGuiCol_HeaderHovered] = ImVec4(33 / 255.0f, 33 / 255.0f, 33 / 255.0f, 1.0f);
 		colors[ImGuiCol_CheckMark] = ImVec4(112 / 255.0f, 118 / 255.0f, 128 / 255.0f, 1.0f);
+		colors[ImGuiCol_TableHeaderBg] = ImVec4(15 / 255.0f, 15 / 255.0f, 15 / 255.0f, 1.0f);
+		colors[ImGuiCol_TableRowBg] = ImVec4(1 / 255.0f, 1 / 255.0f, 1 / 255.0f, 1.0f);
+		colors[ImGuiCol_TableRowBgAlt] = ImVec4(7 / 255.0f, 7 / 255.0f, 8 / 255.0f, 1.0f);
+		colors[ImGuiCol_TableBorderLight] = ImVec4(15 / 255.0f, 15 / 255.0f, 15 / 255.0f, 1.0f);
+		colors[ImGuiCol_TableBorderStrong] = ImVec4(27 / 255.0f, 27 / 255.0f, 27 / 255.0f, 1.0f);
 
 		style.FramePadding = ImVec2(7.0f, 3.0f);
 		style.GrabMinSize = 13.0f;
 		style.FrameRounding = 2.5f;
 		style.GrabRounding = 2.5f;
 		style.ItemSpacing = ImVec2(8.0f, 7.0f);
+		style.CellPadding.x = 10.0;
 
 		style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
 
@@ -1720,5 +1722,38 @@ namespace ZetaRay
 	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> App::GetFrameLogs()
 	{
 		return RSynchronizedVariable<Span<LogMessage>>(g_app->m_frameLogs, g_app->m_logLock);;
+	}
+	
+	void App::CopyToClipboard(StrView data)
+	{
+		if (data.empty())
+			return;
+
+		const size_t n = Math::Min(data.size() - 1, (size_t)AppData::CLIPBOARD_LEN - 1);
+		memcpy(g_app->m_clipboard, data.data(), data.size());
+
+		Task t("Clipboard", TASK_PRIORITY::BACKGRUND, [str = g_app->m_clipboard, n, hwnd = g_app->m_hwnd]()
+			{
+				auto h = GlobalAlloc(GMEM_MOVEABLE, n + 1);
+				void* dst = GlobalLock(h);
+				CheckWin32(dst);
+
+				memcpy(dst, str, n);
+				reinterpret_cast<char*>(dst)[n] = '\0';
+
+				if (GlobalUnlock(h) == 0)
+					Check(GetLastError() == NO_ERROR, "GlobalUnlock() failed.");
+
+				CheckWin32(OpenClipboard(hwnd));
+				CheckWin32(EmptyClipboard());
+				// "If SetClipboardData succeeds, the system owns the object identified by 
+				// the hMem parameter. The application may not write to or free the data once 
+				// ownership has been transferred to the system".
+				CheckWin32(SetClipboardData(CF_TEXT, h));
+
+				CheckWin32(CloseClipboard());
+			});
+
+		App::SubmitBackground(ZetaMove(t));
 	}
 }

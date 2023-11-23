@@ -31,11 +31,6 @@ namespace ZetaRay::Util
 			m_size(N)
 		{}
 
-		MutableSpan(const char* str)
-			: m_ptr(str),
-			m_size(strlen(str))
-		{}
-
 		ZetaInline bool empty() const
 		{
 			return m_ptr == nullptr || m_size == 0;
@@ -99,11 +94,6 @@ namespace ZetaRay::Util
 			m_size(N)
 		{}
 
-		Span(const char* str)
-			: m_ptr(str),
-			m_size(strlen(str))
-		{}
-
 		Span(MutableSpan<T> span)
 			: m_ptr(static_cast<const T*>(span.data())),
 			m_size(span.size())
@@ -149,16 +139,16 @@ namespace ZetaRay::Util
 	// Note that the underlying string is not necessarily null-terminated.
 	struct StrView
 	{
-		StrView(const char* ptr, size_t n)
-			: m_ptr(ptr),
+		StrView(const char* str, size_t n)
+			: m_ptr(str),
 			m_size(n)
 		{}
 
+		// Assumes string is null-terminated.
 		StrView(const char* str)
 			: m_ptr(str),
 			m_size(strlen(str))
-		{
-		}
+		{}
 
 		ZetaInline bool empty() const
 		{
@@ -181,7 +171,7 @@ namespace ZetaRay::Util
 			return *(m_ptr + pos);
 		}
 
-		// Note that terminating null character (if any) is not counted
+		// Note that the terminating null character (if any) is not counted
 		ZetaInline size_t size() const
 		{
 			return m_size;

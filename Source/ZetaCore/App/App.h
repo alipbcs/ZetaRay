@@ -38,6 +38,8 @@ namespace ZetaRay::Util
 
 	template<typename T>
 	struct MutableSpan;
+
+	struct StrView;
 }
 
 namespace ZetaRay::App
@@ -158,6 +160,8 @@ namespace ZetaRay::App
 
 	void Log(const char* msg, LogMessage::MsgType t);
 	Util::RSynchronizedVariable<Util::Span<App::LogMessage>> GetFrameLogs();
+	// Note: not thread safe.
+	void CopyToClipboard(Util::StrView data);
 
 	struct FrameAllocator
 	{
