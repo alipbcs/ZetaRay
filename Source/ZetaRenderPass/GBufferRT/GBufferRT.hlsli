@@ -141,7 +141,8 @@ namespace GBufferRT
         float2 b_y = float2(dot(dpdu, delta_p_y), dot(dpdv, delta_p_y));
         float2 grads_y = mul(A_T_A_Inv, b_y) / det;
 
-        return clamp(float4(grads_x, grads_y), 1e-7, 1e7);
+        // return clamp(float4(grads_x, grads_y), 1e-7, 1e7);
+        return float4(grads_x, grads_y);
     }
 
     void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, float roughness,
@@ -192,7 +193,8 @@ namespace GBufferRT
         ConstantBuffer<cbGBufferRt> g_local, StructuredBuffer<Material> g_materials)
     {
         const Material mat = g_materials[NonUniformResourceIndex(matIdx)];
-        grads *= g_frame.MipBias;
+        // Apply negative mip bias when upscaling
+        grads *= g_frame.CameraRayUVGradsScale;
 
         float3 baseColor = Math::UnpackRGBA(mat.BaseColorFactor).rgb;
         float4 emissiveColorNormalScale = Math::UnpackRGBA(mat.EmissiveFactorNormalScale);
@@ -200,7 +202,7 @@ namespace GBufferRT
         float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
-        if (mat.BaseColorTexture != -1)
+        if (mat.BaseColorTexture != uint32_t(-1))
         {
             BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture)];
             baseColor *= g_baseCol.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw).rgb;
@@ -210,7 +212,7 @@ namespace GBufferRT
     	 	baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
     	}
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-        if (mat.NormalTexture != -1 && abs(dot(tangent, tangent)) > 1e-6)
+        if (mat.NormalTexture != uint32_t(-1) && abs(dot(tangent, tangent)) > 1e-6)
         {
             NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + mat.NormalTexture)];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
@@ -241,7 +243,7 @@ namespace GBufferRT
         }
 #endif
 
-        if (mat.MetallicRoughnessTexture != -1)
+        if (mat.MetallicRoughnessTexture != uint32_t(-1))
         {
             uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
             METALLIC_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
@@ -254,7 +256,7 @@ namespace GBufferRT
         uint16_t emissiveTex = mat.GetEmissiveTex();
         float emissiveStrength = mat.GetEmissiveStrength();
 
-        if (emissiveTex != -1)
+        if (emissiveTex != uint16_t(-1))
         {
             EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + emissiveTex)];
             emissiveColorNormalScale.rgb *= g_emissiveMap.SampleLevel(g_samLinearWrap, uv, 0).xyz;

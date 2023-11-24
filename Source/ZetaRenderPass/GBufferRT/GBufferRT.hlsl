@@ -120,7 +120,7 @@ void TestOpacity(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 
 	float alpha = alphaFactor_cutoff.x;
 
-	if(meshData.BaseColorTex != -1)
+	if(meshData.BaseColorTex != uint16_t(-1))
 	{
 		uint tri = PrimitiveIndex() * 3;
 		tri += meshData.BaseIdxOffset;

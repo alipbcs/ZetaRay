@@ -12,6 +12,7 @@
 #include <xxHash/xxhash.h>
 
 using namespace ZetaRay;
+using namespace ZetaRay::App;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
@@ -328,10 +329,10 @@ namespace
 
 	struct GpuMemoryImplData
 	{
-		// requests are suballocated from an upload heap of the following size. For larger allocations 
-		// a new upload heap is created
-		static constexpr uint32_t UPLOAD_HEAP_SIZE = 8 * 1024 * 1024;
-		static constexpr uint32_t MAX_NUM_UPLOAD_HEAP_ALLOCS = 256;
+		// Requests are attempted to be suballocated from a shared upload heap of the following 
+		// size. If unsuccessful, a new upload heap is created.
+		static constexpr uint32_t UPLOAD_HEAP_SIZE = uint32_t(9 * 1024 * 1024);
+		static constexpr uint32_t MAX_NUM_UPLOAD_HEAP_ALLOCS = 128;
 
 		struct PendingResource
 		{
@@ -849,7 +850,14 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 		const auto alloc = g_data->m_uploadHeapAllocator.Allocate(sizeInBytes, alignment);
 		ReleaseSRWLockExclusive(&g_data->m_uploadHeapLock);
 
-		Check(!alloc.IsEmpty(), "Upload heap working set exceeded maximum (%u MB).", GpuMemoryImplData::UPLOAD_HEAP_SIZE / (1024 * 1024));
+		if (alloc.IsEmpty())
+		{
+			StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a seperate allocation...", 
+				sizeInBytes / (1024 * 1024));
+			App::Log(msg, LogMessage::MsgType::WARNING);
+
+			return GetUploadHeapBuffer(sizeInBytes, alignment, true);
+		}
 
 		return UploadHeapBuffer(g_data->m_uploadHeap.Get(), 
 			g_data->m_uploadHeapMapped, 

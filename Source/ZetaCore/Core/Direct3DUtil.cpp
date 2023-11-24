@@ -450,6 +450,7 @@ namespace
             case DXGI_FORMAT_P8:
             case DXGI_FORMAT_A8P8:
                 Check(false, "DDSTextureLoader does not support video textures. Consider using DirectXTex instead");
+                break;
 
             default:
                 Check(BitsPerPixel(d3d10ext->dxgiFormat) != 0, 
@@ -1150,6 +1151,26 @@ void Direct3DUtil::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_D
 
     auto* device = App::GetRenderer().GetDevice();
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
+}
+
+void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
+    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
+{
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    auto* device = App::GetRenderer().GetDevice();
+    Assert(res, "Texture hasn't been initialized.");
+    auto desc = res->GetDesc();
+
+    D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
+    srvDesc.ViewDimension = D3D12_SRV_DIMENSION_TEXTURE2D;
+    srvDesc.Shader4ComponentMapping = D3D12_DEFAULT_SHADER_4_COMPONENT_MAPPING;
+    srvDesc.Texture2D.MostDetailedMip = mostDetailedMip;
+    srvDesc.Texture2D.PlaneSlice = planeSlice;
+    srvDesc.Texture2D.ResourceMinLODClamp = minLODClamp;
+    srvDesc.Texture2D.MipLevels = desc.MipLevels;
+    srvDesc.Format = f == DXGI_FORMAT_UNKNOWN ? desc.Format : f;
+
+    device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
 void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,

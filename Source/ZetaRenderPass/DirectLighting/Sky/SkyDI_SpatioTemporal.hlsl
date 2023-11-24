@@ -7,7 +7,6 @@
 #include "../../Common/RT.hlsli"
 #include "../../Common/Volumetric.hlsli"
 
-#define TARGET_WITH_VISIBILITY 1
 #define THREAD_GROUP_SWIZZLING 1
 #define MIN_ROUGHNESS_SURFACE_MOTION 0.4
 #define MAX_NUM_TEMPORAL_SAMPLES 4
@@ -79,11 +78,9 @@ bool Visibility(float3 pos, float3 wi, float3 normal)
 float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::ShadingData surface, 
 	out float3 Lo)
 {
-#if TARGET_WITH_VISIBILITY
 	const bool vis = Visibility(pos, wi, normal);
 	if (!vis)
 		return 0.0;
-#endif
 
 	// sample sky-view LUT
 	Texture2D<float4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
@@ -107,7 +104,7 @@ float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::Sha
 //		T[x1_q, x2_q, x3_q, ...] = x1_r, x2_q, x3_q, ...
 float JacobianReconnectionShift(float3 x1_q, float3 wi_q, float3 x1_r)
 {
-	if(all(wi_q) == 0)
+	if(dot(wi_q, wi_q) == 0)
 		return 0;
 
 	x1_q.y += g_frame.PlanetRadius;
@@ -198,10 +195,8 @@ struct PairwiseMIS
 			const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
 			currTarget = r_i.Le * brdfCosTheta_c;
 
-#if TARGET_WITH_VISIBILITY == 1
 			if(Math::Luminance(currTarget) > 1e-5)
 				currTarget *= Visibility(posW_c, r_i.wi, normal_c);
-#endif
 
 			const float targetLum = Math::Luminance(currTarget);
 			const float J_temporal_to_curr = JacobianReconnectionShift(posW_i, r_i.wi, posW_c);
@@ -217,10 +212,8 @@ struct PairwiseMIS
 			surface_i.SetWi(r_c.wi, normal_i);
 			brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
 
-#if TARGET_WITH_VISIBILITY == 1
 			if(Math::Luminance(brdfCosTheta_i) > 1e-5)
 				brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i);
-#endif
 
 			J_curr_to_temporal = JacobianReconnectionShift(posW_c, r_c.wi, posW_i);
 		}	
@@ -231,9 +224,7 @@ struct PairwiseMIS
 		{
 			// Jacobian term cancels out with the same term in m_i's numerator
 			const float w_i = m_i * Math::Luminance(currTarget) * r_i.W;
-
-			if (this.r_s.Update(w_i, r_i.Le, r_i.wi, currTarget, rng))
-				this.r_s.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
+			this.r_s.Update(w_i, r_i.Le, r_i.wi, currTarget, rng);
 		}
 
 		this.M_s += r_i.M;
@@ -242,9 +233,7 @@ struct PairwiseMIS
 	void End(SkyDI_Util::Reservoir r_c, inout RNG rng)
 	{
 		const float w_c = Math::Luminance(r_c.Target) * r_c.W * this.m_c;
-
-		if(this.r_s.Update(w_c, r_c.Le, r_c.wi, r_c.Target, rng))
-			this.r_s.NeedsShadowRay = this.r_s.NeedsShadowRay || r_c.NeedsShadowRay;
+		this.r_s.Update(w_c, r_c.Le, r_c.wi, r_c.Target, rng);
 
 		this.r_s.M = this.M_s;
 		const float targetLum = Math::Luminance(r_s.Target);
@@ -257,7 +246,6 @@ struct PairwiseMIS
 	float m_c;
 	half M_s;
 	uint16_t k;
-	float p_hat_c;
 };
 
 SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic,
@@ -292,8 +280,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
 		const float m_d = 1.0f / max(p_d + BRDF::GGXVNDFReflectionPdf(surface), 1e-6);
 		const float w_d = m_d * Math::Luminance(target);
 
-		if(r.Update(w_d, Lo, wi_d, target, rng))
-			r.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
+		r.Update(w_d, Lo, wi_d, target, rng);
 	}
 
 	// sample specular BRDF
@@ -313,26 +300,12 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
 		const float m_s = 1.0f / max(p_s + p_d, 1e-6f);
 		const float w_s = m_s * Math::Luminance(target);
 
-		if(r.Update(w_s, Lo, wi_s, target, rng))
-			r.NeedsShadowRay = 1 - TARGET_WITH_VISIBILITY;
+		r.Update(w_s, Lo, wi_s, target, rng);
 	}
 
 	float targetLum = Math::Luminance(r.Target);
 	r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
-	
-#if !TARGET_WITH_VISIBILITY
-	if(r.NeedsShadowRay)
-	{
-		if (!EvaluateVisibility(posW, r.wi, normal, linearDepth))
-		{
-	   		r.visible = false; 
-			r.W = 0;
-		}
-	}
-#endif	
-
-	r.NeedsShadowRay = false;
-	
+		
 	return r;
 }
 
@@ -429,6 +402,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 	SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
 	const half newM = r.M + prev.M;
 
+	if(r.w_sum != 0)
 	{
 		GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
 			GBUFFER_OFFSET::BASE_COLOR];
@@ -449,15 +423,17 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 			const float3 targetAtPrev = r.Le * BRDF::CombinedBRDF(prevSurface);
 			targetLumAtPrev = Math::Luminance(targetAtPrev);
 
-#if TARGET_WITH_VISIBILITY == 1
-			targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal);
-#endif
+			if(targetLumAtPrev > 1e-6)
+				targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal);
 		}
 
 		const float p_curr = r.M * Math::Luminance(r.Target);
-		// p_temporal at sample (x) that would be mapped to current reservoir's sample (r.y),
-		// followed by division by Jacobian of the mapping. Easier to compute the inverse
-		// mapping and use the fact J(T(x) = y) = 1 / J(T^-1(y) = x) 
+		// p_temporal at current reservoir's sample (r.y) is equal to p_temporal(x) where
+		// x is the input that would get mapped to r.y under the shift, followed by division 
+		// by Jacobian of the mapping (J(T(x) = y)). Since J(T(x) = y) = 1 / J(T^-1(y) = x) 
+		// we have
+		// p_temporal(r.y) = p_temporal(x) / J(T(x) = y)
+		//                 = p_temporal(x) * J(T^-1(y) = x)
 		const float J_curr_to_temporal = JacobianReconnectionShift(posW, r.wi, candidate.posW);
 		const float m_curr = p_curr / max(p_curr + prev.M * targetLumAtPrev * J_curr_to_temporal, 1e-6);
 		r.w_sum *= m_curr;
@@ -469,13 +445,12 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 		surface.SetWi(prev.wi, normal);
 		const float3 currTarget = prev.Le * BRDF::CombinedBRDF(surface);
 		float targetLumAtCurr = Math::Luminance(currTarget);
-	
-#if TARGET_WITH_VISIBILITY == 1
-		targetLumAtCurr *= Visibility(posW, prev.wi, normal);
-#endif
+		
+		if(targetLumAtCurr > 1e-6)
+			targetLumAtCurr *= Visibility(posW, prev.wi, normal);
 		
 		// w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
-		if(targetLumAtCurr > 1e-6)
+		if(targetLumAtCurr != 0)
 		{
 			const float w_sum_prev = SkyDI_Util::PartialReadReservoir_WSum(candidate.posSS, g_local.PrevReservoir_B_DescHeapIdx);
 			const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
@@ -487,8 +462,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 			const float m_prev = numerator / max(denom, 1e-6);
 			const float w_prev = m_prev * targetLumAtCurr * prev.W;
 
-			if(r.Update(w_prev, prev.Le, prev.wi, currTarget, rng))
-				r.NeedsShadowRay = true;
+			r.Update(w_prev, prev.Le, prev.wi, currTarget, rng);
 		}
 	}
 
@@ -522,7 +496,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 
 	// rotate sample sequence per pixel
 	const float u0 = rng.Uniform();
-	const uint offset = rng.UintRange(0, 8);
+	const uint offset = rng.UniformUintBounded_Faster(8);
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
 	const float cosTheta = cos(theta);
@@ -632,11 +606,6 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 nor
 			g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, r, rng);
 	}
 
-#if TARGET_WITH_VISIBILITY == 0
-	if (r.NeedsShadowRay)
-		r.Visible = Visibility(g_bvh, posW, target.wi, target.rayT, normal, linearDepth, target.lightID);
-#endif
-
 	return r;
 }
 
@@ -648,12 +617,20 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 nor
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
+    uint16_t2 swizzledGid;
+
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, SKY_DI_TEMPORAL_TILE_WIDTH, SKY_DI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
+		uint16_t2(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, 
+		SKY_DI_TEMPORAL_TILE_WIDTH, 
+		SKY_DI_TEMPORAL_LOG2_TILE_WIDTH, 
+		g_local.NumGroupsInTile,
+		swizzledGid);
 #else
 	const uint2 swizzledDTid = DTid.xy;
+	const uint2 swizzledGid = Gid.xy;
 #endif
 
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
@@ -733,8 +710,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 		else
 			f_s = BRDF::SpecularBRDFGGXSmith(surface);
 
-		float3 Li_d = r.Le * f_d * r.Visible * r.W;
-		float3 Li_s = r.Le * f_s * r.Visible * r.W;
+		float3 Li_d = r.Le * f_d * r.W;
+		float3 Li_s = r.Le * f_s * r.W;
 		float3 wh = normalize(surface.wo + r.wi);
 		float whdotwo = saturate(dot(wh, surface.wo));
 		float tmp = 1.0f - whdotwo;
@@ -750,7 +727,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	}
 	else
 	{
-		float3 Li = r.Target * r.Visible * r.W;
+		float3 Li = r.Target * r.W;
 		RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
 		if(g_frame.Accumulate && g_frame.CameraStatic)

@@ -45,7 +45,7 @@ namespace ZetaRay
 		float PlanetRadius;
 		float SunCosAngularRadius;
 		float SunSinAngularRadius;
-		float MipBias;
+		float pad;
 
 		float3_ SunDir;
 		float SunIlluminance;
@@ -64,12 +64,12 @@ namespace ZetaRay
 		uint32_t NumFramesCameraStatic;
 		uint32_t CameraStatic;
 		uint32_t Accumulate;
-		uint32_t pad;
+		uint32_t pad1;
 
+		float CameraRayUVGradsScale;
+		float MipBias;
 		float OneDivNumEmissiveTriangles;
 		uint32_t NumEmissiveTriangles;
-		uint32_t pad1;
-		uint32_t pad2;
 	};
 #ifdef __cplusplus
 }
@@ -87,6 +87,8 @@ static_assert((offsetof(ZetaRay::cbFrameConstants, SunDir) & 15) == 0);
 static_assert((offsetof(ZetaRay::cbFrameConstants, RayleighSigmaSColor) & 15) == 0);
 static_assert((offsetof(ZetaRay::cbFrameConstants, OzoneSigmaAColor) & 15) == 0);
 static_assert((offsetof(ZetaRay::cbFrameConstants, MieSigmaS) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, NumFramesCameraStatic) & 15) == 0);
+static_assert((offsetof(ZetaRay::cbFrameConstants, CameraRayUVGradsScale) & 15) == 0);
 #endif
 
 #endif

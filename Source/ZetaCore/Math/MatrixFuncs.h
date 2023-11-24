@@ -65,9 +65,9 @@ namespace ZetaRay::Math
 			_mm_shuffle_ps(vTemp2, vTemp3, 0xdd));
 	}
 
-	// tranposes the 3x3 submatrix in vM, sets the last element of each row to M[2][3],
-	// and sets the last row to (0, 0, 0, 1)
-	ZetaInline v_float4x4 __vectorcall transpose3x3(v_float4x4 vM)
+	// Tranposes the 3x3 submatrix in vM, sets the last element of each row to M[2][3] and
+	// the last row itself to (0, 0, 0, 1).
+	ZetaInline v_float4x4 __vectorcall transpose3x3(const v_float4x4 vM)
 	{
 		//		0  1  2              0  3  6
 		// M =	3  4  5     -->  M = 1  4  7
@@ -405,7 +405,7 @@ namespace ZetaRay::Math
 	}
 
 	// Ported from DirectXMath (under MIT License).
-	ZetaInline __m128 __vectorcall quatFromRotationMat(const v_float4x4 vM)
+	ZetaInline __m128 __vectorcall quaternionFromRotationMat(const v_float4x4 vM)
 	{
 		__m128 r0 = vM.vRow[0];  // (r00, r01, r02, 0)
 		__m128 r1 = vM.vRow[1];  // (r10, r11, r12, 0)
@@ -497,7 +497,7 @@ namespace ZetaRay::Math
 
 	// Ref: https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
 	// "Converting a Rotation Matrix to a Quaternion", Mike Day, Insomniac Games.
-	ZetaInline float4 __vectorcall quatFromRotationMat1(const v_float4x4 vM)
+	ZetaInline float4 __vectorcall quaternionFromRotationMat1(const v_float4x4 vM)
 	{
 		float4a row0 = store(vM.vRow[0]);
 		float4a row1 = store(vM.vRow[1]);
@@ -637,10 +637,15 @@ namespace ZetaRay::Math
 		// R = RS * S^-1
 		v_float4x4 vR = mul(vM3x3, vSinv);
 
-		// quatFromRotationMat() expects "row" matrices
-		vR = transpose(vR);
-		__m128 vQ = quatFromRotationMat(vR);
+		// routines below expect "row" matrices.
+		vR = transpose3x3(vR);
+
+#if 0
+		__m128 vQ = quaternionFromRotationMat(vR);
 		r = storeFloat4(vQ);
+#else
+		r = quaternionFromRotationMat1(vR);
+#endif
 	}
 
 	// Note: doesn't support negative scaling
@@ -676,10 +681,10 @@ namespace ZetaRay::Math
 		const v_float4x4 vSinv = scale(vInvSDiag);
 		const v_float4x4 vR = mul(vSinv, vM3x3);
 #if 0
-		const __m128 vQ = quatFromRotationMat(vR);
+		const __m128 vQ = quaternionFromRotationMat(vR);
 		r = store(vQ);
 #else
-		r = quatFromRotationMat1(vR);
+		r = quaternionFromRotationMat1(vR);
 #endif
 	}
 

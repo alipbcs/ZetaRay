@@ -3,11 +3,11 @@
 
 #include "Math.hlsli"
 
-//--------------------------------------------------------------------------------------
 // Refs: 
-// https://www.reedbeta.com/blog/quick-and-easy-gpu-random-numbers-in-d3d11/
-// https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
-//--------------------------------------------------------------------------------------
+// 1. https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
+// 2. M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2016.
+// 3. P. Shirley, S. Laine, D. Hart, M. Pharr, P. Clarberg, E. Haines, M. Raab, and D. Cline, "Sampling
+// Transformations Zoo," in Ray Tracing Gems, 2019.
 
 struct RNG
 {
@@ -32,7 +32,6 @@ struct RNG
 		return v;
 	}
 
-	// A seperate pcg PRNG instance for each thread or pixel, seeded with unique values
 	static RNG Init(uint2 pixel, uint frame)
 	{
 		RNG rng;
@@ -41,7 +40,7 @@ struct RNG
 #else
 		rng.State = RNG::Pcg3d(uint3(pixel, frame)).x;
 #endif
-		
+
 		return rng;
 	}
 
@@ -49,31 +48,44 @@ struct RNG
 	{
 		RNG rng;
 		rng.State = rng.Pcg(idx + Pcg(frame));
-		
+
 		return rng;
 	}
 
-	// for following samples after initial sample
-	uint Next()
+	uint UniformUint()
 	{
-		State = State * 747796405u + 2891336453u;
-		uint word = ((State >> ((State >> 28u) + 4u)) ^ State) * 277803737u;
-		
+		this.State = this.State * 747796405u + 2891336453u;
+		uint word = ((this.State >> ((this.State >> 28u) + 4u)) ^ this.State) * 277803737u;
+
 		return (word >> 22u) ^ word;
 	}
 
 	float Uniform()
 	{
 		const float oneSubEps = 0x1.fffffep-1;
-		const float uniformFloat01Inclusive = Next() * 0x1p-32f;    
+		const float uniformFloat01Inclusive = UniformUint() * 0x1p-32f;
 		return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
 	}
 
-	// returns samples in [lower, upper)
-	uint UintRange(uint lower, uint upper)
+	// Returns samples in [0, bound)
+	uint UniformUintBounded(uint bound)
 	{
-		// TODO following is biased: https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
-		return lower + uint(Uniform() * float(upper - lower));
+		uint32_t threshold = (~bound + 1u) % bound;
+
+		for (;;) 
+		{
+			uint32_t r = UniformUint();
+
+			if (r >= threshold)
+				return r % bound;
+		}		
+	}
+
+	// Returns samples in [0, bound). Biased but faster than #UniformUintBounded(): 
+	// https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
+	uint UniformUintBounded_Faster(uint bound)
+	{
+		return uint(Uniform() * float(bound));
 	}
 
 	float2 Uniform2D()
@@ -98,10 +110,6 @@ struct RNG
 	
 //--------------------------------------------------------------------------------------
 // Sampling Transformations
-//
-//	Refs:
-//	1. Physically Based Rendering 3rd Ed.
-//	2. Ray Tracing Gems 1, Chapter 16
 //--------------------------------------------------------------------------------------
 
 namespace Sampling
@@ -144,20 +152,15 @@ namespace Sampling
 		const float cosTheta = 1.0f - u.x + u.x * cosThetaMax;
 		const float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
 
-		// x = sin(theta) * cos(phi)
-		// y = sin(theta) * sin(phi)
-		// z = cos(theta)
 		const float x = cos(phi) * sinTheta;
 		const float y = sin(phi) * sinTheta;
 		const float z = cosTheta;
 
-		// w.r.t. solid angle
 		pdf = ONE_OVER_2_PI * rcp(1.0f - cosThetaMax);
 
 		return float3(x, y, z);
 	}
 
-	// Area = PI;
 	float2 UniformSampleDisk(float2 u)
 	{
 		const float r = sqrt(u.x);
@@ -166,7 +169,6 @@ namespace Sampling
 		return float2(r * cos(phi), r * sin(phi));
 	}
 
-	// Area = PI;
 	float2 UniformSampleDiskConcentricMapping(float2 u)
 	{
 		float a = 2.0f * u.x - 1.0f;
@@ -189,7 +191,6 @@ namespace Sampling
 		return float2(r * cos(phi), r * sin(phi));
 	}
 
-	// Area = FOUR_PI
 	float3 UniformSampleSphere(float2 u)
 	{
 		// Compute radius r (branchless).
@@ -211,12 +212,9 @@ namespace Sampling
 		return float3(x, y, z);
 	}
 
-	// For triangle with vertices V0, V1 and V2, any point inside it
-	// can be expressed as:
+	// Any point inside the triangle with vertices V0, V1, and V2 can be expressed as
 	//		P = b0 * V0 + b1 * V1 + b2 * V2
-	// where b0 + b1 + b2 = 1.
-	//
-	// Area = 0.5f * abs(cross(v1 - v0, v2 - v0))
+	// where b0 + b1 + b2 = 1. Therefore, only b1 and b2 need to be sampled.
 	float2 UniformSampleTriangle(float2 u)
 	{
 		// Ref: Eric Heitz. A Low-Distortion Map Between Triangle and Square. 2019.

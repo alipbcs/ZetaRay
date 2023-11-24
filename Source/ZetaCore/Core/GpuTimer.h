@@ -12,12 +12,6 @@ namespace ZetaRay::Core
 	{
 		struct alignas(32) Timing
 		{
-			//void Reset()
-			//{
-			//	Delta = -1;
-			//	Name[0] = '\0';
-			//}
-
 			static constexpr int MAX_NAME_LENGTH = 20;
 
 			char Name[MAX_NAME_LENGTH];
@@ -28,28 +22,28 @@ namespace ZetaRay::Core
 		GpuTimer() = default;
 		~GpuTimer() = default;
 
-		GpuTimer(GpuTimer&) = delete;
-		GpuTimer& operator=(GpuTimer&) = delete;
+		GpuTimer(GpuTimer&&) = delete;
+		GpuTimer& operator=(GpuTimer&&) = delete;
 
 		void Init();
 		void Shutdown();
 
 		Util::Span<Timing> GetFrameTimings();
 
-		// call before recording commands for a particular command list
+		// Call before recording commands for a particular command list
 		uint32_t BeginQuery(ComputeCmdList& cmdList, const char* name);
 
-		// call after all commands for a particular command list are recorded
+		// Call after all commands for a particular command list are recorded
 		void EndQuery(ComputeCmdList& cmdList, uint32_t idx);
 
-		// call before rendering this frame
+		// Call before rendering this frame
 		void BeginFrame();
 
-		// call after all rendering commands for this frame have been submitted
+		// Call after all rendering commands for this frame have been submitted
 		void EndFrame(ComputeCmdList& cmdList);
 
 	private:
-		static const uint32_t MAX_NUM_QUERIES = 32;
+		static constexpr uint32_t MAX_NUM_QUERIES = 32;
 
 		ComPtr<ID3D12QueryHeap> m_queryHeap;
 		GpuMemory::ReadbackHeapBuffer m_readbackBuff;

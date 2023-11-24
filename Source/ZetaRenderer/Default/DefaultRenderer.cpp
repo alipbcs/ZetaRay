@@ -1,7 +1,6 @@
 #include "DefaultRenderer.h"
 #include "DefaultRendererImpl.h"
 #include <App/Timer.h>
-#include <App/Log.h>
 #include <Core/SharedShaderResources.h>
 #include <Support/Task.h>
 #include <Support/Param.h>
@@ -22,6 +21,7 @@ using namespace ZetaRay::Math;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
+using namespace ZetaRay::RenderPass;
 
 //--------------------------------------------------------------------------------------
 // DefaultRenderer::Common
@@ -39,15 +39,12 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	frameConsts.RenderHeight = renderer.GetRenderHeight();
 	frameConsts.DisplayWidth = renderer.GetDisplayWidth();
 	frameConsts.DisplayHeight = renderer.GetDisplayHeight();
-#if 1
-	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
+	frameConsts.CameraRayUVGradsScale = App::GetUpscalingFactor() != 1.0f ?
 		powf(2.0f, -(float)frameConsts.RenderWidth / frameConsts.DisplayWidth) :
 		1.0f;
-#else
 	frameConsts.MipBias = App::GetUpscalingFactor() != 1.0f ?
 		log2f((float)frameConsts.RenderWidth / frameConsts.DisplayWidth) - 1.0f :
 		0.0f;
-#endif
 
 	frameConsts.BaseColorMapsDescHeapOffset = App::GetScene().GetBaseColMapsDescHeapOffset();
 	frameConsts.NormalMapsDescHeapOffset = App::GetScene().GetNormalMapsDescHeapOffset();
@@ -89,7 +86,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
 	float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, frameConsts.CurrViewInv.m[2].z);
 	float3 one(1.0f);
 	const bool cameraStatic = (one.dot(prevCameraPos - frameConsts.CameraPos) == 0) && (one.dot(prevViewDir - currViewDir) == 0);
-	frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? frameConsts.NumFramesCameraStatic + 1 : 1;
+	frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? frameConsts.NumFramesCameraStatic + 1 : 0;
 	frameConsts.CameraStatic = cameraStatic;
 
 	frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
@@ -271,15 +268,15 @@ namespace ZetaRay::DefaultRenderer
 		g_data->m_frameConstants.MieSigmaS = Defaults::SIGMA_S_MIE;
 
 		TaskSet ts;
-		auto h0 = ts.EmplaceTask("GBuffer_Init", []()
+		ts.EmplaceTask("GBuffer_Init", []()
 			{
 				GBuffer::Init(g_data->m_settings, g_data->m_gbuffData);
 			});
-		auto h2 = ts.EmplaceTask("RayTracer_Init", []()
+		ts.EmplaceTask("RayTracer_Init", []()
 			{
 				RayTracer::Init(g_data->m_settings, g_data->m_raytracerData);
 			});
-		auto h3 = ts.EmplaceTask("PostProcessor_Init", []()
+		ts.EmplaceTask("PostProcessor_Init", []()
 			{
 				PostProcessor::Init(g_data->m_settings, g_data->m_postProcessorData);
 			});
@@ -306,13 +303,13 @@ namespace ZetaRay::DefaultRenderer
 		// Sun
 		{
 			ParamVariant p0;
-			p0.InitUnitDir("LightSource", "Sun", "(-)Dir",
+			p0.InitUnitDir("Light Source", "Sun", "(-)Dir",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
 				-g_data->m_frameConstants.SunDir);
 			App::AddParam(p0);
 
 			ParamVariant p2;
-			p2.InitFloat("LightSource", "Sun", "Illuminance",
+			p2.InitFloat("Light Source", "Sun", "Illuminance",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunLux),
 				g_data->m_frameConstants.SunIlluminance,
 				1.0f,
@@ -321,7 +318,7 @@ namespace ZetaRay::DefaultRenderer
 			App::AddParam(p2);
 
 			ParamVariant p3;
-			p3.InitFloat("LightSource", "Sun", "Angular Radius",
+			p3.InitFloat("Light Source", "Sun", "Angular Radius",
 				fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularRadius),
 				acosf(g_data->m_frameConstants.SunCosAngularRadius),
 				0.004f,

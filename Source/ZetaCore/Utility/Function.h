@@ -69,7 +69,7 @@ namespace ZetaRay::Util
         }
 
     private:
-        static constexpr int BUFFER_SIZE = 40;
+        static constexpr int BUFFER_SIZE = 32;
 
         struct LambdaFuncPtrs
         {

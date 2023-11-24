@@ -92,7 +92,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
 		Assert(largerProb >= 1.0f, "should be >= 1.0");
 
 		auto& e = table[smallerIdx];
-		Assert(e.Alias == -1, "Every element must be inserted exactly one time.");
+		Assert(e.Alias == uint32_t(-1), "Every element must be inserted exactly one time.");
 		e.Alias = largerIdx;
 		e.P_Curr = smallerProb;
 
@@ -146,11 +146,11 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
 
 uint32_t Math::SampleAliasTable(Util::Span<AliasTableEntry> table, RNG& rng, float& pdf)
 {
-	uint32_t idx = rng.GetUniformUintBounded((uint32_t)table.size());
+	uint32_t idx = rng.UniformUintBounded((uint32_t)table.size());
 
 	AliasTableEntry s = table[idx];
 
-	float u1 = rng.GetUniformFloat();
+	float u1 = rng.UniformFloat();
 	if (u1 <= s.P_Curr)
 	{
 		pdf = s.P_Orig;

@@ -1078,6 +1078,7 @@ namespace ZetaRay::AppImpl
 
 				// A hyperthreaded core supplies more than one logical processor.
 				logicalProcessorCount += (int)__popcnt64(curr->ProcessorMask);
+				break;
 
 			default:
 				break;

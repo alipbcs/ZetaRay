@@ -46,7 +46,7 @@ namespace Light
 	uint SampleAliasTable(StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable, uint numEmissiveTriangles, 
 		inout RNG rng, out float pdf)
 	{
-		uint u0 = rng.UintRange(0, numEmissiveTriangles);
+		uint u0 = rng.UniformUintBounded(numEmissiveTriangles);
 		RT::EmissiveLumenAliasTableEntry s = g_aliasTable[u0];
 
 		float u1 = rng.Uniform();
@@ -64,8 +64,9 @@ namespace Light
 	RT::PresampledEmissiveTriangle UnformSampleSampleSet(uint sampleSetIdx, StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets, 
 		uint sampleSetSize, inout RNG rng)
 	{
-		uint u = rng.UintRange(0, sampleSetSize);
-		return g_sampleSets[sampleSetIdx * sampleSetSize + u];
+		uint u = rng.UniformUintBounded_Faster(sampleSetSize);
+		uint idx = sampleSetIdx * sampleSetSize + u;
+		return g_sampleSets[idx];
 	}
 
 	EmissiveTriAreaSample SampleEmissiveTriangleSurface(float3 posW, RT::EmissiveTriangle tri, inout RNG rng, 
@@ -136,7 +137,7 @@ namespace Light
 			return 0.0.xxx;
 
 		uint16_t emissiveTex = tri.GetEmissiveTex();
-		if (emissiveTex != -1)
+		if (emissiveTex != uint16_t(-1))
 		{
 			const uint offset = NonUniformResourceIndex(emissiveMapsDescHeapOffset + emissiveTex);
 			EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];

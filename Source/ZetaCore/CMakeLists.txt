@@ -46,7 +46,7 @@ set(NATVIS_SRC "${TOOLS_DIR}/Natvis/Container.natvis"
 	"${TOOLS_DIR}/Natvis/App.natvis")
 
 source_group(TREE "${ZETA_CORE_DIR}" FILES ${CORE_SRC})
-source_group(TREE "${TOOLS_DIR}" FILES ${NATVIS_SRC})
+source_group(TREE "${TOOLS_DIR}/Natvis" PREFIX "Natvis" FILES ${NATVIS_SRC})
 source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
 
 # build ZetaCore as a static library

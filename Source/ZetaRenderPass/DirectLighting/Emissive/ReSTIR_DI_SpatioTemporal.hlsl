@@ -252,12 +252,20 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 norma
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
+    uint16_t2 swizzledGid;
+
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(RESTIR_DI_TEMPORAL_GROUP_DIM_X, RESTIR_DI_TEMPORAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, RESTIR_DI_TEMPORAL_TILE_WIDTH, RESTIR_DI_TEMPORAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
+		uint16_t2(RESTIR_DI_TEMPORAL_GROUP_DIM_X, RESTIR_DI_TEMPORAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, 
+		RESTIR_DI_TEMPORAL_TILE_WIDTH, 
+		RESTIR_DI_TEMPORAL_LOG2_TILE_WIDTH, 
+		g_local.NumGroupsInTile,
+		swizzledGid);
 #else
 	const uint2 swizzledDTid = DTid.xy;
+	const uint2 swizzledGid = Gid.xy;
 #endif
 
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
@@ -303,7 +311,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
 	// get a unique per-group index
 	RNG rng = RNG::Init(Gid.xy, g_frame.FrameNum);
-	const uint sampleSetIdx = rng.UintRange(0, g_local.NumSampleSets);
+	const uint sampleSetIdx = rng.UniformUintBounded_Faster(g_local.NumSampleSets);
 
 	// reverse reproject current pixel
 	GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 

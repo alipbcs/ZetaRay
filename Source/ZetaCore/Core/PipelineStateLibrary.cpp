@@ -2,6 +2,7 @@
 #include "RendererCore.h"
 #include "../Utility/Utility.h"
 #include "../App/Log.h"
+#include <App/Common.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -119,13 +120,13 @@ void PipelineStateLibrary::DeletePsoLibFile()
 		m_foundOnDisk = false;
 	}
 
-	// dont't clear the already compiled PSOs, those are still valid!
+	// Dont't delete the existing compiled PSOs as those are still valid
 	//m_compiledPSOs.clear();
 }
 
 void PipelineStateLibrary::ResetPsoLib(bool forceReset)
 {
-	// avoid recreating PipelineStateLibrary object if it's been reset since the start of program
+	// Avoid recreating PipelineStateLibrary object if it's been reset since the start of program
 	if (forceReset || !m_psoWasReset)
 	{
 		auto* device = App::GetRenderer().GetDevice();
@@ -311,7 +312,7 @@ void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e)
 	}
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
+ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
 	D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
 	ID3D12RootSignature* rootSig, 
 	const char* pathToCompiledVS,
@@ -350,7 +351,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 	psoDesc.pRootSignature = rootSig;
 
 	wchar_t nameWide[32];
-	swprintf(nameWide, sizeof nameWide / sizeof(wchar_t), L"%llu", nameID);
+	StackStr(name, n, "%u", nameID);
+	Common::CharToWideStr(name, nameWide);
 
 	Assert(m_psoLibrary, "m_psoLibrary has not been created yet.");
 	HRESULT hr = m_psoLibrary->LoadGraphicsPipeline(nameWide, &psoDesc, IID_PPV_ARGS(&pso));
@@ -380,7 +382,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint64_t nameID,
 	return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12RootSignature* rootSig,
+ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig,
 	const char* pathToCompiledCS)
 {
 	ID3D12PipelineState* pso = Find(nameID);
@@ -403,8 +405,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 	desc.CS.pShaderBytecode = bytecode.data();
 
 	wchar_t nameWide[32];
-	int n = swprintf(nameWide, (sizeof nameWide / sizeof(wchar_t)) - 1, L"%llu", nameID);
-	Assert(n > 0, "swprintf failed.");
+	StackStr(name, n, "%u", nameID);
+	Common::CharToWideStr(name, nameWide);
 
 	HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
@@ -417,8 +419,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 
 		// can cause a hitch as the CPU is stalled
 		auto* device = App::GetRenderer().GetDevice();
-
 		CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
 		CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
 	}
 
@@ -431,7 +433,71 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 	return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12RootSignature* rootSig, 
+ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3D12RootSignature* rootSig, 
+	const char* pathToCompiledCS)
+{
+	AcquireSRWLockExclusive(&m_mapLock);
+	ID3D12PipelineState* pso = Find(nameID);
+	ReleaseSRWLockExclusive(&m_mapLock);
+
+	if (pso)
+		return pso;
+
+	D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+	desc.pRootSignature = rootSig;
+
+	Assert(pathToCompiledCS, "path was NULL");
+
+	Filesystem::Path pCs(App::GetCompileShadersDir());
+	pCs.Append(pathToCompiledCS);
+
+	SmallVector<uint8_t> bytecode;
+	Filesystem::LoadFromFile(pCs.Get(), bytecode);
+
+	desc.CS.BytecodeLength = bytecode.size();
+	desc.CS.pShaderBytecode = bytecode.data();
+
+	wchar_t nameWide[32];
+	StackStr(name, n, "%u", nameID);
+	Common::CharToWideStr(name, nameWide);
+
+	// For a cached PSO library, If some PSO is modified or not found, the PSO lib needs
+	// to be recreated. So all the operations with the PSO lib need to be synchronized.
+
+	AcquireSRWLockExclusive(&m_psoLibLock);
+	HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
+	ReleaseSRWLockExclusive(&m_psoLibLock);
+
+	// A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
+	// Create the PSO and then store it in the library for next time.
+	if (hr == E_INVALIDARG)
+	{
+		AcquireSRWLockExclusive(&m_psoLibLock);
+		DeletePsoLibFile();
+		ResetPsoLib();
+		ReleaseSRWLockExclusive(&m_psoLibLock);
+
+		// can cause a hitch as the CPU is stalled
+		auto* device = App::GetRenderer().GetDevice();
+		CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
+		AcquireSRWLockExclusive(&m_psoLibLock);
+		CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
+		ReleaseSRWLockExclusive(&m_psoLibLock);
+	}
+
+	Entry e;
+	e.Key = nameID;
+	e.PSO = pso;
+
+	AcquireSRWLockExclusive(&m_mapLock);
+	InsertPSOAndKeepSorted(e);
+	ReleaseSRWLockExclusive(&m_mapLock);
+
+	return pso;
+}
+
+ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig, 
 	Span<const uint8_t> compiledBlob)
 {
 	// if the PSO has already been created, just return it
@@ -450,7 +516,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint64_t nameID, ID3D12
 	desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
 	wchar_t nameWide[32];
-	swprintf(nameWide, sizeof nameWide / sizeof(wchar_t), L"%llu", nameID);
+	StackStr(name, n, "%u", nameID);
+	Common::CharToWideStr(name, nameWide);
 
 	HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 

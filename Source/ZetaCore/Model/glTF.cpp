@@ -696,38 +696,40 @@ namespace
 		{
 			float4x4a M(node.matrix);
 			v_float4x4 vM = load4x4(M);
-			auto det = store(det3x3(vM));	// last column/row is ignored
+			auto det = store(det3x3(vM));
 			//Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
 			Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 
-			// column-major storage to row-major storage
+			// Column-major storage to row-major storage
 			vM = transpose(vM);
 			M = store(vM);
 
-			// RHS transformation matrix M_rhs can be converted to LHS (+Y up) as follows:
+			// To apply the transformation matrix M = [u v w] from the RHS coordinate system (+Y up) 
+			// to vector x in the LHS system (+Y up), let C denote the change-of-basis transformation 
+			// matrix from the latter to former. The transformation of x (denote by x') is given by
 			//
-			//		transform = M_RhsToLhs * M_rhs * M_LhsToRhs
+			//		x' = C^-1 * M * C * x.
 			// 
-			// where M_RhsToLhs is a change-of-basis transformation matrix and M_LhsToRhs = M_RhsToLhs^-1. 
-			// Replacing in above:
+			// Replacing C in above
 			//
-			//                  | 1 0  0 |             | 1 0  0 |
-			//		transform = | 0 1  0 | * [u v w] * | 0 1  0 |
-			//                  | 0 0 -1 |             | 0 0 -1 |
+			//           | 1  0  0 |             | 1  0  0 |
+			//		x' = | 0  1  0 | * [u v w] * | 0  1  0 |
+			//           | 0  0 -1 |             | 0  0 -1 |
 			//
-			//                  | 1 0  0 |                  
-			//                = | 0 1  0 | * [u v -w]
-			//                  | 0 0 -1 |
+			//           | 1  0  0 |
+			//         = | 0  1  0 | * [u v -w]
+			//           | 0  0 -1 |
 			//
-			//                  |  u_1  v_1  -w_1 |                  
-			//                = |  u_2  v_2  -w_2 |
-			//                  | -u_3 -v_3   w_3 |
+			//           |  u_1  v_1  -w_1 |
+			//         = |  u_2  v_2  -w_2 |
+			//           | -u_3 -v_3   w_3 |
+			//
 			M.m[0].z *= -1.0f;
 			M.m[1].z *= -1.0f;
 			M.m[2].x *= -1.0f;
 			M.m[2].y *= -1.0f;
 
-			// convert translation to LHS
+			// Convert translation to LHS
 			M.m[2].w *= -1.0f;
 
 			vM = load4x4(M);
@@ -746,11 +748,11 @@ namespace
 
 			if (node.has_rotation)
 			{
-				// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
-				// where s = sin(theta/2) and c = cos(theta/2)
+				// Rotation quaternion q = (n_x * s, n_y * s, n_z * s, c)
+				// where s = sin(theta/2) and c = cos(theta/2).
 				//
-				// In the left-handed coord. system here with +Y as up, n_lhs = (n_x, n_y, -n_z)
-				// and theta_lhs = -theta. Since sin(-a) = -sin(a) and cos(-a) = cos(a) we have:
+				// In the LHS system (+Y up), n_lhs = (n_x, n_y, -n_z)
+				// and theta_lhs = -theta. Since sin(-a) = -sin(a) and cos(-a) = cos(a)
 				//
 				//		q_lhs = (n_x * -s, n_y * -s, -n_z * -s, c)
 				//			  = (-n_x * s, -n_y * s, n_z * s, c)
@@ -773,7 +775,7 @@ namespace
 			}
 		}
 
-		// workaround for nodes without a name
+		// Workaround for nodes without a name
 		const int nodeIdx = (int)(&node - model.nodes);
 		Assert(nodeIdx < model.nodes_count, "invalid node index.");
 
@@ -998,7 +1000,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 
 			tc.NumEmissiveMeshPrims = numEmissives;
 
-			// needed to perform binary search
+			// To perform binary search
 			std::sort(tc.EmissiveMeshPrims.begin(), tc.EmissiveMeshPrims.end(), [](const EmissiveMeshPrim& lhs, const EmissiveMeshPrim& rhs)
 				{
 					return lhs.MeshID < rhs.MeshID;
@@ -1030,7 +1032,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 
 	auto procMats = ts.EmplaceTask("gltf::ProcessMats", [&tc, &ddsImages]()
 		{
-			// for binary search
+			// To perform binary search
 			std::sort(ddsImages.begin(), ddsImages.end(), [](const DDSImage& lhs, const DDSImage& rhs)
 				{
 					return lhs.ID < rhs.ID;

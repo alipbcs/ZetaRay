@@ -15,7 +15,10 @@
 #include <RayTracing/RtAccelerationStructure.h>
 //#include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
-#include <DirectLighting/DirectLighting.h>
+#include <DirectLighting/Emissive/DirectLighting.h>
+#include <DirectLighting/Sky/SkyDI.h>
+#include <PreLighting/PreLighting.h>
+#include <IndirectLighting/IndirectLighting.h>
 
 //--------------------------------------------------------------------------------------
 // DefaultRenderer
@@ -31,10 +34,8 @@ namespace ZetaRay::DefaultRenderer
 		COUNT
 	};
 
-namespace ZetaRay::DefaultRenderer
-{
 	inline static const char* AAOptions[] = { "None", "TAA", "AMD FSR 2.2 (Quality)" };
-	static_assert((int)Settings::AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> strings mismatch.");
+	static_assert((int)AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> string mismatch.");
 
 	static constexpr auto DEFAULT_AA = AA::TAA;
 

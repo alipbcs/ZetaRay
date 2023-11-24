@@ -46,7 +46,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 	uint16_t emissiveTex = tri.GetEmissiveTex();
 	
 	float3 lumen = 0.0f;
-	const bool hasTexture = emissiveTex != -1;
+	const bool hasTexture = emissiveTex != uint16_t(-1);
 
 	if (hasTexture)
 	{

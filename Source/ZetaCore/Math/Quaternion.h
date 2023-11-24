@@ -6,7 +6,7 @@
 namespace ZetaRay::Math
 {
 	// Returns a roations quaternion that can be used to rotate about axis n by angle theta
-	ZetaInline __m128 __vectorcall rotationQuat(float3 n, float theta)
+	ZetaInline __m128 __vectorcall rotationQuaternion(float3 n, float theta)
 	{
 		const float s = sinf(0.5f * theta);
 		const float c = cosf(0.5f * theta);
@@ -24,7 +24,7 @@ namespace ZetaRay::Math
 		return vQ;
 	}
 
-	ZetaInline __m128 __vectorcall quatToAxisAngle(__m128 vQuat)
+	ZetaInline __m128 __vectorcall quaternionToAxisAngle(__m128 vQuat)
 	{
 		float4a quat = store(vQuat);
 		float theta = 2.0f * acosf(quat.w);
@@ -35,7 +35,7 @@ namespace ZetaRay::Math
 		return vAxisAngle;
 	}
 
-	ZetaInline void __vectorcall quatToAxisAngle(__m128 vQuat, float3& axis, float& angle)
+	ZetaInline void __vectorcall quaternionToAxisAngle(__m128 vQuat, float3& axis, float& angle)
 	{
 		float4a quat = store(vQuat);
 		angle = 2.0f * acosf(quat.w);
@@ -43,7 +43,7 @@ namespace ZetaRay::Math
 		axis.normalize();
 	}
 
-	ZetaInline void __vectorcall quatToAxisAngle(float4a& quat, float3& axis, float& angle)
+	ZetaInline void __vectorcall quaternionToAxisAngle(const float4a& quat, float3& axis, float& angle)
 	{
 		angle = 2.0f * acosf(quat.w);
 		axis = float3(quat.x, quat.y, quat.z);

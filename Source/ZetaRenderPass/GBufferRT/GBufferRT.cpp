@@ -91,7 +91,7 @@ void GBufferRT::Init()
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
 	auto samplers = App::GetRenderer().GetStaticSamplers();
-	RenderPassBase::InitRenderPass("GBufferRT", flags, samplers);
+	RenderPassBase::InitRenderPass("GBuffer", flags, samplers);
 
 #if TRACE_INLINE == 0
 	CreateRTPSO();
@@ -118,7 +118,7 @@ void GBufferRT::Init()
 	//App::AddParam(traceInline);
 
 #if TRACE_INLINE == 1
-	App::AddShaderReloadHandler("GBufferRT", fastdelegate::MakeDelegate(this, &GBufferRT::ReloadGBufferInline));
+	App::AddShaderReloadHandler("GBuffer", fastdelegate::MakeDelegate(this, &GBufferRT::ReloadGBufferInline));
 #endif
 }
 

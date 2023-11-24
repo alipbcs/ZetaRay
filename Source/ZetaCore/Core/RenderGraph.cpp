@@ -323,7 +323,7 @@ void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_
 	m_renderNodes[h.Val].Outputs.emplace_back(pathID, expectedState);
 
 	const size_t idx = FindFrameResource(pathID);
-	Assert(idx != -1, "Invalid resource path %llu.", pathID);	
+	Assert(idx != size_t(-1), "Invalid resource path %llu.", pathID);
 
 	const int prodIdx = m_frameResources[idx].CurrProdIdx.fetch_add(1, std::memory_order_relaxed);
 	Assert(prodIdx < MAX_NUM_PRODUCERS, "Number of producers for each resource can't exceed MAX_NUM_PRODUCERS");
@@ -355,7 +355,7 @@ void RenderGraph::Build(TaskSet& ts)
 		for (Dependency& input : node.Inputs)
 		{
 			const size_t idx = FindFrameResource(input.ResID);
-			Assert(idx != -1, "Resource ID %u was not found.", input.ResID);
+			Assert(idx != size_t(-1), "Resource ID %u was not found.", input.ResID);
 
 			const int numProducers = m_frameResources[idx].CurrProdIdx.load(std::memory_order_relaxed);
 
@@ -637,7 +637,7 @@ void RenderGraph::InsertResourceBarriers()
 				continue;
 
 			const size_t inputFrameResIdx = FindFrameResource(currInputRes.ResID);
-			Assert(inputFrameResIdx != -1, "Resource %llu was not found.", currInputRes.ResID);
+			Assert(inputFrameResIdx != size_t(-1), "Resource %llu was not found.", currInputRes.ResID);
 			const D3D12_RESOURCE_STATES inputResState = m_frameResources[inputFrameResIdx].State;
 
 			if (!(inputResState & currInputRes.ExpectedState))
@@ -715,7 +715,7 @@ void RenderGraph::InsertResourceBarriers()
 			const bool skipBarrier = ((1 << i++) & node.OutputMask);
 
 			const size_t ouputFrameResIdx = FindFrameResource(currOutputRes.ResID);
-			Assert(ouputFrameResIdx != -1, "Resource %llu was not found.", currOutputRes.ResID);
+			Assert(ouputFrameResIdx != size_t(-1), "Resource %llu was not found.", currOutputRes.ResID);
 			const D3D12_RESOURCE_STATES outputResState = m_frameResources[ouputFrameResIdx].State;
 
 			if (!skipBarrier && !(m_frameResources[ouputFrameResIdx].State & currOutputRes.ExpectedState))

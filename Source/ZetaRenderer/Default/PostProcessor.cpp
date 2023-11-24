@@ -37,21 +37,13 @@ void PostProcessor::UpdateWndDependentDescriptors(const RenderSettings& settings
 
 void PostProcessor::UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data)
 {
-	if (settings.AntiAliasing != AA::NONE)
-		data.TaaOrFsr2OutSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
-
-	if (settings.AntiAliasing == AA::FSR2)
-	{
-		const Texture& upscaled = data.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
-		Assert(upscaled.IsInitialized(), "Upscaled output hasn't been initialized.");
-
-		Direct3DUtil::CreateTexture2DSRV(upscaled, data.TaaOrFsr2OutSRV.CPUHandle(0));
-	}
-	else if (settings.AntiAliasing == AA::TAA)
+	if (settings.AntiAliasing == AA::TAA)
 	{
 		const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
-		// due to ping-ponging between textures, TAA's output texture changes every frame
+		data.TaaOrFsr2OutSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
+
+		// Due to ping-ponging, TAA's output texture changes every frame
 		const TAA::SHADER_OUT_RES taaOutIdx = outIdx == 0 ? TAA::SHADER_OUT_RES::OUTPUT_B : TAA::SHADER_OUT_RES::OUTPUT_A;
 		Texture& taaOut = data.TaaPass.GetOutput(taaOutIdx);
 		Direct3DUtil::CreateTexture2DSRV(taaOut, data.TaaOrFsr2OutSRV.CPUHandle(0));
@@ -69,7 +61,14 @@ void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData
 	if (settings.AntiAliasing == AA::TAA && !data.TaaPass.IsInitialized())
 		data.TaaPass.Init();
 	else if (settings.AntiAliasing == AA::FSR2 && !data.Fsr2Pass.IsInitialized())
-		data.Fsr2Pass.Init();
+	{
+		data.Fsr2Pass.Activate();
+
+		data.TaaOrFsr2OutSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
+
+		const Texture& upscaled = data.Fsr2Pass.GetOutput(FSR2Pass::SHADER_OUT_RES::UPSCALED);
+		Direct3DUtil::CreateTexture2DSRV(upscaled, data.TaaOrFsr2OutSRV.CPUHandle(0));
+	}
 }
 
 void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
@@ -393,10 +392,11 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 				upscaled.ID(),
 				D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-		// Display
-		renderGraph.AddInput(data.DisplayHandle,
-			upscaled.ID(),
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+			// Display
+			renderGraph.AddInput(data.DisplayHandle,
+				upscaled.ID(),
+				D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+		}
 	}
 
 	// Auto Exposure

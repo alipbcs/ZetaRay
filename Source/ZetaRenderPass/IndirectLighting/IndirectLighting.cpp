@@ -156,11 +156,12 @@ void IndirectLighting::Init()
 
 	SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::RUSSIAN_ROULETTE, true);
 	SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE, true);
+	SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::DENOISE, true);
 	m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
 	m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
-	//m_cbSpatioTemporal.Denoise = m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
-	//m_cbDnsrSpatial.FilterDiffuse = true;
-	//m_cbDnsrSpatial.FilterSpecular = true;
+	m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
+	m_cbDnsrSpatial.FilterDiffuse = true;
+	m_cbDnsrSpatial.FilterSpecular = true;
 
 	ParamVariant doTemporal;
 	doTemporal.InitBool("Renderer", "Indirect Lighting", "Temporal Resample",

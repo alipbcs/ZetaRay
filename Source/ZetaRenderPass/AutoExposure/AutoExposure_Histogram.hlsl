@@ -23,7 +23,7 @@ uint CalculateeBin(uint2 DTid)
 {
 	// can't early exit for out-of-screen threads
 	if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
-		return -1;
+		return uint(-1);
 	
 	Texture2D<half4> g_input = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
 	const float3 color = g_input[DTid].rgb;
@@ -64,7 +64,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex)
 	const uint writerLane = min(min(min(firstSetLanes.x, firstSetLanes.y), firstSetLanes.z), firstSetLanes.w);
 	
 	// make sure threads that are outside the screen are skipped
-	if (writerLane == WaveGetLaneIndex() && bin != -1)
+	if (writerLane == WaveGetLaneIndex() && bin != uint(-1))
 		InterlockedAdd(g_binSize[bin], binSizeInWave);
 	
 	GroupMemoryBarrierWithGroupSync();

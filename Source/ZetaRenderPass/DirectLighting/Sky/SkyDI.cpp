@@ -4,6 +4,7 @@
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <RayTracing/Sampler.h>
+#include <Support/Task.h>
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -48,7 +49,7 @@ SkyDI::~SkyDI()
 
 void SkyDI::Init()
 {
-	const D3D12_ROOT_SIGNATURE_FLAGS flags =
+	constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -62,12 +63,24 @@ void SkyDI::Init()
 	auto samplers = renderer.GetStaticSamplers();
 	RenderPassBase::InitRenderPass("SkyDI", flags, samplers);
 
+	TaskSet ts;
+
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = m_psoLib.GetComputePSO(i,
-			m_rootSigObj.Get(),
-			COMPILED_CS[i]);
+		StackStr(buff, n, "SkyDI_shader_%d", i);
+
+		ts.EmplaceTask(buff, [i, this]()
+			{
+				m_psos[i] = m_psoLib.GetComputePSO_MT(i,
+					m_rootSigObj.Get(),
+					COMPILED_CS[i]);
+			});
 	}
+
+	WaitObject waitObj;
+	ts.Sort();
+	ts.Finalize(&waitObj);
+	App::Submit(ZetaMove(ts));
 
 	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
@@ -156,10 +169,12 @@ void SkyDI::Init()
 	App::AddParam(dnsrSpatialFilterSpecular);
 
 	App::AddShaderReloadHandler("SkyDI_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
-	App::AddShaderReloadHandler("SkyDI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRTemporal));
-	App::AddShaderReloadHandler("SkyDI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRSpatial));
+	//App::AddShaderReloadHandler("SkyDI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRTemporal));
+	//App::AddShaderReloadHandler("SkyDI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRSpatial));
 
 	m_isTemporalReservoirValid = false;
+
+	waitObj.Wait();
 }
 
 void SkyDI::Reset()

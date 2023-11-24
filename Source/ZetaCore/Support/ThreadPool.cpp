@@ -75,7 +75,8 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 		wchar_t buff[32];
 		//swprintf(buff, L"ZetaWorker_%d", i);
 		swprintf(buff, L"%ls_%d", threadNamePrefix, i);
-		CheckWin32(SetThreadDescription(m_threadPool[i].native_handle(), buff));
+		auto h = SetThreadDescription(m_threadPool[i].native_handle(), buff);
+		CheckWin32(SUCCEEDED(h));
 
 		bool success = false;
 		if (p == THREAD_PRIORITY::NORMAL)

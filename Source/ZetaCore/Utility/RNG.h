@@ -37,15 +37,15 @@ namespace ZetaRay::Util
         {
             State = 0U;
             Inc = (streamID << 1u) | 1u;
-            GetUniformUint();
+            UniformUint();
 
             // state initializer is fixed
             State += 0x853c49e6748fea9bULL;
-            GetUniformUint();
+            UniformUint();
         }
 
         // Generates a uniformly distributed 32-bit random number
-        uint32_t GetUniformUint()
+        uint32_t UniformUint()
         {
             uint64_t oldstate = State;
             State = oldstate * 6364136223846793005ULL + Inc;
@@ -58,23 +58,23 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed float in [0, 1)
-        float GetUniformFloat()
+        float UniformFloat()
         {
             constexpr float oneSubEps = 0x1.fffffep-1;
-            const float uniformFloat01Inclusive = GetUniformUint() * 0x1p-32f;
+            const float uniformFloat01Inclusive = UniformUint() * 0x1p-32f;
             
             return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
         }
 
         // Generates a uniformly distributed number, r, where 0 <= r < bound
         // See https://www.pcg-random.org for more info
-        uint32_t GetUniformUintBounded(uint32_t bound)
+        uint32_t UniformUintBounded(uint32_t bound)
         {
             uint32_t threshold = (~bound + 1u) % bound;
 
             for (;;) 
             {
-                uint32_t r = GetUniformUint();
+                uint32_t r = UniformUint();
 
                 if (r >= threshold)
                     return r % bound;

@@ -19,10 +19,11 @@ int Common::WideToCharStr(const wchar_t* wideStr, MutableSpan<char> str)
 
 int Common::CharToWideStr(const char* str, Util::MutableSpan<wchar_t> wideStr)
 {
-    int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
-    Assert(wideStr.size() > size, "buffer overflow");
+    // #size includes terminating null character
+    const int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
+    Assert(wideStr.size() >= size, "Provided buffer is too small.");
 
-    MultiByteToWideChar(CP_UTF8, 0, str, -1, wideStr.data(), Math::Min(size, (int)wideStr.size()));
+    MultiByteToWideChar(CP_UTF8, 0, str, -1, wideStr.data(), (int)wideStr.size());
 
     return size;
 }

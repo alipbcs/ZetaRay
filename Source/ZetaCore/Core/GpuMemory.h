@@ -158,7 +158,7 @@ namespace ZetaRay::Core::GpuMemory
 		Texture& operator=(Texture&&);
 
 		void Reset(bool waitForGpu = true, bool checkRefCount = true);
-		ZetaInline bool IsInitialized() const { return m_ID != -1; }
+		ZetaInline bool IsInitialized() const { return m_ID != uint64_t(-1); }
 		ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
 		{
 			Assert(m_resource, "Texture hasn't been initialized.");

@@ -145,15 +145,6 @@ namespace ZetaRay::Core
 		void Reset();
 		ZetaInline bool IsEmpty() const { return m_numDescriptors == 0; }
 
-		//void Swap(DescriptorTable& other)
-		//{
-		//	Assert(m_descriptorSize == other.m_descriptorSize, "Invalid swap");
-		//	std::swap(m_baseCpuHandle, other.m_baseCpuHandle);
-		//	std::swap(m_baseGpuHandle, other.m_baseGpuHandle);
-		//	std::swap(m_numDescriptors, other.m_numDescriptors);
-		//	std::swap(m_descHeap, other.m_descHeap);
-		//}
-
 		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const
 		{
 			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");

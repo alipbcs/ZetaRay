@@ -95,7 +95,7 @@ namespace ZetaRay
 #ifdef __cplusplus
         void SetEmissiveTex(uint32_t idx)
         {
-            Assert(idx == -1 || idx < UINT16_MAX, "Invalid emissive index.");
+            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid emissive index.");
             EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
         }
 

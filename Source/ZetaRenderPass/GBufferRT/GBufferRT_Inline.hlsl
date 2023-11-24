@@ -42,7 +42,7 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 
 	float alpha = alphaFactor_cutoff.x;
     
-	if(meshData.BaseColorTex != -1)
+	if(meshData.BaseColorTex != uint16_t(-1))
 	{
 		uint tri = primIdx * 3;
 		tri += meshData.BaseIdxOffset;

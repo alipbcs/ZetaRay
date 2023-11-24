@@ -123,7 +123,7 @@ namespace Common
 	}
 		
 	uint2 SwizzleThreadGroup(uint3 DTid, uint3 Gid, uint3 GTid, uint16_t2 groupDim, uint16_t dispatchDimX, uint16_t tileWidth,
-		uint16_t log2TileWidth, uint16_t numGroupsInTile)
+		uint16_t log2TileWidth, uint16_t numGroupsInTile, out uint16_t2 swizzledGid)
 	{
 		const uint16_t groupIDFlattened = (uint16_t) Gid.y * dispatchDimX + (uint16_t) Gid.x;
 		const uint16_t tileID = groupIDFlattened / numGroupsInTile;
@@ -148,7 +148,7 @@ namespace Common
 		}
 
 		const uint16_t swizzledGidFlattened = groupIDinTile.y * dispatchDimX + tileID * tileWidth + groupIDinTile.x;
-		const uint16_t2 swizzledGid = uint16_t2(swizzledGidFlattened % dispatchDimX, swizzledGidFlattened / dispatchDimX);
+		swizzledGid = uint16_t2(swizzledGidFlattened % dispatchDimX, swizzledGidFlattened / dispatchDimX);
 		const uint16_t2 swizzledDTid = swizzledGid * groupDim + (uint16_t2) GTid.xy;
 	
 		return swizzledDTid;

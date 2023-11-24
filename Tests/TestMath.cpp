@@ -25,19 +25,22 @@ TEST_CASE("3x3 Determinant")
 	CHECK(fabsf(d.x - 1.0f) < 1e-6);
 }
 
-TEST_CASE("TRS Decomposition")
+TEST_CASE("SRT Decomposition")
 {
 	float3 scaleFactor = float3(1.5f, 2.0f, 1.0f);
+	float3 translation = float3(-2.0f, 0.34f, -5.7f);
 	float theta = 0.610865238;
 
 	v_float4x4 vS = scale(scaleFactor.x, scaleFactor.y, scaleFactor.z);
 	v_float4x4 vR = rotateZ(theta);
-	v_float4x4 vSR = mul(vS, vR);
+	v_float4x4 vT = translate(translation);
+	v_float4x4 vSRT = mul(vS, vR);
+	vSRT = mul(vSRT, vT);
 
 	float4a s;
 	float4a r;
 	float4a t;
-	decomposeSRT(vSR, s, r, t);
+	decomposeSRT(vSRT, s, r, t);
 
 	CHECK(fabsf(s.x - 1.5f) < 1e-6f);
 	CHECK(fabsf(s.y - 2.0f) < 1e-6f);
@@ -45,12 +48,53 @@ TEST_CASE("TRS Decomposition")
 
 	float3 axis2;
 	float theta2;
-	quatToAxisAngle(r, axis2, theta2);
+	quaternionToAxisAngle(r, axis2, theta2);
 
 	CHECK(fabsf(axis2.x - 0) < 1e-6f);
 	CHECK(fabsf(axis2.y - 0) < 1e-6f);
 	CHECK(fabsf(axis2.z - 1) < 1e-6f);
 	CHECK(fabsf(theta2 - theta) < 1e-6f);
+
+	CHECK(fabsf(t.x - translation.x) < 1e-6f);
+	CHECK(fabsf(t.y - translation.y) < 1e-6f);
+	CHECK(fabsf(t.z - translation.z) < 1e-6f);
+}
+
+TEST_CASE("TRS Decomposition")
+{
+	float3 scaleFactor = float3(1.5f, 2.0f, 1.0f);
+	float3 translation = float3(-2.0f, 0.34f, -5.7f);
+	float theta = 0.610865238;
+
+	v_float4x4 vS = scale(scaleFactor.x, scaleFactor.y, scaleFactor.z);
+	v_float4x4 vR = rotateZ(theta);
+	vR = transpose(vR);
+	v_float4x4 vT = translate(translation);
+	vT = transpose(vT);
+	v_float4x4 vTRS = mul(vT, vR);
+	vTRS = mul(vTRS, vS);
+
+	float3 s;
+	float4 r;
+	float3 t;
+	decomposeTRS(vTRS, s, r, t);
+
+	CHECK(fabsf(s.x - 1.5f) < 1e-6f);
+	CHECK(fabsf(s.y - 2.0f) < 1e-6f);
+	CHECK(fabsf(s.z - 1.0f) < 1e-6f);
+
+	float3 axis2;
+	float theta2;
+	quaternionToAxisAngle(float4a(r), axis2, theta2);
+
+	CHECK(fabsf(axis2.x - 0) < 1e-6f);
+	CHECK(fabsf(axis2.y - 0) < 1e-6f);
+	CHECK(fabsf(axis2.z - 1) < 1e-6f);
+	CHECK(fabsf(theta2 - theta) < 1e-6f);
+
+	CHECK(fabsf(t.x - translation.x) < 1e-6f);
+	CHECK(fabsf(t.y - translation.y) < 1e-6f);
+	CHECK(fabsf(t.z - translation.z) < 1e-6f);
 }
 
 TEST_CASE("AABBvsAABB")
@@ -60,13 +104,13 @@ TEST_CASE("AABBvsAABB")
 
 	for (int i = 0; i < 10000; i++)
 	{
-		float cx = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
-		float cy = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
-		float cz = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
+		float cx = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+		float cy = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+		float cz = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
 
-		float ex = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		float ey = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		float ez = 0.1f + rng.GetUniformFloat() * 1000.0f;
+		float ex = 0.1f + rng.UniformFloat() * 1000.0f;
+		float ey = 0.1f + rng.UniformFloat() * 1000.0f;
+		float ez = 0.1f + rng.UniformFloat() * 1000.0f;
 
 		DirectX::XMFLOAT3 xc1 = DirectX::XMFLOAT3(cx, cy, cz);
 		DirectX::XMFLOAT3 xe1 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -75,13 +119,13 @@ TEST_CASE("AABBvsAABB")
 		float3 e1 = float3(ex, ey, ez);
 		v_AABB b1(c1, e1);
 
-		cx = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
-		cy = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
-		cz = rng.GetUniformFloat() * 1000.0f - rng.GetUniformFloat() * 1000.0f;
+		cx = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+		cy = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+		cz = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
 
-		ex = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		ey = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		ez = 0.1f + rng.GetUniformFloat() * 1000.0f;
+		ex = 0.1f + rng.UniformFloat() * 1000.0f;
+		ey = 0.1f + rng.UniformFloat() * 1000.0f;
+		ez = 0.1f + rng.UniformFloat() * 1000.0f;
 
 		DirectX::XMFLOAT3 xc2 = DirectX::XMFLOAT3(cx, cy, cz);
 		DirectX::XMFLOAT3 xe2 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -116,13 +160,13 @@ TEST_CASE("AABBvsFrustum")
 
 	for (int i = 0; i < 10000; i++)
 	{
-		float cx = -1000.0f + rng.GetUniformFloat() * 1000.0f;
-		float cy = -1000.0f + rng.GetUniformFloat() * 1000.0f;
-		float cz = -1000.0f + rng.GetUniformFloat() * 1000.0f;
+		float cx = -1000.0f + rng.UniformFloat() * 1000.0f;
+		float cy = -1000.0f + rng.UniformFloat() * 1000.0f;
+		float cz = -1000.0f + rng.UniformFloat() * 1000.0f;
 
-		float ex = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		float ey = 0.1f + rng.GetUniformFloat() * 1000.0f;
-		float ez = 0.1f + rng.GetUniformFloat() * 1000.0f;
+		float ex = 0.1f + rng.UniformFloat() * 1000.0f;
+		float ey = 0.1f + rng.UniformFloat() * 1000.0f;
+		float ez = 0.1f + rng.UniformFloat() * 1000.0f;
 
 		DirectX::XMFLOAT3 xc1 = DirectX::XMFLOAT3(cx, cy, cz);
 		DirectX::XMFLOAT3 xe1 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -156,18 +200,18 @@ TEST_CASE("QuaternionSlerp")
 
 	for (int i = 0; i < numTests; i++)
 	{
-		float3 axis1(rng.GetUniformUintBounded(100) - 50.0f, rng.GetUniformUintBounded(100) - 50.0f, rng.GetUniformUintBounded(100) - 50.0f);
+		float3 axis1(rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f);
 		axis1.normalize();
-		float theta1 = rng.GetUniformFloat() * TWO_PI;
+		float theta1 = rng.UniformFloat() * TWO_PI;
 
-		float3 axis2(rng.GetUniformUintBounded(100) - 50.0f, rng.GetUniformUintBounded(100) - 50.0f, rng.GetUniformUintBounded(100) - 50.0f);
+		float3 axis2(rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f);
 		axis2.normalize();
-		float theta2 = rng.GetUniformFloat() * TWO_PI;
+		float theta2 = rng.UniformFloat() * TWO_PI;
 
-		float t = rng.GetUniformFloat();
+		float t = rng.UniformFloat();
 
-		__m128 vQ1 = rotationQuat(axis1, theta1);
-		__m128 vQ2 = rotationQuat(axis2, theta2);
+		__m128 vQ1 = rotationQuaternion(axis1, theta1);
+		__m128 vQ2 = rotationQuaternion(axis2, theta2);
 		__m128 vQ3 = slerp(vQ1, vQ2, t);
 		auto q = store(vQ3);
 
@@ -219,18 +263,18 @@ TEST_CASE("RayVsAABB")
 	RNG rng(reinterpret_cast<uintptr_t>(&unused));
 	INFO("Seed: ", reinterpret_cast<uintptr_t>(&unused));
 
-	auto getc = [&rng]() {return rng.GetUniformFloat() * 100.0f - rng.GetUniformFloat() * 100.0f; };
-	auto gete = [&rng]() {return 1.0f + rng.GetUniformFloat() * 1000.0f; };
-	auto geto = [&rng]() {return rng.GetUniformFloat() * 50.0f - rng.GetUniformFloat() * 50.0f; };
+	auto getc = [&rng]() {return rng.UniformFloat() * 100.0f - rng.UniformFloat() * 100.0f; };
+	auto gete = [&rng]() {return 1.0f + rng.UniformFloat() * 1000.0f; };
+	auto geto = [&rng]() {return rng.UniformFloat() * 50.0f - rng.UniformFloat() * 50.0f; };
 	auto getd = [&rng]()
 	{
-		float f = rng.GetUniformFloat();
+		float f = rng.UniformFloat();
 		bool z = f > 0.1f;
-		float3 res(0.01f + rng.GetUniformFloat(), 0.01f + rng.GetUniformFloat(), 0.01f + rng.GetUniformFloat());
+		float3 res(0.01f + rng.UniformFloat(), 0.01f + rng.UniformFloat(), 0.01f + rng.UniformFloat());
 
 		if (z)
 		{
-			uint32_t c = rng.GetUniformUint() % 3;
+			uint32_t c = rng.UniformUint() % 3;
 
 			if (c == 0)
 				res.x = 0.0f;
@@ -415,7 +459,7 @@ TEST_CASE("QuaternionFromRotationMat")
 	vAxis = normalize(vAxis);
 
 	v_float4x4 vR = rotate(vAxis, PI / 6);
-	__m128 vQ = quatFromRotationMat(vR);
+	__m128 vQ = quaternionFromRotationMat(vR);
 	float4a result= store(vQ);
 	
 	CHECK(fabsf(result.x - 0.0691723f) <= FLT_EPSILON);
@@ -450,7 +494,7 @@ TEST_CASE("Octahedral Encoding")
 
 	for (int i = 0; i < N; i++)
 	{
-		float2 u = float2(rng.GetUniformFloat(), rng.GetUniformFloat());
+		float2 u = float2(rng.UniformFloat(), rng.UniformFloat());
 		float3 n = UniformSampleSphere(u);
 
 		__m128 vN = loadFloat3(n);

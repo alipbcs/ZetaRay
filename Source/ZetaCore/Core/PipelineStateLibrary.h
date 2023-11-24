@@ -21,17 +21,20 @@ namespace ZetaRay::Core
 		void ClearAndFlushToDisk();
 		void Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO);
 
-		ID3D12PipelineState* GetGraphicsPSO(uint64_t nameID,
+		ID3D12PipelineState* GetGraphicsPSO(uint32_t nameID,
 			D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
 			ID3D12RootSignature* rootSig,
 			const char* pathToCompiledVS,
 			const char* pathToCompiledPS);
 
-		ID3D12PipelineState* GetComputePSO(uint64_t nameID,
+		ID3D12PipelineState* GetComputePSO(uint32_t nameID,
 			ID3D12RootSignature* rootSig,
-			const char* pathToCompiledCS);		
+			const char* pathToCompiledCS);
+		ID3D12PipelineState* GetComputePSO_MT(uint32_t nameID,
+			ID3D12RootSignature* rootSig,
+			const char* pathToCompiledCS);
 		
-		ID3D12PipelineState* GetComputePSO(uint64_t nameID,
+		ID3D12PipelineState* GetComputePSO(uint32_t nameID,
 			ID3D12RootSignature* rootSig,
 			Util::Span<const uint8_t> compiledBlob);
 
@@ -61,5 +64,8 @@ namespace ZetaRay::Core
 		
 		bool m_foundOnDisk = false;
 		bool m_psoWasReset = false;
+
+		SRWLOCK m_psoLibLock = SRWLOCK_INIT;
+		SRWLOCK m_mapLock = SRWLOCK_INIT;
 	};
 }

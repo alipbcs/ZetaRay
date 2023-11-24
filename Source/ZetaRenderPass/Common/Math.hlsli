@@ -184,7 +184,7 @@ namespace Math
 
 		return uv;
 	}
-	
+
 	float3 TangentSpaceToWorldSpace(float2 bumpNormal2, float3 tangentW, float3 normalW, float scale)
 	{
 		float3 bumpNormal = float3(2.0f * bumpNormal2 - 1.0f, 0.0f);
@@ -220,6 +220,32 @@ namespace Math
 		b2 = float3(b, s + n.y * n.y * a, -n.y);
 	}
 
+	// Returns rotation quaternion that aligns u to v. u and v are assumed to be normalized.
+	float4 QuaternionFromUtoV(float3 u, float3 v, float thresh = 1e-6)
+	{
+		float4 q;
+		float udotv = dot(u, v);
+
+		// u = -v is a singularity
+		if (udotv < thresh - 1.0f)
+		{
+			float3 imaginary = cross(v, u);
+			float real = udotv + 1.0f;
+			q = normalize(float4(imaginary, real));
+		}
+		else
+		{
+			float3 p = cross(u, v);
+
+			// rotate 180/2 = 90 degrees
+			q = float4(p, 0.0f);
+	
+			// p is already normalized, so no need to normalize q
+		}
+
+		return q;
+	}
+
 	// Quaternion that rotates +Y to u. Assumes ||u|| = 1.
 	float4 QuaternionFromY(float3 u)
 	{
@@ -229,22 +255,21 @@ namespace Math
 		// u = (0, -1, 0) is a singularity
 		if (real > 1e-6)
 		{
-			// build rotation quaternion that maps y = (0, 1, 0) to u
 			float3 yCrossU = float3(u.z, 0.0f, -u.x);
 			q = float4(yCrossU, real);
 			q = normalize(q);
 		}
 		else
 		{
-			// rotate 180 degrees around the X-axis (Z-axis works too since both are orthogonal to Y)
+			// Rotate 180 degrees around the X-axis (Z-axis works too since both are orthogonal to Y)
 			//
-			// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+			// Rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
 			// where
 			//		n = (1, 0, 0)
 			//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
 			q = float4(1.0f, 0.0f, 0.0f, 0.0f);
 	
-			// no need to normalize q
+			// No need to normalize q
 		}
 
 		return q;
@@ -254,27 +279,26 @@ namespace Math
 	float4 QuaternionToY(float3 u)
 	{
 		float4 q;
-		float real = 1.0f + u.z;
+		float real = 1.0f + u.y;
 
 		// u = (0, 0, -1) is a singularity
 		if (real > 1e-6)
 		{
-			// build rotation quaternion that maps u to z = (0, 0, 1)
-			float3 yCrossU = float3(-u.z, 0.0f, u.x);
-			q = float4(yCrossU, real);
+			float3 uCrossY = float3(-u.z, 0.0f, u.x);
+			q = float4(uCrossY, real);
 			q = normalize(q);
 		}
 		else
 		{
-			// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+			// Rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
 			//
-			// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+			// Rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
 			// where
 			//		n = (1, 0, 0)
 			//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
 			q = float4(1.0f, 0.0f, 0.0f, 0.0f);
 	
-			// no need to normalize q
+			// No need to normalize q
 		}
 
 		return q;
@@ -289,22 +313,21 @@ namespace Math
 		// u = (0, 0, -1) is a singularity
 		if (real > 1e-6)
 		{
-			// build rotation quaternion that maps z = (0, 0, 1) to u
 			float3 zCrossU = float3(-u.y, u.x, 0);
 			q = float4(zCrossU, real);
 			q = normalize(q);
 		}
 		else
 		{
-			// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+			// Rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
 			//
-			// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+			// Rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
 			// where
 			//		n = (1, 0, 0)
 			//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
 			q = float4(1.0f, 0.0f, 0.0f, 0.0f);
 	
-			// no need to normalize q
+			// No need to normalize q
 		}
 
 		return q;
@@ -319,22 +342,21 @@ namespace Math
 		// u = (0, 0, -1) is a singularity
 		if (real > 1e-6)
 		{
-			// build rotation quaternion that maps u to z = (0, 0, 1)
 			float3 uCrossZ = float3(u.y, -u.x, 0);
 			q = float4(uCrossZ, real);
 			q = normalize(q);
 		}
 		else
 		{
-			// rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
+			// Rotate 180 degrees around the X-axis (Y-axis works too since both are orthogonal to Z)
 			//
-			// rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
+			// Rotation quaternion = (n_x * s, n_y * s, n_z * s, c)
 			// where
 			//		n = (1, 0, 0)
 			//		s = sin(theta/2) = sin(90) = 1 and c = cos(theta/2) = cos(90) = 0
 			q = float4(1.0f, 0.0f, 0.0f, 0.0f);
 	
-			// no need to normalize q
+			// No need to normalize q
 		}
 
 		return q;

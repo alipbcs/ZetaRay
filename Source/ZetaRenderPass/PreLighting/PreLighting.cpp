@@ -8,6 +8,7 @@
 #include <Core/RenderGraph.h>
 #include <Core/SharedShaderResources.h>
 #include <Math/Sampling.h>
+#include <Support/Task.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -69,7 +70,7 @@ namespace
 			Assert(largerProb >= 1.0f, "should be >= 1.0");
 
 			RT::EmissiveLumenAliasTableEntry& e = table[smallerIdx];
-			Assert(e.Alias == -1, "Every element must be inserted exactly one time.");
+			Assert(e.Alias == uint32_t(-1), "Every element must be inserted exactly one time.");
 			e.Alias = largerIdx;
 			e.P_Curr = smallerProb;
 
@@ -184,7 +185,7 @@ PreLighting::~PreLighting()
 
 void PreLighting::Init()
 {
-	const D3D12_ROOT_SIGNATURE_FLAGS flags =
+	constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
 		D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
 		D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -198,12 +199,23 @@ void PreLighting::Init()
 	auto samplers = renderer.GetStaticSamplers();
 	RenderPassBase::InitRenderPass("PreLighting", flags, samplers);
 
+	TaskSet ts;
+
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = m_psoLib.GetComputePSO(i,
-			m_rootSigObj.Get(),
-			COMPILED_CS[i]);
+		StackStr(buff, n, "PreLighting_shader_%d", i);
+
+		ts.EmplaceTask(buff, [i, this]()
+			{
+				m_psos[i] = m_psoLib.GetComputePSO_MT(i,
+				m_rootSigObj.Get(),
+				COMPILED_CS[i]);
+			});
 	}
+
+	ts.Sort();
+	ts.Finalize();
+	App::Submit(ZetaMove(ts));
 
 	float2 samples[ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI];
 

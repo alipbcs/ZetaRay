@@ -68,7 +68,7 @@ namespace RDI_Util
 			Target ret;
 
 			ret.p_hat = 0.0.xxx;
-			ret.lightID = -1;
+			ret.lightID = uint(-1);
 			ret.dwdA = 0;
 			ret.needsShadowRay = false;
 			ret.visible = true;
@@ -102,7 +102,7 @@ namespace RDI_Util
 		{
 			TemporalCandidate ret;
 			ret.valid = false;
-			ret.lightIdx = -1;
+			ret.lightIdx = uint(-1);
 		
 			return ret;
 		}
@@ -357,7 +357,7 @@ namespace RDI_Util
 		{
 			const RT::MeshInstance meshData = g_frameMeshData[rayQuery.CommittedGeometryIndex() + rayQuery.CommittedInstanceID()];
 
-			if (meshData.BaseEmissiveTriOffset == -1)
+			if (meshData.BaseEmissiveTriOffset == uint32_t(-1))
 				return false;
 
 			hitInfo.emissiveTriIdx = meshData.BaseEmissiveTriOffset + rayQuery.CommittedPrimitiveIndex();
@@ -509,6 +509,7 @@ namespace RDI_Util
 		const half prevM = PartialReadReservoir_M(candidate.posSS, PrevReservoir_A_DescHeapIdx);
 		const half newM = r.M + prevM;
 
+		if(r.w_sum != 0)
 		{
 			float targetLumAtPrev = 0.0f;
 
@@ -526,7 +527,7 @@ namespace RDI_Util
 			r.w_sum *= m_curr;
 		}
 
-		if(candidate.lightIdx != -1)
+		if(candidate.lightIdx != uint(-1))
 		{
 			Reservoir prev = PartialReadReservoir_ReuseRest(candidate.posSS,
 				PrevReservoir_A_DescHeapIdx, 
@@ -593,7 +594,7 @@ namespace RDI_Util
 
 		// rotate sample sequence per pixel
 		const float u0 = rng.Uniform();
-		const uint offset = rng.UintRange(0, 8);
+		const uint offset = rng.UniformUintBounded_Faster(8);
 		const float theta = u0 * TWO_PI;
 		const float sinTheta = sin(theta);
 		const float cosTheta = cos(theta);

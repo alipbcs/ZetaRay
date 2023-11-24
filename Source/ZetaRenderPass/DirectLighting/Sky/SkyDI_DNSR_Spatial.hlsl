@@ -116,7 +116,7 @@ float3 FilterDiffuse(int2 DTid, float3 normal, float linearDepth, bool metallic,
 
 	const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
 	const float u0 = rng.Uniform();
-	const uint offset = rng.UintRange(0, NUM_SAMPLES);
+	const uint offset = rng.UniformUintBounded_Faster(NUM_SAMPLES);
 
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
@@ -204,7 +204,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
 	const float centerLum = Math::Luminance(centerColor);
 	const float alpha = roughness * roughness;
 	const float u0 = rng.Uniform();
-	const uint offset = rng.UintRange(0, NUM_SAMPLES);
+	const uint offset = rng.UniformUintBounded_Faster(NUM_SAMPLES);
 
 	const float theta = u0 * TWO_PI;
 	const float sinTheta = sin(theta);
@@ -282,12 +282,20 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 		return;
 
 #if THREAD_GROUP_SWIZZLING
+    uint16_t2 swizzledGid;
+
 	// swizzle thread groups for better L2-cache behavior
 	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(SKY_DI_DNSR_SPATIAL_GROUP_DIM_X, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y),
-		g_local.DispatchDimX, SKY_DI_DNSR_SPATIAL_TILE_WIDTH, SKY_DI_DNSR_SPATIAL_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
+	const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
+		uint16_t2(SKY_DI_DNSR_SPATIAL_GROUP_DIM_X, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y),
+		g_local.DispatchDimX, 
+		SKY_DI_DNSR_SPATIAL_TILE_WIDTH, 
+		SKY_DI_DNSR_SPATIAL_LOG2_TILE_WIDTH, 
+		g_local.NumGroupsInTile,
+		swizzledGid);
 #else
 	const uint2 swizzledDTid = DTid.xy;
+	const uint2 swizzledGid = Gid.xy;
 #endif
 
 	if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)

@@ -446,6 +446,9 @@ void TLAS::RebuildTLAS(ComputeCmdList& cmdList)
 			(uint32_t)prebuildInfo.ScratchDataSizeInBytes,
 			D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
 			true);
+
+		auto& r = App::GetRenderer().GetSharedShaderResources();
+		r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_SCENE_BVH, m_tlasBuffer);
 	}
 
 	if (!m_scratchBuffer.IsInitialized() || m_scratchBuffer.Desc().Width < prebuildInfo.ScratchDataSizeInBytes)

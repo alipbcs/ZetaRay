@@ -178,7 +178,7 @@ void DisplayPass::Render(CommandList& cmdList)
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
 	GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
-	Assert(m_compositedSrvDescHeapIdx != -1, "Gpu Desc Idx hasn't been set.");
+	Assert(m_compositedSrvDescHeapIdx != uint32_t(-1), "Gpu Desc Idx hasn't been set.");
 	Assert(m_cbLocal.ExposureDescHeapIdx > 0, "Gpu Desc Idx hasn't been set.");
 
 	auto& renderer = App::GetRenderer();

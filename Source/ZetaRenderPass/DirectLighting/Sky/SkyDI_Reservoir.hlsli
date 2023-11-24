@@ -19,8 +19,6 @@ namespace SkyDI_Util
 			res.W = 0;
 			res.wi = 0.0.xxx;
 			res.Target = 0;
-			res.NeedsShadowRay = false;
-			res.Visible = true;
 		
 			return res;
 		}
@@ -35,8 +33,6 @@ namespace SkyDI_Util
 			res.W = W;
 			res.wi = wi;
 			res.Target = 0;
-			res.NeedsShadowRay = false;
-			res.Visible = true;
 		
 			return res;
 		}
@@ -69,8 +65,6 @@ namespace SkyDI_Util
 		float3 Le;
 		float3 Target;
 		half M;
-		bool NeedsShadowRay;
-		bool Visible;
 	};
 
 	float2 VirtualMotionReproject(float3 posW, float roughness, BRDF::ShadingData surface, float sampleRayT,

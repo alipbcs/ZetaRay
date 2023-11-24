@@ -91,7 +91,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 		wi = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * wi;
 	}
 	
-	bool trace = trace && wi.y > 0 && dot(wi, normal) > 0;
+	bool trace = wi.y > 0 && dot(wi, normal) > 0;
 	const bool isUnoccluded = trace ? EvaluateVisibility(posW, wi, normal, linearDepth) : false;
 	const uint laneMask = (isUnoccluded << WaveGetLaneIndex());
 	const uint ret = WaveActiveBitOr(laneMask);

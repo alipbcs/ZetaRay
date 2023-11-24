@@ -12,7 +12,7 @@ void GpuTimer::Init()
 	auto& renderer = App::GetRenderer();
 
 	m_directQueueFreq = renderer.GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE_DIRECT);
-	m_computeQueueFreq = renderer.GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE_DIRECT);
+	m_computeQueueFreq = renderer.GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE_COMPUTE);
 
 	// ticks/s to ticks/ms
 	m_directQueueFreq /= 1000;
@@ -57,18 +57,18 @@ Span<GpuTimer::Timing> GpuTimer::GetFrameTimings()
 void GpuTimer::BeginFrame()
 {
 	Assert(m_frameQueryCount.load(std::memory_order_relaxed) == 0,
-		"Attempting to begin a new frame while GpuTimer::Resolve() hasn't been called for the previous frame yet.");
+		"Attempting to begin a new frame while GpuTimer::Resolve() hasn't been called for the previous frame.");
 
 	if (App::GetTimer().GetTotalFrameCount() >= 1)
 	{
-		// at this point, we know previous frame's queries have been submitted
+		// At this point, previous frame's queries have been submitted
 		m_fenceVals[m_currFrameIdx] = m_nextFenceVal;
-		// advance the frame index
+		// Advance the frame index
 		m_currFrameIdx = m_currFrameIdx < Constants::NUM_BACK_BUFFERS - 1 ? m_currFrameIdx + 1 : 0;
 
 		App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal++);
 
-		// has there been any newly resolved timings?
+		// Are there been newly resolved timings?
 		bool newData = false;
 		const uint64_t completed = m_fence->GetCompletedValue();
 		const int oldNextCompletedFrameIdx = m_nextCompletedFrameIdx;
@@ -84,7 +84,7 @@ void GpuTimer::BeginFrame()
 
 		if (newData)
 		{
-			// undo the last add
+			// Undo the last add
 			const int lastCompletedFrameIdx = m_nextCompletedFrameIdx > 0 ? m_nextCompletedFrameIdx - 1 : Constants::NUM_BACK_BUFFERS - 1;
 
 			m_readbackBuff.Map();
@@ -132,6 +132,7 @@ uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name)
 	m_timings[m_currFrameIdx][queryIdx].ExecutionQueue = cmdList.GetType();
 
 	const uint32_t heapIdx = MAX_NUM_QUERIES * 2 * m_currFrameIdx + queryIdx * 2;
+	Assert((heapIdx & 0x1) == 0, "invalid query index.");
 	cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, heapIdx);
 
 	return heapIdx;
@@ -148,9 +149,12 @@ void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx)
 
 void GpuTimer::EndFrame(ComputeCmdList& cmdList)
 {
-	Assert(!m_readbackBuff.IsMapped(), "readback buffer shouldn't be mapped while in use by the GPU.");
-	const int queryCount = m_frameQueryCount.load(std::memory_order_acquire) - 1;
+	Assert(!m_readbackBuff.IsMapped(), "Readback buffer shouldn't be mapped while in use by the GPU.");
+	const int queryCount = m_frameQueryCount.load(std::memory_order_acquire);
 	m_queryCounts[m_currFrameIdx] = queryCount;
+
+	if (queryCount == 0)
+		return;
 
 	uint32_t heapStartIdx = m_currFrameIdx * MAX_NUM_QUERIES * 2;
 	uint64_t bufferOffsetBeg = heapStartIdx * sizeof(uint64_t);

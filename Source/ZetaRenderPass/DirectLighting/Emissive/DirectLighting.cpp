@@ -6,6 +6,7 @@
 #include <RayTracing/Sampler.h>
 #include <Scene/SceneCore.h>
 #include <Core/SharedShaderResources.h>
+#include <Support/Task.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -95,12 +96,23 @@ void DirectLighting::Init()
 	auto samplers = renderer.GetStaticSamplers();
 	RenderPassBase::InitRenderPass("DirectLighting", flags, samplers);
 
+	TaskSet ts;
+
 	for (int i = 0; i < (int)SHADERS::COUNT; i++)
 	{
-		m_psos[i] = m_psoLib.GetComputePSO(i,
-			m_rootSigObj.Get(),
-			COMPILED_CS[i]);
+		StackStr(buff, n, "RDI_shader_%d", i);
+
+		ts.EmplaceTask(buff, [i, this]()
+			{
+				m_psos[i] = m_psoLib.GetComputePSO_MT(i,
+				m_rootSigObj.Get(),
+				COMPILED_CS[i]);
+			});
 	}
+
+	ts.Sort();
+	ts.Finalize();
+	App::Submit(ZetaMove(ts));
 
 	m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
 	CreateOutputs();
@@ -173,7 +185,7 @@ void DirectLighting::Init()
 	//	fastdelegate::MakeDelegate(this, &DirectLighting::FireflyFilterCallback), m_cbDnsrTemporal.FilterFirefly);
 	//App::AddParam(fireflyFilter);
 
-	App::AddShaderReloadHandler("ReSTIR_DI_SpatioTemporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
+	App::AddShaderReloadHandler("ReSTIR_DI", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
 	//App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
 	//App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrSpatial));
 
@@ -222,12 +234,12 @@ void DirectLighting::Render(CommandList& cmdList)
 		const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_TEMPORAL_GROUP_DIM_Y);
 
 		// record the timestamp prior to execution
-		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_SpatioTemporal");
+		const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI");
 
-		computeCmdList.PIXBeginEvent("ReSTIR_DI_SpatioTemporal");
+		computeCmdList.PIXBeginEvent("ReSTIR_DI");
 
-		computeCmdList.SetPipelineState(m_preSampling ? 
-			m_psos[(int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING] : 
+		computeCmdList.SetPipelineState(m_preSampling ?
+			m_psos[(int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING] :
 			m_psos[(int)SHADERS::SPATIO_TEMPORAL]);
 
 		SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
@@ -244,7 +256,7 @@ void DirectLighting::Render(CommandList& cmdList)
 			D3D12_BARRIER_SYNC_NONE,
 			D3D12_BARRIER_SYNC_COMPUTE_SHADING,
 			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS, 
+			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
 			D3D12_BARRIER_ACCESS_NO_ACCESS,
 			D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
 
@@ -293,9 +305,7 @@ void DirectLighting::Render(CommandList& cmdList)
 		m_cbSpatioTemporal.NumGroupsInTile = RESTIR_DI_TEMPORAL_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
 		m_cbSpatioTemporal.TemporalResampling = m_doTemporalResampling && m_isTemporalReservoirValid;
 		m_cbSpatioTemporal.SpatialResampling = m_doSpatialResampling && m_isTemporalReservoirValid;
-		m_cbSpatioTemporal.NumEmissiveTriangles = m_currNumTris;
-		m_cbSpatioTemporal.OneDivNumEmissiveTriangles = 1.0f / float(m_cbSpatioTemporal.NumEmissiveTriangles);
-		
+
 		{
 			auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_A_SRV : DESC_TABLE::RESERVOIR_1_A_SRV;
 			auto srvBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_B_SRV : DESC_TABLE::RESERVOIR_1_B_SRV;
@@ -370,13 +380,13 @@ void DirectLighting::Render(CommandList& cmdList)
 
 			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
-			auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV : 
+			auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV;
-			auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV : 
+			auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV;
-			auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV : 
+			auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV;
-			auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV : 
+			auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
 
 			m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
@@ -432,9 +442,9 @@ void DirectLighting::Render(CommandList& cmdList)
 
 			computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
-			auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV : 
+			auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
-			auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : 
+			auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV :
 				DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
 
 			m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
@@ -466,18 +476,18 @@ void DirectLighting::CreateOutputs()
 {
 	auto& renderer = App::GetRenderer();
 
-	auto func = [&renderer, this](Texture& tex, DXGI_FORMAT format, const char* name, 
+	auto func = [&renderer, this](Texture& tex, DXGI_FORMAT format, const char* name,
 		DESC_TABLE srv, DESC_TABLE uav)
-	{
-		tex = GpuMemory::GetTexture2D(name,
-			renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-			format,
-			D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-			CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+		{
+			tex = GpuMemory::GetTexture2D(name,
+				renderer.GetRenderWidth(), renderer.GetRenderHeight(),
+				format,
+				D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+				CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-		Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
-		Direct3DUtil::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
-	};
+			Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
+			Direct3DUtil::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
+		};
 
 	// reservoirs
 	{
@@ -529,7 +539,7 @@ void DirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 
 void DirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-	m_cbSpatioTemporal.M_max = (uint16_t) p.GetInt().m_val;
+	m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_val;
 }
 
 void DirectLighting::MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p)

@@ -2,6 +2,8 @@
 // Main.cpp
 //
 
+#define OPEN_CONSOLE 0
+
 #include <App/Log.h>
 #include <App/Timer.h>
 #include <Scene/SceneCore.h>
@@ -9,13 +11,14 @@
 #include <Default/DefaultRenderer.h>
 #include <App/Filesystem.h>
 
-#ifdef _DEBUG
+#if OPEN_CONSOLE == 1
 #include <fcntl.h>
 #include <io.h>
 #endif
 
 using namespace ZetaRay;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Model;
 
 // Indicates to hybrid graphics systems to prefer the discrete part by default
 extern "C"
@@ -29,13 +32,13 @@ extern "C"
 
 int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _In_ PSTR lpCmdLine, _In_ int nCmdShow)
 {
-#ifdef _DEBUG
+#if OPEN_CONSOLE == 1
     AllocConsole();
     HANDLE stdHandle = GetStdHandle(STD_OUTPUT_HANDLE);
     int hConsole = _open_osfhandle(reinterpret_cast<intptr_t>(stdHandle), _O_TEXT);
     FILE* fp = _fdopen(hConsole, "w");
     freopen_s(&fp, "CONOUT$", "w", stdout);
-#endif // _DEBUG
+#endif
 
     Check(strlen(lpCmdLine), "Usage: ZetaLab <path-to-gltf>\n");
 
@@ -56,16 +59,16 @@ int WINAPI WinMain(_In_ HINSTANCE hInstance, _In_opt_ HINSTANCE hPrevInstance, _
         // load the gltf model(s)
         timer.Start();
 
-        Model::glTF::Load(path);
+        glTF::Load(path);
 
         App::FlushWorkerThreadPool();
 
         timer.End();
 
-        LOG_UI(INFO, "gltf model(s) loaded in %u[ms]\n", (uint32_t)timer.DeltaMilli());
+        LOG_UI(INFO, "glTF scene loaded in %u[ms]\n", (uint32_t)timer.DeltaMilli());
     }
 
-    int ret = App::Run();
+    App::Run();
 
     return 0;
 }

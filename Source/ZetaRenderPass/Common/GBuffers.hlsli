@@ -27,7 +27,7 @@ namespace GBuffer
 		bool isMetal = metalness >= MIN_METALNESS_METAL;
 		bool isEmissive = dot(1, emissive) != 0;
 	
-		uint ret = baseColorTexture != -1;
+		uint ret = baseColorTexture != uint(-1);
 		ret |= isEmissive << 1;
 		ret |= isMetal << 7;
 

@@ -33,13 +33,13 @@ TEST_SUITE("AliasTable")
 		RNG rng(reinterpret_cast<uintptr_t>(&unused));
 		INFO("RNG seed: ", reinterpret_cast<uintptr_t>(&unused));
 
-		const uint32_t n = 1 + rng.GetUniformUintBounded(999);
+		const uint32_t n = 1 + rng.UniformUintBounded(999);
 		SmallVector<float> vals;
 		vals.resize(n);
 
 		for (uint32_t i = 0; i < n; i++)
 		{
-			float f = rng.GetUniformFloat() * 100.0f;
+			float f = rng.UniformFloat() * 100.0f;
 			vals[i] = f;
 		}
 
@@ -78,7 +78,7 @@ TEST_SUITE("AliasTable")
 		vals.resize(n);
 
 		for (uint32_t i = 0; i < n; i++)
-			vals[i] = (float)rng.GetUniformUintBounded(1000);
+			vals[i] = (float)rng.UniformUintBounded(1000);
 
 		// normalize
 		SmallVector<float> valsNormalized = vals;
