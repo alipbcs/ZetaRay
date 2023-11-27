@@ -13,6 +13,8 @@
 #include <ImGui/implot.h>
 #include <algorithm>
 
+#include "../Assets/Font/IconsFontAwesome6.h"
+
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -251,17 +253,8 @@ GuiPass::~GuiPass()
 
 void GuiPass::Init()
 {
-	// [hack] RenderPasses and App should be decoupled -- in the event of adding/removing fonts,
-	// ImGui expects the font texture to be rebuilt before ImGui::NewFrame() is called, whereas 
-	// RenderPasses are updated later in the frame. As a workaround, store a delegate to rebuild 
-	// method so that App can call it directly
-	m_font.RebuildFontTexDlg = fastdelegate::MakeDelegate(this, &GuiPass::RebuildFontTex);
-
 	ImGuiIO& io = ImGui::GetIO();
-	io.UserData = reinterpret_cast<void*>(&m_font.RebuildFontTexDlg);
 	io.ConfigWindowsResizeFromEdges = true;
-
-	RebuildFontTex();
 
 	// root signature
 	{
@@ -328,9 +321,6 @@ void GuiPass::Reset()
 {
 	if (IsInitialized())
 	{
-		m_imguiFontTex.Reset();
-		m_fontTexSRV.Reset();
-
 		for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
 		{
 			m_imguiFrameBuffs[i].IndexBuffer.Reset();
@@ -389,26 +379,6 @@ void GuiPass::UpdateBuffers()
 	}
 }
 
-void GuiPass::Update()
-{
-	if (m_font.IsStale)
-	{
-		// Upload texture to GPU
-		Assert(m_font.Pixels, "pointer to pixels was NULL.");
-		Assert(m_font.Width && m_font.Height, "invalid texture dims.");
-
-		m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFontTex", m_font.Width, m_font.Height, DXGI_FORMAT_R8G8B8A8_UNORM,
-			D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, m_font.Pixels);
-
-		m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
-
-		// Create texture view
-		Direct3DUtil::CreateTexture2DSRV(m_imguiFontTex, m_fontTexSRV.CPUHandle(0));
-
-		m_font.IsStale = false;
-	}
-}
-
 void GuiPass::Render(CommandList& cmdList)
 {
 	Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
@@ -456,7 +426,8 @@ void GuiPass::Render(CommandList& cmdList)
 		memcpy(&cb.WVP, mvp, sizeof(mvp));
 	}
 
-	cb.FontTex = m_fontTexSRV.GPUDesciptorHeapIndex();
+	void* userData = ImGui::GetIO().UserData;
+	memcpy(&cb.FontTex, &userData, sizeof(cb.FontTex));
 
 	D3D12_VIEWPORT viewports[1] = { renderer.GetDisplayViewport() };
 	directCmdList.RSSetViewports(1, viewports);
@@ -522,7 +493,7 @@ void GuiPass::Render(CommandList& cmdList)
 	// record the timestamp after execution
 	gpuTimer.EndQuery(directCmdList, queryIdx);
 
-	// [hack] this is the last RenderPass, transition to PRESENT can be done here
+	// HACK this is the last RenderPass, transition to PRESENT can be done here
 	directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().Resource(),
 		D3D12_RESOURCE_STATE_RENDER_TARGET,
 		D3D12_RESOURCE_STATE_PRESENT);
@@ -543,19 +514,19 @@ void GuiPass::RenderSettings()
 
 	m_logWndWidth = displayWidth - ImGui::GetWindowWidth();
 
-	if (ImGui::CollapsingHeader("Info", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader(ICON_FA_INFO "  Info", ImGuiTreeNodeFlags_None))
 	{
 		InfoTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Camera", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader(ICON_FA_CAMERA "  Camera", ImGuiTreeNodeFlags_None))
 	{
 		CameraTab();
 		ImGui::Text("");
 	}
 
-	if (ImGui::CollapsingHeader("Settings", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader(ICON_FA_WRENCH "  Settings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		ParameterTab();
 		ImGui::Text("");
@@ -572,7 +543,7 @@ void GuiPass::RenderSettings()
 	//	ImGui::Text("");
 	//}
 
-	if (ImGui::CollapsingHeader("Shader Hot-Reload", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader(ICON_FA_ROTATE_RIGHT "  Shader Hot-Reload", ImGuiTreeNodeFlags_None))
 	{
 		ShaderReloadTab();
 		ImGui::Text("");
@@ -590,11 +561,8 @@ void GuiPass::RenderProfiler()
 	auto& renderer = App::GetRenderer();
 	auto& timer = App::GetTimer();
 
-	if (ImGui::CollapsingHeader("Stats", ImGuiTreeNodeFlags_None))
+	if (ImGui::CollapsingHeader(ICON_FA_CHART_LINE "  Stats", ImGuiTreeNodeFlags_None))
 	{
-		//ImGui::Text("Device: %s", renderer.GetDeviceDescription());
-		//ImGui::Text("Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
-		//ImGui::Text("Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
 		ImGui::Text("Frame %llu", timer.GetTotalFrameCount());
 
 		ImGui::SameLine();
@@ -644,7 +612,7 @@ void GuiPass::RenderProfiler()
 		ImGui::Text(""); 
 	}
 
-	if (ImGui::CollapsingHeader("GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
+	if (ImGui::CollapsingHeader(ICON_FA_CLOCK "  GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
 	{
 		auto frameTimeHist = App::GetFrameTimeHistory();
 
@@ -693,12 +661,12 @@ void GuiPass::RenderLogWindow()
 	ImGui::Text("#Items: %d\t", (int)m_logs.size());
 	ImGui::SameLine();
 
-	if (ImGui::Button("Clear"))
+	if (ImGui::Button(ICON_FA_TRASH_CAN "  Clear"))
 		m_logs.clear();
 	
 	ImGui::SameLine();
 
-	if (ImGui::Button("Close"))
+	if (ImGui::Button(ICON_FA_XMARK "  Close"))
 		m_closeLogsTab = true;
 
 	ImGui::Separator();
@@ -751,7 +719,7 @@ void GuiPass::RenderMainHeader()
 	ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
 
 	auto flags = m_closeLogsTab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
-	const bool showMainWnd = ImGui::BeginTabItem("		Main		", nullptr, flags);
+	const bool showMainWnd = ImGui::BeginTabItem(ICON_FA_DISPLAY "		Main		", nullptr, flags);
 	if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNone))
 	{
 		ImGui::PopStyleVar();
@@ -765,7 +733,7 @@ void GuiPass::RenderMainHeader()
 		ImGui::EndTabItem();
 	}
 
-	const bool renderGraphTab = ImGui::BeginTabItem("		Render Graph		");
+	const bool renderGraphTab = ImGui::BeginTabItem(ICON_FA_SHARE_NODES "		Render Graph		");
 
 	if (ImGui::IsItemHovered())
 	{
@@ -799,7 +767,7 @@ void GuiPass::RenderMainHeader()
 	if (!m_firstTime && m_logs.size() != m_prevNumLogs)
 		flags = ImGuiTabItemFlags_SetSelected;
 
-	if(ImGui::BeginTabItem("		Logs		", nullptr, flags))
+	if(ImGui::BeginTabItem(ICON_FA_TERMINAL "		Logs		", nullptr, flags))
 	{
 		m_closeLogsTab = false;
 		RenderLogWindow();
@@ -821,7 +789,7 @@ void GuiPass::InfoTab()
 	auto& renderer = App::GetRenderer();
 	ImGui::Text(" - Device: %s", renderer.GetDeviceDescription());
 	ImGui::Text(" - Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
-	ImGui::Text(" - Display Resolution: %d x %d (%u dpi)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
+	ImGui::Text(" - Display Resolution: %d x %d (%u DPI)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
 	ImGui::Text("");
 	ImGui::Text(" - Controls:");
 	ImGui::Text("\t- WASD+LMB moves the camera");
@@ -838,7 +806,7 @@ void GuiPass::CameraTab()
 
 	ImGui::Text(" - Camera Position: (%.3f, %.3f, %.3f)", camPos.x, camPos.y, camPos.z);
 	ImGui::SameLine(275);
-	if (ImGui::Button("Copy##0"))
+	if (ImGui::Button(ICON_FA_COPY " Copy##0"))
 	{
 		StackStr(buffer, n, "%.4f, %.4f, %.4f", camPos.x, camPos.y, camPos.z);
 		App::CopyToClipboard(buffer);
@@ -849,7 +817,7 @@ void GuiPass::CameraTab()
 	ImGui::Text(" - View Basis Y: (%.3f, %.3f, %.3f)", viewBasisY.x, viewBasisY.y, viewBasisY.z);
 	ImGui::Text(" - View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
 	ImGui::SameLine(275);
-	if (ImGui::Button("Copy##1"))
+	if (ImGui::Button(ICON_FA_COPY " Copy##1"))
 	{
 		StackStr(buffer, n, "%.4f, %.4f, %.4f", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
 		App::CopyToClipboard(buffer);
@@ -899,12 +867,7 @@ void GuiPass::ParameterTab()
 		for (size_t i = 0; i < params.size();)
 		{
 			ParamVariant& p = params[i];
-
-			const char* l = p.GetGroup();
-			size_t n = strlen(l);
-			Assert(n < ParamVariant::MAX_GROUP_LEN - 1, "buffer overflow");
-			memcpy(currGroup, p.GetGroup(), n);
-			currGroup[n] = '\0';
+			memcpy(currGroup, p.GetGroup(), ParamVariant::MAX_GROUP_LEN);
 
 			const size_t beg = i;
 
@@ -1062,10 +1025,3 @@ void GuiPass::ShaderReloadTab()
 		ImGui::EndDisabled();
 }
 
-void GuiPass::RebuildFontTex()
-{
-	ImGuiIO& io = ImGui::GetIO();
-	io.Fonts->GetTexDataAsRGBA32(&m_font.Pixels, &m_font.Width, &m_font.Height);
-
-	m_font.IsStale = true;
-}

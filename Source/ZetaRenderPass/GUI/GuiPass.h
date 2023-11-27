@@ -33,7 +33,6 @@ namespace ZetaRay::RenderPass
 			Assert(i < SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
 			m_cpuDescriptors[i] = h;
 		}
-		void Update();
 		void Render(Core::CommandList& cmdList);
 
 	private:
@@ -47,7 +46,6 @@ namespace ZetaRay::RenderPass
 		void ParameterTab();
 		void GpuTimingsTab();
 		void ShaderReloadTab();
-		void RebuildFontTex();
 
 		static constexpr int NUM_CBV = 0;
 		static constexpr int NUM_SRV = 0;
@@ -69,10 +67,7 @@ namespace ZetaRay::RenderPass
 		};
 
 		ImGuiFrameBufferData m_imguiFrameBuffs[Core::Constants::NUM_BACK_BUFFERS];
-		Core::GpuMemory::Texture m_imguiFontTex;
-		Core::DescriptorTable m_fontTexSRV;
 		D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };
-
 		Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
 
 		int m_currShader = -1;
@@ -87,16 +82,5 @@ namespace ZetaRay::RenderPass
 		int m_prevNumLogs = 0;
 
 		Util::SmallVector<App::LogMessage> m_logs;
-
-		struct FontTex
-		{
-			fastdelegate::FastDelegate0<> RebuildFontTexDlg;
-			uint8_t* Pixels;
-			int Width;
-			int Height;
-			bool IsStale;
-		};
-
-		FontTex m_font;
 	};
 }

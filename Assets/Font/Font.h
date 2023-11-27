@@ -6,16 +6,14 @@ extern "C" {
 
 struct FontSpan
 {
-	const char* Data;
+	const void* Data;
 	size_t N;
 };
 
 enum FONT_TYPE
 {
-	SEGOE_UI,
 	ROBOTO_REGULAR,
-	DOMINE_MEDIUM,
-	DEJAVU_SANS,
+	FONT_AWESOME_6,
 	COUNT
 };
 

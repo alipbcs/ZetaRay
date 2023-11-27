@@ -22,6 +22,7 @@
 
 #include <Uxtheme.h>	// for HTHEME
 
+using namespace ZetaRay;
 using namespace ZetaRay::App;
 using namespace ZetaRay::App::Common;
 using namespace ZetaRay::Core;
@@ -165,6 +166,9 @@ namespace
 		int m_imguiMouseButtonsDown = 0;
 		bool m_imguiMouseTracked = false;
 		uint16_t m_dpi;
+		Core::GpuMemory::Texture m_imguiFontTex;
+		Core::DescriptorTable m_fontTexSRV;
+
 		float m_upscaleFactor = 1.0f;
 		float m_queuedUpscaleFactor = 1.0f;
 		float m_cameraAcceleration = 40.0f;
@@ -199,7 +203,6 @@ namespace
 		std::atomic_int32_t m_currTaskSignalIdx = 0;
 		Motion m_frameMotion;
 		SmallVector<LogMessage, FrameAllocator> m_frameLogs;
-		fastdelegate::FastDelegate0<> m_rebuildFontTexDlg;
 		char m_clipboard[CLIPBOARD_LEN];
 		bool m_isInitialized = false;
 		bool m_issueResize = false;
@@ -226,28 +229,43 @@ namespace ZetaRay::AppImpl
 		FontSpan f = fpGetFont(fontType);
 		Check(f.Data, "font was not found.");
 
-		float fontSizePixels96;
-
-		if constexpr (fontType == FONT_TYPE::SEGOE_UI)
-			fontSizePixels96 = 13.8f;
-		else if constexpr (fontType == FONT_TYPE::ROBOTO_REGULAR)
-			fontSizePixels96 = 12.8f;
-		else if constexpr (fontType == FONT_TYPE::DOMINE_MEDIUM)
-			fontSizePixels96 = 12.0f;
-		else
-			fontSizePixels96 = 13.6f;
-
+		constexpr float fontSizePixels96 = 12.8f;
 		const float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
-		ImFont* font = io.Fonts->AddFontFromMemoryCompressedBase85TTF(f.Data, fontSizePixelsDPI);
+
+		ImFontConfig font_cfg;
+		font_cfg.FontDataOwnedByAtlas = false;
+		io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data), fontSizePixelsDPI, &font_cfg);
+
+		float baseFontSize = 16;
+		baseFontSize *= ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
+		float iconFontSize = baseFontSize * 2.0f / 3.0f; // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
+
+		static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+		ImFontConfig icons_config;
+		icons_config.MergeMode = true;
+		icons_config.PixelSnapH = true;
+		icons_config.GlyphMinAdvanceX = iconFontSize;
+		icons_config.FontDataOwnedByAtlas = false;
+
+		auto iconFont = fpGetFont(FONT_TYPE::FONT_AWESOME_6);
+		io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(iconFont.Data), (int)iconFont.N, iconFontSize, &icons_config, icons_ranges);
+
+		unsigned char* pixels;
+		int width;
+		int height;
+		io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
+
+		g_app->m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFont", width, height, 
+			DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, pixels);
+
+		g_app->m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
+		Direct3DUtil::CreateTexture2DSRV(g_app->m_imguiFontTex, g_app->m_fontTexSRV.CPUHandle(0));
+
+		const uint32_t gpuDescHeapIdx = g_app->m_fontTexSRV.GPUDesciptorHeapIndex(0);
+		Assert(sizeof(gpuDescHeapIdx) <= sizeof(io.UserData), "overflow");
+		memcpy(&io.UserData, &gpuDescHeapIdx, sizeof(gpuDescHeapIdx));
 
 		FreeLibrary(fontLib);
-
-		// font texture is always built in the first frame
-		if (g_app->m_timer.GetTotalFrameCount() > 0)
-		{
-			Assert(!g_app->m_rebuildFontTexDlg.empty(), "delegate hasn't been set.");
-			g_app->m_rebuildFontTexDlg();
-		}
 	}
 
 	void OnActivated()
@@ -409,7 +427,6 @@ namespace ZetaRay::AppImpl
 		io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
 		io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
 
-		io.UserData = &g_app->m_rebuildFontTexDlg;
 		LoadFont();
 
 		ImNodes::GetIO().AltMouseButton = ImGuiMouseButton_Right;
@@ -789,6 +806,9 @@ namespace ZetaRay::AppImpl
 		ImNodes::DestroyContext();
 
 		App::FlushAllThreadPools();
+
+		g_app->m_imguiFontTex.Reset();
+		g_app->m_fontTexSRV.Reset();
 
 		g_app->m_scene.Shutdown();
 		g_app->m_renderer.Shutdown();
@@ -1283,13 +1303,13 @@ namespace ZetaRay
 		g_app->m_displayWidth = (uint16_t)(rect.right - rect.left);
 		g_app->m_displayHeight = (uint16_t)(rect.bottom - rect.top);
 
-		// ImGui
-		AppImpl::InitImGui();
-
 		// initialize renderer
 		const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
 		const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 		g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+
+		// ImGui
+		AppImpl::InitImGui();
 
 		// initialize camera
 		g_app->m_frameMotion.Reset();

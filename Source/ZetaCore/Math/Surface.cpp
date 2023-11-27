@@ -89,7 +89,7 @@ void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span
 		tangents[i2] += T;
 	}
 
-	// Gram–Schmidt Orthonormalization
+	// Gram-Schmidt Orthonormalization
 	// assumes vertex normala are normalized
 	for(size_t i = 0; i < vertices.size(); i++)
 	{
@@ -109,38 +109,3 @@ void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span
 
 	delete[] tangents;
 }
-
-//void Math::MergeBoundingBoxes(BoundingBox& out, const BoundingBox& b1, const BoundingBox& b2)
-//{
-//	// NOTE: DirectX::BoundingBox's default constructor initializes center to (0, 0, 0)
-//	// and extents to (1, 1, 1). When a non-defualt AABB is merged with a default-contructed one, 
-//	// intuitively, we might expect the result to be just the latter AABB. But due to the default values
-//	// for center and extents, this is not neccessarilty the case.
-//	const float EPS = 1e-4;
-//	const bool b1Degenerate = b1.Extents.x < EPS || b1.Extents.y < EPS || b1.Extents.z < EPS;
-//	const bool b2Degenerate = b2.Extents.x < EPS || b2.Extents.y < EPS || b2.Extents.z < EPS;
-//
-//	Check(!b1Degenerate || !b2Degenerate, "Degenerate AABBs in the inputs.", SEVERITY::FATAL);
-//
-//	BoundingBox merged;
-//	BoundingBox::CreateMerged(merged, b1, b2);
-//
-//	out = b1Degenerate ? b2 : (b2Degenerate ? b1 : merged);
-//
-//	// release build breaks because of these lines
-////#ifdef _DEBUG
-////	if (b1Empty)
-////	{
-////		out = b2;
-////		return;
-////	}
-////
-////	if (b2Empty)
-////	{
-////		out = b1;
-////		return;
-////	}
-////
-////#endif // _DEBUG
-//}
-

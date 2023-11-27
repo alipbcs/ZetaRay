@@ -104,7 +104,6 @@ namespace ZetaRay::Util
 			return m_end;
 		}
 
-
 		ZetaInline T* data()
 		{
 			return m_beg;
@@ -694,7 +693,7 @@ namespace ZetaRay::Util
 	// 
 	// Dynamic array with inline storage that holds a static number of elements within the 
 	// object. Inspired by the following talk:
-	// Chandler Carruth, “High Performance Code 201: Hybrid Data Structures", CppCon 2016.
+	// Chandler Carruth, "High Performance Code 201: Hybrid Data Structures", CppCon 2016.
 	//--------------------------------------------------------------------------------------
 
 	constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)

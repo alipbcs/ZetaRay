@@ -492,7 +492,7 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
 
 	// From DXR specs:
 	// acceleration structures must always be in D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE, 
-	// so resource state transitions can’t be used to synchronize between writes and reads of acceleration 
+	// so resource state transitions can't be used to synchronize between writes and reads of acceleration 
 	// structure data. Instead, UAV barriers must be used on resources holding acceleration structure data 
 	// between operations that write to an acceleration structure (such as BuildRaytracingAccelerationStructure()) 
 	// and operations that read from them (such as DispatchRays())

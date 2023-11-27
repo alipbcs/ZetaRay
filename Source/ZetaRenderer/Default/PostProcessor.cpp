@@ -192,8 +192,6 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 		data.DisplayPass.SetGpuDescriptor(DisplayPass::SHADER_IN_GPU_DESC::COMPOSITED,
 			data.WindowSizeConstSRVs.GPUDesciptorHeapIndex((int)compositedSrv));
 	}
-
-	data.GuiPass.Update();
 }
 
 void PostProcessor::Register(const RenderSettings& settings, PostProcessData& data, RenderGraph& renderGraph)
