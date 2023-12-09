@@ -3,15 +3,6 @@
 
 #include "../../ZetaCore/Core/HLSLCompat.h"
 
-#define DOF_CoC_THREAD_GROUP_DIM_X 8u
-#define DOF_CoC_THREAD_GROUP_DIM_Y 8u
-
-#define DOF_GATHER_THREAD_GROUP_DIM_X 8u
-#define DOF_GATHER_THREAD_GROUP_DIM_Y 8u
-
-#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_X 8u
-#define GAUSSIAN_FILTER_THREAD_GROUP_DIM_Y 8u
-
 enum class DisplayOption
 {
 	DEFAULT,
@@ -51,29 +42,6 @@ struct cbDisplayPass
 	uint32_t LUTDescHeapIdx;
 
 	float Saturation;
-};
-
-struct cbDoF_Gather
-{
-	uint32_t CompositedSrvDescHeapIdx;
-	uint32_t CoCSrvDescHeapIdx;
-	uint32_t CoCUavDescHeapIdx;
-	uint32_t OutputUavDescHeapIdx;
-
-	float FocalLength;
-	float FStop;
-	float FocusDepth;
-
-	float RadiusScale;
-	float MaxBlurRadius;
-	float MinLumToFilter;
-	uint32_t IsGaussianFilterEnabled;
-};
-
-struct cbGaussianFilter
-{
-	uint32_t GatherSrvDescHeapIdx;
-	uint32_t FilteredUavDescHeapIdx;
 };
 
 #endif // FINAL_PASS_H

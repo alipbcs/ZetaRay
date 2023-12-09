@@ -81,7 +81,6 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
 	else if (settings.AntiAliasing == AA::FSR2)
 		data.Fsr2Pass.OnWindowResized();
 
-	data.DisplayPass.OnWindowResized();
 	UpdateWndDependentDescriptors(settings, data);
 }
 
