@@ -9,7 +9,7 @@
 #include <Core/PipelineStateLibrary.h>
 #include <Utility/Utility.h>
 #include <Support/Task.h>
-#include <GBufferRT/GenerateDepthBuffer.h>
+#include <GBuffer/GenerateDepthBuffer.h>
 
 #include <FSR2/Include/ffx_fsr2.h>
 #include <FSR2/Include/shaders/ffx_fsr2_resources.h>

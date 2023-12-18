@@ -4,7 +4,7 @@
 #include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
-#include <GBufferRT/GBufferRT.h>
+#include <GBuffer/GBufferRT.h>
 #include <SunShadow/SunShadow.h>
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
