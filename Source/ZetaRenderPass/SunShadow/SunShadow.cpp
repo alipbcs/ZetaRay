@@ -132,7 +132,7 @@ void SunShadow::Render(CommandList& cmdList)
 	auto& renderer = App::GetRenderer();
 	auto& gpuTimer = renderer.GetGpuTimer();
 	const uint32_t w = renderer.GetRenderWidth();
-	const uint32_t h = renderer.GetRenderWidth();
+	const uint32_t h = renderer.GetRenderHeight();
 
 	// shadow mask
 	{
