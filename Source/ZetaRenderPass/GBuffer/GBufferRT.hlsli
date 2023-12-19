@@ -212,9 +212,11 @@ namespace GBufferRT
              baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
         }
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-        if (mat.NormalTexture != uint32_t(-1) && abs(dot(tangent, tangent)) > 1e-6)
+        const uint16_t normalTex = mat.GetNormalTex();
+
+        if (normalTex != uint16_t(-1) && abs(dot(tangent, tangent)) > 1e-6)
         {
-            NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + mat.NormalTexture)];
+            NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + normalTex)];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
             shadingNormal = Math::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, emissiveColorNormalScale.w);

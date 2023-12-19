@@ -345,7 +345,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         if (matDesc.NormalTexPath != uint64_t(-1))
             addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
 
-        mat.NormalTexture = tableOffset;
+        mat.SetNormalTex(tableOffset);
     }
 
     {

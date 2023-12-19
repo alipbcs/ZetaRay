@@ -548,6 +548,9 @@ namespace
                     desc.EmissiveStrength = mat.emissive_strength.emissive_strength;
             }
 
+            if (mat.has_ior)
+                desc.IOR = mat.ior.ior;
+
             SceneCore& scene = App::GetScene();
             scene.AddMaterial(desc, ddsImages, false);
         }

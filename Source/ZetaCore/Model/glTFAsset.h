@@ -55,7 +55,8 @@ namespace ZetaRay::Model::glTF::Asset
             Index(-1),
             BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
             EmissiveFactor(0.0f, 0.0f, 0.0f),
-            EmissiveStrength(1.0f)
+            EmissiveStrength(1.0f),
+            IOR(1.5f)
         {}
 
         // Unique index of each material within the glTF scene
@@ -72,6 +73,7 @@ namespace ZetaRay::Model::glTF::Asset
         float MetallicFactor;
         float RoughnessFactor;
         float NormalScale;
+        float IOR;
 
         float AlphaCuttoff;
         Material::ALPHA_MODE AlphaMode;
