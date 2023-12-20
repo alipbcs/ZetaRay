@@ -22,12 +22,12 @@ StructuredBuffer<Material> g_materials : register(t4);
 
 struct RayPayload
 {
-	float t;
-	float3 normal;
-	float3 tangent;
-	float2 uv;
-	uint matIdx;
-	float2 prevPosNDC;
+    float t;
+    float3 normal;
+    float3 tangent;
+    float2 uv;
+    uint matIdx;
+    float2 prevPosNDC;
     float3 dpdu;
     float3 dpdv;
 };
@@ -36,32 +36,32 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 {
     const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(geoIdx + instanceID)];
 
-	float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
-	if(alphaFactor_cutoff.y == 1.0)
-	 	return false;
+    float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
+    if(alphaFactor_cutoff.y == 1.0)
+         return false;
 
-	float alpha = alphaFactor_cutoff.x;
+    float alpha = alphaFactor_cutoff.x;
     
-	if(meshData.BaseColorTex != uint16_t(-1))
-	{
-		uint tri = primIdx * 3;
-		tri += meshData.BaseIdxOffset;
-		uint i0 = g_sceneIndices[NonUniformResourceIndex(tri)] + meshData.BaseVtxOffset;
-		uint i1 = g_sceneIndices[NonUniformResourceIndex(tri + 1)] + meshData.BaseVtxOffset;
-		uint i2 = g_sceneIndices[NonUniformResourceIndex(tri + 2)] + meshData.BaseVtxOffset;
+    if(meshData.BaseColorTex != uint16_t(-1))
+    {
+        uint tri = primIdx * 3;
+        tri += meshData.BaseIdxOffset;
+        uint i0 = g_sceneIndices[NonUniformResourceIndex(tri)] + meshData.BaseVtxOffset;
+        uint i1 = g_sceneIndices[NonUniformResourceIndex(tri + 1)] + meshData.BaseVtxOffset;
+        uint i2 = g_sceneIndices[NonUniformResourceIndex(tri + 2)] + meshData.BaseVtxOffset;
 
-		Vertex V0 = g_sceneVertices[NonUniformResourceIndex(i0)];
-		Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
-		Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
+        Vertex V0 = g_sceneVertices[NonUniformResourceIndex(i0)];
+        Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
+        Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
 
-		float2 uv = V0.TexUV + bary.x * (V1.TexUV - V0.TexUV) + bary.y * (V2.TexUV - V0.TexUV);
+        float2 uv = V0.TexUV + bary.x * (V1.TexUV - V0.TexUV) + bary.y * (V2.TexUV - V0.TexUV);
 
-		BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex)];
-		alpha = g_baseCol.SampleLevel(g_samLinearWrap, uv, 0).a;
-	}
+        BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex)];
+        alpha = g_baseCol.SampleLevel(g_samLinearWrap, uv, 0).a;
+    }
 
-	if (alpha < alphaFactor_cutoff.y) 
-		return false;
+    if (alpha < alphaFactor_cutoff.y) 
+        return false;
 
     return true;
 }
@@ -69,14 +69,14 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 RayPayload PrimaryHitData(float3 cameraRayDir)
 {
     RayDesc cameraRay;
-	cameraRay.Origin = g_frame.CameraPos;
-	cameraRay.TMin = g_frame.CameraNear;
-	cameraRay.TMax = FLT_MAX;
-	cameraRay.Direction = cameraRayDir;
+    cameraRay.Origin = g_frame.CameraPos;
+    cameraRay.TMin = g_frame.CameraNear;
+    cameraRay.TMax = FLT_MAX;
+    cameraRay.Direction = cameraRayDir;
 
-	// find primary surface point
-	RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> rayQuery;
-	
+    // find primary surface point
+    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> rayQuery;
+    
     rayQuery.TraceRayInline(g_bvh, 
         RAY_FLAG_NONE, 
         RT_AS_SUBGROUP::ALL, 
@@ -105,7 +105,7 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         uint primIdx = rayQuery.CommittedPrimitiveIndex();
         float2 bary = rayQuery.CommittedTriangleBarycentrics();
 
-	    const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(meshIdx)];
+        const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(meshIdx)];
 
         payload.t = rayQuery.CommittedRayT();
         payload.matIdx = meshData.MatIdx;
@@ -185,33 +185,33 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
 void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-	// swizzle thread groups for better L2-cache behavior
-	// Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
+    // swizzle thread groups for better L2-cache behavior
+    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(GBUFFER_RT_GROUP_DIM_X, GBUFFER_RT_GROUP_DIM_Y),
         g_local.DispatchDimX, GBUFFER_RT_TILE_WIDTH, GBUFFER_RT_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
 #else
-	const uint2 swizzledDTid = DTid.xy;
+    const uint2 swizzledDTid = DTid.xy;
 #endif
 
     if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
         return;
 
     float3 cameraRayDir = RT::GeneratePinholeCameraRay(swizzledDTid, 
-		float2(g_frame.RenderWidth, g_frame.RenderHeight),
-    	g_frame.AspectRatio, 
-		g_frame.TanHalfFOV, 
-		g_frame.CurrView[0].xyz, 
-		g_frame.CurrView[1].xyz, 
-		g_frame.CurrView[2].xyz,
+        float2(g_frame.RenderWidth, g_frame.RenderHeight),
+        g_frame.AspectRatio, 
+        g_frame.TanHalfFOV, 
+        g_frame.CurrView[0].xyz, 
+        g_frame.CurrView[1].xyz, 
+        g_frame.CurrView[2].xyz,
         g_frame.CurrCameraJitter);
 
     RayPayload rayPayload = PrimaryHitData(cameraRayDir);
-	
+    
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)
     {
         RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
-		g_depth[swizzledDTid] = FLT_MAX;
+        g_depth[swizzledDTid] = FLT_MAX;
 
         // just the camera motion
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
@@ -230,10 +230,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
     float2 motionVec = currUV - prevUV;
 
     // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.
-	float4 grads = GBufferRT::UVDifferentials(swizzledDTid, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
+    float4 grads = GBufferRT::UVDifferentials(swizzledDTid, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
         rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
-	float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
+    float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
     // save the view-space z, so that position can be reconstructed
     float3 posV = mul(g_frame.CurrView, float4(posW, 1.0f));
     GBufferRT::ApplyTextureMaps(swizzledDTid, posV.z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 

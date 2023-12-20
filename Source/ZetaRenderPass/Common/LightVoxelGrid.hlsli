@@ -63,7 +63,7 @@ namespace LVG
             return false;
         
         uint start = FlattenVoxelIndex(voxelIdx, gridDim) * numLightsPerVoxel;
-		uint u = rng.UniformUintBounded_Faster(numLightsPerVoxel);
+        uint u = rng.UniformUintBounded_Faster(numLightsPerVoxel);
         s = g_voxel[start + u];
         
         return true;

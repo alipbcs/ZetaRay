@@ -8,7 +8,7 @@ function(SetupDXC DXC_BIN_DIR)
         message(STATUS "Downloading DXC from ${URL}...")
         set(ARCHIVE_PATH "${TOOLS_DIR}/dxc.zip")
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)
-        
+
         file(ARCHIVE_EXTRACT INPUT "${ARCHIVE_PATH}" DESTINATION "${DXC_DIR}")
         file(REMOVE_RECURSE "${DXC_DIR}/bin/arm64")
         file(REMOVE_RECURSE "${DXC_DIR}/bin/x86")
@@ -20,9 +20,9 @@ function(SetupDXC DXC_BIN_DIR)
 
         if(DXC_BIN_PATH STREQUAL "")
             message(FATAL_ERROR "Setting up DXC failed.")
-        endif()      
+        endif()
     endif()
-            
+
     get_filename_component(PARENT_DIR ${DXC_BIN_PATH} DIRECTORY)
     set(${DXC_BIN_DIR} ${PARENT_DIR} PARENT_SCOPE)
 endfunction()

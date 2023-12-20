@@ -42,9 +42,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 
 if(MSVC)
-	if(MSVC_TOOLSET_VERSION VERSION_LESS 142)
-		message(FATAL_ERROR "MSVC toolset version 142 or greater is required.")
-	endif()
+    if(MSVC_TOOLSET_VERSION VERSION_LESS 142)
+        message(FATAL_ERROR "MSVC toolset version 142 or greater is required.")
+    endif()
 
     # disable exceptions
     string(REPLACE "/EHsc" "" NEW_CXX_FLAGS ${CMAKE_CXX_FLAGS})

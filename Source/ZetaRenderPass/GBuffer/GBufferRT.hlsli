@@ -170,22 +170,22 @@ namespace GBufferRT
 
     float2 IntegrateBump(float2 x)
     {
-	    float2 f = floor(0.5f * x);
-	    return f + 2.0f * max((0.5f * x) - f - 0.5f, 0.0f);
+        float2 f = floor(0.5f * x);
+        return f + 2.0f * max((0.5f * x) - f - 0.5f, 0.0f);
     }
 
     float3 GetCheckerboardColor(float2 uv, float4 grads)
     {
-	    float2 fw = max(abs(grads.xy * 300), abs(grads.zw * 300));
-	    float width = max(fw.x, fw.y);
-	
-	    float2 p0 = uv - 0.5 * width;
-	    float2 p1 = uv + 0.5 * width;
-	
-	    float2 i = (IntegrateBump(p1) - IntegrateBump(p0)) / width;
-	    float area2 = i.x + i.y - 2 * i.x * i.y;
-	
-	    return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
+        float2 fw = max(abs(grads.xy * 300), abs(grads.zw * 300));
+        float width = max(fw.x, fw.y);
+    
+        float2 p0 = uv - 0.5 * width;
+        float2 p1 = uv + 0.5 * width;
+    
+        float2 i = (IntegrateBump(p1) - IntegrateBump(p0)) / width;
+        float area2 = i.x + i.y - 2 * i.x * i.y;
+    
+        return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
     }
 
     void ApplyTextureMaps(uint2 DTid, float t, float2 uv, uint matIdx, float3 geoNormal, float3 tangent, 
@@ -207,10 +207,10 @@ namespace GBufferRT
             BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture)];
             baseColor *= g_baseCol.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw).rgb;
         }
-    	else if (dot(baseColor.rgb, 1) == 0)
-    	{
-    	 	baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
-    	}
+        else if (dot(baseColor.rgb, 1) == 0)
+        {
+             baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
+        }
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
         if (mat.NormalTexture != uint32_t(-1) && abs(dot(tangent, tangent)) > 1e-6)
         {

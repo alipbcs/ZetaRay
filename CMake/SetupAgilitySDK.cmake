@@ -6,7 +6,7 @@ function(SetupAgilitySDK SDK_VERSION)
     
     if(CORE_DLL_PATH STREQUAL "")
         file(MAKE_DIRECTORY ${SDK_DIR})
-    
+
         # download from nuget
         set(URL "https://www.nuget.org/api/v2/package/Microsoft.Direct3D.D3D12/1.610.5")
         message(STATUS "Downloading Agility SDK from ${URL}...")
@@ -20,7 +20,7 @@ function(SetupAgilitySDK SDK_VERSION)
         
         if(SDK_HEADERS STREQUAL "")
             message(FATAL_ERROR "Setting up Agility SDK failed.")
-        endif()      
+        endif()
 
         # copy binaries
         set(DLLS
@@ -28,10 +28,10 @@ function(SetupAgilitySDK SDK_VERSION)
             "${SDK_DIR}/temp/build/native/bin/x64/d3d12SDKLayers.dll")
         
         file(COPY ${DLLS} DESTINATION ${SDK_DIR})
-    
+
         # cleanup
         file(REMOVE_RECURSE "${SDK_DIR}/temp")
     endif()
-    
+
     set(${SDK_VERSION} ${VER} PARENT_SCOPE)
 endfunction()

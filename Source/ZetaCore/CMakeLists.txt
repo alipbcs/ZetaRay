@@ -16,15 +16,15 @@ add_subdirectory(Utility)
 add_subdirectory(Win32)
 
 set(CORE_SRC
-	${APP_SRC}
-	${CORE_SRC}
-	${MATH_SRC}
-	${MODEL_SRC}
-	${RT_SRC}
-	${SCENE_SRC}
-	${SUPPORT_SRC}
-	${UTIL_SRC}
-	${WIN32_SRC})
+    ${APP_SRC}
+    ${CORE_SRC}
+    ${MATH_SRC}
+    ${MODEL_SRC}
+    ${RT_SRC}
+    ${SCENE_SRC}
+    ${SUPPORT_SRC}
+    ${UTIL_SRC}
+    ${WIN32_SRC})
 
 # 
 # ImGui
@@ -32,18 +32,18 @@ set(CORE_SRC
 SetupImGui()
 set(IMGUI_DIR "${EXTERNAL_DIR}/ImGui")
 set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
-	"${IMGUI_DIR}/imconfig.h"
-	"${IMGUI_DIR}/imgui_draw.cpp"
-	"${IMGUI_DIR}/imgui_tables.cpp"
-	"${IMGUI_DIR}/imgui_widgets.cpp"
-	"${IMGUI_DIR}/imnodes.cpp"
-	"${IMGUI_DIR}/implot.cpp"
-	"${IMGUI_DIR}/implot_items.cpp")
+    "${IMGUI_DIR}/imconfig.h"
+    "${IMGUI_DIR}/imgui_draw.cpp"
+    "${IMGUI_DIR}/imgui_tables.cpp"
+    "${IMGUI_DIR}/imgui_widgets.cpp"
+    "${IMGUI_DIR}/imnodes.cpp"
+    "${IMGUI_DIR}/implot.cpp"
+    "${IMGUI_DIR}/implot_items.cpp")
 
 # natvis
 set(NATVIS_SRC "${TOOLS_DIR}/Natvis/Container.natvis"
-	"${TOOLS_DIR}/Natvis/imgui.natvis"
-	"${TOOLS_DIR}/Natvis/App.natvis")
+    "${TOOLS_DIR}/Natvis/imgui.natvis"
+    "${TOOLS_DIR}/Natvis/App.natvis")
 
 source_group(TREE "${ZETA_CORE_DIR}" FILES ${CORE_SRC})
 source_group(TREE "${TOOLS_DIR}/Natvis" PREFIX "Natvis" FILES ${NATVIS_SRC})
@@ -82,7 +82,7 @@ add_dependencies(WinPixEventRuntimeLib CopyWinPixDLL)
 SetupAgilitySDK(AGILITY_SDK_VER)
 add_library(DX12AgilitySDK INTERFACE)
 set(DX12AgilitySDK_BIN
-	"${EXTERNAL_DIR}/D3D12/${AGILITY_SDK_VER}/D3D12Core.dll"
+    "${EXTERNAL_DIR}/D3D12/${AGILITY_SDK_VER}/D3D12Core.dll"
     "${EXTERNAL_DIR}/D3D12/${AGILITY_SDK_VER}/d3d12SDKLayers.dll")
 
 Copy("${DX12AgilitySDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/D3D12/" CopyDX12AgilitySDKBins)

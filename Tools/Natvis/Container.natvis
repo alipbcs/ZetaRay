@@ -43,15 +43,15 @@
             </ArrayItems>
         </Expand>
     </Type>
-	<Type Name="ZetaRay::Util::MutableSpan&lt;*&gt;">
-		<DisplayString>{{ size={m_size} }}</DisplayString>
-		<Expand>
-			<Item Name="[size]" ExcludeView="simple">m_size</Item>
-			<ArrayItems>
-				<Size>m_size</Size>
-				<ValuePointer>m_ptr</ValuePointer>
-			</ArrayItems>
-		</Expand>
-	</Type>
+    <Type Name="ZetaRay::Util::MutableSpan&lt;*&gt;">
+        <DisplayString>{{ size={m_size} }}</DisplayString>
+        <Expand>
+            <Item Name="[size]" ExcludeView="simple">m_size</Item>
+            <ArrayItems>
+                <Size>m_size</Size>
+                <ValuePointer>m_ptr</ValuePointer>
+            </ArrayItems>
+        </Expand>
+    </Type>
 
 </AutoVisualizer>

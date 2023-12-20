@@ -46,7 +46,7 @@ if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.24)
 endif()
 
 if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.27)
-  target_link_options(BCnCompressglTF PRIVATE /CETCOMPAT)
+    target_link_options(BCnCompressglTF PRIVATE /CETCOMPAT)
 endif()
 
 set(WarningsEXE "/wd4061" "/wd4062" "/wd4365" "/wd4514" "/wd4625" "/wd4626" "/wd4627" "/wd4668" "/wd4710" "/wd4751" "/wd4820" "/wd5026" "/wd5027" "/wd5039" "/wd5045" "/wd5219")

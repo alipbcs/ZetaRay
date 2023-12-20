@@ -6,5 +6,5 @@ set(DEFAULT_RENDERER_SRC
     "${DEFAULT_RENDERER_DIR}/DefaultRenderer.cpp"
     "${DEFAULT_RENDERER_DIR}/DefaultRenderer.h"
     "${DEFAULT_RENDERER_DIR}/DefaultRendererImpl.h")
-    
+
 set(DEFAULT_RENDERER_SRC ${DEFAULT_RENDERER_SRC} PARENT_SCOPE)

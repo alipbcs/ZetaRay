@@ -60,11 +60,11 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
     const uint3 gridDim = uint3(g_local.GridDim_x, g_local.GridDim_y, g_local.GridDim_z);   
     const uint gridStart = LVG::FlattenVoxelIndex(Gid, gridDim);
 
-	// if (gridStart * NUM_SAMPLES_PER_VOXEL + Gidx >= g_local.NumTotalSamples)
-	// 	return;
+    // if (gridStart * NUM_SAMPLES_PER_VOXEL + Gidx >= g_local.NumTotalSamples)
+    //     return;
 
     const float3 extents = float3(g_local.Extents_x, g_local.Extents_y, g_local.Extents_z);
-	RNG rng = RNG::Init(gridStart * NUM_SAMPLES_PER_VOXEL + Gidx, g_frame.FrameNum);
+    RNG rng = RNG::Init(gridStart * NUM_SAMPLES_PER_VOXEL + Gidx, g_frame.FrameNum);
     const float3 voxelCenter = LVG::VoxelCenter(Gid, gridDim, extents, g_frame.CurrViewInv, g_local.Offset_y);
 
     RT::VoxelSample r;
@@ -100,11 +100,11 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
         const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, 
            rng, lightSourcePdf);
 
-		RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
-		const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(voxelCenter, 
+        RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
+        const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(voxelCenter, 
             emissive, rng, false);
 
-		const float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+        const float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
         
         // "Snap" lights inside the voxel to its boundary planes.
         bool inside;
@@ -117,10 +117,10 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
                 continue;
         }
 
-		const float t = length(lightPos - voxelCenter);
+        const float t = length(lightPos - voxelCenter);
 
         const float target = Math::Luminance(le) / max(t * t, 1e-6);
-		const float lightPdf = lightSourcePdf * lightSample.pdf;
+        const float lightPdf = lightSourcePdf * lightSample.pdf;
         float w = target / max(lightPdf, 1e-6);
         w_sum += w;
 
@@ -137,30 +137,30 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
         numLights++;
     }
 
-	const int numLanesInWave = WaveGetLaneCount();
-	const int wave = Gidx / numLanesInWave;
-	const int numWavesInGroup = NUM_SAMPLES_PER_VOXEL / numLanesInWave;
-	float w_sum_group = WaveActiveSum(w_sum);
-	uint16_t numLightsGroup = WaveActiveSum(numLights);
-	
-	if (WaveIsFirstLane())
+    const int numLanesInWave = WaveGetLaneCount();
+    const int wave = Gidx / numLanesInWave;
+    const int numWavesInGroup = NUM_SAMPLES_PER_VOXEL / numLanesInWave;
+    float w_sum_group = WaveActiveSum(w_sum);
+    uint16_t numLightsGroup = WaveActiveSum(numLights);
+    
+    if (WaveIsFirstLane())
     {
-		g_waveSum[wave] = w_sum_group;
-		g_waveNumLights[wave] = numLightsGroup;
+        g_waveSum[wave] = w_sum_group;
+        g_waveNumLights[wave] = numLightsGroup;
     }
-	
-	GroupMemoryBarrierWithGroupSync();
+    
+    GroupMemoryBarrierWithGroupSync();
 
     const uint GidxModWaveLen = Gidx - numLanesInWave * wave;
-	w_sum_group = GidxModWaveLen < numWavesInGroup ? g_waveSum[GidxModWaveLen] : 0.0;
-	numLightsGroup = GidxModWaveLen < numWavesInGroup ? g_waveNumLights[GidxModWaveLen] : 0;
-	// Assuming min wave size of 16, there are at most NUM_SAMPLES_PER_VOXEL / 16 values to 
+    w_sum_group = GidxModWaveLen < numWavesInGroup ? g_waveSum[GidxModWaveLen] : 0.0;
+    numLightsGroup = GidxModWaveLen < numWavesInGroup ? g_waveNumLights[GidxModWaveLen] : 0;
+    // Assuming min wave size of 16, there are at most NUM_SAMPLES_PER_VOXEL / 16 values to 
     // add together, so one WaveActiveSum would be enough as long as NUM_SAMPLES_PER_VOXEL <= 256.
-	w_sum_group = WaveActiveSum(w_sum_group);
-	numLightsGroup = WaveActiveSum(numLightsGroup);
+    w_sum_group = WaveActiveSum(w_sum_group);
+    numLightsGroup = WaveActiveSum(numLightsGroup);
 
     w_sum_group /= numLightsGroup;
     r.pdf = target_z / max(w_sum_group, 1e-6);
 
-	g_voxel[gridStart * NUM_SAMPLES_PER_VOXEL + Gidx] = r;
+    g_voxel[gridStart * NUM_SAMPLES_PER_VOXEL + Gidx] = r;
 }

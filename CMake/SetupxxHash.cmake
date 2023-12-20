@@ -1,7 +1,7 @@
 function(SetupxxHash)
     set(XXHASH_DIR "${EXTERNAL_DIR}/xxHash")
     file(GLOB_RECURSE HEADER_PATH "${XXHASH_DIR}/xxHash.h")
-    
+
     if(HEADER_PATH STREQUAL "")
         file(MAKE_DIRECTORY ${XXHASH_DIR})
 
@@ -15,12 +15,12 @@ function(SetupxxHash)
         # copy header
         file(GLOB_RECURSE HEADER "${XXHASH_DIR}/temp/*xxhash.h")
         file(COPY ${HEADER} DESTINATION ${XXHASH_DIR})
-            
+
         if(HEADER STREQUAL "")
             message(FATAL_ERROR "Setting up xxHash failed.")
-        endif()      
+        endif()
 
         # cleanup
-        file(REMOVE_RECURSE "${XXHASH_DIR}/temp")       
+        file(REMOVE_RECURSE "${XXHASH_DIR}/temp")
     endif()   
 endfunction()

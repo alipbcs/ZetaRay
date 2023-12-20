@@ -20,28 +20,28 @@ RWStructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets : register(u0);
 [numthreads(PRESAMPLE_EMISSIVE_GROUP_DIM_X, 1, 1)]
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
-	if (DTid.x >= g_local.NumTotalSamples)
-		return;
+    if (DTid.x >= g_local.NumTotalSamples)
+        return;
 
-	RNG rng = RNG::Init(DTid.x, g_frame.FrameNum);
+    RNG rng = RNG::Init(DTid.x, g_frame.FrameNum);
 
-	float lightSourcePdf;
-	const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, rng, lightSourcePdf);
+    float lightSourcePdf;
+    const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, rng, lightSourcePdf);
 
-	RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
-	const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(0, emissive, rng, false);
+    RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
+    const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(0, emissive, rng, false);
 
-	float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+    float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
-	RT::PresampledEmissiveTriangle s;
-	s.pos = lightSample.pos;
-	s.normal = Math::EncodeOct16(lightSample.normal);
-	s.le = half3(le);
-	s.bary = Math::EncodeAsUNorm2(lightSample.bary);;
-	s.twoSided = emissive.IsDoubleSided();
-	s.idx = emissiveIdx;
-	s.ID = emissive.ID;
-	s.pdf = lightSourcePdf * lightSample.pdf;
+    RT::PresampledEmissiveTriangle s;
+    s.pos = lightSample.pos;
+    s.normal = Math::EncodeOct16(lightSample.normal);
+    s.le = half3(le);
+    s.bary = Math::EncodeAsUNorm2(lightSample.bary);;
+    s.twoSided = emissive.IsDoubleSided();
+    s.idx = emissiveIdx;
+    s.ID = emissive.ID;
+    s.pdf = lightSourcePdf * lightSample.pdf;
 
-	g_sampleSets[DTid.x] = s;
+    g_sampleSets[DTid.x] = s;
 }

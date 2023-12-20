@@ -15,7 +15,7 @@ add_subdirectory(SunShadow)
 add_subdirectory(TAA)
 
 set(RENDERPASS_SRC 
-	"${ZETA_RENDER_PASS_DIR}/RenderPass.cpp"
+    "${ZETA_RENDER_PASS_DIR}/RenderPass.cpp"
     "${ZETA_RENDER_PASS_DIR}/RenderPass.h"
     ${RP_AUTO_EXPOSURE_SRC} 
     ${RP_COMMON_SRC} 
@@ -45,7 +45,7 @@ add_custom_target(CompileShaders ALL DEPENDS ${ALL_CSOS})
 
 # override MSBuild, which tries to call fxc
 if(MSVC)
-	set_source_files_properties(${ALL_SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
+    set_source_files_properties(${ALL_SHADERS} PROPERTIES VS_TOOL_OVERRIDE "None")
 endif()
 
 # build ZetaRenderPass as a static library
@@ -61,7 +61,7 @@ source_group(TREE "${ZETA_RENDER_PASS_DIR}" FILES ${RENDERPASS_SRC})
 # 
 add_library(FSR2 INTERFACE)
 set(FSR2_SDK_BIN
-	"${EXTERNAL_DIR}/FSR2/Lib/ffx_fsr2_api_x64.dll"
+    "${EXTERNAL_DIR}/FSR2/Lib/ffx_fsr2_api_x64.dll"
     "${EXTERNAL_DIR}/FSR2/Lib/ffx_fsr2_api_dx12_x64.dll")
 
 # custom command that copies the dlls into the runtime directory
