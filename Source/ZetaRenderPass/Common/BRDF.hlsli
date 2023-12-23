@@ -44,16 +44,14 @@ namespace BRDF
     //--------------------------------------------------------------------------------------
     // Fresnel
     //--------------------------------------------------------------------------------------
-    // Note: Schlick's original approximation
-    //        R(theta) = R0 + (1 - R0)(1 - cos(theta))^5
-    // gives reflectivity for a given wavelength (a scalar) with the following assumptions:
-    //
-    // 1. Surface is dielectric.
-    // 2. eta1 (incoming material) < eta2 (outgoing material) (from less dense to denser).
-    //
-    // Also when eta1 > eta2, total internal reflection needs to be accounted for, which
-    // happens at incident angle arcsin(eta2 / eta1)
-    //--------------------------------------------------------------------------------------
+
+    // eta1: refractive index of incoming material 
+    float DielectricF0(float eta1, float eta2)
+    {
+        float f0 = (eta1 - eta2) / (eta1 + eta2);
+        return f0 * f0;
+    }
+
     float3 FresnelSchlick(float3 F0, float whdotwo)
     {
         float tmp = 1.0f - whdotwo;
@@ -176,7 +174,8 @@ namespace BRDF
 
     struct ShadingData
     {
-        static ShadingData Init(float3 shadingNormal, float3 wo, float metallic, float roughness, float3 baseColor)
+        static ShadingData Init(float3 shadingNormal, float3 wo, float metallic, float roughness, 
+            float3 baseColor, float eta1 = 1.0f, float eta2 = 1.5f)
         {
             ShadingData si;
 
@@ -187,8 +186,10 @@ namespace BRDF
             si.ndotwo = clamp(ndotwo, 1e-5f, 1.0f);
             si.alpha = roughness * roughness;
             si.diffuseReflectance = baseColor * (1.0f - metallic);
+
+            float f0 = DielectricF0(eta1, eta2);
             // = F0 (F0 and F are not needed at the same time)
-            si.F = lerp(0.04f.xxx, baseColor, metallic);
+            si.F = lerp(f0.xxx, baseColor, metallic);
 
             // Specular reflection and microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
@@ -361,10 +362,10 @@ namespace BRDF
         if (surface.backfacing_wi || surface.backfacing_wo)
             return 0.0;
 
-        float3 specularBrdf = SpecularBRDFGGXSmith(surface);
-        float3 diffuseBrdf = (1.0f - surface.F) * LambertianBRDF(surface);
+        float3 specular = SpecularBRDFGGXSmith(surface);
+        float3 diffuse = (1.0f - surface.F) * LambertianBRDF(surface);
 
-        return diffuseBrdf + specularBrdf;
+        return diffuse + specular;
     }
 }
 
