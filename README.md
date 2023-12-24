@@ -1,7 +1,7 @@
 # ZetaRay
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
 
-A hobby real-time ray tracer in Direct3D 12. Mainly developed for learning and experimenting with the latest research in real-time rendering. 
+A hobby real-time Direct3D 12 ray tracer. Mainly developed for learning and experimenting with the latest research in real-time rendering. 
 
 To achieve real-time frame rates, this renderer utilizes recent developments such as hardware-accelerated ray tracing (DXR), advanced sampling (ReSTIR), denoising, and smart upscaling (AMD FSR2).
 
@@ -18,6 +18,7 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
  - Multi-bounce indirect lighting using ReSTIR GI [[1](#references)]
  - Ray differentials for texture MIP selection with camera rays, ray cones for secondary rays
  - Single scattering sky and atmosphere [[2, 3](#references)]
+ - Reference path tracer
  - Physically-based materials with roughness, metallic mask, normal, and emissive maps
  - Render graph for automatic resource barrier placement and multi-threaded GPU command list recording and submission ([more details below](#render-graph))
  - AMD FSR2 upscaling
@@ -135,4 +136,4 @@ dynamic direct lighting," *ACM Transactions on Graphics*, 2020.
 
 ## License
 
-MIT License—see [`LICENSE`](./LICENSE) for more details.
+MIT license—see [`LICENSE`](./LICENSE) for more details.
