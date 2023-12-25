@@ -11,115 +11,115 @@
 
 namespace ZetaRay::Math
 {
-	struct alignas(16) float4x4a;
+    struct alignas(16) float4x4a;
 
-	class BVH
-	{
-	public:
-		struct alignas(16) BVHInput
-		{
-			Math::AABB AABB;
-			uint64_t ID;
-		};
+    class BVH
+    {
+    public:
+        struct alignas(16) BVHInput
+        {
+            Math::AABB AABB;
+            uint64_t ID;
+        };
 
-		struct alignas(16) BVHUpdateInput
-		{
-			Math::AABB OldBox;
-			Math::AABB NewBox;
-			uint64_t ID;
-		};
+        struct alignas(16) BVHUpdateInput
+        {
+            Math::AABB OldBox;
+            Math::AABB NewBox;
+            uint64_t ID;
+        };
 
-		BVH();
-		~BVH() = default;
+        BVH();
+        ~BVH() = default;
 
-		BVH(BVH&&) = delete;
-		BVH& operator=(BVH&&) = delete;
+        BVH(BVH&&) = delete;
+        BVH& operator=(BVH&&) = delete;
 
-		bool IsBuilt() { return m_nodes.size() != 0; }
-		void Clear();
+        bool IsBuilt() { return m_nodes.size() != 0; }
+        void Clear();
 
-		void Build(Util::Span<BVHInput> instances);
-		void Update(Util::Span<BVHUpdateInput> instances);
-		void Remove(uint64_t ID, const Math::AABB& AABB);
-		
-		// Returns ID of instances that at least partially overlap the view frustum. Assumes 
-		// the view frustum is in the view space
-		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
-			const Math::float4x4a& viewToWorld,
-			Util::Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs);
+        void Build(Util::Span<BVHInput> instances);
+        void Update(Util::Span<BVHUpdateInput> instances);
+        void Remove(uint64_t ID, const Math::AABB& AABB);
 
-		// Returns IDs & AABBs of instances that at least partially overlap the view frustum. Assumes 
-		// the view frustum is in the view space
-		void DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
-			const Math::float4x4a& viewToWorld,
-			Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
+        // Returns ID of instances that at least partially overlap the view frustum. Assumes 
+        // the view frustum is in the view space
+        void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
+            const Math::float4x4a& viewToWorld,
+            Util::Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs);
 
-		// Casts a ray into the BVH and returns the closest-hit intersection. Ray is assumed to 
-		// be in world space
-		uint64_t CastRay(Math::Ray& r);
+        // Returns IDs & AABBs of instances that at least partially overlap the view frustum. Assumes 
+        // the view frustum is in the view space
+        void DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
+            const Math::float4x4a& viewToWorld,
+            Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
 
-		// Returns AABB that contains the scene
-		Math::AABB GetWorldAABB() 
-		{
-			Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
-			return m_nodes[0].AABB; 
-		}
+        // Casts a ray into the BVH and returns the closest-hit intersection. Ray is assumed to 
+        // be in world space
+        uint64_t CastRay(Math::Ray& r);
 
-	private:
-		// maximum number of instances that can be included in a leaf node
-		static constexpr uint32_t MAX_NUM_INSTANCES_PER_LEAF = 8;
-		static constexpr uint32_t MIN_NUM_INSTANCES_SPLIT_SAH = 10;
-		static constexpr uint32_t NUM_SAH_BINS = 6;
+        // Returns AABB that contains the scene
+        Math::AABB GetWorldAABB() 
+        {
+            Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
+            return m_nodes[0].AABB; 
+        }
 
-		struct alignas(64) Node
-		{
-			bool IsInitialized() { return Parent != -1; }
-			void InitAsLeaf(int base, int count, int parent);
-			void InitAsInternal(Util::Span<BVH::BVHInput> instances, int base, int count,
-				int right, int parent);
-			bool IsLeaf() const { return RightChild == -1; }
+    private:
+        // maximum number of instances that can be included in a leaf node
+        static constexpr uint32_t MAX_NUM_INSTANCES_PER_LEAF = 8;
+        static constexpr uint32_t MIN_NUM_INSTANCES_SPLIT_SAH = 10;
+        static constexpr uint32_t NUM_SAH_BINS = 6;
 
-			// Union AABB of all the child nodes for internal nodes
-			// also used to distinguish between leaf & internal nodes
-			Math::AABB AABB;
+        struct alignas(64) Node
+        {
+            bool IsInitialized() { return Parent != -1; }
+            void InitAsLeaf(int base, int count, int parent);
+            void InitAsInternal(Util::Span<BVH::BVHInput> instances, int base, int count,
+                int right, int parent);
+            bool IsLeaf() const { return RightChild == -1; }
 
-			/*
-			union
-			{
-				struct
-				{
-					int Base;
-					int Count;
-				} Leaf;
+            // Union AABB of all the child nodes for internal nodes
+            // also used to distinguish between leaf & internal nodes
+            Math::AABB AABB;
 
-				int RightChild;
-			};
-			*/
+            /*
+            union
+            {
+                struct
+                {
+                    int Base;
+                    int Count;
+                } Leaf;
 
-			// for leafs
-			int Base;
-			int Count;
+                int RightChild;
+            };
+            */
 
-			// for internal nodes
-			int RightChild;
+            // for leafs
+            int Base;
+            int Count;
 
-			int Parent = -1;
-		};
+            // for internal nodes
+            int RightChild;
 
-		// Recursively builds a BVH (subtree) for the given range
-		int BuildSubtree(int base, int count, int parent);
+            int Parent = -1;
+        };
 
-		// Finds the leaf node that contains the given instance. Returns -1 otherwise.
-		int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx);
+        // Recursively builds a BVH (subtree) for the given range
+        int BuildSubtree(int base, int count, int parent);
 
-		Support::MemoryArena m_arena;
+        // Finds the leaf node that contains the given instance. Returns -1 otherwise.
+        int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx);
 
-		// tree hierarchy is stored as an array
-		Util::SmallVector<Node, Support::ArenaAllocator> m_nodes;
+        Support::MemoryArena m_arena;
 
-		// array of inputs to build a BVH for. During BVH build, elements are moved around
-		Util::SmallVector<BVHInput, Support::ArenaAllocator> m_instances;
+        // tree hierarchy is stored as an array
+        Util::SmallVector<Node, Support::ArenaAllocator> m_nodes;
 
-		uint32_t m_numNodes = 0;
-	};
+        // array of inputs to build a BVH for. During BVH build, elements are moved around
+        Util::SmallVector<BVHInput, Support::ArenaAllocator> m_instances;
+
+        uint32_t m_numNodes = 0;
+    };
 }

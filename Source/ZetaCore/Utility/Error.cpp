@@ -231,7 +231,7 @@ void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* cal
 
 void ZetaRay::Util::DebugBreak()
 {
-	__debugbreak();
+    __debugbreak();
 }
 
 void ZetaRay::Util::Exit()

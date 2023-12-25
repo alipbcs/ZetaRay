@@ -6,66 +6,66 @@
 
 namespace ZetaRay::Core
 {
-	class PipelineStateLibrary
-	{
-	public:
-		PipelineStateLibrary() = default;
-		~PipelineStateLibrary();
+    class PipelineStateLibrary
+    {
+    public:
+        PipelineStateLibrary() = default;
+        ~PipelineStateLibrary();
 
-		PipelineStateLibrary(const PipelineStateLibrary&) = delete;
-		PipelineStateLibrary& operator=(const PipelineStateLibrary&) = delete;
+        PipelineStateLibrary(const PipelineStateLibrary&) = delete;
+        PipelineStateLibrary& operator=(const PipelineStateLibrary&) = delete;
 
-		void Init(const char* name);
-		
-		// Warning: shouldn't be called while the GPU is still referencing the contained PSOs
-		void ClearAndFlushToDisk();
-		void Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO);
+        void Init(const char* name);
 
-		ID3D12PipelineState* GetGraphicsPSO(uint32_t nameID,
-			D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
-			ID3D12RootSignature* rootSig,
-			const char* pathToCompiledVS,
-			const char* pathToCompiledPS);
+        // Warning: shouldn't be called while the GPU is still referencing the contained PSOs
+        void ClearAndFlushToDisk();
+        void Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO);
 
-		ID3D12PipelineState* GetComputePSO(uint32_t nameID,
-			ID3D12RootSignature* rootSig,
-			const char* pathToCompiledCS);
-		ID3D12PipelineState* GetComputePSO_MT(uint32_t nameID,
-			ID3D12RootSignature* rootSig,
-			const char* pathToCompiledCS);
-		
-		ID3D12PipelineState* GetComputePSO(uint32_t nameID,
-			ID3D12RootSignature* rootSig,
-			Util::Span<const uint8_t> compiledBlob);
+        ID3D12PipelineState* GetGraphicsPSO(uint32_t nameID,
+            D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
+            ID3D12RootSignature* rootSig,
+            const char* pathToCompiledVS,
+            const char* pathToCompiledPS);
 
-	private:
-		struct Entry
-		{
-			uint64_t Key;
-			ID3D12PipelineState* PSO;
-		};
+        ID3D12PipelineState* GetComputePSO(uint32_t nameID,
+            ID3D12RootSignature* rootSig,
+            const char* pathToCompiledCS);
+        ID3D12PipelineState* GetComputePSO_MT(uint32_t nameID,
+            ID3D12RootSignature* rootSig,
+            const char* pathToCompiledCS);
 
-		// following functions need to be synhronized across threads. This is assumed
-		// to be done by the caller
-		ID3D12PipelineState* Find(uint64_t key);
-		void InsertPSOAndKeepSorted(Entry e);
-		bool UpdatePSO(Entry e);
-		bool RemovePSO(uint64_t nameID);
+        ID3D12PipelineState* GetComputePSO(uint32_t nameID,
+            ID3D12RootSignature* rootSig,
+            Util::Span<const uint8_t> compiledBlob);
 
-		void DeletePsoLibFile();
-		void ResetPsoLib(bool forceReset = false);
+    private:
+        struct Entry
+        {
+            uint64_t Key;
+            ID3D12PipelineState* PSO;
+        };
 
-		//char m_psoLibPath[MAX_PATH] = { '\0' };			// <Assets>/PSOCache/<name>.cache	
-		App::Filesystem::Path m_psoLibPath1;
-		ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
+        // following functions need to be synhronized across threads. This is assumed
+        // to be done by the caller
+        ID3D12PipelineState* Find(uint64_t key);
+        void InsertPSOAndKeepSorted(Entry e);
+        bool UpdatePSO(Entry e);
+        bool RemovePSO(uint64_t nameID);
 
-		Util::SmallVector<Entry, Support::SystemAllocator, 2> m_compiledPSOs;
-		Util::SmallVector<uint8_t> m_cachedBlob;
-		
-		bool m_foundOnDisk = false;
-		bool m_psoWasReset = false;
+        void DeletePsoLibFile();
+        void ResetPsoLib(bool forceReset = false);
 
-		SRWLOCK m_psoLibLock = SRWLOCK_INIT;
-		SRWLOCK m_mapLock = SRWLOCK_INIT;
-	};
+        //char m_psoLibPath[MAX_PATH] = { '\0' };            // <Assets>/PSOCache/<name>.cache    
+        App::Filesystem::Path m_psoLibPath1;
+        ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
+
+        Util::SmallVector<Entry, Support::SystemAllocator, 2> m_compiledPSOs;
+        Util::SmallVector<uint8_t> m_cachedBlob;
+
+        bool m_foundOnDisk = false;
+        bool m_psoWasReset = false;
+
+        SRWLOCK m_psoLibLock = SRWLOCK_INIT;
+        SRWLOCK m_mapLock = SRWLOCK_INIT;
+    };
 }

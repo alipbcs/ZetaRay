@@ -7,137 +7,137 @@
 
 namespace ZetaRay::Core
 {
-	class CommandList;
+    class CommandList;
 }
 
 namespace ZetaRay::Support
 {
-	struct ParamVariant;
+    struct ParamVariant;
 }
 
 namespace ZetaRay::RenderPass
 {
-	struct Compositing final : public RenderPassBase
-	{
-		enum class SHADER_IN_GPU_DESC
-		{
-			SKY_DI_DENOISED,
-			INSCATTERING,
-			SUN_SHADOW,
-			EMISSIVE_DI_DENOISED,
-			INDIRECT_DENOISED,
-			COUNT
-		};
+    struct Compositing final : public RenderPassBase
+    {
+        enum class SHADER_IN_GPU_DESC
+        {
+            SKY_DI_DENOISED,
+            INSCATTERING,
+            SUN_SHADOW,
+            EMISSIVE_DI_DENOISED,
+            INDIRECT_DENOISED,
+            COUNT
+        };
 
-		enum class SHADER_OUT_RES
-		{
-			COMPOSITED,
-			COUNT
-		};
+        enum class SHADER_OUT_RES
+        {
+            COMPOSITED,
+            COUNT
+        };
 
-		Compositing();
-		~Compositing();
+        Compositing();
+        ~Compositing();
 
-		void Init(bool skyIllum);
-		bool IsInitialized() { return m_psos[0] != nullptr; }
-		void Reset();
-		void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
-		void SetSkyIllumEnablement(bool enable);
-		void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
-		void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }
-		void SetLightVoxelGridParams(const Math::uint3& dim, const Math::float3& extents, float offset_y)
-		{
-			m_cbComposit.GridDim_x = (uint16_t)dim.x;
-			m_cbComposit.GridDim_y = (uint16_t)dim.y;
-			m_cbComposit.GridDim_z = (uint16_t)dim.z;
+        void Init(bool skyIllum);
+        bool IsInitialized() { return m_psos[0] != nullptr; }
+        void Reset();
+        void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
+        void SetSkyIllumEnablement(bool enable);
+        void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
+        void SetVoxelGridMappingExp(float exp) { m_cbComposit.DepthMappingExp = exp; }
+        void SetLightVoxelGridParams(const Math::uint3& dim, const Math::float3& extents, float offset_y)
+        {
+            m_cbComposit.GridDim_x = (uint16_t)dim.x;
+            m_cbComposit.GridDim_y = (uint16_t)dim.y;
+            m_cbComposit.GridDim_z = (uint16_t)dim.z;
 
-			m_cbComposit.Extents_x = extents.x;
-			m_cbComposit.Extents_y = extents.y;
-			m_cbComposit.Extents_z = extents.z;
+            m_cbComposit.Extents_x = extents.x;
+            m_cbComposit.Extents_y = extents.y;
+            m_cbComposit.Extents_z = extents.z;
 
-			m_cbComposit.Offset_y = offset_y;
-		}
-		void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
-		{
-			Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
+            m_cbComposit.Offset_y = offset_y;
+        }
+        void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
+        {
+            Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
 
-			switch (input)
-			{
-			case SHADER_IN_GPU_DESC::INSCATTERING:
-				m_cbComposit.InscatteringDescHeapIdx = descHeapIdx;
-				return;
-			case SHADER_IN_GPU_DESC::SUN_SHADOW:
-				m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
-				return;
-			case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
-				m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
-				return;
-			case SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED:
-				m_cbComposit.EmissiveDIDenoisedDescHeapIdx = descHeapIdx;
-				return;
-			case SHADER_IN_GPU_DESC::INDIRECT_DENOISED:
-				m_cbComposit.IndirectDenoisedDescHeapIdx = descHeapIdx;
-				return;
-			default:
-				Assert(false, "unreachable case.");
-				return;
-			}
-		}
-		const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES out) const
-		{
-			Assert((int)out < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
-			return m_hdrLightAccum;
-		}
-		void OnWindowResized();
-		void Render(Core::CommandList& cmdList);
+            switch (input)
+            {
+            case SHADER_IN_GPU_DESC::INSCATTERING:
+                m_cbComposit.InscatteringDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::SUN_SHADOW:
+                m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
+                m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED:
+                m_cbComposit.EmissiveDIDenoisedDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::INDIRECT_DENOISED:
+                m_cbComposit.IndirectDenoisedDescHeapIdx = descHeapIdx;
+                return;
+            default:
+                Assert(false, "unreachable case.");
+                return;
+            }
+        }
+        const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES out) const
+        {
+            Assert((int)out < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
+            return m_hdrLightAccum;
+        }
+        void OnWindowResized();
+        void Render(Core::CommandList& cmdList);
 
-	private:
-		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 0;
-		static constexpr int NUM_UAV = 0;
-		static constexpr int NUM_GLOBS = 1;
-		static constexpr int NUM_CONSTS = sizeof(cbCompositing) / sizeof(DWORD);
+    private:
+        static constexpr int NUM_CBV = 1;
+        static constexpr int NUM_SRV = 0;
+        static constexpr int NUM_UAV = 0;
+        static constexpr int NUM_GLOBS = 1;
+        static constexpr int NUM_CONSTS = sizeof(cbCompositing) / sizeof(DWORD);
 
-		struct ResourceFormats
-		{
-			static constexpr DXGI_FORMAT LIGHT_ACCUM = DXGI_FORMAT_R16G16B16A16_FLOAT;
-		};
+        struct ResourceFormats
+        {
+            static constexpr DXGI_FORMAT LIGHT_ACCUM = DXGI_FORMAT_R16G16B16A16_FLOAT;
+        };
 
-		enum class DESC_TABLE
-		{
-			LIGHT_ACCUM_UAV,
-			COUNT
-		};
+        enum class DESC_TABLE
+        {
+            LIGHT_ACCUM_UAV,
+            COUNT
+        };
 
-		enum class SHADERS
-		{
-			COMPOSIT,
-			FIREFLY_FILTER,
-			COUNT
-		};
+        enum class SHADERS
+        {
+            COMPOSIT,
+            FIREFLY_FILTER,
+            COUNT
+        };
 
-		ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
+        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
 
-		inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
-			"Compositing_cs.cso",
-			"FireflyFilter_cs.cso"
-		};
-		
-		Core::GpuMemory::Texture m_hdrLightAccum;
-		Core::DescriptorTable m_descTable;
-		cbCompositing m_cbComposit;
-		bool m_filterFirefly = false;
-		bool m_needToUavBarrierOnHDR = false;
-		bool m_needToUavBarrierOnFilter = false;
+        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+            "Compositing_cs.cso",
+            "FireflyFilter_cs.cso"
+        };
 
-		void CreateLightAccumTexure();
+        Core::GpuMemory::Texture m_hdrLightAccum;
+        Core::DescriptorTable m_descTable;
+        cbCompositing m_cbComposit;
+        bool m_filterFirefly = false;
+        bool m_needToUavBarrierOnHDR = false;
+        bool m_needToUavBarrierOnFilter = false;
 
-		void FireflyFilterCallback(const Support::ParamVariant& p);
-		void DirectSunCallback(const Support::ParamVariant& p);
-		void IndirectCallback(const Support::ParamVariant& p);
-		void DirectEmissiveCallback(const Support::ParamVariant& p);
-		void VisualizeLVGCallback(const Support::ParamVariant& p);
+        void CreateLightAccumTexure();
 
-		void ReloadCompsiting();
-	};
+        void FireflyFilterCallback(const Support::ParamVariant& p);
+        void DirectSunCallback(const Support::ParamVariant& p);
+        void IndirectCallback(const Support::ParamVariant& p);
+        void DirectEmissiveCallback(const Support::ParamVariant& p);
+        void VisualizeLVGCallback(const Support::ParamVariant& p);
+
+        void ReloadCompsiting();
+    };
 }

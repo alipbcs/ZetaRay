@@ -6,26 +6,26 @@
 
 namespace ZetaRay::Support
 {
-	template<typename T>
-	concept AllocatorType = 
-		std::is_copy_constructible_v<T> && 
-		std::is_copy_assignable_v<T> &&
-		requires(T t, size_t s, size_t a, void* mem)
-		{
-			{ t.AllocateAligned(s, a) } -> std::same_as<void*>;
-			{ t.FreeAligned(mem, s, a) } -> std::same_as<void>;
-		};
+    template<typename T>
+    concept AllocatorType = 
+        std::is_copy_constructible_v<T> && 
+        std::is_copy_assignable_v<T> &&
+        requires(T t, size_t s, size_t a, void* mem)
+        {
+            { t.AllocateAligned(s, a) } -> std::same_as<void*>;
+            { t.FreeAligned(mem, s, a) } -> std::same_as<void>;
+        };
 
-	struct SystemAllocator
-	{
-		ZetaInline void* AllocateAligned(size_t size, size_t alignment)
-		{
-			return _aligned_malloc(size, alignment);
-		}
+    struct SystemAllocator
+    {
+        ZetaInline void* AllocateAligned(size_t size, size_t alignment)
+        {
+            return _aligned_malloc(size, alignment);
+        }
 
-		ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment)
-		{
-			_aligned_free(mem);
-		}
-	};
+        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment)
+        {
+            _aligned_free(mem);
+        }
+    };
 }

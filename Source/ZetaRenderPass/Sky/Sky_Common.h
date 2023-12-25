@@ -12,24 +12,24 @@
 
 struct cbSky
 {
-	uint32_t LutWidth;
-	uint32_t LutHeight;
+    uint32_t LutWidth;
+    uint32_t LutHeight;
 
-	uint32_t NumVoxelsX;
-	uint32_t NumVoxelsY;
+    uint32_t NumVoxelsX;
+    uint32_t NumVoxelsY;
 
-	float DepthMappingExp;
-	float VoxelGridNearZ;
-	float VoxelGridFarZ;
+    float DepthMappingExp;
+    float VoxelGridNearZ;
+    float VoxelGridFarZ;
 
-	// 
-	// Resources
-	//
+    // 
+    // Resources
+    //
 
-	// RWTexture3D<half4>
-	// RWTexture2D<float4>
-	uint32_t LutDescHeapIdx;
-	uint32_t VoxelGridDescHeapIdx;
+    // RWTexture3D<half4>
+    // RWTexture2D<float4>
+    uint32_t LutDescHeapIdx;
+    uint32_t VoxelGridDescHeapIdx;
 };
 
 #endif

@@ -7,84 +7,84 @@
 
 namespace ZetaRay::Core
 {
-	class CommandList;
+    class CommandList;
 }
 
 namespace ZetaRay::Support
 {
-	struct ParamVariant;
+    struct ParamVariant;
 }
 
 namespace ZetaRay::RenderPass
 {
-	struct TAA final : public RenderPassBase
-	{
-		enum class SHADER_IN_DESC
-		{
-			SIGNAL,
-			COUNT
-		};
+    struct TAA final : public RenderPassBase
+    {
+        enum class SHADER_IN_DESC
+        {
+            SIGNAL,
+            COUNT
+        };
 
-		enum class SHADER_OUT_RES
-		{
-			OUTPUT_A,
-			OUTPUT_B,
-			COUNT
-		};
+        enum class SHADER_OUT_RES
+        {
+            OUTPUT_A,
+            OUTPUT_B,
+            COUNT
+        };
 
-		TAA();
-		~TAA();
+        TAA();
+        ~TAA();
 
-		void Init();
-		bool IsInitialized() { return m_pso != nullptr; }
-		void Reset();
-		void OnWindowResized();
-		void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
-		{
-			Assert((int)i < (int)SHADER_IN_DESC::COUNT, "out-of-bound access.");
-			m_inputDesc[(int)i] = heapIdx;
-		}
-		Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i)
-		{
-			Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
-			return m_antiAliased[(int)i];
-		}
-		void Render(Core::CommandList& cmdList);
+        void Init();
+        bool IsInitialized() { return m_pso != nullptr; }
+        void Reset();
+        void OnWindowResized();
+        void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
+        {
+            Assert((int)i < (int)SHADER_IN_DESC::COUNT, "out-of-bound access.");
+            m_inputDesc[(int)i] = heapIdx;
+        }
+        Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i)
+        {
+            Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
+            return m_antiAliased[(int)i];
+        }
+        void Render(Core::CommandList& cmdList);
 
-	private:
-		void CreateResources();
-		void BlendWeightCallback(const Support::ParamVariant& p);
-		void ReloadShader();
+    private:
+        void CreateResources();
+        void BlendWeightCallback(const Support::ParamVariant& p);
+        void ReloadShader();
 
-		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 0;
-		static constexpr int NUM_UAV = 0;
-		static constexpr int NUM_GLOBS = 1;
-		static constexpr int NUM_CONSTS = sizeof(cbTAA) / sizeof(DWORD);
+        static constexpr int NUM_CBV = 1;
+        static constexpr int NUM_SRV = 0;
+        static constexpr int NUM_UAV = 0;
+        static constexpr int NUM_GLOBS = 1;
+        static constexpr int NUM_CONSTS = sizeof(cbTAA) / sizeof(DWORD);
 
-		enum class DESC_TABLE
-		{
-			TEX_A_SRV,
-			TEX_A_UAV,
-			TEX_B_SRV,
-			TEX_B_UAV,
-			COUNT
-		};
+        enum class DESC_TABLE
+        {
+            TEX_A_SRV,
+            TEX_A_UAV,
+            TEX_B_SRV,
+            TEX_B_UAV,
+            COUNT
+        };
 
-		inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
+        inline static constexpr const char* COMPILED_CS[] = { "TAA_cs.cso" };
 
-		struct DefaultParamVals
-		{
-			static constexpr float BlendWeight = 0.1f;
-		};
+        struct DefaultParamVals
+        {
+            static constexpr float BlendWeight = 0.1f;
+        };
 
-		// ping-pong between input & output
-		Core::GpuMemory::Texture m_antiAliased[2];
-		uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
+        // ping-pong between input & output
+        Core::GpuMemory::Texture m_antiAliased[2];
+        uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
 
-		ID3D12PipelineState* m_pso = nullptr;
-		cbTAA m_localCB;
-		Core::DescriptorTable m_descTable;
-		bool m_isTemporalTexValid;
-	};
+        ID3D12PipelineState* m_pso = nullptr;
+        cbTAA m_localCB;
+        Core::DescriptorTable m_descTable;
+        bool m_isTemporalTexValid;
+    };
 }

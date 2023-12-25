@@ -8,61 +8,61 @@
 
 namespace ZetaRay::Core
 {
-	class CommandList;
+    class CommandList;
 
-	struct CommandQueue
-	{
-		CommandQueue(D3D12_COMMAND_LIST_TYPE type);
-		~CommandQueue();
+    struct CommandQueue
+    {
+        CommandQueue(D3D12_COMMAND_LIST_TYPE type);
+        ~CommandQueue();
 
-		CommandQueue(const CommandQueue&) = delete;
-		CommandQueue& operator=(const CommandQueue&) = delete;
+        CommandQueue(const CommandQueue&) = delete;
+        CommandQueue& operator=(const CommandQueue&) = delete;
 
-		ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
-		CommandList* GetCommandList();
+        ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
+        CommandList* GetCommandList();
 
-		// Returns the command allocator for future resuse (once the specified fence value
-		// has passed on this command queue)
-		void ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAlloc, uint64_t fenceValueToWaitFor);
-		
-		// Releases command list back to the pool of available ones (command lists can be safely reused 
-		// after submission, unlike command allocator)
-		void ReleaseCommandList(CommandList* context);
+        // Returns the command allocator for future resuse (once the specified fence value
+        // has passed on this command queue)
+        void ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAlloc, uint64_t fenceValueToWaitFor);
 
-		// Waits (CPU side) for the given fence to reach the specified value on this command queue (blocking)
-		void WaitForFenceCPU(uint64_t fenceValue);
-				
-		uint64_t ExecuteCommandList(CommandList* context);
-		void WaitForIdle();
-		bool IsFenceComplete(uint64_t fenceValue);
+        // Releases command list back to the pool of available ones (command lists can be safely reused 
+        // after submission, unlike command allocator)
+        void ReleaseCommandList(CommandList* context);
 
-	public:
-		ID3D12CommandAllocator* GetCommandAllocator();
+        // Waits (CPU side) for the given fence to reach the specified value on this command queue (blocking)
+        void WaitForFenceCPU(uint64_t fenceValue);
 
-		D3D12_COMMAND_LIST_TYPE m_type;
-		ComPtr<ID3D12CommandQueue> m_cmdQueue;
+        uint64_t ExecuteCommandList(CommandList* context);
+        void WaitForIdle();
+        bool IsFenceComplete(uint64_t fenceValue);
 
-		ComPtr<ID3D12Fence> m_fence;
-		uint64_t m_lastCompletedFenceVal = 0;
-		uint64_t m_nextFenceValue = 1;
-		HANDLE m_event;
+    public:
+        ID3D12CommandAllocator* GetCommandAllocator();
 
-		std::shared_mutex m_poolMtx;
-		std::shared_mutex m_fenceMtx;
+        D3D12_COMMAND_LIST_TYPE m_type;
+        ComPtr<ID3D12CommandQueue> m_cmdQueue;
 
-		struct ReleasedCmdAlloc
-		{
-			ID3D12CommandAllocator* CmdAlloc;
-			uint64_t FenceToWaitFor;
-		};
+        ComPtr<ID3D12Fence> m_fence;
+        uint64_t m_lastCompletedFenceVal = 0;
+        uint64_t m_nextFenceValue = 1;
+        HANDLE m_event;
 
-		Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
+        std::shared_mutex m_poolMtx;
+        std::shared_mutex m_fenceMtx;
 
-		struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
-		{
-			static const size_t BLOCK_SIZE = 512;
-		};
+        struct ReleasedCmdAlloc
+        {
+            ID3D12CommandAllocator* CmdAlloc;
+            uint64_t FenceToWaitFor;
+        };
 
-		moodycamel::ConcurrentQueue<CommandList*, MyTraits> m_contextPool;
-	};
+        Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
+
+        struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
+        {
+            static const size_t BLOCK_SIZE = 512;
+        };
+
+        moodycamel::ConcurrentQueue<CommandList*, MyTraits> m_contextPool;
+    };
 }

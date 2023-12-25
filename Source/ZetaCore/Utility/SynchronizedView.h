@@ -4,107 +4,107 @@
 
 namespace ZetaRay::Util
 {
-	template<typename T>
-	struct RSynchronizedView
-	{
-		RSynchronizedView(const T& t, SRWLOCK& lock)
-			: m_view(t),
-			m_lock(lock)
-		{
-			AcquireSRWLockShared(&m_lock);
-		}
+    template<typename T>
+    struct RSynchronizedView
+    {
+        RSynchronizedView(const T& t, SRWLOCK& lock)
+            : m_view(t),
+            m_lock(lock)
+        {
+            AcquireSRWLockShared(&m_lock);
+        }
 
-		~RSynchronizedView()
-		{
-			ReleaseSRWLockShared(&m_lock);
-		}
+        ~RSynchronizedView()
+        {
+            ReleaseSRWLockShared(&m_lock);
+        }
 
-		RSynchronizedView(RSynchronizedView&&) = delete;
-		RSynchronizedView& operator=(RSynchronizedView&&) = delete;
+        RSynchronizedView(RSynchronizedView&&) = delete;
+        RSynchronizedView& operator=(RSynchronizedView&&) = delete;
 
-		const T& View() const { return m_view; }
+        const T& View() const { return m_view; }
 
-	private:
-		const T& m_view;
-		SRWLOCK& m_lock;
-	};	
-	
-	template<typename T>
-	struct RWSynchronizedView
-	{
-		RWSynchronizedView(T& t, SRWLOCK& lock)
-			: m_view(t),
-			m_lock(lock)
-		{
-			AcquireSRWLockExclusive(&m_lock);
-		}
+    private:
+        const T& m_view;
+        SRWLOCK& m_lock;
+    };
 
-		~RWSynchronizedView()
-		{
-			ReleaseSRWLockExclusive(&m_lock);
-		}
+    template<typename T>
+    struct RWSynchronizedView
+    {
+        RWSynchronizedView(T& t, SRWLOCK& lock)
+            : m_view(t),
+            m_lock(lock)
+        {
+            AcquireSRWLockExclusive(&m_lock);
+        }
 
-		RWSynchronizedView(RWSynchronizedView&&) = delete;
-		RWSynchronizedView& operator=(RWSynchronizedView&&) = delete;
+        ~RWSynchronizedView()
+        {
+            ReleaseSRWLockExclusive(&m_lock);
+        }
 
-		T& View() const { return m_view; }
+        RWSynchronizedView(RWSynchronizedView&&) = delete;
+        RWSynchronizedView& operator=(RWSynchronizedView&&) = delete;
 
-	private:
-		T& m_view;
-		SRWLOCK& m_lock;
-	};
+        T& View() const { return m_view; }
 
-	template<typename T>
-	struct RSynchronizedVariable
-	{
-		static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
+    private:
+        T& m_view;
+        SRWLOCK& m_lock;
+    };
 
-		RSynchronizedVariable(T t, SRWLOCK& lock)
-			: m_var(t),
-			m_lock(lock)
-		{
-			AcquireSRWLockShared(&m_lock);
-		}
+    template<typename T>
+    struct RSynchronizedVariable
+    {
+        static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
 
-		~RSynchronizedVariable()
-		{
-			ReleaseSRWLockShared(&m_lock);
-		}
+        RSynchronizedVariable(T t, SRWLOCK& lock)
+            : m_var(t),
+            m_lock(lock)
+        {
+            AcquireSRWLockShared(&m_lock);
+        }
 
-		RSynchronizedVariable(RSynchronizedVariable&&) = delete;
-		RSynchronizedVariable& operator=(RSynchronizedVariable&&) = delete;
+        ~RSynchronizedVariable()
+        {
+            ReleaseSRWLockShared(&m_lock);
+        }
 
-		const T Variable() const { return m_var; }
+        RSynchronizedVariable(RSynchronizedVariable&&) = delete;
+        RSynchronizedVariable& operator=(RSynchronizedVariable&&) = delete;
 
-	private:
-		const T m_var;
-		SRWLOCK& m_lock;
-	};
+        const T Variable() const { return m_var; }
 
-	template<typename T>
-	struct RWSynchronizedVariable
-	{
-		static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
+    private:
+        const T m_var;
+        SRWLOCK& m_lock;
+    };
 
-		RWSynchronizedVariable(T t, SRWLOCK& lock)
-			: m_var(t),
-			m_lock(lock)
-		{
-			AcquireSRWLockExclusive(&m_lock);
-		}
+    template<typename T>
+    struct RWSynchronizedVariable
+    {
+        static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
 
-		~RWSynchronizedVariable()
-		{
-			ReleaseSRWLockExclusive(&m_lock);
-		}
+        RWSynchronizedVariable(T t, SRWLOCK& lock)
+            : m_var(t),
+            m_lock(lock)
+        {
+            AcquireSRWLockExclusive(&m_lock);
+        }
 
-		RWSynchronizedVariable(RWSynchronizedVariable&&) = delete;
-		RWSynchronizedVariable& operator=(RWSynchronizedVariable&&) = delete;
+        ~RWSynchronizedVariable()
+        {
+            ReleaseSRWLockExclusive(&m_lock);
+        }
 
-		T Variable() const { return m_var; }
+        RWSynchronizedVariable(RWSynchronizedVariable&&) = delete;
+        RWSynchronizedVariable& operator=(RWSynchronizedVariable&&) = delete;
 
-	private:
-		T m_var;
-		SRWLOCK& m_lock;
-	};
+        T Variable() const { return m_var; }
+
+    private:
+        T m_var;
+        SRWLOCK& m_lock;
+    };
 }

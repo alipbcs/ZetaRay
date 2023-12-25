@@ -391,10 +391,10 @@ int main(int argc, char* argv[])
 
     MemoryArena arena(64 * 1024);
 
-	SmallVector<uint8_t, Support::ArenaAllocator> file(arena);
-	Filesystem::LoadFromFile(gltfPath.Get(), file);
+    SmallVector<uint8_t, Support::ArenaAllocator> file(arena);
+    Filesystem::LoadFromFile(gltfPath.Get(), file);
 
-	json data = json::parse(file.data(), file.data() + file.size(), nullptr, false);
+    json data = json::parse(file.data(), file.data() + file.size(), nullptr, false);
 
     SmallVector<Filesystem::Path, Support::ArenaAllocator> imagePaths(arena);
     imagePaths.resize(data["images"].size());
@@ -552,5 +552,5 @@ int main(int argc, char* argv[])
 
     ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
 
-	return 0;
+    return 0;
 }

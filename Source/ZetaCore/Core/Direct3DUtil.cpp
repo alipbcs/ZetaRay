@@ -562,7 +562,7 @@ namespace
 
         //if (outIsCubeMap != nullptr)
         //{
-        //	*outIsCubeMap = isCubeMap;
+        //    *outIsCubeMap = isCubeMap;
         //}
 
         // Create the texture

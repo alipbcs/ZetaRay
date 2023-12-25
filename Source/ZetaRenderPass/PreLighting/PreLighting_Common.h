@@ -18,24 +18,24 @@
 
 struct cbPresampling
 {
-	uint32_t NumTotalSamples;
+    uint32_t NumTotalSamples;
 };
 
 struct cbCurvature
 {
-	uint32_t OutputUAVDescHeapIdx;
+    uint32_t OutputUAVDescHeapIdx;
 };
 
 struct cbLVG
 {
-	float Extents_x;
-	float Extents_y;
-	float Extents_z;
-	float Offset_y;
-	uint32_t GridDim_x;
-	uint32_t GridDim_y;
-	uint32_t GridDim_z;
-	uint32_t NumTotalSamples;
+    float Extents_x;
+    float Extents_y;
+    float Extents_z;
+    float Offset_y;
+    uint32_t GridDim_x;
+    uint32_t GridDim_y;
+    uint32_t GridDim_z;
+    uint32_t NumTotalSamples;
 };
 
 #endif

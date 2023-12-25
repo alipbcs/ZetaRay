@@ -7,7 +7,7 @@ struct cbGuiPass
 {
     float4x4_ WVP;
 
-	// Texture2D<float4>
+    // Texture2D<float4>
     uint32_t FontTex;
     uint32_t pad[3];
 };

@@ -5,97 +5,97 @@
 
 namespace ZetaRay::Core
 {
-	class CommandList;
-	class ComputeCmdList;
+    class CommandList;
+    class ComputeCmdList;
 }
 
 namespace ZetaRay::RT
 {
-	struct BLASTransform
-	{
-		float M[3][4];
-	};
+    struct BLASTransform
+    {
+        float M[3][4];
+    };
 
-	struct DynamicBlasBuildItem
-	{
-		D3D12_RAYTRACING_GEOMETRY_DESC GeoDesc;
-		uint32_t* BlasBufferOffset;
-		uint32_t ScratchBufferOffset;
-	};
+    struct DynamicBlasBuildItem
+    {
+        D3D12_RAYTRACING_GEOMETRY_DESC GeoDesc;
+        uint32_t* BlasBufferOffset;
+        uint32_t ScratchBufferOffset;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// Static BLAS
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // Static BLAS
+    //--------------------------------------------------------------------------------------
 
-	struct StaticBLAS
-	{
-		void Rebuild(Core::ComputeCmdList& cmdList);
-		void DoCompaction(Core::ComputeCmdList& cmdList);
-		void CompactionCompletedCallback();
-		void FillMeshTransformBufferForBuild();
-		void Clear();
+    struct StaticBLAS
+    {
+        void Rebuild(Core::ComputeCmdList& cmdList);
+        void DoCompaction(Core::ComputeCmdList& cmdList);
+        void CompactionCompletedCallback();
+        void FillMeshTransformBufferForBuild();
+        void Clear();
 
-		Core::GpuMemory::DefaultHeapBuffer m_buffer;
-		Core::GpuMemory::DefaultHeapBuffer m_bufferCompacted;
-		Core::GpuMemory::DefaultHeapBuffer m_scratch;
+        Core::GpuMemory::DefaultHeapBuffer m_buffer;
+        Core::GpuMemory::DefaultHeapBuffer m_bufferCompacted;
+        Core::GpuMemory::DefaultHeapBuffer m_scratch;
 
-		uint32_t m_compactionInfoStartOffset;
-		Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
+        uint32_t m_compactionInfoStartOffset;
+        Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
 
-		// 3x4 affine transformation matrix for each triangle mesh
-		Core::GpuMemory::DefaultHeapBuffer m_perMeshTransform;
-	};
+        // 3x4 affine transformation matrix for each triangle mesh
+        Core::GpuMemory::DefaultHeapBuffer m_perMeshTransform;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// Dynamic BLAS
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // Dynamic BLAS
+    //--------------------------------------------------------------------------------------
 
-	struct DynamicBLAS
-	{
-		DynamicBLAS() = default;
-		DynamicBLAS(uint64_t insID, uint64_t meshID)
-			: m_instanceID(insID),
-			m_meshID(meshID)
-		{}
+    struct DynamicBLAS
+    {
+        DynamicBLAS() = default;
+        DynamicBLAS(uint64_t insID, uint64_t meshID)
+            : m_instanceID(insID),
+            m_meshID(meshID)
+        {}
 
-		DynamicBlasBuildItem Rebuild();
+        DynamicBlasBuildItem Rebuild();
 
-		uint64_t m_instanceID = uint64_t(-1);
-		uint64_t m_meshID = uint64_t(-1);
-		uint32_t m_blasBufferOffset = 0;
-	};
+        uint64_t m_instanceID = uint64_t(-1);
+        uint64_t m_meshID = uint64_t(-1);
+        uint32_t m_blasBufferOffset = 0;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// TLAS
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // TLAS
+    //--------------------------------------------------------------------------------------
 
-	struct TLAS
-	{
-		void Render(Core::CommandList& cmdList);
-		void BuildFrameMeshInstanceData();
-		void BuildStaticBLASTransforms();
-		const Core::GpuMemory::DefaultHeapBuffer& GetTLAS() const { return m_tlasBuffer;  };
-		void Clear();
-		bool IsReady() const { return m_ready; };
+    struct TLAS
+    {
+        void Render(Core::CommandList& cmdList);
+        void BuildFrameMeshInstanceData();
+        void BuildStaticBLASTransforms();
+        const Core::GpuMemory::DefaultHeapBuffer& GetTLAS() const { return m_tlasBuffer;  };
+        void Clear();
+        bool IsReady() const { return m_ready; };
 
-	private:
-		void RebuildTLAS(Core::ComputeCmdList& cmdList);
-		void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
-		void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList);
-		void RebuildDynamicBLASes(Core::ComputeCmdList& cmdList);
+    private:
+        void RebuildTLAS(Core::ComputeCmdList& cmdList);
+        void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
+        void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList);
+        void RebuildDynamicBLASes(Core::ComputeCmdList& cmdList);
 
-		StaticBLAS m_staticBLAS;
-		Core::GpuMemory::DefaultHeapBuffer m_dynamicBlasBuffer;
-		Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
+        StaticBLAS m_staticBLAS;
+        Core::GpuMemory::DefaultHeapBuffer m_dynamicBlasBuffer;
+        Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
-		Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
-		Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
-		Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
+        Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
+        Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
+        Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
+        Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
 
-		Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
+        Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
 
-		uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
-		bool m_ready = false;
-	};
+        uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
+        bool m_ready = false;
+    };
 }

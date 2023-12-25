@@ -11,96 +11,96 @@ using namespace ZetaRay::Core::GpuMemory;
 
 const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(uint64_t id)
 {
-	std::shared_lock<std::shared_mutex> lock(m_uploadHeapMtx);
-	auto buff = m_uploadHeapBuffs.find(id);
-	if(buff)
-		return *buff;
+    std::shared_lock<std::shared_mutex> lock(m_uploadHeapMtx);
+    auto buff = m_uploadHeapBuffs.find(id);
+    if(buff)
+        return *buff;
 
-	return nullptr;
+    return nullptr;
 }
 
 const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(std::string_view id)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	return GetUploadHeapBuffer(h);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    return GetUploadHeapBuffer(h);
 }
 
 void SharedShaderResources::InsertOrAssingUploadHeapBuffer(std::string_view id, UploadHeapBuffer& buf)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	InsertOrAssingUploadHeapBuffer(h, buf);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    InsertOrAssingUploadHeapBuffer(h, buf);
 }
 
 void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const UploadHeapBuffer& buf)
 {
-	std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
-	m_uploadHeapBuffs[id] = &buf;
+    std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
+    m_uploadHeapBuffs[id] = &buf;
 }
 
 //void SharedShaderResources::RemoveUploadHeapBuffer(uint64_t id)
 //{
-//	std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
-//	m_uploadHeapBuffs.erase(id);
+//    std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
+//    m_uploadHeapBuffs.erase(id);
 //}
 
 const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
-	std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
-	auto* it = m_defaultHeapBuffs.find(id);
-	if (!it)
-		return nullptr;
+    std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    auto* it = m_defaultHeapBuffs.find(id);
+    if (!it)
+        return nullptr;
 
-	return *it;
+    return *it;
 }
 
 const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	return GetDefaultHeapBuffer(h);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    return GetDefaultHeapBuffer(h);
 }
 
 void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf)
 {
-	std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
-	m_defaultHeapBuffs[id] = &buf;
+    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    m_defaultHeapBuffs[id] = &buf;
 }
 
 void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(std::string_view id, const DefaultHeapBuffer& buf)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	InsertOrAssignDefaultHeapBuffer(h, buf);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    InsertOrAssignDefaultHeapBuffer(h, buf);
 }
 
 //void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id)
 //{
-//	std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
-//	m_defaultHeapBuffs.erase(id);
+//    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+//    m_defaultHeapBuffs.erase(id);
 //}
 
 const DescriptorTable* SharedShaderResources::GetDescriptorTable(uint64_t id)
 {
-	std::shared_lock<std::shared_mutex> lock(m_descTableMtx);
+    std::shared_lock<std::shared_mutex> lock(m_descTableMtx);
 
-	if (auto it = m_descTables.find(id); it != nullptr)
-		return *it;
+    if (auto it = m_descTables.find(id); it != nullptr)
+        return *it;
 
-	return nullptr;
+    return nullptr;
 }
 
 const DescriptorTable* SharedShaderResources::GetDescriptorTable(std::string_view id)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	return GetDescriptorTable(h);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    return GetDescriptorTable(h);
 }
 
 void SharedShaderResources::InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& t)
 {
-	std::unique_lock<std::shared_mutex> lock(m_descTableMtx);
-	m_descTables[id] = &t;
+    std::unique_lock<std::shared_mutex> lock(m_descTableMtx);
+    m_descTables[id] = &t;
 }
 
 void SharedShaderResources::InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t)
 {
-	uint64_t h = XXH3_64bits(id.data(), id.size());
-	InsertOrAssingDescriptorTable(h, t);
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    InsertOrAssingDescriptorTable(h, t);
 }

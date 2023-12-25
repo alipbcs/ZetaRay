@@ -10,14 +10,14 @@
 
 struct cbAutoExposureHist
 {
-	uint32_t InputDescHeapIdx;
-	uint32_t ExposureDescHeapIdx;
-	float MinLum;
-	float LumRange;
-	float LumMapExp;
-	float AdaptationRate;
-	float LowerPercentile;
-	float UpperPercentile;
+    uint32_t InputDescHeapIdx;
+    uint32_t ExposureDescHeapIdx;
+    float MinLum;
+    float LumRange;
+    float LumMapExp;
+    float AdaptationRate;
+    float LowerPercentile;
+    float UpperPercentile;
 };
 
 #endif // AUTO_EXPOSURE_H

@@ -6,178 +6,178 @@
 
 namespace ZetaRay::Core
 {
-	struct DescriptorTable;
+    struct DescriptorTable;
 
-	struct DescriptorHeap
-	{
-		DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE);
-		~DescriptorHeap() = default;
+    struct DescriptorHeap
+    {
+        DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE);
+        ~DescriptorHeap() = default;
 
-		DescriptorHeap(const DescriptorHeap&) = delete;
-		DescriptorHeap& operator=(const DescriptorHeap&) = delete;
+        DescriptorHeap(const DescriptorHeap&) = delete;
+        DescriptorHeap& operator=(const DescriptorHeap&) = delete;
 
-		void Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible);
-		void Shutdown();
-		DescriptorTable Allocate(uint32_t count);
-		void Release(DescriptorTable&& descTable);
-		void Recycle();
+        void Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible);
+        void Shutdown();
+        DescriptorTable Allocate(uint32_t count);
+        void Release(DescriptorTable&& descTable);
+        void Recycle();
 
-		ZetaInline bool IsShaderVisible() const { return m_isShaderVisisble; }
-		ZetaInline uint32_t GetDescriptorSize() const { return m_descriptorSize; }
-		ZetaInline uint32_t GetNumFreeDescriptors() const { return m_freeDescCount; }
-		ZetaInline uint64_t GetBaseGpuHandle() const { return m_baseGPUHandle.ptr; }
-		ZetaInline ID3D12DescriptorHeap* GetHeap() { return m_heap.Get(); }
-		ZetaInline uint32_t GetHeapSize() { return m_totalHeapSize; }
+        ZetaInline bool IsShaderVisible() const { return m_isShaderVisisble; }
+        ZetaInline uint32_t GetDescriptorSize() const { return m_descriptorSize; }
+        ZetaInline uint32_t GetNumFreeDescriptors() const { return m_freeDescCount; }
+        ZetaInline uint64_t GetBaseGpuHandle() const { return m_baseGPUHandle.ptr; }
+        ZetaInline ID3D12DescriptorHeap* GetHeap() { return m_heap.Get(); }
+        ZetaInline uint32_t GetHeapSize() { return m_totalHeapSize; }
 
-	private:
-		static const uint32_t MAX_BLOCK_SIZE = 1024;
-		static const uint32_t MAX_NUM_LISTS = 11;
-		static_assert(1 << (MAX_NUM_LISTS - 1) == MAX_BLOCK_SIZE, "these must match.");
+    private:
+        static const uint32_t MAX_BLOCK_SIZE = 1024;
+        static const uint32_t MAX_NUM_LISTS = 11;
+        static_assert(1 << (MAX_NUM_LISTS - 1) == MAX_BLOCK_SIZE, "these must match.");
 
-		struct PendingDescTable
-		{
-			PendingDescTable() = default;
-			PendingDescTable(uint64_t fence, uint32_t offset, uint32_t count, uint32_t internalVal)
-				: ReleaseFence(fence),
-				Offset(offset),
-				Count(count),
-				Internal(internalVal)
-			{}
+        struct PendingDescTable
+        {
+            PendingDescTable() = default;
+            PendingDescTable(uint64_t fence, uint32_t offset, uint32_t count, uint32_t internalVal)
+                : ReleaseFence(fence),
+                Offset(offset),
+                Count(count),
+                Internal(internalVal)
+            {}
 
-			uint64_t ReleaseFence;
-			uint32_t Offset;
-			uint32_t Count;
-			uint32_t Internal;
-		};
+            uint64_t ReleaseFence;
+            uint32_t Offset;
+            uint32_t Count;
+            uint32_t Internal;
+        };
 
-		struct Entry
-		{
-			uint32_t HeapOffset;
-			uint32_t Next;
-		};
+        struct Entry
+        {
+            uint32_t HeapOffset;
+            uint32_t Next;
+        };
 
-		struct Block
-		{
-			Block(Support::MemoryPool &mp)
-				: Head(uint32_t(-1)),
-				Entries(mp)
-			{}
+        struct Block
+        {
+            Block(Support::MemoryPool &mp)
+                : Head(uint32_t(-1)),
+                Entries(mp)
+            {}
 
-			Block(Block&&) = delete;
-			Block& operator=(Block&&) = delete;
+            Block(Block&&) = delete;
+            Block& operator=(Block&&) = delete;
 
-			uint32_t Head;
-			Util::SmallVector<Entry, Support::PoolAllocator> Entries;
-		};
+            uint32_t Head;
+            Util::SmallVector<Entry, Support::PoolAllocator> Entries;
+        };
 
-		struct ReleasedLargeBlock
-		{
-			uint32_t Offset;
-			uint32_t Count;
-		};
+        struct ReleasedLargeBlock
+        {
+            uint32_t Offset;
+            uint32_t Count;
+        };
 
-		ZetaInline uint32_t DescTableSizeFromListIndex(uint32_t x) const
-		{
-			return 1 << x;
-		}
+        ZetaInline uint32_t DescTableSizeFromListIndex(uint32_t x) const
+        {
+            return 1 << x;
+        }
 
-		ZetaInline uint32_t ListIndexFromDescTableSize(uint32_t x)
-		{
-			size_t s = Math::NextPow2(x);
-			unsigned long idx;
-			_BitScanForward64(&idx, s);
+        ZetaInline uint32_t ListIndexFromDescTableSize(uint32_t x)
+        {
+            size_t s = Math::NextPow2(x);
+            unsigned long idx;
+            _BitScanForward64(&idx, s);
 
-			return idx;
-		}
+            return idx;
+        }
 
-		bool AllocateNewBlock(uint32_t listIdx);
+        bool AllocateNewBlock(uint32_t listIdx);
 
-		// make sure memory pool is declared first -- "members are guaranteed to be initialized 
-		// by order of declaration and destroyed in reverse order"
-		Support::MemoryPool m_memoryPool;
-		SRWLOCK m_lock = SRWLOCK_INIT;
+        // make sure memory pool is declared first -- "members are guaranteed to be initialized 
+        // by order of declaration and destroyed in reverse order"
+        Support::MemoryPool m_memoryPool;
+        SRWLOCK m_lock = SRWLOCK_INIT;
 
-		ComPtr<ID3D12DescriptorHeap> m_heap;
-		D3D12_CPU_DESCRIPTOR_HANDLE m_baseCPUHandle;
-		D3D12_GPU_DESCRIPTOR_HANDLE m_baseGPUHandle;
-		bool m_isShaderVisisble;
-		ComPtr<ID3D12Fence> m_fence;
-		uint64_t m_nextFenceVal = 1;
-		uint32_t m_descriptorSize = 0;
-		uint32_t m_totalHeapSize = 0;
-		uint32_t m_freeDescCount = 0;
+        ComPtr<ID3D12DescriptorHeap> m_heap;
+        D3D12_CPU_DESCRIPTOR_HANDLE m_baseCPUHandle;
+        D3D12_GPU_DESCRIPTOR_HANDLE m_baseGPUHandle;
+        bool m_isShaderVisisble;
+        ComPtr<ID3D12Fence> m_fence;
+        uint64_t m_nextFenceVal = 1;
+        uint32_t m_descriptorSize = 0;
+        uint32_t m_totalHeapSize = 0;
+        uint32_t m_freeDescCount = 0;
 
-		Util::SmallVector<PendingDescTable, Support::PoolAllocator> m_pending;
+        Util::SmallVector<PendingDescTable, Support::PoolAllocator> m_pending;
 
-		// Segregated free lists
-		const uint32_t m_blockSize;
-		const uint32_t m_numLists;
+        // Segregated free lists
+        const uint32_t m_blockSize;
+        const uint32_t m_numLists;
 
-		// SmallVector with custom allocator can't be default initialized
-		static constexpr size_t HEADS_BUFFER_SIZE = sizeof(Block) * MAX_NUM_LISTS;
-		alignas(alignof(Block)) uint8_t m_headsBuffer[HEADS_BUFFER_SIZE];
-		Block* m_heads = nullptr;
+        // SmallVector with custom allocator can't be default initialized
+        static constexpr size_t HEADS_BUFFER_SIZE = sizeof(Block) * MAX_NUM_LISTS;
+        alignas(alignof(Block)) uint8_t m_headsBuffer[HEADS_BUFFER_SIZE];
+        Block* m_heads = nullptr;
 
-		uint32_t m_nextHeapIdx = 0;
-		Util::SmallVector<ReleasedLargeBlock, Support::PoolAllocator> m_releasedBlocks;
-	};
-	
-	// A contiguous range of descriptors that are allocated from one DescriptorHeap
-	struct DescriptorTable
-	{
-		friend struct DescriptorHeap;
+        uint32_t m_nextHeapIdx = 0;
+        Util::SmallVector<ReleasedLargeBlock, Support::PoolAllocator> m_releasedBlocks;
+    };
 
-		DescriptorTable() = default;
-		DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
-			D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle,
-			uint32_t numDesc,
-			uint32_t descSize,
-			DescriptorHeap* heap,
-			uint32_t internal);
-		~DescriptorTable();
+    // A contiguous range of descriptors that are allocated from one DescriptorHeap
+    struct DescriptorTable
+    {
+        friend struct DescriptorHeap;
 
-		DescriptorTable(const DescriptorTable&) = delete;
-		DescriptorTable&operator=(const DescriptorTable&) = delete;
+        DescriptorTable() = default;
+        DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+            D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle,
+            uint32_t numDesc,
+            uint32_t descSize,
+            DescriptorHeap* heap,
+            uint32_t internal);
+        ~DescriptorTable();
 
-		DescriptorTable(DescriptorTable&& other);
-		DescriptorTable& operator=(DescriptorTable&& other);
+        DescriptorTable(const DescriptorTable&) = delete;
+        DescriptorTable&operator=(const DescriptorTable&) = delete;
 
-		void Reset();
-		ZetaInline bool IsEmpty() const { return m_numDescriptors == 0; }
+        DescriptorTable(DescriptorTable&& other);
+        DescriptorTable& operator=(DescriptorTable&& other);
 
-		ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const
-		{
-			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
-			return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
-		}
-		
-		ZetaInline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const
-		{
-			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
-			Assert(m_descHeap->IsShaderVisible(), "This descriptor doesn't belong to a shader-visible heap.");
-			return D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGpuHandle.ptr + offset * m_descriptorSize };
-		}
-		
-		ZetaInline uint32_t GetNumDescriptors() const { return m_numDescriptors; };
-		
-		// Offset to the beginning of this desc. table in the GPU descriptor heap
-		ZetaInline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const
-		{
-			Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
-			Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
-			uint32_t idx = (uint32_t)((m_baseGpuHandle.ptr - m_descHeap->GetBaseGpuHandle()) / m_descriptorSize);
+        void Reset();
+        ZetaInline bool IsEmpty() const { return m_numDescriptors == 0; }
 
-			return idx + offset;
-		}
+        ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const
+        {
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
+        }
 
-	private:
-		DescriptorHeap* m_descHeap = nullptr;	// DescriptorHeap from which this table was allocated
-		
-		D3D12_CPU_DESCRIPTOR_HANDLE m_baseCpuHandle = { 0 };
-		D3D12_GPU_DESCRIPTOR_HANDLE m_baseGpuHandle = { 0 };
+        ZetaInline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const
+        {
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            Assert(m_descHeap->IsShaderVisible(), "This descriptor doesn't belong to a shader-visible heap.");
+            return D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGpuHandle.ptr + offset * m_descriptorSize };
+        }
 
-		uint32_t m_numDescriptors = 0;
-		uint32_t m_descriptorSize = 0;
-		uint32_t m_internal = uint32_t(-1);
-	};
+        ZetaInline uint32_t GetNumDescriptors() const { return m_numDescriptors; };
+
+        // Offset to the beginning of this desc. table in the GPU descriptor heap
+        ZetaInline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const
+        {
+            Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            uint32_t idx = (uint32_t)((m_baseGpuHandle.ptr - m_descHeap->GetBaseGpuHandle()) / m_descriptorSize);
+
+            return idx + offset;
+        }
+
+    private:
+        DescriptorHeap* m_descHeap = nullptr;    // DescriptorHeap from which this table was allocated
+
+        D3D12_CPU_DESCRIPTOR_HANDLE m_baseCpuHandle = { 0 };
+        D3D12_GPU_DESCRIPTOR_HANDLE m_baseGpuHandle = { 0 };
+
+        uint32_t m_numDescriptors = 0;
+        uint32_t m_descriptorSize = 0;
+        uint32_t m_internal = uint32_t(-1);
+    };
 }

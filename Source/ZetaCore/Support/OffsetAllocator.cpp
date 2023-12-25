@@ -167,24 +167,24 @@ void OffsetAllocator::Init(uint32_t size, uint32_t maxNumAllocs)
 
 void OffsetAllocator::Reset()
 {
-	Assert((m_nodes && m_nodeStack) || (!m_nodes && !m_nodeStack), "either both are allocated or both are null.");
+    Assert((m_nodes && m_nodeStack) || (!m_nodes && !m_nodeStack), "either both are allocated or both are null.");
 
-	if (m_nodes)
-	{
-		delete[] m_nodes;
-		delete[] m_nodeStack;
-	}
+    if (m_nodes)
+    {
+        delete[] m_nodes;
+        delete[] m_nodeStack;
+    }
 
-	m_nodes = new Node[m_maxNumAllocs];
-	m_nodeStack = new uint32_t[m_maxNumAllocs];
+    m_nodes = new Node[m_maxNumAllocs];
+    m_nodeStack = new uint32_t[m_maxNumAllocs];
 
-	for (uint32_t i = 0; i < m_maxNumAllocs; i++)
-		m_nodeStack[i] = m_maxNumAllocs - 1 - i;
+    for (uint32_t i = 0; i < m_maxNumAllocs; i++)
+        m_nodeStack[i] = m_maxNumAllocs - 1 - i;
 
-	m_firstLevelMask = 0;
+    m_firstLevelMask = 0;
 
-	for (int i = 0; i < ZetaArrayLen(m_secondLevelMask); i++)
-		m_secondLevelMask[i] = 0;
+    for (int i = 0; i < ZetaArrayLen(m_secondLevelMask); i++)
+        m_secondLevelMask[i] = 0;
 
     for (int i = 0; i < ZetaArrayLen(m_freeListsHeads); i++)
         m_freeListsHeads[i] = INVALID_NODE;

@@ -4,10 +4,10 @@
 
 namespace ZetaRay::App::Filesystem
 {
-	struct Path;
+    struct Path;
 }
 
 namespace ZetaRay::Model::glTF
 {
-	void Load(const App::Filesystem::Path& p);
+    void Load(const App::Filesystem::Path& p);
 }

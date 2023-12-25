@@ -6,229 +6,229 @@
 
 namespace ZetaRay::Support
 {
-	//--------------------------------------------------------------------------------------
-	// FloatParam
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // FloatParam
+    //--------------------------------------------------------------------------------------
 
-	struct FloatParam
-	{
-		void Init(float val, float min, float max, float step)
-		{
-			Assert(val >= min && val <= max, "default val is outside the given bounds.");
-			m_val = val;
-			m_min = min;
-			m_max = max;
-			m_stepSize = step;
-		}
+    struct FloatParam
+    {
+        void Init(float val, float min, float max, float step)
+        {
+            Assert(val >= min && val <= max, "default val is outside the given bounds.");
+            m_val = val;
+            m_min = min;
+            m_max = max;
+            m_stepSize = step;
+        }
 
-		float m_val;
-		float m_min;
-		float m_max;
-		float m_stepSize;
-	};
+        float m_val;
+        float m_min;
+        float m_max;
+        float m_stepSize;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// Float3Param
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // Float3Param
+    //--------------------------------------------------------------------------------------
 
-	struct Float3Param
-	{
-		void Init(Math::float3 val, float min, float max, float step, bool keepNormalized)
-		{
-			m_val = val;
-			m_min = min;
-			m_max = max;
-			m_stepSize = step;
-			m_keepNormalized = keepNormalized;
-		}
+    struct Float3Param
+    {
+        void Init(Math::float3 val, float min, float max, float step, bool keepNormalized)
+        {
+            m_val = val;
+            m_min = min;
+            m_max = max;
+            m_stepSize = step;
+            m_keepNormalized = keepNormalized;
+        }
 
-		Math::float3 m_val;
-		float m_min;
-		float m_max;
-		float m_stepSize;
-		bool m_keepNormalized;
-	};
+        Math::float3 m_val;
+        float m_min;
+        float m_max;
+        float m_stepSize;
+        bool m_keepNormalized;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// UnitDirParam
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // UnitDirParam
+    //--------------------------------------------------------------------------------------
 
-	struct UnitDirParam
-	{
-		void Init(float pitch, float yaw)
-		{
-			m_pitch = pitch;
-			m_yaw = yaw;
-		}
+    struct UnitDirParam
+    {
+        void Init(float pitch, float yaw)
+        {
+            m_pitch = pitch;
+            m_yaw = yaw;
+        }
 
-		Math::float3 GetDir();
+        Math::float3 GetDir();
 
-		float m_pitch;		// angle of rotation around the x-axis (radians)
-		float m_yaw;		// angle of rotation around the y-axis (radians)
-	};
+        float m_pitch;      // angle of rotation around the x-axis (radians)
+        float m_yaw;        // angle of rotation around the y-axis (radians)
+    };
 
-	//--------------------------------------------------------------------------------------
-	// ColorParam
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // ColorParam
+    //--------------------------------------------------------------------------------------
 
-	struct ColorParam
-	{
-		void Init(Math::float3 val, float min, float max, float step)
-		{
-			m_val = val;
-			m_min = min;
-			m_max = max;
-			m_stepSize = step;
-		}
+    struct ColorParam
+    {
+        void Init(Math::float3 val, float min, float max, float step)
+        {
+            m_val = val;
+            m_min = min;
+            m_max = max;
+            m_stepSize = step;
+        }
 
-		Math::float3 m_val;
-		float m_min;
-		float m_max;
-		float m_stepSize;
-	};
+        Math::float3 m_val;
+        float m_min;
+        float m_max;
+        float m_stepSize;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// IntParam
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // IntParam
+    //--------------------------------------------------------------------------------------
 
-	struct IntParam
-	{
-		void Init(int val, int min, int max, int step)
-		{
-			Assert(val >= min && val <= max, "default val is outside the given bounds.");
-			m_val = val;
-			m_min = min;
-			m_max = max;
-			m_stepSize = step;
-		}
+    struct IntParam
+    {
+        void Init(int val, int min, int max, int step)
+        {
+            Assert(val >= min && val <= max, "default val is outside the given bounds.");
+            m_val = val;
+            m_min = min;
+            m_max = max;
+            m_stepSize = step;
+        }
 
-		int m_val;
-		int m_min;
-		int m_max;
-		int m_stepSize;
-	};
+        int m_val;
+        int m_min;
+        int m_max;
+        int m_stepSize;
+    };
 
-	//--------------------------------------------------------------------------------------
-	// EnumParam
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // EnumParam
+    //--------------------------------------------------------------------------------------
 
-	struct EnumParam
-	{
-		void Init(const char** vals, int n, int curr)
-		{
-			m_vals = vals;
-			m_num = n;
-			m_curr = curr;
-		}
+    struct EnumParam
+    {
+        void Init(const char** vals, int n, int curr)
+        {
+            m_vals = vals;
+            m_num = n;
+            m_curr = curr;
+        }
 
-		const char** m_vals;
-		int m_num;
-		int m_curr;
-	};
+        const char** m_vals;
+        int m_num;
+        int m_curr;
+    };
 
-	static_assert(std::is_trivial_v<FloatParam>);
-	static_assert(std::is_trivial_v<Float3Param>);
-	static_assert(std::is_trivial_v<UnitDirParam>);
-	static_assert(std::is_trivial_v<ColorParam>);
-	static_assert(std::is_trivial_v<IntParam>);
-	static_assert(std::is_trivial_v<EnumParam>);
+    static_assert(std::is_trivial_v<FloatParam>);
+    static_assert(std::is_trivial_v<Float3Param>);
+    static_assert(std::is_trivial_v<UnitDirParam>);
+    static_assert(std::is_trivial_v<ColorParam>);
+    static_assert(std::is_trivial_v<IntParam>);
+    static_assert(std::is_trivial_v<EnumParam>);
 
 
-	//--------------------------------------------------------------------------------------
-	// ParamVariant
-	//--------------------------------------------------------------------------------------
+    //--------------------------------------------------------------------------------------
+    // ParamVariant
+    //--------------------------------------------------------------------------------------
 
-	enum class PARAM_TYPE
-	{
-		PT_float,
-		PT_float2,
-		PT_float3,
-		PT_unit_dir,
-		PT_color,
-		PT_int,
-		PT_bool,
-		PT_enum
-	};
+    enum class PARAM_TYPE
+    {
+        PT_float,
+        PT_float2,
+        PT_float3,
+        PT_unit_dir,
+        PT_color,
+        PT_int,
+        PT_bool,
+        PT_enum
+    };
 
-	struct ParamVariant
-	{
-		static const int MAX_NAME_LEN = 32;
-		static const int MAX_GROUP_LEN = 16;
-		static const int MAX_SUBGROUP_LEN = 24;
+    struct ParamVariant
+    {
+        static const int MAX_NAME_LEN = 32;
+        static const int MAX_GROUP_LEN = 16;
+        static const int MAX_SUBGROUP_LEN = 24;
 
-		void InitFloat(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			float val, float min, float max, float step);
+        void InitFloat(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            float val, float min, float max, float step);
 
-		void InitInt(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			int val, int min, int max, int step);
+        void InitInt(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            int val, int min, int max, int step);
 
-		void InitFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val, float min, float max, float step);
+        void InitFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val, float min, float max, float step);
 
-		void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			float pitch, float yaw);		
-		
-		void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 dir);
+        void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            float pitch, float yaw);
 
-		void InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val);
+        void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 dir);
 
-		void InitColor(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-			Math::float3 val);
+        void InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val);
 
-		void InitBool(const char* group, const char* subgroup, const char* name, 
-			fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val);
+        void InitColor(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val);
 
-		void InitEnum(const char* group, const char* subgroup, const char* name,
-			fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** enumVals, 
-			int num, int curr);
+        void InitBool(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val);
 
-		const char* GetGroup() const { return m_group; }
-		const char* GetSubGroup() const { return m_subgroup; }
-		const char* GetName() const { return m_name; }
-		PARAM_TYPE GetType() const { return m_type; }
-		uint64_t GetID() const { return m_id; }
+        void InitEnum(const char* group, const char* subgroup, const char* name,
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** enumVals, 
+            int num, int curr);
 
-		const FloatParam& GetFloat() const;
-		void SetFloat(float v);
+        const char* GetGroup() const { return m_group; }
+        const char* GetSubGroup() const { return m_subgroup; }
+        const char* GetName() const { return m_name; }
+        PARAM_TYPE GetType() const { return m_type; }
+        uint64_t GetID() const { return m_id; }
 
-		const Float3Param& GetFloat3() const;
-		void SetFloat3(Math::float3 v);		
-		
-		const UnitDirParam& GetUnitDir() const;
-		void SetUnitDir(float pitch, float yaw);
+        const FloatParam& GetFloat() const;
+        void SetFloat(float v);
 
-		const Float3Param& GetColor() const;
-		void SetColor(Math::float3 v);
+        const Float3Param& GetFloat3() const;
+        void SetFloat3(Math::float3 v);
 
-		const IntParam& GetInt() const;
-		void SetInt(int v);
+        const UnitDirParam& GetUnitDir() const;
+        void SetUnitDir(float pitch, float yaw);
 
-		bool GetBool() const;
-		void SetBool(bool v);
+        const Float3Param& GetColor() const;
+        void SetColor(Math::float3 v);
 
-		const EnumParam& GetEnum() const;
-		void SetEnum(int v);
+        const IntParam& GetInt() const;
+        void SetInt(int v);
 
-	private:
-		void InitCommon(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg);
+        bool GetBool() const;
+        void SetBool(bool v);
 
-		fastdelegate::FastDelegate1<const ParamVariant&> m_dlg;
-		uint64_t m_id;
-		PARAM_TYPE m_type;
-		char m_group[MAX_GROUP_LEN];
-		char m_subgroup[MAX_SUBGROUP_LEN];
-		char m_name[MAX_NAME_LEN];
+        const EnumParam& GetEnum() const;
+        void SetEnum(int v);
 
-		union
-		{
-			FloatParam m_float;
-			Float3Param m_float3;
-			UnitDirParam m_unitDir;
-			IntParam m_int;
-			EnumParam m_enum;
-			bool m_bool;
-		};
-	};
+    private:
+        void InitCommon(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg);
+
+        fastdelegate::FastDelegate1<const ParamVariant&> m_dlg;
+        uint64_t m_id;
+        PARAM_TYPE m_type;
+        char m_group[MAX_GROUP_LEN];
+        char m_subgroup[MAX_SUBGROUP_LEN];
+        char m_name[MAX_NAME_LEN];
+
+        union
+        {
+            FloatParam m_float;
+            Float3Param m_float3;
+            UnitDirParam m_unitDir;
+            IntParam m_int;
+            EnumParam m_enum;
+            bool m_bool;
+        };
+    };
 }

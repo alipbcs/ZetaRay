@@ -6,32 +6,32 @@
 
 namespace ZetaRay::Core
 {
-	class ComputeCmdList;
+    class ComputeCmdList;
 }
 
 namespace ZetaRay::RenderPass
 {
-	struct GenerateRasterDepth final : public RenderPassBase
-	{
-		static constexpr int NUM_CBV = 1;
-		static constexpr int NUM_SRV = 0;
-		static constexpr int NUM_UAV = 0;
-		static constexpr int NUM_GLOBS = 1;
-		static constexpr int NUM_CONSTS = 1;
+    struct GenerateRasterDepth final : public RenderPassBase
+    {
+        static constexpr int NUM_CBV = 1;
+        static constexpr int NUM_SRV = 0;
+        static constexpr int NUM_UAV = 0;
+        static constexpr int NUM_GLOBS = 1;
+        static constexpr int NUM_CONSTS = 1;
 
-		GenerateRasterDepth();
-		~GenerateRasterDepth();
+        GenerateRasterDepth();
+        ~GenerateRasterDepth();
 
-		GenerateRasterDepth(GenerateRasterDepth&&) = delete;
-		GenerateRasterDepth& operator=(GenerateRasterDepth&&) = delete;
+        GenerateRasterDepth(GenerateRasterDepth&&) = delete;
+        GenerateRasterDepth& operator=(GenerateRasterDepth&&) = delete;
 
-		void Resize(uint32_t w, uint32_t h);
-		void Render(Core::ComputeCmdList& computeCmdList);
+        void Resize(uint32_t w, uint32_t h);
+        void Render(Core::ComputeCmdList& computeCmdList);
 
-		inline static constexpr const char* COMPILED_CS = "GenerateDepthBuffer_cs.cso";
+        inline static constexpr const char* COMPILED_CS = "GenerateDepthBuffer_cs.cso";
 
-		ID3D12PipelineState* m_pso = nullptr;
-		Core::GpuMemory::Texture m_depthBuffer;
-		Core::DescriptorTable m_descTable;
-	};
+        ID3D12PipelineState* m_pso = nullptr;
+        Core::GpuMemory::Texture m_depthBuffer;
+        Core::DescriptorTable m_descTable;
+    };
 }
