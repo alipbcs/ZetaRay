@@ -34,7 +34,10 @@
 #define USE_VNDF_SPHERICAL_CAPS 1
 
 // About 1 degrees. To check against (almost) perfect reflection.
-#define MIN_N_DOT_H_PERFECT_SPECULAR 0.9998157121216442
+#define MIN_N_DOT_H_SPECULAR 0.9998157121216442
+
+// Maximum (linear) roughness to treat surface as specular. Helps avoid numerical-precision issues.
+#define MAX_ROUGHNESS_SPECULAR 0.035
 
 namespace BRDF
 {
@@ -189,8 +192,8 @@ namespace BRDF
 
             // Specular reflection and microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
-            si.deltaNDF = roughness <= 1e-2;
-            
+            si.specular = roughness <= MAX_ROUGHNESS_SPECULAR;
+
             return si;
         }
 
@@ -222,7 +225,7 @@ namespace BRDF
         float ndotwh;
         float3 diffuseReflectance;
         float3 F;
-        bool deltaNDF;
+        bool specular;  // delta BRDF
         bool backfacing_wo;
         bool backfacing_wi;
     };
@@ -267,10 +270,16 @@ namespace BRDF
 
     float3 SpecularBRDFGGXSmith(ShadingData surface)
     {
-        if(surface.deltaNDF)
+        if(surface.specular)
         {
-            // Divide by ndotwi is so that integrating brdf over hemisphere would give F (Frensel).
-            return surface.F * (surface.ndotwh >= MIN_N_DOT_H_PERFECT_SPECULAR) / surface.ndotwi;
+            // For specular surfaces, total radiance reflected back towards w_o (L_o(w_o)) 
+            // should be F * L_i(w_r), where w_r = reflect(-w_o, n). Plugging into the rendering 
+            // equation:
+            //      L_o(w_o) = /int f(w_o, w_i) * L_i(w_i) * ndotwi dw_i = F * L_i(w_r).
+            // Now in order for the above to hold, we must have
+            //      f(w_o, w_i) = F * delta(n - wh) / ndotwi
+            // Note that ndotwi cancels out.
+            return surface.F * (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
         }
 
         float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
@@ -281,19 +290,16 @@ namespace BRDF
     }
 
     // Evaluates distribution of visible normals (given outgoing dir. wo)
-    //        vndf(wh) = GGX(wh) * hdotwo * G1(ndotwo) / ndotwo.
+    //        VNDF(wh) = GGX(wh) * whdotwo * G1(ndotwo) / ndotwo.
     //
     // After correction for change of variable from wh to wi, it becomes
-    //        vndf(wi) = vndf(wh) * 1 / (4 * hdotwi)
+    //        VNDF(wi) = VNDF(wh) * 1 / (4 * whdotwi)
     //                 = GGX(wh) * G1(ndotwo) / (4 * ndotwo)
-    // (Note that hdotwo = hdotwi).
+    // (Note that whdotwo = whdotwi).
     float GGXVNDFReflectionPdf(ShadingData surface)
     {
-        if(surface.deltaNDF)
-        {
-            // Divide by ndotwi is so that integrating BRDF over hemisphere would give F (Frensel).
-             return (surface.ndotwh >= MIN_N_DOT_H_PERFECT_SPECULAR) / surface.ndotwi;
-        }
+        if(surface.specular)
+            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
 
         float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
         float NDF = GGX(surface.ndotwh, alphaSq);
@@ -306,7 +312,7 @@ namespace BRDF
     float3 SampleSpecularMicrofacet(ShadingData surface, float3 shadingNormal, float2 u)
     {
         // Fast path for mirror surfaces
-        if(surface.deltaNDF)
+        if(surface.specular)
             return reflect(-surface.wo, shadingNormal);
 
         // Build an orthonormal basis C around the normal such that it points towards +Z.
@@ -332,8 +338,11 @@ namespace BRDF
 
     float3 SpecularMicrofacetGGXSmithDivPdf(ShadingData surface)
     {
-        if(surface.deltaNDF)
-            return surface.F / surface.ndotwi;
+        if(surface.specular)
+        {
+            // Note that ndotwi cancels out.
+            return surface.F;
+        }
 
         // When VNDF is used for sampling the incident direction (wi), the expression 
         //        f(wi, wo) * cos(theta) / Pdf(wi)

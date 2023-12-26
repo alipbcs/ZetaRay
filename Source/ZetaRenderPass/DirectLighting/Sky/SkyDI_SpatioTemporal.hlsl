@@ -694,10 +694,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
         if(metallic)
         {
-            if(surface.deltaNDF)
+            if(surface.specular)
             {
-                // Divide by ndotwi is so that integrating brdf over hemisphere would give F (Frensel).
-                f_s = (surface.ndotwh >= MIN_N_DOT_H_PERFECT_SPECULAR) / surface.ndotwi;
+                f_s = (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
             }
             else
             {
