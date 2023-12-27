@@ -245,9 +245,11 @@ namespace GBufferRT
         }
 #endif
 
-        if (mat.MetallicRoughnessTexture != uint32_t(-1))
+        const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+
+        if (metallicRoughnessTex != uint16_t(-1))
         {
-            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
+            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + metallicRoughnessTex);
             METALLIC_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
             float2 mr = g_metallicRoughnessMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 

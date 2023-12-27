@@ -551,6 +551,9 @@ namespace
             if (mat.has_ior)
                 desc.IOR = mat.ior.ior;
 
+            if (mat.has_transmission)
+                desc.Transmission = mat.transmission.transmission_factor;
+
             SceneCore& scene = App::GetScene();
             scene.AddMaterial(desc, ddsImages, false);
         }

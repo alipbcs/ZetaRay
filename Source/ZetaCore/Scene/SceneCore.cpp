@@ -298,6 +298,12 @@ uint32_t SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
 
+    if (matDesc.Transmission > 0)
+    {
+        mat.SetIOR(matDesc.IOR);
+        mat.SetTransmission(matDesc.Transmission);
+    }
+
     if (lock)
         AcquireSRWLockExclusive(&m_matLock);
 
@@ -319,6 +325,12 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     mat.RoughnessFactor = FloatToUnorm16(matDesc.RoughnessFactor);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
+
+    if (matDesc.Transmission > 0)
+    {
+        mat.SetIOR(matDesc.IOR);
+        mat.SetTransmission(matDesc.Transmission);
+    }
 
     auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, MutableSpan<DDSImage> ddsImages)
         {
@@ -353,7 +365,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         if (matDesc.MetallicRoughnessTexPath != uint64_t(-1))
             addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", m_metallicRoughnessDescTable, tableOffset, ddsImages);
 
-        mat.MetallicRoughnessTexture = tableOffset;
+        mat.SetMetallicRoughnessTex(tableOffset);
     }
 
     {

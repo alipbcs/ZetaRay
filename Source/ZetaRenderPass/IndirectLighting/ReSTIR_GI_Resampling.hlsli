@@ -165,9 +165,11 @@ namespace RGI_Util
             baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
         }
 
-        if (mat.MetallicRoughnessTexture != uint32_t(-1))
+        const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+
+        if (metallicRoughnessTex != uint16_t(-1))
         {
-            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + mat.MetallicRoughnessTexture);
+            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + metallicRoughnessTex);
             METALLIC_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
 
             uint w;

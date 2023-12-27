@@ -3,7 +3,7 @@
 
 #include "HLSLCompat.h"
 
-// metallic factor shoud be binary, treat everything with a lower "metalness" value as dielectric
+// Metallic factor shoud be binary, treat everything with a lower "metalness" value as dielectric.
 #define MIN_METALNESS_METAL 0.92
 
 #ifdef __cplusplus
@@ -16,13 +16,13 @@ namespace ZetaRay
     {
 #ifdef __cplusplus
 
-        // "MASK": Output is either fully opaque or fully transparent depending on the alpha value and alpha cutoff value
-        // "BLEND" The alpha value is used to composite the source and destination areas
         enum class ALPHA_MODE : uint8_t
         {
             // "OPAQUE" is defined in wingdi.h!
             OPAQUE_ = 0,
+            // Output is either fully opaque or fully transparent depending on the alpha value
             MASK,
+            // The alpha value is used to composite the source and destination areas
             BLEND,
             COUNT
         };
@@ -31,7 +31,7 @@ namespace ZetaRay
             : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
             RoughnessFactor((1 << 16) - 1),
             BaseColorTexture(uint32_t(-1)),
-            MetallicRoughnessTexture(uint32_t(-1)),
+            MetallicRoughnessTexture_Transmission(0xffff),
             NormalTexture_IOR(uint32_t(-1)),
             EmissiveTexture_Strength(uint32_t(-1)),
             Packed(0),
@@ -93,6 +93,11 @@ namespace ZetaRay
             return uint16_t(NormalTexture_IOR & 0xffff);
         }
 
+        uint16_t GetMetallicRoughnessTex() CONST
+        {
+            return uint16_t(MetallicRoughnessTexture_Transmission & 0xffff);
+        }
+
         float GetRoughnessFactor() CONST
         {
             return RoughnessFactor / float((1 << 16) - 1);
@@ -101,13 +106,19 @@ namespace ZetaRay
 #ifdef __cplusplus
         void SetNormalTex(uint32_t idx)
         {
-            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid emissive index.");
+            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
             NormalTexture_IOR = (idx & 0xffff) | (NormalTexture_IOR & 0xffff0000);
+        }
+
+        void SetMetallicRoughnessTex(uint32_t idx)
+        {
+            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
+            MetallicRoughnessTexture_Transmission = (idx & 0xffff) | (MetallicRoughnessTexture_Transmission & 0xff0000);
         }
 
         void SetEmissiveTex(uint32_t idx)
         {
-            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid emissive index.");
+            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
             EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
         }
 
@@ -125,6 +136,12 @@ namespace ZetaRay
             NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
         }
 
+        void SetTransmission(float t)
+        {
+            uint32_t encoded = uint32_t(roundf(t * float((1 << 8) - 1)));
+            MetallicRoughnessTexture_Transmission = (encoded << 16) | (MetallicRoughnessTexture_Transmission & 0xffff);
+        }
+
 #else
         half GetEmissiveStrength()
         {
@@ -140,13 +157,19 @@ namespace ZetaRay
             return 1.0f + ior;
         }
 
+        half GetTransmission()
+        {
+            half t = half((MetallicRoughnessTexture_Transmission >> 16) & 0xff);
+            return t / 255.0;
+        }
+
 #endif // __cplusplus
 
         uint32_t BaseColorFactor;
         uint32_t EmissiveFactorNormalScale;
         uint32_t BaseColorTexture;
         uint32_t NormalTexture_IOR;
-        uint32_t MetallicRoughnessTexture;
+        uint32_t MetallicRoughnessTexture_Transmission;
         uint32_t EmissiveTexture_Strength;
 
         // Last 4 bits encode alpha and double sided, first 20 bits encode 
