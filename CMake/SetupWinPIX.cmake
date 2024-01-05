@@ -6,7 +6,7 @@ function(SetupWinPIX)
         file(MAKE_DIRECTORY ${PIX_DIR})
 
         # download from nuget
-        set(URL "https://www.nuget.org/api/v2/package/WinPixEventRuntime/1.0.230302001")
+        set(URL "https://www.nuget.org/api/v2/package/WinPixEventRuntime/1.0.231030001")
         message(STATUS "Downloading WinPixEventRuntime from ${URL}...")
         set(ARCHIVE_PATH "${PIX_DIR}/temp/pix.zip")
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)        
