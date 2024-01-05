@@ -397,6 +397,8 @@ void PreLighting::Render(CommandList& cmdList)
 
         // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+        computeCmdList.PIXEndEvent();
     }
 
     if (m_doPresamplingThisFrame)
@@ -493,8 +495,6 @@ void PreLighting::Render(CommandList& cmdList)
 
         cmdList.PIXEndEvent();
     }
-
-    cmdList.PIXEndEvent();
 }
 
 void PreLighting::CreateOutputs()
