@@ -10,6 +10,7 @@ enum class DisplayOption
     NORMAL,
     METALNESS_ROUGHNESS,
     EMISSIVE,
+    TRANSMISSION,
     DEPTH,
     COUNT
 };

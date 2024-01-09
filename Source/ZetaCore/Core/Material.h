@@ -6,6 +6,9 @@
 // Metallic factor shoud be binary, treat everything with a lower "metalness" value as dielectric.
 #define MIN_METALNESS_METAL 0.92
 
+#define MIN_IOR 1.0f
+#define MAX_IOR 2.5f
+
 #ifdef __cplusplus
 #include "../Math/Color.h"
 
@@ -130,7 +133,7 @@ namespace ZetaRay
 
         void SetIOR(float ior)
         {
-            Assert(ior >= 1.0f && ior < 2.5f, "IOR is assumed to be in the range [1, 2.5)");
+            Assert(ior >= MIN_IOR && ior < MAX_IOR, "IOR is assumed to be in the range [1, 2.5)");
             float normalized = (ior - 1.0f) / 2.0f;
             normalized = Math::Min(normalized * (1 << 16), float((1 << 16) - 1));
             NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
@@ -151,16 +154,13 @@ namespace ZetaRay
         float GetIOR()
         {
             uint16_t encoded = uint16_t(NormalTexture_IOR >> 16);
-            float ior = encoded / float(1 << 16);
-            ior *= 2.0f;
-
-            return 1.0f + ior;
+            return mad(1.0f / float(1 << 15), encoded, 1.0f);
         }
 
-        half GetTransmission()
+        float GetTransmission()
         {
-            half t = half((MetallicRoughnessTexture_Transmission >> 16) & 0xff);
-            return t / 255.0;
+            float t = float((MetallicRoughnessTexture_Transmission >> 16) & 0xff);
+            return t / 255.0f;
         }
 
 #endif // __cplusplus

@@ -146,7 +146,7 @@ namespace GBufferRT
     }
 
     void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, float roughness,
-        float3 emissive, float2 motionVec, ConstantBuffer<cbGBufferRt> g_local)
+        float3 emissive, float2 motionVec, float transmission, float ior, ConstantBuffer<cbGBufferRt> g_local)
     {
         RWTexture2D<float> g_outDepth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
         g_outDepth[DTid] = t;
@@ -164,6 +164,13 @@ namespace GBufferRT
         // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
         g_outEmissive[DTid] = max(0, emissive);
 
+        if(transmission > 0)
+        {
+            RWTexture2D<float2> g_outTransmission = ResourceDescriptorHeap[g_local.TransmissionUavDescHeapIdx];
+            float ior_unorm = GBuffer::EncodeIOR(ior);
+            g_outTransmission[DTid] = float2(transmission, ior_unorm);
+        }
+
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         g_outMotion[DTid] = motionVec;
     }
@@ -178,13 +185,13 @@ namespace GBufferRT
     {
         float2 fw = max(abs(grads.xy * 300), abs(grads.zw * 300));
         float width = max(fw.x, fw.y);
-    
+
         float2 p0 = uv - 0.5 * width;
         float2 p1 = uv + 0.5 * width;
-    
+
         float2 i = (IntegrateBump(p1) - IntegrateBump(p0)) / width;
         float area2 = i.x + i.y - 2 * i.x * i.y;
-    
+
         return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
     }
 
@@ -269,10 +276,12 @@ namespace GBufferRT
         emissiveColorNormalScale.rgb *= emissiveStrength;
 
         // encode metalness along with some other stuff
-        metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, mat.BaseColorTexture, 
+        float tr = mat.GetTransmission();
+        float ior = mat.GetIOR();
+        metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, tr > 0, 
             emissiveColorNormalScale.rgb);
 
         WriteToGBuffers(DTid, t, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
-            emissiveColorNormalScale.rgb, motionVec, g_local);
+            emissiveColorNormalScale.rgb, motionVec, tr, ior, g_local);
     }
 }

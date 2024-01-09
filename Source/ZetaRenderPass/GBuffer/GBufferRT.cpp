@@ -50,7 +50,7 @@ GBufferRT::GBufferRT()
         0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::RT_FRAME_MESH_INSTANCES);
-    
+
     // scene VB
     m_rootSig.InitAsBufferSRV(4,
         2,
@@ -269,6 +269,6 @@ void GBufferRT::ReloadGBufferInline()
 {
     const int i = (int)SHADERS::GBUFFER_RT_INLINE;
 
-    m_psoLib.Reload(i, "GBufferRT\\GBufferRT_Inline.hlsl", true);
+    m_psoLib.Reload(i, "GBuffer\\GBufferRT_Inline.hlsl", true);
     m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }

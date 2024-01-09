@@ -143,6 +143,29 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
     }
 
+    // transmission
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            StackStr(name, n, "GBuffer_TR_%d", i);
+
+            data.Transmission[i] = ZetaMove(GpuMemory::GetTexture2D(name,
+                width, height,
+                GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRANSMISSION],
+                D3D12_RESOURCE_STATE_COMMON,
+                texFlags,
+                1,
+                clearValuePtr));
+
+            // UAV
+            Direct3DUtil::CreateTexture2DUAV(data.Transmission[i], data.UavDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::TRANSMISSION));
+            // SRV
+            Direct3DUtil::CreateTexture2DSRV(data.Transmission[i], data.SrvDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::TRANSMISSION));
+        }    
+    }
+
     // depth
     {
         for (int i = 0; i < 2; i++)
@@ -181,6 +204,7 @@ void GBuffer::Shutdown(GBufferData& data)
         data.Normal[i].Reset();
         data.DepthBuffer[i].Reset();
         data.MetallicRoughness[i].Reset();
+        data.Transmission[i].Reset();
         data.SrvDescTable[i].Reset();
     }
 
@@ -202,6 +226,8 @@ void GBuffer::Update(GBufferData& gbufferData)
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::MOTION_VECTOR));
     gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::EMISSIVE_COLOR_UAV,
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::EMISSIVE_COLOR));
+    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::TRANSMISSION_UAV,
+        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRANSMISSION));
     gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::DEPTH_UAV,
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::DEPTH));
 }
@@ -225,6 +251,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
         renderGraph.RegisterResource(data.DepthBuffer[i].Resource(), data.DepthBuffer[i].ID(), initDepthState);
         renderGraph.RegisterResource(data.MetallicRoughness[i].Resource(), data.MetallicRoughness[i].ID());
         renderGraph.RegisterResource(data.BaseColor[i].Resource(), data.BaseColor[i].ID());
+        renderGraph.RegisterResource(data.Transmission[i].Resource(), data.Transmission[i].ID());
     }
 
     renderGraph.RegisterResource(data.MotionVec.Resource(), data.MotionVec.ID());
@@ -252,5 +279,6 @@ void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerDa
     renderGraph.AddOutput(data.GBufferPassHandle, data.MetallicRoughness[outIdx].ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.MotionVec.ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.EmissiveColor.ID(), gbufferOutState);
+    renderGraph.AddOutput(data.GBufferPassHandle, data.Transmission[outIdx].ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.DepthBuffer[outIdx].ID(), depthBuffOutState);
 }

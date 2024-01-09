@@ -38,7 +38,7 @@ TriangleHitGroup MyHitGroup =
 
 RaytracingShaderConfig MyShaderConfig =
 {
-    sizeof(RayPayload),                                // max payload size
+    sizeof(RayPayload),                             // max payload size
     sizeof(BuiltInTriangleIntersectionAttributes)   // max attribute size
 };
 
@@ -66,13 +66,13 @@ void Raygen()
 
     // find primary surface point
     RayPayload rayPayload;
-    
+
     TraceRay(g_bvh,
         RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES, // RayFlags
-        0xff,                                 // InstanceInclusionMask
-        0,                                     // RayContributionToHitGroupIndex
-        0,                                     // MultiplierForGeometryContributionToShaderIndex
-        0,                                     // MissShaderIndex
+        0xff,                                // InstanceInclusionMask
+        0,                                   // RayContributionToHitGroupIndex
+        0,                                   // MultiplierForGeometryContributionToShaderIndex
+        0,                                   // MissShaderIndex
         cameraRay,
         rayPayload);
 
@@ -102,7 +102,7 @@ void Raygen()
 
     float4 grads = GBufferRT::UVDifferentials(DispatchRaysIndex().xy, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
         rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
-    
+
     float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
     float3 posV = mul(g_frame.CurrView, float4(posW, 1.0f));
     GBufferRT::ApplyTextureMaps(DispatchRaysIndex().xy, posV.z, rayPayload.uv, matIdx, normal, tangent, motionVec, 

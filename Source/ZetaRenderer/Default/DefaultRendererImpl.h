@@ -56,6 +56,7 @@ namespace ZetaRay::DefaultRenderer
             METALLIC_ROUGHNESS,
             MOTION_VECTOR,
             EMISSIVE_COLOR,
+            TRANSMISSION,
             DEPTH,
             COUNT
         };
@@ -67,6 +68,7 @@ namespace ZetaRay::DefaultRenderer
             DXGI_FORMAT_R8G8_UNORM,
             DXGI_FORMAT_R16G16_FLOAT,
             DXGI_FORMAT_R11G11B10_FLOAT,
+            DXGI_FORMAT_R8G8_UNORM,
             DXGI_FORMAT_R32_FLOAT
         };
 
@@ -76,6 +78,7 @@ namespace ZetaRay::DefaultRenderer
         Core::GpuMemory::Texture MetallicRoughness[2];
         Core::GpuMemory::Texture MotionVec;
         Core::GpuMemory::Texture EmissiveColor;
+        Core::GpuMemory::Texture Transmission[2];
         Core::GpuMemory::Texture DepthBuffer[2];
 
         Core::DescriptorTable SrvDescTable[2];

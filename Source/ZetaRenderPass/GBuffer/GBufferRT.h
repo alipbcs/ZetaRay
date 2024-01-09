@@ -25,6 +25,7 @@ namespace ZetaRay::RenderPass
             METALLIC_ROUGHNESS_UAV,
             MOTION_VECTOR_UAV,
             EMISSIVE_COLOR_UAV,
+            TRANSMISSION_UAV,
             DEPTH_UAV,
             COUNT
         };
@@ -58,6 +59,9 @@ namespace ZetaRay::RenderPass
                 return;
             case SHADER_IN_GPU_DESC::MOTION_VECTOR_UAV:
                 m_localCB.MotionVectorUavDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::TRANSMISSION_UAV:
+                m_localCB.TransmissionUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::DEPTH_UAV:
                 m_localCB.DepthUavDescHeapIdx = descHeapIdx;

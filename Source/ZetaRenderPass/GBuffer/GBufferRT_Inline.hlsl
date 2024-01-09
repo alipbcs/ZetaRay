@@ -38,10 +38,10 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 
     float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
     if(alphaFactor_cutoff.y == 1.0)
-         return false;
+        return false;
 
     float alpha = alphaFactor_cutoff.x;
-    
+
     if(meshData.BaseColorTex != uint16_t(-1))
     {
         uint tri = primIdx * 3;
@@ -76,7 +76,7 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
 
     // find primary surface point
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> rayQuery;
-    
+
     rayQuery.TraceRayInline(g_bvh, 
         RAY_FLAG_NONE, 
         RT_AS_SUBGROUP::ALL, 
@@ -206,7 +206,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         g_frame.CurrCameraJitter);
 
     RayPayload rayPayload = PrimaryHitData(cameraRayDir);
-    
+
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)
     {
@@ -221,7 +221,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         motionNDC.x /= g_frame.AspectRatio;
         float2 motionUV = Math::UVFromNDC(motionNDC);
         g_outMotion[swizzledDTid] = motionUV;
-        
+
         return;
     }
 

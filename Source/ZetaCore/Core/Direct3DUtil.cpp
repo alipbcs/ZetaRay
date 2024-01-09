@@ -1158,7 +1158,7 @@ void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
-    Assert(res, "Texture hasn't been initialized.");
+    Assert(res, "Attempting to create SRV for NULL texture.");
     auto desc = res->GetDesc();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1179,7 +1179,7 @@ void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
-    Assert(res, "Texture hasn't been initialized.");
+    Assert(res, "Attempting to create SRV for NULL texture.");
     auto desc = res->GetDesc();
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
