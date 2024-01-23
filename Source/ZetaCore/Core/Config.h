@@ -1,10 +1,10 @@
 #pragma once
 
 // PIX crashes & NSight doesn't work when the debug layer is enabled
-#define DIREC3D_DEBUG_LAYER 1
+#define DIREC3D_DEBUG_LAYER
 
 // To ensure stable GPU frequency for performance testing. Requires developer mode to be enabled.
-#define STABLE_GPU_POWER_STATE 1
+//#define STABLE_GPU_POWER_STATE
 
 #include "Device.h"
 
