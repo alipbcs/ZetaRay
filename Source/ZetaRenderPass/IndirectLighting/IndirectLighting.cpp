@@ -152,7 +152,9 @@ void IndirectLighting::Init()
     memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
     memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
-    m_cbSpatioTemporal.NumBounces = 1;
+    m_cbSpatioTemporal.MaxDiffuseBounces = 1;
+    m_cbSpatioTemporal.MaxGlossyBounces = 1;
+    m_cbSpatioTemporal.MaxTransmissionBounces = 2;
 
     SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::RUSSIAN_ROULETTE, true);
     SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE, true);
@@ -180,14 +182,32 @@ void IndirectLighting::Init()
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE));
     App::AddParam(stochasticMultibounce);
 
-    ParamVariant numBounces;
-    numBounces.InitInt("Renderer", "Indirect Lighting", "Max Num Bounces",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::NumBouncesCallback),
-        m_cbSpatioTemporal.NumBounces,
+    ParamVariant maxDiffuseBounces;
+    maxDiffuseBounces.InitInt("Renderer", "Indirect Lighting", "Max Diffuse Bounces",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxDiffuseBouncesCallback),
+        m_cbSpatioTemporal.MaxDiffuseBounces,
         1,
         6,
         1);
-    App::AddParam(numBounces);
+    App::AddParam(maxDiffuseBounces);
+
+    ParamVariant maxGlossyBounces;
+    maxGlossyBounces.InitInt("Renderer", "Indirect Lighting", "Max Glossy Bounces",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxGlossyBouncesCallback),
+        m_cbSpatioTemporal.MaxGlossyBounces,
+        1,
+        6,
+        1);
+    App::AddParam(maxGlossyBounces);
+
+    ParamVariant maxTransmissionBounces;
+    maxTransmissionBounces.InitInt("Renderer", "Indirect Lighting", "Max Transmission Bounces",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxTransmissionBouncesCallback),
+        m_cbSpatioTemporal.MaxTransmissionBounces,
+        1,
+        8,
+        1);
+    App::AddParam(maxTransmissionBounces);
 
     //ParamVariant doSpatial;
     //doSpatial.InitBool("Renderer", "Indirect Lighting", "Spatial Resample",
@@ -195,12 +215,12 @@ void IndirectLighting::Init()
     //App::AddParam(doSpatial);
 
     ParamVariant maxTemporalM;
-    maxTemporalM.InitInt("Renderer", "Indirect Lighting", "M_max",
+    maxTemporalM.InitFloat("Renderer", "Indirect Lighting", "M_max",
         fastdelegate::MakeDelegate(this, &IndirectLighting::MaxTemporalMCallback),
-        m_cbSpatioTemporal.M_max,
-        1,
-        30,
-        1);
+        DefaultParamVals::M_MAX,
+        1.0f,
+        20.0f,
+        0.1f);
     App::AddParam(maxTemporalM);
 
     ParamVariant denoise;
@@ -226,10 +246,11 @@ void IndirectLighting::Init()
         1);                                          // step
     App::AddParam(tsppSpecular);
 
-    ParamVariant fireflyFilter;
-    fireflyFilter.InitBool("Renderer", "Indirect Lighting", "Firefly Filter",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::FireflyFilterCallback), m_cbDnsrTemporal.FilterFirefly);
-    App::AddParam(fireflyFilter);
+    ParamVariant suppressOutliers;
+    suppressOutliers.InitBool("Renderer", "Indirect Lighting", "Boiling Suppression",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::BoilingSuppressionCallback),
+        IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_IND_FLAGS::BOILING_SUPPRESSION));
+    App::AddParam(suppressOutliers);
 
     ParamVariant dnsrSpatialFilterDiffuse;
     dnsrSpatialFilterDiffuse.InitBool("Renderer", "Indirect Lighting", "Spatial Filter (Diffuse)",
@@ -358,15 +379,14 @@ void IndirectLighting::Render(CommandList& cmdList)
 
         computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
 
-        m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
-        m_cbSpatioTemporal.NumGroupsInTile = (uint16_t)(RESTIR_GI_TEMPORAL_TILE_WIDTH * dispatchDimY);
+        m_cbSpatioTemporal.DispatchDimX_NumGroupsInTile = ((RESTIR_GI_TEMPORAL_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
 
         SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::TEMPORAL_RESAMPLE, 
             m_doTemporalResampling && m_isTemporalReservoirValid);
         SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::SPATIAL_RESAMPLE, 
             m_doSpatialResampling && m_isTemporalReservoirValid);
 
-        Assert(!m_preSampling || (m_cbSpatioTemporal.NumSampleSets && m_cbSpatioTemporal.SampleSetSize), 
+        Assert(!m_preSampling || m_cbSpatioTemporal.SampleSetSize_NumSampleSets,
             "Presampled set params haven't been set.");
 
         {
@@ -612,9 +632,19 @@ void IndirectLighting::CreateOutputs()
     }
 }
 
-void IndirectLighting::NumBouncesCallback(const Support::ParamVariant& p)
+void IndirectLighting::MaxDiffuseBouncesCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.NumBounces = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.MaxDiffuseBounces = (uint16_t)p.GetInt().m_val;
+}
+
+void IndirectLighting::MaxGlossyBouncesCallback(const Support::ParamVariant& p)
+{
+    m_cbSpatioTemporal.MaxGlossyBounces = (uint16_t)p.GetInt().m_val;
+}
+
+void IndirectLighting::MaxTransmissionBouncesCallback(const Support::ParamVariant& p)
+{
+    m_cbSpatioTemporal.MaxTransmissionBounces = (uint16_t)p.GetInt().m_val;
 }
 
 void IndirectLighting::StochasticMultibounceCallback(const Support::ParamVariant& p)
@@ -639,7 +669,7 @@ void IndirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 
 void IndirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.M_max = (uint16_t) p.GetInt().m_val;
+    m_cbSpatioTemporal.M_max = p.GetFloat().m_val;
 }
 
 void IndirectLighting::DenoiseCallback(const Support::ParamVariant& p)
@@ -663,9 +693,9 @@ void IndirectLighting::TsppSpecularCallback(const Support::ParamVariant& p)
     m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
 }
 
-void IndirectLighting::FireflyFilterCallback(const Support::ParamVariant& p)
+void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.FilterFirefly = p.GetBool();
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
 }
 
 void IndirectLighting::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)

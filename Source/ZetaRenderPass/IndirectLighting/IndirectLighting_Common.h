@@ -26,6 +26,7 @@ namespace CB_IND_FLAGS
     static constexpr uint32_t STOCHASTIC_MULTI_BOUNCE = 1 << 2;
     static constexpr uint32_t RUSSIAN_ROULETTE = 1 << 3;
     static constexpr uint32_t DENOISE = 1 << 4;
+    static constexpr uint32_t BOILING_SUPPRESSION = 1 << 5;
 };
 
 struct cb_ReSTIR_GI_SpatioTemporal
@@ -41,23 +42,18 @@ struct cb_ReSTIR_GI_SpatioTemporal
     uint32_t FinalOrColorAUavDescHeapIdx;
     uint32_t ColorBUavDescHeapIdx;
 
-    float Extents_x;
-    float Extents_y;
-    float Extents_z;
-    float Offset_y;
-
     uint32_t Flags;
-
-    uint32_t SampleSetSize;
-    uint32_t NumSampleSets;
-    uint16_t M_max;
-    uint16_t NumBounces;
-    uint16_t GridDim_x;
-    uint16_t GridDim_y;
-    uint16_t GridDim_z;
-    uint16_t DispatchDimX;
-    uint16_t NumGroupsInTile;
-    uint16_t pad;
+    uint32_t DispatchDimX_NumGroupsInTile;
+    uint32_t SampleSetSize_NumSampleSets;
+    uint32_t Extents_xy;
+    uint32_t Extents_z_Offset_y;
+    uint32_t GridDim_xy;
+    uint32_t GridDim_z;
+ 
+    float M_max;
+    uint32_t MaxDiffuseBounces;
+    uint32_t MaxGlossyBounces;
+    uint32_t MaxTransmissionBounces;
 };
 
 struct cbIndirectDnsrTemporal
@@ -75,8 +71,6 @@ struct cbIndirectDnsrTemporal
     uint32_t MaxTsppSpecular;
     uint16_t Denoise;
     uint16_t IsTemporalCacheValid;
-    uint16_t FilterFirefly;
-    uint16_t pad;
 };
 
 struct cbIndirectDnsrSpatial

@@ -114,7 +114,7 @@ float4 mainPS(VSOut psin) : SV_Target
         GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::BASE_COLOR];
         display = g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb + 
-            g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.01;
+            g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.005;
     }
     else if (g_local.DisplayOption == (int) DisplayOption::TRANSMISSION)
     {

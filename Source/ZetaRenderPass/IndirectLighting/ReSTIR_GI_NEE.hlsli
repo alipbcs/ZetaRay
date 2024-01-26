@@ -1,11 +1,11 @@
 #include "../Common/BRDF.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
-#include "ReSTIR_GI_Trace.hlsli"
+#include "ReSTIR_GI_RT.hlsli"
 
 namespace RGI_Util
 {
-    float3 NEE_Sun(float3 pos, float3 normal, BRDF::ShadingData surface, 
+    float3 NEE_Sun(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
     {
         float3 wi = -g_frame.SunDir;
@@ -16,38 +16,43 @@ namespace RGI_Util
         
         float3 T;
         float3 B;
-        Math::Transform::revisedONB(wi, T, B);
+        Math::revisedONB(wi, T, B);
         wi = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * wi;
 #endif
-        
-        bool isUnoccluded = RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh);
+
+        surface.SetWi(wi, normal);
+        float3 bsdfxCosTheta = BSDF::UnifiedBSDF(surface);
+
+        if(dot(bsdfxCosTheta, bsdfxCosTheta) == 0)
+            return 0.0;
+
+        bool isUnoccluded = RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
         if (!isUnoccluded)
             return 0.0;
-        
-        surface.SetWi(wi, normal);
-        float3 brdfxCosTheta = BRDF::CombinedBRDF(surface);
+
         float3 le = Light::Le_Sun(pos, g_frame);
-        float3 Lo = brdfxCosTheta * le;
+        float3 Lo = bsdfxCosTheta * le;
+#if SUPPRESS_SUN_FIREFLIES == 1
         Lo = min(Lo, le);
-        
+#endif
         return Lo;
     }
 
-    float3 NEE_Sky_RIS(float3 pos, float3 normal, BRDF::ShadingData surface, 
+    float3 NEE_Sky_RIS_Opaque(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, uint skyViewDescHeapOffset, inout RNG rng)
     {
         // Fast path for metallic surface
         if(surface.IsMetallic())
         {
             const float2 u = rng.Uniform2D();
-            const float3 wi_g = BRDF::SampleSpecularMicrofacet(surface, normal, u);
-            surface.SetWi(wi_g, normal);
+            const float3 wi_g = BSDF::SampleMicrofacetBRDF(surface, normal, u);
+            surface.SetWi_Refl(wi_g, normal);
 
             float3 Ld = Light::Le_Sky(wi_g, skyViewDescHeapOffset);
-            Ld *= BRDF::SpecularMicrofacetGGXSmithDivPdf(surface);
+            Ld *= BSDF::MicrofacetBRDFDivPdf(surface);
 
             if(Math::Luminance(Ld) > 1e-5)
-                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh);
+                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
 
             return Ld;
         }
@@ -61,13 +66,13 @@ namespace RGI_Util
         // Sample glossy/specular BRDF
         {
             const float2 u = rng.Uniform2D();
-            wi = BRDF::SampleSpecularMicrofacet(surface, normal, u);
-            surface.SetWi(wi, normal);
+            wi = BSDF::SampleMicrofacetBRDF(surface, normal, u);
+            surface.SetWi_Refl(wi, normal);
 
-            const float pdf_g = BRDF::GGXVNDFReflectionPdf(surface);
-            const float pdf_d = !surface.backfacing_wi * BRDF::LambertianBRDFPdf(surface);
+            const float pdf_g = BSDF::VNDFReflectionPdf(surface);
+            const float pdf_d = !surface.invalid * BSDF::LambertianBRDFPdf(surface);
 
-            target = BRDF::CombinedBRDF(surface);
+            target = BSDF::DielectricBRDF(surface);
             target *= Light::Le_Sky(wi, skyViewDescHeapOffset);
             targetLum = Math::Luminance(target);
             w_sum = RT::BalanceHeuristic(pdf_g, pdf_d, targetLum);
@@ -76,12 +81,12 @@ namespace RGI_Util
         // Lambertian BRDF
         {
             float pdf_d;
-            float3 wi_d = BRDF::SampleLambertianBrdf(normal, rng.Uniform2D(), pdf_d);
-            surface.SetWi(wi_d, normal);
+            float3 wi_d = BSDF::SampleLambertianBRDF(normal, rng.Uniform2D(), pdf_d);
+            surface.SetWi_Refl(wi_d, normal);
 
-            float pdf_g = BRDF::GGXVNDFReflectionPdf(surface);
+            float pdf_g = BSDF::VNDFReflectionPdf(surface);
             
-            float3 target_d = BRDF::CombinedBRDF(surface);
+            float3 target_d = BSDF::DielectricBRDF(surface);
             target_d *= Light::Le_Sky(wi_d, skyViewDescHeapOffset);
             float targetLum_d = Math::Luminance(target_d);
             float w = RT::BalanceHeuristic(pdf_d, pdf_g, targetLum_d);
@@ -96,14 +101,128 @@ namespace RGI_Util
         }
 
         if(Math::Luminance(target) > 1e-5)
-            target *= RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh);
+            target *= RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, false);
 
         float3 Ld = target * (w_sum / max(targetLum, 1e-6));
 
         return Ld;
     }
 
-    float3 NEE_Sky_MIS(float3 pos, float3 normal, BRDF::ShadingData surface, 
+    float3 NEE_Sky_RIS(float3 pos, float3 normal, BSDF::ShadingData surface, 
+        RaytracingAccelerationStructure g_bvh, uint skyViewDescHeapOffset, inout RNG rng)
+    {
+        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
+            return NEE_Sky_RIS_Opaque(pos, normal, surface, g_bvh, skyViewDescHeapOffset, rng);
+
+        float w_sum = 0;
+        float3 target = 0;
+        float targetLum = 0;
+
+        float3 wh = surface.specular ? 
+            normal : 
+            BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, rng.Uniform2D());
+
+        float wh_pdf = 1;
+
+        // Evaluate VNDF
+        if(!surface.specular)
+        {
+            surface.ndotwh = saturate(dot(normal, wh));
+            float alphaSq = surface.alpha * surface.alpha;
+            float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
+            float G1 = BSDF::SmithG1_GGX(alphaSq, surface.ndotwo);
+            wh_pdf = (NDF * G1) / surface.ndotwo;
+        }
+
+        float3 wi = refract(-surface.wo, wh, 1 / surface.eta);
+        bool tir = dot(wi, wi) == 0;
+
+        // Specular/glossy transmission
+        if(!tir)
+        {
+            surface.SetWi_Tr(wi, normal, wh);
+            float pdf_t = 1;
+
+            // Account for change of density from half vector to incident vector
+            if(!surface.specular)
+            {
+                pdf_t = wh_pdf * surface.whdotwo;
+                float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
+                denom *= denom;
+                float dwm_dwi = surface.whdotwi / denom;
+                pdf_t *= dwm_dwi;
+            }
+
+            target = BSDF::DielectricBTDF(surface);
+            target *= Light::Le_Sky(wi, skyViewDescHeapOffset);
+            targetLum = Math::Luminance(target);
+            w_sum = targetLum / max(pdf_t, 1e-6);
+        }
+
+        // Specular/glossy reflection
+        {
+            float3 wi_r = reflect(-surface.wo, wh);
+            surface.SetWi_Refl(wi_r, normal, wh);
+
+            float pdf_r = 1;
+
+            // Account for change of density from half vector to incident vector
+            if(!surface.specular)
+                pdf_r = wh_pdf / 4.0f;
+
+            // After using the law of reflection, VNDF samples might end up below the surface
+            float pdf_d = !surface.invalid * 
+                (surface.transmission != 1) * 
+                BSDF::LambertianBRDFPdf(surface);
+
+            float3 target_r = BSDF::DielectricBRDF(surface);
+            target_r *= Light::Le_Sky(wi_r, skyViewDescHeapOffset);
+            float targetLum_r = Math::Luminance(target_r);
+            float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
+            w_sum += w;
+
+            if (rng.Uniform() < (w / max(1e-6f, w_sum)))
+            {
+                wi = wi_r;
+                target = target_r;
+                targetLum = targetLum_r;
+            }
+        }
+
+        // Lambertian
+        if(surface.transmission < 1)
+        {
+            float pdf_d;
+            float3 wi_d = BSDF::SampleLambertianBRDF(normal, rng.Uniform2D(), pdf_d);
+            surface.SetWi_Refl(wi_d, normal);
+
+            float pdf_r = BSDF::VNDFReflectionPdf(surface);
+            
+            float3 target_d = BSDF::UnifiedBRDF(surface);
+            target_d *= Light::Le_Sky(wi_d, skyViewDescHeapOffset);
+            float targetLum_d = Math::Luminance(target_d);
+            float w = RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_d);
+            w_sum += w;
+
+            if (rng.Uniform() < (w / max(1e-6f, w_sum)))
+            {
+                wi = wi_d;
+                target = target_d;
+                targetLum = targetLum_d;
+            }
+        }
+
+        if(Math::Luminance(target) > 1e-5)
+            target *= RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
+
+        float3 Ld = target * (w_sum / max(targetLum, 1e-6));
+        Ld = any(isnan(Ld)) ? 0 : Ld;
+
+        return Ld;
+    }
+
+    // TODO doesn't handle transmission
+    float3 NEE_Sky_MIS(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, uint skyViewDescHeapOffset, inout RNG rng)
     {
         // Given the size and relatively low-frequency nature of sky, BRDF sampling should be fine.
@@ -112,25 +231,25 @@ namespace RGI_Util
         // Sample glossy/specular BRDF
         {
             const float2 u = rng.Uniform2D();
-            const float3 wi_g = BRDF::SampleSpecularMicrofacet(surface, normal, u);
-            surface.SetWi(wi_g, normal);
+            const float3 wi_g = BSDF::SampleMicrofacetBRDF(surface, normal, u);
+            surface.SetWi_Refl(wi_g, normal);
 
             Ld *= Light::Le_Sky(wi_g, skyViewDescHeapOffset);
 
             if(Math::Luminance(Ld) > 1e-5)
-                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh);
+                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
         }
 
         // Fast path for metallic surface
         if(surface.IsMetallic())
-            return Ld * BRDF::SpecularMicrofacetGGXSmithDivPdf(surface);
+            return Ld * BSDF::MicrofacetBRDFDivPdf(surface);
 
         // MIS for glossy sample
         {
-            Ld *= BRDF::CombinedBRDF(surface);
+            Ld *= BSDF::DielectricBRDF(surface);
 
-            const float p_g = BRDF::GGXVNDFReflectionPdf(surface);
-            const float p_d = !surface.backfacing_wi * BRDF::LambertianBRDFPdf(surface);
+            const float p_g = BSDF::VNDFReflectionPdf(surface);
+            const float p_d = !surface.invalid * BSDF::LambertianBRDFPdf(surface);
             Ld = RT::PowerHeuristic(p_g, p_d, Ld);
         }
 
@@ -138,23 +257,23 @@ namespace RGI_Util
         {
             const float2 u = rng.Uniform2D();
             float p_d;
-            const float3 wi_d = BRDF::SampleLambertianBrdf(normal, u, p_d);
-            surface.SetWi(wi_d, normal);
+            const float3 wi_d = BSDF::SampleLambertianBRDF(normal, u, p_d);
+            surface.SetWi_Refl(wi_d, normal);
 
-            float3 Ld_1 = BRDF::CombinedBRDF(surface);
+            float3 Ld_1 = BSDF::DielectricBRDF(surface);
             Ld_1 *= Light::Le_Sky(wi_d, skyViewDescHeapOffset);
             
             if(Math::Luminance(Ld_1) > 1e-5)
-                Ld_1 *= RGI_Trace::Visibility_Ray(pos, wi_d, normal, g_bvh);
+                Ld_1 *= RGI_Trace::Visibility_Ray(pos, wi_d, normal, g_bvh, false);
 
-            const float p_g = BRDF::GGXVNDFReflectionPdf(surface);
+            const float p_g = BSDF::VNDFReflectionPdf(surface);
             Ld += RT::PowerHeuristic(p_d, p_g, Ld_1);
         }
 
         return Ld;
     }
 
-    float3 NEE_Emissive(float3 pos, float3 normal, BRDF::ShadingData surface, uint sampleSetIdx,
+    float3 NEE_Emissive(float3 pos, float3 normal, BSDF::ShadingData surface, uint sampleSetIdx,
         uint sampleSetSize, uint numEmissives, RaytracingAccelerationStructure g_bvh, 
         StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
         StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
@@ -203,10 +322,10 @@ namespace RGI_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                Le *= BRDF::CombinedBRDF(surface) * dwdA;
+                Le *= BSDF::UnifiedBSDF(surface) * dwdA;
                     
                 if (Math::Luminance(Le) > 1e-6)
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh);
+                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
 
                 Ld += Le / lightPdf;
             }
@@ -217,7 +336,8 @@ namespace RGI_Util
         return Ld;
     }
 
-    float3 NEE_Emissive_MIS(float3 pos, float3 normal, BRDF::ShadingData surface, uint sampleSetIdx,
+    template<int NumLightSamples>
+    float3 NEE_Emissive_MIS(float3 pos, float3 normal, BSDF::ShadingData surface, uint sampleSetIdx,
         uint sampleSetSize, uint numEmissives, RaytracingAccelerationStructure g_bvh, 
         StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
         StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
@@ -226,14 +346,20 @@ namespace RGI_Util
         uint emissiveMapsDescHeapOffset, inout RNG rng)
     {
         float3 Ld = 0;
+        float3 f = 0;
+        // No point in light sampling for specular surfaces
+        const int numLightSamples = surface.specular ? 0 : NumLightSamples;
 
-        // BRDF sampling
+        // BSDF sampling
         {
-            const float3 wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
+            float3 f;
+            float wiPdf;
+            float3 wi = RT::SampleUnifiedBSDF_NoDiffuse(normal, surface, rng, f, wiPdf);
 
             // Check if closest hit is a light source
             RGI_Trace::HitSurface_Emissive hitInfo;
-            bool hitEmissive = RGI_Trace::FindClosestHit_Emissive(pos, normal, wi, g_bvh, g_frameMeshData, hitInfo);
+            bool hitEmissive = RGI_Trace::FindClosestHit_Emissive(pos, normal, wi, g_bvh, g_frameMeshData, 
+                hitInfo, surface.HasSpecularTransmission());
 
             if (hitEmissive)
             {
@@ -245,27 +371,26 @@ namespace RGI_Util
                 float3 lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
                 float twoArea = length(lightNormal);
                 twoArea = max(twoArea, 1e-6);
-                lightNormal = all(lightNormal == 0) ? 1.0.xxx : lightNormal / twoArea;
+                lightNormal = dot(lightNormal, lightNormal) == 0 ? 1.0.xxx : lightNormal / twoArea;
                 lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? lightNormal * -1.0f : lightNormal;
 
-                const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
+                const float lightSourcePdf = numLightSamples > 1 ?
+                    g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig : 
+                    0;
                 const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
-
-                surface.SetWi(wi, normal);
-                float wiPdf = BRDF::GGXVNDFReflectionPdf(surface);
 
                 // Solid angle measure to area measure
                 float dwdA = saturate(dot(lightNormal, -wi)) / max(hitInfo.t * hitInfo.t, 1e-6f);
                 wiPdf *= dwdA;
 
-                Le *= BRDF::CombinedBRDF(surface) * dwdA;
-                Ld = RT::PowerHeuristic(wiPdf, lightPdf, Le, 1, NEE_POWER_SAMPLING_NUM_LIGHT_SAMPLES);
+                Le *= f * dwdA;
+                Ld = RT::PowerHeuristic(wiPdf, lightPdf, Le, 1, numLightSamples);
             }
         }
 
         // Light sampling
         [loop]
-        for (int s_l = 0; s_l < NEE_POWER_SAMPLING_NUM_LIGHT_SAMPLES; s_l++)
+        for (int s_l = 0; s_l < numLightSamples; s_l++)
         {
 #if defined(USE_PRESAMPLED_SETS)
             RT::PresampledEmissiveTriangle tri = Light::UnformSampleSampleSet(sampleSetIdx, g_sampleSets, 
@@ -303,20 +428,22 @@ namespace RGI_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                Le *= BRDF::CombinedBRDF(surface) * dwdA;
+                Le *= BSDF::UnifiedBSDF(surface) * dwdA;
                 
                 if (Math::Luminance(Le) > 1e-6)
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh);
+                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
 
-                const float brdfPdf = BRDF::GGXVNDFReflectionPdf(surface) * dwdA;
-                Ld += RT::PowerHeuristic(lightPdf, brdfPdf, Le, NEE_POWER_SAMPLING_NUM_LIGHT_SAMPLES);
+                float bsdfPdf = RT::UnifiedBSDFPdf_NoDiffuse(normal, surface, wi);
+                bsdfPdf *= dwdA;
+
+                Ld += RT::PowerHeuristic(lightPdf, bsdfPdf, Le, numLightSamples);
             }
         }
 
         return Ld;
     }
 
-    float3 NEE_Emissive_LVG(float3 pos, float3 normal, BRDF::ShadingData surface, uint sampleSetIdx,
+    float3 NEE_Emissive_LVG(float3 pos, float3 normal, BSDF::ShadingData surface, uint sampleSetIdx,
         uint sampleSetSize, uint numEmissives, int numSamples, float3x4 view, uint3 gridDim, float3 extents, 
         float offset_y, RaytracingAccelerationStructure g_bvh, 
         StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
@@ -373,10 +500,13 @@ namespace RGI_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                Le *= BRDF::CombinedBRDF(surface) * dwdA;
+                Le *= BSDF::UnifiedBSDF(surface) * dwdA;
                 
                 if (Math::Luminance(Le) > 1e-6)
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh);
+                {
+                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
+                        surface.HasSpecularTransmission());
+                }
 
                 Ld += Le / max(lightPdf, 1e-6);
             }
@@ -387,7 +517,7 @@ namespace RGI_Util
         return Ld;
     }
 
-    float3 NEE(float3 pos, RGI_Trace::HitSurface hitInfo, BRDF::ShadingData surface, 
+    float3 NEE(float3 pos, RGI_Trace::HitSurface hitInfo, BSDF::ShadingData surface, 
         uint sampleSetIdx, int bounce, RaytracingAccelerationStructure g_bvh, 
         ConstantBuffer<cbFrameConstants> g_frame, ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local,
         StructuredBuffer<RT::MeshInstance> g_frameMeshData,
@@ -409,8 +539,8 @@ namespace RGI_Util
             if(p_sun < q)
                 return NEE_Sun(pos, hitInfo.normal, surface, g_bvh, g_frame, rngThread) / q;
 
-            // Use MIS (two shadow rays) for the first hit, RIS (one shadow ray) for subsequent hits
 #if 0
+            // Use MIS (two shadow rays) for the first hit, RIS (one shadow ray) for subsequent hits
             if(bounce == 0)
                 return NEE_Sky_MIS(pos, hitInfo.normal, surface, g_bvh, g_frame.EnvMapDescHeapOffset, rngThread) / (1 - q);
             else
@@ -423,52 +553,63 @@ namespace RGI_Util
         return 0.0;
 #else
 
+        uint sampleSetSize = g_local.SampleSetSize_NumSampleSets & 0xffff;
+        uint16_t3 gridDim = uint16_t3(g_local.GridDim_xy & 0xffff, g_local.GridDim_xy >> 16, g_local.GridDim_z);
+        half3 extents = asfloat16(uint16_t3(g_local.Extents_xy & 0xffff, g_local.Extents_xy >> 16, 
+            g_local.Extents_z_Offset_y & 0xffff));
+        half offset_y = asfloat16(uint16_t(g_local.Extents_z_Offset_y >> 16));
+
 #if NEE_USE_MIS == 1
 
-#if NEE_MIS_ALL_BOUNCES == 0
         if(bounce == 0)
-#endif
         {
-            return NEE_Emissive_MIS(pos, hitInfo.normal, surface, sampleSetIdx, g_local.SampleSetSize,
+            return NEE_Emissive_MIS<2>(pos, hitInfo.normal, surface, sampleSetIdx, sampleSetSize,
                 g_frame.NumEmissiveTriangles, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, g_aliasTable, 
                 g_frame.EmissiveMapsDescHeapOffset, rngThread);
         }
-#if NEE_MIS_ALL_BOUNCES == 0
         else
         {
-#if defined(USE_LVG) && defined(USE_PRESAMPLED_SETS)
+#if NEE_MIS_ALL_BOUNCES == 1
+            return NEE_Emissive_MIS<1>(pos, hitInfo.normal, surface, sampleSetIdx, sampleSetSize,
+                g_frame.NumEmissiveTriangles, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, g_aliasTable, 
+                g_frame.EmissiveMapsDescHeapOffset, rngThread);
+
+#elif defined(USE_LVG) && defined(USE_PRESAMPLED_SETS)
             return NEE_Emissive_LVG(pos, hitInfo.normal, surface, sampleSetIdx, 
-                g_local.SampleSetSize, g_frame.NumEmissiveTriangles, 1, g_frame.CurrView, 
-                uint3(g_local.GridDim_x, g_local.GridDim_y, g_local.GridDim_z), 
-                float3(g_local.Extents_x, g_local.Extents_y, g_local.Extents_z), 
-                g_local.Offset_y, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, 
+                sampleSetSize, g_frame.NumEmissiveTriangles, 1, g_frame.CurrView, 
+                gridDim, 
+                extents, 
+                offset_y, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, 
                 g_aliasTable, g_lvg, g_frame.EmissiveMapsDescHeapOffset, rngThread);
 #else
-            return NEE_Emissive(pos, hitInfo.normal, surface, sampleSetIdx, g_local.SampleSetSize, 
+            return NEE_Emissive(pos, hitInfo.normal, surface, sampleSetIdx, sampleSetSize, 
                 g_frame.NumEmissiveTriangles, g_bvh, g_frameMeshData, g_emissives, 
                 g_sampleSets, g_aliasTable, g_frame.EmissiveMapsDescHeapOffset, rngThread);
+// NEE_MIS_ALL_BOUNCES
 #endif
         }
-#endif
 
+// !NEE_USE_MIS
 #else
 
 #if defined(USE_LVG)
         const int numSamples = bounce == 0 ? 2 : 1;
         return NEE_Emissive_LVG(pos, hitInfo.normal, surface, sampleSetIdx, 
-            g_local.SampleSetSize, g_frame.NumEmissiveTriangles, numSamples, g_frame.CurrView, 
-            uint3(g_local.GridDim_x, g_local.GridDim_y, g_local.GridDim_z), 
-            float3(g_local.Extents_x, g_local.Extents_y, g_local.Extents_z), 
-            g_local.Offset_y, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, 
+            sampleSetSize, g_frame.NumEmissiveTriangles, numSamples, g_frame.CurrView, 
+            gridDim, 
+            extents, 
+            offset_y, g_bvh, g_frameMeshData, g_emissives, g_sampleSets, 
             g_aliasTable, g_lvg, g_frame.EmissiveMapsDescHeapOffset, rngThread);
 #else
-        return NEE_Emissive(pos, hitInfo.normal, surface, sampleSetIdx, g_local.SampleSetSize, 
+        return NEE_Emissive(pos, hitInfo.normal, surface, sampleSetIdx, sampleSetSize, 
             g_frame.NumEmissiveTriangles, g_bvh, g_frameMeshData, g_emissives, 
             g_sampleSets, g_aliasTable, g_frame.EmissiveMapsDescHeapOffset, rngThread);
 #endif
 
+// NEE_USE_MIS
 #endif
 
+// NEE_EMISSIVE
 #endif
     }
 }

@@ -7,7 +7,7 @@
 // 1. https://www.reedbeta.com/blog/hash-functions-for-gpu-rendering/
 // 2. M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering: From theory to implementation, Morgan Kaufmann, 2016.
 // 3. P. Shirley, S. Laine, D. Hart, M. Pharr, P. Clarberg, E. Haines, M. Raab, and D. Cline, "Sampling
-// Transformations Zoo," in Ray Tracing Gems, 2019.
+//    Transformations Zoo," in Ray Tracing Gems, 2019.
 
 struct RNG
 {

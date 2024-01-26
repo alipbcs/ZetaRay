@@ -55,8 +55,8 @@ namespace RGI_Util
         }
 
         void Stream(RGI_Util::Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-            BRDF::ShadingData surface_c, RGI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
-            BRDF::ShadingData surface_i, RaytracingAccelerationStructure g_bvh, inout RNG rng)
+            BSDF::ShadingData surface_c, RGI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
+            BSDF::ShadingData surface_i, RaytracingAccelerationStructure g_bvh, inout RNG rng)
         {
             float3 target_curr;
             float m_i;
@@ -69,7 +69,7 @@ namespace RGI_Util
                 wi /= t;
 
                 surface_c.SetWi(wi, normal_c);
-                const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
+                const float3 brdfCosTheta_c = BSDF::CombinedBRDF(surface_c);
                 target_curr = r_i.Lo * brdfCosTheta_c;
 
                 if(Math::Luminance(target_curr) > 1e-5)
@@ -91,7 +91,7 @@ namespace RGI_Util
                 wi /= t;
 
                 surface_i.SetWi(wi, normal_i);
-                brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
+                brdfCosTheta_i = BSDF::CombinedBRDF(surface_i);
 
                 if(Math::Luminance(r_c.Lo * brdfCosTheta_i) > 1e-5)
                     brdfCosTheta_i *= RGI_Trace::Visibility_Segment(posW_i, wi, t, normal_i, r_c.ID, g_bvh);
@@ -133,7 +133,7 @@ namespace RGI_Util
     };
 
     void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW, 
-        float3 normal, float z_view, float roughness, BRDF::ShadingData surface, 
+        float3 normal, float z_view, float roughness, BSDF::ShadingData surface, 
         uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, uint prevReservoir_C_DescHeapIdx, 
         ConstantBuffer<cbFrameConstants> g_frame, RaytracingAccelerationStructure g_bvh, 
         inout Reservoir r, inout RNG rng)
@@ -238,7 +238,7 @@ namespace RGI_Util
             const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
             const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
-            BRDF::ShadingData surface_i = BRDF::ShadingData::Init(sampleNormal[i], wo_i,
+            BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal[i], wo_i,
                 sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
 
             Reservoir neighbor = PartialReadReservoir_Reuse(samplePosSS[i],

@@ -118,6 +118,11 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
         m_frictionCoeff, 1, 16, 1);
     App::AddParam(coeff);
 
+    ParamVariant clampTo0;
+    clampTo0.InitBool("Scene", "Camera", "Snap Small V0 To Zero", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
+        m_clampSmallV0ToZero);
+    App::AddParam(clampTo0);
+
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
@@ -149,7 +154,7 @@ void Camera::Update(const Motion& m)
     if (m_clampSmallV0ToZero)
     {
         __m128 vForceIs0 = _mm_cmpeq_ps(vForce, _mm_setzero_ps());
-        __m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(2e-1f));
+        __m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(3e-2f));
         __m128 vClamp = _mm_and_ps(vForceIs0, vV0Near0);
         vInitialVelocity = _mm_blendv_ps(vInitialVelocity, _mm_setzero_ps(), vClamp);
     }

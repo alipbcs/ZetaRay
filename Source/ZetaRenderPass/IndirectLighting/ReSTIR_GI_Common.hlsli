@@ -2,19 +2,16 @@
 #define RESTIR_GI_COMMON_H
 
 // Minimum number of bounces before performing Russian Roulette
-#define MIN_NUM_BOUNCES_RUSSIAN_ROULETTE 2
-
-// Skip diffuse scattering after following number of bounces
-#define MAX_NUM_DIFFUSE_BOUNCES 2
+#define MIN_NUM_BOUNCES_RUSSIAN_ROULETTE 3
 
 // Probability of next event estimation with sun vs sky
 #define P_SUN_VS_SKY 0.65
 
-// Use mutiple importance sampling for NEE. Reduces noise (especially for smoother surface)
-// with moderate performance cost.
+// Use multiple importance sampling for NEE. Reduces noise (especially for smoother surface)
+// with a moderate performance cost.
 #define NEE_USE_MIS 1
 
-// Number of light samples for area sampling during NEE. Higher (up to four)
+// Number of light samples for area sampling in NEE. Higher (up to four)
 // reduces noise but with a significant performance cost.
 #define NEE_POWER_SAMPLING_NUM_LIGHT_SAMPLES 2
 
@@ -22,9 +19,12 @@
 // subsequent hits. Improves performance at the expense of some (scene-dependent) quality.
 #define NEE_MIS_ALL_BOUNCES 0
 
-// When enabled, sun is treated as a disk area light with radius based on sun angular diamter,
-// otherwise a directional light. Has minimal impact on quality.
+// When enabled, sun is treated as a disk area light with radius based on the sun angular diameter,
+// otherwise a directional light. Has minimal impact on quality and performance.
 #define SUN_DISK_SAMPLING 0
+
+// Suppresses fireflies from sun at the expense of some bias
+#define SUPPRESS_SUN_FIREFLIES 1
 
 // Maximum roughness to use virtual motion instead of surface motion for temporal resampling
 #define MAX_ROUGHNESS_VIRTUAL_MOTION 0.075

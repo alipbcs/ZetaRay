@@ -81,11 +81,12 @@ namespace Light
         const float3 vtx2 = Light::DecodeEmissiveTriV2(tri);
         ret.pos = (1.0f - ret.bary.x - ret.bary.y) * tri.Vtx0 + ret.bary.x * vtx1 + ret.bary.y * vtx2;
         ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
+        bool normalIs0 = dot(ret.normal, ret.normal) == 0;
         float twoArea = length(ret.normal);
         twoArea = max(twoArea, 1e-6);
-        ret.pdf = all(ret.normal == 0) ? 1.0f : 1.0f / (0.5f * twoArea);
+        ret.pdf = normalIs0 ? 1.0f : 1.0f / (0.5f * twoArea);
 
-        ret.normal = all(ret.normal == 0) ? ret.normal : ret.normal / twoArea;
+        ret.normal = normalIs0 ? ret.normal : ret.normal / twoArea;
         ret.normal = reverseNormalIfTwoSided && tri.IsDoubleSided() && dot(posW - ret.pos, ret.normal) < 0 ? 
             ret.normal * -1.0f : 
             ret.normal;

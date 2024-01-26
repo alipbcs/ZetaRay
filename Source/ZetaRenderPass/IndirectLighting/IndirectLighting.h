@@ -38,20 +38,18 @@ namespace ZetaRay::RenderPass
             Assert(!b || (b && numSampleSets && sampleSetSize), "presampling is enabled, but number of sample sets is zero.");
 
             m_preSampling = b;
-            m_cbSpatioTemporal.NumSampleSets = b ? (uint16_t)numSampleSets : 0;
-            m_cbSpatioTemporal.SampleSetSize = b ? (uint16_t)sampleSetSize : 0;
+            m_cbSpatioTemporal.SampleSetSize_NumSampleSets = b ? 
+                (numSampleSets << 16) | sampleSetSize : 
+                0;
         }
         void SetLightVoxelGridParams(const Math::uint3& dim, const Math::float3& extents, float offset_y)
         {
-            m_cbSpatioTemporal.GridDim_x = (uint16_t)dim.x;
-            m_cbSpatioTemporal.GridDim_y = (uint16_t)dim.y;
-            m_cbSpatioTemporal.GridDim_z = (uint16_t)dim.z;
+            m_cbSpatioTemporal.GridDim_xy = (dim.y << 16) | dim.x;
+            m_cbSpatioTemporal.GridDim_z = dim.z;
 
-            m_cbSpatioTemporal.Extents_x = extents.x;
-            m_cbSpatioTemporal.Extents_y = extents.y;
-            m_cbSpatioTemporal.Extents_z = extents.z;
-
-            m_cbSpatioTemporal.Offset_y = offset_y;
+            Math::half4 extH(extents.x, extents.y, extents.z, offset_y);
+            m_cbSpatioTemporal.Extents_xy = (extH.y << 16) | extH.x;
+            m_cbSpatioTemporal.Extents_z_Offset_y = (extH.w << 16) | extH.z;
         }
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
@@ -69,7 +67,7 @@ namespace ZetaRay::RenderPass
 
         struct ResourceFormats
         {
-            static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_UINT;
+            static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32B32A32_FLOAT;
             static constexpr DXGI_FORMAT COLOR_A = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -113,7 +111,7 @@ namespace ZetaRay::RenderPass
 
         struct DefaultParamVals
         {
-            static constexpr uint16_t M_MAX = 2;
+            static constexpr float M_MAX = 8.0f;
             static constexpr int DNSR_TSPP_DIFFUSE = 32;
             static constexpr int DNSR_TSPP_SPECULAR = 20;
         };
@@ -138,7 +136,7 @@ namespace ZetaRay::RenderPass
 
         struct Reservoir
         {
-            // Texture2D<uint4>: (pos, ID)
+            // Texture2D<float4>: (pos, ID)
             Core::GpuMemory::Texture ReservoirA;
             // Texture2D<half4>: (Lo, M)
             Core::GpuMemory::Texture ReservoirB;
@@ -155,16 +153,18 @@ namespace ZetaRay::RenderPass
         void CreateOutputs();
 
         // param callbacks
-        void NumBouncesCallback(const Support::ParamVariant& p);
+        void MaxDiffuseBouncesCallback(const Support::ParamVariant& p);
+        void MaxGlossyBouncesCallback(const Support::ParamVariant& p);
+        void MaxTransmissionBouncesCallback(const Support::ParamVariant& p);
         void StochasticMultibounceCallback(const Support::ParamVariant& p);
         void RussianRouletteCallback(const Support::ParamVariant& p);
         void TemporalResamplingCallback(const Support::ParamVariant& p);
         void SpatialResamplingCallback(const Support::ParamVariant& p);
         void MaxTemporalMCallback(const Support::ParamVariant& p);
+        void BoilingSuppressionCallback(const Support::ParamVariant& p);
         void DenoiseCallback(const Support::ParamVariant& p);
         void TsppDiffuseCallback(const Support::ParamVariant& p);
         void TsppSpecularCallback(const Support::ParamVariant& p);
-        void FireflyFilterCallback(const Support::ParamVariant& p);
         void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
         void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
 

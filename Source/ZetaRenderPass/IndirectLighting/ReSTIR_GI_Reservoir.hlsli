@@ -76,20 +76,20 @@ namespace RGI_Util
         uint ID;
 
         float3 target_z;
-        uint16_t M;
+        half M;
     };
 
     Reservoir PartialReadReservoir_Reuse(uint2 DTid, uint inputAIdx, uint inputBIdx)
     {
-        Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+        Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
         Texture2D<half4> g_reservoir_B = ResourceDescriptorHeap[inputBIdx];
-        const uint4 resA = g_reservoir_A[DTid];
+        const float4 resA = g_reservoir_A[DTid];
         const half4 resB = g_reservoir_B[DTid];
 
-        float3 pos = asfloat(resA.xyz);
-        uint hitID = resA.w;
+        float3 pos = resA.xyz;
+        uint hitID = asuint(resA.w);
         float3 Lo = resB.xyz;
-        uint16_t M = asuint16(resB.w);
+        uint16_t M = resB.w;
 
         return Reservoir::Init(pos, M, Lo, hitID);
     }
@@ -108,25 +108,22 @@ namespace RGI_Util
 
     float3 PartialReadReservoir_Pos(uint2 DTid, uint inputAIdx)
     {
-        Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
-        const uint3 resA = g_reservoir_A[DTid].xyz;
-        float3 pos = asfloat(resA.xyz);
-
-        return pos;
+        Texture2D<float4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
+        return g_reservoir_A[DTid].xyz;
     }
 
-    void WriteReservoir(uint2 DTid, Reservoir r, uint outputAIdx, uint outputBIdx, uint outputCIdx, uint16_t M_max)
+    void WriteReservoir(uint2 DTid, Reservoir r, uint outputAIdx, uint outputBIdx, uint outputCIdx, float M_max)
     {
-        RWTexture2D<uint4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
+        RWTexture2D<float4> g_outReservoir_A = ResourceDescriptorHeap[outputAIdx];
         RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
         RWTexture2D<float4> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 
         int16_t2 n = Math::EncodeOct16(r.normal);
         int nu = (int(n.y) << 16) | n.x;
-        uint16_t M_clamped = min(r.M, M_max);
+        half M_clamped = min(r.M, half(M_max));
 
-        uint4 outA = uint4(asuint(r.pos), r.ID);
-        half4 outB = half4(r.Lo, asfloat16(M_clamped));
+        float4 outA = float4(r.pos, asfloat(r.ID));
+        half4 outB = half4(r.Lo, M_clamped);
         float3 outC = float3(r.w_sum, r.W, asfloat(nu));
 
         g_outReservoir_A[DTid] = outA;

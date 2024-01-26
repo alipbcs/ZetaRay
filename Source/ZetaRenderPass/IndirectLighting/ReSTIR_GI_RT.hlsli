@@ -27,9 +27,22 @@ namespace RGI_Trace
     template<bool ID>
     bool FindClosestHit(float3 pos, float3 normal, float3 wi, RaytracingAccelerationStructure g_bvh, 
         StructuredBuffer<RT::MeshInstance> g_frameMeshData, StructuredBuffer<Vertex> g_vertices, 
-        StructuredBuffer<uint> g_indices, inout RT::RayCone rayCone, out HitSurface hitInfo, 
-        out uint hitID)
+        StructuredBuffer<uint> g_indices, out HitSurface hitInfo, out uint hitID, bool transmissive)
     {
+        float ndotwi = dot(normal, wi);
+        if(ndotwi == 0)
+            return false;
+
+        bool wiBackface = ndotwi < 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
+
         const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
         hitID = uint(-1);
 
@@ -38,7 +51,8 @@ namespace RGI_Trace
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
+        // TODO for some reason, transmission rays require extra offset
+        ray.TMin = wiBackface ? 3e-4 : 0;
         ray.TMax = FLT_MAX;
         ray.Direction = wi;
 
@@ -96,8 +110,6 @@ namespace RGI_Trace
             hitNormal = normalize(hitNormal);
             hitInfo.normal = hitNormal;
 
-            rayCone.Update(rayQuery.CommittedRayT(), 0);
-            
             // Just need to apply the scale transformation, rotation and translation 
             // preserve area.
             float3 v0W = meshData.Scale * V0.PosL;
@@ -105,12 +117,13 @@ namespace RGI_Trace
             float3 v2W = meshData.Scale * V2.PosL;
             
             float ndotwo = dot(hitNormal, -wi);
-            float lambda = rayCone.Lambda(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
+            float lambda = RT::RayCone::Lambda(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, ndotwo);
             hitInfo.lambda = half(lambda);
 
             if(ID)
             {
-                uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), rayQuery.CommittedPrimitiveIndex());
+                uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), 
+                    rayQuery.CommittedPrimitiveIndex());
                 hitID = RNG::Pcg3d(key).x;
             }
 
@@ -121,8 +134,19 @@ namespace RGI_Trace
     }
 
     bool FindClosestHit_Emissive(float3 pos, float3 normal, float3 wi, RaytracingAccelerationStructure g_bvh, 
-        StructuredBuffer<RT::MeshInstance> g_frameMeshData, out HitSurface_Emissive hitInfo)
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData, out HitSurface_Emissive hitInfo, 
+        bool transmissive)
     {
+        bool wiBackface = dot(normal, wi) <= 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
+
         const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
         // Skip alpha testing for now
@@ -130,7 +154,7 @@ namespace RGI_Trace
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
+        ray.TMin = wiBackface ? 3e-4 : 0;
         ray.TMax = FLT_MAX;
         ray.Direction = wi;
 
@@ -159,8 +183,19 @@ namespace RGI_Trace
     }
 
     // For ray r = origin + t * wi, returns whether there's a hit with t in [0, +inf)
-    bool Visibility_Ray(float3 origin, float3 wi, float3 normal, RaytracingAccelerationStructure g_bvh)
+    bool Visibility_Ray(float3 origin, float3 wi, float3 normal, RaytracingAccelerationStructure g_bvh, 
+        bool transmissive)
     {
+        bool wiBackface = dot(normal, wi) <= 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
+
         float3 adjustedOrigin = RT::OffsetRayRTG(origin, normal);
         // adjustedOrigin.y = max(adjustedOrigin.y, 5e-2);
 
@@ -189,13 +224,23 @@ namespace RGI_Trace
 
     // For ray r = origin + t * wi, returns whether there's a hit with t in [0, rayT)
     bool Visibility_Segment(float3 origin, float3 wi, float rayT, float3 normal, uint triID, 
-        RaytracingAccelerationStructure g_bvh)
+        RaytracingAccelerationStructure g_bvh, bool transmissive)
     {
         if(triID == uint(-1))
             return false;
 
         if(rayT < 1e-6)
             return false;
+
+        bool wiBackface = dot(normal, wi) <= 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
 
         const float3 adjustedOrigin = RT::OffsetRayRTG(origin, normal);
 
@@ -213,7 +258,7 @@ namespace RGI_Trace
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
+        ray.TMin = wiBackface ? 3e-4f : 0;
         ray.TMax = 0.995f * rayT;
         ray.Direction = wi;
 

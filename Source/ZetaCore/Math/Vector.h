@@ -315,6 +315,14 @@ namespace ZetaRay::Math
             : x(FloatToHalf(f))
         {}
 
+        static half asfloat16(uint16_t v)
+        {
+            half h;
+            h.x = v;
+
+            return h;
+        }
+
         uint16_t x;
     };
 

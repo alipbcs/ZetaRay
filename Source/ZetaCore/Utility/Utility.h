@@ -18,7 +18,7 @@ namespace ZetaRay::Util
 
     // Performs binary seach in the range [beg, end]
     template<typename T, typename Key, typename Accessor>
-        requires GetKey<T, Key, Accessor>
+    requires GetKey<T, Key, Accessor>
     int64_t BinarySearch(Span<T> data, Key key, Accessor getMember, int64_t beg = 0, int64_t end = -1)
     {
         if (data.empty())
@@ -43,7 +43,7 @@ namespace ZetaRay::Util
     }
 
     template<typename T>
-        requires std::integral<T>
+    requires std::integral<T>
     int64_t BinarySearch(Span<T> data, T key, int64_t beg = 0, int64_t end = -1)
     {
         if (data.empty())
@@ -77,7 +77,7 @@ namespace ZetaRay::Util
 
     // Performs binary seach in the range [beg, end]
     template<typename T, typename Key, typename Accessor>
-        requires GetFloatKey<T, Key, Accessor>
+    requires GetFloatKey<T, Key, Accessor>
     int64_t FindInterval(Span<T> data, Key key, Accessor getMember, int64_t beg = 0, int64_t end = -1)
     {
         if (data.size() < 2)

@@ -1,9 +1,8 @@
 #ifndef RESTIR_GI_RESAMPLING_H
 #define RESTIR_GI_RESAMPLING_H
 
-#include "IndirectLighting_Common.h"
+#include "ReSTIR_GI_PathTracing.hlsli"
 #include "ReSTIR_GI_Reservoir.hlsli"
-#include "ReSTIR_GI_NEE.hlsli"
 
 namespace RGI_Util
 {
@@ -13,7 +12,9 @@ namespace RGI_Util
         float3 normal;
         float roughness;
         int16_t2 posSS;
-        bool metallic;
+        uint16_t metallic;
+        float transmission;
+        float eta_i;
     };
 
     template<int N>
@@ -33,238 +34,8 @@ namespace RGI_Util
         bool valid[N];
     };
 
-    template<bool samplePoint>
-    float3 SampleBrdf(float3 normal, BRDF::ShadingData surface, inout RNG rng, out float3 pdf)
-    {
-        // Metals don't have a diffuse component.
-        if(surface.IsMetallic())
-        {
-            float3 wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
-            surface.SetWi(wi, normal);
-
-            if(samplePoint)
-                pdf.x = BRDF::GGXVNDFReflectionPdf(surface);
-            else
-                pdf = BRDF::SpecularMicrofacetGGXSmithDivPdf(surface);
-
-            return wi;
-        }
-
-        // Streaming RIS using weighted reservoir sampling to sample aggregate BRDF
-        float w_sum;
-        float3 wi;
-        float3 target;
-        float targetLum;
-
-        // VNDF
-        {
-            wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
-            surface.SetWi(wi, normal);
-
-            float pdf_g = BRDF::GGXVNDFReflectionPdf(surface);
-            float pdf_d;
-
-            // if(samplePoint)
-            //     pdf_d = !surface.backfacing_wi * ONE_OVER_2_PI;
-            // else
-                pdf_d = !surface.backfacing_wi * BRDF::LambertianBRDFPdf(surface);
-
-            target = BRDF::CombinedBRDF(surface);
-            targetLum = Math::Luminance(target);
-            w_sum = RT::BalanceHeuristic(pdf_g, pdf_d, targetLum);
-        }
-
-        // hemisphere/cosine-weighted sampling
-        {
-            float pdf_d;
-            float3 wi_d;
-            
-            // if(samplePoint)
-            // {
-            //     wi_d = Sampling::UniformSampleHemisphere(rng.Uniform2D(), pdf_d);
-
-            //     // transform to world space
-            //     float3 T;
-            //     float3 B;
-            //     Math::revisedONB(normal, T, B);
-            //     wi_d = wi_d.x * T + wi_d.y * B + wi_d.z * normal;
-            // }
-            // else
-                wi_d = BRDF::SampleLambertianBrdf(normal, rng.Uniform2D(), pdf_d);
-
-            surface.SetWi(wi_d, normal);
-
-            float pdf_g = BRDF::GGXVNDFReflectionPdf(surface);
-            float3 target_d = BRDF::CombinedBRDF(surface);
-            float targetLum_d = Math::Luminance(target_d);
-            float w = RT::BalanceHeuristic(pdf_d, pdf_g, targetLum_d);
-            w_sum += w;
-
-            if (rng.Uniform() < (w / max(1e-6f, w_sum)))
-            {
-                wi = wi_d;
-                target = target_d;
-                targetLum = targetLum_d;
-            }
-        }
-
-        if(samplePoint)
-            pdf.x = targetLum / max(w_sum, 1e-6);
-        else
-            pdf = target * (w_sum / max(targetLum, 1e-6));
-
-        return wi;
-    }
-
-    float3 SampleBrdf_NoDiffuse(float3 normal, BRDF::ShadingData surface, inout RNG rng, out float3 fDivPdf)
-    {
-        float3 wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
-        surface.SetWi(wi, normal);
-
-        if(surface.IsMetallic())
-            fDivPdf = BRDF::SpecularMicrofacetGGXSmithDivPdf(surface);
-        else
-        {
-            float pdf = BRDF::GGXVNDFReflectionPdf(surface);
-            float3 f = BRDF::CombinedBRDF(surface);
-            fDivPdf = f / max(pdf, 1e-6f);
-        }
-
-        return wi;
-    }
-
-    bool GetMaterialData(float3 wo, StructuredBuffer<Material> g_materials, ConstantBuffer<cbFrameConstants> g_frame, 
-        inout RGI_Trace::HitSurface hitInfo, out BRDF::ShadingData surface)
-    {
-        const Material mat = g_materials[hitInfo.matIdx];
-        const bool hitBackface = dot(wo, hitInfo.normal) < 0;
-
-        // Ray hit the backside of an opaque surface, no radiance can be reflected back.
-        if(!mat.IsDoubleSided() && hitBackface)
-            return false;
-
-        // Reverse normal for double-sided surfaces
-        if(mat.IsDoubleSided() && hitBackface)
-            hitInfo.normal *= -1;
-
-        float3 baseColor = Math::UnpackRGB(mat.BaseColorFactor);
-        float metalness = mat.GetMetallic();
-        float roughness = mat.GetRoughnessFactor();
-
-        if (mat.BaseColorTexture != uint32_t(-1))
-        {
-            uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture);
-            BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
-
-            uint w;
-            uint h;
-            g_baseCol.GetDimensions(w, h);
-            float mip = RT::RayCone::TextureMipmapOffset(hitInfo.lambda, w, h);
-            mip += g_frame.MipBias;
-
-            baseColor *= g_baseCol.SampleLevel(g_samLinearWrap, hitInfo.uv, mip).rgb;
-        }
-
-        const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
-
-        if (metallicRoughnessTex != uint16_t(-1))
-        {
-            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + metallicRoughnessTex);
-            METALLIC_ROUGHNESS_MAP g_metalnessRoughnessMap = ResourceDescriptorHeap[offset];
-
-            uint w;
-            uint h;
-            g_metalnessRoughnessMap.GetDimensions(w, h);
-            float mip = RT::RayCone::TextureMipmapOffset(hitInfo.lambda, w, h);
-            mip += g_frame.MipBias;
-
-            float2 mr = g_metalnessRoughnessMap.SampleLevel(g_samLinearWrap, hitInfo.uv, mip);
-            metalness *= mr.x;
-            roughness *= mr.y;
-        }
-
-        surface = BRDF::ShadingData::Init(hitInfo.normal, wo, metalness, roughness, baseColor);
-        return true;
-    }
-
-    float3 PathTrace(float3 pos, float3 normal, float3 wi, int maxNumBounces, 
-        uint sampleSetIdx, RGI_Trace::HitSurface hitInfo, RT::RayCone rayCone, 
-        RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, 
-        ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local,
-        StructuredBuffer<RT::MeshInstance> g_frameMeshData, StructuredBuffer<Vertex> g_vertices, 
-        StructuredBuffer<uint> g_indices, StructuredBuffer<Material> g_materials, 
-        StructuredBuffer<RT::EmissiveTriangle> g_emissives,
-        StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets, 
-        StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable, 
-        StructuredBuffer<RT::VoxelSample> g_lvg,
-        inout RNG rngThread, inout RNG rngGroup)
-    {
-        float3 Li = 0.0.xxx;
-        float3 throughput = 1.0f.xxx;
-
-        // Having found the second path vertex, do the path tracing loop to estimate radiance
-        // reflected from it towards primary vertex
-        for(int b = 0; b < maxNumBounces; b++)
-        {
-            float3 hitPos = pos + hitInfo.t * wi;
-            BRDF::ShadingData surface;
-            
-            if(!RGI_Util::GetMaterialData(-wi, g_materials, g_frame, hitInfo, surface))
-                break;
-
-            // Next event estimation
-            Li += throughput * RGI_Util::NEE(hitPos, hitInfo, surface, sampleSetIdx,
-                b, g_bvh, g_frame, g_local, g_frameMeshData, g_emissives, g_sampleSets, g_aliasTable, 
-                g_lvg, rngThread, rngGroup);
-
-            // Skip the remaining code as it won't affect Li
-            if(b == (maxNumBounces - 1))
-                break;
-
-            // Update path vertex
-            pos = hitPos;
-            normal = hitInfo.normal;
-
-            // w.r.t. solid angle
-            float3 brdfDivPdf;
-            if(b >= MAX_NUM_DIFFUSE_BOUNCES - 1)
-                wi = RGI_Util::SampleBrdf_NoDiffuse(normal, surface, rngThread, brdfDivPdf);
-            else
-                wi = RGI_Util::SampleBrdf<false>(normal, surface, rngThread, brdfDivPdf);
-
-            // Terminate early as this path won't contribute to incident radiance from this point on
-            if(Math::Luminance(brdfDivPdf) < 1e-6)
-                break;
-
-            // Trace a ray to find next path vertex
-            uint unused;
-            bool hit = RGI_Trace::FindClosestHit<false>(pos, normal, wi, g_bvh, g_frameMeshData, g_vertices, 
-                g_indices, rayCone, hitInfo, unused);
-
-            if(!hit)
-                break;
-
-            throughput *= brdfDivPdf;
-
-            // Russian Roulette
-            if(IS_CB_FLAG_SET(CB_IND_FLAGS::RUSSIAN_ROULETTE) && (b >= MIN_NUM_BOUNCES_RUSSIAN_ROULETTE - 1))
-            {
-                // Test against maximum throughput across the wave
-                float waveThroughput = WaveActiveMax(Math::Luminance(throughput));
-
-                float p_terminate = max(0.05, 1 - waveThroughput);
-                if(rngGroup.Uniform() < p_terminate)
-                    break;
-                
-                throughput /= (1 - p_terminate);
-            }
-        }
-
-        return Li;
-    }
-
-    RGI_Util::Reservoir RIS_InitialCandidates(float3 primaryPos, float3 primaryNormal, 
-        BRDF::ShadingData primarySurface, int maxNumBounces, RT::RayCone rayCone, uint sampleSetIdx,
+    RGI_Util::Reservoir RIS_InitialCandidates(float3 primaryPos, float3 primaryNormal, float z_view,
+        BSDF::ShadingData primarySurface, float ior, int maxNumBounces, float localCurvature, uint sampleSetIdx,
         ConstantBuffer<cbFrameConstants> g_frame, ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local,
         RaytracingAccelerationStructure g_bvh, StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
         StructuredBuffer<Vertex> g_vertices, StructuredBuffer<uint> g_indices, 
@@ -279,35 +50,50 @@ namespace RGI_Util
         // Find sample point (second path vertex)
         RGI_Trace::HitSurface hitInfo;
         float3 p_source;
-        float3 wi = RGI_Util::SampleBrdf<true>(primaryNormal, primarySurface, rngThread, p_source);
+        float3 wi = !primarySurface.HasSpecularTransmission() ?
+            RGI_Util::SampleBRDF<true>(primaryNormal, primarySurface, rngThread, p_source) :
+            RGI_Util::SampleDielectricBSDF_RIS<true>(primaryNormal, primarySurface, rngThread, p_source);
 
         if(p_source.x == 0)
             return r;
 
+        RT::RayCone rayCone = RT::RayCone::InitFromPrimaryHit(g_frame.PixelSpreadAngle, z_view);
+
         uint hitID;
-        bool hit = RGI_Trace::FindClosestHit<true>(primaryPos, primaryNormal, wi, g_bvh, g_frameMeshData, g_vertices, 
-            g_indices, rayCone, hitInfo, hitID);
+        bool hit = RGI_Trace::FindClosestHit<true>(primaryPos, primaryNormal, wi, g_bvh, g_frameMeshData, 
+            g_vertices, g_indices, hitInfo, hitID, primarySurface.HasSpecularTransmission());
 
         if(!hit)
             return r;
+
+        // Cone geometry changes based on whether it was reflected or refracted
+        if(dot(wi, primarySurface.wo) >= 0)
+        {
+            rayCone.UpdateConeGeometry_Refl(localCurvature);
+        }
+        else
+        {
+            rayCone.UpdateConeGeometry_Tr_PrimaryHit(primarySurface.wo, wi, primaryNormal, 
+                localCurvature, primarySurface.eta, primaryPos, g_frame.CameraPos);
+        }
 
         const float3 hitPos = primaryPos + hitInfo.t * wi;
         const float3 hitNormal = hitInfo.normal;
 
         // Path tracing loop to find incident radiance from sample point towards primary surface
-        float3 Lo = RGI_Util::PathTrace(primaryPos, primaryNormal, wi, maxNumBounces, 
+        float3 Lo = RGI_Util::PathTrace(primaryPos, primaryNormal, wi, ior, maxNumBounces, 
             sampleSetIdx, hitInfo, rayCone, g_bvh, g_frame, g_local, g_frameMeshData, 
             g_vertices, g_indices, g_materials, g_emissives, g_sampleSets, g_aliasTable, g_lvg, 
             rngThread, rngGroup);
 
-        // target = Lo * BRDF(wi, wo) * |ndotwi|
+        // target = Lo * BSDF(wi, wo) * |ndotwi|
         // source = P(wi)
         float3 target = Lo;
 
-        if(dot(Lo, 1) > 0)
+        if(dot(Lo, Lo) > 0)
         {
             primarySurface.SetWi(wi, primaryNormal);
-            target *= BRDF::CombinedBRDF(primarySurface);
+            target *= BSDF::UnifiedBSDF(primarySurface);
         }
 
         float targetLum = Math::Luminance(target);
@@ -316,7 +102,7 @@ namespace RGI_Util
         r.Update(w, hitPos, hitNormal, hitID, Lo, target, rngThread);
 
         // = w / targetLum
-        r.W = targetLum > 0 ? 1.0 / p_source.x : 0.0; 
+        r.W = targetLum > 0 ? 1.0 / p_source.x : 0.0;
 
         return r;
     }
@@ -332,7 +118,8 @@ namespace RGI_Util
 
     template<int N>
     TemporalSamples<N> FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, float viewZ, 
-        float roughness, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
+        float roughness, float transmission, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, 
+        inout RNG rng)
     {
         TemporalSamples<N> candidate = RGI_Util::TemporalSamples<N>::Init();
 
@@ -343,6 +130,8 @@ namespace RGI_Util
         GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
         GBUFFER_METALLIC_ROUGHNESS g_prevMetallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::TRANSMISSION];
 
         const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
         int2 prevPixel = prevUV * renderDim;
@@ -350,15 +139,10 @@ namespace RGI_Util
 
         for(int i = 0; i < NUM_TEMPORAL_SEARCH_ITER; i++)
         {
-#if 0
-            float2 offset = rng.Uniform2D();
-            offset = offset * TEMPORAL_SEARCH_RADIUS * 2 - TEMPORAL_SEARCH_RADIUS;
-#else
             const float theta = rng.Uniform() * TWO_PI;
             const float sinTheta = sin(theta);
             const float cosTheta = cos(theta);
             const float2 offset = TEMPORAL_SEARCH_RADIUS * float2(sinTheta, cosTheta);
-#endif
             int2 samplePosSS = prevPixel + (i > 0) * offset;
 
             if(samplePosSS.x >= renderDim.x || samplePosSS.y >= renderDim.y)
@@ -383,8 +167,9 @@ namespace RGI_Util
             const float2 prevMR = g_prevMetallicRoughness[samplePosSS];
 
             bool prevMetallic;
+            bool prevTransmissive;
             bool prevEmissive;
-            GBuffer::DecodeMetallicEmissive(prevMR.x, prevMetallic, prevEmissive);
+            GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive);
 
             if(prevEmissive)
                 continue;
@@ -398,6 +183,18 @@ namespace RGI_Util
                 candidate.valid[curr] = candidate.valid[curr] && (roughnessDiff < 0.15);
             }
 
+            float prevTransmission = 0;
+            float prevEta_i = 1.5f;
+
+            if(prevTransmissive)
+            {
+                float2 tr_ior = g_transmission[samplePosSS];
+                prevTransmission = tr_ior.x;
+                prevEta_i = GBuffer::DecodeIOR(tr_ior.y);
+            }
+
+            candidate.valid[curr] = candidate.valid[curr] && abs(transmission - prevTransmission) < 0.1f;
+
             if(candidate.valid[curr])
             {
                 candidate.data[curr].posSS = (int16_t2)samplePosSS;
@@ -405,6 +202,8 @@ namespace RGI_Util
                 candidate.data[curr].normal = prevNormal;
                 candidate.data[curr].metallic = prevMetallic;
                 candidate.data[curr].roughness = prevMR.y;
+                candidate.data[curr].transmission = prevTransmission;
+                candidate.data[curr].eta_i = prevEta_i;
 
                 curr++;
 
@@ -420,7 +219,7 @@ namespace RGI_Util
         RaytracingAccelerationStructure g_bvh, bool testVisibility = true)
     {
         float3 wi = r_curr.pos - candidate.posW;
-        if(all(wi == 0))
+        if(dot(wi, wi) == 0)
             return 0;
 
         float t = length(wi);
@@ -433,18 +232,18 @@ namespace RGI_Util
         const float3 camPos_prev = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         const float3 wo_prev = normalize(camPos_prev - candidate.posW);
 
-        BRDF::ShadingData surface_prev = BRDF::ShadingData::Init(candidate.normal, wo_prev, candidate.metallic, 
-            candidate.roughness, baseColor_prev);
+        BSDF::ShadingData surface_prev = BSDF::ShadingData::Init(candidate.normal, wo_prev, candidate.metallic, 
+            candidate.roughness, baseColor_prev, candidate.eta_i, 1.0f, candidate.transmission);
 
         surface_prev.SetWi(wi, candidate.normal);
-        const float3 target_prev = r_curr.Lo * BRDF::CombinedBRDF(surface_prev);
+        const float3 target_prev = r_curr.Lo * BSDF::UnifiedBSDF(surface_prev);
         const float targetLum_prev = Math::Luminance(target_prev);
 
         // Test if sample point was visible from temporal pixel. Ideally, previous frame's 
         // BVH should be used.
         if(testVisibility && targetLum_prev > 1e-5)
         {
-            if(!RGI_Trace::Visibility_Segment(candidate.posW, wi, t, candidate.normal, r_curr.ID, g_bvh))
+            if(!RGI_Trace::Visibility_Segment(candidate.posW, wi, t, candidate.normal, r_curr.ID, g_bvh, surface_prev.HasSpecularTransmission()))
                 return 0;
         }
 
@@ -474,7 +273,7 @@ namespace RGI_Util
         return j;
     }
 
-    void TemporalResample1(float3 posW, float3 normal, float roughness, BRDF::ShadingData surface, 
+    void TemporalResample1(float3 posW, float3 normal, float roughness, BSDF::ShadingData surface, 
         uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, uint prevReservoir_C_DescHeapIdx,
         TemporalSampleData candidate, ConstantBuffer<cbFrameConstants> g_frame, RaytracingAccelerationStructure g_bvh, 
         inout Reservoir r, inout RNG rng)
@@ -520,13 +319,13 @@ namespace RGI_Util
         wi /= t;
 
         surface.SetWi(wi, normal);
-        const float3 target_curr = r_prev.Lo * BRDF::CombinedBRDF(surface);
+        const float3 target_curr = r_prev.Lo * BSDF::UnifiedBSDF(surface);
         const float targetLum_curr = Math::Luminance(target_curr);
 
         // Target at current pixel with temporal reservoir's sample
         if(targetLum_curr > 1e-6)
         {
-            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh))
+            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.HasSpecularTransmission()))
             {
                 PartialReadReservoir_ReuseRest(candidate.posSS, prevReservoir_C_DescHeapIdx, r_prev);
 
@@ -548,7 +347,7 @@ namespace RGI_Util
         r.M = M_new;
     }
 
-    void TemporalResample2(float3 posW, float3 normal, float roughness, BRDF::ShadingData surface, 
+    void TemporalResample2(float3 posW, float3 normal, float roughness, BSDF::ShadingData surface, 
         uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, uint prevReservoir_C_DescHeapIdx,
         TemporalSampleData candidate[2], ConstantBuffer<cbFrameConstants> g_frame, RaytracingAccelerationStructure g_bvh, 
         inout Reservoir r, inout RNG rng)
@@ -595,14 +394,14 @@ namespace RGI_Util
             wi /= max(t, 1e-6);
             surface.SetWi(wi, normal);
 
-            const float3 target_curr = r_prev[i].Lo * BRDF::CombinedBRDF(surface);
+            const float3 target_curr = r_prev[i].Lo * BSDF::UnifiedBSDF(surface);
             const float targetLum_curr = Math::Luminance(target_curr);
     
             // RIS weights becomes zero; then only M needs to be updated, which is done at the end anyway
             if(targetLum_curr < 1e-5f)
                 continue;
 
-            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh))
+            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.HasSpecularTransmission()))
             {
                 PartialReadReservoir_ReuseRest(candidate[i].posSS, prevReservoir_C_DescHeapIdx, r_prev[i]);
 
@@ -634,7 +433,7 @@ namespace RGI_Util
         r.M = M_new;
     }
 
-    float2 VirtualMotionReproject(float3 posW, float roughness, float3 wo, float whdotwo, float ndotwo, float t,
+    float2 VirtualMotionReproject_Refl(float3 posW, float roughness, float3 wo, float whdotwo, float ndotwo, float t,
         float k, float z_view, ConstantBuffer<cbFrameConstants> g_frame)
     {
         // For a spherical mirror, the radius of curvature is defined as R = 1 / k where k denotes curvature. Then
@@ -658,12 +457,12 @@ namespace RGI_Util
         // Curvature computation above used the opposite signs
         k *= -1.0f;
         k *= pixelWidth;
-        float reflectionRayT = t / max(1.0f - 2 * k * t * whdotwo, 1e-6);
+        float imageDist = t / max(1.0f - 2 * k * t * whdotwo, 1e-6);
 
         // Interpolate between virtual motion and surface motion using GGX dominant factor
         // Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
-        float factor = BRDF::SpecularBRDFGGXSmithDominantFactor(ndotwo, roughness);
-        float3 virtualPos = posW - wo * reflectionRayT * factor;
+        float factor = BSDF::MicrofacetBRDFGGXSmithDominantFactor(ndotwo, roughness);
+        float3 virtualPos = posW - wo * imageDist * factor;
     
         float2 prevUV = Math::UVFromWorldPos(virtualPos, 
             float2(g_frame.RenderWidth, g_frame.RenderHeight), 
@@ -683,9 +482,42 @@ namespace RGI_Util
         return prevUV;
     }
 
+    float2 VirtualMotionReproject_Tr(float3 posW, float3 wo, float t, float3 normal, float eta,
+        float k, float z_view, float whdotwo, float ndotwo, ConstantBuffer<cbFrameConstants> g_frame)
+    {
+        float pixelWidth = 2.0 * g_frame.TanHalfFOV * z_view / max(ndotwo, 1e-6);
+        k *= -1.0f;
+        k *= pixelWidth;
+        float imageDist_tr = eta / (k * (1 - 1 / eta) - 1 / (eta * t));
+        float imageDist_refl = t / (1.0f - 2 * k * t * whdotwo);
+
+        float3 wi = refract(-wo, normal, 1 / eta);
+        // Switch to reflection for TIR
+        float3 virtualPos = dot(wi, wi) == 0 ? posW - wo * imageDist_refl : posW + wi * imageDist_tr;
+        float2 prevUV = Math::UVFromWorldPos(virtualPos, 
+            float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+            g_frame.TanHalfFOV,
+            g_frame.AspectRatio,
+            g_frame.PrevView);
+
+        return prevUV;
+    }
+
+    // When some reservoir has a much higher weight compared to other reservoirs in its 
+    // neighborhood, it can lead to artifacts that appear as bright spots. Following
+    // attempts to mitigate this issue.
+    void SuppressOutlierReservoirs(inout RGI_Util::Reservoir r)
+    {
+        float waveSum = WaveActiveSum(r.w_sum);
+        float waveAvg = (waveSum - r.w_sum) / (WaveGetLaneCount() - 1);
+        if(r.w_sum > 25 * waveAvg)
+            r.M = 1;
+    }
+
     RGI_Util::Reservoir EstimateIndirectLighting(uint2 DTid, float3 posW, float3 normal, float roughness, 
-        float z_view, BRDF::ShadingData surface, float localCurvature, ConstantBuffer<cbFrameConstants> g_frame, 
-        ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local, RaytracingAccelerationStructure g_bvh, 
+        float ior, float z_view, BSDF::ShadingData surface, float localCurvature, 
+        ConstantBuffer<cbFrameConstants> g_frame, ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local, 
+        RaytracingAccelerationStructure g_bvh, 
         StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
         StructuredBuffer<Vertex> g_vertices, StructuredBuffer<uint> g_indices, 
         StructuredBuffer<Material> g_materials, StructuredBuffer<RT::EmissiveTriangle> g_emissives,
@@ -694,35 +526,29 @@ namespace RGI_Util
         StructuredBuffer<RT::VoxelSample> g_lvg,
         inout RNG rngThread, inout RNG rngGroup)
     {
-        // const float phi = RAY_CONE_K1 * localCurvature + RAY_CONE_K2;
-        const float phi = localCurvature;
-        RT::RayCone rayCone = RT::RayCone::InitFromPrimaryHit(g_frame.PixelSpreadAngle, phi, z_view);
-
-        int maxNumBounces = g_local.NumBounces;
+        int maxNumBounces = max(g_local.MaxDiffuseBounces, 
+            max(g_local.MaxGlossyBounces, g_local.MaxTransmissionBounces));
 
         // Artifacts become noticeable in motion for specular surfaces
         if(IS_CB_FLAG_SET(CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE) && (roughness >= 0.1 || g_frame.CameraStatic))
             maxNumBounces = rngGroup.Uniform() < 0.5 ? 1 : maxNumBounces;
 
         // Use the same sample set for all the threads in this group
-        const uint sampleSetIdx = rngGroup.UniformUintBounded_Faster(g_local.NumSampleSets);
+        const uint sampleSetIdx = rngGroup.UniformUintBounded_Faster(g_local.SampleSetSize_NumSampleSets >> 16);
 
-        RGI_Util::Reservoir r = RGI_Util::RIS_InitialCandidates(posW, normal, surface, maxNumBounces, 
-            rayCone, sampleSetIdx, g_frame, g_local, g_bvh, g_frameMeshData, g_vertices, g_indices, 
+        RGI_Util::Reservoir r = RGI_Util::RIS_InitialCandidates(posW, normal, z_view, surface, ior, maxNumBounces, 
+            localCurvature, sampleSetIdx, g_frame, g_local, g_bvh, g_frameMeshData, g_vertices, g_indices, 
             g_materials, g_emissives, g_sampleSets, g_aliasTable, g_lvg, rngThread, rngGroup);
-
-        // TODO investigate
-        r.target_z = any(isnan(r.target_z)) ? 0 : r.target_z;
 
         if (IS_CB_FLAG_SET(CB_IND_FLAGS::TEMPORAL_RESAMPLE))
         {            
             // Reverse reproject current pixel
             GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
                 GBUFFER_OFFSET::MOTION_VECTOR];
-            const float2 motionVec = g_motionVector[DTid];
-            const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-            const float2 prevSurfaceUV = currUV - motionVec;
             const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+            const float2 motionVec = g_motionVector[DTid];
+            const float2 currUV = (DTid + 0.5f) / renderDim;
+            const float2 prevSurfaceUV = currUV - motionVec;
             float2 prevUV = FLT_MAX;
             float3 relfectedPos = r.pos;
 
@@ -743,24 +569,30 @@ namespace RGI_Util
 
                 float t = length(relfectedPos - posW);
                 float3 wi = (relfectedPos - posW) / t;
-                float3 wh = normalize(wi + surface.wo);
+                bool reflection = dot(wi, normal) >= 0;
+                float s = reflection ? 1 : surface.eta;
+                float3 wh = normalize(mad(wi, s, surface.wo));
+                wh = !reflection && surface.eta > 1 ? -wh : wh;
                 float whdotwo = saturate(dot(surface.wo, wh));
 
                 if(relfectedPos.x != FLT_MAX)
                 {
-                    prevUV = VirtualMotionReproject(posW, roughness, surface.wo, whdotwo, surface.ndotwo, t, 
-                        localCurvature, z_view, g_frame);
+                    prevUV = reflection ? 
+                        VirtualMotionReproject_Refl(posW, roughness, surface.wo, whdotwo, 
+                            surface.ndotwo, t, localCurvature, z_view, g_frame):
+                        VirtualMotionReproject_Tr(posW, surface.wo, t, normal, surface.eta, 
+                            localCurvature, z_view, whdotwo, surface.ndotwo, g_frame);
                 }
             }
 
             TemporalSamples<2> candidate = RGI_Util::FindTemporalCandidate<2>(DTid, posW, normal, 
-                z_view, roughness, prevUV, g_frame, rngThread);
+                z_view, roughness, surface.transmission, prevUV, g_frame, rngThread);
 
             float th = localCurvature == 0 ? 0.004 : 0.15;
             bool ee = PlaneHeuristic(relfectedPos, r.normal, r.pos, z_view, th);
             candidate.valid[0] = candidate.valid[0] && (!r.IsValid() || ee);
 
-            // Skip temporal resampling if no samples are found
+            // Skip temporal resampling if no valid sample is found
             if (candidate.valid[1] && roughness > 0.05)
             {
                 RGI_Util::TemporalResample2(posW, normal, roughness, surface,
@@ -775,6 +607,9 @@ namespace RGI_Util
                      g_local.PrevReservoir_C_DescHeapIdx, candidate.data[0], g_frame, 
                      g_bvh, r, rngThread);
             }
+
+            if(IS_CB_FLAG_SET(CB_IND_FLAGS::BOILING_SUPPRESSION))
+                SuppressOutlierReservoirs(r);
 
             RGI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
                 g_local.CurrReservoir_B_DescHeapIdx, g_local.CurrReservoir_C_DescHeapIdx, 

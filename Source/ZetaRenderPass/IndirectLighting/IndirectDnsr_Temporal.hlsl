@@ -24,74 +24,6 @@ ConstantBuffer<cbIndirectDnsrTemporal> g_local : register(b1);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-template<bool Specular>
-float3 FilterFirefly(float3 currColor, int2 DTid, float linearDepth, float3 normal, float3 posW, float roughness)
-{
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    Texture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorASrvDescHeapIdx];    
-    Texture2D<float4> g_colorB = ResourceDescriptorHeap[g_local.ColorBSrvDescHeapIdx];    
-
-    float currLum = Math::Luminance(currColor);
-    if(currLum < 1e-4)
-        return currColor;
-    
-    float3 minColor = currColor;
-    float3 maxColor = 0.0.xxx;
-    float minLum = FLT_MAX;
-    float maxLum = 0;
-    const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float2 rcpRenderDim = 1.0f / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const int r = roughness < 0.3  ? 2 : 1;
-    
-    //[unroll]
-    for (int i = -r; i <= r; i++)
-    {
-        //[unroll]
-        for (int j = -r; j <= r; j++)
-        {
-            if (i == 0 && j == 0)
-                continue;
-            
-            int2 addr = int2(DTid.x + j, DTid.y + i);
-            if (any(addr) < 0 || any(addr >= renderDim))
-                continue;
-            
-            const float neighborLinearDepth = g_depth[addr];
-            if (neighborLinearDepth == FLT_MAX)
-                continue;
-            
-            // float2 neighborUV = (addr + 0.5) * rcpRenderDim;
-            // if (!GeometryTest2(neighborLinearDepth, neighborUV, normal, posW, linearDepth))
-            //     continue;
-
-            float3 neighborColor;
-
-            if(Specular)
-                neighborColor = g_colorA[addr].rgb;
-            else
-                neighborColor = float3(g_colorA[addr].a, g_colorB[addr].rg);
-            
-            float neighborLum = Math::Luminance(neighborColor);
-
-            if (neighborLum < minLum)
-            {
-                minLum = neighborLum;
-                minColor = neighborColor;
-            }
-            else if (neighborLum > maxLum)
-            {
-                maxLum = neighborLum;
-                maxColor = neighborColor;
-            }
-        }
-    }
-    
-    float3 ret = currLum < minLum ? minColor : (currLum > maxLum ? maxColor : currColor);
-    ret = minLum <= maxLum ? ret : currColor;
-    
-    return ret;
-}
-
 // output range is [0, +inf)
 float Parallax(float3 currPos, float3 prevPos, float3 currCamPos, float3 prevCamPos)
 {
@@ -415,7 +347,7 @@ void SampleTemporalCache_Virtual(uint2 DTid, float3 posW, float3 normal, float z
             Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureDescHeapIdx];
             float localCurvature = g_curvature[DTid];
 
-            prevUV = RGI_Util::VirtualMotionReproject(posW, roughness, wo, whdotwo, 0, t, localCurvature, 
+            prevUV = RGI_Util::VirtualMotionReproject_Refl(posW, roughness, wo, whdotwo, 0, t, localCurvature, 
                 z_view, g_frame);
         }
     }
@@ -526,9 +458,6 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
     float tspp = 0;
     if (g_local.IsTemporalCacheValid && motionVecValid)
         SampleTemporalCache_Virtual(DTid, posW, normal, z_view, metallic, roughness, prevSurfaceUV, color, tspp);
-
-    if(g_local.FilterFirefly)
-        color = FilterFirefly<true>(color, DTid, z_view, normal, posW, roughness);
 
     const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
     const float3 prevSurfacePosW = Math::WorldPosFromUV(prevSurfaceUV,

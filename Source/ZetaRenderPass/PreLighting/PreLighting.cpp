@@ -234,7 +234,7 @@ void PreLighting::Init()
     CreateOutputs();
 
     ParamVariant extents;
-    extents.InitFloat3("Renderer", "Lighting", "Extents",
+    extents.InitFloat3("Renderer", "Light Voxel Grid", "Extents",
         fastdelegate::MakeDelegate(this, &PreLighting::VoxelExtentsCallback),
         m_voxelExtents,
         0.1,
@@ -243,7 +243,7 @@ void PreLighting::Init()
     App::AddParam(extents);
 
     ParamVariant offset_y;
-    offset_y.InitFloat("Renderer", "Lighting", "Y Offset",
+    offset_y.InitFloat("Renderer", "Light Voxel Grid", "Y Offset",
         fastdelegate::MakeDelegate(this, &PreLighting::YOffsetCallback),
         m_yOffset,
         0,
