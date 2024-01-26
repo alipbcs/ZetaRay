@@ -168,7 +168,7 @@ void SkyDI::Init()
         IS_CB_FLAG_SET(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR));
     App::AddParam(dnsrSpatialFilterSpecular);
 
-    App::AddShaderReloadHandler("SkyDI_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
+    App::AddShaderReloadHandler("SkyDI", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
     //App::AddShaderReloadHandler("SkyDI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRTemporal));
     //App::AddShaderReloadHandler("SkyDI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRSpatial));
 

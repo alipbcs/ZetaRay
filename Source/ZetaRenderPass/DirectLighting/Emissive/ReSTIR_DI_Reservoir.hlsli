@@ -49,6 +49,9 @@ namespace RDI_Util
 
         bool Update(float w, float3 le, uint lightIdx, float2 bary, inout RNG rng)
         {
+            if(isnan(w))
+                return false;
+
 #if KAHAN_SUMMATION == 1
             float corrected = w - this.Compensation;
             float newSum = this.w_sum + corrected;

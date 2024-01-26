@@ -28,7 +28,7 @@ namespace RDI_Util
                 ret.lightPos = (1.0f - r.Bary.x - r.Bary.y) * tri.Vtx0 + r.Bary.x * vtx1 + r.Bary.y * vtx2;
 
                 ret.lightNormal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
-                ret.lightNormal = all(ret.lightNormal == 0) ? ret.lightNormal : normalize(ret.lightNormal);
+                ret.lightNormal = dot(ret.lightNormal, ret.lightNormal) == 0 ? ret.lightNormal : normalize(ret.lightNormal);
                 //ret.lightNormal = tri.IsDoubleSided() && dot(-ret.wi, ret.lightNormal) < 0 ? ret.lightNormal * -1.0f : ret.lightNormal;
                 ret.doubleSided = tri.IsDoubleSided();
             }
@@ -46,7 +46,6 @@ namespace RDI_Util
         float dWdA()
         {
             float cosThetaPrime = saturate(dot(this.lightNormal, -this.wi));
-            // [hack] due to using 16-bit floats for triangle vertices, light normal can become zero for small or thin triangles
             cosThetaPrime = all(this.lightNormal == 0) ? 1 : cosThetaPrime;
             float dWdA = cosThetaPrime / (this.t * this.t);
 
@@ -83,7 +82,7 @@ namespace RDI_Util
         float3 lightNormal;
         float3 lightPos;
         float dwdA;
-        // store visibility seperately as biased version doesn't include it in target
+        // store visibility separately as the biased version doesn't include it in it's target function
         bool needsShadowRay;
         bool visible;
     };
@@ -116,6 +115,7 @@ namespace RDI_Util
         bool metallic;
     };
 
+    // TODO doesn't handle transmission
     bool Visibility(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
         float3 normal, uint triID)
     {
@@ -148,10 +148,22 @@ namespace RDI_Util
     }
 
     bool VisibilityApproximate(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
-        float3 normal, uint triID)
+        float3 normal, uint triID, bool transmissive)
     {
-        // HACK use a larger offset to avoid intersection with decals
-        //const float3 adjustedOrigin = RT::OffsetRay2(pos, wi, normal, 1e-6);
+        float ndotwi = dot(normal, wi);
+        if(ndotwi == 0)
+            return false;
+
+        bool wiBackface = ndotwi < 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
+
         const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
         // To test for occlusion against some light source at distance t_l we need to check if 
@@ -168,7 +180,7 @@ namespace RDI_Util
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
+        ray.TMin = wiBackface ? 3e-4 : 0;
         ray.TMax = 0.995f * rayT;
         ray.Direction = wi;
 
@@ -243,8 +255,8 @@ namespace RDI_Util
         }
 
         void Stream(Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-            BRDF::ShadingData surface_c, Reservoir r_i, float3 posW_i, float3 normal_i, float w_sum_i, 
-            BRDF::ShadingData surface_i, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
+            BSDF::ShadingData surface_c, Reservoir r_i, float3 posW_i, float3 normal_i, float w_sum_i, 
+            BSDF::ShadingData surface_i, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
             RaytracingAccelerationStructure g_bvh, Target target_c, inout RNG rng)
         {
             float3 currTarget;
@@ -260,12 +272,15 @@ namespace RDI_Util
                 dwdA = emissive_i.dWdA();
 
                 surface_c.SetWi(emissive_i.wi, normal_c);
-                const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
+                const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
                 currTarget = r_i.Le * brdfCosTheta_c * dwdA;
 
 #if TARGET_WITH_VISIBILITY == 1
                 if(Math::Luminance(currTarget) > 1e-5)
-                    currTarget *= VisibilityApproximate(g_bvh, posW_c, emissive_i.wi, emissive_i.t, normal_c, emissive_i.ID);
+                {
+                    currTarget *= VisibilityApproximate(g_bvh, posW_c, emissive_i.wi, emissive_i.t, normal_c, 
+                        emissive_i.ID, surface_c.HasSpecularTransmission());
+                }
 #endif
 
                 const float targetLum = Math::Luminance(currTarget);
@@ -282,11 +297,14 @@ namespace RDI_Util
                 t_i = length(target_c.lightPos - posW_i);
                 wi_i = (target_c.lightPos - posW_i) / t_i;
                 surface_i.SetWi(wi_i, normal_i);
-                brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
+                brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
 
 #if TARGET_WITH_VISIBILITY == 1
                 if(Math::Luminance(brdfCosTheta_i) > 1e-5)
-                    brdfCosTheta_i *= VisibilityApproximate(g_bvh, posW_i, wi_i, t_i, normal_i, target_c.lightID);
+                {
+                    brdfCosTheta_i *= VisibilityApproximate(g_bvh, posW_i, wi_i, t_i, normal_i, 
+                        target_c.lightID, surface_i.HasSpecularTransmission());
+                }
 #endif
             }
 
@@ -323,8 +341,6 @@ namespace RDI_Util
             this.r_s.M = this.M_s;
             const float targetLum = Math::Luminance(target_c.p_hat);
             this.r_s.W = targetLum > 0 ? this.r_s.w_sum / (targetLum * (1 + this.k)) : 0;
-            // TODO investigate
-            this.r_s.W = isnan(this.r_s.W) ? 0 : this.r_s.W;
         }
 
         Reservoir r_s;
@@ -335,15 +351,29 @@ namespace RDI_Util
     };
 
     bool FindClosestHit(float3 pos, float3 normal, float3 wi, RaytracingAccelerationStructure g_bvh, 
-        StructuredBuffer<RT::MeshInstance> g_frameMeshData, out BrdfHitInfo hitInfo)
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData, out BrdfHitInfo hitInfo, bool transmissive)
     {
+        float ndotwi = dot(normal, wi);
+        if(ndotwi == 0)
+            return false;
+
+        bool wiBackface = ndotwi < 0;
+
+        if(wiBackface)
+        {
+            if(transmissive)
+                normal *= -1;
+            else
+                return false;
+        }
+
         const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
         RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
+        ray.TMin = wiBackface ? 3e-4 : 0;
         ray.TMax = FLT_MAX;
         ray.Direction = wi;
 
@@ -455,7 +485,7 @@ namespace RDI_Util
 
     float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, uint2 posSS, float3 prevPosW, 
         float3 prevNormal, bool prevMetallic, float prevRoughness, float prevLinearDepth, ConstantBuffer<cbFrameConstants> g_frame,
-        RaytracingAccelerationStructure g_bvh, out BRDF::ShadingData prevSurface)
+        RaytracingAccelerationStructure g_bvh, out BSDF::ShadingData prevSurface)
     {
         GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::BASE_COLOR];
@@ -464,44 +494,45 @@ namespace RDI_Util
         const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         const float3 prevWo = normalize(prevCameraPos - prevPosW);
 
-        prevSurface = BRDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness, prevBaseColor);
+        prevSurface = BSDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness, prevBaseColor);
 
         const float t = length(lightPos - prevPosW);
         const float3 wi = (lightPos - prevPosW) / t;
         prevSurface.SetWi(wi, prevNormal);
 
         float cosThetaPrime = saturate(dot(lightNormal, -wi));
-        cosThetaPrime = all(lightNormal == 0) ? 1 : cosThetaPrime;
+        cosThetaPrime = dot(lightNormal, lightNormal) == 0 ? 1 : cosThetaPrime;
         const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
-        const float3 targetAtPrev = le * BRDF::CombinedBRDF(prevSurface) * dwdA;
+        const float3 targetAtPrev = le * BSDF::UnifiedBSDF(prevSurface) * dwdA;
         float targetLumAtPrev = Math::Luminance(targetAtPrev);
 
         // should use previous frame's bvh
     #if TARGET_WITH_VISIBILITY == 1
-        targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPosW, wi, t, prevNormal, lightID);
+        targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPosW, wi, t, prevNormal, lightID, prevSurface.HasSpecularTransmission());
     #endif
 
         return targetLumAtPrev;
     }
 
-    float3 TargetAtCurrentPixel(float3 le, float3 posW, float3 normal, float linearDepth, BRDF::ShadingData surface, 
+    float3 TargetAtCurrentPixel(float3 le, float3 posW, float3 normal, float linearDepth, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, inout EmissiveData prevEmissive, out float dwdA)
     {
         prevEmissive.SetSurfacePos(posW);
         dwdA = prevEmissive.dWdA();
 
         surface.SetWi(prevEmissive.wi, normal);
-        float3 target = le * BRDF::CombinedBRDF(surface) * dwdA;
+        float3 target = le * BSDF::UnifiedBSDF(surface) * dwdA;
     
 #if TARGET_WITH_VISIBILITY == 1
-        target *= VisibilityApproximate(g_bvh, posW, prevEmissive.wi, prevEmissive.t, normal, prevEmissive.ID);
+        target *= VisibilityApproximate(g_bvh, posW, prevEmissive.wi, prevEmissive.t, normal, 
+            prevEmissive.ID, surface.HasSpecularTransmission());
 #endif
 
         return target;
     }
 
-    void TemporalResample1(float3 posW, float3 normal, float roughness, float linearDepth, BRDF::ShadingData surface, 
+    void TemporalResample1(float3 posW, float3 normal, float roughness, float linearDepth, BSDF::ShadingData surface, 
         uint PrevReservoir_A_DescHeapIdx, uint PrevReservoir_B_DescHeapIdx, TemporalCandidate candidate,
         ConstantBuffer<cbFrameConstants> g_frame, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
         RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout RNG rng, inout Target target)
@@ -515,7 +546,7 @@ namespace RDI_Util
 
             if(Math::Luminance(r.Le) > 1e-6)
             {
-                BRDF::ShadingData prevSurface;
+                BSDF::ShadingData prevSurface;
                 targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, target.lightNormal, 
                     target.lightID, candidate.posSS, candidate.posW, 
                     candidate.normal, candidate.metallic, candidate.roughness, 
@@ -569,7 +600,7 @@ namespace RDI_Util
     }
 
     void SpatialResample(uint2 DTid, int numSamples, float radius, float3 posW, float3 normal, 
-        float linearDepth, float roughness, BRDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
+        float linearDepth, float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
         uint prevReservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
         RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout Target target, inout RNG rng)
     {
@@ -667,7 +698,7 @@ namespace RDI_Util
             const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
             const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
-            BRDF::ShadingData surface_i = BRDF::ShadingData::Init(sampleNormal, wo_i,
+            BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
                 sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
                 
             // TODO is capping M needed?

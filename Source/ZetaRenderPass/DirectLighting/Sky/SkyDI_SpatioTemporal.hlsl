@@ -45,10 +45,24 @@ RaytracingAccelerationStructure g_bvh : register(t0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-bool Visibility(float3 pos, float3 wi, float3 normal)
+bool Visibility(float3 pos, float3 wi, float3 normal, bool transmissive)
 {
     if(wi.y < 0)
         return false;
+
+    float ndotwi = dot(normal, wi);
+    if(ndotwi == 0)
+        return false;
+
+    bool wiBackface = ndotwi < 0;
+
+    if(wiBackface)
+    {
+        if(transmissive)
+            normal *= -1;
+        else
+            return false;
+    }
 
     const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
@@ -58,7 +72,7 @@ bool Visibility(float3 pos, float3 wi, float3 normal)
 
     RayDesc ray;
     ray.Origin = adjustedOrigin;
-    ray.TMin = 0;
+    ray.TMin = wiBackface ? 3e-4 : 0;
     ray.TMax = FLT_MAX;
     ray.Direction = wi;
 
@@ -75,29 +89,23 @@ bool Visibility(float3 pos, float3 wi, float3 normal)
     return true;
 }
 
-float3 Target(float3 pos, float3 normal, float linearDepth, float3 wi, BRDF::ShadingData surface, 
-    out float3 Lo)
+float3 Le(float3 pos, float3 normal, float3 wi, BSDF::ShadingData surface)
 {
-    const bool vis = Visibility(pos, wi, normal);
+    const bool vis = Visibility(pos, wi, normal, surface.HasSpecularTransmission());
     if (!vis)
         return 0.0;
 
-    // sample sky-view LUT
+    // Sample sky-view LUT
     Texture2D<float4> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
     const float2 thetaPhi = Math::SphericalFromCartesian(wi);
     float2 uv = float2(thetaPhi.y * ONE_OVER_2_PI, thetaPhi.x * ONE_OVER_PI);
 
-    // undo non-linear sampling
+    // Undo non-linear sampling
     const float s = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
     uv.y = (thetaPhi.x - PI_OVER_2) * 0.5f;
     uv.y = 0.5f + s * sqrt(abs(uv.y) * ONE_OVER_PI);
     
-    Lo = g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
-        
-    const float3 brdfCosTheta = BRDF::CombinedBRDF(surface);
-    const float3 target = Lo * brdfCosTheta;
-
-    return target;
+    return g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 }
 
 // Jacobian of the mapping r = T(q), e.g. reusing a path from pixel q at pixel r
@@ -113,12 +121,12 @@ float JacobianReconnectionShift(float3 x1_q, float3 wi_q, float3 x1_r)
     float3 x2_q = g_frame.AtmosphereAltitude * wi_q;
     float3 v_q = x1_q - x2_q;
     float t_q2 = dot(v_q, v_q);
-    v_q = all(v_q == 0) ? v_q : v_q / sqrt(t_q2);
+    v_q = dot(v_q, v_q) == 0 ? v_q : v_q / sqrt(t_q2);
     float3 x2_q_normal = -wi_q;
 
     float3 v_r = x1_r - x2_q;
     const float t_r2 = dot(v_r, v_r);
-    v_r = all(v_r == 0) ? v_r : v_r / sqrt(t_r2);
+    v_r = dot(v_r, v_r) == 0 ? v_r : v_r / sqrt(t_r2);
 
     //  - phi_r is the angle between x1_r - x2_q and surface normal at x2_q
     //  - phi_q is the angle between x1_q - x2_q and surface normal at x2_q
@@ -182,8 +190,8 @@ struct PairwiseMIS
     }
 
     void Stream(SkyDI_Util::Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-        BRDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
-        float w_sum_i, BRDF::ShadingData surface_i, inout RNG rng)
+        BSDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
+        float w_sum_i, BSDF::ShadingData surface_i, inout RNG rng)
     {
         float3 currTarget;
         float m_i;
@@ -191,12 +199,12 @@ struct PairwiseMIS
         // m_i
         if(r_i.IsValid())
         {
-            surface_c.SetWi(r_i.wi, normal_c);
-            const float3 brdfCosTheta_c = BRDF::CombinedBRDF(surface_c);
+            surface_c.SetWi_Refl(r_i.wi, normal_c);
+            const float3 brdfCosTheta_c = BSDF::UnifiedBRDF(surface_c);
             currTarget = r_i.Le * brdfCosTheta_c;
 
             if(Math::Luminance(currTarget) > 1e-5)
-                currTarget *= Visibility(posW_c, r_i.wi, normal_c);
+                currTarget *= Visibility(posW_c, r_i.wi, normal_c, surface_c.HasSpecularTransmission());
 
             const float targetLum = Math::Luminance(currTarget);
             const float J_temporal_to_curr = JacobianReconnectionShift(posW_i, r_i.wi, posW_c);
@@ -209,11 +217,11 @@ struct PairwiseMIS
         // m_c
         if(r_c.IsValid())
         {
-            surface_i.SetWi(r_c.wi, normal_i);
-            brdfCosTheta_i = BRDF::CombinedBRDF(surface_i);
+            surface_i.SetWi_Refl(r_c.wi, normal_i);
+            brdfCosTheta_i = BSDF::UnifiedBRDF(surface_i);
 
             if(Math::Luminance(brdfCosTheta_i) > 1e-5)
-                brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i);
+                brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i, surface_i.HasSpecularTransmission());
 
             J_curr_to_temporal = JacobianReconnectionShift(posW_c, r_c.wi, posW_i);
         }    
@@ -238,8 +246,6 @@ struct PairwiseMIS
         this.r_s.M = this.M_s;
         const float targetLum = Math::Luminance(r_s.Target);
         this.r_s.W = targetLum > 0 ? this.r_s.w_sum / (targetLum * (1 + this.k)) : 0;
-        // TODO investigate
-        this.r_s.W = isnan(this.r_s.W) ? 0 : this.r_s.W;
     }
 
     SkyDI_Util::Reservoir r_s;
@@ -248,64 +254,64 @@ struct PairwiseMIS
     uint16_t k;
 };
 
-SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic,
-    float roughness, BRDF::ShadingData surface, inout RNG rng)
+SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, bool metallic,
+    float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     SkyDI_Util::Reservoir r = SkyDI_Util::Reservoir::Init();
 
-    // MIS -- take a diffuse/hemisphere sample and a brdf sample
+    // MIS -- take a light sample and a BSDF sample
 
-    // sample diffuse BRDF for dielectrics, hemisphere for metals
-    if(!metallic || roughness > g_local.MinRoughnessResample)
+    // Sky is low frequency, so instead sample Lambertian as a proxy for light sampling
     {
         const float2 u = rng.Uniform2D();
-        float p_d;
-        float3 wi_d;
+        float p_e;
+#if 1
+        float3 wi_e = BSDF::SampleLambertianBRDF(normal, u, p_e);
+#else
+        float3 wi_e = !surface.HasSpecularTransmission() ? 
+            BSDF::SampleLambertianBRDF(normal, u, p_e) :
+            Sampling::SampleCosineWeightedHemisphere(u, p_e);
+#endif
+        const float3 le = Le(posW, normal, wi_e, surface);
 
-        if(!metallic)
-            wi_d = BRDF::SampleLambertianBrdf(normal, u, p_d);
-        else
-        {
-            wi_d = Sampling::SampleCosineWeightedHemisphere(u, p_d);
-            wi_d = float3(wi_d.x, wi_d.z, -wi_d.y);
-        }
+        surface.SetWi(wi_e, normal);
+        const float3 target = le * BSDF::UnifiedBSDF(surface);
 
-        surface.SetWi(wi_d, normal);
+        // Balance heuristic
+        // p_e in m_e's numerator and w_e's denominator cancel out
+        const float m_e = 1.0f / max(p_e + RT::UnifiedBSDFPdf_NoDiffuse(normal, surface, wi_e), 1e-6);
+        const float w_e = m_e * Math::Luminance(target);
 
-        float3 Lo;
-        const float3 target = Target(posW, normal, linearDepth, wi_d, surface, Lo);
-
-        // balance heuristic
-        // p_d in m_d's numerator and w_d's denominator cancel out
-        const float m_d = 1.0f / max(p_d + BRDF::GGXVNDFReflectionPdf(surface), 1e-6);
-        const float w_d = m_d * Math::Luminance(target);
-
-        r.Update(w_d, Lo, wi_d, target, rng);
+        r.Update(w_e, le, wi_e, target, rng);
     }
 
-    // sample specular BRDF
+    // Sample non-diffuse BSDF
     {
-        const float2 u = rng.Uniform2D();
-        const float3 wi_s = BRDF::SampleSpecularMicrofacet(surface, normal, u);
-        surface.SetWi(wi_s, normal);
-        const float p_s = BRDF::GGXVNDFReflectionPdf(surface);
+        float3 f;
+        float p_s;
+        float3 wi_s = RT::SampleUnifiedBSDF_NoDiffuse(normal, surface, rng, f, p_s);
+        surface.ndotwi = abs(dot(wi_s, normal));
 
-        float3 Lo;
-        const float3 target = Target(posW, normal, linearDepth, wi_s, surface, Lo);
-        const float p_d = (metallic && roughness < g_local.MinRoughnessResample) ? 
-            0 : 
-            (!metallic ? surface.ndotwi * ONE_OVER_PI : saturate(wi_s.y) * ONE_OVER_PI);
+#if 1
+        const float p_e = surface.ndotwi * ONE_OVER_PI;
+#else
+        const float p_e = !surface.HasSpecularTransmission() ? 
+            surface.ndotwi * ONE_OVER_PI : 
+            saturate(wi_s.y) * ONE_OVER_PI;
+#endif
+        const float3 le = Le(posW, normal, wi_s, surface);
+        const float3 target = le * f;
 
         // p_s in m_s's numerator and w_s's denominator cancel out
-        const float m_s = 1.0f / max(p_s + p_d, 1e-6f);
+        const float m_s = 1.0f / max(p_s + p_e, 1e-6f);
         const float w_s = m_s * Math::Luminance(target);
 
-        r.Update(w_s, Lo, wi_s, target, rng);
+        r.Update(w_s, le, wi_s, target, rng);
     }
 
     float targetLum = Math::Luminance(r.Target);
     r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
-        
+
     return r;
 }
 
@@ -318,7 +324,7 @@ float PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float 
 }
 
 TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic, 
-    float roughness, BRDF::ShadingData surface, inout RNG rng)
+    float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     TemporalCandidate candidate = TemporalCandidate::Init();
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -397,7 +403,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 }
 
 void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, bool metallic,
-    BRDF::ShadingData surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
+    BSDF::ShadingData surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
     SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
     const half newM = r.M + prev.M;
@@ -415,16 +421,16 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
             const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
             const float3 prevWo = normalize(prevCameraPos - candidate.posW);
 
-            BRDF::ShadingData prevSurface = BRDF::ShadingData::Init(candidate.normal, prevWo,
+            BSDF::ShadingData prevSurface = BSDF::ShadingData::Init(candidate.normal, prevWo,
                 metallic, candidate.roughness, prevBaseColor);
 
             prevSurface.SetWi(r.wi, candidate.normal);
 
-            const float3 targetAtPrev = r.Le * BRDF::CombinedBRDF(prevSurface);
+            const float3 targetAtPrev = r.Le * BSDF::UnifiedBSDF(prevSurface);
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
             if(targetLumAtPrev > 1e-6)
-                targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal);
+                targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal, prevSurface.HasSpecularTransmission());
         }
 
         const float p_curr = r.M * Math::Luminance(r.Target);
@@ -443,11 +449,11 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
     {
         // compute target at current pixel with temporal reservoir's sample
         surface.SetWi(prev.wi, normal);
-        const float3 currTarget = prev.Le * BRDF::CombinedBRDF(surface);
+        const float3 currTarget = prev.Le * BSDF::UnifiedBSDF(surface);
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 1e-6)
-            targetLumAtCurr *= Visibility(posW, prev.wi, normal);
+            targetLumAtCurr *= Visibility(posW, prev.wi, normal, surface.HasSpecularTransmission());
         
         // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
         if(targetLumAtCurr != 0)
@@ -472,7 +478,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
 }
 
 void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW, float3 normal, 
-    float linearDepth, float roughness, BRDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
+    float linearDepth, float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
     uint prevReservoir_B_DescHeapIdx, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
     static const half2 k_hammersley[8] =
@@ -562,7 +568,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
         const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
         const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
-        BRDF::ShadingData surface_i = BRDF::ShadingData::Init(sampleNormal, wo_i,
+        BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
             sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
 
         SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], g_local.PrevReservoir_A_DescHeapIdx);
@@ -577,9 +583,9 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 }
 
 SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
-    bool metallic, float roughness, float3 baseColor, BRDF::ShadingData surface, inout RNG rng)
+    bool metallic, float roughness, float3 baseColor, BSDF::ShadingData surface, inout RNG rng)
 {
-    SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, linearDepth, metallic, roughness,
+    SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, metallic, roughness,
         surface, rng);
 
     // skip resampling for mirror-like metals & dark-colored glossy dielectrics
@@ -662,18 +668,34 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     const float2 mr = g_metallicRoughness[swizzledDTid];
 
     bool metallic;
-    bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, metallic, isEmissive);
+    bool transmissive;
+    bool emissive;
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive);
 
-    if (isEmissive)
+    if (emissive)
         return;
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
+    float tr = 0;
+    float eta_t = 1.0f;
+    float eta_i = 1.5f;
+
+    if(transmissive)
+    {
+        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::TRANSMISSION];
+
+        float2 tr_ior = g_transmission[swizzledDTid];
+        tr = tr_ior.x;
+        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+    }
+
     const float3 wo = normalize(g_frame.CameraPos - posW);
-    BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
+        eta_i, eta_t, tr);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 
@@ -683,10 +705,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))
     {
         // split into diffuse & specular, so they can be denoised seperately
-        surface.SetWi(r.wi, normal);
+        surface.SetWi_Refl(r.wi, normal);
+        float3 fr = surface.Fresnel();
 
         // demodulate base color
-        float3 f_d = (1.0f - surface.F) * (1.0f - metallic) * surface.ndotwi * ONE_OVER_PI;
+        float3 f_d = (1.0f - fr) * (1.0f - metallic) * surface.ndotwi * ONE_OVER_PI;
         
         // demodulate Fresnel for metallic surfaces to preserve texture detail
         float alphaSq = max(1e-5f, surface.alpha * surface.alpha);        
@@ -701,13 +724,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
             else
             {
                 float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
-                float NDF = BRDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BRDF::SmithHeightCorrelatedG2ForGGX(alphaSq, surface.ndotwi, surface.ndotwo);
+                float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
+                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_GGX_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
                 f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
             }
         }
         else
-            f_s = BRDF::SpecularBRDFGGXSmith(surface);
+            f_s = BSDF::MicrofacetBRDFGGXSmith(surface, fr);
 
         float3 Li_d = r.Le * f_d * r.W;
         float3 Li_s = r.Le * f_s * r.W;
@@ -727,6 +750,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     else
     {
         float3 Li = r.Target * r.W;
+        Li = any(isnan(Li)) ? 0 : Li;
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
         if(g_frame.Accumulate && g_frame.CameraStatic)

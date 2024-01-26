@@ -25,21 +25,24 @@ StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t4);
 //--------------------------------------------------------------------------------------
 
 RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, float roughness,
-    BRDF::ShadingData surface, uint sampleSetIdx, int numBrdfCandidates, inout RNG rng, 
+    BSDF::ShadingData surface, uint sampleSetIdx, int numBrdfCandidates, inout RNG rng, 
     inout RDI_Util::Target target)
 {
     RDI_Util::Reservoir r = RDI_Util::Reservoir::Init();
     target.needsShadowRay = false;
     float target_dwdA = 0.0f;
 
-    // brdf sampling
+    // BSDF sampling
     for (int s_b = 0; s_b < numBrdfCandidates; s_b++)
     {
-        const float3 wi = BRDF::SampleSpecularMicrofacet(surface, normal, rng.Uniform2D());
+        float3 f;
+        float wiPdf;
+        float3 wi = RT::SampleUnifiedBSDF_NoDiffuse(normal, surface, rng, f, wiPdf);
 
         // check if closest hit is a light source
         RDI_Util::BrdfHitInfo hitInfo;
-        bool hitEmissive = RDI_Util::FindClosestHit(posW, normal, wi, g_bvh, g_frameMeshData, hitInfo);
+        bool hitEmissive = RDI_Util::FindClosestHit(posW, normal, wi, g_bvh, g_frameMeshData, hitInfo, 
+            surface.HasSpecularTransmission());
 
         RT::EmissiveTriangle emissive;
         float3 L_e = 0.0.xxx;
@@ -58,7 +61,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
             lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
             float twoArea = length(lightNormal);
             twoArea = max(twoArea, 1e-6);
-            lightNormal = all(lightNormal == 0) ? 1.0.xxx : lightNormal / twoArea;
+            lightNormal = dot(lightNormal, lightNormal) == 0 ? 1.0.xxx : lightNormal / twoArea;
             lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? lightNormal * -1.0f : lightNormal;
 
             // skip backfacing lights
@@ -66,9 +69,6 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
             {
                 const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
                 const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
-
-                surface.SetWi(wi, normal);
-                float wiPdf = BRDF::GGXVNDFReflectionPdf(surface);
 
                 // solid angle measure to area measure
                 dwdA = saturate(dot(lightNormal, -wi)) / max(hitInfo.t * hitInfo.t, 1e-6f);
@@ -78,9 +78,9 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
                 // wiPdf in m_i's numerator and w_i's denominator cancel out
                 const float m_i = 1.0f / max(numBrdfCandidates * wiPdf + NUM_LIGHT_CANDIDATES * lightPdf, 1e-6f);
 
-                // target = Le * BRDF(wi, wo) * |ndotwi|
+                // target = Le * BSDF(wi, wo) * |ndotwi|
                 // source = P(wi)
-                currTarget = L_e * BRDF::CombinedBRDF(surface) * dwdA;
+                currTarget = L_e * f * dwdA;
                 w_i = m_i * Math::Luminance(currTarget);
             }
         }
@@ -136,21 +136,25 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
         const float t = length(lightSample.pos - posW);
         const float3 wi = (lightSample.pos - posW) / t;
         const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
+        surface.SetWi(wi, normal);
 
         // skip backfacing lights
         if(dot(lightSample.normal, -wi) > 0)
         {
-            surface.SetWi(wi, normal);
-            currTarget = Le * BRDF::CombinedBRDF(surface) * dwdA;
+            currTarget = Le * BSDF::UnifiedBSDF(surface) * dwdA;
                 
 #if TARGET_WITH_VISIBILITY == 1
             if (Math::Luminance(currTarget) > 1e-6)
-                currTarget *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, lightID);
+            {
+                currTarget *= RDI_Util::VisibilityApproximate(g_bvh, posW, wi, t, normal, lightID, 
+                    surface.HasSpecularTransmission());
+            }
 #endif
         }
 
         // p_d in m_i's numerator and w_i's denominator cancel out
-        const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + numBrdfCandidates * BRDF::GGXVNDFReflectionPdf(surface) * dwdA, 1e-6f);
+        const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + 
+            numBrdfCandidates * RT::UnifiedBSDFPdf_NoDiffuse(normal, surface, wi) * dwdA, 1e-6f);
         const float w_i = m_i * Math::Luminance(currTarget);
 
         if (r.Update(w_i, Le, emissiveIdx, lightSample.bary, rng))
@@ -186,7 +190,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal
 }
 
 RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, float roughness, 
-    float3 baseColor, uint sampleSetIdx, BRDF::ShadingData surface, float2 prevUV, inout RDI_Util::Target target, 
+    float3 baseColor, uint sampleSetIdx, BSDF::ShadingData surface, float2 prevUV, inout RDI_Util::Target target, 
     inout RNG rng)
 {
     // light sampling is less effective for glossy surfaces or when light source is close to surface
@@ -296,8 +300,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
     bool isMetallic;
+    bool isTransmissive;
     bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
+    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
 
     if (isEmissive)
         return;
@@ -306,8 +311,23 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
+    float tr = 0;
+    float eta_t = 1.0f;
+    float eta_i = 1.5f;
+
+    if(isTransmissive)
+    {
+        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::TRANSMISSION];
+
+        float2 tr_ior = g_transmission[swizzledDTid];
+        tr = tr_ior.x;
+        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+    }
+
     const float3 wo = normalize(g_frame.CameraPos - posW);
-    BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
+        eta_i, eta_t, tr);
 
     // get a unique per-group index
     RNG rng = RNG::Init(Gid.xy, g_frame.FrameNum);
@@ -329,14 +349,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     if(g_local.Denoise)
     {
         // split into diffuse & specular, so they can be denoised seperately
-        surface.SetWi(target.wi, normal);
+        surface.SetWi_Refl(target.wi, normal);
+        float3 fr = surface.Fresnel();
 
         // demodulate base color
-        float3 f_d = (1.0f - surface.F) * (1.0f - isMetallic) * surface.ndotwi * ONE_OVER_PI;
+        float3 f_d = (1.0f - fr) * (1.0f - isMetallic) * surface.ndotwi * ONE_OVER_PI;
         float3 f_s = 0;
 
         // demodulate Fresnel for metallic surfaces to preserve texture detail
-        float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
+        float alphaSq = surface.alpha * surface.alpha;
         if(isMetallic)
         {
             if(surface.specular)
@@ -345,14 +366,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
             }
             else
             {
-                float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
-                float NDF = BRDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BRDF::SmithHeightCorrelatedG2ForGGX(alphaSq, surface.ndotwi, surface.ndotwo);
+                float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
+                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_GGX_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
                 f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
             }
         }
         else
-            f_s = BRDF::SpecularBRDFGGXSmith(surface);
+            f_s = BSDF::MicrofacetBRDFGGXSmith(surface, fr);
 
         float3 Li_d = r.Le * target.dwdA * f_d * target.visible * r.W;
         float3 Li_s = r.Le * target.dwdA * f_s * target.visible * r.W;
@@ -372,6 +392,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     else
     {
         float3 Li = target.p_hat * target.visible * r.W;
+        Li = any(isnan(Li)) ? 0 : Li;
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
         if(g_frame.Accumulate && g_frame.CameraStatic)

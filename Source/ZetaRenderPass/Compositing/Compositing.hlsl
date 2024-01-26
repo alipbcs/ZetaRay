@@ -21,13 +21,13 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 //--------------------------------------------------------------------------------------
 
 float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
-    inout BRDF::ShadingData surface)
+    inout BSDF::ShadingData surface)
 {
     Texture2D<half> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
     float shadowVal = g_sunShadowTemporalCache[DTid].x;
 
     surface.SetWi(-g_frame.SunDir, normal);
-    float3 f = BRDF::CombinedBRDF(surface);
+    float3 f = BSDF::UnifiedBRDF(surface);
 
     const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
     const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -39,10 +39,9 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 po
     float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
         sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
 
-    float3 L_i = (tr * f) * g_frame.SunIlluminance;
-    L_i *= shadowVal;
+    float3 Li = g_frame.SunIlluminance * shadowVal * tr * f;
 
-    return L_i;
+    return Li;
 }
 
 float3 SkyColor(uint2 DTid)
@@ -137,8 +136,25 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
     bool isMetallic;
     bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
-    BRDF::ShadingData surface = BRDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor);
+    bool isTransmissive;
+    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
+
+    float tr = 0;
+    float eta_t = 1.0f;
+    float eta_i = 1.5f;
+
+    if(isTransmissive)
+    {
+        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::TRANSMISSION];
+
+        float2 tr_ior = g_transmission[DTid.xy];
+        tr = tr_ior.x;
+        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+    }
+
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
+        eta_i, eta_t, tr);
 
     if(!isEmissive)
     {
