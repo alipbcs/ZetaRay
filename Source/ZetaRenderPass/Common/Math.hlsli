@@ -220,6 +220,25 @@ namespace Math
         b2 = float3(b, s + n.y * n.y * a, -n.y);
     }
 
+    float4 RotationQuaternion(float3 axis, float theta)
+    {
+        float s = sin(0.5f * theta);
+        float c = cos(0.5f * theta);
+        return float4(s * axis, c);
+    }
+
+    float4 RotationQuaternion_Acute(float3 axis, float theta)
+    {
+        float s = sin(0.5f * theta);
+        float c = sqrt(1 - s * s);
+        return float4(s * axis, c);
+    }
+
+    float4 InverseRotationQuaternion(float4 quat)
+    {
+        return float4(-quat.xyz, quat.w);
+    }
+
     // Returns rotation quaternion that aligns u to v. u and v are assumed to be normalized.
     float4 QuaternionFromUtoV(float3 u, float3 v, float thresh = 1e-6)
     {

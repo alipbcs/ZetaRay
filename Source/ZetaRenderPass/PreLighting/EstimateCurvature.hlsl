@@ -39,7 +39,7 @@ float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 
     const float depthY = evenGTid_y ? g_depth[GTid.y + 1][GTid.x] : g_depth[GTid.y - 1][GTid.x];    
     bool invalidX = abs(linearDepth - depthX) >= maxDepthDiscontinuity * linearDepth;
     bool invalidY = abs(linearDepth - depthY) >= maxDepthDiscontinuity * linearDepth;
-    
+
     const float3 normalX = evenGTid_x ? 
         Math::DecodeUnitVector(g_normal[GTid.y][GTid.x + 1]) : 
         Math::DecodeUnitVector(g_normal[GTid.y][GTid.x - 1]);
@@ -56,14 +56,14 @@ float EstimateLocalCurvature(float3 normal, float3 pos, float linearDepth, int2 
     const float3 posY = evenGTid_y ? g_pos[GTid.y + 1][GTid.x] : g_pos[GTid.y - 1][GTid.x];
     const float3 posddx = evenGTid_x ? posX - pos : pos - posX;
     const float3 posddy = evenGTid_y ? posY - pos : pos - posY;
-    
+
     // Ref: T. Akenine-Moller, J. Nilsson, M. Andersson, C. Barre-Brisebois, R. Toth 
     // and T. Karras, "Texture Level of Detail Strategies for Real-Time Ray Tracing," in 
     // Ray Tracing Gems 1, 2019.
     const float phi = sqrt((invalidX ? 0 : dot(normalddx, normalddx)) + (invalidY ? 0 : dot(normalddy, normalddy)));
     const float s = sign((invalidX ? 0 : dot(posddx, normalddx)) + (invalidY ? 0 : dot(posddy, normalddy)));
-    const float k = 2.0f * phi * s;
-    
+    const float k = phi * s;
+
     return k;
 }
 
