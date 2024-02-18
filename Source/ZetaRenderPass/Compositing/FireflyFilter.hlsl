@@ -1,5 +1,4 @@
 #include "Compositing_Common.h"
-#include "../Common/BRDF.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"

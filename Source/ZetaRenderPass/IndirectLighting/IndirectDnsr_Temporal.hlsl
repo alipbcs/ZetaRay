@@ -3,7 +3,7 @@
 #include "ReSTIR_GI_Resampling.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/BRDF.hlsli"
+#include "../Common/BSDF.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/Common.hlsli"
 

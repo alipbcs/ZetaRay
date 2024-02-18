@@ -2,8 +2,7 @@
 #define SKY_DI_H
 
 #include "SkyDI_Common.h"
-#include "../../Common/Sampling.hlsli"
-#include "../../Common/BRDF.hlsli"
+#include "../../Common/BSDF.hlsli"
 
 namespace SkyDI_Util
 {

@@ -1,4 +1,4 @@
-#include "../Common/BRDF.hlsli"
+#include "../Common/BSDF.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
 #include "ReSTIR_GI_RT.hlsli"

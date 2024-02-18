@@ -1,7 +1,7 @@
 #include "DirectLighting_Common.h"
 #include "../../Common/GBuffers.hlsli"
 #include "../../Common/FrameConstants.h"
-#include "../../Common/BRDF.hlsli"
+#include "../../Common/BSDF.hlsli"
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/Common.hlsli"
 

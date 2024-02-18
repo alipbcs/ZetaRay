@@ -2,7 +2,6 @@
 #include "../../Common/Common.hlsli"
 #include "../../Common/FrameConstants.h"
 #include "../../Common/GBuffers.hlsli"
-#include "../../Common/BRDF.hlsli"
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/Volumetric.hlsli"

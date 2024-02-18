@@ -1,7 +1,7 @@
 #include "ReSTIR_DI.hlsli"
 #include "ReSTIR_DI_Resampling.hlsli"
 #include "../../Common/Common.hlsli"
-#include "../../Common/BRDF.hlsli"
+#include "../../Common/BSDF.hlsli"
 #include "../../Common/LightSource.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1

@@ -5,7 +5,6 @@
 #include "ReSTIR_DI_Reservoir.hlsli"
 #include "ReSTIR_DI.hlsli"
 #include "../../Common/FrameConstants.h"
-#include "../../Common/BRDF.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/GBuffers.hlsli"
 #include "../../Common/LightSource.hlsli"

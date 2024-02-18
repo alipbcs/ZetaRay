@@ -2,7 +2,7 @@
 #define RT_H
 
 #include "../../ZetaCore/RayTracing/RtCommon.h"
-#include "../Common/BRDF.hlsli"
+#include "../Common/BSDF.hlsli"
 
 namespace RT
 {
