@@ -1072,7 +1072,7 @@ D3D12_GRAPHICS_PIPELINE_STATE_DESC Direct3DUtil::GetPSODesc(const D3D12_INPUT_LA
 
 uint64_t Direct3DUtil::GetPSODescHash(D3D12_GRAPHICS_PIPELINE_STATE_DESC& desc)
 {
-    // exclude pointers
+    // Exclude pointers
     constexpr int offset1 = offsetof(D3D12_GRAPHICS_PIPELINE_STATE_DESC, BlendState);
     constexpr int offset2 = offsetof(D3D12_GRAPHICS_PIPELINE_STATE_DESC, NodeMask);
     constexpr int range = offset2 - offset1;
@@ -1156,7 +1156,7 @@ void Direct3DUtil::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_D
 void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     Assert(res, "Attempting to create SRV for NULL texture.");
     auto desc = res->GetDesc();
@@ -1176,7 +1176,7 @@ void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_
 void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
     Assert(res, "Attempting to create SRV for NULL texture.");
@@ -1197,7 +1197,7 @@ void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
 void Direct3DUtil::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
     float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
@@ -1216,7 +1216,7 @@ void Direct3DUtil::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
 void Direct3DUtil::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
     UINT mipSlice, UINT planeSlice)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
@@ -1233,7 +1233,7 @@ void Direct3DUtil::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHa
 void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
     UINT mipSlice, UINT planeSlice)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();
@@ -1250,7 +1250,7 @@ void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
 void Direct3DUtil::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
     UINT mipSlice, UINT numSlices, UINT firstSliceIdx)
 {
-    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE");
+    Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
     auto* res = const_cast<Texture&>(t).Resource();
     auto desc = res->GetDesc();

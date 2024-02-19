@@ -107,14 +107,14 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 
     if (rtData.RtAS.IsReady())
     {
-        // sky DI
+        // Sky DI
         if (settings.SkyIllumination)
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI_DENOISED,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
         }
 
-        // sun shadow
+        // Sun shadow
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
 
@@ -127,7 +127,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
                 rtData.PreLightingPass.GetLightVoxelGridExtents(), rtData.PreLightingPass.GetLightVoxelGridYOffset());
         }
 
-        // indirect lighting
+        // Indirect lighting
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT_DENOISED,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
 
@@ -195,7 +195,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 
 void PostProcessor::Register(const RenderSettings& settings, PostProcessData& data, RenderGraph& renderGraph)
 {
-    // compositing
+    // Compositing
     {
         Texture& lightAccum = const_cast<Texture&>(data.CompositingPass.GetOutput(Compositing::SHADER_OUT_RES::COMPOSITED));
         renderGraph.RegisterResource(lightAccum.Resource(), lightAccum.ID());
@@ -254,11 +254,11 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
         data.GuiHandle = renderGraph.RegisterRenderPass("GuiPass", RENDER_NODE_TYPE::RENDER, dlg);
     }
 
-    // register backbuffer
+    // Register backbuffer
     const Texture& backbuff = App::GetRenderer().GetCurrBackBuffer();
     renderGraph.RegisterResource(const_cast<Texture&>(backbuff).Resource(), backbuff.ID());
 
-    // dummy resource
+    // Dummy resource
     renderGraph.RegisterResource(nullptr, RenderGraph::DUMMY_RES::RES_1);
 }
 
@@ -270,10 +270,10 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
     const bool tlasReady = rtData.RtAS.IsReady();
     const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
-    // compositing
+    // Compositing
     if (tlasReady)
     {
-        // g-buffers
+        // G-buffers
         renderGraph.AddInput(data.CompositingHandle,
             gbuffData.BaseColor[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -292,12 +292,12 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 
         if (tlasReady)
         {
-            // sun shadow
+            // Sun shadow
             renderGraph.AddInput(data.CompositingHandle,
                 rtData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED).ID(),
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-            // sky di
+            // Sky DI
             if (settings.SkyIllumination)
             {
                 renderGraph.AddInput(data.CompositingHandle,
@@ -305,7 +305,7 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
 
-            // emissive di
+            // Emissive di
             if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
             {
                 renderGraph.AddInput(data.CompositingHandle,
@@ -313,12 +313,12 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
 
-            // indirect lighting
+            // Indirect lighting
             renderGraph.AddInput(data.CompositingHandle,
                 rtData.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-            // inscattering
+            // Inscattering
             if (settings.Inscattering)
             {
                 renderGraph.AddInput(data.CompositingHandle,
@@ -435,17 +435,17 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
         exposureTex.ID(),
         D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
-    // backbuffer
+    // Backbuffer
     renderGraph.AddOutput(data.DisplayHandle,
         App::GetRenderer().GetCurrBackBuffer().ID(),
         D3D12_RESOURCE_STATE_RENDER_TARGET);
 
-    // for GUI Pass
+    // For GUI Pass
     renderGraph.AddOutput(data.DisplayHandle,
         RenderGraph::DUMMY_RES::RES_1,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    // due to blending, ImGui should go last
+    // Due to blending, ImGui should go last
     renderGraph.AddInput(data.GuiHandle,
         RenderGraph::DUMMY_RES::RES_1,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

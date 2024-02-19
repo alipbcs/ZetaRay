@@ -74,7 +74,7 @@ namespace ZetaRay::Support
         uint32_t m_firstLevelMask = 0;
         uint8_t m_secondLevelMask[NUM_FIRST_LEVEL_BINS];
 
-        // list i contains nodes N such that,
+        // List i contains nodes N such that,
         //        i = SmallFloat(N.size)
         // 
         // e.g. for i = 35, SmallFloat(x) = 35 for x in [88, 96) 

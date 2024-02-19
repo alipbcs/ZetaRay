@@ -12,16 +12,16 @@ namespace ZetaRay::Support
 
     struct FloatParam
     {
-        void Init(float val, float min, float max, float step)
+        void Init(float value, float min, float max, float step)
         {
-            Assert(val >= min && val <= max, "default val is outside the given bounds.");
-            m_val = val;
+            Assert(value >= min && value <= max, "Default value is outside the given bounds.");
+            m_value = value;
             m_min = min;
             m_max = max;
             m_stepSize = step;
         }
 
-        float m_val;
+        float m_value;
         float m_min;
         float m_max;
         float m_stepSize;
@@ -35,14 +35,14 @@ namespace ZetaRay::Support
     {
         void Init(Math::float3 val, float min, float max, float step, bool keepNormalized)
         {
-            m_val = val;
+            m_value = val;
             m_min = min;
             m_max = max;
             m_stepSize = step;
             m_keepNormalized = keepNormalized;
         }
 
-        Math::float3 m_val;
+        Math::float3 m_value;
         float m_min;
         float m_max;
         float m_stepSize;
@@ -63,8 +63,8 @@ namespace ZetaRay::Support
 
         Math::float3 GetDir();
 
-        float m_pitch;      // angle of rotation around the x-axis (radians)
-        float m_yaw;        // angle of rotation around the y-axis (radians)
+        float m_pitch;      // Angle of rotation around the x-axis (radians)
+        float m_yaw;        // Angle of rotation around the y-axis (radians)
     };
 
     //--------------------------------------------------------------------------------------
@@ -75,13 +75,13 @@ namespace ZetaRay::Support
     {
         void Init(Math::float3 val, float min, float max, float step)
         {
-            m_val = val;
+            m_value = val;
             m_min = min;
             m_max = max;
             m_stepSize = step;
         }
 
-        Math::float3 m_val;
+        Math::float3 m_value;
         float m_min;
         float m_max;
         float m_stepSize;
@@ -95,14 +95,14 @@ namespace ZetaRay::Support
     {
         void Init(int val, int min, int max, int step)
         {
-            Assert(val >= min && val <= max, "default val is outside the given bounds.");
-            m_val = val;
+            Assert(val >= min && val <= max, "Default value is outside the given bounds.");
+            m_value = val;
             m_min = min;
             m_max = max;
             m_stepSize = step;
         }
 
-        int m_val;
+        int m_value;
         int m_min;
         int m_max;
         int m_stepSize;
@@ -116,12 +116,12 @@ namespace ZetaRay::Support
     {
         void Init(const char** vals, int n, int curr)
         {
-            m_vals = vals;
+            m_values = vals;
             m_num = n;
             m_curr = curr;
         }
 
-        const char** m_vals;
+        const char** m_values;
         int m_num;
         int m_curr;
     };
@@ -194,13 +194,13 @@ namespace ZetaRay::Support
         void SetFloat(float v);
 
         const Float3Param& GetFloat3() const;
-        void SetFloat3(Math::float3 v);
+        void SetFloat3(const Math::float3& v);
 
         const UnitDirParam& GetUnitDir() const;
         void SetUnitDir(float pitch, float yaw);
 
         const Float3Param& GetColor() const;
-        void SetColor(Math::float3 v);
+        void SetColor(const Math::float3& v);
 
         const IntParam& GetInt() const;
         void SetInt(int v);

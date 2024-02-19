@@ -18,7 +18,7 @@ namespace
         int rootConstantsIdx, Span<uint32_t> rootConstants, Span<D3D12_GPU_VIRTUAL_ADDRESS> rootDescriptors,
         Span<uint64_t> globals)
     {
-        // root constants
+        // Root constants
         if (rootConstantsIdx != -1 && (modifiedBitMap & (1 << rootConstantsIdx)))
         {
             ctx.SetRoot32BitConstants(rootConstantsIdx, (uint32_t)rootConstants.size(), rootConstants.data(), 0);
@@ -28,7 +28,7 @@ namespace
         uint32_t mask;
         DWORD nextParam;
 
-        // root CBV
+        // Root CBV
         mask = rootCBVBitMap;
         while (_BitScanForward(&nextParam, mask))
         {
@@ -48,7 +48,7 @@ namespace
                 Assert(optionalBitMap & (1 << nextParam), "Root CBV in parameter %d has not been set", nextParam);
         }
 
-        // root SRV
+        // Root SRV
         mask = rootSRVBitMap;
         while (_BitScanForward(&nextParam, mask))
         {
@@ -68,7 +68,7 @@ namespace
                 Assert(optionalBitMap & (1 << nextParam), "Root SRV in parameter %d has not been set", nextParam);
         }
 
-        // root UAV
+        // Root UAV
         mask = rootUAVBitMap;
         while (_BitScanForward(&nextParam, mask))
         {
@@ -88,7 +88,7 @@ namespace
                 Assert(optionalBitMap & (1 << nextParam), "Root UAV in parameter %d has not been set", nextParam);
         }
 
-        // globals
+        // Globals
         SharedShaderResources& shared = App::GetRenderer().GetSharedShaderResources();
 
         while (_BitScanForward(&nextParam, modifiedGlobalsBitMap))
@@ -277,7 +277,7 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
     Assert(name, "name was NULL");
     rootSig->SetPrivateData(WKPDID_D3DDebugObjectName, (UINT)strlen(name), name);
 
-    // calculate root parameter index for root constants (if any)
+    // Calculate root parameter index for root constants (if any)
     uint32_t u = (1 << m_numParams) - 1;        // set the first NumParams() bits to 1
     u &= (m_rootCBVBitMap | m_rootSRVBitMap | m_rootUAVBitMap | m_globalsBitMap);
 

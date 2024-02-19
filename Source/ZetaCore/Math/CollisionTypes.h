@@ -52,7 +52,7 @@ namespace ZetaRay::Math
             vExtents = _mm_loadu_ps(reinterpret_cast<const float*>(&aabb) + 3);
 
             vExtents = _mm_insert_ps(vExtents, vCenter, 0xc8);
-            // make sure the 4th element is 1.0f so that tranlation transforms apply
+            // Make sure the 4th element is 1.0f so that tranlation transforms apply
             vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
         }
 
@@ -70,7 +70,7 @@ namespace ZetaRay::Math
         {
             const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
             vCenter = _mm_mul_ps(_mm_add_ps(vMaxPoint, vMinPoint), vOneDivTwo);
-            // make sure the 4th element is 1.0f so that tranlation transforms apply
+            // Make sure the 4th element is 1.0f so that tranlation transforms apply
             vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
 
             vExtents = _mm_mul_ps(_mm_sub_ps(vMaxPoint, vMinPoint), vOneDivTwo);
@@ -125,16 +125,16 @@ namespace ZetaRay::Math
             float3 n;
             float d;
 
-            // for all the planes, positive half space overlaps inside of the frustum
+            // For all the planes, positive half space overlaps inside of the frustum
 
-            // near plane
+            // Near plane
             {
                 n = float3(0.0f, 0.0f, 1.0f);
                 d = -nearZ;
                 Near = Plane(n, d);
             }
 
-            // far plane
+            // Far plane
             {
                 n = float3(0.0f, 0.0f, -1.0f);
                 d = farZ;
@@ -143,7 +143,7 @@ namespace ZetaRay::Math
 
             float l2Norm = 1.0f / sqrtf(projWndDist * projWndDist + 1.0f);
 
-            // top plane
+            // Top plane
             {
                 n = float3(0.0f, -projWndDist, 1.0f);
                 n.y *= l2Norm;
@@ -153,7 +153,7 @@ namespace ZetaRay::Math
                 Top = Plane(n, d);
             }
 
-            // bottom plane
+            // Bottom plane
             {
                 n = float3(0.0f, projWndDist, 1.0f);
                 n.y *= l2Norm;
@@ -165,7 +165,7 @@ namespace ZetaRay::Math
 
             l2Norm = 1.0f / sqrtf(projWndDist * projWndDist + aspectRatio * aspectRatio);
 
-            // left plane
+            // Left plane
             {
                 n = float3(projWndDist, 0.0f, aspectRatio);
                 n.x *= l2Norm;
@@ -175,7 +175,7 @@ namespace ZetaRay::Math
                 Left = Plane(n, d);
             }
 
-            // right plane
+            // Right plane
             {
                 n = float3(-projWndDist, 0.0f, aspectRatio);
                 n.x *= l2Norm;

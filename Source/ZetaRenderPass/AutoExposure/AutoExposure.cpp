@@ -186,25 +186,25 @@ void AutoExposure::CreateResources()
 
 void AutoExposure::MinLumCallback(const Support::ParamVariant& p)
 {
-    m_minLum = Math::Min(p.GetFloat().m_val, m_maxLum);
+    m_minLum = Math::Min(p.GetFloat().m_value, m_maxLum);
 }
 
 void AutoExposure::MaxLumCallback(const Support::ParamVariant& p)
 {
-    m_maxLum = Math::Max(p.GetFloat().m_val, m_minLum);
+    m_maxLum = Math::Max(p.GetFloat().m_value, m_minLum);
 }
 
 void AutoExposure::LumMapExpCallback(const Support::ParamVariant& p)
 {
-    m_cbHist.LumMapExp = p.GetFloat().m_val;
+    m_cbHist.LumMapExp = p.GetFloat().m_value;
 }
 
 void AutoExposure::LowerPercentileCallback(const Support::ParamVariant& p)
 {
-    m_cbHist.LowerPercentile = p.GetFloat().m_val;
+    m_cbHist.LowerPercentile = p.GetFloat().m_value;
 }
 
 void AutoExposure::UpperPercentileCallback(const Support::ParamVariant& p)
 {
-    m_cbHist.UpperPercentile = p.GetFloat().m_val;
+    m_cbHist.UpperPercentile = p.GetFloat().m_value;
 }

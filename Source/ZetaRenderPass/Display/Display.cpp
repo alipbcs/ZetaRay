@@ -168,7 +168,7 @@ void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
 
 void DisplayPass::SaturationCallback(const Support::ParamVariant& p)
 {
-    m_cbLocal.Saturation = p.GetFloat().m_val;
+    m_cbLocal.Saturation = p.GetFloat().m_value;
 }
 
 void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p)

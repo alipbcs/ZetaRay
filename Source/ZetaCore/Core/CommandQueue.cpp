@@ -66,7 +66,7 @@ uint64_t CommandQueue::ExecuteCommandList(CommandList* context)
 
 ID3D12CommandAllocator* CommandQueue::GetCommandAllocator()
 {
-    // try to reuse
+    // Try to reuse
     {
         ReleasedCmdAlloc cmdAlloc{};
         bool found = false;
@@ -97,7 +97,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator()
         }
     }
 
-    // create a new one
+    // Create a new one
     auto* device = App::GetRenderer().GetDevice();
     ID3D12CommandAllocator* cmdAlloc;
     CheckHR(device->CreateCommandAllocator(m_type, IID_PPV_ARGS(&cmdAlloc)));

@@ -1114,7 +1114,7 @@ namespace ZetaRay::AppImpl
 
     void SetCameraAcceleration(const ParamVariant& p)
     {
-        g_app->m_cameraAcceleration = p.GetFloat().m_val;
+        g_app->m_cameraAcceleration = p.GetFloat().m_value;
     }
 
     void ResizeIfQueued()

@@ -87,14 +87,14 @@ namespace ZetaRay::Support
     // TaskSet
     //--------------------------------------------------------------------------------------
 
-    // Intented for usage by a single thread.
+    // Intended for usage by a single thread.
     // 
     // Usage:
     // 
     // 1. Add Tasks (EmplaceTask())
     // 2. Add intra-TaskSet edges (AddOutgoingEdge())
     // 3. Sort
-    // 4. Connect different TaskSets
+    // 4. (Optional) Connect different TaskSets
     // 5. Finalize
     struct TaskSet
     {
@@ -121,7 +121,7 @@ namespace ZetaRay::Support
 
         // Adds a dependent task to the list of tasks that are notified by this task upon completion
         void AddOutgoingEdge(TaskHandle a, TaskHandle b);
-        // Adds an edge from the given task to every other task that is "currently" is the TaskSet
+        // Adds an edge from the given task to every other task that is currently is the TaskSet
         void AddOutgoingEdgeToAll(TaskHandle a);
         void AddIncomingEdgeFromAll(TaskHandle a);
         void ConnectTo(TaskSet& other);
@@ -141,10 +141,10 @@ namespace ZetaRay::Support
             ZetaInline int Indegree() const { return __popcnt16(PredecessorMask); }
             ZetaInline int Outdegree() const { return __popcnt16(SuccessorMask); }
 
-            // index of adjacent tasks (this Task has an edge to them)
+            // Index of adjacent tasks (this task has an edge to them)
             uint16_t SuccessorMask = 0;
 
-            // index of predecessor tasks (have an edge to this Task)
+            // Index of predecessor tasks (which have an edge to this task)
             uint16_t PredecessorMask = 0;
         };
 
@@ -162,4 +162,3 @@ namespace ZetaRay::Support
         bool m_isFinalized = false;
     };
 }
-

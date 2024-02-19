@@ -92,8 +92,8 @@ namespace ZetaRay::Core
 
         bool AllocateNewBlock(uint32_t listIdx);
 
-        // make sure memory pool is declared first -- "members are guaranteed to be initialized 
-        // by order of declaration and destroyed in reverse order"
+        // Make sure memory pool is declared first -- "members are guaranteed to be initialized 
+        // by order of declaration and destroyed in reverse order".
         Support::MemoryPool m_memoryPool;
         SRWLOCK m_lock = SRWLOCK_INIT;
 

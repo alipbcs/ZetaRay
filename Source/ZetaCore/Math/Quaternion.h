@@ -11,7 +11,7 @@ namespace ZetaRay::Math
         const float s = sinf(0.5f * theta);
         const float c = cosf(0.5f * theta);
 
-        // reminder: sign of cos(theta) won't be taken into account by the following:
+        // Reminder: sign of cos(theta) won't be taken into account by the following:
         // const float c = sqrtf(1.0f - s * s);
 
         float4a axis(n, 1.0f);

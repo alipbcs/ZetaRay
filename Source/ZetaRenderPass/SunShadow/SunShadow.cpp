@@ -407,12 +407,12 @@ void SunShadow::DenoiseCallback(const Support::ParamVariant& p)
 
 void SunShadow::MinFilterVarianceCallback(const Support::ParamVariant& p)
 {
-    m_spatialCB.MinFilterVar = p.GetFloat().m_val;
+    m_spatialCB.MinFilterVar = p.GetFloat().m_value;
 }
 
 void SunShadow::EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p)
 {
-    m_spatialCB.EdgeStoppingShadowStdScale = p.GetFloat().m_val;
+    m_spatialCB.EdgeStoppingShadowStdScale = p.GetFloat().m_value;
 }
 
 void SunShadow::ReloadDNSRTemporal()

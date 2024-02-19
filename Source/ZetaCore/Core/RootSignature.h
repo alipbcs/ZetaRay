@@ -98,10 +98,10 @@ namespace ZetaRay::Core
 
         D3D12_ROOT_PARAMETER1 m_params[MAX_NUM_PARAMS];
 
-        // buffer IDs
+        // Buffer IDs
         uint64_t m_globals[MAX_NUM_PARAMS];
 
-        // bitmaps indicating the type of each root parameter
+        // Bitmaps indicating the type of each root parameter
         uint32_t m_rootCBVBitMap = 0;
         uint32_t m_rootSRVBitMap = 0;
         uint32_t m_rootUAVBitMap = 0;
@@ -114,10 +114,10 @@ namespace ZetaRay::Core
         // Index of the root constants param (there can be at most one)
         int m_rootConstantsIdx = -1;
 
-        // root descriptors
+        // Root descriptors
         D3D12_GPU_VIRTUAL_ADDRESS m_rootDescriptors[MAX_NUM_PARAMS] = { 0 };
 
-        // root constants data
+        // Root constants data
         uint32_t m_rootConstants[MAX_NUM_ROOT_CONSTANTS];
 
         // Ref: https://www.intel.com/content/www/us/en/developer/articles/technical/introduction-to-resource-binding-in-microsoft-directx-12.html

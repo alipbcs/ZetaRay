@@ -42,7 +42,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
 
     const D3D12_RESOURCE_STATES depthInitState = D3D12_RESOURCE_STATE_COMMON;
 
-    // base color
+    // Base color
     {
         for (int i = 0; i < 2; i++)
         {
@@ -63,7 +63,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }
     }
 
-    // normal
+    // Normal
     {
         for (int i = 0; i < 2; i++)
         {
@@ -84,7 +84,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }
     }
 
-    // metallic-roughness
+    // Metallic-roughness
     {
         for (int i = 0; i < 2; i++)
         {
@@ -107,7 +107,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }
     }
 
-    // motion vector
+    // Motion vector
     {
         data.MotionVec = ZetaMove(GpuMemory::GetTexture2D("GBuffer_MV", 
             width, height,
@@ -125,7 +125,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::MOTION_VECTOR));
     }
 
-    // emissive color
+    // Emissive color
     {
         data.EmissiveColor = ZetaMove(GpuMemory::GetTexture2D("GBuffer_Emissive", 
             width, height,
@@ -143,7 +143,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
     }
 
-    // transmission
+    // Transmission
     {
         for (int i = 0; i < 2; i++)
         {
@@ -166,7 +166,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }    
     }
 
-    // depth
+    // Depth
     {
         for (int i = 0; i < 2; i++)
         {
@@ -244,7 +244,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
 
     const D3D12_RESOURCE_STATES initDepthState = D3D12_RESOURCE_STATE_COMMON;
 
-    // register current and previous frame's gbuffers
+    // Register current and previous frame's g-buffers
     for (int i = 0; i < 2; i++)
     {
         renderGraph.RegisterResource(data.Normal[i].Resource(), data.Normal[i].ID());

@@ -53,10 +53,10 @@ namespace ZetaRay::Util
             const size_t maxSize = Math::Max(oldSize, oldOtherSize);
 
             if(!other.empty())
-                reserve(oldOtherSize);        // doesn't allocate if inline storage happens to be large enough
+                reserve(oldOtherSize);         // Doesn't allocate if inline storage happens to be large enough
     
             if(!empty())
-                other.reserve(oldSize);        // doesn't allocate if inline storage happens to be large enough
+                other.reserve(oldSize);        // Doesn't allocate if inline storage happens to be large enough
 
             T* largerBeg = otherIsLarger ? other.m_beg : m_beg;
             T* smallerBeg = otherIsLarger ? m_beg : other.m_beg;
@@ -64,7 +64,7 @@ namespace ZetaRay::Util
             for (size_t i = 0; i < minSize; i++)
                 std::swap(*(m_beg + i), *(other.m_beg + i));
 
-            // copy over the remaining elements to the smaller Vector
+            // Copy over the remaining elements to the smaller Vector
             if constexpr (std::is_trivially_copyable_v<T>)
             {
                 memcpy(smallerBeg + minSize, largerBeg + minSize, sizeof(T) * (maxSize - minSize));
@@ -163,7 +163,7 @@ namespace ZetaRay::Util
 
             void* mem = relocate(n);
 
-            // adjust the pointers
+            // Adjust the pointers
             m_beg = reinterpret_cast<T*>(mem);
             m_end = m_beg + oldSize;
             m_last = m_beg + n;
@@ -176,7 +176,7 @@ namespace ZetaRay::Util
             const size_t currCapacity = capacity();
             const size_t oldSize = size();
 
-            // check if current capacity is enough, otherwise just adjust the "end" pointer
+            // Check if current capacity is enough, otherwise just adjust the "end" pointer
             if (n > currCapacity)
             {
                 void* mem = relocate(n);
@@ -184,10 +184,10 @@ namespace ZetaRay::Util
                 m_last = m_beg + n;
             }
 
-            // adjust the end pointer
+            // Adjust the end pointer
             m_end = m_beg + n;
 
-            // default construct the newly added elements
+            // Default construct the newly added elements
             if constexpr (!std::is_trivially_default_constructible_v<T>)
             {
                 T* curr = m_beg + oldSize;
@@ -214,12 +214,12 @@ namespace ZetaRay::Util
                 m_last = m_beg + n;
             }
 
-            // adjust the pointers
+            // Adjust the pointers
             m_end = m_beg + n;
 
             T* curr = m_beg + oldSize;
 
-            // copy/move construct the new elements
+            // Copy/move construct the new elements
             while (curr != m_end)
             {
                 new (curr) T(ZetaForward(val));
@@ -409,7 +409,7 @@ namespace ZetaRay::Util
 
             size_t currCapacity = capacity();
 
-            // free the previously allocated memory
+            // Free the previously allocated memory
             if (currCapacity && !has_inline_storage())
             {
                 m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
@@ -480,7 +480,7 @@ namespace ZetaRay::Util
             const size_t currCapacity = capacity();
             const size_t newSize = other.size();
 
-            // destruct old elements
+            // Destruct old elements
             clear();
 
             if (newSize == 0)
@@ -488,27 +488,27 @@ namespace ZetaRay::Util
 
             if (currCapacity < newSize)
             {
-                // free the previously allocated memory
+                // Free the previously allocated memory
                 if (currCapacity > 0 && !has_inline_storage())
                     m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
 
-                // allocate memory to accomodate new size
+                // Allocate memory to accomodate new size
                 void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), alignof(T));
 
-                // adjust the pointers
+                // Adjust the pointers
                 m_beg = reinterpret_cast<T*>(mem);
                 m_last = m_beg + newSize;
             }
 
-            // regardless of whether memory was allocated
+            // Aegardless of whether memory was allocated
             m_end = m_beg + newSize;
 
-            // just copy the memory
+            // Just copy the memory
             if constexpr (std::is_trivially_copyable_v<T>)
             {
                 memcpy(m_beg, other.m_beg, sizeof(T) * newSize);
             }
-            // call the copy constructor
+            // Call the copy constructor
             else
             {
                 T* source = m_beg;
@@ -538,11 +538,11 @@ namespace ZetaRay::Util
 
             m_allocator = ZetaForward(other.m_allocator);
 
-            // previously allocated memory is not needed anymore and can be released
+            // Previously allocated memory is not needed anymore and can be released
             free_memory();
 
-            // just switch pointers when:
-            // 1. both Vectors are using the heap
+            // Just switch pointers when:
+            // 1. Both Vectors are using the heap
             // 2. MovedFrom is using the heap AND MovedTo's inline storage isn't large enough
             if (((capacity() < other.size()) || !has_inline_storage()) && !other.has_inline_storage())
             {
@@ -556,7 +556,7 @@ namespace ZetaRay::Util
             }
             else if(!other.empty())
             {
-                // doesn't allocate if inline storage happens to be large enough
+                // Doesn't allocate if inline storage happens to be large enough
                 reserve(other.size());
 
                 if constexpr (std::is_trivially_copyable_v<T>)
@@ -592,9 +592,9 @@ namespace ZetaRay::Util
                     }
                 }
 
-                // adjust the pointers
+                // Adjust the pointers
                 m_end = m_beg + other.size();
-                Assert(size() == other.size(), "these must be equal.");
+                Assert(size() == other.size(), "These must be equal.");
                 
                 other.clear();
             }
@@ -604,11 +604,11 @@ namespace ZetaRay::Util
 
         void* relocate(size_t n)
         {
-            // allocate memory to accomodate the new size
+            // Allocate memory to accomodate the new size
             void* mem = m_allocator.AllocateAligned(n * sizeof(T), alignof(T));
             const size_t oldSize = size();
 
-            // copy over the old elements
+            // Copy over the old elements
             if (oldSize > 0)
             {
                 if constexpr (std::is_trivially_copyable_v<T>)
@@ -647,7 +647,7 @@ namespace ZetaRay::Util
                 else
                     Assert(false, "Calling reserve() for a non-copyable and non-movable type T when Vector is non-empty is invalid.");
 
-                // destruct old elements
+                // Destruct old elements
                 if constexpr (!std::is_trivially_destructible_v<T>)
                 {
                     for (T* curr = m_beg; curr < m_end; curr++)
@@ -655,7 +655,7 @@ namespace ZetaRay::Util
                 }
             }
 
-            // free the previously allocated memory
+            // Free the previously allocated memory
             const size_t currCapacity = capacity();
 
             if (currCapacity && !has_inline_storage())
@@ -666,9 +666,9 @@ namespace ZetaRay::Util
 
         const Allocator& GetAllocator() { return m_allocator; }
 
-        T* m_beg = nullptr;        // pointer to the begining of memory block
-        T* m_end = nullptr;        // pointer to element to insert at next (one past the last inserted element)
-        T* m_last = nullptr;    // pointer to the end of memory block
+        T* m_beg = nullptr;        // Pointer to the begining of memory block
+        T* m_end = nullptr;        // Pointer to element to insert at next (one past the last inserted element)
+        T* m_last = nullptr;       // Pointer to the end of memory block
 
         [[msvc::no_unique_address]] Allocator m_allocator;
     };
@@ -683,7 +683,7 @@ namespace ZetaRay::Util
         alignas(T) uint8_t Buffer[sizeof(T) * N];
     };
 
-    // reminder: empty struct occupies one byte (unless c++20 [[no_unique_address]] is used)
+    // Reminder: empty struct occupies one byte (unless c++20 [[no_unique_address]] is used)
     template<typename T>
     struct InlineStorage<T, 0>
     {};

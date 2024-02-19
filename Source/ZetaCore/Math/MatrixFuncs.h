@@ -553,7 +553,7 @@ namespace ZetaRay::Math
         v_float4x4 vSRT;
         v_float4x4 vR = rotationMatFromQuat(loadFloat4(q));
 
-        // since scale matrix is diagonal, matrix multiplication has a simple form
+        // Since scale matrix is diagonal, matrix multiplication has a simple form
         const __m128 vS = loadFloat3(s);    // vS[3] = 0
         vSRT.vRow[0] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(0, 0, 0, 3)), vR.vRow[0]);
         vSRT.vRow[1] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(1, 1, 1, 3)), vR.vRow[1]);
@@ -573,7 +573,7 @@ namespace ZetaRay::Math
         v_float4x4 vSRT;
         v_float4x4 vR = rotationMatFromQuat(vQ);
 
-        // since scale matrix is diagonal, matrix multiplication has a simple form
+        // Since scale matrix is diagonal, matrix multiplication has a simple form
         vSRT.vRow[0] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(0, 0, 0, 0)), vR.vRow[0]);    // vR.vRow[0].w = 0
         vSRT.vRow[1] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(1, 1, 1, 0)), vR.vRow[1]);    // vR.vRow[1].w = 0
         vSRT.vRow[2] = _mm_mul_ps(_mm_shuffle_ps(vS, vS, V_SHUFFLE_XYZW(2, 2, 2, 0)), vR.vRow[2]);    // vR.vRow[2].w = 0
@@ -621,16 +621,16 @@ namespace ZetaRay::Math
         v_float4x4 vM3x3T = transpose(vM3x3);
         v_float4x4 vMTxM = mul(vM3x3T, vM3x3);
 
-        // eigenvalues of diagonal matrices are the diagonal entries
+        // Eigenvalues of diagonal matrices are the diagonal entries
         __m128 vS = _mm_blend_ps(vMTxM.vRow[0], vMTxM.vRow[1], V_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
         vS = _mm_blend_ps(vS, vMTxM.vRow[2], V_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
         vS = _mm_blend_ps(vS, vOne, V_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
 
-        // singular values are the square roots of eigenvalues
+        // Singular values are the square roots of eigenvalues
         vS = _mm_sqrt_ps(vS);
         s = storeFloat3(vS);
 
-        // solve for R
+        // Solve for R
         __m128 vInvSDiag = _mm_div_ps(vOne, vS);
         v_float4x4 vSinv = scale(vInvSDiag);
 
@@ -651,7 +651,7 @@ namespace ZetaRay::Math
     // Note: doesn't support negative scaling
     ZetaInline void __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& r, float4a& t)
     {
-        // refer to notes in decomposeTRS for explanation
+        // Refer to notes in decomposeTRS for explanation
 
         __m128 vT = vM.vRow[3];
         const __m128 vZero = _mm_setzero_ps();
@@ -662,17 +662,17 @@ namespace ZetaRay::Math
         const __m128 vOne = _mm_set1_ps(1.0f);
         vM3x3.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);    // M[3] = (0, 0, 0, 1)
 
-        // for "row" matrices, sqaure roots of eigenvalues of MM^T are the singular values
+        // For "row" matrices, sqaure roots of eigenvalues of MM^T are the singular values
         // M M^T = (SR)(SR)^T = S R R^T S^T = S S^T = S^2
         const v_float4x4 vM3x3T = transpose3x3(vM3x3);
         const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
 
-        // eigenvalues of diagonal matrices are the diagonal entries
+        // Eigenvalues of diagonal matrices are the diagonal entries
         __m128 vS = _mm_blend_ps(vMxMT.vRow[0], vMxMT.vRow[1], V_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
         vS = _mm_blend_ps(vS, vMxMT.vRow[2], V_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
         vS = _mm_blend_ps(vS, vOne, V_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
 
-        // singular values are the square roots of eigenvalues
+        // Singular values are the square roots of eigenvalues
         vS = _mm_sqrt_ps(vS);
         s = store(vS);
 
@@ -692,7 +692,7 @@ namespace ZetaRay::Math
     {
         v_float4x4 vM = identity();
 
-        // builds a coordiante system uvw, where w is aligned with the camera direction
+        // Builds a coordiante system uvw, where w is aligned with the camera direction
         __m128 vCamPos = _mm_load_ps(reinterpret_cast<float*>(&cameraPos));
         __m128 vFocus = _mm_load_ps(reinterpret_cast<float*>(&focus));
         __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&up));
@@ -721,7 +721,7 @@ namespace ZetaRay::Math
     {
         v_float4x4 vM = identity();
 
-        // builds a coordiante system uvw, where w is aligned with the camera direction
+        // Builds a coordiante system uvw, where w is aligned with the camera direction
         __m128 vCamPos = _mm_load_ps(reinterpret_cast<float*>(&cameraPos));
         __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&up));
         __m128 vW = _mm_load_ps(reinterpret_cast<float*>(&viewDir));

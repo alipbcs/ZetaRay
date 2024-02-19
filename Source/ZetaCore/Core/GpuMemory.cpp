@@ -72,7 +72,7 @@ namespace
             const auto destDesc = texture->GetDesc();
             Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "this function is for uploading textures.");
 
-            // required size of an intermediate buffer that is to be used to initialize this resource
+            // Required size of an intermediate buffer that is to be used to initialize this resource
             UINT64 totalSize;
             auto* device = App::GetRenderer().GetDevice();
             device->GetCopyableFootprints(&destDesc,            // resource description
@@ -134,7 +134,7 @@ namespace
                 texture, (uint32_t)subResData.size(), firstSubresourceIndex, subResData, subresLayout,
                 subresNumRows, subresRowSize, postCopyState);
 
-            // preserve the upload buffer for as long as GPU is using it 
+            // Preserve the upload buffer for as long as GPU is using it 
             m_scratchResources.push_back(ZetaMove(uploadBuffer));
 
             m_hasWorkThisFrame = true;
@@ -167,7 +167,7 @@ namespace
                 uploadBuffer.Offset(),
                 sizeInBytes);
 
-            // preserve the upload buffer for as long as GPU is using it 
+            // Preserve the upload buffer for as long as GPU is using it 
             m_scratchResources.push_back(ZetaMove(uploadBuffer));
 
             m_hasWorkThisFrame = true;
@@ -258,24 +258,24 @@ namespace
             // Notes:
             // 
             // 1.
-            //        subresRowSize[i]: #bytes to copy for each row (unpadded)
-            //        subresLayout[i].Footprint.RowPitch: padded size in bytes of each row
+            //   subresRowSize[i]: #bytes to copy for each row (unpadded)
+            //   subresLayout[i].Footprint.RowPitch: padded size in bytes of each row
             //
-            // 2. as buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded size. Using subresRowSize[0] as
+            // 2. As buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded size. Using subresRowSize[0] as
             // the copy size could lead to access violations since size of the data pointed to by subresData is probably smaller
 
-            // for each subresource in destination
+            // For each subresource in destination
             for (int i = 0; i < numSubresources; i++)
             {
                 size_t destOffset = subresLayout[i].Offset;
                 const size_t destSubresSlicePitch = subresLayout[i].Footprint.RowPitch * subresNumRows[i];
 
-                // for each slice of that subresource
+                // For each slice of that subresource
                 for (int slice = 0; slice < (int)subresLayout[i].Footprint.Depth; slice++)
                 {
                     const uintptr_t sourceSubres = reinterpret_cast<uintptr_t>(subResData[i].pData) + subResData[i].SlicePitch * slice;
 
-                    // for each row of that subresource slice
+                    // For each row of that subresource slice
                     for (int row = 0; row < (int)subresNumRows[i]; row++)
                     {
                         const uintptr_t dest = reinterpret_cast<uintptr_t>(mapped) +
@@ -314,7 +314,7 @@ namespace
                 m_directCmdList->ResourceBarrier(texture, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
         }
 
-        // scratch resources need to stay alive while GPU is using them
+        // Scratch resources need to stay alive while GPU is using them
         MemoryArena m_arena;
         SmallVector<UploadHeapBuffer, Support::ArenaAllocator> m_scratchResources;
 
@@ -619,7 +619,7 @@ void ReadbackHeapBuffer::Map()
     if (m_mappedMemory)
         return;
 
-    // buffers have only one subresource
+    // Buffers have only one subresource
     CheckHR(m_resource->Map(0, nullptr, &m_mappedMemory));
 }
 
@@ -745,7 +745,7 @@ void GpuMemory::SubmitResourceCopies()
 
     if (maxFenceVal != 0)
     {
-        // compute queue needs to wait for direct queue
+        // Compute queue needs to wait for direct queue
         App::GetRenderer().WaitForDirectQueueOnComputeQueue(maxFenceVal);
     }
 }
@@ -776,11 +776,11 @@ void GpuMemory::Recycle()
         g_data->m_toRelease.pop_back(numToDelete);
     }
 
-    // no need to synchronize -- this happens at the end of each frame and resource deletion
+    // No need to synchronize -- this happens at the end of each frame and resource deletion
     // won't happen until next frame's update, which happens strictly after recycling has finished
 
     {
-        // release the upload heap buffers here rather than on a background thread with the others
+        // Release the upload heap buffers here rather than on a background thread with the others
         // to avoid synchronization
         const auto* first = std::partition(toDelete.begin(), toDelete.end(),
             [](const GpuMemoryImplData::PendingResource& res)
@@ -1043,7 +1043,7 @@ void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t si
 
 void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer)
 {
-    Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
+    Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
 
     AcquireSRWLockExclusive(&g_data->m_pendingResourceLock);
 
@@ -1056,7 +1056,7 @@ void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer)
 
 void GpuMemory::ReleaseTexture(Texture& texture)
 {
-    Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
+    Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
 
     AcquireSRWLockExclusive(&g_data->m_pendingResourceLock);
 
@@ -1070,13 +1070,13 @@ void GpuMemory::ReleaseTexture(Texture& texture)
 Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
     D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
-    Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width");
-    Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height");
-    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
+    Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
+    Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
+    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
     Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)) == 0,
-        "Texures can't be used as both Render Target and Depth Stencil");
+        "Texures can't be used as both Render Target and Depth Stencil.");
     Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
-        "A Depth-Stencil texture can't be used for unordered access");
+        "A Depth-Stencil texture can't be used for unordered access.");
 
     D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
 
@@ -1111,13 +1111,13 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
 Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
     D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
-    Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width");
-    Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height");
-    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
+    Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
+    Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
+    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
     Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)) == 0,
-        "Texures can't be used as both Render Target and Depth Stencil");
+        "Texures can't be used as both Render Target and Depth Stencil.");
     Assert(((flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
-        "A Depth-Stencil texture can't be used for unordered access");
+        "A Depth-Stencil texture can't be used for unordered access.");
 
     D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
 
@@ -1155,11 +1155,11 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
 Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
     DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels)
 {
-    Assert(width < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid width");
-    Assert(height < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid height");
-    Assert(depth < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid depth");
-    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels");
-    Assert(!(flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL), "3D Texure can't be used as Depth Stencil");
+    Assert(width < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid width.");
+    Assert(height < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid height.");
+    Assert(depth < D3D12_REQ_TEXTURE3D_U_V_OR_W_DIMENSION, "Invalid depth.");
+    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
+    Assert(!(flags & CREATE_TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL), "3D Texure can't be used as Depth Stencil.");
 
     D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
 

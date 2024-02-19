@@ -85,7 +85,7 @@ void BVH::Build(Span<BVHInput> instances)
     Check(m_instances.size() < UINT32_MAX, "#Instances can't exceed UINT32_MAX.");
     const uint32_t numInstances = (uint32_t)m_instances.size();
 
-    // special case when there's less than MAX_NUM_MODELS_PER_LEAF instances
+    // Special case when there's less than MAX_NUM_MODELS_PER_LEAF instances
     if (m_instances.size() <= MAX_NUM_INSTANCES_PER_LEAF)
     {
         m_nodes.resize(1);
@@ -116,17 +116,17 @@ int BVH::BuildSubtree(int base, int count, int parent)
     const uint32_t currNodeIdx = m_numNodes++;
     Assert(!m_nodes[currNodeIdx].IsInitialized(), "invalid index");
 
-    // create a leaf node and return
+    // Create a leaf node and return
     if (count <= MAX_NUM_INSTANCES_PER_LEAF)
     {
         m_nodes[currNodeIdx].InitAsLeaf(base, count, parent);
         return currNodeIdx;
     }
 
-    // compute union AABB of all centroids
+    // Compute union AABB of all centroids
     __m128 vMinPoint = _mm_set_ps1(FLT_MAX);
     __m128 vMaxPoint = _mm_set_ps1(-FLT_MAX);
-    // union AABB of all nodes in this subtree
+    // Union AABB of all nodes in this subtree
     v_AABB vNodeBox(m_instances[base].AABB);
 
     for (int i = base; i < base + count; i++)
@@ -144,19 +144,19 @@ int BVH::BuildSubtree(int base, int count, int parent)
     AABB centroidAABB;
     centroidAABB = store(vCentroidAABB);
 
-    // all centroids are (almost) the same point, no point in splitting further
+    // All centroids are (almost) the same point, no point in splitting further
     if (centroidAABB.Extents.x + centroidAABB.Extents.y + centroidAABB.Extents.z <= 1e-5f)
     {
         m_nodes[currNodeIdx].InitAsLeaf(base, count, parent);
         return currNodeIdx;
     }
 
-    // axis along which partitioning should be performed
+    // Axis along which partitioning should be performed
     const float* extArr = reinterpret_cast<float*>(&centroidAABB.Extents);
     int splitAxis = 0;
     float maxExtent = extArr[0];
 
-    // find the longest axis
+    // Find the longest axis
     for (int i = 1; i < 3; i++)
     {
         if (extArr[i] > maxExtent)
@@ -168,14 +168,14 @@ int BVH::BuildSubtree(int base, int count, int parent)
 
     uint32_t splitCount;
 
-    // split using SAH
+    // Split using SAH
     if (count >= MIN_NUM_INSTANCES_SPLIT_SAH)
     {
         Bin bins[NUM_SAH_BINS];
         const float leftMostPlane = reinterpret_cast<float*>(&centroidAABB.Center)[splitAxis] - maxExtent;
         const float rcpStepSize = NUM_SAH_BINS / (2.0f * maxExtent);
 
-        // assign each instance to one bin
+        // Assign each instance to one bin
         for (int i = base; i < base + count; i++)
         {
             const float* center = reinterpret_cast<float*>(&m_instances[i].AABB.Center);
@@ -196,7 +196,7 @@ int BVH::BuildSubtree(int base, int count, int parent)
         uint32_t rightCount[NUM_SAH_BINS - 1];
 
         {
-            // for each split plane corresponding to each bin, compute surface area of nodes
+            // For each split plane corresponding to each bin, compute surface area of nodes
             // to its left and right
             v_AABB currLeftBox = bins[0].Box;
             v_AABB currRightBox = bins[NUM_SAH_BINS - 1].Box;
@@ -222,7 +222,7 @@ int BVH::BuildSubtree(int base, int count, int parent)
         float lowestCost = FLT_MAX;
         const float parentSurfaceArea = computeAABBSurfaceArea(vNodeBox);
 
-        // cost of split along each split plane
+        // Cost of split along each split plane
         for (int i = 0; i < NUM_SAH_BINS - 1; i++)
         {
             const float splitCost = leftCount[i] * leftSurfaceArea[i] / parentSurfaceArea +
@@ -258,7 +258,7 @@ int BVH::BuildSubtree(int base, int count, int parent)
     }
     else
     {
-        // split into two subtrees such that each subtree has an equal number of nodes (i.e. find the median)
+        // Split into two subtrees such that each subtree has an equal number of nodes (i.e. find the median)
         const uint32_t countDiv2 = (count >> 1);
         auto begIt = m_instances.begin() + base;
         auto midIt = m_instances.begin() + base + countDiv2;
@@ -289,7 +289,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
 {
     nodeIdx = -1;
 
-    // using a manual stack, we can return early when a match is found, whereas
+    // Using a manual stack, we can return early when a match is found, whereas
     // with a recursive call, travelling back through the call-chain is required
     constexpr int STACK_SIZE = 64;
     int stack[STACK_SIZE];
@@ -298,7 +298,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
 
     v_AABB vBox(AABB);
 
-    // can return early if root doesn't intersect or contain the given AABB
+    // Can return early if root doesn't intersect or contain the given AABB
     if(Math::intersectAABBvsAABB(vBox, v_AABB(m_nodes[0].AABB)) == COLLISION_TYPE::DISJOINT)
         return -1;
 
@@ -329,7 +329,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
 
         if(Math::intersectAABBvsAABB(vNodeBox, vBox) != COLLISION_TYPE::DISJOINT)
         {
-            // decide which tree to descend on first
+            // Decide which tree to descend on first
             v_AABB vLeft(m_nodes[currNodeIdx + 1].AABB);
             v_AABB vRight(m_nodes[node.RightChild].AABB);
 
@@ -344,7 +344,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
             float rightOverlapVolume = m_nodes[node.RightChild].IsLeaf() ? FLT_MAX : 
                 Right.Extents.x * Right.Extents.y * Right.Extents.z;
 
-            // bigger overlap with the right subtree, descend throught that first
+            // Larger overlap with the right subtree, descend throught that first
             if (leftOverlapVolume <= rightOverlapVolume)
             {
                 stack[++currStackIdx] = currNodeIdx + 1;
@@ -365,12 +365,12 @@ void BVH::Update(Span<BVHUpdateInput> instances)
 {
     for (auto& [oldBox, newBox, id] : instances)
     {
-        // find the leaf node that contains it
+        // Find the leaf node that contains it
         int nodeIdx;
         int instanceIdx = Find(id, oldBox, nodeIdx);
         Assert(instanceIdx != -1, "Instance with ID %u was not found.", id);
 
-        // update the bounding box
+        // Update the bounding box
         Node& node = m_nodes[nodeIdx];
         m_instances[instanceIdx].AABB = newBox;
 
@@ -379,12 +379,12 @@ void BVH::Update(Span<BVHUpdateInput> instances)
 
         Math::COLLISION_TYPE res = Math::intersectAABBvsAABB(vOldBox, vNewBox);
 
-        // if the old AABB contains the new one, keep using the old one
+        // If the old AABB contains the new one, keep using the old one
         if (res != COLLISION_TYPE::CONTAINS)
         {
             int currParent = node.Parent;
 
-            // following the parent indices, keep going up the tree and merge the AABBs. Break once a parent node's
+            // Following the parent indices, keep going up the tree and merge the AABBs. Break once a parent node's
             // AABB contains the new one
             while (currParent != -1)
             {
@@ -409,7 +409,7 @@ void BVH::Update(Span<BVHUpdateInput> instances)
 
 void BVH::Remove(uint64_t ID, const Math::AABB& AABB)
 {
-    // find the leaf node that contains it
+    // Find the leaf node that contains it
     int nodeIdx;
     const int instanceIdx = Find(ID, AABB, nodeIdx);
     Assert(instanceIdx != -1, "Instance with ID %u was not found.", ID);
@@ -418,7 +418,7 @@ void BVH::Remove(uint64_t ID, const Math::AABB& AABB)
     m_instances[instanceIdx].AABB.Extents = float3(-1.0f, -1.0f, -1.0f);
     m_instances[instanceIdx].AABB.Center = float3(0.0f, 0.0f, 0.0f);
 
-    // swap with the last Instance in this leaf
+    // Swap with the last Instance in this leaf
     const uint32_t swapIdx = m_nodes[nodeIdx].Base + m_nodes[nodeIdx].Count - 1;
     std::swap(m_instances[instanceIdx], m_instances[swapIdx]);
     m_nodes[nodeIdx].Count--;
@@ -428,7 +428,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
     const Math::float4x4a& viewToWorld, 
     Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs)
 {
-    // transform view frustum from view space into world space
+    // Transform view frustum from view space into world space
     v_float4x4 vM = load4x4(const_cast<float4x4a&>(viewToWorld));
     v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
     vFrustum = Math::transform(vM, vFrustum);
@@ -439,12 +439,12 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
     if (Math::instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
         return;
 
-    // manual stack
+    // Manual stack
     constexpr int STACK_SIZE = 64;
     int stack[STACK_SIZE];
     int currStackIdx = 0;
 
-    // insert root
+    // Insert root
     stack[currStackIdx] = 0;
     int currNode = -1;
 
@@ -482,23 +482,23 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
     const Math::float4x4a& viewToWorld,
     Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs)
 {
-    // transform view frustum from view space into world space
+    // Transform view frustum from view space into world space
     v_float4x4 vM = load4x4(const_cast<float4x4a&>(viewToWorld));
     v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(viewFrustum));
     vFrustum = Math::transform(vM, vFrustum);
 
     v_AABB vBox(m_nodes[0].AABB);
 
-    // root doesn't intersect camera
+    // Root doesn't intersect camera
     if (Math::instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
         return;
 
-    // manual stack
+    // Manual stack
     constexpr int STACK_SIZE = 64;
     int stack[STACK_SIZE];
     int currStackIdx = 0;
 
-    // insert root
+    // Insert root
     stack[currStackIdx] = 0;
     int currNode = -1;
 
@@ -546,16 +546,16 @@ uint64_t BVH::CastRay(Math::Ray& r)
      const __m128 vDirRcp = _mm_div_ps(_mm_set1_ps(1.0f), vRay.vDir);
     const __m128 vDirIsPos = _mm_cmpge_ps(vRay.vDir, _mm_setzero_ps());
 
-    // can return early if ray doesn't intersect root AABB
+    // Can return early if ray doesn't intersect root AABB
     if (!Math::intersectRayVsAABB(vRay, vDirRcp, vDirIsPos, vIsParallel, vBox, t))
         return uint64_t(-1);
 
-    // manual stack
+    // Manual stack
     constexpr int STACK_SIZE = 64;
     int stack[STACK_SIZE];
     int currStackIdx = 0;
 
-    // insert root
+    // Insert root
     stack[currStackIdx] = 0;
     int currNode = -1;
     float minT = FLT_MAX;
@@ -597,13 +597,13 @@ uint64_t BVH::CastRay(Math::Ray& r)
             int sortedByT[2] = { currNode + 1, node.RightChild };
             const int numChilds = hitLeftChild + hitRightChild;
 
-            // make sure subtree closer to camera is searched first
+            // Make sure subtree closer to camera is searched first
             if (numChilds == 2 && leftT < rightT)
                 std::swap(sortedByT[0], sortedByT[1]);
 
             for (int c = 0; c < numChilds; c++)
             {
-                // no need to search this subtree as earlier hits are necessarily closer to camera
+                // No need to search this subtree as earlier hits are necessarily closer to camera
                 if(sortedByT[c] < minT)
                     stack[++currStackIdx] = sortedByT[c];
             }

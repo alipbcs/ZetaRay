@@ -12,15 +12,15 @@ using namespace ZetaRay::Math;
 
 void Math::AliasTable_Normalize(MutableSpan<float> weights)
 {
-    // compute the sum of weights
+    // Compute the sum of weights
     const int64_t N = weights.size();
     const float sum = Math::KahanSum(weights);
     Assert(!IsNaN(sum), "sum of weights was NaN.");
 
-    // multiply each probability by N so that mean becomes 1 instead of 1 / N
+    // Multiply each probability by N so that mean becomes 1 instead of 1 / N
     const float sumRcp = N / sum;
 
-    // align to 32 bytes
+    // Align to 32 bytes
     float* curr = weights.data();
     while ((reinterpret_cast<uintptr_t>(curr) & 31) != 0)
     {
@@ -30,7 +30,7 @@ void Math::AliasTable_Normalize(MutableSpan<float> weights)
 
     const int64_t startOffset = curr - weights.data();
 
-    // largest multiple of 8 that is smaller than N
+    // Largest multiple of 8 that is smaller than N
     int64_t numToSumSIMD = N - startOffset;
     numToSumSIMD -= numToSumSIMD & 7;
 
@@ -60,7 +60,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
         table[i].P_Orig = probs[i] * oneDivN;
     }
 
-    // maintain an index buffer since original ordering of elements must be preserved
+    // Maintain an index buffer since original ordering of elements must be preserved
     SmallVector<uint32_t> larger;
     larger.reserve(N);
 
@@ -79,7 +79,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
     int64_t numInsertions = 0;
 #endif // _DEBUG
 
-    // in each iteration, pick two probabilities such that one is smaller than 1.0 and the other larger 
+    // In each iteration, pick two probabilities such that one is smaller than 1.0 and the other larger 
     // than 1.0. Use the latter to bring up the former to 1.0.
     while (!smaller.empty() && !larger.empty())
     {
@@ -117,7 +117,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
         larger.pop_back();
         Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
 
-        // alias should point to itself
+        // Alias should point to itself
         table[idx].Alias = (uint32_t)idx;
         table[idx].P_Curr = 1.0f;
 
@@ -132,7 +132,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
         smaller.pop_back();
         Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
 
-        // alias should point to itself
+        // Alias should point to itself
         table[idx].Alias = (uint32_t)idx;
         table[idx].P_Curr = 1.0f;
 

@@ -55,7 +55,7 @@ namespace ZetaRay::Util
             relocate(n);
         }
 
-        // returns NULL if an element with the given key is not found
+        // Returns NULL if an element with the given key is not found
         // Note: in contrast to find(), find_entry() only returns NULL when the table is empty
         T* find(uint64_t key) const
         {
@@ -80,7 +80,7 @@ namespace ZetaRay::Util
                 if (!m_beg || load >= MAX_LOAD)
                     relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
 
-                // find the new position to construct this Entry
+                // Find the new position to construct this Entry
                 elem = find_entry(key);
                 elem->Key = key;
                 new (&elem->Val) T(ZetaForward(args)...);
@@ -108,7 +108,7 @@ namespace ZetaRay::Util
                 if (!m_beg || load >= MAX_LOAD)
                     relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
 
-                // find the new position to insert this Entry
+                // Find the new position to insert this Entry
                 elem = find_entry(key);
                 elem->Key = key;
 
@@ -159,7 +159,7 @@ namespace ZetaRay::Util
 
         ZetaInline float load_factor() const
         {
-            // necessary to avoid divide-by-zero
+            // Necessary to avoid divide-by-zero
             if (empty())
                 return 0.0f;
 
@@ -184,7 +184,7 @@ namespace ZetaRay::Util
             }
 
             m_numEntries = 0;
-            // don't free the memory
+            // Don't free the memory
         }
 
         void free()
@@ -199,10 +199,8 @@ namespace ZetaRay::Util
 
             m_numEntries = 0;
 
-            // free the previously allocated memory
+            // Free the previously allocated memory
             if(bucket_count())
-                //App::FreeMemoryPool(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
-                //_aligned_free(m_beg);
                 m_allocator.FreeAligned(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
         }
 
@@ -227,7 +225,7 @@ namespace ZetaRay::Util
                 if (!m_beg || load >= MAX_LOAD)
                     relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
 
-                // find the new position to insert this Entry
+                // Find the new position to insert this Entry
                 elem = find_entry(key);
                 elem->Key = key;
                 new (&elem->Val) T();
@@ -268,13 +266,13 @@ namespace ZetaRay::Util
             size_t nextPos = origPos;
             Entry* curr = m_beg + origPos;
 
-            // which bucket the entry belongs to
+            // Which bucket the entry belongs to
             while (curr->Key != key && curr->Key != NULL_KEY)
             {
-                nextPos++;                                  // linear probing
-                nextPos = nextPos < n ? nextPos : 0;        // wrap around to zero
+                nextPos++;                                  // Linear probing
+                nextPos = nextPos < n ? nextPos : 0;        // Wrap around to zero
                 curr = m_beg + nextPos;
-                Assert(nextPos != origPos, "infinite loop");    // should never happen due to load_factor < 1
+                Assert(nextPos != origPos, "infinite loop");    // Should never happen due to load_factor < 1
             }
 
             return m_beg + nextPos;
@@ -287,12 +285,11 @@ namespace ZetaRay::Util
             Entry* oldTable = m_beg;
             const size_t oldBucketCount = bucket_count();
 
-            //m_beg = reinterpret_cast<Entry*>(_aligned_malloc(n * sizeof(Entry), alignof(Entry)));
             m_beg = reinterpret_cast<Entry*>(m_allocator.AllocateAligned(n * sizeof(Entry), alignof(Entry)));
-            // adjust the end pointer
+            // Adjust the end pointer
             m_end = m_beg + n;
 
-            // initialize the new table
+            // Initialize the new table
             const Entry* end = m_beg + n;
 
             for (Entry* curr = m_beg; curr != end; curr++)
@@ -303,7 +300,7 @@ namespace ZetaRay::Util
                 curr->Key = NULL_KEY;
             }
 
-            // reinsert all the elements
+            // Reinsert all the elements
             for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
             {
                 if (curr->Key == NULL_KEY)
@@ -315,16 +312,14 @@ namespace ZetaRay::Util
                 elem->Val = ZetaMove(curr->Val);
             }
 
-            // destruct previous elements (if necessary)
+            // Destruct previous elements (if necessary)
             if constexpr (!std::is_trivially_destructible_v<Entry>)
             {
                 for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
                     curr->~Entry();
             }
 
-            // free the previously allocated memory
-            //App::FreeMemoryPool(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
-            //_aligned_free(oldTable);
+            // Free the previously allocated memory
             if(oldTable)
                 m_allocator.FreeAligned(oldTable, oldBucketCount * sizeof(Entry), alignof(Entry));
         }
@@ -334,8 +329,8 @@ namespace ZetaRay::Util
         //static constexpr float GROWTH_RATE = 1.5f;
         static constexpr uint64_t NULL_KEY = uint64_t(-1);
 
-        Entry* m_beg = nullptr;        // pointer to the begining of memory block
-        Entry* m_end = nullptr;        // pointer to the end of memory block
+        Entry* m_beg = nullptr;        // Pointer to the begining of memory block
+        Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
 
         Allocator m_allocator;

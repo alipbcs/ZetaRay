@@ -59,8 +59,8 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
     const D3D12_GPU_VIRTUAL_ADDRESS transformGpuVa = m_perMeshTransform.GpuVA();
     int currInstance = 0;
 
-    // add a triangle mesh to list of geometries included in BLAS
-    // following loops should exactly match the ones in FillMeshTransformBufferForBuild()
+    // Add a triangle mesh to list of geometries included in BLAS
+    // Following loops should exactly match the ones in FillMeshTransformBufferForBuild()
     for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
     {
         auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
@@ -78,9 +78,9 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
                 const TriangleMesh* mesh = scene.GetMesh(meshID).value();
 
                 meshDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
-                // force mesh to be opaque when possible to avoid invoking any-hit shaders
+                // Force mesh to be opaque when possible to avoid invoking any-hit shaders
                 meshDescs[currInstance].Flags = flags.IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
-                // elements are tightly packed as size of each element is a multiple of required alignment
+                // Elements are tightly packed as size of each element is a multiple of required alignment
                 meshDescs[currInstance].Triangles.Transform3x4 = transformGpuVa + currInstance * transfromMatSize;
                 meshDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
                 meshDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
@@ -90,7 +90,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
                 meshDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
                 meshDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
 
-                // refer to notes in TLAS::BuildFrameMeshInstanceData()
+                // Refer to notes in TLAS::BuildFrameMeshInstanceData()
                 currTreeLevel.m_rtASInfo[i] = RT_AS_Info
                 {
                     .GeometryIndex = uint32_t(currInstance),
@@ -117,7 +117,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
     Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
     Assert(prebuild.ResultDataMaxSizeInBytes < UINT32_MAX, "Allocation size exceeded maximum allowed.");
 
-    // allocate a new buffer if this is the first time or the old one isn't large enough
+    // Allocate a new buffer if this is the first time or the old one isn't large enough
     if (!m_buffer.IsInitialized() || m_buffer.Desc().Width < prebuild.ResultDataMaxSizeInBytes)
     {
         m_buffer = GpuMemory::GetDefaultHeapBuffer("StaticBLAS",
@@ -126,7 +126,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
             true);
     }
 
-    // use the same buffer for scratch and compaction info
+    // Use the same buffer for scratch and compaction info
     m_compactionInfoStartOffset = (uint32_t)Math::AlignUp(prebuild.ScratchDataSizeInBytes,
         alignof(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE_DESC));
     const uint32_t scratchBuffSizeInBytes = m_compactionInfoStartOffset +
@@ -137,7 +137,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
         D3D12_RESOURCE_STATE_COMMON,
         true);
 
-    // for reading back the compacted size
+    // For reading back the compacted size
     m_postBuildInfoReadback = GpuMemory::GetReadbackHeapBuffer(
         sizeof(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE_DESC));
 
@@ -153,7 +153,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 
     cmdList.BuildRaytracingAccelerationStructure(&buildDesc, 1, &compactionDesc);
 
-    // wait until call above is completed before copying the compacted size
+    // Wait until call above is completed before copying the compacted size
     auto barrier = Direct3DUtil::BufferBarrier(m_scratch.Resource(),
         D3D12_BARRIER_SYNC_COMPUTE_SHADING,
         D3D12_BARRIER_SYNC_COPY,
@@ -180,7 +180,7 @@ void StaticBLAS::FillMeshTransformBufferForBuild()
 
     int currInstance = 0;
 
-    // skip the first level
+    // Skip the first level
     for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
     {
         auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
@@ -220,12 +220,12 @@ void StaticBLAS::DoCompaction(ComputeCmdList& cmdList)
     memcpy(&compactDesc, m_postBuildInfoReadback.MappedMemory(), sizeof(compactDesc));
     m_postBuildInfoReadback.Unmap();
 
-    // scratch buffer is not needed anymore
+    // Scratch buffer is not needed anymore
     m_scratch.Reset();
 
     Check(compactDesc.CompactedSizeInBytes > 0, "Invalid RtAS compacted size.");
 
-    // allocate a new BLAS with compacted size
+    // Allocate a new BLAS with compacted size
     m_bufferCompacted = GpuMemory::GetDefaultHeapBuffer("StaticBLASCompacted",
         (uint32_t)compactDesc.CompactedSizeInBytes,
         true,
@@ -408,7 +408,7 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
         scratchBuff.Offset(),
         sizeInBytes);
 
-    // wait for copy to be finished before doing compute work
+    // Wait for copy to be finished before doing compute work
     auto barrier = Direct3DUtil::BufferBarrier(m_tlasInstanceBuff.Resource(),
         D3D12_BARRIER_SYNC_COPY,
         D3D12_BARRIER_SYNC_COMPUTE_SHADING,
@@ -685,7 +685,7 @@ void TLAS::BuildFrameMeshInstanceData()
         auto& M = currTreeLevel.m_toWorlds[levelIdx];
         v_float4x4 vM = load4x3(M);
 
-        // meshes in TLAS go through the following transformations:
+        // Meshes in TLAS go through the following transformations:
         // 
         // 1. Optional transform during BLAS build
         // 2. Per-instance transform for each BLAS instance in TLAS
@@ -755,7 +755,7 @@ void TLAS::BuildFrameMeshInstanceData()
     Assert(!rebuildStatic || currInstance == scene.m_numStaticInstances, "bug");
     currInstance = scene.m_numStaticInstances;
 
-    // dynamic meshes
+    // Dynamic meshes
     for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)
     {
         auto& currTreeLevel = scene.m_sceneGraph[treeLevelIdx];
@@ -775,12 +775,12 @@ void TLAS::BuildFrameMeshInstanceData()
             false,
             m_frameInstanceData.data());
 
-        // register the shared resource
+        // Register the shared resource
         auto& r = App::GetRenderer().GetSharedShaderResources();
         r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
     }
     else
-        // this is recorded now but submitted after last frame's submissions
+        // This is recorded now but submitted after last frame's submissions
         GpuMemory::UploadToDefaultHeapBuffer(m_framesMeshInstances, sizeInBytes, m_frameInstanceData.data());
 }
 

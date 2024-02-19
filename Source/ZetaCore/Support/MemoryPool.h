@@ -33,7 +33,7 @@ namespace ZetaRay::Support
         MemoryPool(MemoryPool&&) = delete;
         MemoryPool& operator=(MemoryPool&&) = delete;
 
-        // initialize the memory pool. Has to be called before any allocation/deallocation can take place
+        // Initialize the memory pool. Has to be called before any allocation/deallocation can take place
         void Init();
         void Clear();
 
@@ -56,31 +56,31 @@ namespace ZetaRay::Support
         //            ...
         size_t GetPoolIndexFromSize(size_t x);
 
-        // chunk size for given pool index
+        // Chunk size for given pool index
         ZetaInline size_t GetChunkSizeFromPoolIndex(size_t x) const
         {
             return 1llu << (x + INDEX_SHIFT);
         }
 
-        // allocates a new memory block and turns it into a linked list
+        // Allocates a new memory block and turns it into a linked list
         void* AllocateNewBlock(size_t chunkSize);
 
-        // adds a new memory block
+        // Adds a new memory block
         void Grow(size_t poolIndex);
 
         static constexpr size_t BLOCK_SIZE = 4096;                    
-        static constexpr size_t MAX_ALLOC_SIZE = BLOCK_SIZE;        // allocation up to 4 kb supported    
-        static constexpr size_t POOL_COUNT = 10;                    // number of pools == log_2 (4096) - log_2 (8) + 1
-        static constexpr size_t INDEX_SHIFT = 3;                    // first block starts at 8 bytes (log_2(sizeof(void *))
+        static constexpr size_t MAX_ALLOC_SIZE = BLOCK_SIZE;        // Allocation up to 4 kb supported    
+        static constexpr size_t POOL_COUNT = 10;                    // Number of pools == log_2 (4096) - log_2 (8) + 1
+        static constexpr size_t INDEX_SHIFT = 3;                    // First block starts at 8 bytes (log_2(sizeof(void *))
         static constexpr size_t MIN_ALLOC_SIZE = 1 << INDEX_SHIFT;        
 
-        // holds the pointer to head of memory blocks allocated for each pool size
+        // Holds the pointer to head of memory blocks allocated for each pool size
         void** m_pools[POOL_COUNT] = { nullptr };
 
-        // keep track of how many memory blocks are there per block size
+        // Keep track of how many memory blocks are there per block size
         size_t m_numMemoryBlocks[POOL_COUNT] = { 0 };
 
-        // pointer to head of the linked list for each memory block
+        // Pointer to head of the linked list for each memory block
         void* m_currHead[POOL_COUNT] = { nullptr };
     };
 

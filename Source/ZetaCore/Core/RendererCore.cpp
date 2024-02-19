@@ -45,11 +45,9 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     m_displayWidth = displayWidth;
     m_displayHeight = displayHeight;
 
-    // memory
     GpuMemory::Init();
     GpuMemory::BeginFrame();
 
-    // descriptor heaps
     m_cbvSrvUavDescHeapGpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         Constants::NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS,
         true);
@@ -66,14 +64,12 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
         Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
         false);
 
-    // command queues
     m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT));
     m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
     //m_copyQueue.reset(new CommandQueue(D3D12_COMMAND_LIST_TYPE_COPY, L"Copy Command-Queue"));
 
     m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);
 
-    // swapchain & depth descriptor tables
     m_backbuffDescTable = m_rtvDescHeap.Allocate(Constants::NUM_BACK_BUFFERS);
     m_depthBuffDescTable = m_dsvDescHeap.Allocate(1);
 
@@ -97,7 +93,6 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
         //CheckHR(m_deviceObjs.m_dxgiFactory->MakeWindowAssociation(hwnd, DXGI_MWA_NO_ALT_ENTER));
     }
 
-    // gpu timer
     m_gpuTimer.Init();
 
     ParamVariant p0;
@@ -108,13 +103,13 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
 
 void RendererCore::ResizeBackBuffers(HWND hwnd)
 {
-    // if back buffers already exist, resize them
+    // Ff back buffers already exist, resize them
     if (m_backBuffers[0].IsInitialized())
     {
         // GPU is flushed, no need to wait
         for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
         {
-            // don't check ref count for backbuffer COM object as it's 3 rather than 1:
+            // Don't check ref count for backbuffer COM object as it's 3 rather than 1:
             // "DXGI_SWAP_EFFECT_FLIP_DISCARD is valid for a swap chain with more than one back buffer; although 
             // applications have read and write access only to buffer 0"
             // Ref: https://learn.microsoft.com/en-us/windows/win32/api/dxgi/ne-dxgi-dxgi_swap_effect
@@ -135,7 +130,7 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
 
     m_currBackBuffIdx = (uint16_t)m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
 
-    // obtain the back buffers
+    // Obtain the back buffers
     for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
     {
         ID3D12Resource* backbuff;
@@ -145,7 +140,6 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
         m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff)));
     }
 
-    // create RTVs
     for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
     {
         D3D12_RENDER_TARGET_VIEW_DESC desc{};
@@ -233,7 +227,7 @@ void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t
 
 void RendererCore::WaitForSwapChainWaitableObject()
 {
-    // blocks until eariliest queued present is completed
+    // Blocks until eariliest queued present is completed
     WaitForSingleObject(m_deviceObjs.m_frameLatencyWaitableObj, 16);
 }
 

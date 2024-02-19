@@ -180,8 +180,8 @@ namespace ZetaRay::Core
             bool IsWindowSizeDependent = false;
         };
 
-        // make sure this doesn't get reset between frames as some states carry over to the
-        // next frame. Producers should be reset though
+        // Make sure this doesn't get reset between frames as some states carry over to the
+        // next frame. Producers should be reset though.
         Util::SmallVector<ResourceMetadata> m_frameResources;
         int m_prevFramesNumResources = 0;
 
@@ -254,12 +254,12 @@ namespace ZetaRay::Core
             char Name[MAX_NAME_LENGTH];
 
             // Due to usage of FrameAllocator, capacity must be set to zero manually
-            // in each frame, otherwise it might reuse previous frame's temp memory
+            // in each frame, otherwise it might reuse previous frame's temp memory.
             Util::SmallVector<Dependency, App::FrameAllocator, 2> Inputs;
             Util::SmallVector<Dependency, App::FrameAllocator, 1> Outputs;
             Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator> Barriers;
 
-            // at most one GPU dependency
+            // At most one GPU dependency
             RenderNodeHandle GpuDepSourceIdx = RenderNodeHandle(-1);
 
             uint32_t OutputMask = 0;
@@ -302,7 +302,7 @@ namespace ZetaRay::Core
             uint32_t TaskH;
             int BatchIdx = -1;
 
-            // at most one GPU dependency
+            // At most one GPU dependency
             RenderNodeHandle GpuDepIdx = RenderNodeHandle(-1);
 
             static constexpr int MAX_NAME_LENGTH = 64;

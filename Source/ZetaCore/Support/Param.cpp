@@ -9,24 +9,24 @@ using namespace ZetaRay::Math;
 void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
     fastdelegate::FastDelegate1<const ParamVariant&> dlg)
 {
-    Assert(group, "group can't be null");
-    Assert(subgroup, "subgroup can't be null");
-    Assert(name, "name can't be null");
+    Assert(group, "Group can't be null.");
+    Assert(subgroup, "Subgroup can't be null.");
+    Assert(name, "Name can't be null.");
 
     m_dlg = dlg;
 
     size_t lenGroup = Math::Min((int)strlen(group), (MAX_GROUP_LEN - 1));
-    Assert(lenGroup >= 1, "zero-length string");
+    Assert(lenGroup >= 1, "Empty group name.");
     memcpy(m_group, group, lenGroup);
     m_group[lenGroup] = '\0';
 
     size_t lenSubgroup = Math::Min((int)strlen(subgroup), (MAX_SUBGROUP_LEN - 1));
-    Assert(lenSubgroup >= 1, "zero-length string");
+    Assert(lenSubgroup >= 1, "Empty subgroup name.");
     memcpy(m_subgroup, subgroup, lenSubgroup);
     m_subgroup[lenSubgroup] = '\0';
 
     size_t lenName = Math::Min((int)strlen(name), (MAX_NAME_LEN - 1));
-    Assert(lenName >= 1, "zero-length string");
+    Assert(lenName >= 1, "Empty name.");
     memcpy(m_name, name, lenName);
     m_name[lenName] = '\0';
 
@@ -75,8 +75,8 @@ void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const ch
 {
     InitCommon(group, subgroup, name, dlg);
 
-    Assert(pitch >= 0 && pitch <= Math::PI, "pitch must be in [0, +PI]");
-    Assert(yaw >= 0 && yaw <= Math::TWO_PI, "yaw must be in [0, 2 * PI]");
+    Assert(pitch >= 0 && pitch <= Math::PI, "Pitch must be in [0, +PI].");
+    Assert(yaw >= 0 && yaw <= Math::TWO_PI, "Yaw must be in [0, 2 * PI].");
     m_type = PARAM_TYPE::PT_unit_dir;
     m_unitDir.Init(pitch, yaw);
 }
@@ -122,54 +122,54 @@ void ParamVariant::InitBool(const char* group, const char* subgroup, const char*
 }
 
 void ParamVariant::InitEnum(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, int idx)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, int index)
 {
     InitCommon(group, subgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_enum;
-    Assert(idx < num, "invalid args");
-    m_enum.Init(vals, num, idx);
+    Assert(index < num, "Out-of-bound index.");
+    m_enum.Init(vals, num, index);
 }
 
 const FloatParam& ParamVariant::GetFloat() const
 {
-    Assert(m_type == PARAM_TYPE::PT_float, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_float, "Invalid union type.");
     return m_float;
 }
 
 void ParamVariant::SetFloat(float v)
 {
-    Assert(m_type == PARAM_TYPE::PT_float, "invalid args");
-    m_float.m_val = v;
+    Assert(m_type == PARAM_TYPE::PT_float, "Invalid union type.");
+    m_float.m_value = v;
     m_dlg(*this);
 }
 
 const Float3Param& ParamVariant::GetFloat3() const
 {
-    Assert(m_type == PARAM_TYPE::PT_float3 || m_type == PARAM_TYPE::PT_color, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_float3 || m_type == PARAM_TYPE::PT_color, "Invalid union type.");
     return m_float3;
 }
 
-void ParamVariant::SetFloat3(Math::float3 v)
+void ParamVariant::SetFloat3(const float3& v)
 {
-    Assert(m_type == PARAM_TYPE::PT_float3, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_float3, "Invalid union type.");
+    m_float3.m_value = v;
 
     if (m_float3.m_keepNormalized)
-        v.normalize();
+        m_float3.m_value.normalize();
 
-    m_float3.m_val = v;
     m_dlg(*this);
 }
 
 const UnitDirParam& ParamVariant::GetUnitDir() const
 {
-    Assert(m_type == PARAM_TYPE::PT_unit_dir, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_unit_dir, "Invalid union type.");
     return m_unitDir;
 }
 
 void ParamVariant::SetUnitDir(float pitch, float yaw)
 {
-    Assert(m_type == PARAM_TYPE::PT_unit_dir, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_unit_dir, "Invalid union type.");
     m_unitDir.m_pitch = pitch;
     m_unitDir.m_yaw = yaw;
     m_dlg(*this);
@@ -177,53 +177,53 @@ void ParamVariant::SetUnitDir(float pitch, float yaw)
 
 const Float3Param& ParamVariant::GetColor() const
 {
-    Assert(m_type == PARAM_TYPE::PT_color, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_color, "Invalid union type.");
     return m_float3;
 }
 
-void ParamVariant::SetColor(Math::float3 v)
+void ParamVariant::SetColor(const float3& v)
 {
-    Assert(m_type == PARAM_TYPE::PT_color, "invalid args");
-    m_float3.m_val = v;
+    Assert(m_type == PARAM_TYPE::PT_color, "Invalid union type.");
+    m_float3.m_value = v;
     m_dlg(*this);
 }
 
 const IntParam& ParamVariant::GetInt() const
 {
-    Assert(m_type == PARAM_TYPE::PT_int, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_int, "Invalid union type.");
     return m_int;
 }
 
 void ParamVariant::SetInt(int v)
 {
-    Assert(m_type == PARAM_TYPE::PT_int, "invalid args");
-    m_int.m_val = v;
+    Assert(m_type == PARAM_TYPE::PT_int, "Invalid union type.");
+    m_int.m_value = v;
     m_dlg(*this);
 }
 
 bool ParamVariant::GetBool() const
 {
-    Assert(m_type == PARAM_TYPE::PT_bool, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_bool, "Invalid union type.");
     return m_bool;
 }
 
 void ParamVariant::SetBool(bool v)
 {
-    Assert(m_type == PARAM_TYPE::PT_bool, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_bool, "Invalid union type.");
     m_bool = v;
     m_dlg(*this);
 }
 
 const EnumParam& ParamVariant::GetEnum() const
 {
-    Assert(m_type == PARAM_TYPE::PT_enum, "invalid args");
+    Assert(m_type == PARAM_TYPE::PT_enum, "Invalid union type.");
     return m_enum;
 }
 
 void ParamVariant::SetEnum(int v)
 {
-    Assert(m_type == PARAM_TYPE::PT_enum, "invalid args");
-    Assert(v < m_enum.m_num, "invalid index into enum values");
+    Assert(m_type == PARAM_TYPE::PT_enum, "Invalid union type.");
+    Assert(v < m_enum.m_num, "Out-of-bound index.");
     m_enum.m_curr = v;
     m_dlg(*this);
 }

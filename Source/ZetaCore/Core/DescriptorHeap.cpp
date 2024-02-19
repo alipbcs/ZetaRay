@@ -99,7 +99,7 @@ DescriptorHeap::DescriptorHeap(uint32_t blockSize)
 
     m_heads = reinterpret_cast<Block*>(m_headsBuffer);
 
-    // initialize blocks
+    // Initialize blocks
     for (uint32_t i = 0; i < MAX_NUM_LISTS; i++)
         m_heads[i].Head = uint32_t(-1);
 }
@@ -173,7 +173,7 @@ bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
         m_heads[listIdx].Entries[currEntry++] = e;
     }
 
-    // once this index reaches the end, it should stay there
+    // Once this index reaches the end, it should stay there
     m_nextHeapIdx = Math::Min(m_nextHeapIdx + m_blockSize, m_totalHeapSize);
     m_heads[listIdx].Head = 0;
 
@@ -212,7 +212,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
             success = AllocateNewBlock(listIdx);
         }
 
-        // try to allocate from existing linked lists with a larger block size
+        // Try to allocate from existing linked lists with a larger block size
         // TODO alternatively, chunks from smaller block sizes can be coalesced together
         if (!success)
         {
@@ -226,11 +226,11 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
             }
         }
 
-        // pop from the linked list
+        // Pop from the linked list
         const uint32_t currHeadIdx = m_heads[listIdx].Head;
         Entry e = m_heads[listIdx].Entries[currHeadIdx];
 
-        // set the new head
+        // Set the new head
         const uint32_t nextHeadIdx = e.Next;
         m_heads[listIdx].Entries[currHeadIdx].Next = uint32_t(-1);
         m_heads[listIdx].Head = nextHeadIdx;
@@ -284,7 +284,7 @@ void DescriptorHeap::Recycle()
         Assert(offset < m_totalHeapSize, "invalid offset");
         Assert(numDescs < m_totalHeapSize, "invalid #descs");
 
-        // not safe to release just yet
+        // Not safe to release just yet
         if (m_isShaderVisisble && completedFenceVal < releaseFence)
         {
             currPending++;
@@ -328,5 +328,3 @@ void DescriptorHeap::Recycle()
         currPending = m_pending.erase(*currPending);
     }
 }
-
-

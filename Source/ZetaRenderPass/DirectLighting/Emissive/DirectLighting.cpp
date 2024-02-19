@@ -539,12 +539,13 @@ void DirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 
 void DirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.M_max = (uint16_t) p.GetInt().m_value;
 }
 
 void DirectLighting::MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling = Math::Max(p.GetFloat().m_val, m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling);
+    m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling = Math::Max(p.GetFloat().m_value, 
+        m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling);
 }
 
 void DirectLighting::DenoiseCallback(const Support::ParamVariant& p)
@@ -558,14 +559,14 @@ void DirectLighting::DenoiseCallback(const Support::ParamVariant& p)
 
 void DirectLighting::TsppDiffuseCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
-    m_cbDnsrSpatial.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
+    m_cbDnsrSpatial.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
 }
 
 void DirectLighting::TsppSpecularCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
-    m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
+    m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
 }
 
 void DirectLighting::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)

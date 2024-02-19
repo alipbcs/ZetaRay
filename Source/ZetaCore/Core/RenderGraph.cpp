@@ -124,7 +124,7 @@ void RenderGraph::Reset()
     //m_frameResources.clear();
     m_frameResources.resize(MAX_NUM_RESOURCES);
 
-    // sort the frame resources so that window-dependent ones come after window-independent ones
+    // Sort the frame resources so that window-dependent ones come after window-independent ones
     auto it = std::partition(m_frameResources.begin(), m_frameResources.begin() + m_prevFramesNumResources,
         [](ResourceMetadata& res)
         {
@@ -145,7 +145,7 @@ void RenderGraph::Reset()
     m_prevFramesNumResources = (int)numRemaining;
     m_lastResIdx = (int)numRemaining;
 
-    // reset the render nodes
+    // Reset the render nodes
     const int numNodes = m_currRenderPassIdx.load(std::memory_order_relaxed);
 
     for (int currNode = 0; currNode < numNodes; currNode++)
@@ -165,7 +165,7 @@ void RenderGraph::RemoveResource(uint64_t path)
         m_lastResIdx.fetch_sub(1, std::memory_order_relaxed);
         m_frameResources[pos].Reset();
 
-        // insertion sort
+        // Insertion sort
         for (int i = pos; i < m_prevFramesNumResources; i++)
             m_frameResources[i] = ZetaMove(m_frameResources[i + 1]);
     }
@@ -205,7 +205,7 @@ void RenderGraph::BeginFrame()
     //m_numPassesPrevFrame = numNodes;
     m_currRenderPassIdx.store(0, std::memory_order_relaxed);
 
-    // reset the producers
+    // Reset the producers
     for (auto& rm : m_frameResources)
     {
         rm.CurrProdIdx.store(0, std::memory_order_relaxed);
@@ -214,7 +214,7 @@ void RenderGraph::BeginFrame()
             rm.Producers[i].Val = INVALID_NODE_HANDLE;
     }
 
-    // reset the render nodes
+    // Reset the render nodes
     for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
     {
         m_renderNodes[currNode].Reset();
@@ -255,7 +255,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
 
     const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources - 1);
 
-    // existing resource
+    // Existing resource
     if (prevPos != -1)
     {
         if(m_frameResources[prevPos].Res != res)
@@ -264,7 +264,7 @@ void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RES
         return;
     }
 
-    // new resource
+    // New resource
     int pos = m_lastResIdx.fetch_add(1, std::memory_order_relaxed);
     Assert(pos < MAX_NUM_RESOURCES, "Number of resources exceeded MAX_NUM_RESOURCES");
 
@@ -276,7 +276,7 @@ void RenderGraph::MoveToPostRegister()
     Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
     const int numResources = m_lastResIdx.load(std::memory_order_relaxed);
 
-    // sort the frame resources so that binary search can be performed
+    // Sort the frame resources so that binary search can be performed
     std::sort(m_frameResources.begin(), m_frameResources.begin() + numResources,
         [](ResourceMetadata& lhs, ResourceMetadata& rhs)
         {
@@ -307,7 +307,7 @@ void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_S
     Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
     Assert(expectedState & Constants::READ_STATES, "Invalid read state.");
 
-    // defer checking for invalid states until later on
+    // Defer checking for invalid states until later on
     m_renderNodes[h.Val].Inputs.emplace_back(pathID, expectedState);
 }
 
@@ -346,7 +346,7 @@ void RenderGraph::Build(TaskSet& ts)
 
     SmallVector<RenderNodeHandle, App::FrameAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
 
-    // add the graph edges. For each input of node N, add an edge from 
+    // Add the graph edges. For each input of node N, add an edge from 
     // that input's producer node (previously populated by AddOutput) to N
     for (int currNode = 0; currNode < numNodes; currNode++)
     {
@@ -359,13 +359,13 @@ void RenderGraph::Build(TaskSet& ts)
 
             const int numProducers = m_frameResources[idx].CurrProdIdx.load(std::memory_order_relaxed);
 
-            // null resources or resources that were produced in prior frames
+            // Null resources or resources that were produced in prior frames
             if (numProducers == 0)
             {
                 node.Indegree--;
                 Assert(node.Indegree >= 0, "Invalid indegree for node %s.", node.Name);
             }
-            // each producer needs to decrement the dependency counter
+            // Each producer needs to decrement the dependency counter
             else
                 node.Indegree += numProducers - 1;    // -1 to avoid double counting
 
@@ -373,7 +373,7 @@ void RenderGraph::Build(TaskSet& ts)
             {
                 const int prodHandle = m_frameResources[idx].Producers[prod].Val;
 
-                // workaround for when resource is set as both input and output for some node, otherwise there'd be a cycle
+                // Workaround for when resource is set as both input and output for some node, otherwise there'd be a cycle
                 if (currNode == prodHandle)
                 {
                     node.Indegree--;
@@ -381,7 +381,7 @@ void RenderGraph::Build(TaskSet& ts)
                     const int numOutputs = (int)node.Outputs.size();
                     Assert(numOutputs > 0, "invalid graph.");
 
-                    // for pass P, resource R is ping ponged between input & output and may appear as both 
+                    // For pass P, resource R is ping ponged between input & output and may appear as both 
                     // an input and output of P, with possibly different states. Since barriers are executed "prior" 
                     // to recording, this scenario can't be handled. As a workaround, the render graph takes cares of 
                     // transitioning R into its input state, while further transitions (ping-ponging) for R inside P 
@@ -404,7 +404,7 @@ void RenderGraph::Build(TaskSet& ts)
 
     Sort(adjacentTailNodes);
 
-    // at this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" was sorted. "mapping" must be used instead
+    // At this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" was sorted. "mapping" must be used instead
     InsertResourceBarriers();
     JoinRenderNodes();
     BuildTaskGraph(ts);
@@ -461,11 +461,11 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                 else if (!aggregateNode.Barriers.empty())
                     cmdList->ResourceBarrier(aggregateNode.Barriers.begin(), (UINT)aggregateNode.Barriers.size());
 
-                // record
+                // Record
                 for(auto dlg : aggregateNode.Dlgs)
                     dlg(*cmdList);
 
-                // wait for possible GPU fence
+                // Wait for possible GPU fence
                 if (!aggregateNode.HasUnsupportedBarrier && aggregateNode.GpuDepIdx.Val != -1)
                 {
                     uint64_t f = m_aggregateNodes[aggregateNode.GpuDepIdx.Val].CompletionFence;
@@ -515,7 +515,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
     RenderNodeHandle sorted[MAX_NUM_RENDER_PASSES];
     int currIdx = 0;
 
-    // move all the nodes with zero indegree to sorted
+    // Move all the nodes with zero indegree to sorted
     for (int currNode = 0; currNode < numNodes; currNode++)
     {
         RenderNode& node = m_renderNodes[currNode];
@@ -530,7 +530,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 
     Assert(currIdx > 0, "Graph is not a DAG- no node with 0 dependencies.");
 
-    // topological sort
+    // Topological sort
     for (int currNode = 0; currNode < numNodes; currNode++)
     {
         Assert(sorted[currNode].IsValid(), "invalid handle");
@@ -545,7 +545,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
 
     Assert(numNodes == currIdx, "Graph is not a DAG");
 
-    // length of the longest path for every node in DAG
+    // Length of the longest path for every node in DAG
     for (int i = 0; i < numNodes; i++)
     {
         RenderNodeHandle currHandle = sorted[i];
@@ -575,7 +575,7 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
     for (int currNode = 0; currNode < numNodes; currNode++)
         m_mapping[sorted[currNode].Val] = RenderNodeHandle(currNode);
 
-    // shuffle
+    // Shuffle
     RenderNode tempRenderNodes[MAX_NUM_RENDER_PASSES];
 
     for (int currNode = 0; currNode < numNodes; currNode++)
@@ -601,7 +601,7 @@ void RenderGraph::InsertResourceBarriers()
     int lastDirQueueHandle = 0;
     int lastComputeQueueHandle = 0;
 
-    // helper to return last*Idx based on the node type
+    // Helper to return last*Idx based on the node type
     auto getLastSyncedIdx = [&lastDirQueueHandle, &lastComputeQueueHandle](RENDER_NODE_TYPE t)
     {
         return t == RENDER_NODE_TYPE::ASYNC_COMPUTE ? &lastDirQueueHandle : &lastComputeQueueHandle;
@@ -621,7 +621,7 @@ void RenderGraph::InsertResourceBarriers()
     //         - if R.state != expected --> add a barrier (e.g. SRV to UAV)
     //         - if stateBefore(== R.state) is unsupported --> set hasUnsupportedBarriers
 
-    // iterate by execution order (i.e. sorted by batch index)
+    // Iterate by execution order (i.e. sorted by batch index)
     for (int currNode = 0; currNode < numNodes; currNode++)
     {
         RenderNode& node = m_renderNodes[currNode];
@@ -629,7 +629,7 @@ void RenderGraph::InsertResourceBarriers()
         RenderNodeHandle largestProducerSortedHandle;    // i.e. index in sorted (execution) order
 
         //
-        // inputs
+        // Inputs
         //
         for (Dependency& currInputRes : node.Inputs)
         {
@@ -642,14 +642,14 @@ void RenderGraph::InsertResourceBarriers()
 
             if (!(inputResState & currInputRes.ExpectedState))
             {
-                // unsupported stateAfter should've been caught earlier
+                // Unsupported stateAfter should've been caught earlier
                 node.HasUnsupportedBarrier = node.HasUnsupportedBarrier || 
                     (isAsyncCompute && (inputResState & Constants::INVALID_COMPUTE_STATES));
                 node.Barriers.push_back(TransitionBarrier(m_frameResources[inputFrameResIdx].Res,
                     inputResState,
                     currInputRes.ExpectedState));
 
-                // update resource state
+                // Update resource state
                 m_frameResources[inputFrameResIdx].State = currInputRes.ExpectedState;
             }
 
@@ -673,7 +673,7 @@ void RenderGraph::InsertResourceBarriers()
             //                    |                 |
             //        Queue2      4 -----> 5 -----> 6
 
-            // find the largest producer batch index (case a)
+            // Find the largest producer batch index (case a)
             const int numProducers = m_frameResources[inputFrameResIdx].CurrProdIdx.load(std::memory_order_relaxed);
             //Assert(m_frameResources[inputFrameResIdx].Res == nullptr || 
             //    numProducers > 0, "No producer for resource %llu", m_frameResources[inputFrameResIdx].ID);
@@ -695,7 +695,7 @@ void RenderGraph::InsertResourceBarriers()
             }
         }
 
-        // case b
+        // Case b
         if (largestProducerSortedHandle.Val != -1 && *getLastSyncedIdx(node.Type) < largestProducerSortedHandle.Val)
         {
             *getLastSyncedIdx(node.Type) = largestProducerSortedHandle.Val;
@@ -703,7 +703,7 @@ void RenderGraph::InsertResourceBarriers()
         }
 
         //
-        // outputs
+        // Outputs
         //
         int i = 0;
 
@@ -720,7 +720,7 @@ void RenderGraph::InsertResourceBarriers()
 
             if (!skipBarrier && !(m_frameResources[ouputFrameResIdx].State & currOutputRes.ExpectedState))
             {
-                // unsupported resourceAfter should've been caught earlier
+                // Unsupported resourceAfter should've been caught earlier
                 node.HasUnsupportedBarrier = node.HasUnsupportedBarrier || 
                     (isAsyncCompute && (outputResState & Constants::INVALID_COMPUTE_STATES));
                 node.Barriers.push_back(TransitionBarrier(m_frameResources[ouputFrameResIdx].Res,
@@ -728,12 +728,12 @@ void RenderGraph::InsertResourceBarriers()
                     currOutputRes.ExpectedState));
             }
 
-            // update the resource state
+            // Update the resource state
             m_frameResources[ouputFrameResIdx].State = currOutputRes.ExpectedState;
         }
     }
 
-    // temporary solution; assumes that "someone" will transition backbuffer to Present state
+    // Temporary solution; assumes that "someone" will transition backbuffer to Present state
     int idx = FindFrameResource(App::GetRenderer().GetCurrBackBuffer().ID());
     //Assert(idx != -1, "Current backbuffer was not found in frame resources");
     if(idx != -1)
@@ -774,7 +774,7 @@ void RenderGraph::JoinRenderNodes()
                 m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
             }
 
-            // if there's an async. compute task in this batch that has unsupported barriers,
+            // If there's an async. compute task in this batch that has unsupported barriers,
             // then that task's going to sync with the direct queue immediately before execution,
             // which supersedes any other gpu fence in this joined node
             m_aggregateNodes.back().GpuDepIdx = hasGpuFence && hasUnsupportedBarrier ?
@@ -789,7 +789,7 @@ void RenderGraph::JoinRenderNodes()
             for (auto n : nonAsyncComputeNodes)
             {
                 const int gpuDep = m_renderNodes[n].GpuDepSourceIdx.Val;
-                // map from node index to aggregate node index
+                // Map from node index to aggregate node index
                 const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
                 Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
 
@@ -866,7 +866,7 @@ void RenderGraph::DebugDrawGraph()
 
     int currBatchIdx = 0;
 
-    // compute batch sizes
+    // Compute batch sizes
     {
         int currBatchSize = 0;
 
@@ -1015,7 +1015,7 @@ void RenderGraph::DebugDrawGraph()
 
         for (int i = 0; i < nextBatchSize; i++)
         {
-            // in between Begin|EndAttribute calls, you can call ImGui
+            // In between Begin|EndAttribute calls, you can call ImGui
             // UI functions
             //ImGui::Text("out_%d", i);
             const int t = nextBatchInpinStart + i * currBatchSize + idxInBatch;

@@ -37,7 +37,7 @@ void TexSRVDescriptorTable::Init(uint64_t id)
 
 uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
 {
-    // if the texture already exists, just increase the ref count and return it
+    // If the texture already exists, just increase the ref count and return it
     if (auto it = m_cache.find(id); it != nullptr)
     {
         const uint32_t offset = it->DescTableOffset;
@@ -49,7 +49,7 @@ uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
 
     Assert(tex.IsInitialized(), "Texture hasn't been initialized.");
 
-    // find the first free slot in the table
+    // Find the first free slot in the table
     DWORD freeSlot = DWORD(-1);
     int i = 0;
     for (; i < (int)m_numMasks; i++)
@@ -59,16 +59,15 @@ uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
     }
 
     Assert(freeSlot != DWORD(-1), "No free slot found");
-    m_inUseBitset[i] |= (1llu << freeSlot);    // set the slot to occupied
+    m_inUseBitset[i] |= (1llu << freeSlot);    // Set the slot to occupied
 
-    freeSlot += i * 64;        // each uint64_t covers 64 slots
+    freeSlot += i * 64;        // Each uint64_t covers 64 slots
     Assert(freeSlot < m_descTableSize, "Invalid table index.");
 
-    // create the SRV
     auto descCpuHandle = m_descTable.CPUHandle(freeSlot);
     Direct3DUtil::CreateTexture2DSRV(tex, descCpuHandle);
 
-    // add this texture to the cache
+    // Add this texture to the cache
     m_cache.insert_or_assign(id, CacheEntry{ 
         .T = ZetaMove(tex), 
         .DescTableOffset = freeSlot,
@@ -84,7 +83,7 @@ void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal)
         // GPU is finished with this descriptor
         if (it->FenceVal <= completedFenceVal)
         {
-            // set the descriptor slot to free
+            // Set the descriptor slot to free
             const uint32_t idx = it->DescTableOffset >> 6;
             Assert(idx < m_numMasks, "invalid index.");
             m_inUseBitset[idx] |= (1llu << (it->DescTableOffset & 63));
@@ -119,7 +118,7 @@ uint32_t MaterialBuffer::Add(Material& mat)
 
 void MaterialBuffer::Add(Material& mat, uint32_t idx)
 {
-    // find first free slot in buffer (i.e. first-fit)
+    // Find first free slot in buffer (i.e. first-fit)
     DWORD freeIdx = DWORD(-1);
     int i = 0;
     for (; i < NUM_MASKS; i++)
@@ -129,12 +128,12 @@ void MaterialBuffer::Add(Material& mat, uint32_t idx)
     }
 
     Assert(freeIdx != -1, "No free slot found.");
-    m_inUseBitset[i] |= (1llu << freeIdx);        // set the slot to occupied
+    m_inUseBitset[i] |= (1llu << freeIdx);        // Set the slot to occupied
 
-    freeIdx += i << 6;        // each uint64_t covers 64 slots
+    freeIdx += i << 6;        // Each uint64_t covers 64 slots
     Assert(freeIdx < MAX_NUM_MATERIALS, "Invalid table index.");
 
-    // set offset in input material
+    // Set offset in input material
     mat.SetGpuBufferIndex(freeIdx);
     m_materials[idx] = mat;
 
@@ -288,8 +287,8 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveIns
     }
     else
     {
-        // todo implement
-        Check(false, "not supported yet.");
+        // TODO implement
+        Check(false, "Not implemented.");
     }
 
     std::sort(m_emissivesInstances.begin(), m_emissivesInstances.end(),

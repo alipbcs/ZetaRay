@@ -66,7 +66,7 @@ size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, MutableSpan<si
     return actualNumGroups;
 }
 
-// fast math must be disabled for Kahan summation
+// Fast math must be disabled for Kahan summation
 #pragma float_control(precise, on, push)
 
 float Math::KahanSum(Span<float> data)
@@ -87,7 +87,7 @@ float Math::KahanSum(Span<float> data)
         curr++;
     }
 
-    // largest multiple of 16 (each loop iteration loads two avx registers -- 16 floats) that is smaller than N
+    // Largest multiple of 16 (each loop iteration loads two avx registers -- 16 floats) that is smaller than N
     const int64_t startOffset = curr - data.data();
     int64_t numToSumSIMD = (N - startOffset);
     numToSumSIMD -= numToSumSIMD & 15;
@@ -96,13 +96,13 @@ float Math::KahanSum(Span<float> data)
     __m256 vSum = _mm256_setzero_ps();
     __m256 vCompensation = _mm256_setzero_ps();
 
-    // unroll two sums in each iteration
+    // Unroll two sums in each iteration
     for (; curr < end; curr += 16)
     {
         __m256 V1 = _mm256_load_ps(curr);
         __m256 V2 = _mm256_load_ps(curr + 8);
 
-        // essentially, each simd lane is doing a seperate Kahan summation
+        // Essentially each simd lane is doing a seperate Kahan summation
         __m256 vCurr = _mm256_add_ps(V1, V2);
         __m256 vCorrected = _mm256_sub_ps(vCurr, vCompensation);
         __m256 vNewSum = _mm256_add_ps(vSum, vCorrected);
@@ -112,13 +112,13 @@ float Math::KahanSum(Span<float> data)
         vSum = vNewSum;
     }
 
-    // sum the different simd lanes
+    // Sum the different simd lanes
     alignas(32) float simdSum[8];
     alignas(32) float simdCompensation[8];
     _mm256_store_ps(simdSum, vSum);
     _mm256_store_ps(simdCompensation, vCompensation);
 
-    // add the simd lanes
+    // Add the simd lanes
     for (int i = 0; i < 8; i++)
     {
         float corrected = simdSum[i] - compensation - simdCompensation[i];
@@ -127,7 +127,7 @@ float Math::KahanSum(Span<float> data)
         sum = newSum;
     }
 
-    // add the remaining data
+    // Add the remaining data
     for (int64_t i = startOffset + numToSumSIMD; i < N; i++)
     {
         float corrected = data[i] - compensation;

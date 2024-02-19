@@ -250,17 +250,17 @@ void Sky::CreateVoxelGrid()
 
 void Sky::DepthMapExpCallback(const ParamVariant& p)
 {
-    m_localCB.DepthMappingExp = p.GetFloat().m_val;
+    m_localCB.DepthMappingExp = p.GetFloat().m_value;
 }
 
 void Sky::VoxelGridNearZCallback(const ParamVariant& p)
 {
-    m_localCB.VoxelGridNearZ = p.GetFloat().m_val;
+    m_localCB.VoxelGridNearZ = p.GetFloat().m_value;
 }
 
 void Sky::VoxelGridFarZCallback(const ParamVariant& p)
 {
-    m_localCB.VoxelGridFarZ = p.GetFloat().m_val;
+    m_localCB.VoxelGridFarZ = p.GetFloat().m_value;
 }
 
 void Sky::ReloadInscatteringShader()

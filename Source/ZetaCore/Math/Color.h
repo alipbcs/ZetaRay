@@ -6,7 +6,7 @@ namespace ZetaRay::Math
 {
     ZetaInline uint16_t __vectorcall Float2ToRG8(Math::float2 v)
     {
-        // last two elements are set to zero
+        // Last two elements are set to zero
         __m128 vRG = Math::loadFloat2(v);
         vRG = _mm_mul_ps(vRG, _mm_set1_ps(255.0f));
 

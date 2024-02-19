@@ -66,7 +66,7 @@ namespace ZetaRay::Math
         }
 
     private:
-        // maximum number of instances that can be included in a leaf node
+        // Maximum number of instances that can be included in a leaf node
         static constexpr uint32_t MAX_NUM_INSTANCES_PER_LEAF = 8;
         static constexpr uint32_t MIN_NUM_INSTANCES_SPLIT_SAH = 10;
         static constexpr uint32_t NUM_SAH_BINS = 6;
@@ -96,11 +96,11 @@ namespace ZetaRay::Math
             };
             */
 
-            // for leafs
+            // For leafs
             int Base;
             int Count;
 
-            // for internal nodes
+            // For internal nodes
             int RightChild;
 
             int Parent = -1;
@@ -114,10 +114,10 @@ namespace ZetaRay::Math
 
         Support::MemoryArena m_arena;
 
-        // tree hierarchy is stored as an array
+        // Tree hierarchy is stored as an array
         Util::SmallVector<Node, Support::ArenaAllocator> m_nodes;
 
-        // array of inputs to build a BVH for. During BVH build, elements are moved around
+        // Array of inputs to build a BVH for. During BVH build, elements are moved around.
         Util::SmallVector<BVHInput, Support::ArenaAllocator> m_instances;
 
         uint32_t m_numNodes = 0;

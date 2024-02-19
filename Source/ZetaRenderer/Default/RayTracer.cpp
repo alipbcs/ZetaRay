@@ -18,22 +18,22 @@ using namespace ZetaRay::Scene;
 
 void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
 {
-    // allocate descriptor tables
+    // Allocate descriptor tables
     data.WndConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
         (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::COUNT);
     data.ConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
         (int)RayTracerData::DESC_TABLE_CONST::COUNT);
 
-    // init samplers (async)
+    // Initialize samplers (async)
     // data.RtSampler.InitLowDiscrepancyBlueNoise32();
 
-    // sun shadow
+    // Sun shadow
     data.SunShadowPass.Init();
 
     Direct3DUtil::CreateTexture2DSRV(data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED),
         data.WndConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
 
-    // inscattering + sku-view lut
+    // Inscattering + sku-view lut
     data.SkyPass.Init(RayTracerData::SKY_LUT_WIDTH, RayTracerData::SKY_LUT_HEIGHT, settings.Inscattering);
 
     Direct3DUtil::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
@@ -175,7 +175,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
     data.PreLightingPass.Update(settings.EmissiveLighting);
     const bool lightPresampling = data.PreLightingPass.IsPresamplingEnabled();
 
-    // recompute alias table only if there are stale emissives
+    // Recompute alias table only if there are stale emissives
     if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
     {
         if (!data.DirecLightingPass.IsInitialized())
@@ -216,7 +216,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 
     const bool tlasReady = data.RtAS.IsReady();
 
-    // sky view lut + inscattering
+    // Sky view lut + inscattering
     if (tlasReady)
     {
         fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SkyPass, &Sky::Render);
@@ -239,7 +239,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
             false);
     }
 
-    // sun shadow
+    // Sun shadow
     if (tlasReady)
     {
         fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.SunShadowPass,
@@ -250,7 +250,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
         renderGraph.RegisterResource(denoised.Resource(), denoised.ID());
     }
 
-    // pre lighting
+    // Pre lighting
     fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.PreLightingPass,
         &PreLighting::Render);
     data.PreLightingPassHandle = renderGraph.RegisterRenderPass("PreLighting", RENDER_NODE_TYPE::COMPUTE, dlg1);
@@ -261,14 +261,14 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 
     if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
     {
-        // read back emissive lumens and compute the alias table on CPU
+        // Read back emissive lumens and compute the alias table on CPU
         if (App::GetScene().AreEmissivesStale())
         {
             auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
             renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(triLumenBuff).Resource(), triLumenBuff.ID(), 
                 D3D12_RESOURCE_STATE_COPY_SOURCE, false);
 
-            // make sure to use a seperate command list
+            // Make sure to use a seperate command list
             fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.EmissiveAliasTable,
                 &EmissiveTriangleAliasTable::Render);
             data.EmissiveAliasTableHandle = renderGraph.RegisterRenderPass("EmissiveAliasTable", RENDER_NODE_TYPE::COMPUTE, dlg2, true);
@@ -281,7 +281,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
 
         if (tlasReady)
         {
-            // pre lighting
+            // Pre lighting
             if (data.PreLightingPass.IsPresamplingEnabled())
             {
                 auto& presampled = data.PreLightingPass.GePresampledSets();
@@ -293,7 +293,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
                     D3D12_RESOURCE_STATE_COMMON);
             }
 
-            // direct lighting
+            // Direct lighting
             fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DirecLightingPass,
                 &DirectLighting::Render);
             data.DirecLightingHandle = renderGraph.RegisterRenderPass("DirectLighting", RENDER_NODE_TYPE::COMPUTE, dlg3);
@@ -313,7 +313,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
         renderGraph.RegisterResource(t.Resource(), t.ID());
     }
 
-    // indirect lighting
+    // Indirect lighting
     if (tlasReady)
     {
         fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.IndirecLightingPass, &IndirectLighting::Render);
@@ -340,7 +340,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
     }
 
-    // inscattering + sky-view lut
+    // Inscattering + sky-view lut
     if (tlasReady)
     {
         // RT_AS
@@ -364,7 +364,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         data.PreLightingPass.GetCurvatureTexture().ID(),
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    // direct lighting
+    // Direct lighting
     if (settings.EmissiveLighting && numEmissives)
     {
         if (App::GetScene().AreEmissivesStale())
@@ -409,7 +409,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 tlasID,
                 D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-            // prev gbuffers
+            // Previous g-buffers
             renderGraph.AddInput(data.DirecLightingHandle,
                 gbuffData.DepthBuffer[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -426,7 +426,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 gbuffData.MetallicRoughness[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-            // curr g-buffers
+            // Current g-buffers
             renderGraph.AddInput(data.DirecLightingHandle,
                 gbuffData.Normal[outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -451,14 +451,14 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 gbuffData.EmissiveColor.ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-            // output
+            // Output
             renderGraph.AddOutput(data.DirecLightingHandle,
                 data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
                 D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
         }
     }
 
-    // sun shadow
+    // Sun shadow
     if (tlasReady)
     {
         // RT_AS
@@ -466,7 +466,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             tlasID,
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-        // make sure it runs post gbuffer
+        // Make sure it runs post gbuffer
         renderGraph.AddInput(data.SunShadowHandle,
             gbuffData.DepthBuffer[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -488,7 +488,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 
-    // sky DI
+    // Sky DI
     if (settings.SkyIllumination && tlasReady)
     {
         // RT-AS
@@ -513,7 +513,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             gbuffData.MetallicRoughness[1 - outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-        // curr g-buffers
+        // Current g-buffers
         renderGraph.AddInput(data.SkyDI_Handle,
             gbuffData.Normal[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -538,13 +538,13 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             gbuffData.EmissiveColor.ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-        // denoised output
+        // Denoised output
         renderGraph.AddOutput(data.SkyDI_Handle,
             data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 
-    // indirect
+    // Indirect lighting
     if (tlasReady)
     {
         if (settings.EmissiveLighting && numEmissives && data.PreLightingPass.IsPresamplingEnabled())
@@ -563,7 +563,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             tlasID,
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
-        // prev g-buffers
+        // Previous g-buffers
         renderGraph.AddInput(data.IndirecLightingHandle,
             gbuffData.DepthBuffer[1 - outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -580,7 +580,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             gbuffData.BaseColor[1 - outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-        // curr g-buffers
+        // Current g-buffers
         renderGraph.AddInput(data.IndirecLightingHandle,
             gbuffData.Normal[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
@@ -609,7 +609,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             data.PreLightingPass.GetCurvatureTexture().ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-        // denoised output
+        // Denoised output
         renderGraph.AddOutput(data.IndirecLightingHandle,
             data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);

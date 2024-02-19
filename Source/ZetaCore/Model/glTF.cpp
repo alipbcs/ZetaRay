@@ -217,12 +217,12 @@ namespace
     {
         Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
         Check(accessor.stride != -1, "Invalid index stride.");
-        Check(accessor.count % 3 == 0, "invalid number of indices");
+        Check(accessor.count % 3 == 0, "Invalid number of indices.");
 
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
         const cgltf_buffer& buffer = *bufferView.buffer;
 
-        // populate the mesh indices
+        // Populate the mesh indices
         uint8_t* curr = reinterpret_cast<uint8_t*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
         const size_t numFaces = accessor.count / 3;
         const size_t indexStrideInBytes = accessor.stride;
@@ -264,14 +264,14 @@ namespace
         // Figure out total number of mesh primitivess, vertices, and indices.
         for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
         {
-            Assert(meshIdx < model.meshes_count, "out-of-bound access");
+            Assert(meshIdx < model.meshes_count, "Out-of-bound access");
             const cgltf_mesh& mesh = model.meshes[meshIdx];
 
             for (int primIdx = 0; primIdx < mesh.primitives_count; primIdx++)
             {
                 const cgltf_primitive& prim = mesh.primitives[primIdx];
 
-                Check(prim.indices->count > 0, "index buffer is required.");
+                Check(prim.indices->count > 0, "Index buffer is required.");
                 Check(prim.type == cgltf_primitive_type_triangles, "Non-triangle meshes are not supported.");
 
                 int posIt = -1;
@@ -614,7 +614,7 @@ namespace
         {
             const int meshIdx = (int)(node.mesh - context.Model->meshes);
 
-            // a seperate instance for each primitive
+            // A seperate instance for each primitive
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
             {
                 const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
@@ -818,9 +818,9 @@ namespace
 
                 glTF::Asset::InstanceDesc desc{
                     .LocalTransform = transform,
-                    .MeshIdx = meshIdx,
                     .ID = currInstanceID,
                     .ParentID = parentId,
+                    .MeshIdx = meshIdx,
                     .MeshPrimIdx = primIdx,
                     .RtMeshMode = RT_MESH_MODE::STATIC,
                     .RtInstanceMask = rtInsMask,
@@ -836,9 +836,9 @@ namespace
 
             glTF::Asset::InstanceDesc desc{
                 .LocalTransform = transform,
-                    .MeshIdx = -1,
                     .ID = currInstanceID,
                     .ParentID = parentId,
+                    .MeshIdx = -1,
                     .MeshPrimIdx = -1,
                     .RtMeshMode = RT_MESH_MODE::STATIC,
                     .RtInstanceMask = RT_AS_SUBGROUP::NON_EMISSIVE };
@@ -900,14 +900,14 @@ namespace
 
 void glTF::Load(const App::Filesystem::Path& pathToglTF)
 {
-    // parse json
+    // Parse json
     cgltf_options options{};
     cgltf_data* model = nullptr;
     Checkgltf(cgltf_parse_file(&options, pathToglTF.GetView().data(), &model));
 
     //Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
-    // load buffers
+    // Load buffers
     Check(model->buffers_count == 1, "invalid number of buffers");
     Filesystem::Path bufferPath(pathToglTF.GetView());
     bufferPath.Directory();
@@ -918,17 +918,17 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     const uint64_t sceneID = XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length());
     SceneCore& scene = App::GetScene();
 
-    // all the unique textures that need to be loaded from disk
+    // All the unique textures that need to be loaded from disk
     SmallVector<DDSImage> ddsImages;
     ddsImages.resize(model->images_count);
 
-    // figure out total number of vertices & indices
+    // Figure out total number of vertices and indices
     size_t totalNumVertices;
     size_t totalNumIndices;
     size_t totalNumMeshPrims;
     TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices, totalNumMeshPrims);
 
-    // preallocate
+    // Preallocate
     SmallVector<Core::Vertex> vertices;
     SmallVector<uint32_t> indices;
     SmallVector<Mesh> meshes;
@@ -943,7 +943,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     ResetEmissiveSubsets(emissivePrims);
     scene.ResizeAdditionalMaterials((uint32_t)model->materials_count);
 
-    // how many meshes are processed by each worker
+    // How many meshes are processed by each worker
     constexpr size_t MAX_NUM_MESH_WORKERS = 4;
     constexpr size_t MIN_MESHES_PER_WORKER = 20;
     size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
@@ -956,7 +956,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         meshThreadSizes,
         MIN_MESHES_PER_WORKER);
 
-    // how many images are processed by each worker
+    // How many images are processed by each worker
     constexpr size_t MAX_NUM_IMAGE_WORKERS = 5;
     constexpr size_t MIN_IMAGES_PER_WORKER = 15;
     size_t imgThreadOffsets[MAX_NUM_IMAGE_WORKERS];

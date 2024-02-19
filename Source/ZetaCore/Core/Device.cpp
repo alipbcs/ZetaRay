@@ -89,13 +89,13 @@ void DeviceObjects::CreateDevice()
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature, sizeof(feature)));
     Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, "Raytracing Tier 1.1 is not supported.");
 
-    // shader model 6.6
+    // Shader model 6.6
     D3D12_FEATURE_DATA_SHADER_MODEL sm;
     sm.HighestShaderModel = D3D_SHADER_MODEL::D3D_SHADER_MODEL_6_6;
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &sm, sizeof(sm)));
     Check(sm.HighestShaderModel == D3D_SHADER_MODEL::D3D_SHADER_MODEL_6_6, "Shader Model 6.6 is not supported.");
 
-    // tearing
+    // Tearing
     CheckHR(m_dxgiFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &m_tearingSupport, sizeof(DXGI_FEATURE)));
     if (m_tearingSupport)
         m_swapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
@@ -105,13 +105,13 @@ void DeviceObjects::CreateDevice()
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS4, &options4, sizeof(options4)));
     Check(options4.Native16BitShaderOpsSupported, "Native fp16 is not supported.");
 
-    // wave intrinsics
+    // Wave intrinsics
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
     Check(options1.WaveOps, "Wave intrinsics are not supported.");
     Check(options1.WaveLaneCountMin >= 32, "Wave lane count of at least 32 is required.");
 
-    // enhanced barriers
+    // Enhanced barriers
     D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)));
     Check(options12.EnhancedBarriersSupported, "Enhanced barriers is not supported.");

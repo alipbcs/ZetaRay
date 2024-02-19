@@ -161,7 +161,7 @@ void TAA::CreateResources()
 
 void TAA::BlendWeightCallback(const ParamVariant& p)
 {
-    m_localCB.BlendWeight = p.GetFloat().m_val;
+    m_localCB.BlendWeight = p.GetFloat().m_value;
 }
 
 void TAA::ReloadShader()

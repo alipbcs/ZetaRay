@@ -54,31 +54,31 @@ namespace ZetaRay::Support
 
         int GetInt()
         {
-            Assert(m_type == ST_TYPE::ST_INT, "invalid type");
+            Assert(m_type == ST_TYPE::ST_INT, "Invalid union type.");
             return m_int;
         }
 
         uint32_t GetUInt()
         {
-            Assert(m_type == ST_TYPE::ST_UINT, "invalid type");
+            Assert(m_type == ST_TYPE::ST_UINT, "Invalid union type.");
             return m_uint;
         }
 
         float GetFloat()
         {
-            Assert(m_type == ST_TYPE::ST_FLOAT, "invalid type");
+            Assert(m_type == ST_TYPE::ST_FLOAT, "Invalid union type.");
             return m_float;
         }
 
         uint64_t GetUInt64()
         {
-            Assert(m_type == ST_TYPE::ST_UINT64, "invalid type");
+            Assert(m_type == ST_TYPE::ST_UINT64, "Invalid union type.");
             return m_uint64;
         }
 
         void GetRatio(uint32_t& num, uint32_t& total)
         {
-            Assert(m_type == ST_TYPE::ST_RATIO, "invalid type");
+            Assert(m_type == ST_TYPE::ST_RATIO, "Invalid union type.");
             num = m_uint64 >> 32;
             total = m_uint64 & 0xffffffff;
         }
@@ -86,8 +86,8 @@ namespace ZetaRay::Support
     private:
         void InitCommon(const char* group, const char* name)
         {
-            Assert(group, "group can't be NULL");
-            Assert(name, "name can't be NULL");
+            Assert(group, "Group can't be NULL");
+            Assert(name, "Name can't be NULL");
 
             auto ng = Math::Min(GROUP_LEN - 1, strlen(group));
             auto nn = Math::Min(NAME_LEN - 1, strlen(name));

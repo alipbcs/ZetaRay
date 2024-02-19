@@ -134,27 +134,27 @@ namespace ZetaRay
                 //  = normalize(v1 - v0, v2 - v0)
                 __m256 vE0E1Normalized = _mm256_div_ps(vE0E1, vEdgeLengthsSplatted);
 
-                // octahedral encoding
+                // Octahedral encoding
                 __m128 vE0 = _mm256_extractf128_ps(vE0E1Normalized, 0);
                 vE0 = Math::encode_octahedral(vE0);
                 __m128 vE1 = _mm256_extractf128_ps(vE0E1Normalized, 1);
                 vE1 = Math::encode_octahedral(vE1);
                 vE0E1Normalized = _mm256_insertf128_ps(_mm256_castps128_ps256(vE0), vE1, 1);
 
-                // encode using 16-bit SNORMs
+                // Encode using 16-bit SNORMs
                 __m256 vMax = _mm256_set1_ps((1 << 15) - 1);
                 __m256 vTemp = _mm256_mul_ps(vE0E1Normalized, vMax);
                 vTemp = _mm256_round_ps(vTemp, 0);
                 __m256i vE0E1Encoded = _mm256_cvtps_epi32(vTemp);
 
-                // store normalized edges
+                // Store normalized edges
                 __m128i vEdge0 = _mm_castps_si128(_mm256_extractf128_ps(_mm256_castsi256_ps(vE0E1Encoded), 0));
                 StoreEdge(vEdge0, V0V1);
 
                 __m128i vEdge1 = _mm_castps_si128(_mm256_extractf128_ps(_mm256_castsi256_ps(vE0E1Encoded), 1));
                 StoreEdge(vEdge1, V0V2);
 
-                // store edge lengths as 16-bit floats
+                // Store edge lengths as 16-bit floats
                 __m128i vEdgeLengthsHalf = _mm_cvtps_ph(vEdgeLengths, 0);
                 int lengths = _mm_cvtsi128_si32(vEdgeLengthsHalf);
                 memcpy(&EdgeLengths, &lengths, sizeof(int));
@@ -173,15 +173,15 @@ namespace ZetaRay
                 alignas(16) int32_t packed[4] = { int32_t(V0V1.x), int32_t(V0V1.y),
                     int32_t(V0V2.x), int32_t(V0V2.y) };
 
-                // decode SNORM-16
+                // Decode SNORM-16
                 __m128 vE0E1 = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(packed)));
                 vE0E1 = _mm_div_ps(vE0E1, _mm_set1_ps((1 << 15) - 1));
 
-                // convert length to float
+                // Convert length to float
                 __m128i vLengthsHalf = _mm_cvtsi32_si128(EdgeLengths.x | (EdgeLengths.y << 16));
                 __m128 vLengths = _mm_cvtph_ps(vLengthsHalf);
 
-                // interpolate
+                // Interpolate
                 __m128 vV0 = Math::loadFloat3(Vtx0);
 
                 __m128 vV1 = Math::decode_octahedral(vE0E1);
@@ -196,7 +196,7 @@ namespace ZetaRay
                 __m128 vV1 = Math::loadFloat3(Vtx1);
                 __m128 vV2 = Math::loadFloat3(Vtx2);
 #endif
-                // set v[3] = 1
+                // Set v[3] = 1
                 v0 = _mm_insert_ps(vV0, vOne, 0x30);
                 v1 = _mm_insert_ps(vV1, vOne, 0x30);
                 v2 = _mm_insert_ps(vV2, vOne, 0x30);
@@ -249,12 +249,12 @@ namespace ZetaRay
         // alias table is a lookup table of length N for P. To draw samples from P, draw a discrete uniform sample x 
         // in [0, N), then
         // 
-        // 1. draw another uniform sample u in [0, 1)
-        // 2. if u <= AliasTable[x].P_Curr, return x
-        // 3. return AliasTable[x].Alias
+        // 1. Draw another uniform sample u in [0, 1)
+        // 2. If u <= AliasTable[x].P_Curr, return x
+        // 3. Return AliasTable[x].Alias
         struct EmissiveLumenAliasTableEntry
         {
-            // cache the probabilities for both outcomes to avoid another (random) memory access at the
+            // Cache the probabilities for both outcomes to avoid another (random) memory access at the
             // cost of extra storage
             float CachedP_Orig;
             float CachedP_Alias;

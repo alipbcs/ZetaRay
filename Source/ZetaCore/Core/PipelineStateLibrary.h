@@ -45,8 +45,8 @@ namespace ZetaRay::Core
             ID3D12PipelineState* PSO;
         };
 
-        // following functions need to be synhronized across threads. This is assumed
-        // to be done by the caller
+        // Following functions need to be synhronized across threads. This is assumed
+        // to be performed by the caller.
         ID3D12PipelineState* Find(uint64_t key);
         void InsertPSOAndKeepSorted(Entry e);
         bool UpdatePSO(Entry e);

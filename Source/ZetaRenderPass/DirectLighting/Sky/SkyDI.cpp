@@ -541,14 +541,14 @@ void SkyDI::SpatialResamplingCallback(const Support::ParamVariant& p)
 
 void SkyDI::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_value;
 }
 
 void SkyDI::MinRoughnessResampleCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MinRoughnessResample = p.GetFloat().m_val;
-    m_cbDnsrTemporal.MinRoughnessResample = p.GetFloat().m_val;
-    m_cbDnsrSpatial.MinRoughnessResample = p.GetFloat().m_val;
+    m_cbSpatioTemporal.MinRoughnessResample = p.GetFloat().m_value;
+    m_cbDnsrTemporal.MinRoughnessResample = p.GetFloat().m_value;
+    m_cbDnsrSpatial.MinRoughnessResample = p.GetFloat().m_value;
 }
 
 void SkyDI::DenoisingCallback(const Support::ParamVariant& p)
@@ -564,12 +564,12 @@ void SkyDI::DenoisingCallback(const Support::ParamVariant& p)
 
 void SkyDI::TsppDiffuseCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
 }
 
 void SkyDI::TsppSpecularCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
 }
 
 void SkyDI::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)

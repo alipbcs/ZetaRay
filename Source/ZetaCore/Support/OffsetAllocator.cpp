@@ -271,11 +271,11 @@ OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t al
     if (size == 0)
         return Allocation::Empty();
 
-    // out of node storage
+    // Out of node storage
     if (m_stackTop == INVALID_NODE)
         return Allocation::Empty();
 
-    // assuming start offset is aligned, at most alignment - 1 extra bytes are required
+    // Assuming start offset is aligned, at most alignment - 1 extra bytes are required
     const uint32_t alignedSize = size + alignment - 1;
 
     uint32_t listIdx = SmallFloat::uintToFloatRoundUp(alignedSize);
@@ -287,7 +287,7 @@ OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t al
         firstLevelIdx : 
         LowestSetBitGeIndex(m_firstLevelMask, firstLevelIdx + 1);
 
-    // out of space
+    // Out of space
     if (firstLevelIdx == INVALID_INDEX)
         return Allocation::Empty();
 
@@ -306,10 +306,10 @@ OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t al
 
     const uint32_t oldSize = head.Size;
     const uint32_t oldRightNeighbor = head.RightNeighbor;
-    // due to rounding up, oldSize > alignedSize
+    // Due to rounding up, oldSize > alignedSize
     const uint32_t leftoverSize = oldSize - alignedSize;
 
-    // pop head node from list
+    // Pop head node from list
     m_freeListsHeads[listIdx] = head.Next;
 
     if (head.Next != INVALID_NODE)
@@ -321,7 +321,7 @@ OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t al
         .RightNeighbor = head.RightNeighbor,
         .InUse = true};
 
-    // no more nodes in this freelist
+    // No more nodes in this freelist
     if (m_freeListsHeads[listIdx] == INVALID_NODE)
     {
         m_secondLevelMask[firstLevelIdx] ^= (1 << secondLevelIdx);

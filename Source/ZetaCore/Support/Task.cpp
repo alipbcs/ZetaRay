@@ -96,7 +96,7 @@ void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f)
 
 void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b)
 {
-    Assert(a < m_currSize && b < m_currSize, "Invalid task handles");
+    Assert(a < m_currSize && b < m_currSize, "Invalid task handles.");
 
     TaskMetadata& ta = m_taskMetadata[a];
     TaskMetadata& tb = m_taskMetadata[b];
@@ -165,12 +165,12 @@ void TaskSet::Finalize(WaitObject* waitObj)
     for (int i = 0; i < m_currSize; i++)
     {
         int indegree = m_taskMetadata[i].Indegree();
-        // deps between tasksets can't be detected by indegree as those solely
-        // correspond to deps inside the taskset
+        // Dependencies between TaskSets can't be detected by indegree as those solely
+        // correspond to Dependencies inside the TaskSet
         if (indegree > 0 || m_tasks[i].m_indegree > 0)
         {
             m_tasks[i].m_indegree = Math::Max(indegree, m_tasks[i].m_indegree);
-            // only need to register tasks that have indegree > 0
+            // Only need to register tasks that have indegree > 0
             App::TaskFinalizedCallback(m_tasks[i].m_signalHandle, m_tasks[i].m_indegree);
         }
     }
@@ -179,7 +179,7 @@ void TaskSet::Finalize(WaitObject* waitObj)
 
     if (waitObj)
     {
-        Assert(m_currSize < MAX_NUM_TASKS, "no more space for new tasks in this TaskSet.");
+        Assert(m_currSize < MAX_NUM_TASKS, "Out of space for new tasks in this TaskSet.");
         m_tasks[m_currSize++].Reset("NotifyCompletion", m_tasks[0].m_priority, [waitObj]()
             {
                 waitObj->Notify();
@@ -217,7 +217,7 @@ void TaskSet::ComputeInOutMask()
 
 void TaskSet::TopologicalSort()
 {
-    // find the root nodes
+    // Find the root nodes
     uint16_t rootMask = 0;
 
     for (int i = 0; i < m_currSize; ++i)
@@ -226,17 +226,17 @@ void TaskSet::TopologicalSort()
             rootMask |= (1llu << i);
     }
 
-    // at each itertation, points to remaining elements that have an indegree of zero
+    // In each itertation, points to remaining elements that have an indegree of zero
     uint64_t currMask = rootMask;
     size_t currIdx = 0;
     int sorted[MAX_NUM_TASKS];
 
-    // make a temporary copy of indegrees for topological sorting
+    // Make a temporary copy of indegrees for topological sorting
     int tempIndegree[MAX_NUM_TASKS];
     for (int i = 0; i < m_currSize; i++)
         tempIndegree[i] = m_taskMetadata[i].Indegree();
 
-    // find all the nodes with zero indegree
+    // Find all the nodes with zero indegree
     unsigned long zeroIndegreeIdx;
     while (_BitScanForward64(&zeroIndegreeIdx, currMask))
     {
@@ -250,20 +250,20 @@ void TaskSet::TopologicalSort()
         {
             Assert(tailIdx < m_currSize, "Invalid index.");
 
-            // remove one edge
+            // Remove one edge
             tempIndegree[tailIdx] -= 1;
 
-            // if tail node's indegree has become 0, add it to mask
+            // If tail node's indegree has become 0, add it to mask
             if (tempIndegree[tailIdx] == 0)
                 currMask |= (1llu << tailIdx);
 
             tails &= ~(1llu << tailIdx);
         }
 
-        // save the new position for the current node
+        // Save the new position for the current node
         sorted[currIdx++] = zeroIndegreeIdx;
 
-        // remove current node
+        // Remove current node
         currMask &= ~(1llu << zeroIndegreeIdx);
     }
 
@@ -294,7 +294,7 @@ void TaskSet::ConnectTo(TaskSet& other)
     uint64_t headMask = m_leafMask;
     const uint64_t tailMask = other.m_rootMask;
 
-    // connect every leaf of this TaskSet to every root of "other"
+    // Connect every leaf of this TaskSet to every root of "other"
     unsigned long headIdx;
     while (_BitScanForward64(&headIdx, headMask))
     {
@@ -308,7 +308,7 @@ void TaskSet::ConnectTo(TaskSet& other)
         {
             Assert(tailIdx < other.m_currSize, "Index out of bound.");
 
-            // add one edge
+            // Add one edge
             other.m_tasks[tailIdx].m_indegree += 1;
             m_tasks[headIdx].m_adjacentTailNodes.push_back(other.m_tasks[tailIdx].m_signalHandle);
 

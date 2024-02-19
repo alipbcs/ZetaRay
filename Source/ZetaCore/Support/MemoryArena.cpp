@@ -58,7 +58,7 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
 
     size_t blockSize = Math::Max(m_blockSize, size);
 
-    // memory allocs are 16-byte aligned by default -- for larger alignments, at
+    // Memory allocationss are 16-byte aligned by default -- for larger alignments, at
     // most alignment - 1 extra bytes are required
     if (alignment > 16)
         blockSize = Math::AlignUp(blockSize + alignment - 1, alignment);
@@ -70,7 +70,7 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
     memBlock.Offset += size;
     Assert(memBlock.Offset <= memBlock.Size, "offset must be <= size");
 
-    // push the newly added block to the front, so it's searched before others for future allocations
+    // Push the newly added block to the front, so it's searched before others for future allocations
     m_blocks.push_front(ZetaMove(memBlock));
 
     return reinterpret_cast<void*>(ret);

@@ -634,17 +634,17 @@ void IndirectLighting::CreateOutputs()
 
 void IndirectLighting::MaxDiffuseBouncesCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MaxDiffuseBounces = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.MaxDiffuseBounces = (uint16_t)p.GetInt().m_value;
 }
 
 void IndirectLighting::MaxGlossyBouncesCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MaxGlossyBounces = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.MaxGlossyBounces = (uint16_t)p.GetInt().m_value;
 }
 
 void IndirectLighting::MaxTransmissionBouncesCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MaxTransmissionBounces = (uint16_t)p.GetInt().m_val;
+    m_cbSpatioTemporal.MaxTransmissionBounces = (uint16_t)p.GetInt().m_value;
 }
 
 void IndirectLighting::StochasticMultibounceCallback(const Support::ParamVariant& p)
@@ -669,7 +669,7 @@ void IndirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 
 void IndirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.M_max = p.GetFloat().m_val;
+    m_cbSpatioTemporal.M_max = p.GetFloat().m_value;
 }
 
 void IndirectLighting::DenoiseCallback(const Support::ParamVariant& p)
@@ -683,14 +683,14 @@ void IndirectLighting::DenoiseCallback(const Support::ParamVariant& p)
 
 void IndirectLighting::TsppDiffuseCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
-    m_cbDnsrSpatial.MaxTsppDiffuse = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
+    m_cbDnsrSpatial.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
 }
 
 void IndirectLighting::TsppSpecularCallback(const Support::ParamVariant& p)
 {
-    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
-    m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_val;
+    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
+    m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
 }
 
 void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p)

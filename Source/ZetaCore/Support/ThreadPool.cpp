@@ -41,7 +41,7 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
     m_threadPoolSize = poolSize;
     m_totalNumThreads = totalNumThreads;
 
-    // consumers
+    // Consumers
     {
         // +1 for main therad
         uintptr_t curr = reinterpret_cast<uintptr_t>(m_consumerTokensMem);
@@ -54,7 +54,7 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
         m_consumerTokens = reinterpret_cast<moodycamel::ConsumerToken*>(m_consumerTokensMem);
     }
 
-    // producers
+    // Producers
     {
         // +1 for main therad
         uintptr_t curr = reinterpret_cast<uintptr_t>(m_producerTokensMem);
@@ -99,10 +99,10 @@ void ThreadPool::Start()
 
 void ThreadPool::Shutdown()
 {
-    // relaxed since Enqueue has a release op
+    // Relaxed since Enqueue has a release op
     m_shutdown.store(true, std::memory_order_relaxed);
 
-    // upon obsreving shutdown flag to be true, all the threads are going to exit
+    // Upon observing shutdown flag to be true, all the threads are going to exit
 
     for (int i = 0; i < m_threadPoolSize; i++)
     {
@@ -165,7 +165,7 @@ void ThreadPool::PumpUntilEmpty()
 
             const int taskHandle = task.GetSignalHandle();
 
-            // block if this task depends on other unfinished tasks
+            // Block if this task depends on other unfinished tasks
             App::WaitForAdjacentHeadNodes(taskHandle);
 
 #if ENABLE_TIMINGS && LOG_TASK_TIMINGS
@@ -186,7 +186,7 @@ void ThreadPool::PumpUntilEmpty()
             LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
 #endif
 
-            // signal dependent tasks that this task has finished
+            // Signal dependent tasks that this task has finished
             auto adjacencies = task.GetAdjacencies();
             if (adjacencies.size() > 0)
                 App::SignalAdjacentTailNodes(adjacencies);
@@ -205,7 +205,7 @@ bool ThreadPool::TryFlush()
     }
     else
     {
-        // reset the counters
+        // Reset the counters
         m_numTasksFinished.store(0, std::memory_order_relaxed);
         m_numTasksToFinishTarget.store(0, std::memory_order_relaxed);
     }
@@ -231,7 +231,7 @@ void ThreadPool::WorkerThread()
     {
         Task task;
 
-        // exit
+        // Exit
         if (m_shutdown.load(std::memory_order_acquire))
             break;
 
@@ -241,7 +241,7 @@ void ThreadPool::WorkerThread()
 
         const int taskHandle = task.GetSignalHandle();
 
-        // block if this task depends on other unfinished tasks
+        // Block if this task has unfinished dependencies
         if(task.GetPriority() != TASK_PRIORITY::BACKGRUND)
             App::WaitForAdjacentHeadNodes(taskHandle);
 
@@ -263,7 +263,7 @@ void ThreadPool::WorkerThread()
         LOG("Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
 #endif
 
-        // signal dependent tasks that this task has finished
+        // Signal dependent tasks that this task has finished
         if (task.GetPriority() != TASK_PRIORITY::BACKGRUND)
         {
             auto adjacencies = task.GetAdjacencies();

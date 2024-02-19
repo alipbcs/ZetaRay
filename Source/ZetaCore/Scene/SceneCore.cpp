@@ -61,7 +61,7 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
     Assert(m_rendererInterface.OnWindowSizeChanged, "OnWindowSizeChanged() was null.");
     Assert(m_rendererInterface.DebugDrawRenderGraph, "DebugDrawRenderGraph() was null.");
 
-    // level 0 is just a (dummy) root
+    // Level 0 is just a (dummy) root
     m_sceneGraph.reserve(2);
 
     m_sceneGraph.emplace_back(m_memoryPool);
@@ -83,7 +83,7 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
 
     m_rendererInterface.Init();
 
-    // allocate a slot for the default material
+    // Allocate a slot for the default material
     m_matBuffer.ResizeAdditionalMaterials(1);
 
     Material defaultMat;
@@ -147,7 +147,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
     const uint32_t numInstances = m_emissives.NumEmissiveInstances();
     m_staleEmissives = false;
 
-    // full rebuild of the emissive buffers for the first time
+    // Full rebuild of the emissive buffers for the first time
     if (numInstances && m_emissives.IsFirstTime())
     {
         const uint32_t numTris = m_emissives.NumEmissiveTriangles();
@@ -181,7 +181,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                     auto triPos = m_emissives.InitialTriVtxPos();
                     v_float4x4 I = identity();
 
-                    // for every emissive instance, apply world transformation to all of its triangles
+                    // For every emissive instance, apply world transformation to all of its triangles
                     for (int instance = (int)offset; instance < (int)offset + (int)size; instance++)
                     {
                         auto& e = emissvies[instance];
@@ -418,7 +418,7 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
     int treeLevel = 1;
     int parentIdx = 0;
 
-    // get parent's index from the hashmap
+    // Get parent's index from the hashmap
     if (instance.ParentID != ROOT_ID)
     {
         const TreePos& p = FindTreePosFromID(instance.ParentID).value();
@@ -430,19 +430,19 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
     const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
         instance.RtMeshMode, instance.RtInstanceMask, instance.IsOpaque);
 
-    // update instance "dictionary"
+    // Update instance "dictionary"
     {
         Assert(m_IDtoTreePos.find(instance.ID) == nullptr, "instance with id %llu already exists.", instance.ID);
         m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
-        // adjust tree positions of shifted instances
+        // Adjust tree positions of shifted instances
         for (int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
         {
             uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
             TreePos* p = m_IDtoTreePos.find(insID);
             Assert(p, "instance with ID %llu was not found in the scene graph.", insID);
 
-            // shift the tree poistion to right
+            // Shift the tree poistion to right
             p->Offset++;
         }
     }
@@ -472,13 +472,13 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     auto& currLevel = m_sceneGraph[treeLevel];
     auto& parentRange = parentLevel.m_subtreeRanges[parentIdx];
 
-    // insert position is right next to parent's rightmost child
+    // Insert position is right next to parent's rightmost child
     const int insertIdx = parentRange.Base + parentRange.Count;
 
-    // increment parent's children count
+    // Increment parent's children count
     parentRange.Count++;
 
-    // append it to end, then keep swapping it back until it's at insertIdx
+    // Append it to end, then keep swapping it back until it's at insertIdx
     auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
         (Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args)
     {
@@ -496,12 +496,12 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     rearrange(currLevel.m_meshIDs, insertIdx, meshID);
     const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
     rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
-    // set rebuild flag to true when there's new any instance
+    // Set rebuild flag to true when there's new any instance
     auto flags = SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0, isOpaque);
     rearrange(currLevel.m_rtFlags, insertIdx, flags);
     rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
-    // shift base offset of parent's right siblings to right by one
+    // Shift base offset of parent's right siblings to right by one
     for (int siblingIdx = parentIdx + 1; siblingIdx != parentLevel.m_subtreeRanges.size(); siblingIdx++)
         parentLevel.m_subtreeRanges[siblingIdx].Base++;
 
@@ -563,7 +563,7 @@ void SceneCore::RebuildBVH()
     {
         for (int i = 0; i < m_sceneGraph[level].m_toWorlds.size(); ++i)
         {
-            // find this intantce's Mesh
+            // Find the mesh instance
             const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
             if (meshID == NULL_MESH)
                 continue;
@@ -572,7 +572,7 @@ void SceneCore::RebuildBVH()
             v_AABB vBox(mesh.m_AABB);
             v_float4x4 vM = load4x3(m_sceneGraph[level].m_toWorlds[i]);
 
-            // transform AABB to world space
+            // Transform AABB to world space
             vBox = transform(vM, vBox);
             const uint64_t insID = m_sceneGraph[level].m_IDs[i];
 
@@ -699,17 +699,17 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllo
 
             float interpolatedT = (t - (k1.Time + t_start)) / (k2.Time - k1.Time);
 
-            // scale
+            // Scale
             const __m128 vScale1 = loadFloat3(k1.Transform.Scale);
             const __m128 vScale2 = loadFloat3(k2.Transform.Scale);
             const __m128 vScaleInt = lerp(vScale1, vScale2, interpolatedT);
 
-            // translation
+            // Translation
             const __m128 vTranlate1 = loadFloat3(k1.Transform.Translation);
             const __m128 vTranlate2 = loadFloat3(k2.Transform.Translation);
             const __m128 vTranslateInt = lerp(vTranlate1, vTranlate2, interpolatedT);
 
-            // rotation
+            // Rotation
             const __m128 vRot1 = loadFloat4(k1.Transform.Rotation);
             const __m128 vRot2 = loadFloat4(k2.Transform.Rotation);
             const __m128 vRotInt = slerp(vRot1, vRot2, interpolatedT);

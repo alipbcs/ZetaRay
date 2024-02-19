@@ -20,22 +20,22 @@ namespace ZetaRay::Support
         ThreadPool(const ThreadPool&) = delete;
         ThreadPool& operator=(const ThreadPool&) = delete;
 
-        // create the threads, after which threads are waiting for tasks to exectute, also registers for thread memory pool
+        // Creates the threads and sets up the concurrent task queue.
         void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p);
         //void SetThreadIds(Span<std::thread::id> allThreadIds);
         void Start();
 
-        // signals the shutdown flag
+        // Signals the shutdown flag
         void Shutdown();
 
         // Enqueues tasks
         void Enqueue(TaskSet&& ts);
         void Enqueue(Task&& t);
 
-        // Calling thread (usaully main) dequeues task until queue becomes empty
+        // The calling thread dequeues task until task queue becomes empty
         void PumpUntilEmpty();
 
-        // Wait until are tasks are "finished" (!= empty queue)
+        // Waits until are tasks are "finished" (!= empty queue)
         bool TryFlush();
 
         bool AreAllTasksFinished()
@@ -57,12 +57,11 @@ namespace ZetaRay::Support
         std::atomic_int32_t m_numTasksFinished = 0;
         std::atomic_int32_t m_numTasksToFinishTarget = 0;
 
-        // thread pool
         std::thread m_threadPool[ZETA_MAX_NUM_THREADS];
         std::thread::id m_threadIDs[ZETA_MAX_NUM_THREADS];
         ZETA_THREAD_ID_TYPE m_appThreadIds[ZETA_MAX_NUM_THREADS];
 
-        // concurrent task queue
+        // Concurrent task queue
         // Source: https://github.com/cameron314/concurrentqueue
         struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
         {

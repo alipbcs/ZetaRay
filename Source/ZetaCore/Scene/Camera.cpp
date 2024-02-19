@@ -24,7 +24,7 @@ namespace
         v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(1, 1, 1, 0)), vRow1, v4thRow);
         v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(2, 2, 2, 0)), vRow2, v4thRow);
 
-        // set the 4th element to 1.0
+        // Set the 4th element to 1.0
         view.m[3] = store(_mm_insert_ps(v4thRow, _mm_set1_ps(1.0f), 0x30));
     }
 
@@ -38,7 +38,7 @@ namespace
         vViewInv.vRow[3] = _mm_setzero_ps();
 
         v_float4x4 vNewView = transpose(vViewInv);
-        // transforms from view space to world space
+        // Transforms from view space to world space
         vViewInv.vRow[3] = vEye;
         viewInv = store(vViewInv);
 
@@ -47,7 +47,7 @@ namespace
         v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(1, 1, 1, 0)), vNewView.vRow[1], v4thRow);
         v4thRow = _mm_fmadd_ps(_mm_shuffle_ps(vT, vT, V_SHUFFLE_XYZW(2, 2, 2, 0)), vNewView.vRow[2], v4thRow);
 
-        // set the 4th element to 1.0
+        // Set the 4th element to 1.0
         vNewView.vRow[3] = _mm_insert_ps(v4thRow, _mm_set1_ps(1.0f), 0x30);
 
         return vNewView;
@@ -87,7 +87,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
     m_view = store(vView);
 
-    // extract the basis vectors from the view matrix. make sure the 4th element is zero
+    // Extract the basis vectors from the view matrix. make sure the 4th element is zero
     v_float4x4 vT = transpose(vView);
     __m128 vBasisX = _mm_insert_ps(vT.vRow[0], vT.vRow[0], 0x8);
     __m128 vBasisY = _mm_insert_ps(vT.vRow[1], vT.vRow[1], 0x8);
@@ -170,7 +170,7 @@ void Camera::Update(const Motion& m)
         m_currJitter.y = Halton(frame + 1, 3) - 0.5f;
 
 #if 0
-        // shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
+        // Shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
         // Jitter is relative to unit pixel offset -- [-0.5, -0.5] x [+0.5, +0.5]
         // NDC is relative to [-1, -1] x [+1, +1], therfore multiply by 2
         float2 projOffset = m_currJitter * float2(m_pixelSampleAreaWidth, m_pixelSampleAreaHeight) * float2(2.0f, -2.0f);
@@ -232,7 +232,7 @@ void Camera::RotateX(float dt)
     vBasisY = mul(vR, vBasisY);
     vBasisZ = mul(vR, vBasisZ);
 
-    // orthonormalize
+    // Orthonormalize
     vBasisZ = normalize(vBasisZ);
     vBasisX = normalize(cross(vBasisY, vBasisZ));
     vBasisY = cross(vBasisZ, vBasisX);
@@ -258,7 +258,7 @@ void Camera::RotateY(float dt)
     vBasisY = mul(vR, vBasisY);
     vBasisZ = mul(vR, vBasisZ);
 
-    // orthonormalize
+    // Orthonormalize
     vBasisZ = normalize(vBasisZ);
     vBasisX = normalize(cross(vBasisY, vBasisZ));
     vBasisY = cross(vBasisZ, vBasisX);
@@ -273,7 +273,7 @@ void Camera::RotateY(float dt)
 
 void Camera::SetFOV(const ParamVariant& p)
 {
-    m_FOV = Math::DegreeToRadians(p.GetFloat().m_val);
+    m_FOV = Math::DegreeToRadians(p.GetFloat().m_value);
     m_tanHalfFOV = tanf(0.5f * m_FOV);
 
     UpdateProj();
@@ -291,7 +291,7 @@ void Camera::SetJitteringEnabled(const ParamVariant& p)
 
 void Camera::SetFrictionCoeff(const Support::ParamVariant& p)
 {
-    m_frictionCoeff = p.GetFloat().m_val;
+    m_frictionCoeff = p.GetFloat().m_value;
 }
 
 void Camera::ClampSmallV0To0(const Support::ParamVariant& p)

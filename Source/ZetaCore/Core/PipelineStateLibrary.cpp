@@ -295,7 +295,7 @@ bool PipelineStateLibrary::RemovePSO(uint64_t nameID)
 
 void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e)
 {
-    // if PSO with given key already exists, just update it
+    // If PSO with given key already exists, just update it
     if (UpdatePSO(e))
         return;
 
@@ -318,7 +318,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
     const char* pathToCompiledVS,
     const char* pathToCompiledPS)
 {
-    // if the PSO was already created, just return it
+    // If the PSO was already created, just return it
     ID3D12PipelineState* pso = Find(nameID);
     
     if (pso)
@@ -361,9 +361,9 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
     // Create the PSO and store it in the library for possible future reuse.
     if (hr == E_INVALIDARG)
     {
-        // clear old pso libray (if it exists) 
+        // Clear old pso libray (if it exists) 
         DeletePsoLibFile();
-        // set the ID3D12PipelineLibrary to empty, but only if it's non-empty
+        // Set the ID3D12PipelineLibrary to empty, but only if it's non-empty
         ResetPsoLib();
 
         auto* device = App::GetRenderer().GetDevice();
@@ -477,7 +477,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
         ResetPsoLib();
         ReleaseSRWLockExclusive(&m_psoLibLock);
 
-        // can cause a hitch as the CPU is stalled
+        // Can cause a hitch as the CPU is stalled
         auto* device = App::GetRenderer().GetDevice();
         CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
 
@@ -500,7 +500,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
 ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig, 
     Span<const uint8_t> compiledBlob)
 {
-    // if the PSO has already been created, just return it
+    // If the PSO has already been created, just return it
     ID3D12PipelineState* pso = Find(nameID);
 
     if (pso)
@@ -525,9 +525,9 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12
     // Create the PSO and then store it in the library for next time.
     if (hr == E_INVALIDARG)
     {
-        // clear old pso libray (if it exists) 
+        // Clear old pso libray (if it exists) 
         DeletePsoLibFile();
-        // set the ID3D12PipelineLibrary to empty, but only if it's non-empty
+        // Set the ID3D12PipelineLibrary to empty, but only if it's non-empty
         ResetPsoLib();
 
         auto* device = App::GetRenderer().GetDevice();

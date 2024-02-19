@@ -527,12 +527,12 @@ void PreLighting::ReloadBuildLVG()
 
 void PreLighting::VoxelExtentsCallback(const Support::ParamVariant& p)
 {
-    m_voxelExtents = p.GetFloat3().m_val;
+    m_voxelExtents = p.GetFloat3().m_value;
 }
 
 void PreLighting::YOffsetCallback(const Support::ParamVariant& p)
 {
-    m_yOffset = p.GetFloat().m_val;
+    m_yOffset = p.GetFloat().m_value;
 }
 
 //--------------------------------------------------------------------------------------

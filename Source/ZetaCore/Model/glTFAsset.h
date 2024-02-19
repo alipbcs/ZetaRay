@@ -30,9 +30,9 @@ namespace ZetaRay::Model::glTF::Asset
     struct InstanceDesc
     {
         Math::AffineTransformation LocalTransform;
-        int MeshIdx;
         uint64_t ID;
         uint64_t ParentID;
+        int MeshIdx;
         int MeshPrimIdx;
         RT_MESH_MODE RtMeshMode;
         uint8_t RtInstanceMask;
@@ -60,9 +60,6 @@ namespace ZetaRay::Model::glTF::Asset
             Transmission(0.0f)
         {}
 
-        // Unique index of each material within the glTF scene
-        int Index;
-
         uint64_t BaseColorTexPath;
         uint64_t MetallicRoughnessTexPath;
         uint64_t NormalTexPath;
@@ -78,6 +75,8 @@ namespace ZetaRay::Model::glTF::Asset
         float Transmission;
 
         float AlphaCuttoff;
+        // Unique index of each material in the glTF scene
+        int Index;
         Material::ALPHA_MODE AlphaMode;
         bool DoubleSided;
     };

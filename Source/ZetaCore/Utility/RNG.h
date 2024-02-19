@@ -32,7 +32,7 @@ namespace ZetaRay::Util
  
     struct RNG
     {
-        // Seeds the rng. stream ID specifies which sequence to use
+        // Seeds the rng. stream ID specifies which sequence to use.
         explicit RNG(uint64_t streamID = 0xda3e39cb94b95bdbULL)
         {
             State = 0U;
@@ -66,8 +66,8 @@ namespace ZetaRay::Util
             return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
         }
 
-        // Generates a uniformly distributed number, r, where 0 <= r < bound
-        // See https://www.pcg-random.org for more info
+        // Generates a uniformly distributed number r, where 0 <= r < bound.
+        // See https://www.pcg-random.org for more info.
         uint32_t UniformUintBounded(uint32_t bound)
         {
             uint32_t threshold = (~bound + 1u) % bound;

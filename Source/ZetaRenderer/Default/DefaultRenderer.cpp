@@ -75,11 +75,11 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.PrevViewProj = frameConsts.CurrViewProj;
     frameConsts.CurrViewProj = store(vVP);
 
-    // frame gbuffer srv desc. table
+    // Frame g-buffer SRV descriptor table
     frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDesciptorHeapIndex();
     frameConsts.PrevGBufferDescHeapOffset = gbuffData.SrvDescTable[1 - currIdx].GPUDesciptorHeapIndex();
 
-    // env. map SRV
+    // Sky-view LUT SRV
     frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
     float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, frameConsts.PrevViewInv.m[2].z);
@@ -158,47 +158,47 @@ namespace ZetaRay::DefaultRenderer
 
     void SetSunLux(const ParamVariant& p)
     {
-        g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_val;
+        g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_value;
     }
 
     void SetSunAngularRadius(const ParamVariant& p)
     {
-        g_data->m_frameConstants.SunCosAngularRadius = cosf(p.GetFloat().m_val);
+        g_data->m_frameConstants.SunCosAngularRadius = cosf(p.GetFloat().m_value);
     }
 
     void SetRayleighSigmaSColor(const ParamVariant& p)
     {
-        g_data->m_frameConstants.RayleighSigmaSColor = p.GetFloat3().m_val;
+        g_data->m_frameConstants.RayleighSigmaSColor = p.GetFloat3().m_value;
     }
 
     void SetRayleighSigmaSScale(const ParamVariant& p)
     {
-        g_data->m_frameConstants.RayleighSigmaSScale = p.GetFloat().m_val;
+        g_data->m_frameConstants.RayleighSigmaSScale = p.GetFloat().m_value;
     }
 
     void SetMieSigmaS(const ParamVariant& p)
     {
-        g_data->m_frameConstants.MieSigmaS = p.GetFloat().m_val;
+        g_data->m_frameConstants.MieSigmaS = p.GetFloat().m_value;
     }
 
     void SetMieSigmaA(const ParamVariant& p)
     {
-        g_data->m_frameConstants.MieSigmaA = p.GetFloat().m_val;
+        g_data->m_frameConstants.MieSigmaA = p.GetFloat().m_value;
     }
 
     void SetOzoneSigmaAColor(const ParamVariant& p)
     {
-        g_data->m_frameConstants.OzoneSigmaAColor = p.GetColor().m_val;
+        g_data->m_frameConstants.OzoneSigmaAColor = p.GetColor().m_value;
     }
 
     void SetOzoneSigmaAScale(const ParamVariant& p)
     {
-        g_data->m_frameConstants.OzoneSigmaAScale = p.GetFloat().m_val;
+        g_data->m_frameConstants.OzoneSigmaAScale = p.GetFloat().m_value;
     }
 
     void SetgForPhaseHG(const ParamVariant& p)
     {
-        g_data->m_frameConstants.g = p.GetFloat().m_val;
+        g_data->m_frameConstants.g = p.GetFloat().m_value;
     }
 
     void SetSkyDI(const ParamVariant& p)
@@ -217,7 +217,7 @@ namespace ZetaRay::DefaultRenderer
 {
     void Init()
     {
-        Assert(g_data->PendingAA == g_data->m_settings.AntiAliasing, "these must match.");
+        Assert(g_data->PendingAA == g_data->m_settings.AntiAliasing, "These must match.");
 
         g_data->m_renderGraph.Reset();
 
@@ -238,7 +238,7 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.SunDir.normalize();
         //g_data->m_frameConstants.SunIlluminance = 50.0f;
         g_data->m_frameConstants.SunIlluminance = 20.0f;
-        // sun angular diamter ~ 0.545 degrees 
+        // Sun angular diamter ~ 0.545 degrees 
         // 0.5 degrees == 0.0087266 radians 
         // cos(0.0087266 / 2)
         g_data->m_frameConstants.SunCosAngularRadius = 0.99998869f;
@@ -452,7 +452,7 @@ namespace ZetaRay::DefaultRenderer
 
     void OnWindowSizeChanged()
     {
-        // following order is important
+        // Following order is important
         GBuffer::OnWindowSizeChanged(g_data->m_settings, g_data->m_gbuffData);
         RayTracer::OnWindowSizeChanged(g_data->m_settings, g_data->m_raytracerData);
         PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_raytracerData);

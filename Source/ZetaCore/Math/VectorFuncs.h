@@ -10,28 +10,28 @@ namespace ZetaRay::Math
 {
     ZetaInline __m128 __vectorcall abs(const __m128 v)
     {
-        // all bits are 0 except for the sign bit
+        // All bits are 0 except for the sign bit
         const __m128 vMinusZero = _mm_set1_ps(-0.0f);
 
-        // set the sign bit to 0
+        // Set the sign bit to 0
         return _mm_andnot_ps(vMinusZero, v);
     }
 
     ZetaInline __m256 __vectorcall abs(const __m256 v)
     {
-        // all bits are 0 except for the sign bit
+        // All bits are 0 except for the sign bit
         const __m256 vMinusZero = _mm256_set1_ps(-0.0f);
 
-        // set the sign bit to 0
+        // Set the sign bit to 0
         return _mm256_andnot_ps(vMinusZero, v);
     }
 
     ZetaInline __m128 __vectorcall negate(const __m128 v)
     {
-        // all bits are 0 except for the sign bit
+        // All bits are 0 except for the sign bit
         const __m128 vMinusZero = _mm_set1_ps(-0.0f);
 
-        // set the sign bit to 0
+        // Set the sign bit to 0
         return _mm_xor_ps(vMinusZero, v);
     }
 
@@ -119,7 +119,7 @@ namespace ZetaRay::Math
     }
 
     // Returns v.x + v.z + v.z in the 1st element of output.
-    // Note: assumes fourth of element of v is zero.
+    // Note: Assumes fourth of element of v is zero.
     ZetaInline __m128 __vectorcall hadd_float3(__m128 v)
     {
         __m128 vZ = _mm_movehl_ps(v, v);
@@ -155,7 +155,7 @@ namespace ZetaRay::Math
         vAbs = _mm_add_ps(vAbs, _mm_shuffle_ps(vAbs, vAbs, V_SHUFFLE_XYZW(1, 0, 0, 0)));
 
         __m128 vOne = _mm_set1_ps(1.0f);
-        // first two elements are now equal to |u.x| + |u.y|
+        // First two elements are now equal to |u.x| + |u.y|
         __m128 vZ = _mm_sub_ps(vOne, vAbs);
 
         __m128 vPosT = saturate(negate(vZ));
@@ -163,7 +163,7 @@ namespace ZetaRay::Math
         __m128 vGt0 = _mm_cmpge_ps(u, _mm_setzero_ps());
         __m128 vDecoded = _mm_blendv_ps(vPosT, vNegT, vGt0);
         vDecoded = _mm_add_ps(u, vDecoded);
-        // copy z and zero out the last element
+        // Copy z and zero out the last element
         vDecoded = _mm_insert_ps(vDecoded, vZ, 0x28);
         vDecoded = normalize(vDecoded);
 

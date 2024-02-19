@@ -90,7 +90,7 @@ void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span
     }
 
     // Gram-Schmidt Orthonormalization
-    // assumes vertex normala are normalized
+    // Assumes vertex normala are normalized
     for(size_t i = 0; i < vertices.size(); i++)
     {
         float3 n = vertices[i].Normal.decode();

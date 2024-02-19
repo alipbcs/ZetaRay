@@ -90,11 +90,11 @@ namespace ZetaRay::Math
 
     ZetaInline bool IsNaN(float f)
     {
-        // for NaN:
+        // For NaN:
         //  - sign bit could be 0 or 1
         //  - all the exponent bits must be 1 and the fraction must be non-zero
 
-        // manual bit-cast
+        // bit-cast
         uint32_t temp;
         memcpy(&temp, &f, sizeof(float));
 

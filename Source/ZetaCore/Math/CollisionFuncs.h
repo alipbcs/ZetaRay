@@ -157,12 +157,12 @@ namespace ZetaRay::Math
         // (E.z, E.z, E.z, E.z, E.z, E.z, E.z, E.z)
         const __m256 vEz256 = _mm256_insertf128_ps(_mm256_castps128_ps256(vEz), vEz, 0x1);
 
-        // absolute value of the plane normals
+        // Absolute value of the plane normals
         __m256 vN_x_abs = abs(vFrustum.vN_x);
         __m256 vN_y_abs = abs(vFrustum.vN_y);
         __m256 vN_z_abs = abs(vFrustum.vN_z);
 
-        // projection of farthest corner on the axis
+        // Projection of farthest corner on the axis
         __m256 vLargestProjLengthAlongAxis = _mm256_mul_ps(vEx256, vN_x_abs);
         vLargestProjLengthAlongAxis = _mm256_fmadd_ps(vEy256, vN_y_abs, vLargestProjLengthAlongAxis);
         vLargestProjLengthAlongAxis = _mm256_fmadd_ps(vEz256, vN_z_abs, vLargestProjLengthAlongAxis);
@@ -177,7 +177,7 @@ namespace ZetaRay::Math
         // (C.z, C.z, C.z, C.z, C.z, C.z, C.z, C.z)
         const __m256 vCz256 = _mm256_insertf128_ps(_mm256_castps128_ps256(vCz), vCz, 0x1);
 
-        // distance of the AABB center from the plane
+        // Distance of the AABB center from the plane
         __m256 vCenterDistFromPlane = _mm256_mul_ps(vCx256, vFrustum.vN_x);
         vCenterDistFromPlane = _mm256_fmadd_ps(vCy256, vFrustum.vN_y, vCenterDistFromPlane);
         vCenterDistFromPlane = _mm256_fmadd_ps(vCz256, vFrustum.vN_z, vCenterDistFromPlane);
@@ -191,7 +191,7 @@ namespace ZetaRay::Math
         int r1 = _mm256_movemask_ps(vIntersects1);
         int r2 = _mm256_movemask_ps(vIntersects2);
 
-        // must be true for all the planes
+        // Must be true for all the planes
         bool intersects = ((r1 & 0x3f) | (r2 & 0x3f)) == 0x3f;
 
         return intersects ? COLLISION_TYPE::INTERSECTS : COLLISION_TYPE::DISJOINT;
@@ -213,7 +213,7 @@ namespace ZetaRay::Math
         const __m128 vDirRcp = _mm_div_ps(_mm_set1_ps(1.0f), vRay.vDir);
         const __m128 vDirIsPos = _mm_cmpge_ps(vRay.vDir, _mm_setzero_ps());
 
-        // for better numerical robustness, tranlate the ray center to origin and do
+        // For better numerical robustness, translate the ray center to origin and do
         // the same for AABB
         const __m128 vCenterTranslatedToOrigin = _mm_sub_ps(vBox.vCenter, vRay.vOrigin);
 
@@ -222,7 +222,7 @@ namespace ZetaRay::Math
         // (x_max, y_max, z_max)
         __m128 vMax = _mm_add_ps(vCenterTranslatedToOrigin, vBox.vExtents);
 
-        // if ray and AABB are parallel, then the ray origin must be inside the AABB
+        // If ray and AABB are parallel, then the ray origin must be inside the AABB
         const __m128 vZero = _mm_setzero_ps();
         const __m128 vIsParallel = _mm_cmpge_ps(_mm_set1_ps(FLT_EPSILON), abs(vRay.vDir));
         const __m128 vResParallel = _mm_and_ps(vIsParallel, _mm_or_ps(_mm_cmpge_ps(vZero, vMax), _mm_cmpge_ps(vMin, vZero)));
@@ -232,7 +232,7 @@ namespace ZetaRay::Math
         __m128 vTmin = _mm_mul_ps(vMin, vDirRcp);
         __m128 vTmax = _mm_mul_ps(vMax, vDirRcp);
 
-        // if x/y/z component of the ray direction is negative then, then the nearest hit
+        // If x/y/z component of the ray direction is negative then, then the nearest hit
         // with corresponding slab is with the x_max/y_max/z_max and vice versa for the
         // positive case
         vTmin = _mm_blendv_ps(vTmax, vTmin, vDirIsPos);
@@ -241,13 +241,13 @@ namespace ZetaRay::Math
         __m128 vT0 = _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(0, 0, 0, 0));
         __m128 vT1 = _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(0, 0, 0, 0));
 
-        // find maximum of vTmin
+        // Find maximum of vTmin
         vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(1, 1, 1, 1)));
         vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(2, 2, 2, 2)));
-        // if t1 is less than zero, then there's no intersection
+        // If t1 is less than zero, then there's no intersection
         const __m128 vT1IsNegative = _mm_cmpgt_ps(vZero, vT1);
 
-        // find minimum of vTmin
+        // Find minimum of vTmin
         vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(1, 1, 1, 1)));
         vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(2, 2, 2, 2)));
 
@@ -304,7 +304,7 @@ namespace ZetaRay::Math
     ZetaInline bool __vectorcall intersectRayVsTriangle(const v_Ray vRay, __m128 v0,
         __m128 v1, __m128 v2, float& t)
     {
-        // closer to (0, 0, 0) provides better precision, so translate ray origin to (0, 0, 0)
+        // Closer to (0, 0, 0) provides better precision, so translate ray origin to (0, 0, 0)
         v0 = _mm_sub_ps(v0, vRay.vOrigin);
         v1 = _mm_sub_ps(v1, vRay.vOrigin);
         v2 = _mm_sub_ps(v2, vRay.vOrigin);
@@ -314,7 +314,7 @@ namespace ZetaRay::Math
         const __m128 vr = negate(v0);                // ray.Orig - v0
         const __m128 vMinDir = negate(vRay.vDir);
 
-        // solve the linear system of equation using the Cramer's rule:
+        // Solve the linear system of equation using the Cramer's rule:
         //        [v1 - v0, v2 - v0, -d] [v w t]^t = [origin - v0]^t
         //
         // v = (origin - v0).((v2 - v0) * d)
@@ -328,7 +328,7 @@ namespace ZetaRay::Math
         __m128 vRow1 = cross(vMinDir, vq);    // ray.Dir * (v1 - v0)
         __m128 vRow2 = cross(vq, vp);        // (v1 - v0) * (v2 - v0)
 
-        // compute determinant
+        // Compute determinant
         __m128 vDet = _mm_dp_ps(vRow2, vMinDir, 0xff);
 
         //        0  1  2              0  4  8
@@ -356,7 +356,7 @@ namespace ZetaRay::Math
         bool insideTri = (q.x >= 0) && (q.x <= 1) && (q.y >= 0) && (q.y <= 1) && (q.x + q.y <= 1.0);
         bool triBehindRay = (t >= 0);
 
-        // determinant is equal to the dot product of triangle normal and (negative) ray 
+        // Determinant is equal to the dot product of triangle normal and (negative) ray 
         // direction. If it's zero, then the ray was parallel to the triangle. Furthermore,
         // positive determinat means the ray hit the  triangle's frontface while negative
         // means ray hit the backfacing side
@@ -367,11 +367,11 @@ namespace ZetaRay::Math
     // Ref: J. Arvo, "Transforming axis-aligned bounding boxes," Graphics Gems, 1990.
     ZetaInline v_AABB __vectorcall transform(const v_float4x4 M, const v_AABB& aabb)
     {
-        // transform the center
+        // Transform the center
         v_AABB newAABB;
         newAABB.vCenter = mul(M, aabb.vCenter);
 
-        // extents.w = 0, so tranlation doesn't apply
+        // Extents.w = 0, so tranlation doesn't apply
         const __m128 vX = _mm_shuffle_ps(aabb.vExtents, aabb.vExtents, V_SHUFFLE_XYZW(0, 0, 0, 0));
         newAABB.vExtents = _mm_mul_ps(vX, abs(M.vRow[0]));
 
@@ -414,7 +414,7 @@ namespace ZetaRay::Math
         vInvT.vRow[2] = _mm_insert_ps(M.vRow[2], v4th, 0xb0);
         vInvT.vRow[3] = _mm_insert_ps(M.vRow[3], M.vRow[3], 0x7);
 
-        // transform each of the 6 frustum planes
+        // Transform each of the 6 frustum planes
         // each plane (n_x, n_y, n_z, d) is transformed such that:
         //        transformed_plane = (n_x, n_y, n_z, d) * M
         //

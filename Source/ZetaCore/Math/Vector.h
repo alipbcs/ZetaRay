@@ -345,7 +345,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&f)));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -359,7 +359,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&(const_cast<float2&>(f)))));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -389,7 +389,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -408,7 +408,7 @@ namespace ZetaRay::Math
 
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -422,7 +422,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_load_ps(reinterpret_cast<float*>(&(const_cast<float4a&>(f))));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -455,7 +455,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_load_ps(reinterpret_cast<float*>(&f));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -470,7 +470,7 @@ namespace ZetaRay::Math
             __m128 vF = _mm_loadu_ps(reinterpret_cast<float*>(&(const_cast<float4&>(f))));
             __m128i vH = _mm_cvtps_ph(vF, 0);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint16_t v[8];
             _mm_store_si128((__m128i*)v, vH);
 
@@ -520,7 +520,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -535,7 +535,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -572,7 +572,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -593,7 +593,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -633,7 +633,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -671,7 +671,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -686,7 +686,7 @@ namespace ZetaRay::Math
             vTemp = _mm_round_ps(vTemp, 0);
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
-            // doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
@@ -713,7 +713,7 @@ namespace ZetaRay::Math
     {
         alignas(16) int32_t packed[4] = { int32_t(e.x), int32_t(e.y), int32_t(e.z), 0 };
 
-        // decode SNORM-16
+        // Decode SNORM-16
         __m128 vEncoded = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(packed)));
         vEncoded = _mm_mul_ps(vEncoded, _mm_set1_ps(1.0f / ((1 << 15) - 1)));
 

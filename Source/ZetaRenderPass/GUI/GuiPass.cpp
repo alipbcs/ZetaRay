@@ -42,13 +42,13 @@ namespace
             {
                 auto& fp = param.GetEnum();
                 int idx = fp.m_curr;
-                ImGui::Combo(param.GetName(), &idx, fp.m_vals, fp.m_num);
+                ImGui::Combo(param.GetName(), &idx, fp.m_values, fp.m_num);
                 param.SetEnum(idx);
             }
             else if (param.GetType() == PARAM_TYPE::PT_float)
             {
                 auto& fp = param.GetFloat();
-                float v = fp.m_val;
+                float v = fp.m_value;
 
                 auto flags = (int)ImGuiSliderFlags_NoInput;
                 //if ((fp.m_max - fp.m_min) / Math::Max(fp.m_min, 1e-6f) >= 1000.0f)
@@ -61,7 +61,7 @@ namespace
             else if (param.GetType() == PARAM_TYPE::PT_int)
             {
                 auto& ip = param.GetInt();
-                int v = ip.m_val;
+                int v = ip.m_value;
 
                 if (ImGui::SliderInt(param.GetName(), &v, ip.m_min, ip.m_max))
                     param.SetInt(v);
@@ -69,7 +69,7 @@ namespace
             else if (param.GetType() == PARAM_TYPE::PT_float3)
             {
                 auto& fp = param.GetFloat3();
-                float3 v = fp.m_val;
+                float3 v = fp.m_value;
 
                 if (ImGui::SliderFloat3(param.GetName(), reinterpret_cast<float*>(&v), fp.m_min, fp.m_max, "%.2f"))
                     param.SetFloat3(v);
@@ -94,7 +94,7 @@ namespace
             else if (param.GetType() == PARAM_TYPE::PT_color)
             {
                 auto& fp = param.GetColor();
-                float3 v = fp.m_val;
+                float3 v = fp.m_value;
 
                 if (ImGui::ColorEdit3(param.GetName(), reinterpret_cast<float*>(&v)))
                     param.SetColor(v);
