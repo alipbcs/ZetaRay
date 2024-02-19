@@ -17,14 +17,17 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
    - A world-space voxel grid with stochastic light reservoirs per each voxel [[5](#references)]
  - Multi-bounce indirect lighting using ReSTIR GI [[1](#references)]
  - Ray differentials for texture MIP selection with camera rays, ray cones for secondary rays
+ - Physically-based BSDF with roughness, metallic mask, normal, and emissive maps
  - Single scattering sky and atmosphere [[2, 3](#references)]
  - Reference path tracer
- - Physically-based materials with roughness, metallic mask, normal, and emissive maps
  - Render graph for automatic resource barrier placement and multi-threaded GPU command list recording and submission ([more details below](#render-graph))
  - AMD FSR2 upscaling
  - Temporal anti-aliasing (TAA)
  - Auto exposure using luminance histogram
- - glTF scene loading with the metalness-roughness workflow
+ - glTF scene loading with the metalness-roughness workflow. Following extensions are also supported:
+   - KHR_materials_emissive_strength
+   - KHR_materials_ior
+   - KHR_materials_transmission
 
 ### Render Graph
 
@@ -77,23 +80,23 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 ## Screenshots
 
 <div align="center">
-  <img src="Assets/Images/2.png?raw=true" alt="Sponza" style="zoom:60%"/>
+  <img src="Assets/Images/2.png?raw=true" alt="Subway Station" style="zoom:60%"/>
   <p style="text-align: center;"><i>Subway Station. (<a href="https://sketchfab.com/3d-models/free-subway-station-r46-subway-ae5aadde1c6f48a19b32b309417a669b">Scene</a> by <a href="https://sketchfab.com/Xlay3D">Alex Murias</a>.)</i></p>
 
   </br>
 
-  <img src="Assets/Images/5.png?raw=true" alt="Sponza" style="zoom:50%"/>
+  <img src="Assets/Images/12.png?raw=true" alt="Subway Station" style="zoom:60%"/>
+  <p style="text-align: center;"><i>Subway Station. (<a href="https://sketchfab.com/3d-models/free-subway-station-r46-subway-ae5aadde1c6f48a19b32b309417a669b">Scene</a> by <a href="https://sketchfab.com/Xlay3D">Alex Murias</a>.)</i></p>
+
+  </br>
+
+  <img src="Assets/Images/5.png?raw=true" alt="Bistro" style="zoom:50%"/>
   <p style="text-align: center;"><i>Amazon Lumberyard Bistro. (Scene from <a href="http://developer.nvidia.com/orca/amazon-lumberyard-bistro">Open Research Content Archive (ORCA)</a>.)</i></p>
 
   </br>
 
-  <img src="Assets/Images/9.png?raw=true" alt="Cornell Box" style="zoom:50%"/>
-  <p style="text-align: center;"><i>Modified Blender 2.81 Splash Screen. (<a href="https://cloud.blender.org/p/gallery/5dd6d7044441651fa3decb56">Original scene</a> by <a href="http://www.aendom.com/">Alex Treviño</a>, <a href="https://sketchfab.com/3d-models/ported-hair-e8eb76ad3c8f46f8aee7ceb076f05972">hair model</a> by <a href="https://sketchfab.com/bbb59149">bbb59149</a>.)</i></p>
-
-  </br>
-
-  <img src="Assets/Images/3.png?raw=true" alt="San Miguel" style="zoom:50%"/>
-  <p style="text-align: center;"><i>Sponza Atrium. (Scene from <a href="https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html">Intel Samples Library</a>.)</i></p>
+  <img src="Assets/Images/10.png?raw=true" alt="San Miguel" style="zoom:50%"/>
+  <p style="text-align: center;"><i>San Miguel 2.0. (Scene from <a href="https://casual-effects.com/data">Morgan McGuire's Computer Graphics Archive</a>.)</i></p>
 
   </br>
 
@@ -104,6 +107,21 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 
   <img src="Assets/Images/4.jpg?raw=true" alt="San Miguel" style="zoom:50%"/>
   <p style="text-align: center;"><i>San Miguel 2.0. (Scene from <a href="https://casual-effects.com/data">Morgan McGuire's Computer Graphics Archive</a>.)</i></p>
+
+  </br>
+
+  <img src="Assets/Images/9.png?raw=true" alt="Junk Shop" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Modified Blender 2.81 Splash Screen. (<a href="https://cloud.blender.org/p/gallery/5dd6d7044441651fa3decb56">Original scene</a> by <a href="http://www.aendom.com/">Alex Treviño</a>, <a href="https://sketchfab.com/3d-models/ported-hair-e8eb76ad3c8f46f8aee7ceb076f05972">hair model</a> by <a href="https://sketchfab.com/bbb59149">bbb59149</a>.)</i></p>
+
+  </br>
+
+  <img src="Assets/Images/3.png?raw=true" alt="Sponza" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Sponza Atrium. (Scene from <a href="https://www.intel.com/content/www/us/en/developer/topic-technology/graphics-research/samples.html">Intel Samples Library</a>.)</i></p>
+
+  </br>
+
+  <img src="Assets/Images/11.png?raw=true" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Custom scene made in Blender, rendered by ZetaRay. (<a href="https://www.deviantart.com/mangotangofox/art/CubeD-188764994">Reference art</a>)</i></p>
 
 </div>
 
