@@ -769,8 +769,8 @@ namespace ZetaRay::AppImpl
                 //g_app->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_app->m_lastMousePosX)));
                 //g_app->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_app->m_lastMousePosY)));
 
-                g_app->m_frameMotion.RotationDegreesY = Math::DegreeToRadians((float)(x - g_app->m_lastMousePosX));
-                g_app->m_frameMotion.RotationDegreesX = Math::DegreeToRadians((float)(y - g_app->m_lastMousePosY));
+                g_app->m_frameMotion.RotationDegreesY = Math::DegreesToRadians((float)(x - g_app->m_lastMousePosX));
+                g_app->m_frameMotion.RotationDegreesX = Math::DegreesToRadians((float)(y - g_app->m_lastMousePosY));
 
                 g_app->m_lastMousePosX = x;
                 g_app->m_lastMousePosY = y;
@@ -1315,7 +1315,7 @@ namespace ZetaRay
         g_app->m_frameMotion.Reset();
 
         g_app->m_camera.Init(float3(-0.245, 1.322, -4.043), App::GetRenderer().GetAspectRatio(),
-            Math::DegreeToRadians(75.0f), 0.2f, true, float3(0, 0, 1), false);
+            Math::DegreesToRadians(75.0f), 0.2f, true, float3(0, 0, 1), false);
 
         // scene can now be initialized
         g_app->m_scene.Init(rendererInterface);

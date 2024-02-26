@@ -161,9 +161,10 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_value;
     }
 
-    void SetSunAngularRadius(const ParamVariant& p)
+    void SetSunAngularDiameter(const ParamVariant& p)
     {
-        g_data->m_frameConstants.SunCosAngularRadius = cosf(p.GetFloat().m_value);
+        auto r = DegreesToRadians(0.5f * p.GetFloat().m_value);
+        g_data->m_frameConstants.SunCosAngularRadius = cosf(r);
     }
 
     void SetRayleighSigmaSColor(const ParamVariant& p)
@@ -236,12 +237,9 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
         //g_data->m_frameConstants.SunDir = float3(0.0f, 1.0f, 0.0f);
         g_data->m_frameConstants.SunDir.normalize();
-        //g_data->m_frameConstants.SunIlluminance = 50.0f;
         g_data->m_frameConstants.SunIlluminance = 20.0f;
-        // Sun angular diamter ~ 0.545 degrees 
-        // 0.5 degrees == 0.0087266 radians 
-        // cos(0.0087266 / 2)
-        g_data->m_frameConstants.SunCosAngularRadius = 0.99998869f;
+        constexpr float angularRadius = DegreesToRadians(0.5f * Defaults::SUN_ANGULAR_DIAMETER);
+        g_data->m_frameConstants.SunCosAngularRadius = cosf(angularRadius);
         g_data->m_frameConstants.SunSinAngularRadius = sqrtf(1.0f - g_data->m_frameConstants.SunCosAngularRadius * g_data->m_frameConstants.SunCosAngularRadius);
         g_data->m_frameConstants.AtmosphereAltitude = Defaults::ATMOSPHERE_ALTITUDE;
         g_data->m_frameConstants.PlanetRadius = Defaults::PLANET_RADIUS;
@@ -318,12 +316,12 @@ namespace ZetaRay::DefaultRenderer
             App::AddParam(p2);
 
             ParamVariant p3;
-            p3.InitFloat("Light Source", "Sun", "Angular Radius",
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularRadius),
-                acosf(g_data->m_frameConstants.SunCosAngularRadius),
-                0.004f,
-                0.02f,
-                1e-3f);
+            p3.InitFloat("Light Source", "Sun", "Angular Diameter (degrees)",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularDiameter),
+                Defaults::SUN_ANGULAR_DIAMETER,
+                0.1f,
+                10.0f,
+                1e-2f);
             App::AddParam(p3);
         }
 

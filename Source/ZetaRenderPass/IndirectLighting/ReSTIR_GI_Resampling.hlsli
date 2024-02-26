@@ -67,7 +67,7 @@ namespace RGI_Util
             return r;
 
         // Cone geometry changes based on whether it was reflected or refracted
-        if(dot(wi, primarySurface.wo) >= 0)
+        if(dot(wi, primaryNormal) >= 0)
         {
             rayCone.UpdateConeGeometry_Refl(localCurvature);
         }

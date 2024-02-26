@@ -308,7 +308,7 @@ namespace RGI_Util
         StructuredBuffer<RT::VoxelSample> g_lvg,
         inout RNG rngThread, inout RNG rngGroup)
     {
-        float3 Li = 0.0;
+        float3 li = 0.0;
         float3 throughput = 1.0f;
         float eta_curr = dot(normal, wi) < 0 ? ior : 1.0f;
         int bounce = 0;
@@ -327,11 +327,11 @@ namespace RGI_Util
                 break;
 
             // Next event estimation
-            Li += throughput * RGI_Util::NEE(hitPos, hitInfo, surface, sampleSetIdx, bounce, 
+            li += throughput * RGI_Util::NEE(hitPos, hitInfo, surface, sampleSetIdx, bounce, 
                 g_bvh, g_frame, g_local, g_frameMeshData, g_emissives, g_sampleSets, g_aliasTable, 
                 g_lvg, rngThread, rngGroup);
 
-            // Skip the remaining code as it won't affect Li
+            // Skip the remaining code as it won't affect li
             if(bounce >= (maxNumBounces - 1))
                 break;
 
@@ -396,10 +396,9 @@ namespace RGI_Util
                     prevPos);
             }
 #endif
-
         } while(bounce < maxNumBounces);
 
-        return Li;
+        return li;
     }
 }
 

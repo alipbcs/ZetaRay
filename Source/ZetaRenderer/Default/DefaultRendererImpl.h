@@ -200,8 +200,9 @@ namespace ZetaRay::DefaultRenderer
         inline static constexpr float SIGMA_A_MIE = 4.4f * 1e-3f;
         inline static constexpr Math::float3 SIGMA_A_OZONE = Math::float3(0.65f, 1.881f, 0.085f) * 1e-3f;
         static constexpr float g = 0.8f;
-        static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;        // km
-        static constexpr float PLANET_RADIUS = 6360.0f;             // km
+        static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;       // km
+        static constexpr float PLANET_RADIUS = 6360.0f;            // km
+        static constexpr float SUN_ANGULAR_DIAMETER = 0.526f;      // degrees
     };
 }
 

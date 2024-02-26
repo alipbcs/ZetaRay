@@ -104,12 +104,12 @@ namespace ZetaRay::Math
     // Solves quadratic equation a * x^2 + b * x + c = 0
     bool SolveQuadratic(float a, float b, float c, float& x1, float& x2);
 
-    ZetaInline float DegreeToRadians(float d)
+    ZetaInline constexpr float DegreesToRadians(float d)
     {
         return d * TWO_PI / 360.0f;
     }
 
-    ZetaInline float RadiansToDegrees(float r)
+    ZetaInline constexpr float RadiansToDegrees(float r)
     {
         return r * 360.0f * ONE_OVER_2_PI;
     }

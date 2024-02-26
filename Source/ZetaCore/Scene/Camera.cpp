@@ -273,7 +273,7 @@ void Camera::RotateY(float dt)
 
 void Camera::SetFOV(const ParamVariant& p)
 {
-    m_FOV = Math::DegreeToRadians(p.GetFloat().m_value);
+    m_FOV = Math::DegreesToRadians(p.GetFloat().m_value);
     m_tanHalfFOV = tanf(0.5f * m_FOV);
 
     UpdateProj();

@@ -574,7 +574,7 @@ namespace BSDF
 
         float3 wh = SampleMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
 
-        // Refract wo about the plane with normal wh using the Snell's law.
+        // Refract wo about the plane with normal wh using Snell's law.
         float3 wi = refract(-surface.wo, wh, 1 / surface.eta);
 
         return wi;
