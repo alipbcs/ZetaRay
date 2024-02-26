@@ -1,5 +1,10 @@
 cmake_minimum_required(VERSION 3.21)
 
+# Enable building custom commands by Visual Studio in parallel. Introduced in CMake 3.27.
+if(${CMAKE_VERSION} VERSION_GREATER_EQUAL "3.27")
+    cmake_policy(SET CMP0147 NEW)
+endif()
+
 set(CMAKE_INCLUDE_DIR "${CMAKE_SOURCE_DIR}/CMake")
 include("${CMAKE_INCLUDE_DIR}/SetBuildConfigurations.cmake")
 include("${CMAKE_INCLUDE_DIR}/SetupDXC.cmake")
