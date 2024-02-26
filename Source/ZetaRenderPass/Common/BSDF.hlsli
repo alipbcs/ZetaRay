@@ -44,8 +44,8 @@
 //  - alpha = roughness^2
 //  - eta = eta_i / eta_t
 
-// About 1 degrees. To check against (almost) perfect reflection.
-#define MIN_N_DOT_H_SPECULAR 0.9998157121216442
+// To check against (almost) perfect specular reflection or transmission.
+#define MIN_N_DOT_H_SPECULAR 0.99998
 
 // Maximum (linear) roughness to treat surface as specular. Helps avoid numerical-precision issues.
 #define MAX_ROUGHNESS_SPECULAR 0.035
@@ -254,6 +254,11 @@ namespace BSDF
             si.specular = roughness <= MAX_ROUGHNESS_SPECULAR;
 
             return si;
+        }
+
+        static bool IsSpecular(float roughness)
+        {
+            return roughness <= MAX_ROUGHNESS_SPECULAR;
         }
 
         void SetWi_Refl(float3 wi, float3 shadingNormal, float3 wh)

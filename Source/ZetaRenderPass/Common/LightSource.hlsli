@@ -1,13 +1,10 @@
 #ifndef LIGHT_SOURCE_H
 #define LIGHT_SOURCE_H
 
-#include "../../ZetaCore/RayTracing/RtCommon.h"
-#include "../../ZetaCore/Core/Material.h"
 #include "../Common/FrameConstants.h"
-#include "../Common/Math.hlsli"
-#include "../Common/Sampling.hlsli"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/Volumetric.hlsli"
+#include "../Common/RT.hlsli"
 
 namespace Light
 {
@@ -148,6 +145,119 @@ namespace Light
         }
 
         return L_e;
+    }
+
+    float3 SampleSunDirection(float3 sunDir, float sunCosAngularRadius, float3 normal, 
+        BSDF::ShadingData surface, out float3 f, out float pdf, inout RNG rng)
+    {
+        pdf = 1.0f;
+
+        // Essentially a mirror, no point in light sampling
+        if(surface.specular && surface.IsMetallic())
+        {
+            float3 wi = reflect(-surface.wo, normal);
+            surface.SetWi_Refl(wi, normal);
+            f = BSDF::UnifiedBRDF(surface);
+
+            return f;
+        }
+
+        // Light sampling
+        float pdf_light = 1;
+        float3 wi_light;
+
+        // Sample the cone subtended by sun
+        {
+            float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), sunCosAngularRadius, pdf_light);
+            
+            float3 T;
+            float3 B;
+            Math::revisedONB(sunDir, T, B);
+            wi_light = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * sunDir;
+        }
+
+        // Since sun is a very small area light, area sampling should be fine unless the surface is specular
+        if(!surface.specular)
+        {
+            surface.SetWi(wi_light, normal);
+            f = BSDF::UnifiedBSDF(surface);
+
+            return wi_light;
+        }
+
+        // At this point, we know the surface is specular
+
+        // Use the refracted direction only if light hit the backside and surface
+        // is transmissive
+        if(dot(sunDir, normal) < 0)
+        {
+            if(surface.HasSpecularTransmission())
+            {
+                float3 wi = refract(-surface.wo, normal, 1 / surface.eta);
+                surface.SetWi_Tr(wi, normal);
+                float fr = surface.Fresnel_Dielectric();
+                f = surface.transmission * (1 - fr) * surface.diffuseReflectance_Fr0_Metal;
+
+                return wi;
+            }
+
+            // Sun hit the backside and surface isn't transmissive
+            f = 0;
+
+            // Doesn't matter as f is 0
+            return sunDir;
+        }
+
+        float3 wi_refl = reflect(-surface.wo, normal);
+        bool insideCone = dot(wi_refl, sunDir) >= sunCosAngularRadius;
+
+        if(!insideCone)
+        {
+            surface.SetWi_Refl(wi_light, normal);
+            f = BSDF::UnifiedBRDF(surface);
+
+            return wi_light;
+        }
+
+        // Streaming RIS with MIS -- light sample and mirror reflection both result in
+        // a nonzero BSDF, e.g. dielectric with 0 roughness
+        float3 wi;
+
+        // Feed light sample
+        surface.SetWi_Refl(wi_light, normal);
+        float3 target = BSDF::DielectricBRDF(surface);
+        float targetLum = Math::Luminance(target);
+        // rate of change of reflection is twice the rate of change of half vector
+        // 0.99996 = 1.0f - (1.0f - MIN_N_DOT_H_SPECULAR) * 2
+        float w_sum = RT::BalanceHeuristic(pdf_light, dot(wi_light, wi_refl) >= 0.99996, targetLum);
+        wi = wi_light;
+        f = target;
+
+        // Feed BSDF sample
+        surface.SetWi_Refl(wi_refl, normal);
+        float mis_pdf_light = insideCone * pdf_light;
+        float3 target_bsdf = BSDF::DielectricBRDF(surface) * insideCone;
+        float targetLum_bsdf = Math::Luminance(target_bsdf);
+        float w = RT::BalanceHeuristic(1, mis_pdf_light, targetLum_bsdf);
+        w_sum += w;
+
+        if (rng.Uniform() < (w / max(1e-6f, w_sum)))
+        {
+            wi = wi_refl;
+            f = target_bsdf;
+            targetLum = targetLum_bsdf;
+        }
+
+        pdf = w_sum == 0 ? 0 : targetLum / w_sum;
+
+        return wi;
+    }
+
+    float3 SampleSunDirection(uint2 DTid, uint frameNum, float3 sunDir, float sunCosAngularRadius, 
+        float3 normal, BSDF::ShadingData surface, out float3 f, out float pdf)
+    {
+        RNG rng = RNG::Init(DTid, frameNum);
+        return SampleSunDirection(sunDir, sunCosAngularRadius, normal, surface, f, pdf, rng);
     }
 }
 

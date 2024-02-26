@@ -87,7 +87,7 @@ void Compositing::Init(bool skyIllum)
     App::AddParam(p9);
 
     ParamVariant p10;
-    p10.InitBool("Renderer", "Display", "Visualize LVG", fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
+    p10.InitBool("Renderer", "Light Voxel Grid", "Visualize", fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
         false);
     App::AddParam(p10);
 

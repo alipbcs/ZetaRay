@@ -1,9 +1,7 @@
 #include "SunShadow_Common.h"
-#include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../Common/RT.hlsli"
+#include "../Common/LightSource.hlsli"
 #include "../Common/GBuffers.hlsli"
-#include "../Common/Sampling.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -17,7 +15,7 @@ RaytracingAccelerationStructure g_bvh : register(t0);
 // Helper functions
 //--------------------------------------------------------------------------------------
 
-bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
+bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 {
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
              RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
@@ -34,13 +32,13 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal, float linearDepth)
     ray.TMax = FLT_MAX;
     ray.Direction = wi;
     
-    // initialize
+    // Initialize
     rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
     
-    // traversal
+    // Traversal
     rayQuery.Proceed();
 
-    // light source is occluded
+    // Light source is occluded
     if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         return false;
 
@@ -64,9 +62,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
     if (linearDepth == FLT_MAX)
         return;
 
-    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
-        renderDim,
+    const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
+        float2(g_frame.RenderWidth, g_frame.RenderHeight),
         linearDepth, 
         g_frame.TanHalfFOV, 
         g_frame.AspectRatio, 
@@ -75,27 +72,66 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
-    
-    float3 wi = -g_frame.SunDir;
 
-    // sample the cone subtended by sun    
+    GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+        GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+    const float2 mr = g_metallicRoughness[DTid.xy];
+
+    bool isMetallic;
+    bool isEmissive;
+    bool isTransmissive;
+    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
+
+    float tr = DEFAULT_SPECULAR_TRANSMISSION;
+    float eta_t = DEFAULT_ETA_T;
+    float eta_i = DEFAULT_ETA_I;
+
+    if(isTransmissive)
+    {
+        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::TRANSMISSION];
+
+        float2 tr_ior = g_transmission[DTid.xy];
+        tr = tr_ior.x;
+        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+    }
+
+    float3 baseColor = 0;
+
+    [branch]
+    if(BSDF::ShadingData::IsSpecular(mr.y) && g_local.SoftShadows)
+    {
+        GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::BASE_COLOR];
+        baseColor = g_baseColor[DTid.xy].rgb;
+    }
+
+    const float3 wo = normalize(g_frame.CameraPos - posW);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
+        eta_i, eta_t, tr);
+
+    float3 wi = -g_frame.SunDir;
+    float pdf = 1;
+
+    // Sample the cone subtended by sun    
     if (g_local.SoftShadows)
     {
-        RNG rng = RNG::Init(DTid.xy, g_frame.FrameNum);
-        float pdf = 1.0f;
-        float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), g_frame.SunCosAngularRadius, pdf);
-        
-        float3 T;
-        float3 B;
-        Math::revisedONB(wi, T, B);
-        wi = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * wi;
+        float3 unused;
+        wi = Light::SampleSunDirection(DTid.xy, g_frame.FrameNum, -g_frame.SunDir, g_frame.SunCosAngularRadius, 
+            normal, surface, unused, pdf);
     }
-    
-    bool trace = wi.y > 0 && dot(wi, normal) > 0;
-    const bool isUnoccluded = trace ? EvaluateVisibility(posW, wi, normal, linearDepth) : false;
+
+    const bool trace = 
+        // Sun below the horizon
+        wi.y > 0 &&
+        // Sun hits the backside of non-transmissive surface
+        (dot(wi, normal) > 0 || surface.HasSpecularTransmission()) &&
+        // Make sure BSDF samples are within the valid range
+        dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
+    const bool isUnoccluded = trace ? EvaluateVisibility(posW, wi, normal) : false;
     const uint laneMask = (isUnoccluded << WaveGetLaneIndex());
     const uint ret = WaveActiveBitOr(laneMask);
-    
+
     if (WaveIsFirstLane())
     {
         RWTexture2D<uint> g_shadowMask = ResourceDescriptorHeap[g_local.OutShadowMaskDescHeapIdx];

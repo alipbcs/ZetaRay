@@ -8,34 +8,31 @@ namespace RGI_Util
     float3 NEE_Sun(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
     {
-        float3 wi = -g_frame.SunDir;
-
 #if SUN_DISK_SAMPLING == 1
+        float3 bsdfxCosTheta;
         float pdf;
-        float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), g_frame.SunCosAngularRadius, pdf);
-        
-        float3 T;
-        float3 B;
-        Math::revisedONB(wi, T, B);
-        wi = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * wi;
-#endif
-
+        float3 wi = Light::SampleSunDirection(-g_frame.SunDir, g_frame.SunCosAngularRadius, 
+            normal, surface, bsdfxCosTheta, pdf, rng);
+#else
+        float3 wi = -g_frame.SunDir;
         surface.SetWi(wi, normal);
         float3 bsdfxCosTheta = BSDF::UnifiedBSDF(surface);
+#endif
 
         if(dot(bsdfxCosTheta, bsdfxCosTheta) == 0)
             return 0.0;
 
-        bool isUnoccluded = RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
+        bool isUnoccluded = RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, 
+            surface.HasSpecularTransmission());
         if (!isUnoccluded)
             return 0.0;
 
         float3 le = Light::Le_Sun(pos, g_frame);
-        float3 Lo = bsdfxCosTheta * le;
+        float3 lo = bsdfxCosTheta * le;
 #if SUPPRESS_SUN_FIREFLIES == 1
-        Lo = min(Lo, le);
+        lo = min(lo, le);
 #endif
-        return Lo;
+        return lo;
     }
 
     float3 NEE_Sky_RIS_Opaque(float3 pos, float3 normal, BSDF::ShadingData surface, 

@@ -1,6 +1,5 @@
 #include "Compositing_Common.h"
 #include "../Common/GBuffers.hlsli"
-#include "../Common/RT.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
 
 //--------------------------------------------------------------------------------------
@@ -14,14 +13,20 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Helper Functions
 //--------------------------------------------------------------------------------------
 
-float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 posW, float3 normal,
-    inout BSDF::ShadingData surface)
+float3 SunDirectLighting(uint2 DTid, float3 posW, float3 normal, BSDF::ShadingData surface)
 {
-    Texture2D<half> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
+    Texture2D<float> g_sunShadowTemporalCache = ResourceDescriptorHeap[g_local.SunShadowDescHeapIdx];
     float shadowVal = g_sunShadowTemporalCache[DTid].x;
 
-    surface.SetWi(-g_frame.SunDir, normal);
-    float3 f = BSDF::UnifiedBRDF(surface);
+    // Must match the direction traced in SunShadow pass (RNG seeds must be the same).
+    float pdf;
+    float3 f;
+    float3 wi = Light::SampleSunDirection(DTid, g_frame.FrameNum, -g_frame.SunDir, g_frame.SunCosAngularRadius, 
+        normal, surface, f, pdf);
+
+    // After denoising, specular and non-specular values are averaged together
+    // so following needs to be applied again
+    f *= dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
 
     const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
     const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -32,10 +37,9 @@ float3 SunDirectLighting(uint2 DTid, float3 baseColor, float metallic, float3 po
     float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, posW, -g_frame.SunDir);
     float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, posW, -g_frame.SunDir, t,
         sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+    float3 li = g_frame.SunIlluminance * shadowVal * tr * f;
 
-    float3 Li = g_frame.SunIlluminance * shadowVal * tr * f;
-
-    return Li;
+    return li;
 }
 
 float3 SkyColor(uint2 DTid)
@@ -70,8 +74,8 @@ float3 SkyColor(uint2 DTid)
         v = (thetaPhi.x - PI_OVER_2) * 0.5f;
         v = 0.5f + s * sqrt(abs(v) * ONE_OVER_PI);
 
-        Texture2D<half3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
-        return g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);        
+        Texture2D<float3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
+        return g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);
     }
 }
 
@@ -153,7 +157,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
     if(!isEmissive)
     {
         if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SUN_DI))
-            color += SunDirectLighting(DTid.xy, baseColor, isMetallic, posW, normal, surface);
+            color += SunDirectLighting(DTid.xy, posW, normal, surface);
 
         if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SKY_DI) && g_local.SkyDIDenoisedDescHeapIdx != 0)
         {
