@@ -12,6 +12,7 @@
 
 #include "Sampling.hlsli"
 #include "Math.hlsli"
+#include "../../ZetaCore/Core/Material.h"
 
 // Illustration of unified BSDF model
 //
@@ -233,7 +234,7 @@ namespace BSDF
     struct ShadingData
     {
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
-            float3 baseColor, float eta_i = 1.5f, float eta_t = 1.0f, float transmission = 0.0)
+            float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, float transmission = 0.0)
         {
             ShadingData si;
 

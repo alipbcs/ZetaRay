@@ -137,9 +137,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
     bool isTransmissive;
     GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
 
-    float tr = 0;
-    float eta_t = 1.0f;
-    float eta_i = 1.5f;
+    float tr = DEFAULT_SPECULAR_TRANSMISSION;
+    float eta_t = DEFAULT_ETA_T;
+    float eta_i = DEFAULT_ETA_I;
 
     if(isTransmissive)
     {

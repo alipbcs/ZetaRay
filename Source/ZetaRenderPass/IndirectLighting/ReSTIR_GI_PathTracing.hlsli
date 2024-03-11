@@ -238,6 +238,8 @@ namespace RGI_Util
     {
         const Material mat = g_materials[hitInfo.matIdx];
         const bool hitBackface = dot(wo, hitInfo.normal) < 0;
+        // Set to an arbitrary value to fix compiler error
+        eta = DEFAULT_ETA_I;
 
         // Ray hit the backside of an opaque surface, no radiance can be reflected back.
         if(!mat.IsDoubleSided() && hitBackface)
