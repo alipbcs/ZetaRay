@@ -373,7 +373,7 @@ TEST_CASE("PerspectiveMat")
     float r = (float)w / h;
     float nearZ = 0.1f;
     float farZ = 1000.0f;
-    float fov = Math::DegreeToRadians(85.0f);
+    float fov = Math::DegreesToRadians(85.0f);
 
     v_float4x4 vP = perspective(r, fov, nearZ, farZ);
     auto resZ = store(vP);
