@@ -75,7 +75,7 @@ namespace ZetaRay::Core
 
         // Adds a node to the graph
         RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&> dlg,
-            bool forceSeperateCmdList = false);
+            bool forceSeparateCmdList = false);
 
         // Registers a new resource. This must be called prior to declaring resource dependencies in each frame
         void RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
@@ -220,11 +220,11 @@ namespace ZetaRay::Core
                 OutputMask = 0;
                 memset(Name, 0, MAX_NAME_LENGTH);
                 AggNodeIdx = -1;
-                ForceSeperateCmdList = false;
+                ForceSeparateCmdList = false;
 #endif
             }
 
-            void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeperateCmdList)
+            void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeparateCmdList)
             {
                 Type = t;
                 Dlg = dlg;
@@ -237,7 +237,7 @@ namespace ZetaRay::Core
                 GpuDepSourceIdx = RenderNodeHandle(-1);
                 OutputMask = 0;
                 AggNodeIdx = -1;
-                ForceSeperateCmdList = forceSeperateCmdList;
+                ForceSeparateCmdList = forceSeparateCmdList;
 
                 int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
                 memcpy(Name, name, n);
@@ -265,7 +265,7 @@ namespace ZetaRay::Core
             uint32_t OutputMask = 0;
             int Indegree = 0;
             int AggNodeIdx = -1;
-            bool ForceSeperateCmdList = false;
+            bool ForceSeparateCmdList = false;
         };
 
         struct AggregateRenderNode
@@ -288,12 +288,12 @@ namespace ZetaRay::Core
                 TaskH = uint32_t(-1);
                 IsAsyncCompute = false;
                 IsLast = false;
-                ForceSeperate = false;
+                ForceSeparate = false;
                 memset(Name, 0, MAX_NAME_LENGTH);
 #endif
             }
 
-            void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate = false);
+            void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeparate = false);
 
             Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
             Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;
@@ -311,7 +311,7 @@ namespace ZetaRay::Core
             bool IsAsyncCompute;
             bool HasUnsupportedBarrier = false;
             bool IsLast = false;
-            bool ForceSeperate = false;
+            bool ForceSeparate = false;
         };
 
         static_assert(std::is_move_constructible_v<RenderNode>);

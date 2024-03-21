@@ -268,7 +268,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
             renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(triLumenBuff).Resource(), triLumenBuff.ID(), 
                 D3D12_RESOURCE_STATE_COPY_SOURCE, false);
 
-            // Make sure to use a seperate command list
+            // Make sure to use a separate command list
             fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.EmissiveAliasTable,
                 &EmissiveTriangleAliasTable::Render);
             data.EmissiveAliasTableHandle = renderGraph.RegisterRenderPass("EmissiveAliasTable", RENDER_NODE_TYPE::COMPUTE, dlg2, true);

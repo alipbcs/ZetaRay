@@ -113,7 +113,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     if (IS_CB_FLAG_SET(CB_IND_FLAGS::DENOISE))
     {
-        // Split into diffuse & glossy reflection, so they can be denoised seperately
+        // Split into diffuse & glossy reflection, so they can be denoised separately
         float3 wi = normalize(r.pos - posW);
         surface.SetWi_Refl(wi, normal);
         float3 fr = surface.Fresnel();

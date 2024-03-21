@@ -102,7 +102,7 @@ float Math::KahanSum(Span<float> data)
         __m256 V1 = _mm256_load_ps(curr);
         __m256 V2 = _mm256_load_ps(curr + 8);
 
-        // Essentially each simd lane is doing a seperate Kahan summation
+        // Essentially each simd lane is doing a separate Kahan summation
         __m256 vCurr = _mm256_add_ps(V1, V2);
         __m256 vCorrected = _mm256_sub_ps(vCurr, vCompensation);
         __m256 vNewSum = _mm256_add_ps(vSum, vCorrected);

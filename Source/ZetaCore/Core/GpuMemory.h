@@ -203,7 +203,7 @@ namespace ZetaRay::Core::GpuMemory
     void Recycle();
     void Shutdown();
 
-    UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, bool forceSeperate = false);
+    UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, bool forceSeparate = false);
     void ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer);
     void ReleaseUploadHeapArena(UploadHeapArena& arena);
 
@@ -218,7 +218,7 @@ namespace ZetaRay::Core::GpuMemory
         uint32_t sizeInBytes,
         bool allowUAV, 
         void* data,
-        bool forceSeperateUploadBuffer = false);
+        bool forceSeparateUploadBuffer = false);
     void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, uint32_t destOffset = 0);
     void ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer);
     void ReleaseTexture(Texture& textue);

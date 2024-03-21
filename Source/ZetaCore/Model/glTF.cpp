@@ -565,7 +565,7 @@ namespace
         {
             const int meshIdx = (int)(node.mesh - context.Model->meshes);
 
-            // A seperate instance for each primitive
+            // A separate instance for each primitive
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
             {
                 const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
@@ -614,7 +614,7 @@ namespace
         {
             const int meshIdx = (int)(node.mesh - context.Model->meshes);
 
-            // A seperate instance for each primitive
+            // A separate instance for each primitive
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
             {
                 const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
@@ -790,7 +790,7 @@ namespace
             const int meshIdx = (int)(node.mesh - model.meshes);
             Assert(meshIdx < model.meshes_count, "invalid mesh index.");
 
-            // A seperate instance for each primitive
+            // A separate instance for each primitive
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
             {
                 const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];

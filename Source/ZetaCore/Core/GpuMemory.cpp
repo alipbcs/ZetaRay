@@ -140,7 +140,7 @@ namespace
             m_hasWorkThisFrame = true;
         }
 
-        void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, uint32_t destOffset = 0, bool forceSeperate = false)
+        void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, uint32_t destOffset = 0, bool forceSeparate = false)
         {
             Assert(m_inBeginEndBlock, "not in begin-end block.");
             Assert(buffer, "buffer was NULL");
@@ -155,7 +155,7 @@ namespace
 
             // Note: GetCopyableFootprints() returns the padded size for a standalone resource, here
             // we might be suballocating from a larger buffer.
-            UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer(sizeInBytes, 4, forceSeperate);
+            UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer(sizeInBytes, 4, forceSeparate);
             uploadBuffer.Copy(0, sizeInBytes, data);
 
             // Note: can't use CopyResource() since the UploadHeap might not have the exact same size 
@@ -842,9 +842,9 @@ void GpuMemory::Shutdown()
     g_data = nullptr;
 }
 
-UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment, bool forceSeperate)
+UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment, bool forceSeparate)
 {
-    if (!forceSeperate && sizeInBytes <= GpuMemoryImplData::UPLOAD_HEAP_SIZE)
+    if (!forceSeparate && sizeInBytes <= GpuMemoryImplData::UPLOAD_HEAP_SIZE)
     {
         AcquireSRWLockExclusive(&g_data->m_uploadHeapLock);
         const auto alloc = g_data->m_uploadHeapAllocator.Allocate(sizeInBytes, alignment);
@@ -852,7 +852,7 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 
         if (alloc.IsEmpty())
         {
-            StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a seperate allocation...", 
+            StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a separate allocation...", 
                 sizeInBytes / (1024 * 1024));
             App::Log(msg, LogMessage::MsgType::WARNING);
 
@@ -1021,7 +1021,7 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
 }
 
 DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, bool allowUAV, void* data, 
-    bool forceSeperateUploadBuffer)
+    bool forceSeparateUploadBuffer)
 {
     auto buff = GpuMemory::GetDefaultHeapBuffer(name, 
         sizeInBytes,
@@ -1030,7 +1030,7 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint3
         false);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buff.Resource(), data, sizeInBytes, 0, forceSeperateUploadBuffer);
+    g_data->m_uploaders[idx].UploadBuffer(buff.Resource(), data, sizeInBytes, 0, forceSeparateUploadBuffer);
 
     return buff;
 }

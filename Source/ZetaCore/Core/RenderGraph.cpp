@@ -72,16 +72,16 @@ namespace
 // AggregateRenderNode
 //--------------------------------------------------------------------------------------
 
-void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeperate)
+void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeparate)
 {
     Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
     Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, "All the nodes in an AggregateRenderNode must have the same batch index.");
-    Assert(!forceSeperate || Dlgs.empty(), "Aggregate nodes with forceSeperate flag can't have more than task.");
+    Assert(!forceSeparate || Dlgs.empty(), "Aggregate nodes with forceSeparate flag can't have more than one task.");
 
     Barriers.append_range(node.Barriers.begin(), node.Barriers.end());
     Dlgs.push_back(node.Dlg);
     BatchIdx = node.NodeBatchIdx;
-    ForceSeperate = forceSeperate;
+    ForceSeparate = forceSeparate;
 
     GpuDepIdx.Val = Math::Max(GpuDepIdx.Val, mappedGpeDepIdx);
 
@@ -237,13 +237,13 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end)
 }
 
 RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, 
-    fastdelegate::FastDelegate1<CommandList&> dlg, bool forceSeperateCmdList)
+    fastdelegate::FastDelegate1<CommandList&> dlg, bool forceSeparateCmdList)
 {
     Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
     int h = m_currRenderPassIdx.fetch_add(1, std::memory_order_relaxed);
     Assert(h < MAX_NUM_RENDER_PASSES, "Number of render passes exceeded MAX_NUM_RENDER_PASSES");
 
-    m_renderNodes[h].Reset(name, t, dlg, forceSeperateCmdList);
+    m_renderNodes[h].Reset(name, t, dlg, forceSeparateCmdList);
 
     return RenderNodeHandle(h);
 }
@@ -503,7 +503,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
             if (nextBatchIdx == currBatchIdx + 1)
                 ts.AddOutgoingEdge(m_aggregateNodes[i].TaskH, m_aggregateNodes[j].TaskH);
 
-            if(nextBatchIdx == currBatchIdx && m_aggregateNodes[j].ForceSeperate)
+            if(nextBatchIdx == currBatchIdx && m_aggregateNodes[j].ForceSeparate)
                 ts.AddOutgoingEdge(m_aggregateNodes[i].TaskH, m_aggregateNodes[j].TaskH);
         }
     }
@@ -810,7 +810,7 @@ void RenderGraph::JoinRenderNodes()
             currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
         }
 
-        if (m_renderNodes[currNode].ForceSeperateCmdList)
+        if (m_renderNodes[currNode].ForceSeparateCmdList)
         {
             m_aggregateNodes.emplace_back(m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE);
 
