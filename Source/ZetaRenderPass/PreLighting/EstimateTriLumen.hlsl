@@ -1,10 +1,6 @@
 #include "PreLighting_Common.h"
-#include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
-#include "../Common/Sampling.hlsli"
 #include "../Common/LightSource.hlsli"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../../ZetaCore/Core/Material.h"
 
 #define NUM_SAMPLES_PER_LANE (ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI / ESTIMATE_TRI_LUMEN_WAVE_LEN)
 

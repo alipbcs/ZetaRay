@@ -1,7 +1,6 @@
-#include "ReSTIR_DI.hlsli"
+#include "ReSTIR_DI_Common.hlsli"
 #include "ReSTIR_DI_Resampling.hlsli"
 #include "../../Common/Common.hlsli"
-#include "../../Common/BSDF.hlsli"
 #include "../../Common/LightSource.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
@@ -291,11 +290,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         g_frame.CurrViewInv,
         g_frame.CurrCameraJitter);
 
-    // shading normal
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid.xy]);
 
-    // roughness and metallic mask
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
@@ -348,7 +345,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     if(g_local.Denoise)
     {
-        // split into diffuse & specular, so they can be denoised seperately
+        // split into diffuse & specular, so they can be denoised separately
         surface.SetWi_Refl(target.wi, normal);
         float3 fr = surface.Fresnel();
 

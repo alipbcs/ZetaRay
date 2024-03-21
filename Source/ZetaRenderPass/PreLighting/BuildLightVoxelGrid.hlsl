@@ -1,5 +1,4 @@
 #include "PreLighting_Common.h"
-#include "../Common/RT.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
 
 #define NUM_CANDIDATES 6

@@ -3,7 +3,7 @@
 
 #include "DirectLighting_Common.h"
 #include "ReSTIR_DI_Reservoir.hlsli"
-#include "ReSTIR_DI.hlsli"
+#include "ReSTIR_DI_Common.hlsli"
 #include "../../Common/FrameConstants.h"
 #include "../../Common/RT.hlsli"
 #include "../../Common/GBuffers.hlsli"
@@ -81,7 +81,7 @@ namespace RDI_Util
         float3 lightNormal;
         float3 lightPos;
         float dwdA;
-        // store visibility separately as the biased version doesn't include it in it's target function
+        // store visibility separately as the biased version doesn't include it in the target function
         bool needsShadowRay;
         bool visible;
     };
@@ -507,9 +507,9 @@ namespace RDI_Util
         float targetLumAtPrev = Math::Luminance(targetAtPrev);
 
         // should use previous frame's bvh
-    #if TARGET_WITH_VISIBILITY == 1
+#if TARGET_WITH_VISIBILITY == 1
         targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPosW, wi, t, prevNormal, lightID, prevSurface.HasSpecularTransmission());
-    #endif
+#endif
 
         return targetLumAtPrev;
     }
@@ -699,8 +699,7 @@ namespace RDI_Util
             const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
             BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
                 sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
-                
-            // TODO is capping M needed?
+
             Reservoir neighbor = PartialReadReservoir_ReuseRest(samplePosSS[i],
                 prevReservoir_A_DescHeapIdx,
                 sampleLightIdx[i]);
@@ -715,4 +714,5 @@ namespace RDI_Util
         r = pairwiseMIS.r_s;
     }
 }
+
 #endif

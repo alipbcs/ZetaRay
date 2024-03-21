@@ -1,3 +1,6 @@
+#ifndef RESTIR_GI_PAIRWISE_MIS_H
+#define RESTIR_GI_PAIRWISE_MIS_H
+
 namespace RGI_Util
 {
     // Ref: Bitterli, Benedikt, "Correlations and Reuse for Fast and Accurate Physically Based Light Transport" (2022). Ph.D Dissertation.
@@ -254,3 +257,5 @@ namespace RGI_Util
         r = pairwiseMIS.r_s;
     }
 }
+
+#endif

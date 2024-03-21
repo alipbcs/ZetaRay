@@ -1,7 +1,5 @@
 #include "GBufferRT_Common.h"
-#include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
-#include "../../ZetaCore/Core/Material.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/RT.hlsli"

@@ -2,7 +2,6 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/Volumetric.hlsli"
 #include "../Common/RT.hlsli"
-#include "../Common/Sampling.hlsli"
 #include "Sky_Common.h"
 
 //--------------------------------------------------------------------------------------

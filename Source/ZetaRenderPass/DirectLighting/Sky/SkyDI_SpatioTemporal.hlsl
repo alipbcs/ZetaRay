@@ -657,11 +657,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         g_frame.CurrViewInv,
         g_frame.CurrCameraJitter);
 
-    // shading normal
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
-    // roughness and metallic mask
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
@@ -698,12 +696,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 
-    // generate candidates and spatiotemporal resampling
+    // generate candidates followed by spatiotemporal resampling
     SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, posW, normal, linearDepth, metallic, mr.y, baseColor, surface, rng);
 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))
     {
-        // split into diffuse & specular, so they can be denoised seperately
+        // split into diffuse & specular, so they can be denoised separately
         surface.SetWi_Refl(r.wi, normal);
         float3 fr = surface.Fresnel();
 
@@ -711,7 +709,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         float3 f_d = (1.0f - fr) * (1.0f - metallic) * surface.ndotwi * ONE_OVER_PI;
         
         // demodulate Fresnel for metallic surfaces to preserve texture detail
-        float alphaSq = max(1e-5f, surface.alpha * surface.alpha);        
+        float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
         float3 f_s = 0;
 
         if(metallic)

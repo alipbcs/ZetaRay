@@ -11,7 +11,6 @@
 #define BSDF_H
 
 #include "Sampling.hlsli"
-#include "Math.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 
 // Illustration of unified BSDF model

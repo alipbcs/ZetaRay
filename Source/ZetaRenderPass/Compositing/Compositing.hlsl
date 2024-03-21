@@ -1,10 +1,6 @@
 #include "Compositing_Common.h"
-#include "../Common/FrameConstants.h"
-#include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/GBuffers.hlsli"
-#include "../../ZetaCore/Core/Material.h"
 #include "../Common/RT.hlsli"
-#include "../Common/Volumetric.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
 
 //--------------------------------------------------------------------------------------

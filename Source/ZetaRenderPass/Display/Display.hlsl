@@ -3,8 +3,6 @@
 #include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
-#include "../../ZetaCore/Core/Material.h"
-#include "../Common/StaticTextureSamplers.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature

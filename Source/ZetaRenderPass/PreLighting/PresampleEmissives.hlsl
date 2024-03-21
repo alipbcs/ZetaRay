@@ -1,6 +1,5 @@
 #include "PreLighting_Common.h"
 #include "../Common/FrameConstants.h"
-#include "../Common/RT.hlsli"
 #include "../Common/LightSource.hlsli"
 
 //--------------------------------------------------------------------------------------
