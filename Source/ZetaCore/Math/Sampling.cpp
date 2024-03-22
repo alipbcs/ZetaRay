@@ -150,7 +150,7 @@ uint32_t Math::SampleAliasTable(Util::Span<AliasTableEntry> table, RNG& rng, flo
 
     AliasTableEntry s = table[idx];
 
-    float u1 = rng.UniformFloat();
+    float u1 = rng.Uniform();
     if (u1 <= s.P_Curr)
     {
         pdf = s.P_Orig;

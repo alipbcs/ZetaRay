@@ -39,7 +39,7 @@ TEST_SUITE("AliasTable")
 
         for (uint32_t i = 0; i < n; i++)
         {
-            float f = rng.UniformFloat() * 100.0f;
+            float f = rng.Uniform() * 100.0f;
             vals[i] = f;
         }
 

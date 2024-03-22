@@ -104,13 +104,13 @@ TEST_CASE("AABBvsAABB")
 
     for (int i = 0; i < 10000; i++)
     {
-        float cx = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
-        float cy = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
-        float cz = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+        float cx = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
+        float cy = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
+        float cz = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
 
-        float ex = 0.1f + rng.UniformFloat() * 1000.0f;
-        float ey = 0.1f + rng.UniformFloat() * 1000.0f;
-        float ez = 0.1f + rng.UniformFloat() * 1000.0f;
+        float ex = 0.1f + rng.Uniform() * 1000.0f;
+        float ey = 0.1f + rng.Uniform() * 1000.0f;
+        float ez = 0.1f + rng.Uniform() * 1000.0f;
 
         DirectX::XMFLOAT3 xc1 = DirectX::XMFLOAT3(cx, cy, cz);
         DirectX::XMFLOAT3 xe1 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -119,13 +119,13 @@ TEST_CASE("AABBvsAABB")
         float3 e1 = float3(ex, ey, ez);
         v_AABB b1(c1, e1);
 
-        cx = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
-        cy = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
-        cz = rng.UniformFloat() * 1000.0f - rng.UniformFloat() * 1000.0f;
+        cx = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
+        cy = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
+        cz = rng.Uniform() * 1000.0f - rng.Uniform() * 1000.0f;
 
-        ex = 0.1f + rng.UniformFloat() * 1000.0f;
-        ey = 0.1f + rng.UniformFloat() * 1000.0f;
-        ez = 0.1f + rng.UniformFloat() * 1000.0f;
+        ex = 0.1f + rng.Uniform() * 1000.0f;
+        ey = 0.1f + rng.Uniform() * 1000.0f;
+        ez = 0.1f + rng.Uniform() * 1000.0f;
 
         DirectX::XMFLOAT3 xc2 = DirectX::XMFLOAT3(cx, cy, cz);
         DirectX::XMFLOAT3 xe2 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -160,13 +160,13 @@ TEST_CASE("AABBvsFrustum")
 
     for (int i = 0; i < 10000; i++)
     {
-        float cx = -1000.0f + rng.UniformFloat() * 1000.0f;
-        float cy = -1000.0f + rng.UniformFloat() * 1000.0f;
-        float cz = -1000.0f + rng.UniformFloat() * 1000.0f;
+        float cx = -1000.0f + rng.Uniform() * 1000.0f;
+        float cy = -1000.0f + rng.Uniform() * 1000.0f;
+        float cz = -1000.0f + rng.Uniform() * 1000.0f;
 
-        float ex = 0.1f + rng.UniformFloat() * 1000.0f;
-        float ey = 0.1f + rng.UniformFloat() * 1000.0f;
-        float ez = 0.1f + rng.UniformFloat() * 1000.0f;
+        float ex = 0.1f + rng.Uniform() * 1000.0f;
+        float ey = 0.1f + rng.Uniform() * 1000.0f;
+        float ez = 0.1f + rng.Uniform() * 1000.0f;
 
         DirectX::XMFLOAT3 xc1 = DirectX::XMFLOAT3(cx, cy, cz);
         DirectX::XMFLOAT3 xe1 = DirectX::XMFLOAT3(ex, ey, ez);
@@ -202,13 +202,13 @@ TEST_CASE("QuaternionSlerp")
     {
         float3 axis1(rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f);
         axis1.normalize();
-        float theta1 = rng.UniformFloat() * TWO_PI;
+        float theta1 = rng.Uniform() * TWO_PI;
 
         float3 axis2(rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f, rng.UniformUintBounded(100) - 50.0f);
         axis2.normalize();
-        float theta2 = rng.UniformFloat() * TWO_PI;
+        float theta2 = rng.Uniform() * TWO_PI;
 
-        float t = rng.UniformFloat();
+        float t = rng.Uniform();
 
         __m128 vQ1 = rotationQuaternion(axis1, theta1);
         __m128 vQ2 = rotationQuaternion(axis2, theta2);
@@ -263,14 +263,14 @@ TEST_CASE("RayVsAABB")
     RNG rng(reinterpret_cast<uintptr_t>(&unused));
     INFO("Seed: ", reinterpret_cast<uintptr_t>(&unused));
 
-    auto getc = [&rng]() {return rng.UniformFloat() * 100.0f - rng.UniformFloat() * 100.0f; };
-    auto gete = [&rng]() {return 1.0f + rng.UniformFloat() * 1000.0f; };
-    auto geto = [&rng]() {return rng.UniformFloat() * 50.0f - rng.UniformFloat() * 50.0f; };
+    auto getc = [&rng]() {return rng.Uniform() * 100.0f - rng.Uniform() * 100.0f; };
+    auto gete = [&rng]() {return 1.0f + rng.Uniform() * 1000.0f; };
+    auto geto = [&rng]() {return rng.Uniform() * 50.0f - rng.Uniform() * 50.0f; };
     auto getd = [&rng]()
     {
-        float f = rng.UniformFloat();
+        float f = rng.Uniform();
         bool z = f > 0.1f;
-        float3 res(0.01f + rng.UniformFloat(), 0.01f + rng.UniformFloat(), 0.01f + rng.UniformFloat());
+        float3 res(0.01f + rng.Uniform(), 0.01f + rng.Uniform(), 0.01f + rng.Uniform());
 
         if (z)
         {
@@ -494,7 +494,7 @@ TEST_CASE("Octahedral Encoding")
 
     for (int i = 0; i < N; i++)
     {
-        float2 u = float2(rng.UniformFloat(), rng.UniformFloat());
+        float2 u = float2(rng.Uniform(), rng.Uniform());
         float3 n = UniformSampleSphere(u);
 
         __m128 vN = loadFloat3(n);

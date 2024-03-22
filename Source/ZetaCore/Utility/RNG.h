@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../App/ZetaRay.h"
+#include "../Math/Vector.h"
 #include <float.h>
 
 namespace ZetaRay::Util
@@ -58,12 +58,17 @@ namespace ZetaRay::Util
         }
 
         // Generates a uniformly distributed float in [0, 1)
-        float UniformFloat()
+        float Uniform()
         {
             constexpr float oneSubEps = 0x1.fffffep-1;
             const float uniformFloat01Inclusive = UniformUint() * 0x1p-32f;
             
             return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
+        }
+
+        Math::float2 Uniform2D()
+        {
+            return Math::float2(Uniform(), Uniform());
         }
 
         // Generates a uniformly distributed number r, where 0 <= r < bound.
