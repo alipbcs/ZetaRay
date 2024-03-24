@@ -1,9 +1,9 @@
 #ifndef RESTIR_GI_RESERVOIR_H
 #define RESTIR_GI_RESERVOIR_H
 
-#include "IndirectLighting_Common.h"
-#include "../Common/Sampling.hlsli"
-#include "ReSTIR_GI_Common.hlsli"
+#include "../IndirectLighting_Common.h"
+#include "../../Common/Sampling.hlsli"
+#include "../Params.hlsli"
 
 namespace RGI_Util
 {

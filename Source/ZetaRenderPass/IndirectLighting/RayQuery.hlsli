@@ -1,11 +1,10 @@
-#ifndef RESTIR_GI_TRACE_H
-#define RESTIR_GI_TRACE_H
+#ifndef RESTIR_RT_H
+#define RESTIR_RT_H
 
-#include "../Common/Math.hlsli"
 #include "../Common/RT.hlsli"
 #include "../Common/Common.hlsli"
 
-namespace RGI_Trace
+namespace ReSTIR_RT
 {
     struct HitSurface
     {

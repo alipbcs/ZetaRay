@@ -711,16 +711,16 @@ void IndirectLighting::DnsrSpatialFilterSpecularCallback(const Support::ParamVar
 void IndirectLighting::ReloadSpatioTemporal()
 {
     auto sh = SHADERS::SPATIO_TEMPORAL;
-    const char* p = "IndirectLighting\\ReSTIR_GI.hlsl";
+    const char* p = "IndirectLighting\\ReSTIR_GI\\ReSTIR_GI.hlsl";
 
     if (m_preSampling)
     {
-        p = "IndirectLighting\\ReSTIR_GI_LVG.hlsl";
+        p = "IndirectLighting\\ReSTIR_GI\\ReSTIR_GI_LVG.hlsl";
         sh = SHADERS::SPATIO_TEMPORAL_LVG;
     }
     else if (App::GetScene().NumEmissiveInstances() > 0)
     {
-        p = "IndirectLighting\\ReSTIR_GI_NPS.hlsl";
+        p = "IndirectLighting\\ReSTIR_GI\\ReSTIR_GI_NPS.hlsl";
         sh = SHADERS::SPATIO_TEMPORAL_NPS;
     }
 

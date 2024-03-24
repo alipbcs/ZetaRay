@@ -1,5 +1,5 @@
-#ifndef RESTIR_GI_COMMON_H
-#define RESTIR_GI_COMMON_H
+#ifndef RESTIR_PARAMS_H
+#define RESTIR_PARAMS_H
 
 // Minimum number of bounces before performing Russian Roulette
 #define MIN_NUM_BOUNCES_RUSSIAN_ROULETTE 3

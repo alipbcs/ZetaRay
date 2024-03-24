@@ -1,6 +1,6 @@
 #include "IndirectLighting_Common.h"
-#include "ReSTIR_GI_Common.hlsli"
-#include "ReSTIR_GI_Resampling.hlsli"
+#include "Params.hlsli"
+#include "ReSTIR_GI/ReSTIR_GI_Resampling.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/BSDF.hlsli"

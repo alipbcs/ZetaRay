@@ -1,9 +1,11 @@
-#include "../Common/BSDF.hlsli"
+#ifndef RESTIR_NEE_H
+#define RESTIR_NEE_H
+
 #include "../Common/GBuffers.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
-#include "ReSTIR_GI_RT.hlsli"
+#include "RayQuery.hlsli"
 
-namespace RGI_Util
+namespace ReSTIR_Util
 {
     float3 NEE_Sun(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
@@ -22,7 +24,7 @@ namespace RGI_Util
         if(dot(bsdfxCosTheta, bsdfxCosTheta) == 0)
             return 0.0;
 
-        bool isUnoccluded = RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, 
+        bool isUnoccluded = ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, 
             surface.HasSpecularTransmission());
         if (!isUnoccluded)
             return 0.0;
@@ -49,7 +51,7 @@ namespace RGI_Util
             Ld *= BSDF::MicrofacetBRDFDivPdf(surface);
 
             if(Math::Luminance(Ld) > 1e-5)
-                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
+                Ld *= ReSTIR_RT::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
 
             return Ld;
         }
@@ -98,7 +100,7 @@ namespace RGI_Util
         }
 
         if(Math::Luminance(target) > 1e-5)
-            target *= RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, false);
+            target *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, false);
 
         float3 Ld = target * (w_sum / max(targetLum, 1e-6));
 
@@ -210,7 +212,7 @@ namespace RGI_Util
         }
 
         if(Math::Luminance(target) > 1e-5)
-            target *= RGI_Trace::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
+            target *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
 
         float3 Ld = target * (w_sum / max(targetLum, 1e-6));
         Ld = any(isnan(Ld)) ? 0 : Ld;
@@ -234,7 +236,7 @@ namespace RGI_Util
             Ld *= Light::Le_Sky(wi_g, skyViewDescHeapOffset);
 
             if(Math::Luminance(Ld) > 1e-5)
-                Ld *= RGI_Trace::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
+                Ld *= ReSTIR_RT::Visibility_Ray(pos, wi_g, normal, g_bvh, false);
         }
 
         // Fast path for metallic surface
@@ -261,7 +263,7 @@ namespace RGI_Util
             Ld_1 *= Light::Le_Sky(wi_d, skyViewDescHeapOffset);
             
             if(Math::Luminance(Ld_1) > 1e-5)
-                Ld_1 *= RGI_Trace::Visibility_Ray(pos, wi_d, normal, g_bvh, false);
+                Ld_1 *= ReSTIR_RT::Visibility_Ray(pos, wi_d, normal, g_bvh, false);
 
             const float p_g = BSDF::VNDFReflectionPdf(surface);
             Ld += RT::PowerHeuristic(p_d, p_g, Ld_1);
@@ -322,7 +324,7 @@ namespace RGI_Util
                 Le *= BSDF::UnifiedBSDF(surface) * dwdA;
                     
                 if (Math::Luminance(Le) > 1e-6)
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
+                    Le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
 
                 Ld += Le / lightPdf;
             }
@@ -354,8 +356,8 @@ namespace RGI_Util
             float3 wi = RT::SampleUnifiedBSDF_NoDiffuse(normal, surface, rng, f, wiPdf);
 
             // Check if closest hit is a light source
-            RGI_Trace::HitSurface_Emissive hitInfo;
-            bool hitEmissive = RGI_Trace::FindClosestHit_Emissive(pos, normal, wi, g_bvh, g_frameMeshData, 
+            ReSTIR_RT::HitSurface_Emissive hitInfo;
+            bool hitEmissive = ReSTIR_RT::FindClosestHit_Emissive(pos, normal, wi, g_bvh, g_frameMeshData, 
                 hitInfo, surface.HasSpecularTransmission());
 
             if (hitEmissive)
@@ -428,7 +430,7 @@ namespace RGI_Util
                 Le *= BSDF::UnifiedBSDF(surface) * dwdA;
                 
                 if (Math::Luminance(Le) > 1e-6)
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
+                    Le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, surface.HasSpecularTransmission());
 
                 float bsdfPdf = RT::UnifiedBSDFPdf_NoDiffuse(normal, surface, wi);
                 bsdfPdf *= dwdA;
@@ -501,7 +503,7 @@ namespace RGI_Util
                 
                 if (Math::Luminance(Le) > 1e-6)
                 {
-                    Le *= RGI_Trace::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
+                    Le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
                         surface.HasSpecularTransmission());
                 }
 
@@ -514,7 +516,7 @@ namespace RGI_Util
         return Ld;
     }
 
-    float3 NEE(float3 pos, RGI_Trace::HitSurface hitInfo, BSDF::ShadingData surface, 
+    float3 NEE(float3 pos, ReSTIR_RT::HitSurface hitInfo, BSDF::ShadingData surface, 
         uint sampleSetIdx, int bounce, RaytracingAccelerationStructure g_bvh, 
         ConstantBuffer<cbFrameConstants> g_frame, ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local,
         StructuredBuffer<RT::MeshInstance> g_frameMeshData,
@@ -611,3 +613,5 @@ namespace RGI_Util
 #endif
     }
 }
+
+#endif

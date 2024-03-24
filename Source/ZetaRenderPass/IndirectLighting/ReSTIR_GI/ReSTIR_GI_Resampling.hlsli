@@ -48,11 +48,11 @@ namespace RGI_Util
         RGI_Util::Reservoir r = RGI_Util::Reservoir::Init();
 
         // Find sample point (second path vertex)
-        RGI_Trace::HitSurface hitInfo;
+        ReSTIR_RT::HitSurface hitInfo;
         float3 p_source;
         float3 wi = !primarySurface.HasSpecularTransmission() ?
-            RGI_Util::SampleBRDF<true>(primaryNormal, primarySurface, rngThread, p_source) :
-            RGI_Util::SampleDielectricBSDF_RIS<true>(primaryNormal, primarySurface, rngThread, p_source);
+            ReSTIR_Util::SampleBRDF<true>(primaryNormal, primarySurface, rngThread, p_source) :
+            ReSTIR_Util::SampleDielectricBSDF_RIS<true>(primaryNormal, primarySurface, rngThread, p_source);
 
         if(p_source.x == 0)
             return r;
@@ -60,7 +60,7 @@ namespace RGI_Util
         RT::RayCone rayCone = RT::RayCone::InitFromPrimaryHit(g_frame.PixelSpreadAngle, z_view);
 
         uint hitID;
-        bool hit = RGI_Trace::FindClosestHit<true>(primaryPos, primaryNormal, wi, g_bvh, g_frameMeshData, 
+        bool hit = ReSTIR_RT::FindClosestHit<true>(primaryPos, primaryNormal, wi, g_bvh, g_frameMeshData, 
             g_vertices, g_indices, hitInfo, hitID, primarySurface.HasSpecularTransmission());
 
         if(!hit)
@@ -243,7 +243,7 @@ namespace RGI_Util
         // BVH should be used.
         if(testVisibility && targetLum_prev > 1e-5)
         {
-            if(!RGI_Trace::Visibility_Segment(candidate.posW, wi, t, candidate.normal, r_curr.ID, g_bvh, surface_prev.HasSpecularTransmission()))
+            if(!ReSTIR_RT::Visibility_Segment(candidate.posW, wi, t, candidate.normal, r_curr.ID, g_bvh, surface_prev.HasSpecularTransmission()))
                 return 0;
         }
 
@@ -325,7 +325,7 @@ namespace RGI_Util
         // Target at current pixel with temporal reservoir's sample
         if(targetLum_curr > 1e-6)
         {
-            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.HasSpecularTransmission()))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.HasSpecularTransmission()))
             {
                 PartialReadReservoir_ReuseRest(candidate.posSS, prevReservoir_C_DescHeapIdx, r_prev);
 
@@ -401,7 +401,7 @@ namespace RGI_Util
             if(targetLum_curr < 1e-5f)
                 continue;
 
-            if(RGI_Trace::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.HasSpecularTransmission()))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.HasSpecularTransmission()))
             {
                 PartialReadReservoir_ReuseRest(candidate[i].posSS, prevReservoir_C_DescHeapIdx, r_prev[i]);
 

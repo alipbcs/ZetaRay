@@ -1,6 +1,6 @@
 #include "ReSTIR_GI_Resampling.hlsli"
-#include "../Common/Common.hlsli"
-#include "../../ZetaCore/Core/Material.h"
+#include "../../Common/Common.hlsli"
+#include "../../../ZetaCore/Core/Material.h"
 
 #define THREAD_GROUP_SWIZZLING 1
 
