@@ -32,12 +32,9 @@ set(RENDERPASS_SRC
     ${RP_TAA_SRC})
         
 file(GLOB_RECURSE ALL_SHADERS "${ZETA_RENDER_PASS_DIR}/*.hlsl")
-set(SHADER_INCLUDES ${RP_COMMON_SRC} 
-    ${ZETA_CORE_DIR}/RayTracing/RtCommon.h
-    ${ZETA_CORE_DIR}/Core/Material.h)
 
 foreach(HLSL ${ALL_SHADERS})
-    CompileHLSL(${HLSL} "${SHADER_INCLUDES}" CSOS)
+    CompileHLSL(${HLSL} CSOS)
     set(ALL_CSOS ${ALL_CSOS} ${CSOS})
 endforeach()
 
