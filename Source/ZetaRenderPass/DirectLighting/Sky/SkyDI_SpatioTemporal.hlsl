@@ -5,6 +5,7 @@
 #include "../../Common/StaticTextureSamplers.hlsli"
 #include "../../Common/RT.hlsli"
 #include "../../Common/Volumetric.hlsli"
+#include "../../Common/BSDFSampling.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define MIN_ROUGHNESS_SURFACE_MOTION 0.4
@@ -25,7 +26,7 @@ struct TemporalCandidate
         return ret;
     }
 
-    float3 posW;
+    float3 pos;
     float roughness;
     float3 normal;
     int16_t2 posSS;
@@ -130,13 +131,13 @@ struct PairwiseMIS
 #if 0
         const float p_i_y_i = r_i.W > 0 ? w_sum_i / r_i.W : 0;
 #else
-        const float p_i_y_i = r_i.W > 0 ? (r_i.M * w_sum_i) / r_i.W : 0;
+        const float p_i_y_i = r_i.W > 0 ? ((float)r_i.M * w_sum_i) / r_i.W : 0;
 #endif
 
-        const float p_c_y_i = targetLum * r_c.M;
+        const float p_c_y_i = targetLum * (float)r_c.M;
         // Jacobian term in the numerator cancels out with the same term in the resampling weight
-        float numerator = r_i.M * p_i_y_i;
-        float denom = numerator + (r_c.M / this.k) * p_c_y_i;
+        float numerator = (float)r_i.M * p_i_y_i;
+        float denom = numerator + ((float)r_c.M / this.k) * p_c_y_i;
         float m_i = denom > 0 ? numerator / denom : 0;
 
         return m_i;
@@ -155,13 +156,13 @@ struct PairwiseMIS
 
         const float p_c_y_c = Math::Luminance(r_c.Target);
 
-        const float numerator = r_i.M * p_i_y_c;
+        const float numerator = (float)r_i.M * p_i_y_c;
         const bool denomGt0 = (p_c_y_c + numerator) > 0; 
-        this.m_c += denomGt0 ? 1 - numerator / (numerator + (r_c.M / this.k) * p_c_y_c) : 1;
+        this.m_c += denomGt0 ? 1 - numerator / (numerator + ((float)r_c.M / this.k) * p_c_y_c) : 1;
     }
 
-    void Stream(SkyDI_Util::Reservoir r_c, float3 posW_c, float3 normal_c, float linearDepth_c, 
-        BSDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 posW_i, float3 normal_i, 
+    void Stream(SkyDI_Util::Reservoir r_c, float3 pos_c, float3 normal_c, float linearDepth_c, 
+        BSDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 pos_i, float3 normal_i, 
         float w_sum_i, BSDF::ShadingData surface_i, inout RNG rng)
     {
         float3 currTarget;
@@ -175,7 +176,7 @@ struct PairwiseMIS
             currTarget = r_i.Le * brdfCosTheta_c;
 
             if(Math::Luminance(currTarget) > 1e-5)
-                currTarget *= Visibility(posW_c, r_i.wi, normal_c, surface_c.HasSpecularTransmission());
+                currTarget *= Visibility(pos_c, r_i.wi, normal_c, surface_c.HasSpecularTransmission());
 
             const float targetLum = Math::Luminance(currTarget);
             m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i);
@@ -190,7 +191,7 @@ struct PairwiseMIS
             brdfCosTheta_i = BSDF::UnifiedBRDF(surface_i);
 
             if(Math::Luminance(brdfCosTheta_i) > 1e-5)
-                brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i, surface_i.HasSpecularTransmission());
+                brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, surface_i.HasSpecularTransmission());
         }    
 
         Update_m_c(r_c, r_i, brdfCosTheta_i);
@@ -221,7 +222,7 @@ struct PairwiseMIS
     uint16_t k;
 };
 
-SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 normal, bool metallic,
+SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, bool metallic,
     float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     SkyDI_Util::Reservoir r = SkyDI_Util::Reservoir::Init();
@@ -239,14 +240,14 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
             BSDF::SampleLambertianBRDF(normal, u, p_e) :
             Sampling::SampleCosineWeightedHemisphere(u, p_e);
 #endif
-        const float3 le = Le(posW, normal, wi_e, surface);
+        const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
         const float3 target = le * BSDF::UnifiedBSDF(surface);
 
         // Balance heuristic
         // p_e in m_e's numerator and w_e's denominator cancel out
-        const float m_e = 1.0f / max(p_e + RT::UnifiedBSDFPdf_NoDiffuse(normal, surface, wi_e), 1e-6);
+        const float m_e = 1.0f / max(p_e + BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_e), 1e-6);
         const float w_e = m_e * Math::Luminance(target);
 
         r.Update(w_e, le, wi_e, target, rng);
@@ -254,9 +255,11 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
 
     // Sample non-diffuse BSDF
     {
-        float3 f;
-        float p_s;
-        float3 wi_s = RT::SampleUnifiedBSDF_NoDiffuse(normal, surface, rng, f, p_s);
+        BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
+        float3 wi_s = bsdfSample.wi;
+        float3 f = bsdfSample.f;
+        float p_s = bsdfSample.pdf;
+
         surface.ndotwi = abs(dot(wi_s, normal));
 
 #if 1
@@ -266,7 +269,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
             surface.ndotwi * ONE_OVER_PI : 
             saturate(wi_s.y) * ONE_OVER_PI;
 #endif
-        const float3 le = Le(posW, normal, wi_s, surface);
+        const float3 le = Le(pos, normal, wi_s, surface);
         const float3 target = le * f;
 
         // p_s in m_s's numerator and w_s's denominator cancel out
@@ -282,16 +285,16 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 posW, float3 norm
     return r;
 }
 
-float PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth)
+bool PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth)
 {
     float planeDist = dot(currNormal, samplePos - currPos);
-    float weight = abs(planeDist) <= MAX_PLANE_DIST_REUSE * linearDepth;
+    bool weight = abs(planeDist) <= MAX_PLANE_DIST_REUSE * linearDepth;
 
     return weight;
 }
 
-TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, float linearDepth, bool metallic, 
-    float roughness, BSDF::ShadingData surface, inout RNG rng)
+TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, float linearDepth, 
+    bool metallic, float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     TemporalCandidate candidate = TemporalCandidate::Init();
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
@@ -325,15 +328,11 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
 
         // plane-based heuristic
         float prevDepth = g_prevDepth[samplePosSS];
-        float3 prevPos = Math::WorldPosFromScreenSpace(samplePosSS,
-            renderDim,
-            prevDepth,
-            g_frame.TanHalfFOV,
-            g_frame.AspectRatio,
-            g_frame.PrevViewInv,
+        float3 prevPos = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
+            prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
             g_frame.PrevCameraJitter);
 
-        if(!PlaneHeuristic(prevPos, normal, posW, linearDepth))
+        if(!PlaneHeuristic(prevPos, normal, pos, linearDepth))
             continue;
 
         const float2 prevMR = g_prevMetallicRoughness[samplePosSS];
@@ -352,13 +351,13 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
         const float normalSimilarity = dot(prevNormal, normal);
             
         // roughness heuristic
-        const float roughnessSimilarity = abs(prevMR.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE;
-        candidate.valid = normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && roughnessSimilarity && metallic == prevMetallic;
+        const bool roughnessSimilarity = abs(prevMR.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE;
+        candidate.valid = normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && roughnessSimilarity && (metallic == prevMetallic);
 
         if(candidate.valid)
         {
             candidate.posSS = (int16_t2)samplePosSS;
-            candidate.posW = prevPos;
+            candidate.pos = prevPos;
             candidate.normal = prevNormal;
             candidate.roughness = prevMR.y;
 
@@ -369,7 +368,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, 
     return candidate;
 }
 
-void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, bool metallic,
+void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bool metallic,
     BSDF::ShadingData surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
     SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
@@ -386,7 +385,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
         {
             const float3 prevBaseColor = g_prevBaseColor[candidate.posSS].rgb;
             const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
-            const float3 prevWo = normalize(prevCameraPos - candidate.posW);
+            const float3 prevWo = normalize(prevCameraPos - candidate.pos);
 
             BSDF::ShadingData prevSurface = BSDF::ShadingData::Init(candidate.normal, prevWo,
                 metallic, candidate.roughness, prevBaseColor);
@@ -397,11 +396,11 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
             if(targetLumAtPrev > 1e-6)
-                targetLumAtPrev *= Visibility(candidate.posW, r.wi, candidate.normal, prevSurface.HasSpecularTransmission());
+                targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, prevSurface.HasSpecularTransmission());
         }
 
-        const float p_curr = r.M * Math::Luminance(r.Target);
-        const float m_curr = p_curr / max(p_curr + prev.M * targetLumAtPrev, 1e-6);
+        const float p_curr = (float)r.M * Math::Luminance(r.Target);
+        const float m_curr = p_curr / max(p_curr + (float)prev.M * targetLumAtPrev, 1e-6);
         r.w_sum *= m_curr;
     }
 
@@ -413,15 +412,15 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 1e-6)
-            targetLumAtCurr *= Visibility(posW, prev.wi, normal, surface.HasSpecularTransmission());
+            targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.HasSpecularTransmission());
         
         // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
         if(targetLumAtCurr != 0)
         {
             const float w_sum_prev = SkyDI_Util::PartialReadReservoir_WSum(candidate.posSS, g_local.PrevReservoir_B_DescHeapIdx);
             const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
-            const float numerator = prev.M * targetLumAtPrev;
-            const float denom = numerator + r.M * targetLumAtCurr;
+            const float numerator = (float)prev.M * targetLumAtPrev;
+            const float denom = numerator + (float)r.M * targetLumAtCurr;
             // balance heuristic
             const float m_prev = numerator / max(denom, 1e-6);
             const float w_prev = m_prev * targetLumAtCurr * prev.W;
@@ -435,20 +434,20 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
     r.M = newM;
 }
 
-void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW, float3 normal, 
+void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, float3 normal, 
     float linearDepth, float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
     uint prevReservoir_B_DescHeapIdx, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
-    static const half2 k_hammersley[8] =
+    static const float2 k_hammersley[8] =
     {
-        half2(0.0, -0.7777777777777778),
-        half2(-0.5, -0.5555555555555556),
-        half2(0.5, -0.33333333333333337),
-        half2(-0.75, -0.11111111111111116),
-        half2(0.25, 0.11111111111111116),
-        half2(-0.25, 0.33333333333333326),
-        half2(0.75, 0.5555555555555556),
-        half2(-0.875, 0.7777777777777777)
+        float2(0.0, -0.7777777777777778),
+        float2(-0.5, -0.5555555555555556),
+        float2(0.5, -0.33333333333333337),
+        float2(-0.75, -0.11111111111111116),
+        float2(0.25, 0.11111111111111116),
+        float2(-0.25, 0.33333333333333326),
+        float2(0.75, 0.5555555555555556),
+        float2(-0.875, 0.7777777777777777)
     };
 
     GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -460,15 +459,15 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
 
     // rotate sample sequence per pixel
     const float u0 = rng.Uniform();
-    const uint offset = rng.UniformUintBounded_Faster(8);
+    const int offset = (int)rng.UniformUintBounded_Faster(8);
     const float theta = u0 * TWO_PI;
     const float sinTheta = sin(theta);
     const float cosTheta = cos(theta);
 
-    const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
     PairwiseMIS pairwiseMIS = PairwiseMIS::Init(numSamples, r);
 
-    float3 samplePosW[3];
+    float3 samplePos[3];
     int16_t2 samplePosSS[3];
     float sampleRoughness[3];
     bool sampleMetallic[3];
@@ -483,20 +482,16 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
         rotated *= radius;
         const int2 posSS_i = round(float2(DTid) + rotated);
 
-        if (Math::IsWithinBounds(posSS_i, renderDim))
+        if (Math::IsWithinBounds(posSS_i, (int2)renderDim))
         {
             const float depth_i = g_prevDepth[posSS_i];
             if (depth_i == 0.0)
                 continue;
 
-            float3 posW_i = Math::WorldPosFromScreenSpace(posSS_i,
-                renderDim,
-                depth_i,
-                g_frame.TanHalfFOV,
-                g_frame.AspectRatio,
-                g_frame.PrevViewInv,
+            float3 pos_i = Math::WorldPosFromScreenSpace(posSS_i, renderDim,
+                depth_i, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
                 g_frame.PrevCameraJitter);
-            bool valid = PlaneHeuristic(posW_i, normal, posW, linearDepth);
+            bool valid = PlaneHeuristic(pos_i, normal, pos, linearDepth);
 
             const float2 mr_i = g_prevMetallicRoughness[posSS_i];
             
@@ -509,7 +504,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
             if (!valid)
                 continue;
 
-            samplePosW[k] = posW_i;
+            samplePos[k] = pos_i;
             samplePosSS[k] = (int16_t2)posSS_i;
             sampleMetallic[k] = metallic_i;
             sampleRoughness[k] = mr_i.y;
@@ -525,14 +520,14 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
         const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
         const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
-        const float3 wo_i = normalize(prevCameraPos - samplePosW[i]);
+        const float3 wo_i = normalize(prevCameraPos - samplePos[i]);
         BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
             sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
 
         SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], g_local.PrevReservoir_A_DescHeapIdx);
         const float neighborWSum = SkyDI_Util::PartialReadReservoir_WSum(samplePosSS[i], prevReservoir_B_DescHeapIdx);
 
-        pairwiseMIS.Stream(r, posW, normal, linearDepth, surface, neighbor, samplePosW[i], 
+        pairwiseMIS.Stream(r, pos, normal, linearDepth, surface, neighbor, samplePos[i], 
             sampleNormal, neighborWSum, surface_i, rng);
     }
 
@@ -540,10 +535,10 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 posW,
     r = pairwiseMIS.r_s;
 }
 
-SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 normal, float linearDepth, 
+SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float linearDepth, 
     bool metallic, float roughness, float3 baseColor, BSDF::ShadingData surface, inout RNG rng)
 {
-    SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, posW, normal, metallic, roughness,
+    SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, pos, normal, metallic, roughness,
         surface, rng);
 
     // skip resampling for mirror-like metals & dark-colored glossy dielectrics
@@ -551,22 +546,22 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 posW, float3 nor
     
     if (IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE) && resample) 
     {
-        TemporalCandidate candidate = FindTemporalCandidate(DTid, posW, normal, linearDepth, metallic, roughness, 
+        TemporalCandidate candidate = FindTemporalCandidate(DTid, pos, normal, linearDepth, metallic, roughness, 
             surface, rng);
 
         if(candidate.valid)
-            TemporalResample(candidate, posW, normal, metallic, surface, r, rng);
+            TemporalResample(candidate, pos, normal, metallic, surface, r, rng);
     }
 
     float m_max = 1 + smoothstep(0, 0.6, roughness * roughness) * g_local.M_max;
     
     SkyDI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
-            g_local.CurrReservoir_B_DescHeapIdx, half(m_max));
+            g_local.CurrReservoir_B_DescHeapIdx, (half)m_max);
 
     // spatial resampling
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE) && resample)
     {
-        SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, posW, normal, linearDepth, roughness, surface, 
+        SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, pos, normal, linearDepth, roughness, surface, 
             g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, r, rng);
     }
 
@@ -601,19 +596,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_depth[swizzledDTid];
+    const float t_primary = g_depth[swizzledDTid];
     
-    if (linearDepth == FLT_MAX)
+    if (t_primary == FLT_MAX)
         return;
 
     // reconstruct position from depth buffer
     const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromScreenSpace(swizzledDTid,
-        renderDim,
-        linearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
+    const float3 pos = Math::WorldPosFromScreenSpace(swizzledDTid, renderDim,
+        t_primary, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
         g_frame.CurrCameraJitter);
 
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -649,14 +640,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         eta_i = GBuffer::DecodeIOR(tr_ior.y);
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - posW);
+    const float3 wo = normalize(g_frame.CameraPos - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
         eta_i, eta_t, tr);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 
     // generate candidates followed by spatiotemporal resampling
-    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, posW, normal, linearDepth, metallic, mr.y, baseColor, surface, rng);
+    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, t_primary, metallic, 
+        mr.y, baseColor, surface, rng);
 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))
     {

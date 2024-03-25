@@ -54,7 +54,8 @@ float Reactivity(float roughness, float ndotwo, float parallax)
     return 1 - f;
 }
 
-float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, float linearDepth)
+float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, float3 currPos, 
+    float z_view)
 {
     float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
@@ -73,18 +74,20 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
         dot(currNormal, prevPos[2] - currPos),
         dot(currNormal, prevPos[3] - currPos));
 
-    float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+    float4 weights = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * z_view;
 
     return weights;
 }
 
-float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
+float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, 
+    float z_view)
 {
     float3 prevPos = Math::WorldPosFromUV(prevUV, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
-        prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+        prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+        g_frame.PrevCameraJitter);
 
     float planeDist = dot(currNormal, prevPos - currPos);
-    float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * linearDepth;
+    float weight = abs(planeDist) <= DISOCCLUSION_TEST_RELATIVE_DELTA * z_view;
 
     return weight;
 }
@@ -440,11 +443,8 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
     
     const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
     const float3 prevSurfacePosW = Math::WorldPosFromUV(prevSurfaceUV,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        prevSurfaceLinearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.PrevViewInv, 
+        float2(g_frame.RenderWidth, g_frame.RenderHeight), prevSurfaceLinearDepth,
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
         g_frame.PrevCameraJitter);
 
     const float3 wo = normalize(g_frame.CameraPos - posW);
@@ -474,10 +474,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
         return;
 
     GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_currDepth[DTid.xy];
+    const float z_view = g_currDepth[DTid.xy];
 
     // skip sky pixels
-    if (linearDepth == FLT_MAX)
+    if (z_view == FLT_MAX)
         return;
 
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -501,12 +501,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
     const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
     const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromUV(currUV,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        linearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
+    const float3 posW = Math::WorldPosFromUV(currUV, float2(g_frame.RenderWidth, g_frame.RenderHeight),
+        z_view, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv,
         g_frame.CurrCameraJitter);
 
     GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
@@ -520,10 +516,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 
     if(!isMetallic)
     {
-        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, Li_d,
+        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_d,
             prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);    
     }
 
-    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, Li_s,
+    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_s,
         prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);
 }

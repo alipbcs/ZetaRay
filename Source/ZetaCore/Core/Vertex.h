@@ -9,7 +9,7 @@ namespace ZetaRay::Core
     {
         Math::float3 Position;
         Math::float2 TexUV;
-        Math::oct16 Normal;
-        Math::oct16 Tangent;
+        Math::oct32 Normal;
+        Math::oct32 Tangent;
     };
 }

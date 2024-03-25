@@ -6,13 +6,13 @@
 
 namespace GBufferRT
 {
-    int EncodeFloat2AsSNorm16(float2 u)
+    uint EncodeFloat2AsSNorm16(float2 u)
     {
         int16_t2 encoded = Math::EncodeAsSNorm2(u);
         return (uint(asuint16(encoded.y)) << 16) | asuint16(encoded.x);
     }
 
-    float2 DecodeSNorm16ToFloat2(int e)
+    float2 DecodeSNorm16ToFloat2(uint e)
     {
         int16_t2 encoded = int16_t2(asint16(uint16_t(e & 0xffff)), asint16(uint16_t(e >> 16)));
         return Math::DecodeSNorm2(encoded);
@@ -61,8 +61,8 @@ namespace GBufferRT
 
     // Rate of change of texture uv coordinates w.r.t. screen space
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
-    float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, float t, float3 dpdu, float3 dpdv, 
-        ConstantBuffer<cbFrameConstants> g_frame)
+    float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, float t, float3 dpdu, 
+        float3 dpdv, ConstantBuffer<cbFrameConstants> g_frame)
     {
         // 1. Form auxilary rays offset one pixel to right and above of main ray (r_x and r_y).
         // 2. Form tangent plane at hit point (P).
@@ -158,7 +158,7 @@ namespace GBufferRT
         RWTexture2D<float2> g_outMetallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
         g_outMetallicRoughness[DTid] = float2(metalness, roughness);
 
-        if(dot(emissive, 1) > 0)
+        if(dot(emissive, emissive) > 0)
         {
             RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
             // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
@@ -196,8 +196,8 @@ namespace GBufferRT
         return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
     }
 
-    void ApplyTextureMaps(uint2 DTid, float t, float2 uv, uint matIdx, float3 geoNormal, float3 tangent, 
-        float2 motionVec, float4 grads, float3 posW, ConstantBuffer<cbFrameConstants> g_frame, 
+    void ApplyTextureMaps(uint2 DTid, float z_view, float2 uv, uint matIdx, float3 geoNormal, 
+        float3 tangent, float2 motionVec, float4 grads, float3 pos, ConstantBuffer<cbFrameConstants> g_frame, 
         ConstantBuffer<cbGBufferRt> g_local, StructuredBuffer<Material> g_materials)
     {
         const Material mat = g_materials[NonUniformResourceIndex(matIdx)];
@@ -210,9 +210,11 @@ namespace GBufferRT
         float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
-        if (mat.BaseColorTexture != uint32_t(-1))
+        if (mat.BaseColorTexture != UINT32_MAX)
         {
-            BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + mat.BaseColorTexture)];
+            uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
+                mat.BaseColorTexture);
+            BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
             baseColor *= g_baseCol.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw).rgb;
         }
         else if (dot(baseColor.rgb, 1) == 0)
@@ -222,15 +224,17 @@ namespace GBufferRT
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
         const uint16_t normalTex = mat.GetNormalTex();
 
-        if (normalTex != uint16_t(-1) && abs(dot(tangent, tangent)) > 1e-6)
+        if (normalTex != UINT16_MAX && abs(dot(tangent, tangent)) > 1e-6)
         {
-            NORMAL_MAP g_normalMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + normalTex)];
+            uint offset = NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + normalTex);
+            NORMAL_MAP g_normalMap = ResourceDescriptorHeap[offset];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
-            shadingNormal = Math::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, emissiveColorNormalScale.w);
+            shadingNormal = Math::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, 
+                emissiveColorNormalScale.w);
         }
 
-        float3 wo = g_frame.CameraPos - posW;
+        float3 wo = g_frame.CameraPos - pos;
 
         // reverse normal for double-sided meshes if facing away from camera
         if (mat.IsDoubleSided() && dot(wo, geoNormal) < 0)
@@ -255,9 +259,10 @@ namespace GBufferRT
 
         const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
 
-        if (metallicRoughnessTex != uint16_t(-1))
+        if (metallicRoughnessTex != UINT16_MAX)
         {
-            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + metallicRoughnessTex);
+            uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + 
+                metallicRoughnessTex);
             METALLIC_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
             float2 mr = g_metallicRoughnessMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
@@ -266,11 +271,12 @@ namespace GBufferRT
         }
 
         uint16_t emissiveTex = mat.GetEmissiveTex();
-        float emissiveStrength = mat.GetEmissiveStrength();
+        float emissiveStrength = (float)mat.GetEmissiveStrength();
 
-        if (emissiveTex != uint16_t(-1))
+        if (emissiveTex != UINT16_MAX)
         {
-            EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + emissiveTex)];
+            uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + emissiveTex);
+            EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
             emissiveColorNormalScale.rgb *= g_emissiveMap.SampleLevel(g_samLinearWrap, uv, 0).xyz;
         }
         
@@ -282,7 +288,7 @@ namespace GBufferRT
         metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, tr > 0, 
             emissiveColorNormalScale.rgb);
 
-        WriteToGBuffers(DTid, t, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
+        WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
             emissiveColorNormalScale.rgb, motionVec, tr, ior, g_local);
     }
 }

@@ -301,7 +301,7 @@ void DirectLighting::Render(CommandList& cmdList)
 
         m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
         m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
-        m_cbSpatioTemporal.NumGroupsInTile = RESTIR_DI_TEMPORAL_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
+        m_cbSpatioTemporal.NumGroupsInTile = RESTIR_DI_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
         m_cbSpatioTemporal.TemporalResampling = m_doTemporalResampling && m_isTemporalReservoirValid;
         m_cbSpatioTemporal.SpatialResampling = m_doSpatialResampling && m_isTemporalReservoirValid;
 
@@ -452,7 +452,7 @@ void DirectLighting::Render(CommandList& cmdList)
             m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
             m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
             m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-            m_cbDnsrSpatial.NumGroupsInTile = RESTIR_DI_DNSR_SPATIAL_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
+            m_cbDnsrSpatial.NumGroupsInTile = RESTIR_DI_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
 
             m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
             m_rootSig.End(computeCmdList);
@@ -584,7 +584,7 @@ void DirectLighting::ReloadSpatioTemporal()
         (int)SHADERS::SPATIO_TEMPORAL;
 
     m_psoLib.Reload(i, m_preSampling ?
-        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_LP.hlsl" :
+        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_WPS.hlsl" :
         "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl",
         true);
     m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);

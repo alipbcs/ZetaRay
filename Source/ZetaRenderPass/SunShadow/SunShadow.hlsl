@@ -57,17 +57,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_depth[DTid.xy];
+    const float t_primary = g_depth[DTid.xy];
 
-    if (linearDepth == FLT_MAX)
+    if (t_primary == FLT_MAX)
         return;
 
-    const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        linearDepth, 
-        g_frame.TanHalfFOV, 
-        g_frame.AspectRatio, 
-        g_frame.CurrViewInv,
+    const float3 pos = Math::WorldPosFromScreenSpace(DTid.xy,
+        float2(g_frame.RenderWidth, g_frame.RenderHeight), t_primary, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
         g_frame.CurrCameraJitter);
 
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -106,7 +103,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         baseColor = g_baseColor[DTid.xy].rgb;
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - posW);
+    const float3 wo = normalize(g_frame.CameraPos - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
         eta_i, eta_t, tr);
 
@@ -128,8 +125,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         (dot(wi, normal) > 0 || surface.HasSpecularTransmission()) &&
         // Make sure BSDF samples are within the valid range
         dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
-    const bool isUnoccluded = trace ? EvaluateVisibility(posW, wi, normal) : false;
-    const uint laneMask = (isUnoccluded << WaveGetLaneIndex());
+    const bool isUnoccluded = trace ? EvaluateVisibility(pos, wi, normal) : false;
+    const uint laneMask = ((uint)isUnoccluded << WaveGetLaneIndex());
     const uint ret = WaveActiveBitOr(laneMask);
 
     if (WaveIsFirstLane())

@@ -215,21 +215,15 @@ bool FFX_DNSR_Shadows_IsDisoccluded(uint2 DTid, float depth, float2 velocity)
 
     const float currLinearDepth = depth;
     const float3 currPos = Math::WorldPosFromUV(currUV, 
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        currLinearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
+        float2(g_frame.RenderWidth, g_frame.RenderHeight), currLinearDepth, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
         g_frame.CurrCameraJitter);
 
     GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     float prevDepth = g_prevDepth.SampleLevel(g_samPointClamp, prevUV, 0);
     const float3 prevPos = Math::WorldPosFromUV(prevUV, 
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        prevDepth, 
-        g_frame.TanHalfFOV, 
-        g_frame.AspectRatio,
-        g_frame.PrevViewInv,
+        float2(g_frame.RenderWidth, g_frame.RenderHeight), prevDepth, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv,
         g_frame.PrevCameraJitter);
     
     const float planeDist = dot(normal, prevPos - currPos);
@@ -316,7 +310,7 @@ float FFX_DNSR_Shadows_HorizontalNeighborhood(int2 DTid)
     int i;
     for (i = 0; i < 8; ++i)
     {
-        mask = 1u << i;
+        mask = 1u << (uint)i;
         moment += (mask & neighborhood) ? FFX_DNSR_Shadows_KernelWeight(8 - i) : 0;
     }
 
@@ -327,7 +321,7 @@ float FFX_DNSR_Shadows_HorizontalNeighborhood(int2 DTid)
     // Last 8 bits
     for (i = 1; i <= 8; ++i)
     {
-        mask = 1u << (8 + i);
+        mask = 1u << (uint)(8 + i);
         moment += (mask & neighborhood) ? FFX_DNSR_Shadows_KernelWeight(i) : 0;
     }
 

@@ -192,13 +192,9 @@ namespace RGI_Util
                 if (depth_i == FLT_MAX)
                     continue;
 
-                float3 posW_i = Math::WorldPosFromScreenSpace(posSS_i,
-                    renderDim,
-                    depth_i,
-                    g_frame.TanHalfFOV,
-                    g_frame.AspectRatio,
-                    g_frame.PrevViewInv,
-                    g_frame.PrevCameraJitter);
+                float3 posW_i = Math::WorldPosFromScreenSpace(posSS_i, renderDim,
+                    depth_i, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+                    g_frame.PrevCameraJitter, g_frame.CameraNear);
                 bool valid = PlaneHeuristic(posW_i, normal, posW, z_view);
 
                 const float2 mr_i = g_prevMetallicRoughness[posSS_i];

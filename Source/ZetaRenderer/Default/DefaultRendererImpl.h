@@ -57,7 +57,7 @@ namespace ZetaRay::DefaultRenderer
     static_assert((int)AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> string mismatch.");
 
     inline static const char* IndirectOptions[] = { "Path Tracing", "ReSTIR GI", "ReSTIR PT" };
-    static_assert((int)RenderPass::IndirectLighting::METHOD::COUNT == ZetaArrayLen(IndirectOptions), "enum <-> string mismatch.");
+    static_assert((int)RenderPass::IndirectLighting::INTEGRATOR::COUNT == ZetaArrayLen(IndirectOptions), "enum <-> string mismatch.");
 
     static constexpr auto DEFAULT_AA = AA::TAA;
 
@@ -66,7 +66,7 @@ namespace ZetaRay::DefaultRenderer
         bool Inscattering = false;
         bool SkyIllumination = false;
         AA AntiAliasing = DEFAULT_AA;
-        RenderPass::IndirectLighting::METHOD Indirect = RenderPass::IndirectLighting::METHOD::ReSTIR_GI;
+        RenderPass::IndirectLighting::INTEGRATOR Indirect = RenderPass::IndirectLighting::INTEGRATOR::ReSTIR_GI;
 
         // Presampled sets
         bool LightPresampling = false;
@@ -186,7 +186,8 @@ namespace ZetaRay::DefaultRenderer
         // descriptor tables
         enum class DESC_TABLE_WND_SIZE_CONST
         {
-            CURVATURE,
+            CURVATURE_0,
+            CURVATURE_1,
             SKY_DI_DENOISED,
             DIRECT_LIGHITNG_DENOISED,
             SUN_SHADOW_DENOISED,

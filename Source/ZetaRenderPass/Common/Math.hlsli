@@ -12,6 +12,9 @@
 #define TWO_OVER_PI          0.636619772f
 #define FLT_MIN              1.175494351e-38 
 #define FLT_MAX              3.402823466e+38 
+#define UINT8_MAX            0xffu
+#define UINT16_MAX           0xffffu
+#define UINT32_MAX           0xffffffffu
 
 namespace Math
 {
@@ -42,6 +45,12 @@ namespace Math
         x++;
 
         return x;
+    }
+
+    template<typename T>
+    T Sanitize(T x)
+    {
+        return any(isnan(x)) || any(isinf(x)) ? 0 : x;
     }
 
     float3x3 Inverse(float3x3 M)
@@ -140,49 +149,49 @@ namespace Math
         return ndc * float2(0.5, -0.5) + 0.5f;
     }
 
-    float2 ScreenSpaceFromNDC(float2 ndc, float2 screenDim)
+    float2 ScreenSpaceFromNDC(float2 ndc, float2 renderDim)
     {
         // [-1, 1] * [-1, 1] -> [0, 1] * [0, 1]
         float2 posSS = ndc * float2(0.5f, -0.5f) + 0.5f;
-        posSS *= screenDim;
+        posSS *= renderDim;
 
         return posSS;
     }
 
-    float2 UVFromScreenSpace(uint2 posSS, float2 screenDim)
+    float2 UVFromScreenSpace(uint2 posSS, float2 renderDim)
     {
         float2 uv = float2(posSS) + 0.5f;
-        uv /= screenDim;
+        uv /= renderDim;
 
         return uv;
     }
 
-    float3 WorldPosFromUV(float2 uv, float2 screenDim, float z_view, float tanHalfFOV, float aspectRatio, 
-        float3x4 viewInv, float2 jitter = 0.0)
+    float3 WorldPosFromUV(float2 uv, float2 renderDim, float z_view, float tanHalfFOV, 
+        float aspectRatio, float3x4 viewInv, float2 jitter)
     {
-        float2 posV = NDCFromUV(uv) + jitter / screenDim;
-        posV *= tanHalfFOV;
-        posV.x *= aspectRatio;
-        float3 posW = float3(posV, 1.0f) * z_view;
-        posW = mul(viewInv, float4(posW, 1.0f));
+        float2 ndc = NDCFromUV(uv) + jitter / renderDim;
+        float3 dir_v = float3(ndc.x * aspectRatio * tanHalfFOV * z_view, 
+            ndc.y * tanHalfFOV * z_view, 
+            z_view);
+        float3 pos_w = mul(viewInv, float4(dir_v, 1.0f));
 
-        return posW;
+        return pos_w;
     }
 
-    float3 WorldPosFromScreenSpace(float2 posSS, float2 screenDim, float z_view, float tanHalfFOV,
-        float aspectRatio, float3x4 viewInv, float2 jitter = 0.0)
+    float3 WorldPosFromScreenSpace(float2 pos_ss, float2 renderDim, float z_view, float tanHalfFOV,
+        float aspectRatio, float3x4 viewInv, float2 jitter)
     {
-        float2 uv = (posSS + 0.5f + jitter) / screenDim;
-        float2 posV = NDCFromUV(uv);
-        posV *= tanHalfFOV;
-        posV.x *= aspectRatio;
-        float3 posW = float3(posV, 1.0f) * z_view;
-        posW = mul(viewInv, float4(posW, 1.0f));
+        float2 uv = (pos_ss + 0.5f + jitter) / renderDim;
+        float2 ndc = NDCFromUV(uv);
+        float3 dir_v = float3(ndc.x * aspectRatio * tanHalfFOV * z_view, 
+            ndc.y * tanHalfFOV * z_view, 
+            z_view);
+        float3 pos_w = mul(viewInv, float4(dir_v, 1.0f));
 
-        return posW;
+        return pos_w;
     }
 
-    float2 UVFromWorldPos(float3 posW, float2 screenDim, float tanHalfFOV, float aspectRatio, 
+    float2 UVFromWorldPos(float3 posW, float2 renderDim, float tanHalfFOV, float aspectRatio, 
         float3x4 view, float2 jitter = 0.0)
     {
         float3 posV = mul(view, float4(posW, 1.0f));
@@ -190,7 +199,7 @@ namespace Math
         ndc.x /= aspectRatio;
 
         float2 uv = Math::UVFromNDC(ndc);
-        uv += jitter / screenDim;
+        uv += jitter / renderDim;
 
         return uv;
     }
@@ -406,9 +415,25 @@ namespace Math
         return rotated;
     }
 
+    uint EncodeAsUNorm8(float u)
+    {
+        return (uint)(round(u * 255.0f));
+    }
+
+    float DecodeUNorm8(uint i)
+    {
+        return i / 255.0f;
+    }
+
+    int16_t2 UnpackUintToInt16(uint x)
+    {
+        uint16_t2 u = uint16_t2(x & 0xffff, x >> 16);
+        return asint16(u);
+    }
+
     uint16_t2 EncodeAsUNorm2(float2 u)
     {
-        return uint16_t2(round(clamp(u, 0.0f, 1.0f) * float((1 << 16) - 1)));
+        return uint16_t2(round(saturate(u) * float((1 << 16) - 1)));
     }
 
     float2 DecodeUNorm2(uint16_t2 i)
@@ -462,7 +487,7 @@ namespace Math
         return normalize(n);
     }
 
-    int16_t2 EncodeOct16(float3 n)
+    int16_t2 EncodeOct32(float3 n)
     {
         float2 u = EncodeUnitVector(n);
         int16_t2 e = EncodeAsSNorm2(u);
@@ -470,7 +495,7 @@ namespace Math
         return e;
     }
 
-    float3 DecodeOct16(int16_t2 e)
+    float3 DecodeOct32(int16_t2 e)
     {
         float2 u = DecodeSNorm2(e);
         float3 n = float3(u.x, u.y, 1.0f - abs(u.x) - abs(u.y));
@@ -552,6 +577,15 @@ namespace Math
         ret.w = float((rgba >> 24) & 0xff) / 255.0f;
 
         return ret;
+    }
+
+    uint Float3ToRGB8(float3 v)
+    {
+        v = round(v * 255.0f);
+        uint3 u = uint3(v);
+        uint packed = u.x | (u.y << 8) | (u.z << 16);
+
+        return packed;
     }
 }
 

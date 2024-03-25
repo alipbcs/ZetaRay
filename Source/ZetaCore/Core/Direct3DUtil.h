@@ -327,6 +327,148 @@ namespace ZetaRay::Core::Direct3DUtil
         return barrier;
     }
 
+    // Convenience methods for common texture barriers
+    inline D3D12_TEXTURE_BARRIER TextureBarrier_SrvToUavNoSync(ID3D12Resource* res,
+        bool directQueue = true,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = D3D12_BARRIER_SYNC_NONE;
+        barrier.SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        // D3D12_BARRIER_SYNC_NONE is always paired with D3D12_BARRIER_ACCESS_NO_ACCESS
+        barrier.AccessBefore = D3D12_BARRIER_ACCESS_NO_ACCESS;
+        barrier.AccessAfter = D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+        barrier.LayoutBefore = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_SHADER_RESOURCE;
+        // UAV access must be paired with D3D12_BARRIER_LAYOUT_QUEUE_UNORDERED_ACCESS
+        barrier.LayoutAfter = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+
+        return barrier;
+    }
+
+    inline D3D12_TEXTURE_BARRIER TextureBarrier_SrvToUavWithSync(ID3D12Resource* res,
+        bool directQueue = true,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.AccessBefore = D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+        barrier.AccessAfter = D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+        barrier.LayoutBefore = directQueue ? 
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE:
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_SHADER_RESOURCE;
+        // UAV access must be paired with D3D12_BARRIER_LAYOUT_QUEUE_UNORDERED_ACCESS
+        barrier.LayoutAfter = directQueue ? 
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS:
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+
+        return barrier;
+    }
+
+    inline D3D12_TEXTURE_BARRIER TextureBarrier_UavToSrvNoSync(ID3D12Resource* res,
+        bool directQueue = true,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = D3D12_BARRIER_SYNC_NONE;
+        barrier.SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        // D3D12_BARRIER_SYNC_NONE is always paired with D3D12_BARRIER_ACCESS_NO_ACCESS
+        barrier.AccessBefore = D3D12_BARRIER_ACCESS_NO_ACCESS;
+        barrier.AccessAfter = D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+        // UAV access must be paired with D3D12_BARRIER_LAYOUT_QUEUE_UNORDERED_ACCESS
+        barrier.LayoutBefore = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.LayoutAfter = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_SHADER_RESOURCE;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+
+        return barrier;
+    }    
+    
+    inline D3D12_TEXTURE_BARRIER TextureBarrier_UavToSrvWithSync(ID3D12Resource* res,
+        bool directQueue = true,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.AccessBefore = D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+        barrier.AccessAfter = D3D12_BARRIER_ACCESS_SHADER_RESOURCE;
+        // UAV access must be paired with D3D12_BARRIER_LAYOUT_QUEUE_UNORDERED_ACCESS
+        barrier.LayoutBefore = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.LayoutAfter = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_SHADER_RESOURCE;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+
+        return barrier;
+    }
+
+    inline D3D12_TEXTURE_BARRIER UAVBarrier1(ID3D12Resource* res,
+        bool directQueue = true,
+        UINT subresource = D3D12_RESOURCE_BARRIER_ALL_SUBRESOURCES)
+    {
+        D3D12_BARRIER_SUBRESOURCE_RANGE range;
+        range.NumMipLevels = 0;
+        range.IndexOrFirstMipLevel = subresource;
+
+        D3D12_TEXTURE_BARRIER barrier;
+        barrier.pResource = res;
+        barrier.SyncBefore = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.SyncAfter = D3D12_BARRIER_SYNC_COMPUTE_SHADING;
+        barrier.AccessBefore = D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+        barrier.AccessAfter = D3D12_BARRIER_ACCESS_UNORDERED_ACCESS;
+        barrier.LayoutBefore = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.LayoutAfter = directQueue ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS :
+            D3D12_BARRIER_LAYOUT_COMPUTE_QUEUE_UNORDERED_ACCESS;
+        barrier.Subresources.NumMipLevels = 0;
+        barrier.Subresources.IndexOrFirstMipLevel = subresource;
+        barrier.Flags = D3D12_TEXTURE_BARRIER_FLAG_NONE;
+
+        return barrier;
+    }
+
     // Return the BPP for a particular format
     size_t BitsPerPixel(DXGI_FORMAT fmt);
 

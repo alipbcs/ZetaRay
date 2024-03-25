@@ -74,7 +74,7 @@ void FFX_DNSR_Shadows_LoadWithOffset(int2 DTid, int2 offset, out float2 normal, 
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
     Texture2D<half2> g_temporalCache = ResourceDescriptorHeap[g_local.InTemporalDescHeapIdx];
 
-    const int2 p = clamp(DTid + offset, 0.0.xx, int2(g_frame.RenderWidth, g_frame.RenderHeight) - 1);
+    const int2 p = clamp(DTid + offset, 0.0.xx, int2((int)g_frame.RenderWidth, (int)g_frame.RenderHeight) - 1);
     
     depth = g_depth[p];
     normal = g_normal[p];
@@ -162,7 +162,7 @@ float FFX_DNSR_Shadows_FilterVariance(int2 pos)
         {
             const float w = kernel[abs(x)][abs(y)];
             int2 neighborPos = pos + int2(x, y);
-            variance += w * g_FFX_DNSR_shared_input[neighborPos.y][neighborPos.x].y;
+            variance += w * (float)g_FFX_DNSR_shared_input[neighborPos.y][neighborPos.x].y;
         }
     }
 
@@ -182,13 +182,9 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
     const float3 currNormal = Math::DecodeUnitVector(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
     const float currLinearDepth = depth;
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 currPos = Math::WorldPosFromScreenSpace(DTid, 
-        renderDim,
-        currLinearDepth,
-        g_frame.TanHalfFOV, 
-        g_frame.AspectRatio, 
-        g_frame.CurrViewInv,
-        g_frame.CurrCameraJitter);
+    const float3 currPos = Math::WorldPosFromScreenSpace(DTid, renderDim,
+        currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, 
+        g_frame.CurrViewInv, g_frame.CurrCameraJitter);
     
     // Iterate filter kernel
     for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; ++y)
@@ -210,13 +206,9 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
             float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == FLT_MAX) ? 0 : 1; // Zero weight for sky pixels
 
             // Fetch our filtering values
-            float3 posNeighbor = Math::WorldPosFromScreenSpace(did_idx,
-                renderDim,
-                neighborDepth,
-                g_frame.TanHalfFOV,
-                g_frame.AspectRatio,
-                g_frame.CurrViewInv,
-                g_frame.CurrCameraJitter);
+            float3 posNeighbor = Math::WorldPosFromScreenSpace(did_idx, renderDim,
+                neighborDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
+                g_frame.CurrViewInv, g_frame.CurrCameraJitter);
             
             // Evaluate the edge-stopping function
             float w = Kernel[abs(y)][abs(x)]; // kernel weight

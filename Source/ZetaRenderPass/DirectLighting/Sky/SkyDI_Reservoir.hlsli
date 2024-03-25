@@ -69,7 +69,7 @@ namespace SkyDI_Util
         half M;
     };
 
-    float2 VirtualMotionReproject(float3 posW, float roughness, BSDF::ShadingData surface, float sampleRayT,
+    float2 VirtualMotionReproject(float3 pos, float roughness, BSDF::ShadingData surface, float sampleRayT,
         float k, float linearDepth, float tanHalfFOV, float4x4 prevViewProj)
     {
         float pixelWidth = 2.0 * tanHalfFOV * linearDepth / max(surface.ndotwo, 1e-4);
@@ -84,7 +84,7 @@ namespace SkyDI_Util
         // interpolate between virtual motion and surface motion using GGX dominant factor
         // Ref: D. Zhdan, "ReBLUR: A Hierarchical Recurrent Denoiser," in Ray Tracing Gems 2, 2021.
         float factor = BSDF::MicrofacetBRDFGGXSmithDominantFactor(surface.ndotwo, roughness);
-        float3 virtualPos = posW - surface.wo * reflectionRayT * factor;
+        float3 virtualPos = pos - surface.wo * reflectionRayT * factor;
     
         float4 virtualPosNDC = mul(prevViewProj, float4(virtualPos, 1.0f));
         float2 prevUV = Math::UVFromNDC(virtualPosNDC.xy / virtualPosNDC.w);
@@ -147,7 +147,7 @@ namespace SkyDI_Util
         Texture2D<uint4> g_reservoir_A = ResourceDescriptorHeap[inputAIdx];
 
         const uint resA_z = g_reservoir_A[DTid].z;
-        float M = asfloat16(uint16_t(resA_z >> 16));
+        float M = (float)asfloat16(uint16_t(resA_z >> 16));
         return M;
     }
 

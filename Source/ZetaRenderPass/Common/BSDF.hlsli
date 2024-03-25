@@ -13,26 +13,7 @@
 #include "Sampling.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 
-// Illustration of unified BSDF model
-//
-//  ---------------------------------------------------
-// |   Specular   |         Specular                   |
-// |  Reflection  |        Reflection                  |
-// |   (Metal)    |       (Dielectric)                 |
-//  ---------------------------|-----------------------
-//                             |   1 - Fresnel
-//                             +
-//                            / \
-//            transmission   /   \   1 - transmission
-//                          /     \
-//  ----------------------------------------------------
-// |   Specular Transmission   |   Diffuse Reflection   |
-//  ----------------------------------------------------
-
 // Conventions:
-//
-// Motivated by the fact that in path tracing, paths are built in reverse, starting from the 
-// camera, the following conventions are used:
 //
 //  - All directions point out of the surface
 //  - Suffix o refers to outgoing direction (e.g. wo) - for the first path vertex, the same as eye vector
@@ -55,8 +36,48 @@
 // refraction into the medium and refraction out of the medium.
 #define NON_SYMMTERIC_REFRACTION_CORRECTION 0
 
+// Sample from the isotropic VNDF distribution. "Should" be faster as building a local 
+// coordinate system is not needed, but for some reason it's slower.
+#define USE_ISOTROPIC_VNDF 0
+
 namespace BSDF
 {
+    enum class LOBE : uint16_t
+    {
+        DIFFUSE_R = 0,     // Lambertian reflection
+        GLOSSY_R = 1,      // Specular reflection or glossy GGX BRDF
+        GLOSSY_T = 2,      // Specular transmission or glossy GGX BTDF
+        ALL = 3
+    };
+
+    uint16_t LobeToValue(LOBE t)
+    {
+        switch(t)
+        {
+            case LOBE::DIFFUSE_R:
+                return 0;
+            case LOBE::GLOSSY_R:
+                return 1;
+            case LOBE::GLOSSY_T:
+                return 2;
+            case LOBE::ALL:
+            default:
+                return 3;
+        }
+    }
+
+    LOBE LobeFromValue(uint x)
+    {
+        if(x == 0)
+            return LOBE::DIFFUSE_R;
+        if(x == 1)
+            return LOBE::GLOSSY_R;
+        if(x == 2)
+            return LOBE::GLOSSY_T;
+
+        return LOBE::ALL;
+    }
+
     //--------------------------------------------------------------------------------------
     // Fresnel
     //--------------------------------------------------------------------------------------
@@ -112,7 +133,7 @@ namespace BSDF
     //--------------------------------------------------------------------------------------
     float GGX(float ndotwh, float alphaSq)
     {
-        float denom = ndotwh * ndotwh * (alphaSq - 1.0f) + 1.0f;
+        float denom = mad(ndotwh * ndotwh, alphaSq - 1.0f, 1.0f);
         return alphaSq / max(PI * denom * denom, 1e-8);
     }
 
@@ -206,8 +227,42 @@ namespace BSDF
         return Ne;
     }
 
+    // Ref: https://auzaiffe.wordpress.com/2024/04/15/vndf-importance-sampling-an-isotropic-distribution/
+    float3 SampleGGXVNDF_Isotropic(float3 wi, float alpha, float3 n, float2 u)
+    {
+        // decompose the floattor in parallel and perpendicular components
+        float3 wi_z = -n * dot(wi, n);
+        float3 wi_xy = wi + wi_z;
+
+        // warp to the hemisphere configuration
+        float3 wiStd = -normalize(alpha * wi_xy + wi_z);
+
+        // sample a spherical cap in (-wiStd.z, 1]
+        float wiStd_z = dot(wiStd, n);
+        float z = 1.0 - u.y * (1.0 + wiStd_z);
+        float sinTheta = sqrt(saturate(1.0f - z * z));
+        float phi = TWO_PI * u.x - PI;
+        float x = sinTheta * cos(phi);
+        float y = sinTheta * sin(phi);
+        float3 cStd = float3(x, y, z);
+
+        // reflect sample to align with normal
+        float3 up = float3(0, 0, 1.000001); // Used for the singularity
+        float3 wr = n + up;
+        float3 c = dot(wr, cStd) * wr / wr.z - cStd;
+
+        // compute halfway direction as standard normal
+        float3 wmStd = c + wiStd;
+        float3 wmStd_z = n * dot(n, wmStd);
+        float3 wmStd_xy = wmStd_z - wmStd;
+
+        // return final normal
+        return normalize(alpha * wmStd_xy + wmStd_z);
+    }
+
     float3 SampleMicrofacet(float3 wo, float alpha, float3 shadingNormal, float2 u)
     {
+#if USE_ISOTROPIC_VNDF == 0
         // Build an orthonormal basis C around the normal such that it points towards +Z.
         float3 b1;
         float3 b2;
@@ -217,11 +272,13 @@ namespace BSDF
         // we need its inverse. Since M is an orthogonal matrix, its inverse is just its transpose.
         float3x3 worldToLocal = float3x3(b1, b2, shadingNormal);
         float3 woLocal = mul(worldToLocal, wo);
-
         float3 whLocal = SampleGGXVNDF(woLocal, alpha, alpha, u);
 
         // Go from local space back to world space.
-        float3 wh = whLocal.x * b1 + whLocal.y * b2 + whLocal.z * shadingNormal;
+        float3 wh = mad(whLocal.x, b1, mad(whLocal.y, b2, whLocal.z * shadingNormal));
+#else
+        float3 wh = SampleGGXVNDF_Isotropic(wo, alpha, shadingNormal, u);
+#endif
 
         return wh;
     }
@@ -233,7 +290,8 @@ namespace BSDF
     struct ShadingData
     {
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
-            float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, float transmission = 0.0)
+            float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, 
+            float transmission = DEFAULT_SPECULAR_TRANSMISSION)
         {
             ShadingData si;
 
@@ -338,7 +396,7 @@ namespace BSDF
             // For transmission: 
             //  - wh = normalize(eta * wi + wo),    eta > 1
             //  - wh = normalize(-eta * wi - wo),   eta < 1
-            float s = this.reflection ? 1 : eta;
+            float s = this.reflection ? 1 : this.eta;
             float3 wh = normalize(mad(wi, s, this.wo));
 #if 0
             wh = this.reflection || this.eta > 1 ? wh : -wh;
@@ -379,8 +437,15 @@ namespace BSDF
             return FresnelSchlick_Dielectric(fr0, whdotwx);
         }
 
+        void Regularize()
+        {
+            // i.e. to linear roughness in [~0.3, 0.5]
+            this.alpha = this.alpha < 0.25f ? clamp(2.0f * this.alpha, 0.1f, 0.25f) : this.alpha;
+            this.specular = false;
+        }
+
         // Roughness textures actually contain an "interface" value of roughness that is perceptively 
-        // linear. That value needs to be remapped to the alpha value that's used in BRDF equations. 
+        // linear. That value needs to be remapped to the alpha value that's used in BSDF equations. 
         // Literature suggests alpha = roughness^2.
         float alpha;
 
@@ -430,10 +495,16 @@ namespace BSDF
         float3 T;
         float3 B;
         Math::revisedONB(normal, T, B);
-        float3 wiWorld = wiLocal.x * T + wiLocal.y * B + wiLocal.z * normal;
+        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
 
         return wiWorld;
-    }    
+    }
+
+    float3 SampleLambertianBRDF(float3 normal, float2 u)
+    {
+        float unused;
+        return SampleLambertianBRDF(normal, u, unused);
+    }
 
     //--------------------------------------------------------------------------------------
     // Microfacet Models
@@ -465,6 +536,20 @@ namespace BSDF
         return f * fr;
     }
 
+    // Given the bijective mapping wi = f(wh) where wh denotes half vector,
+    // the pdfs are related as follows:
+    //      p(wi) = p(wh) / |J_f(wh)|,
+    // where J_f() is the Jacobian determinat of f, from which dwi = |J_f(wh)| dwh.
+    // Putting everything together, p(wi) = p(wh) * dwh / dwi.
+    float JacobianHalfVecToIncident_Tr(ShadingData surface)
+    {
+        float denom = mad(surface.whdotwo, 1 / surface.eta, surface.whdotwi);
+        denom *= denom;
+        float dwh_dwi = surface.whdotwi / denom;
+
+        return dwh_dwi;
+    }
+
     // Includes multiplication by n.wi from the rendering equation, but multiplication 
     // by (1 - F) is done later.
     float MicrofacetBTDFGGXSmith(ShadingData surface)
@@ -487,16 +572,34 @@ namespace BSDF
         float NDF = GGX(surface.ndotwh, alphaSq);
         float G2opt = SmithHeightCorrelatedG2_GGX_Opt<4>(alphaSq, surface.ndotwi, surface.ndotwo);
 
-        float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-        denom *= denom;
-        float dwm_dwi = surface.whdotwi / denom;
-
         float f = NDF * G2opt * surface.whdotwo;
-        f *= dwm_dwi;
+        float dwh_dwi = JacobianHalfVecToIncident_Tr(surface);
+        f *= dwh_dwi;
         f *= surface.ndotwi;
         // f *= 1 / (surface.eta * surface.eta);
 
         return f;
+    }
+
+    float MicrofacetPdf(ShadingData surface)
+    {
+        float wh_pdf = 1;
+
+        if(!surface.specular)
+        {
+            float alphaSq = surface.alpha * surface.alpha;
+            float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
+            float G1 = BSDF::SmithG1_GGX(alphaSq, surface.ndotwo);
+            wh_pdf = (NDF * G1) / surface.ndotwo;
+        }
+
+        return wh_pdf;
+    }
+
+    float MicrofacetPdf(float3 normal, float3 wh, inout ShadingData surface)
+    {
+        surface.ndotwh = saturate(dot(normal, wh));
+        return MicrofacetPdf(surface);
     }
 
     // Evaluates distribution of visible normals for reflection
@@ -515,7 +618,7 @@ namespace BSDF
         float NDF = GGX(surface.ndotwh, alphaSq);
         float G1 = SmithG1_GGX(alphaSq, surface.ndotwo);
         float pdf = (NDF * G1) / (4.0f * surface.ndotwo);
-    
+
         return pdf;
     }
 
@@ -538,10 +641,8 @@ namespace BSDF
         float G1 = SmithG1_GGX(alphaSq, surface.ndotwo);
         float pdf = (NDF * G1 * surface.whdotwo) / surface.ndotwo;
 
-        float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-        denom *= denom;
-        float dwm_dwi = surface.whdotwi / denom;
-        pdf *= dwm_dwi;
+        float dwh_dwi = JacobianHalfVecToIncident_Tr(surface);
+        pdf *= dwh_dwi;
 
         return pdf;
     }
@@ -586,7 +687,7 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBRDFDivPdf(ShadingData surface)
+    float3 MicrofacetBRDFOverPdf(ShadingData surface)
     {
         float3 fr = surface.Fresnel();
 
@@ -604,21 +705,22 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float MicrofacetBTDFDivPdf(ShadingData surface)
+    float3 MicrofacetBTDFOverPdf(ShadingData surface)
     {
         float fr = surface.Fresnel_Dielectric();
 
         if(surface.specular)
         {
             // Note that ndotwi cancels out.
-            return 1 - fr;
+            return surface.transmission * (1 - fr) * surface.diffuseReflectance_Fr0_Metal;
         }
 
         // When VNDF is used for sampling the incident direction (wi), the expression 
         //        f * cos(theta) / Pdf(wi)
         // is simplified to (1 - Fr) * G2 / G1.
         float alphaSq = surface.alpha * surface.alpha;
-        return SmithHeightCorrelatedG2OverG1_GGX(alphaSq, surface.ndotwi, surface.ndotwo) * (1 - fr);
+        return SmithHeightCorrelatedG2OverG1_GGX(alphaSq, surface.ndotwi, surface.ndotwo) * 
+            surface.transmission * (1 - fr) * surface.diffuseReflectance_Fr0_Metal;
     }
 
     //--------------------------------------------------------------------------------------
@@ -702,6 +804,31 @@ namespace BSDF
             return DielectricBRDF(surface, fr.x);
 
         return DielectricBTDF(surface, fr.x);
+    }
+
+    bool IsLobeValid(ShadingData surface, LOBE lt)
+    {
+        if(lt == LOBE::ALL)
+            return true;
+
+        if(surface.metallic && (lt != LOBE::GLOSSY_R))
+            return false;
+
+        if(!surface.HasSpecularTransmission() && (lt == LOBE::GLOSSY_T))
+            return false;
+
+        if((surface.transmission == 1) && (lt == LOBE::DIFFUSE_R))
+            return false;
+
+        return true;
+    }
+
+    float LobeAlpha(float alpha, LOBE lt)
+    {
+        if(lt == LOBE::DIFFUSE_R || lt == LOBE::ALL)
+            return 1.0f;
+
+        return alpha;
     }
 }
 

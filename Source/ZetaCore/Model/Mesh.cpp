@@ -67,8 +67,8 @@ void PrimitiveMesh::ComputeGrid(Util::Vector<Vertex>& vertices, Vector<uint32_t>
             float x = -halfWidth + j * dx;
 
             vertices[i * n + j].Position = float3(x, 0.0f, z);
-            vertices[i * n + j].Normal = oct16(0.0f, 1.0f, 0.0f);
-            vertices[i * n + j].Tangent = oct16(1.0f, 0.0f, 0.0f);
+            vertices[i * n + j].Normal = oct32(0.0f, 1.0f, 0.0f);
+            vertices[i * n + j].Tangent = oct32(1.0f, 0.0f, 0.0f);
 
             // Stretch texture over grid.
             vertices[i * n + j].TexUV.x = j * du;
@@ -145,7 +145,7 @@ void PrimitiveMesh::ComputeSphere(Vector<Vertex>& vertices, Vector<uint32_t>& in
             float2 textureCoordinate(u, v);
             float3 tangent(0.0f, 0.0f, 0.0f);
 
-            vertices.emplace_back(normal * radius, textureCoordinate, oct16(normal), oct16(tangent));
+            vertices.emplace_back(normal * radius, textureCoordinate, oct32(normal), oct32(tangent));
         }
     }
 
@@ -230,7 +230,7 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
             float3 normal = tangent.cross(bitangent);
             normal.normalize();
 
-            vertices.emplace_back(pos, uv, oct16(normal), oct16(tangent));
+            vertices.emplace_back(pos, uv, oct32(normal), oct32(tangent));
         }
     }
 
@@ -273,11 +273,11 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
         float u = x / height + 0.5f;
         float v = z / height + 0.5f;
 
-        vertices.emplace_back(float3(x, y, z), float2(u, v), oct16(0.0f, 1.0f, 0.0f), oct16(1.0f, 0.0f, 0.0f));
+        vertices.emplace_back(float3(x, y, z), float2(u, v), oct32(0.0f, 1.0f, 0.0f), oct32(1.0f, 0.0f, 0.0f));
     }
 
     // Cap center vertex.
-    vertices.emplace_back(float3(0.0f, y, 0.0f), float2(0.5f, 0.5f), oct16(0.0f, 1.0f, 0.0f), oct16(1.0f, 0.0f, 0.0f));
+    vertices.emplace_back(float3(0.0f, y, 0.0f), float2(0.5f, 0.5f), oct32(0.0f, 1.0f, 0.0f), oct32(1.0f, 0.0f, 0.0f));
 
     // Index of center vertex.
     uint32_t centerIndex = (uint32_t)vertices.size() - 1;
@@ -308,11 +308,11 @@ void PrimitiveMesh::ComputeCylinder(Vector<Vertex>& vertices, Vector<uint32_t>& 
         float u = x / height + 0.5f;
         float v = z / height + 0.5f;
 
-        vertices.emplace_back(float3(x, y, z), float2(u, v), oct16(0.0f, -1.0f, 0.0f), oct16(1.0f, 0.0f, 0.0f));
+        vertices.emplace_back(float3(x, y, z), float2(u, v), oct32(0.0f, -1.0f, 0.0f), oct32(1.0f, 0.0f, 0.0f));
     }
 
     // Cap center vertex.
-    vertices.emplace_back(float3(0.0f, y, 0.0f), float2(0.5f, 0.5f), oct16(0.0f, -1.0f, 0.0f), oct16(1.0f, 0.0f, 0.0f));
+    vertices.emplace_back(float3(0.0f, y, 0.0f), float2(0.5f, 0.5f), oct32(0.0f, -1.0f, 0.0f), oct32(1.0f, 0.0f, 0.0f));
 
     // Cache the index of center vertex.
     centerIndex = (uint32_t)vertices.size() - 1;
@@ -359,8 +359,8 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
         normal.normalize();
 
         // Duplicate the top vertex for distinct normals
-        vertices.emplace_back(topOffset, float2(0.0f, 0.0f), oct16(normal), oct16(0.0f, 0.0f, 0.0f));
-        vertices.emplace_back(pt, float2(u, 1.0f), oct16(normal), oct16(0.0f, 0.0f, 0.0f));
+        vertices.emplace_back(topOffset, float2(0.0f, 0.0f), oct32(normal), oct32(0.0f, 0.0f, 0.0f));
+        vertices.emplace_back(pt, float2(u, 1.0f), oct32(normal), oct32(0.0f, 0.0f, 0.0f));
 
         indices.push_back((uint32_t)(i * 2));
         indices.push_back((uint32_t)((i * 2 + 3) % (stride * 2)));
@@ -395,7 +395,7 @@ void PrimitiveMesh::ComputeCone(Vector<Vertex>& vertices, Vector<uint32_t>& indi
         float3 position = (circleVector * radius) + (normal * height);
         float2 textureCoordinate = float2(circleVector.x, circleVector.y) * textureScale + float2(0.5f, 0.5f);
 
-        vertices.emplace_back(position, textureCoordinate, oct16(normal), oct16(0.0f, 0.0f, 0.0f));
+        vertices.emplace_back(position, textureCoordinate, oct32(normal), oct32(0.0f, 0.0f, 0.0f));
     }
 
     // compute the tangents
@@ -449,7 +449,7 @@ void PrimitiveMesh::ComputeTorus(Vector<Vertex>& vertices, Vector<uint32_t>& ind
             _mm_store_ps(reinterpret_cast<float*>(&normal), vN);
 
             vertices.emplace_back(float3(position.x, position.y, position.z), textureCoordinate, 
-                oct16(normal.x, normal.y, normal.z), oct16(0.0f, 0.0f, 0.0f));
+                oct32(normal.x, normal.y, normal.z), oct32(0.0f, 0.0f, 0.0f));
 
             // And create indices for two triangles.
             size_t nextI = (i + 1) % stride;
@@ -729,7 +729,7 @@ namespace
                 float2 textureCoordinate(mirroredU, v);
 
                 // Output this vertex.
-                vertices.emplace_back(position, textureCoordinate, oct16(-normal), oct16(0.0f, 0.0f, 0.0f));
+                vertices.emplace_back(position, textureCoordinate, oct32(-normal), oct32(0.0f, 0.0f, 0.0f));
             }
         }
     }

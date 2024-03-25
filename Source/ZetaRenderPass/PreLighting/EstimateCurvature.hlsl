@@ -77,30 +77,29 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
         return;
 
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_depth[DTid.xy];
+    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    const float z_view = g_depth[DTid.xy];
 
-    if(linearDepth == FLT_MAX)
+    if(z_view == FLT_MAX)
         return;
 
     // reconstruct position from depth buffer
     const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromScreenSpace(DTid.xy,
-        renderDim,
-        linearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv);
+    const float3 pos = Math::WorldPosFromScreenSpace(DTid.xy, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
+        g_frame.CurrCameraJitter);
 
-    GBUFFER_NORMAL g_shadingNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+    GBUFFER_NORMAL g_shadingNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
     const float2 encodedNormal = g_shadingNormal[DTid.xy];
     const float3 normal = Math::DecodeUnitVector(encodedNormal);
 
-    InitSharedMemory(GTid.xy, encodedNormal, linearDepth, posW);
+    InitSharedMemory(GTid.xy, encodedNormal, z_view, pos);
 
     GroupMemoryBarrierWithGroupSync();
 
-    const float k = EstimateLocalCurvature(normal, posW, linearDepth, GTid.xy);
+    const float k = EstimateLocalCurvature(normal, pos, z_view, GTid.xy);
 
     RWTexture2D<float> g_curvature = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
     g_curvature[DTid.xy] = k;

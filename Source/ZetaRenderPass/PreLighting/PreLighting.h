@@ -47,7 +47,8 @@ namespace ZetaRay::RenderPass
         const Core::GpuMemory::DefaultHeapBuffer& GePresampledSets() { return m_sampleSets; }
         const Core::GpuMemory::DefaultHeapBuffer& GetLightVoxelGrid() { return m_lvg; }
         Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
-        const Core::GpuMemory::Texture& GetCurvatureTexture() { return m_curvature; }
+        const Core::GpuMemory::Texture& GetCurvature0() { return m_curvature[0]; }
+        const Core::GpuMemory::Texture& GetCurvature1() { return m_curvature[1]; }
         // Releasing the lumen buffer and its readback buffer should happen after the alias table 
         // has been calculated. Delegate that to code that does that calculation.
         auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseLumenBufferAndReadback); };
@@ -81,7 +82,8 @@ namespace ZetaRay::RenderPass
 
         enum class DESC_TABLE
         {
-            CURVATURE_UAV,
+            CURVATURE_0_UAV,
+            CURVATURE_1_UAV,
             COUNT
         };
 
@@ -100,7 +102,7 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::ReadbackHeapBuffer m_readback;
         Core::GpuMemory::DefaultHeapBuffer m_sampleSets;
         Core::GpuMemory::DefaultHeapBuffer m_lvg;
-        Core::GpuMemory::Texture m_curvature;
+        Core::GpuMemory::Texture m_curvature[2];
         Core::DescriptorTable m_descTable;
         ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
         uint32_t m_currNumTris = 0;

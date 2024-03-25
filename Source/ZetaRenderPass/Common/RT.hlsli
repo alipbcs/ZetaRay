@@ -2,7 +2,7 @@
 #define RT_H
 
 #include "../../ZetaCore/RayTracing/RtCommon.h"
-#include "../Common/BSDF.hlsli"
+#include "Math.hlsli"
 
 namespace RT
 {
@@ -15,20 +15,20 @@ namespace RT
         {
             RayCone r;
 
-            r.Width = half(pixelSpreadAngle * t);
-            r.SpreadAngle = half(pixelSpreadAngle);
+            r.Width = (half)(pixelSpreadAngle * t);
+            r.SpreadAngle = (half)(pixelSpreadAngle);
 
             return r;
         }
 
         void NewHit(float t)
         {
-            this.Width = half(this.Width + t * this.SpreadAngle);
+            this.Width = (half)((float)this.Width + t * (float)this.SpreadAngle);
         }
 
         void UpdateConeGeometry_Refl(float curvature)
         {
-            this.SpreadAngle = half(this.SpreadAngle + 2.0f * curvature);
+            this.SpreadAngle = (half)((float)this.SpreadAngle + 2.0f * curvature);
         }
 
         void UpdateConeGeometry_Tr(float3 wo, float3 wi, float3 normal, float curvature, float eta, 
@@ -40,7 +40,7 @@ namespace RT
             float3 u = cross(m, normal);
 
             // Find off-axis cone directions
-            float4 quat = Math::RotationQuaternion_Acute(u, 0.5f * this.SpreadAngle);
+            float4 quat = Math::RotationQuaternion_Acute(u, 0.5f * (float)this.SpreadAngle);
             float4 quat_inv = Math::InverseRotationQuaternion(quat);
 
             float3 d_u = Math::RotateVector(-wo, quat);
@@ -99,8 +99,8 @@ namespace RT
                 newWidth += det == 0 ? 0 : abs(dot(A1, b) / det);
             }
 
-            this.Width = half(newWidth);
-            this.SpreadAngle = half(Math::ArcCos(dot(t_u, t_l)) * sign(t_u.x * t_l.y - t_u.y * t_l.x));
+            this.Width = (half)newWidth;
+            this.SpreadAngle = (half)(Math::ArcCos(dot(t_u, t_l)) * sign(t_u.x * t_l.y - t_u.y * t_l.x));
         }
 
         void UpdateConeGeometry_Tr_CurvatureIs0(float3 wo, float3 wi, float3 normal, float eta, 
@@ -113,7 +113,7 @@ namespace RT
             m = normalize(m);
             float3 u = cross(m, normal);
 
-            float4 quat = Math::RotationQuaternion_Acute(u, 0.5f * this.SpreadAngle);
+            float4 quat = Math::RotationQuaternion_Acute(u, 0.5f * (float)this.SpreadAngle);
             float4 quat_inv = Math::InverseRotationQuaternion(quat);
 
             float3 d_u = Math::RotateVector(-wo, quat);
@@ -146,7 +146,7 @@ namespace RT
             float2 newWidth = float2(dot(p_u - p, q), dot(p_l - p, q));
             newWidth *= newWidth;
             newWidth = sqrt(newWidth);
-            this.Width = half(newWidth.x * (dot(t_u, t_u) != 0) + newWidth.y * (dot(t_l, t_l) != 0));
+            this.Width = (half)(newWidth.x * (dot(t_u, t_u) != 0) + newWidth.y * (dot(t_l, t_l) != 0));
 
             // Exact solution
 #else
@@ -174,10 +174,10 @@ namespace RT
                 newWidth += det == 0 ? 0 : abs(dot(A1, b) / det);
             }
 
-            this.Width = half(newWidth);
+            this.Width = (half)newWidth;
 #endif
 
-            this.SpreadAngle = half(Math::ArcCos(dot(t_u, t_l)) * sign(t_u.x * t_l.y - t_u.y * t_l.x));
+            this.SpreadAngle = (half)(Math::ArcCos(dot(t_u, t_l)) * sign(t_u.x * t_l.y - t_u.y * t_l.x));
         }
 
         void UpdateConeGeometry_Tr_PrimaryHit(float3 wo, float3 wi, float3 normal, float curvature, float eta, 
@@ -210,7 +210,7 @@ namespace RT
 
         float MipmapLevel(float lambda, float w, float h)
         {
-            float mip = lambda * w * h * this.Width * this.Width;
+            float mip = lambda * w * h * (float)this.Width * (float)this.Width;
             return 0.5f * log2(mip);
         }
 
@@ -218,17 +218,14 @@ namespace RT
         half SpreadAngle;
     };
 
-    // basis*: view-space basis vectors in world-space coordinates
+    // basis*: Camera basis vectors in world-space coordinates
     float3 GeneratePinholeCameraRay(uint2 pixel, float2 renderDim, float aspectRatio, float tanHalfFOV,
-        float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ, float2 jitter = 0)
+        float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ, float2 jitter)
     {
         float2 uv = (pixel + 0.5f + jitter) / renderDim;
         float2 ndc = Math::NDCFromUV(uv);
-        ndc *= tanHalfFOV;
-        ndc.x *= aspectRatio;
-
-        float3 dirV = float3(ndc, 1);
-        float3 dirW = dirV.x * viewBasisX + dirV.y * viewBasisY + dirV.z * viewBasisZ;
+        float3 dirV = float3(ndc.x * aspectRatio * tanHalfFOV, ndc.y * tanHalfFOV, 1);
+        float3 dirW = mad(dirV.x, viewBasisX, mad(dirV.y, viewBasisY, dirV.z * viewBasisZ));
 
         return normalize(dirW);
     }
@@ -266,7 +263,11 @@ namespace RT
     template<typename T>
     T BalanceHeuristic(float p_1, float p_2, T f, float n_1 = 1, float n_2 = 1)
     {
-        return n_1 / max(n_1 * p_1 + n_2 * p_2, 1e-6f) * f;
+        float denom = n_1 * p_1 + n_2 * p_2;
+        if(denom == 0)
+            return 0;
+
+        return (n_1 / denom) * f;
     }
 
     // Returns (n_1 p_1)^2 / ((n_1 p_1)^2 + (n_2 p_2)^2) * f / p_1
@@ -275,119 +276,11 @@ namespace RT
     {
         float a = n_1 * p_1;
         float b = n_2 * p_2;
+        float denom = a * a + b * b;
+        if(denom == 0)
+            return 0;
 
-        return ((n_1 * n_1 * p_1) / max(a * a + b * b, 1e-6f)) * f;
-    }
-
-    //--------------------------------------------------------------------------------------
-    // Utility sampling routines
-    //--------------------------------------------------------------------------------------
-
-    float3 SampleUnifiedBSDF_NoDiffuse(float3 normal, BSDF::ShadingData surface, inout RNG rng, 
-        out float3 f, out float pdf)
-    {
-        pdf = 1;
-        float wh_pdf = 1;
-        float3 wh = surface.specular ? normal : 
-            BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, rng.Uniform2D());
-
-        // VNDF
-        if(!surface.specular)
-        {
-            surface.ndotwh = saturate(dot(normal, wh));
-            float alphaSq = surface.alpha * surface.alpha;
-            float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-            float G1 = BSDF::SmithG1_GGX(alphaSq, surface.ndotwo);
-            wh_pdf = (NDF * G1) / surface.ndotwo;
-        }
-
-        float3 wi_r = reflect(-surface.wo, wh);
-        surface.SetWi_Refl(wi_r, normal, wh);
-        f = BSDF::UnifiedBRDF(surface);
-
-        // Account for change of density from half vector to incident vector
-        if(!surface.specular)
-            pdf = wh_pdf / 4.0f;
-
-        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
-            return wi_r;
-
-        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
-        float fr0 = BSDF::DielectricF0(surface.eta);
-        float whdotwx = surface.eta < 1 ? abs(dot(wh, wi_t)) : saturate(dot(wh, surface.wo));
-        // For total internal reflection, all the incident light is reflected
-        float fr = dot(wi_t, wi_t) == 0 ? 1 : BSDF::FresnelSchlick_Dielectric(fr0, whdotwx);
-
-        float3 wi;
-
-        if (rng.Uniform() < fr)
-        {
-            wi = wi_r;
-            pdf *= fr;
-        }
-        else
-        {
-            wi = wi_t;
-            pdf = 1 - fr;
-
-            surface.SetWi_Tr(wi_t, normal, wh);
-            f = BSDF::DielectricBTDF(surface);
-
-            if(!surface.specular)
-            {
-                pdf *= wh_pdf * surface.whdotwo;
-
-                // Account for change of density from half vector to incident vector
-                float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-                denom *= denom;
-                float dwm_dwi = surface.whdotwi / denom;
-                pdf *= dwm_dwi;
-            }
-        }
-
-        return wi;
-    }
-
-    float UnifiedBSDFPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
-    {
-        surface.SetWi(wi, normal);
-        float wh_pdf = 1;
-
-        if(!surface.specular)
-        {
-            float alphaSq = surface.alpha * surface.alpha;
-            float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-            float G1 = BSDF::SmithG1_GGX(alphaSq, surface.ndotwo);
-            wh_pdf = (NDF * G1) / surface.ndotwo;
-        }
-
-        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
-        {
-            if(!surface.specular)
-                return wh_pdf / 4.0f;
-
-            return surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
-        }
-
-        float fr = surface.Fresnel_Dielectric();
-        float pdf = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 1;
-
-        if(surface.reflection)
-            return fr * pdf * (surface.specular ? 1 : (wh_pdf / 4.0f));
-
-        pdf *= 1 - fr;
-
-        if(!surface.specular)
-        {
-            pdf *= wh_pdf * surface.whdotwo;
-
-            float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-            denom *= denom;
-            float dwm_dwi = surface.whdotwi / denom;
-            pdf *= dwm_dwi;
-        }
-
-        return pdf;
+        return ((n_1 * n_1 * p_1) / denom) * f;
     }
 }
 

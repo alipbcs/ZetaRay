@@ -17,7 +17,7 @@ enum GBUFFER_OFFSET
 #define GBUFFER_BASE_COLOR Texture2D<float4>
 #define GBUFFER_NORMAL Texture2D<float2>
 #define GBUFFER_METALLIC_ROUGHNESS Texture2D<float2>
-#define GBUFFER_MOTION_VECTOR Texture2D<half2> 
+#define GBUFFER_MOTION_VECTOR Texture2D<float2> 
 #define GBUFFER_EMISSIVE_COLOR Texture2D<float3>
 #define GBUFFER_TRANSMISSION Texture2D<float2>
 #define GBUFFER_DEPTH Texture2D<float> 
@@ -30,18 +30,38 @@ namespace GBuffer
         bool isEmissive = dot(1, emissive) != 0;
 
         uint ret = isTransmissive;
-        ret |= isEmissive << 1;
-        ret |= isMetal << 7;
+        ret |= uint(isEmissive) << 1;
+        ret |= uint(isMetal) << 7;
 
         return float(ret) / 255.0f;
     }
 
-    void DecodeMetallic(float encoded, out bool isMetallic, out bool isTransmissive, out bool isEmissive)
+    void DecodeMetallic(float encoded, out bool isMetallic, out bool isTransmissive, 
+        out bool isEmissive)
     {
         uint v = (uint) round(encoded * 255.0f);
 
         isTransmissive = (v & 0x1) != 0;
         isEmissive = (v & (1 << 1)) != 0;
+        isMetallic = (v & (1 << 7)) != 0;
+    }
+
+    void DecodeMetallic(float encoded, out bool isMetallic, out bool isTransmissive, 
+        out bool isEmissive, out bool invalid)
+    {
+        uint v = (uint) round(encoded * 255.0f);
+
+        isTransmissive = (v & 0x1) != 0;
+        isEmissive = (v & (1 << 1)) != 0;
+        invalid = (v & (1 << 2)) != 0;
+        isMetallic = (v & (1 << 7)) != 0;
+    }
+
+    void DecodeMetallicTr(float encoded, out bool isMetallic, out bool isTransmissive)
+    {
+        uint v = (uint) round(encoded * 255.0f);
+
+        isTransmissive = (v & 0x1) != 0;
         isMetallic = (v & (1 << 7)) != 0;
     }
 
@@ -58,16 +78,17 @@ namespace GBuffer
         isMetallic = (v & (1 << 7)) != 0;
     }
 
+    void DecodeEmissiveInvalid(float encoded, out bool isEmissive, out bool isInvalid)
+    {
+        uint v = (uint) round(encoded * 255.0f);
+        isEmissive = (v & (1 << 1)) != 0;
+        isInvalid = (v & (1 << 2)) != 0;
+    }
+
     bool DecodeMetallic(float encoded)
     {
         uint v = (uint) round(encoded * 255.0f);
         return (v & (1 << 7)) != 0;
-    }
-
-    bool DecodeHasBaseColorTexture(float encoded)
-    {
-        uint v = (uint) round(encoded * 255.0f);
-        return (v & 0x1) != 0;
     }
 
     bool DecodeIsEmissive(float encoded)

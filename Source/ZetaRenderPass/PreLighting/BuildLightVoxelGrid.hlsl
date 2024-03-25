@@ -25,7 +25,7 @@ float3 AdjustLightPos(float3 pos, float3 c, float3 extents, out bool inside)
     if(!inside)
         return pos;
 
-    int maxIdx = d.x >= d.y ? (d.x >= d.z ? 0 : 2) : (d.y >= d.z ? 1 : 2);
+    uint maxIdx = d.x >= d.y ? (d.x >= d.z ? 0 : 2) : (d.y >= d.z ? 1 : 2);
     float3 posSnapped = pos;
     posSnapped[maxIdx] = extents[maxIdx];
 
@@ -72,7 +72,7 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
     r.le = 0;
     r.pdf = 0;
     r.twoSided = false;
-    r.ID = uint32_t(-1);
+    r.ID = UINT32_MAX;
 
     float w_sum = 0;
     float target_z = 0;
@@ -95,22 +95,20 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 
     for(int i = 0; i < NUM_CANDIDATES; i++)
     {
-        float lightSourcePdf;
-        const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, 
-           rng, lightSourcePdf);
+        Light::AliasTableSample entry = Light::AliasTableSample::get(g_aliasTable, 
+            g_frame.NumEmissiveTriangles, rng);
+        RT::EmissiveTriangle tri = g_emissives[entry.idx];
+        Light::EmissiveTriSample lightSample = Light::EmissiveTriSample::get(voxelCenter, tri, 
+            rng, false);
 
-        RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
-        const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(voxelCenter, 
-            emissive, rng, false);
-
-        const float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+        const float3 le = Light::Le_EmissiveTriangle(tri, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
         
         // "Snap" lights inside the voxel to its boundary planes.
         bool inside;
         const float3 lightPos = AdjustLightPos(lightSample.pos, voxelCenter, extents, inside);
 
         // Cull backfacing lights, but only if they're not inside the voxel.
-        if(!inside && !emissive.IsDoubleSided())
+        if(!inside && !tri.IsDoubleSided())
         {
             if(IsBackfacing(lightSample.pos, lightSample.normal, corners))
                 continue;
@@ -119,26 +117,26 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
         const float t = length(lightPos - voxelCenter);
 
         const float target = Math::Luminance(le) / max(t * t, 1e-6);
-        const float lightPdf = lightSourcePdf * lightSample.pdf;
+        const float lightPdf = entry.pdf * lightSample.pdf;
         float w = target / max(lightPdf, 1e-6);
         w_sum += w;
 
         if(rng.Uniform() < w / max(w_sum, 1e-6))
         {
             r.pos = lightSample.pos;
-            r.normal = Math::EncodeOct16(lightSample.normal);
+            r.normal = Math::EncodeOct32(lightSample.normal);
             r.le = half3(le);
-            r.twoSided = emissive.IsDoubleSided();
-            r.ID = emissive.ID;
+            r.twoSided = tri.IsDoubleSided();
+            r.ID = tri.ID;
             target_z = target;
         }
 
         numLights++;
     }
 
-    const int numLanesInWave = WaveGetLaneCount();
-    const int wave = Gidx / numLanesInWave;
-    const int numWavesInGroup = NUM_SAMPLES_PER_VOXEL / numLanesInWave;
+    const uint numLanesInWave = WaveGetLaneCount();
+    const uint wave = Gidx / numLanesInWave;
+    const uint numWavesInGroup = NUM_SAMPLES_PER_VOXEL / numLanesInWave;
     float w_sum_group = WaveActiveSum(w_sum);
     uint16_t numLightsGroup = WaveActiveSum(numLights);
     
@@ -151,8 +149,8 @@ void main(uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
     GroupMemoryBarrierWithGroupSync();
 
     const uint GidxModWaveLen = Gidx - numLanesInWave * wave;
-    w_sum_group = GidxModWaveLen < numWavesInGroup ? g_waveSum[GidxModWaveLen] : 0.0;
-    numLightsGroup = GidxModWaveLen < numWavesInGroup ? g_waveNumLights[GidxModWaveLen] : 0;
+    w_sum_group = GidxModWaveLen < numWavesInGroup ? g_waveSum[GidxModWaveLen] : 0.0f;
+    numLightsGroup = GidxModWaveLen < numWavesInGroup ? g_waveNumLights[GidxModWaveLen] : (uint16_t)0;
     // Assuming min wave size of 16, there are at most NUM_SAMPLES_PER_VOXEL / 16 values to 
     // add together, so one WaveActiveSum would be enough as long as NUM_SAMPLES_PER_VOXEL <= 256.
     w_sum_group = WaveActiveSum(w_sum_group);

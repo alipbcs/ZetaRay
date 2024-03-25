@@ -43,7 +43,7 @@ uint2 FFX_DNSR_Shadows_GetTileIndexFromPixelPosition(uint2 pixel_pos)
 
 uint FFX_DNSR_Shadows_GetBitMaskFromPixelPosition(uint2 pixel_pos)
 {
-    int lane_index = (pixel_pos.y & (4 - 1)) * 8 + (pixel_pos.x & (8 - 1));
+    uint lane_index = (pixel_pos.y & (4 - 1)) * 8 + (pixel_pos.x & (8 - 1));
     return (1u << lane_index);
 }
 

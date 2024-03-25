@@ -44,12 +44,12 @@ void main(uint Gidx : SV_GroupIndex)
 {
     // Exclude the first (invalid) bin
     const bool isFirstBin = (Gidx == 0);
-    const int binSize = isFirstBin ? 0 : g_hist.Load(Gidx * sizeof(uint));
-    const int numLanesInWave = WaveGetLaneCount();
-    const int wave = Gidx / numLanesInWave;
-    const int numWavesInGroup = HIST_BIN_COUNT / numLanesInWave;	// HIST_BIN_COUNT is always divisible by wave size
-    const int numExcludedSamples = g_hist.Load(0);
-    const int numSamples = g_frame.RenderWidth * g_frame.RenderHeight - numExcludedSamples;
+    const uint binSize = isFirstBin ? 0 : g_hist.Load(Gidx * sizeof(uint));
+    const uint numLanesInWave = WaveGetLaneCount();
+    const uint wave = Gidx / numLanesInWave;
+    const uint numWavesInGroup = HIST_BIN_COUNT / numLanesInWave;	// HIST_BIN_COUNT is always divisible by wave size
+    const uint numExcludedSamples = g_hist.Load(0);
+    const uint numSamples = g_frame.RenderWidth * g_frame.RenderHeight - numExcludedSamples;
 
     // Prefix sum for the whole group to calculate the percentiles up to each bin
 #if SKIP_OUTSIDE_PERCENTILE_RANGE == 1

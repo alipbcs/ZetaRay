@@ -44,6 +44,10 @@
     #define snorm3_ int16_t3
     #define snorm4_ int16_t4
     #define unorm2_ uint16_t2
+    #define uint16 uint16_t
+    #define uint32 uint32_t
+    #define int16 int16_t
+    #define int32 int32_t
 
     #define IN_PARAM(t) in t
     #define OUT_PARAM(t) out t

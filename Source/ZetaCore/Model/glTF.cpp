@@ -172,7 +172,7 @@ namespace
             const float3* curr = start + i;
 
             // glTF uses a right-handed coordinate system with +Y as up
-            vertices[baseOffset + i].Normal = oct16(curr->x, curr->y, -curr->z);
+            vertices[baseOffset + i].Normal = oct32(curr->x, curr->y, -curr->z);
         }
     }
 
@@ -213,7 +213,7 @@ namespace
             const float4* curr = start + i;
 
             // glTF uses a right-handed coordinate system with +Y as up
-            vertices[baseOffset + i].Tangent = oct16(curr->x, curr->y, -curr->z);
+            vertices[baseOffset + i].Tangent = oct32(curr->x, curr->y, -curr->z);
         }
     }
 

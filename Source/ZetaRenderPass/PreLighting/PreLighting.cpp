@@ -244,7 +244,8 @@ void PreLighting::Reset()
         m_halton.Reset();
         m_lumen.Reset();
         m_readback.Reset();
-        m_curvature.Reset();
+        m_curvature[0].Reset();
+        m_curvature[1].Reset();
 
         RenderPassBase::ResetRenderPass();
     }
@@ -414,8 +415,11 @@ void PreLighting::Render(CommandList& cmdList)
 
         computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_CURVATURE]);
 
+        auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+        auto uav = idx == 1 ? DESC_TABLE::CURVATURE_1_UAV : DESC_TABLE::CURVATURE_0_UAV;
+
         cbCurvature cb;
-        cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::CURVATURE_UAV);
+        cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uav);
 
         m_rootSig.SetRootConstants(0, sizeof(cbCurvature) / sizeof(DWORD), &cb);
         m_rootSig.End(computeCmdList);
@@ -501,7 +505,7 @@ void PreLighting::CreateOutputs()
             D3D12_RESOURCE_STATE_COMMON,
             TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     }
-       
+
     Direct3DUtil::CreateTexture2DUAV(m_curvature[0], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_0_UAV));
     Direct3DUtil::CreateTexture2DUAV(m_curvature[1], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_1_UAV));
 }
@@ -594,14 +598,14 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
     const uint32_t sizeInBytes = sizeof(RT::EmissiveLumenAliasTableEntry) * m_currNumTris;
     m_aliasTableUpload = GpuMemory::GetUploadHeapBuffer(sizeInBytes);
     m_aliasTableUpload.Copy(0, sizeInBytes, table.data());
-    computeCmdList.CopyBufferRegion(m_aliasTable.Resource(), 
+    computeCmdList.CopyBufferRegion(m_aliasTable.Resource(),
         0,
         m_aliasTableUpload.Resource(),
         m_aliasTableUpload.Offset(),
         sizeInBytes);
 
-    computeCmdList.ResourceBarrier(m_aliasTable.Resource(), 
-        D3D12_RESOURCE_STATE_COPY_DEST, 
+    computeCmdList.ResourceBarrier(m_aliasTable.Resource(),
+        D3D12_RESOURCE_STATE_COPY_DEST,
         D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
     // record the timestamp after execution

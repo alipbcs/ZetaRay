@@ -60,13 +60,17 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
     
     float3 prevPos[4];
     prevPos[0] = Math::WorldPosFromUV(prevUVs[0], renderDim, prevDepths.x, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+        g_frame.PrevCameraJitter);
     prevPos[1] = Math::WorldPosFromUV(prevUVs[1], renderDim, prevDepths.y, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+        g_frame.PrevCameraJitter);
     prevPos[2] = Math::WorldPosFromUV(prevUVs[2], renderDim, prevDepths.z, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+        g_frame.PrevCameraJitter);
     prevPos[3] = Math::WorldPosFromUV(prevUVs[3], renderDim, prevDepths.w, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, g_frame.PrevCameraJitter);
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
+        g_frame.PrevCameraJitter);
 
     float4 planeDist = float4(dot(currNormal, prevPos[0] - currPos),
         dot(currNormal, prevPos[1] - currPos),
@@ -80,12 +84,8 @@ float4 GeometryTest(float4 prevDepths, float2 prevUVs[4], float3 currNormal, flo
 
 float GeometryTest(float prevDepth, float2 prevUV, float3 currNormal, float3 currPos, float linearDepth)
 {
-    float3 prevPos = Math::WorldPosFromUV(prevUV, 
-        float2(g_frame.RenderWidth, g_frame.RenderHeight), 
-        prevDepth, 
-        g_frame.TanHalfFOV, 
-        g_frame.AspectRatio,
-        g_frame.PrevViewInv, 
+    float3 prevPos = Math::WorldPosFromUV(prevUV, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+        prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
         g_frame.PrevCameraJitter);
 
     float planeDist = dot(currNormal, prevPos - currPos);
@@ -512,11 +512,8 @@ void TemporalAccumulation_Specular(uint2 DTid, float2 currUV, float3 posW, float
 
     const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
     const float3 prevSurfacePosW = Math::WorldPosFromUV(prevSurfaceUV,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        prevSurfaceLinearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.PrevViewInv, 
+        float2(g_frame.RenderWidth, g_frame.RenderHeight), prevSurfaceLinearDepth,
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
         g_frame.PrevCameraJitter);
 
     const float3 wo = normalize(g_frame.CameraPos - posW);
@@ -547,9 +544,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
         return;
 
     GBUFFER_DEPTH g_currDepth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_currDepth[DTid.xy];
+    const float z_view = g_currDepth[DTid.xy];
 
-    if (linearDepth == FLT_MAX)
+    if (z_view == FLT_MAX)
         return;
 
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -569,16 +566,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
     float3 Li_s = g_colorA[DTid.xy].rgb;
     float3 Li_d = float3(g_colorA[DTid.xy].a, g_colorB[DTid.xy].rg);
 
-    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
-    const float2 currUV = (DTid.xy + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromUV(currUV,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        linearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
+    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const float2 currUV = (DTid.xy + 0.5f) / renderDim;
+    const float3 posW = Math::WorldPosFromUV(currUV, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv,
         g_frame.CurrCameraJitter);
 
     GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
@@ -592,10 +587,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
 
     if(!isMetallic)
     {
-        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, Li_d,
+        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_d,
             prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);    
     }
 
-    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, linearDepth, isMetallic, mr.y, Li_s,
+    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_s,
         prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);
 }

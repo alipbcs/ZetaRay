@@ -214,8 +214,8 @@ namespace ZetaRay::DefaultRenderer
     void SetIndirect(const ParamVariant& p)
     {
         const int e = p.GetEnum().m_curr;
-        Assert(e < (int)IndirectLighting::METHOD::COUNT, "Invalid enum value.");
-        g_data->m_settings.Indirect = (IndirectLighting::METHOD)e;
+        Assert(e < (int)IndirectLighting::INTEGRATOR::COUNT, "Invalid enum value.");
+        g_data->m_settings.Indirect = (IndirectLighting::INTEGRATOR)e;
         g_data->m_raytracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
     }
 
@@ -384,7 +384,7 @@ namespace ZetaRay::DefaultRenderer
             App::AddParam(p1);
 
             ParamVariant p2;
-            p2.InitEnum("Renderer", "Indirect Lighting", "Method",
+            p2.InitEnum("Renderer", "Indirect Lighting", "Integrator",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetIndirect),
                 IndirectOptions, ZetaArrayLen(IndirectOptions), (int)g_data->m_settings.Indirect);
             App::AddParam(p2);

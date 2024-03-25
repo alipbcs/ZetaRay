@@ -1,6 +1,9 @@
-#include "ReSTIR_GI_Resampling.hlsli"
+#ifndef NEE_EMISSIVE
+#define NEE_EMISSIVE 0
+#endif
+
+#include "Resampling.hlsli"
 #include "../../Common/Common.hlsli"
-#include "../../../ZetaCore/Core/Material.h"
 
 #define THREAD_GROUP_SWIZZLING 1
 
@@ -9,29 +12,64 @@
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_ReSTIR_GI_SpatioTemporal> g_local : register(b1);
+ConstantBuffer<cb_ReSTIR_GI> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
 StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t1);
 StructuredBuffer<Vertex> g_vertices : register(t2);
 StructuredBuffer<uint> g_indices : register(t3);
 StructuredBuffer<Material> g_materials : register(t4);
+#if NEE_EMISSIVE == 1
 StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t5);
 StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets : register(t6);
 StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t7);
 StructuredBuffer<RT::VoxelSample> g_lvg : register(t8);
+#endif
+
+//--------------------------------------------------------------------------------------
+// Utility Functions
+//--------------------------------------------------------------------------------------
+
+ReSTIR_Util::Globals InitGlobals()
+{
+    ReSTIR_Util::Globals globals;
+    globals.bvh = g_bvh;
+    globals.frameMeshData = g_frameMeshData;
+    globals.vertices = g_vertices;
+    globals.indices = g_indices;
+    globals.materials = g_materials;
+    globals.maxDiffuseBounces = (uint16_t)(g_local.MaxDiffuseBounces);
+    globals.maxGlossyBounces_NonTr = (uint16_t)(g_local.MaxGlossyBounces_NonTr);
+    globals.maxGlossyBounces_Tr = (uint16_t)(g_local.MaxGlossyBounces_Tr);
+    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
+        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    globals.russianRoulette = IS_CB_FLAG_SET(CB_IND_FLAGS::RUSSIAN_ROULETTE);
+
+#if NEE_EMISSIVE == 1
+    globals.emissives = g_emissives;
+    globals.sampleSets = g_sampleSets;
+    globals.aliasTable = g_aliasTable;
+    globals.sampleSetSize = (uint16_t)(g_local.SampleSetSize_NumSampleSets & 0xffff);
+    globals.lvg = g_lvg;
+    globals.gridDim = uint16_t3(g_local.GridDim_xy & 0xffff, g_local.GridDim_xy >> 16, (uint16_t)g_local.GridDim_z);
+    globals.extents = asfloat16(uint16_t3(g_local.Extents_xy & 0xffff, g_local.Extents_xy >> 16, 
+            g_local.Extents_z_Offset_y & 0xffff));
+    globals.offset_y = asfloat16(uint16_t(g_local.Extents_z_Offset_y >> 16));
+
+#endif
+
+    return globals;
+}
 
 //--------------------------------------------------------------------------------------
 // Main
 //--------------------------------------------------------------------------------------
 
 [numthreads(RESTIR_GI_TEMPORAL_GROUP_DIM_X, RESTIR_GI_TEMPORAL_GROUP_DIM_Y, 1)]
-void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
+void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
     uint16_t2 swizzledGid;
 
-    // Swizzle thread groups for better L2-cache behavior
-    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
         uint16_t2(RESTIR_GI_TEMPORAL_GROUP_DIM_X, RESTIR_GI_TEMPORAL_GROUP_DIM_Y),
         uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
@@ -47,35 +85,40 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
         return;
 
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float z_view = g_depth[swizzledDTid];
-    
-    if (z_view == FLT_MAX)
-        return;
-
-    // Reconstruct position from depth
-    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromScreenSpace(swizzledDTid,
-        renderDim,
-        z_view,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
-        g_frame.CurrCameraJitter);
-
-    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-    const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid.xy]);
-
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
     bool isMetallic;
     bool isTransmissive;
     bool isEmissive;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
+    bool invalid;
+    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
 
-    if (isEmissive)
+    if (invalid || isEmissive)
         return;
+
+    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    const float z_view = g_depth[swizzledDTid];
+    
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(swizzledDTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
+    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const float3 pos = Math::WorldPosFromScreenSpace2(swizzledDTid, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
+
+    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
+    const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid.xy]);
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -87,34 +130,32 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     if(isTransmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::TRANSMISSION];
 
-        float2 tr_ior = g_transmission[swizzledDTid];
+        float2 tr_ior = g_tr[swizzledDTid];
         tr = tr_ior.x;
         eta_i = GBuffer::DecodeIOR(tr_ior.y);
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - posW);
+    const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor, 
         eta_i, eta_t, tr);
-
-    Texture2D<float> g_curvature = ResourceDescriptorHeap[g_local.CurvatureDescHeapIdx];
-    float localCurvature = g_curvature[swizzledDTid];
 
     // Per-group RNG
     RNG rngGroup = RNG::Init(swizzledGid ^ 61, g_frame.FrameNum);
     // Per-thread RNG
     RNG rngThread = RNG::Init(uint2(swizzledDTid.x ^ 511, swizzledDTid.y ^ 31), g_frame.FrameNum);
 
-    RGI_Util::Reservoir r = RGI_Util::EstimateIndirectLighting(swizzledDTid, posW, normal, mr.y, 
-        eta_i, z_view, surface, localCurvature, g_frame, g_local, g_bvh, g_frameMeshData, g_vertices, 
-        g_indices, g_materials, g_emissives, g_sampleSets, g_aliasTable, g_lvg, rngThread, rngGroup);
+    ReSTIR_Util::Globals globals = InitGlobals();
+
+    RGI_Util::Reservoir r = RGI_Util::EstimateIndirectLighting(swizzledDTid, origin, lensSample,
+        pos, normal, mr.y, eta_i,z_view,  surface, g_frame, g_local, globals, rngThread, rngGroup);
 
     if (IS_CB_FLAG_SET(CB_IND_FLAGS::DENOISE))
     {
         // Split into diffuse & glossy reflection, so they can be denoised separately
-        float3 wi = normalize(r.pos - posW);
+        float3 wi = normalize(r.pos - pos);
         surface.SetWi_Refl(wi, normal);
         float3 fr = surface.Fresnel();
 
@@ -157,17 +198,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     }
     else
     {
-        float3 Li = r.target_z * r.W;
-        Li = any(isnan(Li)) ? 0 : Li;
+        float3 li = r.target_z * r.W;
+        li = any(isnan(li)) ? 0 : li;
 
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalOrColorAUavDescHeapIdx];
 
         if(g_frame.Accumulate && g_frame.CameraStatic)
         {
             float3 prev = g_final[swizzledDTid].rgb;
-            g_final[swizzledDTid].rgb = prev + Li;
+            g_final[swizzledDTid].rgb = prev + li;
         }
         else
-            g_final[swizzledDTid].rgb = Li;
+            g_final[swizzledDTid].rgb = li;
     }
 }

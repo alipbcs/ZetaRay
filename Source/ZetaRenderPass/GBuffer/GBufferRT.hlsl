@@ -56,7 +56,8 @@ RaytracingPipelineConfig1 MyPipelineConfig =
 void Raygen()
 {
     float3 cameraRayDir = RT::GeneratePinholeCameraRay(DispatchRaysIndex().xy, DispatchRaysDimensions().xy, 
-        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz);
+        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, 
+        g_frame.CurrView[2].xyz, g_frame.CurrCameraJitter);
 
     RayDesc cameraRay;
     cameraRay.Origin = g_frame.CameraPos;
@@ -82,6 +83,9 @@ void Raygen()
         RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
         g_depth[DispatchRaysIndex().xy] = FLT_MAX;
 
+        RWTexture2D<float2> g_metallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
+        g_metallicRoughness[DispatchRaysIndex().xy].x = 4.0f / 255.0f;
+
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         float3 motion = g_frame.CameraPos - prevCameraPos;
@@ -103,10 +107,10 @@ void Raygen()
     float4 grads = GBufferRT::UVDifferentials(DispatchRaysIndex().xy, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
         rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
-    float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
-    float3 posV = mul(g_frame.CurrView, float4(posW, 1.0f));
+    float3 pos = g_frame.CameraPos + rayPayload.t * cameraRayDir;
+    float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
     GBufferRT::ApplyTextureMaps(DispatchRaysIndex().xy, posV.z, rayPayload.uv, matIdx, normal, tangent, motionVec, 
-        grads, posW, g_frame, g_local, g_materials);
+        grads, pos, g_frame, g_local, g_materials);
 }
 
 [shader("anyhit")]
@@ -120,7 +124,7 @@ void TestOpacity(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 
     float alpha = alphaFactor_cutoff.x;
 
-    if(meshData.BaseColorTex != uint16_t(-1))
+    if(meshData.BaseColorTex != UINT16_MAX)
     {
         uint tri = PrimitiveIndex() * 3;
         tri += meshData.BaseIdxOffset;
@@ -169,9 +173,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     payload.uv = uv;
 
     // normal
-    float3 v0_n = Math::DecodeOct16(V0.NormalL);
-    float3 v1_n = Math::DecodeOct16(V1.NormalL);
-    float3 v2_n = Math::DecodeOct16(V2.NormalL);
+    float3 v0_n = Math::DecodeOct32(V0.NormalL);
+    float3 v1_n = Math::DecodeOct32(V1.NormalL);
+    float3 v2_n = Math::DecodeOct32(V2.NormalL);
     float3 normal = v0_n + attr.barycentrics.x * (v1_n - v0_n) + attr.barycentrics.y * (v2_n - v0_n);
     // transform normal using the inverse transpose
     // (M^-1)^T = ((RS)^-1)^T
@@ -184,9 +188,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     payload.normal = normal;
 
     // tangent vector
-    float3 v0_t = Math::DecodeOct16(V0.TangentU);
-    float3 v1_t = Math::DecodeOct16(V1.TangentU);
-    float3 v2_t = Math::DecodeOct16(V2.TangentU);
+    float3 v0_t = Math::DecodeOct32(V0.TangentU);
+    float3 v1_t = Math::DecodeOct32(V1.TangentU);
+    float3 v2_t = Math::DecodeOct32(V2.TangentU);
     float3 tangent = v0_t + attr.barycentrics.x * (v1_t - v0_t) + attr.barycentrics.y * (v2_t - v0_t);
     tangent *= meshData.Scale;
     tangent = Math::RotateVector(tangent, q);
@@ -202,11 +206,11 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     // due to quantization, it's necessary to renormalize
     q_prev = normalize(q_prev);
 
-    float3 posW = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    float3 posL = GBufferRT::InverseTransformTRS(posW, meshData.Translation, q, meshData.Scale);
+    float3 pos = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
+    float3 posL = GBufferRT::InverseTransformTRS(pos, meshData.Translation, q, meshData.Scale);
     float3 prevTranslation = meshData.Translation - meshData.dTranslation;
-    float3 posW_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
-    float3 posV_prev = mul(g_frame.PrevView, float4(posW_prev, 1.0f));
+    float3 pos_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
+    float3 posV_prev = mul(g_frame.PrevView, float4(pos_prev, 1.0f));
     float2 posNDC_prev = posV_prev.xy / (posV_prev.z * g_frame.TanHalfFOV);
     posNDC_prev.x /= g_frame.AspectRatio;
     payload.prevPosNDC = posNDC_prev;

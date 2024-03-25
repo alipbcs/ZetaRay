@@ -76,6 +76,14 @@ struct RNG
         return rng;
     }
 
+    static RNG Init(uint seed)
+    {
+        RNG rng;
+        rng.State = seed;
+
+        return rng;
+    }
+
     uint UniformUint()
     {
         this.State = this.State * 747796405u + 2891336453u;
@@ -117,7 +125,7 @@ struct RNG
     // https://en.wikipedia.org/wiki/Fisher%E2%80%93Yates_shuffle
     uint UniformUintBounded_Faster(uint bound)
     {
-        return uint(Uniform() * float(bound));
+        return (uint)(Uniform() * float(bound));
     }
 
     float2 Uniform2D()

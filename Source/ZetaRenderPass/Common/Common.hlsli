@@ -101,14 +101,16 @@ namespace Common
         return result;
     }
 
-    // Breaks the image into tiles of dimension (N, dispatchDim.y)
-    // dispatchDim: same as DispatchThreads() arguments. Must be a power of two.
+    // Swizzle thread groups for better L2-cache behavior. Works by breaking the 
+    // image into tiles of dimension (N, dispatchDim.y).
+    // dispatchDim: Same as DispatchThreads() arguments. Must be a power of two.
     // Gid: SV_GroupID
     // GTid: SV_GroupThreadID
     // groupDim: e.g. [numthreads(8, 8, 1)] -> (8, 8)
-    // N: number of horizontal blocks in each tile, common values are 8, 16, 32. Corresponds
-    // to maximum horizontal extent, in which threads access image value. N must be a power of two.
-    void SwizzleGroupID(in uint2 Gid, in uint2 GTid, uint2 groupDim, in uint2 dispatchDim, in int N,
+    // N: Number of horizontal blocks in each tile, common values are 8, 16, 32. Must 
+    // be a power of two.
+    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
+    void SwizzleGroupID(in uint2 Gid, in uint2 GTid, uint2 groupDim, in uint2 dispatchDim, in uint N,
         out uint2 swizzledDTid, out uint2 swizzledGid)
     {
         const uint groupIDFlattened = Gid.y * dispatchDim.x + Gid.x;

@@ -98,7 +98,7 @@ void ZetaRay::Math::ComputeMeshTangentVectors(MutableSpan<Vertex> vertices, Span
         tangents[i] -= tangProjectedOnNormal;
         tangents[i].normalize();
 
-        vertices[i].Tangent = oct16(tangents[i]);
+        vertices[i].Tangent = oct32(tangents[i]);
     }
 
     if (numCollinearTris)

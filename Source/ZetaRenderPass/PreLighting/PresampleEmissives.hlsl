@@ -24,23 +24,22 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     RNG rng = RNG::Init(DTid.x, g_frame.FrameNum);
 
-    float lightSourcePdf;
-    const uint emissiveIdx = Light::SampleAliasTable(g_aliasTable, g_frame.NumEmissiveTriangles, rng, lightSourcePdf);
+    Light::AliasTableSample entry = Light::AliasTableSample::get(g_aliasTable, 
+        g_frame.NumEmissiveTriangles, rng);
+    RT::EmissiveTriangle tri = g_emissives[entry.idx];
+    Light::EmissiveTriSample lightSample = Light::EmissiveTriSample::get(/*unused*/ 0, tri, rng, false);
 
-    RT::EmissiveTriangle emissive = g_emissives[emissiveIdx];
-    const Light::EmissiveTriAreaSample lightSample = Light::SampleEmissiveTriangleSurface(0, emissive, rng, false);
-
-    float3 le = Light::Le_EmissiveTriangle(emissive, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
+    float3 le = Light::Le_EmissiveTriangle(tri, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
 
     RT::PresampledEmissiveTriangle s;
     s.pos = lightSample.pos;
-    s.normal = Math::EncodeOct16(lightSample.normal);
+    s.normal = Math::EncodeOct32(lightSample.normal);
     s.le = half3(le);
     s.bary = Math::EncodeAsUNorm2(lightSample.bary);;
-    s.twoSided = emissive.IsDoubleSided();
-    s.idx = emissiveIdx;
-    s.ID = emissive.ID;
-    s.pdf = lightSourcePdf * lightSample.pdf;
+    s.twoSided = tri.IsDoubleSided();
+    s.idx = entry.idx;
+    s.ID = tri.ID;
+    s.pdf = entry.pdf * lightSample.pdf;
 
     g_sampleSets[DTid.x] = s;
 }

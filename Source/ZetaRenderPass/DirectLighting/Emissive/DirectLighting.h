@@ -113,7 +113,7 @@ namespace ZetaRay::RenderPass
 
         inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
             "ReSTIR_DI_SpatioTemporal_cs.cso",
-            "ReSTIR_DI_SpatioTemporal_LP_cs.cso",
+            "ReSTIR_DI_SpatioTemporal_WPS_cs.cso",
             "ReSTIR_DI_DNSR_Temporal_cs.cso",
             "ReSTIR_DI_DNSR_Spatial_cs.cso"
         };

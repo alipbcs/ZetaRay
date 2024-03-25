@@ -58,7 +58,8 @@ namespace
 // Camera
 //--------------------------------------------------------------------------------------
 
-void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, float3 focusOrViewDir, bool lookAt)
+void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool jitter, 
+    float3 focusOrViewDir, bool lookAt)
 {
     m_posW = float4a(posw, 1.0f);
     m_FOV = fov;
@@ -313,3 +314,4 @@ void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
 {
     m_rotAccScale = p.GetFloat2().m_value;
 }
+

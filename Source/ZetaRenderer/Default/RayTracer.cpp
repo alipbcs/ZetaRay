@@ -45,9 +45,13 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
     {
         data.PreLightingPass.Init();
 
-        const Texture& curvature = data.PreLightingPass.GetCurvatureTexture();
-        Direct3DUtil::CreateTexture2DSRV(curvature, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
+        const Texture& curvature0 = data.PreLightingPass.GetCurvature0();
+        const Texture& curvature1 = data.PreLightingPass.GetCurvature1();
+
+        Direct3DUtil::CreateTexture2DSRV(curvature0, data.WndConstDescTable.CPUHandle(
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0));
+        Direct3DUtil::CreateTexture2DSRV(curvature1, data.WndConstDescTable.CPUHandle(
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1));
     }
 
     if (settings.SkyIllumination)
@@ -83,9 +87,13 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
     {
         data.PreLightingPass.OnWindowResized();
 
-        const Texture& curvature = data.PreLightingPass.GetCurvatureTexture();
-        Direct3DUtil::CreateTexture2DSRV(curvature, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
+        const Texture& curvature0 = data.PreLightingPass.GetCurvature0();
+        const Texture& curvature1 = data.PreLightingPass.GetCurvature1();
+
+        Direct3DUtil::CreateTexture2DSRV(curvature0, data.WndConstDescTable.CPUHandle(
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0));
+        Direct3DUtil::CreateTexture2DSRV(curvature1, data.WndConstDescTable.CPUHandle(
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1));
     }
 
     if (App::GetScene().NumEmissiveInstances())
@@ -186,8 +194,15 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
         }
     }
 
-    data.IndirecLightingPass.SetCurvatureDescHeapOffset(data.WndConstDescTable.GPUDesciptorHeapIndex(
-        (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE));
+    auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+    auto prevCurvatureSrv = idx == 0 ? RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1 : 
+        RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0;
+    auto currCurvatureSrv = idx == 0 ? RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0 :
+        RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1;
+
+    data.IndirecLightingPass.SetCurvatureDescHeapOffset(
+        data.WndConstDescTable.GPUDesciptorHeapIndex((int)prevCurvatureSrv),
+        data.WndConstDescTable.GPUDesciptorHeapIndex((int)currCurvatureSrv));
 }
 
 void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, RenderGraph& renderGraph)
@@ -241,8 +256,13 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
         &PreLighting::Render);
     data.PreLightingPassHandle = renderGraph.RegisterRenderPass("PreLighting", RENDER_NODE_TYPE::COMPUTE, dlg1);
 
-    auto& curvatureTex = data.PreLightingPass.GetCurvatureTexture();
-    renderGraph.RegisterResource(const_cast<Texture&>(curvatureTex).Resource(), curvatureTex.ID(),
+    auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+    const Texture& prevCurvature = idx == 1 ? data.PreLightingPass.GetCurvature0() : data.PreLightingPass.GetCurvature1();
+    const Texture& currCurvature = idx == 1 ? data.PreLightingPass.GetCurvature1() : data.PreLightingPass.GetCurvature0();
+
+    renderGraph.RegisterResource(const_cast<Texture&>(prevCurvature).Resource(), prevCurvature.ID(),
+        D3D12_RESOURCE_STATE_COMMON);
+    renderGraph.RegisterResource(const_cast<Texture&>(currCurvature).Resource(), currCurvature.ID(),
         D3D12_RESOURCE_STATE_COMMON);
 
     if (hasEmissives)
@@ -365,9 +385,9 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         }
     }
 
-    renderGraph.AddOutput(data.PreLightingPassHandle,
-        data.PreLightingPass.GetCurvatureTexture().ID(),
-        D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
+    const Texture& currCurvature = outIdx == 1 ? data.PreLightingPass.GetCurvature1() : 
+        data.PreLightingPass.GetCurvature0();
+    renderGraph.AddOutput(data.PreLightingPassHandle, currCurvature.ID(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     SmallVector<RenderNodeHandle, Support::SystemAllocator, 3> handles;
     handles.reserve(3);
@@ -500,7 +520,11 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         }
 
         renderGraph.AddInput(data.IndirecLightingHandle,
-            data.PreLightingPass.GetCurvatureTexture().ID(),
+            data.PreLightingPass.GetCurvature0().ID(),
+            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+        renderGraph.AddInput(data.IndirecLightingHandle,
+            data.PreLightingPass.GetCurvature1().ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
         // Outputs

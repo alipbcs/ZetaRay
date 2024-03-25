@@ -10,6 +10,7 @@
 #define MAX_IOR 2.5f
 #define DEFAULT_ETA_I 1.5f
 #define DEFAULT_ETA_T 1.0f
+#define ETA_AIR 1.0f
 #define DEFAULT_SPECULAR_TRANSMISSION 0.0f
 
 #ifdef __cplusplus

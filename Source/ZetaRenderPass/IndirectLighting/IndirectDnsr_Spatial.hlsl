@@ -148,10 +148,7 @@ float3 FilterDiffuse2(int2 DTid, float3 normal, float linearDepth, bool metallic
         {
             const float sampleDepth = g_currDepth[samplePosSS];
             const float3 samplePosW = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
-                sampleDepth,
-                g_frame.TanHalfFOV,
-                g_frame.AspectRatio,
-                g_frame.CurrViewInv,
+                sampleDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
                 g_frame.CurrCameraJitter);
             const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
                     
@@ -191,11 +188,11 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
     if (!g_local.FilterSpecular || roughness <= 0.01 || (roughness <= 0.05 && metallic))
         return centerColor;
 
-    const int2 renderDim = int2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
     const float centerLum = Math::Luminance(centerColor);
     const float alpha = roughness * roughness;
     const float u0 = rng.Uniform();
-    const uint offset = rng.UniformUintBounded_Faster(NUM_SAMPLES);
+    const int offset = (int)rng.UniformUintBounded_Faster(NUM_SAMPLES);
 
     const float theta = u0 * TWO_PI;
     const float sinTheta = sin(theta);
@@ -204,7 +201,7 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
     float3 weightedColor = 0.0.xxx;
     float weightSum = 0.0f;
     int numValidSamples = 0;
-    int numSamples = !metallic ? round(smoothstep(0, 0.65, roughness) * 3) : 8;
+    int numSamples = !metallic ? (int)round(smoothstep(0, 0.65, roughness) * 3) : 8;
     numSamples = roughness <= 0.5 ? 1 : numSamples;
     // const float filterRadius = roughness <= 0.5 ? 3 : FILTER_RADIUS_SPECULAR;
     const float filterRadius = FILTER_RADIUS_SPECULAR;
@@ -226,12 +223,8 @@ float3 FilterSpecular(int2 DTid, float3 normal, float linearDepth, bool metallic
         if (all(samplePosSS < renderDim) && all(samplePosSS > 0))
         {
             const float sampleDepth = g_currDepth[samplePosSS];
-            const float3 samplePosW = Math::WorldPosFromScreenSpace(samplePosSS,
-                renderDim,
-                sampleDepth,
-                g_frame.TanHalfFOV,
-                g_frame.AspectRatio,
-                g_frame.CurrViewInv,
+            const float3 samplePosW = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
+                sampleDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
                 g_frame.CurrCameraJitter);
             const float w_z = EdgeStoppingGeometry(samplePosW, normal, linearDepth, posW, 1);
 
@@ -296,20 +289,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float linearDepth = g_depth[swizzledDTid];
+    const float z_view = g_depth[swizzledDTid];
 
     // skip sky pixels
-    if (linearDepth == FLT_MAX)
+    if (z_view == FLT_MAX)
         return;
 
-    const float2 currUV = (swizzledDTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 posW = Math::WorldPosFromUV(currUV,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
-        linearDepth,
-        g_frame.TanHalfFOV,
-        g_frame.AspectRatio,
-        g_frame.CurrViewInv,
-        g_frame.CurrCameraJitter);
+    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const float2 currUV = (swizzledDTid + 0.5f) / renderDim;
+    const float3 posW = Math::WorldPosFromUV(currUV, renderDim, z_view, g_frame.TanHalfFOV, 
+        g_frame.AspectRatio, g_frame.CurrViewInv, g_frame.CurrCameraJitter);
 
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
@@ -322,7 +311,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if (isEmissive)
         return;
 
-    GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+    GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_currNormal[swizzledDTid]);
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -337,8 +327,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum);
 
-    float3 filteredDiffuse = FilterDiffuse2(swizzledDTid, normal, linearDepth, isMetallic, posW, rng);
-    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, linearDepth, isMetallic, mr.y, 
+    float3 filteredDiffuse = FilterDiffuse2(swizzledDTid, normal, z_view, isMetallic, posW, rng);
+    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, z_view, isMetallic, mr.y, 
         posW, baseColor, rng);
 
     RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];

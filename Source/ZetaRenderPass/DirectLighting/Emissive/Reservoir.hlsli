@@ -18,7 +18,7 @@ namespace RDI_Util
             res.M = 0;
             res.w_sum = 0;
             res.W = 0;
-            res.LightIdx = uint(-1);
+            res.LightIdx = UINT32_MAX;
             res.Bary = 0.0.xx;
 #if KAHAN_SUMMATION == 1
             res.Compensation = 0.0f;
@@ -44,7 +44,7 @@ namespace RDI_Util
         
         bool IsValid()
         {
-            return this.LightIdx != uint(-1);
+            return this.LightIdx != UINT32_MAX;
         }
 
         bool Update(float w, float3 le, uint lightIdx, float2 bary, inout RNG rng)

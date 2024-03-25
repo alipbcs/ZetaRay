@@ -3,7 +3,6 @@
 
 #include "../IndirectLighting_Common.h"
 #include "../../Common/Sampling.hlsli"
-#include "../Params.hlsli"
 
 namespace RGI_Util
 {
@@ -19,7 +18,7 @@ namespace RGI_Util
             res.M = 0;
             res.w_sum = 0;
             res.W = 0;
-            res.ID = uint(-1);
+            res.ID = UINT32_MAX;
             
             return res;
         }
@@ -64,7 +63,7 @@ namespace RGI_Util
 
         bool IsValid()
         {
-            return ID != uint(-1);
+            return ID != UINT32_MAX;
         }
 
         float3 pos;
@@ -89,7 +88,7 @@ namespace RGI_Util
         float3 pos = resA.xyz;
         uint hitID = asuint(resA.w);
         float3 Lo = resB.xyz;
-        uint16_t M = resB.w;
+        uint16_t M = (uint16_t)resB.w;
 
         return Reservoir::Init(pos, M, Lo, hitID);
     }
@@ -101,9 +100,9 @@ namespace RGI_Util
         r.w_sum = resC.x;
         r.W = resC.y;
 
-        int n = asint(resC.z);
-        int16_t2 ns = int16_t2(n & 0xffff, n >> 16);
-        r.normal = Math::DecodeOct16(ns);
+        uint n = asuint(resC.z);
+        int16_t2 ns = Math::UnpackUintToInt16(n);
+        r.normal = Math::DecodeOct32(ns);
     }
 
     float3 PartialReadReservoir_Pos(uint2 DTid, uint inputAIdx)
@@ -118,9 +117,9 @@ namespace RGI_Util
         RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
         RWTexture2D<float4> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 
-        int16_t2 n = Math::EncodeOct16(r.normal);
-        int nu = (int(n.y) << 16) | n.x;
-        half M_clamped = min(r.M, half(M_max));
+        int16_t2 n = Math::EncodeOct32(r.normal);
+        uint nu = asuint16(n.x) | (uint(asuint16(n.y)) << 16);
+        half M_clamped = min(r.M, (half)M_max);
 
         float4 outA = float4(r.pos, asfloat(r.ID));
         half4 outB = half4(r.Lo, M_clamped);

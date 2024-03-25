@@ -4,16 +4,40 @@ set(RP_IND_LIGHTING_SRC
     ${RP_IND_LIGHTING_DIR}/IndirectLighting.h
     ${RP_IND_LIGHTING_DIR}/IndirectLighting_Common.h
     ${RP_IND_LIGHTING_DIR}/NEE.hlsli
-    ${RP_IND_LIGHTING_DIR}/Params.hlsli
-    ${RP_IND_LIGHTING_DIR}/PathTracing.hlsli
     ${RP_IND_LIGHTING_DIR}/RayQuery.hlsli
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_PairwiseMIS.hlsli
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_PathTracing.hlsli
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_Resampling.hlsli
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_Reservoir.hlsli
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_LVG.hlsl
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_NPS.hlsl
+    ${RP_IND_LIGHTING_DIR}/PathTracer/Variants/PathTracer_WoPS.hlsl
+    ${RP_IND_LIGHTING_DIR}/PathTracer/Variants/PathTracer_WPS.hlsl
+    ${RP_IND_LIGHTING_DIR}/PathTracer/Params.hlsli
+    ${RP_IND_LIGHTING_DIR}/PathTracer/PathTracer.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Params.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI_NEE.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/PairwiseMIS.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/PathTracing.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Resampling.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Reservoir.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Variants/ReSTIR_GI_WoPS.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Variants/ReSTIR_GI_WPS.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/Variants/ReSTIR_GI_LVG.hlsl
     ${RP_IND_LIGHTING_DIR}/ReSTIR_GI/ReSTIR_GI.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Params.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Reservoir.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Shift.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Util.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_NEE.hlsli
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_PathTrace.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Sort.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Sort_TtC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Sort_CtS.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Sort_StC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Replay.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Replay_TtC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Replay_CtS.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/Variants/ReSTIR_PT_Replay_StC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_CtT.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_TtC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_CtS.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_StC.hlsl
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_SpatialSearch.hlsl
     ${RP_IND_LIGHTING_DIR}/IndirectDnsr_Temporal.hlsl
     ${RP_IND_LIGHTING_DIR}/IndirectDnsr_Spatial.hlsl)
 set(RP_IND_LIGHTING_SRC ${RP_IND_LIGHTING_SRC} PARENT_SCOPE)

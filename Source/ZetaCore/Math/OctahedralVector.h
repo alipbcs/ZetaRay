@@ -5,11 +5,10 @@
 namespace ZetaRay::Math
 {
     // 3D unit vector encoded using octahedral encoding using two 16-bit SNORMs.
-    struct oct16
+    struct oct32
     {
-        constexpr oct16() = default;
-
-        explicit oct16(float3 u)
+        constexpr oct32() = default;
+        explicit oct32(float3 u)
         {
             __m128 vU = loadFloat3(u);
             vU = encode_octahedral(vU);
@@ -17,7 +16,7 @@ namespace ZetaRay::Math
             v = snorm2(vU);
         }
 
-        oct16(float x, float y, float z)
+        oct32(float x, float y, float z)
         {
             float4a f(x, y, z, 0);
             __m128 vU = load(f);

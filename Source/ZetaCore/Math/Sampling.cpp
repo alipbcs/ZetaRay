@@ -147,15 +147,13 @@ uint32_t Math::SampleAliasTable(Span<AliasTableEntry> table, RNG& rng, float& pd
     uint32_t idx = rng.UniformUintBounded((uint32_t)table.size());
     AliasTableEntry s = table[idx];
 
-    float u1 = rng.Uniform();
-    if (u1 <= s.P_Curr)
+    if (rng.Uniform() < s.P_Curr)
     {
         pdf = s.P_Orig;
         return idx;
     }
 
     pdf = table[s.Alias].P_Orig;
-
     return s.Alias;
 }
 

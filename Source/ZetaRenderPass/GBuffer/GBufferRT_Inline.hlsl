@@ -2,8 +2,6 @@
 #include "../Common/Common.hlsli"
 #include "../Common/Sampling.hlsli"
 
-#define THREAD_GROUP_SWIZZLING 0
-
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -42,7 +40,7 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 
     float alpha = alphaFactor_cutoff.x;
 
-    if(meshData.BaseColorTex != uint16_t(-1))
+    if(meshData.BaseColorTex != UINT16_MAX)
     {
         uint tri = primIdx * 3;
         tri += meshData.BaseIdxOffset;
@@ -66,21 +64,16 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
     return true;
 }
 
-RayPayload PrimaryHitData(float3 cameraRayDir)
+RayPayload TracePrimaryHit(float3 cameraRayDir)
 {
     RayDesc cameraRay;
     cameraRay.Origin = g_frame.CameraPos;
-    cameraRay.TMin = g_frame.CameraNear;
+    cameraRay.TMin = 0;
     cameraRay.TMax = FLT_MAX;
     cameraRay.Direction = cameraRayDir;
 
-    // find primary surface point
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> rayQuery;
-
-    rayQuery.TraceRayInline(g_bvh, 
-        RAY_FLAG_NONE, 
-        RT_AS_SUBGROUP::ALL, 
-        cameraRay);
+    rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, cameraRay);
 
     while(rayQuery.Proceed())
     {
@@ -129,9 +122,9 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         payload.uv = uv;
 
         // normal
-        float3 v0_n = Math::DecodeOct16(V0.NormalL);
-        float3 v1_n = Math::DecodeOct16(V1.NormalL);
-        float3 v2_n = Math::DecodeOct16(V2.NormalL);
+        float3 v0_n = Math::DecodeOct32(V0.NormalL);
+        float3 v1_n = Math::DecodeOct32(V1.NormalL);
+        float3 v2_n = Math::DecodeOct32(V2.NormalL);
         float3 normal = v0_n + bary.x * (v1_n - v0_n) + bary.y * (v2_n - v0_n);
         // transform normal using the inverse transpose
         // (M^-1)^T = ((RS)^-1)^T
@@ -144,16 +137,16 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         payload.normal = normal;
 
         // tangent vector
-        float3 v0_t = Math::DecodeOct16(V0.TangentU);
-        float3 v1_t = Math::DecodeOct16(V1.TangentU);
-        float3 v2_t = Math::DecodeOct16(V2.TangentU);
+        float3 v0_t = Math::DecodeOct32(V0.TangentU);
+        float3 v1_t = Math::DecodeOct32(V1.TangentU);
+        float3 v2_t = Math::DecodeOct32(V2.TangentU);
         float3 tangent = v0_t + bary.x * (v1_t - v0_t) + bary.y * (v2_t - v0_t);
         tangent *= meshData.Scale;
         tangent = Math::RotateVector(tangent, q);
         tangent = normalize(tangent);
         payload.tangent = tangent;
 
-        // dpdu & dpdv for ray differential calculation
+        // dpdu & dpdv are needed for ray differentials
         float3 v0W = GBufferRT::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
         float3 v1W = GBufferRT::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
         float3 v2W = GBufferRT::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
@@ -167,8 +160,8 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
         float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
         // due to quantization, it's necessary to renormalize
         q_prev = normalize(q_prev);
-        float3 posW_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
-        float3 posV_prev = mul(g_frame.PrevView, float4(posW_prev, 1.0f));
+        float3 pos_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
+        float3 posV_prev = mul(g_frame.PrevView, float4(pos_prev, 1.0f));
         float2 posNDC_prev = posV_prev.xy / (posV_prev.z * g_frame.TanHalfFOV);
         posNDC_prev.x /= g_frame.AspectRatio;
         payload.prevPosNDC = posNDC_prev;
@@ -182,22 +175,14 @@ RayPayload PrimaryHitData(float3 cameraRayDir)
 //--------------------------------------------------------------------------------------
 
 [numthreads(GBUFFER_RT_GROUP_DIM_X, GBUFFER_RT_GROUP_DIM_Y, 1)]
-void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
+void main(uint3 DTid : SV_DispatchThreadID)
 {
-#if THREAD_GROUP_SWIZZLING == 1
-    // swizzle thread groups for better L2-cache behavior
-    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
-    uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, uint16_t2(GBUFFER_RT_GROUP_DIM_X, GBUFFER_RT_GROUP_DIM_Y),
-        g_local.DispatchDimX, GBUFFER_RT_TILE_WIDTH, GBUFFER_RT_LOG2_TILE_WIDTH, g_local.NumGroupsInTile);
-#else
-    const uint2 swizzledDTid = DTid.xy;
-#endif
-
-    if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
+    if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
         return;
 
-    float3 cameraRayDir = RT::GeneratePinholeCameraRay(swizzledDTid, 
-        float2(g_frame.RenderWidth, g_frame.RenderHeight),
+    float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    float3 cameraRayDir = RT::GeneratePinholeCameraRay(DTid.xy, 
+        renderDim,
         g_frame.AspectRatio, 
         g_frame.TanHalfFOV, 
         g_frame.CurrView[0].xyz, 
@@ -205,13 +190,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         g_frame.CurrView[2].xyz,
         g_frame.CurrCameraJitter);
 
-    RayPayload rayPayload = PrimaryHitData(cameraRayDir);
+    RayPayload rayPayload = TracePrimaryHit(cameraRayDir);
 
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)
     {
         RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
-        g_depth[swizzledDTid] = FLT_MAX;
+        g_depth[DTid.xy] = FLT_MAX;
+
+        RWTexture2D<float2> g_metallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
+        g_metallicRoughness[DTid.xy].x = 4.0f / 255.0f;
 
         // just the camera motion
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
@@ -220,22 +208,23 @@ void main(uint3 DTid : SV_DispatchThreadID, uint Gidx : SV_GroupIndex, uint3 Gid
         float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
         motionNDC.x /= g_frame.AspectRatio;
         float2 motionUV = Math::UVFromNDC(motionNDC);
-        g_outMotion[swizzledDTid] = motionUV;
+        g_outMotion[DTid.xy] = motionUV;
 
         return;
     }
 
-    float2 currUV = (swizzledDTid + 0.5 + g_frame.CurrCameraJitter) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    float2 currUV = (DTid.xy + 0.5 + g_frame.CurrCameraJitter) / renderDim;
     float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC);
     float2 motionVec = currUV - prevUV;
 
     // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.
-    float4 grads = GBufferRT::UVDifferentials(swizzledDTid, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
+    float4 grads = GBufferRT::UVDifferentials(DTid.xy, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
         rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
-    float3 posW = g_frame.CameraPos + rayPayload.t * cameraRayDir;
-    // save the view-space z, so that position can be reconstructed
-    float3 posV = mul(g_frame.CurrView, float4(posW, 1.0f));
-    GBufferRT::ApplyTextureMaps(swizzledDTid, posV.z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
-        rayPayload.tangent, motionVec, grads, posW, g_frame, g_local, g_materials);
+    float3 pos = g_frame.CameraPos + rayPayload.t * cameraRayDir;
+    // Instead of hit distance, save view z so that position reconstruction becomes
+    // slightly cheaper
+    float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
+    GBufferRT::ApplyTextureMaps(DTid.xy, posV.z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
+        rayPayload.tangent, motionVec, grads, pos, g_frame, g_local, g_materials);
 }
