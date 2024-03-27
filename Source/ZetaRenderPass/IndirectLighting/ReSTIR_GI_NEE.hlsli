@@ -371,7 +371,7 @@ namespace RGI_Util
                 lightNormal = dot(lightNormal, lightNormal) == 0 ? 1.0.xxx : lightNormal / twoArea;
                 lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? lightNormal * -1.0f : lightNormal;
 
-                const float lightSourcePdf = numLightSamples > 1 ?
+                const float lightSourcePdf = numLightSamples > 0 ?
                     g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig : 
                     0;
                 const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
@@ -530,8 +530,9 @@ namespace RGI_Util
         // Sun and sky can be skipped if sun is below the horizon.
         if(-g_frame.SunDir.y > 0)
         {
-            // Consider the sun only if the (opaque) surface is not oriented away.
-            float q = (dot(-g_frame.SunDir, hitInfo.normal) > 1e-6) * P_SUN_VS_SKY;
+            // Consider the sun only if the surface is not oriented away.
+            float q = (surface.HasSpecularTransmission() ? 1 : 
+                dot(-g_frame.SunDir, hitInfo.normal) > 0) * P_SUN_VS_SKY;
 
             if(p_sun < q)
                 return NEE_Sun(pos, hitInfo.normal, surface, g_bvh, g_frame, rngThread) / q;

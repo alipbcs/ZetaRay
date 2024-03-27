@@ -262,21 +262,21 @@ namespace RT
         return origin + dir * normalBias;
     }
 
-    // Returns 1 / (n_1 p_1 + n_2 p_2) * f / p_1
+    // Returns (n_1 p_1) / (n_1 p_1 + n_2 p_2) * f / p_1
     template<typename T>
     T BalanceHeuristic(float p_1, float p_2, T f, float n_1 = 1, float n_2 = 1)
     {
-        return f / max(p_1 * n_1 + p_2 * n_2, 1e-6f);
+        return n_1 / max(n_1 * p_1 + n_2 * p_2, 1e-6f) * f;
     }
 
-    // Returns (n_1 p_1) / ((n_1 p_1)^2 + (n_2 p_2)^2) * f / p_1
+    // Returns (n_1 p_1)^2 / ((n_1 p_1)^2 + (n_2 p_2)^2) * f / p_1
     template<typename T>
     T PowerHeuristic(float p_1, float p_2, T f, float n_1 = 1, float n_2 = 1)
     {
         float a = n_1 * p_1;
         float b = n_2 * p_2;
 
-        return f * a / max(a * a + b * b, 1e-6f);
+        return ((n_1 * n_1 * p_1) / max(a * a + b * b, 1e-6f)) * f;
     }
 
     //--------------------------------------------------------------------------------------
