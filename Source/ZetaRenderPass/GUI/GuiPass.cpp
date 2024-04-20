@@ -42,8 +42,8 @@ namespace
             {
                 auto& fp = param.GetEnum();
                 int idx = fp.m_curr;
-                ImGui::Combo(param.GetName(), &idx, fp.m_values, fp.m_num);
-                param.SetEnum(idx);
+                if(ImGui::Combo(param.GetName(), &idx, fp.m_values, fp.m_num))
+                    param.SetEnum(idx);
             }
             else if (param.GetType() == PARAM_TYPE::PT_float)
             {
@@ -109,59 +109,80 @@ namespace
         }
     }
 
-    void DrawAxis(const char* label, const float3& axis, const float3& color, float lineWidth)
+    void DrawAxis(const float3& pos, const float3& xAxis, const float3& zAxis, const float3& xColor,
+        const float3& zColor, float lineWidth)
     {
         // axis
         float axis_x[2];
         float axis_y[2];
 
-        // starting point
-        axis_x[0] = 0.0f;
-        axis_y[0] = 0.0f;
-
-        // end point
-        axis_x[1] = axis.x;
-        axis_y[1] = axis.z;
-
-        ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
-        ImPlot::PlotLine(label, axis_x, axis_y, ZetaArrayLen(axis_x));
-
-        // arrow tip
-        constexpr float arrowLenX = 0.05f;
-        constexpr float arrowLenY = 0.1f;
-
         float arrow_x[3];
         float arrow_y[3];
 
+        // arrow tip
+        constexpr float arrowLenX = 0.25f;
+        constexpr float arrowLenY = 0.25f;
+
+        // rotate and plit
+        auto func = [&](const float3& color)
+            {
+                float2 rotMatCol1 = float2(xAxis.x, xAxis.z);
+                float2 rotMatCol2 = float2(zAxis.x, zAxis.z);
+
+                float2 rotated = arrow_x[0] * rotMatCol1 + arrow_y[0] * rotMatCol2;
+                arrow_x[0] = pos.x + rotated.x;
+                arrow_y[0] = pos.z + rotated.y;
+
+                rotated = arrow_x[2] * rotMatCol1 + arrow_y[2] * rotMatCol2;
+                arrow_x[2] = pos.x + rotated.x;
+                arrow_y[2] = pos.z + rotated.y;
+
+                ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
+                ImPlot::PlotLine("", arrow_x, arrow_y, ZetaArrayLen(arrow_x));
+            };
+
+        // starting point
+        axis_x[0] = pos.x;
+        axis_y[0] = pos.z;
+
+        // end point
+        axis_x[1] = pos.x + zAxis.x;
+        axis_y[1] = pos.z + zAxis.z;
+
+        ImPlot::SetNextLineStyle(ImVec4(zColor.x, zColor.y, zColor.z, 1.0f), lineWidth);
+        ImPlot::PlotLine("Z", axis_x, axis_y, ZetaArrayLen(axis_x));
+
+        // Z axis
         // starting point
         arrow_x[0] = 0.0f - arrowLenX;
         arrow_y[0] = 1.0f - arrowLenY;
-
         // middle point
         arrow_x[1] = axis_x[1];
         arrow_y[1] = axis_y[1];
-
         // end point
         arrow_x[2] = 0.0f + arrowLenX;
         arrow_y[2] = 1.0f - arrowLenY;
 
-        // rotate
-        float2 rotMatRow1 = float2(axis.z, axis.x);
-        float2 rotMatRow2 = float2(-axis.x, axis.z);
+        func(zColor);
 
-        float2 rotated;
-        rotated.x = rotMatRow1.x * arrow_x[0] + rotMatRow1.y * arrow_y[0];
-        rotated.y = rotMatRow2.x * arrow_x[0] + rotMatRow2.y * arrow_y[0];
-        arrow_x[0] = rotated.x;
-        arrow_y[0] = rotated.y;
+        // X axis
+        // end point
+        axis_x[1] = pos.x + xAxis.x;
+        axis_y[1] = pos.z + xAxis.z;
+        ImPlot::SetNextLineStyle(ImVec4(xColor.x, xColor.y, xColor.z, 1.0f), lineWidth);
+        ImPlot::PlotLine("X", axis_x, axis_y, ZetaArrayLen(axis_x));
 
-        rotated.x = rotMatRow1.x * arrow_x[2] + rotMatRow1.y * arrow_y[2];
-        rotated.y = rotMatRow2.x * arrow_x[2] + rotMatRow2.y * arrow_y[2];
-        arrow_x[2] = rotated.x;
-        arrow_y[2] = rotated.y;
+        // starting point
+        arrow_x[0] = 1.0f - arrowLenX;
+        arrow_y[0] = 0.0f + arrowLenY;
+        // middle point
+        arrow_x[1] = axis_x[1];
+        arrow_y[1] = axis_y[1];
+        // end point
+        arrow_x[2] = 1.0f - arrowLenX;
+        arrow_y[2] = 0.0f - arrowLenY;
 
-        ImPlot::SetNextLineStyle(ImVec4(color.x, color.y, color.z, 1.0f), lineWidth);
-        ImPlot::PlotLine("", arrow_x, arrow_y, ZetaArrayLen(arrow_x));
+        func(xColor);
     }
 
     void ShowStyles()
@@ -625,7 +646,7 @@ void GuiPass::RenderProfiler()
             ImPlot::SetupAxes("Moving Window", "Time (ms)", 0, ImPlotAxisFlags_NoHighlight);
             ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max_ + 1.0, ImGuiCond_Always);
             //ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
-            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(0.0074990317, 0.341914445, 0.77582234, 1.0f));
+            ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(85 / 255.0f, 85 / 255.0f, 85 / 255.0f, 1.0f));
 
             ImGuiStyle& style = ImGui::GetStyle();
             ImVec4* colors = style.Colors;
@@ -831,9 +852,10 @@ void GuiPass::CameraTab()
 
     if (ImPlot::BeginPlot("Camera Coodinate System", ImVec2(250.0f, 250.0f), plotFlags))
     {
+        const float3 pos = camera.GetPos();
         constexpr int axisFlags = ImPlotAxisFlags_Lock | ImPlotAxisFlags_NoHighlight;
         ImPlot::SetupAxes("X", "Z", axisFlags, axisFlags);
-        ImPlot::SetupAxesLimits(-1.5f, 1.5f, -1.5f, 1.5f, ImGuiCond_Always);
+        ImPlot::SetupAxesLimits(pos.x - 3, pos.x + 3, pos.z - 3, pos.z + 3, ImGuiCond_Always);
 
         ImGuiStyle& style = ImGui::GetStyle();
         ImVec4* colors = style.Colors;
@@ -842,8 +864,7 @@ void GuiPass::CameraTab()
 
         const float3 xAxis = camera.GetBasisX();
         const float3 zAxis = camera.GetBasisZ();
-        DrawAxis("X", xAxis, float3(0.99f, 0.15f, 0.05f), 3.0f);
-        DrawAxis("Z", zAxis, float3(0.1f, 0.5f, 0.99f), 3.0f);
+        DrawAxis(pos, xAxis, zAxis, float3(0.99f, 0.15f, 0.05f), float3(0.1f, 0.5f, 0.99f), 3.0f);
 
         ImPlot::PopStyleColor();
         ImPlot::EndPlot();
@@ -951,7 +972,8 @@ void GuiPass::GpuTimingsTab()
         return;
 
     constexpr ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | 
-        ImGuiTableFlags_Hideable | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | ImGuiTableFlags_Borders;
+        ImGuiTableFlags_Hideable | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | 
+        ImGuiTableFlags_Borders | ImGuiTableFlags_Resizable | ImGuiTableFlags_SizingStretchProp;
 
     // When using ScrollX or ScrollY we need to specify a size for our table container!
     // Otherwise by default the table will fit all available space, like a BeginChild() call.

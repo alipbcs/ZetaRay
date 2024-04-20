@@ -136,9 +136,6 @@ namespace ZetaRay::Core
             uint32_t internal);
         ~DescriptorTable();
 
-        DescriptorTable(const DescriptorTable&) = delete;
-        DescriptorTable&operator=(const DescriptorTable&) = delete;
-
         DescriptorTable(DescriptorTable&& other);
         DescriptorTable& operator=(DescriptorTable&& other);
 

@@ -138,7 +138,7 @@ namespace RDI_Util
         if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         {
             uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), rayQuery.CommittedPrimitiveIndex());
-            uint hash = RNG::Pcg3d(key).x;
+            uint hash = RNG::PCG3d(key).x;
 
             return triID == hash;
         }
@@ -193,7 +193,7 @@ namespace RDI_Util
         if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         {
             uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), rayQuery.CommittedPrimitiveIndex());
-            uint hash = RNG::Pcg3d(key).x;
+            uint hash = RNG::PCG3d(key).x;
 
             return triID == hash;
         }

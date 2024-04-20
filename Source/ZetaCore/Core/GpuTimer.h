@@ -12,7 +12,7 @@ namespace ZetaRay::Core
     {
         struct alignas(32) Timing
         {
-            static constexpr int MAX_NAME_LENGTH = 20;
+            static constexpr int MAX_NAME_LENGTH = 32;
 
             char Name[MAX_NAME_LENGTH];
             double Delta;

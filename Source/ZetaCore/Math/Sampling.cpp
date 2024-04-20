@@ -49,16 +49,14 @@ void Math::AliasTable_Normalize(MutableSpan<float> weights)
         weights[i] *= sumRcp;
 }
 
-void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<AliasTableEntry> table)
+void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntry> table)
 {
     const int64_t N = probs.size();
     const float oneDivN = 1.0f / N;
     AliasTable_Normalize(probs);
 
     for (int64_t i = 0; i < N; i++)
-    {
         table[i].P_Orig = probs[i] * oneDivN;
-    }
 
     // Maintain an index buffer since original ordering of elements must be preserved
     SmallVector<uint32_t> larger;
@@ -77,7 +75,7 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
 
 #ifdef _DEBUG
     int64_t numInsertions = 0;
-#endif // _DEBUG
+#endif
 
     // In each iteration, pick two probabilities such that one is smaller than 1.0 and the other larger 
     // than 1.0. Use the latter to bring up the former to 1.0.
@@ -144,10 +142,9 @@ void Math::AliasTable_Build(Util::MutableSpan<float> probs, Util::MutableSpan<Al
     Assert(numInsertions == N, "Some elements were not inserted.");
 }
 
-uint32_t Math::SampleAliasTable(Util::Span<AliasTableEntry> table, RNG& rng, float& pdf)
+uint32_t Math::SampleAliasTable(Span<AliasTableEntry> table, RNG& rng, float& pdf)
 {
     uint32_t idx = rng.UniformUintBounded((uint32_t)table.size());
-
     AliasTableEntry s = table[idx];
 
     float u1 = rng.Uniform();

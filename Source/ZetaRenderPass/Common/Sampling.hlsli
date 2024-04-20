@@ -11,7 +11,7 @@
 
 struct RNG
 {
-    static uint Pcg(uint x)
+    static uint PCG(uint x)
     {
         uint state = x * 747796405u + 2891336453u;
         uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
@@ -19,7 +19,7 @@ struct RNG
     }
 
     // Ref: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering," Journal of Computer Graphics Techniques, 2020.
-    static uint3 Pcg3d(uint3 v)
+    static uint3 PCG3d(uint3 v)
     {
         v = v * 1664525u + 1013904223u;
         v.x += v.y * v.z;
@@ -32,14 +32,38 @@ struct RNG
         return v;
     }
 
+    // Ref: M. Jarzynski and M. Olano, "Hash Functions for GPU Rendering," Journal of Computer Graphics Techniques, 2020.
+    static uint4 PCG4d(uint4 v)
+    {
+        v = v * 1664525u + 1013904223u;
+        v.x += v.y * v.w; 
+        v.y += v.z * v.x; 
+        v.z += v.x * v.y; 
+        v.w += v.y * v.z;
+        v ^= v >> 16u;
+        v.x += v.y * v.w; 
+        v.y += v.z * v.x; 
+        v.z += v.x * v.y; 
+        v.w += v.y * v.z;
+        return v;
+    }
+
     static RNG Init(uint2 pixel, uint frame)
     {
         RNG rng;
 #if 0
-        rng.State = RNG::Pcg(pixel.x + RNG::Pcg(pixel.y + RNG::Pcg(frame)));
+        rng.State = RNG::PCG(pixel.x + RNG::PCG(pixel.y + RNG::PCG(frame)));
 #else
-        rng.State = RNG::Pcg3d(uint3(pixel, frame)).x;
+        rng.State = RNG::PCG3d(uint3(pixel, frame)).x;
 #endif
+
+        return rng;
+    }
+
+    static RNG Init(uint2 pixel, uint frame, uint idx)
+    {
+        RNG rng;
+        rng.State = RNG::PCG4d(uint4(pixel, frame, idx)).x;
 
         return rng;
     }
@@ -47,7 +71,7 @@ struct RNG
     static RNG Init(uint idx, uint frame)
     {
         RNG rng;
-        rng.State = rng.Pcg(idx + Pcg(frame));
+        rng.State = rng.PCG(idx + PCG(frame));
 
         return rng;
     }
@@ -60,11 +84,19 @@ struct RNG
         return (word >> 22u) ^ word;
     }
 
-    float Uniform()
+    float Uniform() 
     {
-        const float oneSubEps = 0x1.fffffep-1;
-        const float uniformFloat01Inclusive = UniformUint() * 0x1p-32f;
-        return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
+#if 0
+    	return asfloat(0x3f800000 | (UniformUint() >> 9)) - 1.0f;
+#else
+        // For 32-bit floats, any integer in [0, 2^24] can be represented exactly and 
+        // there may be rounding errors for anything larger, e.g. 2^24 + 1 is rounded 
+        // down to 2^24. 
+        // Given random integers, we can right shift by 8 bits to get integers in 
+        // [0, 2^24 - 1]. After division by 2^-24, we have uniform numbers in [0, 1).
+        // Ref: https://prng.di.unimi.it/
+        return float(UniformUint() >> 8) * 0x1p-24f;
+#endif
     }
 
     // Returns samples in [0, bound)

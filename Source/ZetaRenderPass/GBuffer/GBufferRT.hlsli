@@ -158,9 +158,12 @@ namespace GBufferRT
         RWTexture2D<float2> g_outMetallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
         g_outMetallicRoughness[DTid] = float2(metalness, roughness);
 
-        RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
-        // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
-        g_outEmissive[DTid] = max(0, emissive);
+        if(dot(emissive, 1) > 0)
+        {
+            RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
+            // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
+            g_outEmissive[DTid] = max(0, emissive);
+        }
 
         if(transmission > 0)
         {

@@ -15,17 +15,14 @@ namespace ZetaRay::Math
     struct float2
     {
         constexpr float2() = default;
-
         constexpr explicit float2(float x)
             : x(x),
             y(x)
         {}
-
         constexpr float2(float x, float y)
             : x(x),
             y(y)
         {}
-
         float2(const half2& h);
 
         constexpr float2& operator+=(const float2& other)
@@ -72,27 +69,22 @@ namespace ZetaRay::Math
     struct float3
     {
         constexpr float3() = default;
-
         constexpr explicit float3(float x)
             : x(x),
             y(x),
             z(x)
         {}
-
         constexpr float3(float x, float y, float z)
             : x(x),
             y(y),
             z(z)
         {}
-
         constexpr float3(const float2& xy, float z = 0.0f)
             : x(xy.x),
             y(xy.y),
             z(z)
         {}
-
         explicit float3(const half3& h);
-
         explicit float3(const snorm3& v);
 
         constexpr float3& operator+=(const float3& other)
@@ -165,36 +157,31 @@ namespace ZetaRay::Math
 
     struct float4
     {
-        float4() = default;
-
+        constexpr float4() = default;
         constexpr explicit float4(float f)
             : x(f),
             y(f),
             z(f),
             w(f)
         {}
-
         constexpr float4(float fx, float fy, float fz, float fw)
             : x(fx),
             y(fy),
             z(fz),
             w(fw)
         {}
-
         constexpr float4(const float3& xyz, float fw = 0.0f)
             : x(xyz.x),
             y(xyz.y),
             z(xyz.z),
             w(fw)
         {}
-
         constexpr float4(const float2& xy, const float2& zw)
             : x(xy.x),
             y(xy.y),
             z(zw.x),
             w(zw.y)
         {}
-
         float4(const half4& h);
 
         constexpr float4& operator+=(const float4& other)
@@ -273,28 +260,24 @@ namespace ZetaRay::Math
     struct alignas(16) float4a
     {
         float4a() = default;
-
         constexpr explicit float4a(float f)
             : x(f),
             y(f),
             z(f),
             w(f)
         {}
-
         constexpr float4a(float fx, float fy, float fz, float fw)
             : x(fx),
             y(fy),
             z(fz),
             w(fw)
         {}
-
         constexpr float4a(float4 f)
             : x(f.x),
             y(f.y),
             z(f.z),
             w(f.w)
         {}
-
         constexpr float4a(float3 f, float w = 0.0f)
             : x(f.x),
             y(f.y),
@@ -329,7 +312,6 @@ namespace ZetaRay::Math
     struct half2
     {
         half2() = default;
-
         explicit half2(float f)
         {
             uint16_t h = FloatToHalf(f);
@@ -374,7 +356,6 @@ namespace ZetaRay::Math
     struct half3
     {
         half3() = default;
-
         explicit half3(float f)
         {
             uint16_t h = FloatToHalf(f);
@@ -439,7 +420,6 @@ namespace ZetaRay::Math
     struct half4
     {
         half4() = default;
-
         explicit half4(float f)
         {
             uint16_t h = FloatToHalf(f);
@@ -489,6 +469,11 @@ namespace ZetaRay::Math
     struct uint3
     {
         uint3() = default;
+        constexpr explicit uint3(uint32_t x)
+            : x(x),
+            y(x),
+            z(x)
+        {}
         constexpr uint3(uint32_t e0, uint32_t e1, uint32_t e2)
             : x(e0), y(e1), z(e2)
         {}
@@ -501,12 +486,10 @@ namespace ZetaRay::Math
     struct snorm2
     {
         snorm2() = default;
-
         explicit snorm2(int16_t u)
             : x(u),
             y(u)
         {}
-
         snorm2(int16_t u, int16_t v)
             : x(u),
             y(v)
@@ -550,13 +533,11 @@ namespace ZetaRay::Math
     struct snorm3
     {
         snorm3() = default;
-
         explicit snorm3(int16_t u)
             : x(u),
             y(u),
             z(u)
         {}
-
         snorm3(int16_t u0, int16_t u1, int16_t u2)
             : x(u0),
             y(u1),
@@ -610,14 +591,12 @@ namespace ZetaRay::Math
     struct snorm4
     {
         snorm4() = default;
-
         explicit snorm4(int16_t u)
             : x(u),
             y(u),
             z(u),
             w(u)
         {}
-
         snorm4(int16_t u0, int16_t u1, int16_t u2, int16_t u3)
             : x(u0),
             y(u1),
@@ -652,12 +631,10 @@ namespace ZetaRay::Math
     struct unorm2
     {
         unorm2() = default;
-
         explicit unorm2(uint16_t u)
             : x(u),
             y(u)
         {}
-
         unorm2(uint16_t u, uint16_t v)
             : x(u),
             y(v)

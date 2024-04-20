@@ -152,10 +152,10 @@ void AutoExposure::Render(CommandList& cmdList)
     computeCmdList.SetPipelineState(m_psos[(int)SHADERS::EXPECTED_VALUE]);
     computeCmdList.Dispatch(1, 1, 1);
 
-    computeCmdList.PIXEndEvent();
-
     // record the timestamp after execution
     gpuTimer.EndQuery(computeCmdList, queryIdx);
+
+    computeCmdList.PIXEndEvent();    
 }
 
 void AutoExposure::CreateResources()

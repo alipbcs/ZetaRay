@@ -286,16 +286,12 @@ namespace RT
     float3 SampleUnifiedBSDF_NoDiffuse(float3 normal, BSDF::ShadingData surface, inout RNG rng, 
         out float3 f, out float pdf)
     {
-        float3 wi;
         pdf = 1;
-
-        float3 wh = surface.specular ? 
-            normal : 
+        float wh_pdf = 1;
+        float3 wh = surface.specular ? normal : 
             BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, rng.Uniform2D());
 
-        float wh_pdf = 1;
-
-        // Evaluate VNDF
+        // VNDF
         if(!surface.specular)
         {
             surface.ndotwh = saturate(dot(normal, wh));
@@ -305,65 +301,56 @@ namespace RT
             wh_pdf = (NDF * G1) / surface.ndotwo;
         }
 
-        if(!surface.IsMetallic() && surface.HasSpecularTransmission())
+        float3 wi_r = reflect(-surface.wo, wh);
+        surface.SetWi_Refl(wi_r, normal, wh);
+        f = BSDF::UnifiedBRDF(surface);
+
+        // Account for change of density from half vector to incident vector
+        if(!surface.specular)
+            pdf = wh_pdf / 4.0f;
+
+        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
+            return wi_r;
+
+        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
+        float fr0 = BSDF::DielectricF0(surface.eta);
+        float whdotwx = surface.eta < 1 ? abs(dot(wh, wi_t)) : saturate(dot(wh, surface.wo));
+        // For total internal reflection, all the incident light is reflected
+        float fr = dot(wi_t, wi_t) == 0 ? 1 : BSDF::FresnelSchlick_Dielectric(fr0, whdotwx);
+
+        float3 wi;
+
+        if (rng.Uniform() < fr)
         {
-            wi = refract(-surface.wo, wh, 1 / surface.eta);
-            surface.SetWi_Tr(wi, normal, wh);
-
-            float pdf_t = 1;
-            float pdf_r = 1;
-
-            // Account for change of density from half vector to incident vector
-            if(!surface.specular)
-            {
-                pdf_t = wh_pdf * surface.whdotwo;
-                float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-                denom *= denom;
-                float dwm_dwi = surface.whdotwi / denom;
-                pdf_t *= dwm_dwi;
-
-                pdf_r = wh_pdf / 4.0f;
-            }
-
-            // Specular/glossy transmission
-            f = BSDF::DielectricBTDF(surface);
-            float fLum = Math::Luminance(f);
-            float w_sum = pdf_t > 0 ? fLum / pdf_t : 0;
-            
-            // Specular/glossy reflection
-            float3 wi_r = reflect(-surface.wo, wh);
-            surface.SetWi_Refl(wi_r, normal, wh);
-
-            float3 f_r = BSDF::DielectricBRDF(surface);
-            float fLum_r = Math::Luminance(f_r);
-            float w = pdf_r > 0 ? fLum_r / pdf_r : 0;
-            w_sum += w;
-
-            if (rng.Uniform() < (w / max(1e-6f, w_sum)))
-            {
-                wi = wi_r;
-                f = f_r;
-                fLum = fLum_r;
-            }
-
-            pdf = w_sum > 0 ? fLum / w_sum : 0;
+            wi = wi_r;
+            pdf *= fr;
         }
         else
         {
-            wi = reflect(-surface.wo, wh);
-            surface.SetWi_Refl(wi, normal);
-            f = BSDF::UnifiedBRDF(surface);
+            wi = wi_t;
+            pdf = 1 - fr;
+
+            surface.SetWi_Tr(wi_t, normal, wh);
+            f = BSDF::DielectricBTDF(surface);
 
             if(!surface.specular)
-                pdf = wh_pdf / 4.0f;
+            {
+                pdf *= wh_pdf * surface.whdotwo;
+
+                // Account for change of density from half vector to incident vector
+                float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
+                denom *= denom;
+                float dwm_dwi = surface.whdotwi / denom;
+                pdf *= dwm_dwi;
+            }
         }
 
         return wi;
     }
 
-    float UnifiedBSDFPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 w)
+    float UnifiedBSDFPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
     {
-        surface.SetWi(w, normal);
+        surface.SetWi(wi, normal);
         float wh_pdf = 1;
 
         if(!surface.specular)
@@ -374,41 +361,33 @@ namespace RT
             wh_pdf = (NDF * G1) / surface.ndotwo;
         }
 
-        if(!surface.IsMetallic() && surface.HasSpecularTransmission())
-        {
-            float pdf_t = surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
-            float pdf_r = surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
-
-            if(!surface.specular)
-            {
-                pdf_t = wh_pdf * surface.whdotwo;
-                float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
-                denom *= denom;
-                float dwm_dwi = surface.whdotwi / denom;
-                pdf_t *= dwm_dwi;
-                
-                pdf_r = wh_pdf / 4.0f;
-            }
-
-            float3 f_t = BSDF::DielectricBTDF(surface);
-            float fLum_t = Math::Luminance(f_t);
-            float w_sum = pdf_t > 0 ? fLum_t / pdf_t : 0;
-
-            float3 f_r = BSDF::DielectricBRDF(surface);
-            float fLum_r = Math::Luminance(f_r);
-            float w = pdf_r > 0 ? fLum_r / pdf_r : 0;
-            w_sum += w;
-
-            float fLum = surface.reflection ? fLum_r : fLum_t;
-            return w_sum > 0 ? fLum / w_sum : 0;
-        }
-        else
+        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
         {
             if(!surface.specular)
                 return wh_pdf / 4.0f;
 
             return surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
         }
+
+        float fr = surface.Fresnel_Dielectric();
+        float pdf = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 1;
+
+        if(surface.reflection)
+            return fr * pdf * (surface.specular ? 1 : (wh_pdf / 4.0f));
+
+        pdf *= 1 - fr;
+
+        if(!surface.specular)
+        {
+            pdf *= wh_pdf * surface.whdotwo;
+
+            float denom = mad(surface.whdotwi, surface.eta, surface.whdotwo);
+            denom *= denom;
+            float dwm_dwi = surface.whdotwi / denom;
+            pdf *= dwm_dwi;
+        }
+
+        return pdf;
     }
 }
 

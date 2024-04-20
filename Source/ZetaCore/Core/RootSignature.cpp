@@ -289,14 +289,14 @@ void RootSignature::Begin()
 {
     m_modifiedBitMap = (1 << m_numParams) - 1;
 
-    // Given the assumption that globals don't get destroyed/recreated per-draw/dispatch call,
+    // Given the assumption that globals don't get destroyed/recreated per draw/dispatch call,
     // set each global to modified only at the beginning of each frame
     m_modifiedGlobalsBitMap = m_globalsBitMap;
 
     memset(m_rootDescriptors, 0, sizeof(D3D12_GPU_VIRTUAL_ADDRESS) * MAX_NUM_PARAMS);
 }
 
-void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, void* data)
+void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, const void* data)
 {
     Assert(offset + num <= m_numRootConstants, "out-of-bound write.");
     memcpy(&m_rootConstants[offset], data, sizeof(uint32_t) * num);

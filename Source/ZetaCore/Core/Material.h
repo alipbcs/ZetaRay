@@ -137,8 +137,8 @@ namespace ZetaRay
         void SetIOR(float ior)
         {
             Assert(ior >= MIN_IOR && ior < MAX_IOR, "IOR is assumed to be in the range [1, 2.5)");
-            float normalized = (ior - 1.0f) / 2.0f;
-            normalized = Math::Min(normalized * (1 << 16), float((1 << 16) - 1));
+            float normalized = (ior - 1.0f) / 1.5f;
+            normalized = roundf(normalized * ((1 << 16) - 1));
             NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
         }
 
@@ -157,7 +157,7 @@ namespace ZetaRay
         float GetIOR()
         {
             uint16_t encoded = uint16_t(NormalTexture_IOR >> 16);
-            return mad(1.0f / float(1 << 15), encoded, 1.0f);
+            return mad(1.5f / float(((1 << 16) - 1)), encoded, 1.0f);
         }
 
         float GetTransmission()

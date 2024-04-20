@@ -60,12 +60,12 @@ void DisplayPass::Init()
     m_cbLocal.AutoExposure = true;
 
     ParamVariant p1;
-    p1.InitEnum("Renderer", "Display", "Final Render", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
+    p1.InitEnum("Renderer", "Display", "Output", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
         Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
     App::AddParam(p1);
 
     ParamVariant p2;
-    p2.InitEnum("Renderer", "Display", "Tonemapper", fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
+    p2.InitEnum("Renderer", "Display", "View Transform", fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
         Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
     App::AddParam(p2);
 

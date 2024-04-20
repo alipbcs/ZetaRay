@@ -77,7 +77,7 @@ namespace ZetaRay::Core
 
         void Begin();
 
-        void SetRootConstants(uint32_t offset, uint32_t num, void* data);
+        void SetRootConstants(uint32_t offset, uint32_t num, const void* data);
         void SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);
         void SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);
         void SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va);

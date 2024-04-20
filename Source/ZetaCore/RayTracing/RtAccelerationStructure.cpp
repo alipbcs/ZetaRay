@@ -304,15 +304,15 @@ void TLAS::Render(CommandList& cmdList)
     ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
     auto& gpuTimer = App::GetRenderer().GetGpuTimer();
-    const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "RtAS");
     computeCmdList.PIXBeginEvent("RtAS");
+    const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "RtAS");
 
     RebuildOrUpdateBLASes(computeCmdList);
     RebuildTLASInstances(computeCmdList);
     RebuildTLAS(computeCmdList);
 
-    computeCmdList.PIXEndEvent();
     gpuTimer.EndQuery(computeCmdList, queryIdx);
+    computeCmdList.PIXEndEvent();
 }
 
 void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)

@@ -107,33 +107,6 @@ float3 Le(float3 pos, float3 normal, float3 wi, BSDF::ShadingData surface)
     return g_envMap.SampleLevel(g_samLinearClamp, uv, 0.0f).rgb;
 }
 
-// Jacobian of the mapping r = T(q), e.g. reusing a path from pixel q at pixel r
-//        T[x1_q, x2_q, x3_q, ...] = x1_r, x2_q, x3_q, ...
-float JacobianReconnectionShift(float3 x1_q, float3 wi_q, float3 x1_r)
-{
-    if(dot(wi_q, wi_q) == 0)
-        return 0;
-
-    x1_q.y += g_frame.PlanetRadius;
-    x1_r.y += g_frame.PlanetRadius;
-
-    float3 x2_q = g_frame.AtmosphereAltitude * wi_q;
-    float3 v_q = x1_q - x2_q;
-    float t_q2 = dot(v_q, v_q);
-    v_q = dot(v_q, v_q) == 0 ? v_q : v_q / sqrt(t_q2);
-    float3 x2_q_normal = -wi_q;
-
-    float3 v_r = x1_r - x2_q;
-    const float t_r2 = dot(v_r, v_r);
-    v_r = dot(v_r, v_r) == 0 ? v_r : v_r / sqrt(t_r2);
-
-    //  - phi_r is the angle between x1_r - x2_q and surface normal at x2_q
-    //  - phi_q is the angle between x1_q - x2_q and surface normal at x2_q
-    float cosPhi_r = dot(v_r, x2_q_normal);
-    float cosPhi_q = dot(v_q, x2_q_normal);
-    return (abs(cosPhi_r) * t_q2) / max(abs(cosPhi_q) * t_r2, 1e-6);
-}
-
 // Ref: Bitterli, Benedikt, "Correlations and Reuse for Fast and Accurate Physically Based Light Transport" (2022). Ph.D Dissertation.
 // https://digitalcommons.dartmouth.edu/dissertations/77
 struct PairwiseMIS
@@ -151,7 +124,7 @@ struct PairwiseMIS
     }
 
     float Compute_m_i(SkyDI_Util::Reservoir r_c, float targetLum, SkyDI_Util::Reservoir r_i, 
-        float w_sum_i, float jacobianNeighborToCurr)
+        float w_sum_i)
     {
         // TODO following seems to be the correct term to use, but for some reason gives terrible results
 #if 0
@@ -163,14 +136,13 @@ struct PairwiseMIS
         const float p_c_y_i = targetLum * r_c.M;
         // Jacobian term in the numerator cancels out with the same term in the resampling weight
         float numerator = r_i.M * p_i_y_i;
-        float denom = numerator / jacobianNeighborToCurr + (r_c.M / this.k) * p_c_y_i;
+        float denom = numerator + (r_c.M / this.k) * p_c_y_i;
         float m_i = denom > 0 ? numerator / denom : 0;
 
         return m_i;
     }
 
-    void Update_m_c(SkyDI_Util::Reservoir r_c, SkyDI_Util::Reservoir r_i, float3 brdfCosTheta_i, 
-        float jacobianCurrToNeighbor)
+    void Update_m_c(SkyDI_Util::Reservoir r_c, SkyDI_Util::Reservoir r_i, float3 brdfCosTheta_i)
     {
         if(!r_i.IsValid())
         {
@@ -179,7 +151,7 @@ struct PairwiseMIS
         }
 
         const float target_i = Math::Luminance(r_c.Le * brdfCosTheta_i);
-        const float p_i_y_c = target_i * jacobianCurrToNeighbor;
+        const float p_i_y_c = target_i;
 
         const float p_c_y_c = Math::Luminance(r_c.Target);
 
@@ -206,12 +178,10 @@ struct PairwiseMIS
                 currTarget *= Visibility(posW_c, r_i.wi, normal_c, surface_c.HasSpecularTransmission());
 
             const float targetLum = Math::Luminance(currTarget);
-            const float J_temporal_to_curr = JacobianReconnectionShift(posW_i, r_i.wi, posW_c);
-            m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i, J_temporal_to_curr);
+            m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i);
         }
 
         float3 brdfCosTheta_i;
-        float J_curr_to_temporal;
 
         // m_c
         if(r_c.IsValid())
@@ -221,11 +191,9 @@ struct PairwiseMIS
 
             if(Math::Luminance(brdfCosTheta_i) > 1e-5)
                 brdfCosTheta_i *= Visibility(posW_i, r_c.wi, normal_i, surface_i.HasSpecularTransmission());
-
-            J_curr_to_temporal = JacobianReconnectionShift(posW_c, r_c.wi, posW_i);
         }    
 
-        Update_m_c(r_c, r_i, brdfCosTheta_i, J_curr_to_temporal);
+        Update_m_c(r_c, r_i, brdfCosTheta_i);
 
         if(r_i.IsValid())
         {
@@ -433,14 +401,7 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
         }
 
         const float p_curr = r.M * Math::Luminance(r.Target);
-        // p_temporal at current reservoir's sample (r.y) is equal to p_temporal(x) where
-        // x is the input that would get mapped to r.y under the shift, followed by division 
-        // by Jacobian of the mapping (J(T(x) = y)). Since J(T(x) = y) = 1 / J(T^-1(y) = x) 
-        // we have
-        // p_temporal(r.y) = p_temporal(x) / J(T(x) = y)
-        //                 = p_temporal(x) * J(T^-1(y) = x)
-        const float J_curr_to_temporal = JacobianReconnectionShift(posW, r.wi, candidate.posW);
-        const float m_curr = p_curr / max(p_curr + prev.M * targetLumAtPrev * J_curr_to_temporal, 1e-6);
+        const float m_curr = p_curr / max(p_curr + prev.M * targetLumAtPrev, 1e-6);
         r.w_sum *= m_curr;
     }
 
@@ -459,10 +420,8 @@ void TemporalResample(TemporalCandidate candidate, float3 posW, float3 normal, b
         {
             const float w_sum_prev = SkyDI_Util::PartialReadReservoir_WSum(candidate.posSS, g_local.PrevReservoir_B_DescHeapIdx);
             const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
-            const float J_temporal_to_curr = JacobianReconnectionShift(candidate.posW, prev.wi, posW);
-            // J_temporal_to_curr in the numerator cancels out with the same term in w_prev
             const float numerator = prev.M * targetLumAtPrev;
-            const float denom = numerator / J_temporal_to_curr + r.M * targetLumAtCurr;
+            const float denom = numerator + r.M * targetLumAtCurr;
             // balance heuristic
             const float m_prev = numerator / max(denom, 1e-6);
             const float w_prev = m_prev * targetLumAtCurr * prev.W;

@@ -415,6 +415,13 @@ namespace ZetaRay::AppImpl
         colors[ImGuiCol_TableRowBgAlt] = ImVec4(7 / 255.0f, 7 / 255.0f, 8 / 255.0f, 1.0f);
         colors[ImGuiCol_TableBorderLight] = ImVec4(15 / 255.0f, 15 / 255.0f, 15 / 255.0f, 1.0f);
         colors[ImGuiCol_TableBorderStrong] = ImVec4(27 / 255.0f, 27 / 255.0f, 27 / 255.0f, 1.0f);
+        colors[ImGuiCol_Button] = ImVec4(31 / 255.0f, 31 / 255.0f, 31 / 255.0f, 1.0f);
+        colors[ImGuiCol_ButtonHovered] = ImVec4(95 / 255.0f, 95 / 255.0f, 95 / 255.0f, 1.0f);
+        colors[ImGuiCol_ButtonActive] = ImVec4(46 / 255.0f, 103 / 255.0f, 130 / 255.0f, 1.0f);
+        colors[ImGuiCol_FrameBgHovered] = ImVec4(23 / 255.0f, 23 / 255.0f, 23 / 255.0f, 1.0f);
+        colors[ImGuiCol_FrameBgActive] = ImVec4(73 / 255.0f, 73 / 255.0f, 73 / 255.0f, 1.0f);
+        colors[ImGuiCol_SliderGrab] = ImVec4(41 / 255.0f, 41 / 255.0f, 41 / 255.0f, 1.0f);
+        colors[ImGuiCol_SliderGrabActive] = ImVec4(150 / 255.0f, 150 / 255.0f, 150 / 255.0f, 1.0f);
 
         style.FramePadding = ImVec2(7.0f, 3.0f);
         style.GrabMinSize = 13.0f;
@@ -848,7 +855,6 @@ namespace ZetaRay::AppImpl
                     i++;
                 }
 
-                Assert(found, "parameter {group: %s, subgroup: %s, name: %s} was not found.", p.P.GetGroup(), p.P.GetSubGroup(), p.P.GetName());
                 if (found)
                     g_app->m_params.erase(i);
             }

@@ -105,10 +105,20 @@ namespace Math
         return 0.5f * length(cross(v1 - v0, v2 - v0));
     }
 
+    // Returns -1.0 when v < 0 and +1.0 otherwise
     template<typename T>
     T SignNotZero(T v) 
     {
         return select(v >= 0, +1.0f, -1.0f);
+    }
+
+    template<>
+    float SignNotZero(float x)
+    {
+        // asfloat(0x3f800000) = +1.0 
+        // asfloat(0x80000000) = -0.0 
+        uint s = 0x3f800000 | (0x80000000 & asuint(x));
+        return asfloat(s);
     }
 
     template<typename T>
@@ -213,11 +223,11 @@ namespace Math
     // R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
     void revisedONB(float3 n, out float3 b1, out float3 b2)
     {
-        const float s = n.z >= 0.0f ? 1.0f : -1.0f;
+        const float s = SignNotZero(n.z);
         const float a = -1.0 / (s + n.z);
         const float b = n.x * n.y * a;
-        b1 = float3(1.0 + s * n.x * n.x * a, s * b, -s * n.x);
-        b2 = float3(b, s + n.y * n.y * a, -n.y);
+        b1 = float3(mad(n.x * a, n.x * s, 1.0f), s * b, -s * n.x);
+        b2 = float3(b, mad(n.y * a, n.y, s), -n.y);
     }
 
     float4 RotationQuaternion(float3 axis, float theta)

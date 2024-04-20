@@ -142,12 +142,11 @@ void GBufferRT::Render(CommandList& cmdList)
     const uint32_t w = renderer.GetRenderWidth();
     const uint32_t h = renderer.GetRenderHeight();
 
+    computeCmdList.PIXBeginEvent("G-Buffer");
     computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
     // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "G-Buffer");
-
-    computeCmdList.PIXBeginEvent("G-Buffer");
 
     const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, GBUFFER_RT_GROUP_DIM_X);
     const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, GBUFFER_RT_GROUP_DIM_Y);

@@ -218,7 +218,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
             float3(g_local.Extents_x, g_local.Extents_y, g_local.Extents_z), g_frame.CurrView, 
             voxelIdx, g_local.Offset_y))
         {
-            uint3 c = RNG::Pcg3d(voxelIdx);
+            uint3 c = RNG::PCG3d(voxelIdx);
             color = baseColor * 0.1 + MapIdxToColor(c.x) * 0.05;
         }
     }
