@@ -15,6 +15,7 @@ project(ZetaRay
 
 option(BUILD_TESTS "Build unit tests" ON)
 option(BUILD_TOOLS "Build tools" ON)
+option(COMPILE_SHADERS_WITH_DEBUG "Additionally compile shaders with debug information included" OFF)
 
 # set output directories
 set(CMAKE_SUPPRESS_REGENERATION true)

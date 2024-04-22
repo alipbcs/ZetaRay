@@ -53,6 +53,9 @@ source_group(TREE "${EXTERNAL_DIR}" PREFIX "External" FILES ${IMGUI_SRC})
 add_library(ZetaCore STATIC ${CORE_SRC} ${IMGUI_SRC} ${NATVIS_SRC})
 target_include_directories(ZetaCore AFTER PUBLIC ${EXTERNAL_DIR} ${ZETA_CORE_DIR} ${IMGUI_DIR})
 set_target_properties(ZetaCore PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
+if(COMPILE_SHADERS_WITH_DEBUG)
+    target_compile_definitions(ZetaCore PUBLIC "HAS_DEBUG_SHADERS")
+endif()
 
 # 
 # WinPixEventRuntime
