@@ -227,7 +227,7 @@ void DirectLighting::Render(CommandList& cmdList)
     // resampling
     {
         Assert(!m_preSampling || (m_cbSpatioTemporal.NumSampleSets && m_cbSpatioTemporal.SampleSetSize),
-            "Light presampling is enabled, yet number & size of sets hasn't been set.");
+            "Light presampling is enabled, but the number and size of sets haven't been set.");
 
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_TEMPORAL_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_TEMPORAL_GROUP_DIM_Y);
@@ -605,4 +605,3 @@ void DirectLighting::ReloadDnsrSpatial()
     m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
     m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }
-

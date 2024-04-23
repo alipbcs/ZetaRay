@@ -7,11 +7,6 @@
 #include <Math/MatrixFuncs.h>
 #include <Scene/Camera.h>
 
-namespace
-{
-    Data* g_data = nullptr;
-}
-
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -22,6 +17,11 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
 using namespace ZetaRay::RenderPass;
+
+namespace
+{
+    Data* g_data = nullptr;
+}
 
 //--------------------------------------------------------------------------------------
 // DefaultRenderer::Common
@@ -122,7 +122,7 @@ namespace ZetaRay::DefaultRenderer
     void SetAA(const ParamVariant& p)
     {
         const int e = p.GetEnum().m_curr;
-        Assert(e < (int)AA::COUNT, "invalid enum value");
+        Assert(e < (int)AA::COUNT, "Invalid enum value.");
         const AA u = (AA)e;
 
         if (u == g_data->m_settings.AntiAliasing)
@@ -212,6 +212,87 @@ namespace ZetaRay::DefaultRenderer
     {
         g_data->m_frameConstants.Accumulate = p.GetBool();
     }
+
+    void SetIndirect(const ParamVariant& p)
+    {
+        const int e = p.GetEnum().m_curr;
+        Assert(e < (int)IndirectLighting::METHOD::COUNT, "Invalid enum value.");
+        g_data->m_settings.Indirect = (IndirectLighting::METHOD)e;
+        g_data->m_raytracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
+    }
+
+    void VoxelExtentsCallback(const ParamVariant& p)
+    {
+        g_data->m_settings.VoxelExtents = p.GetFloat3().m_value;
+
+        g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+        g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+        g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+    }
+
+    void YOffsetCallback(const ParamVariant& p)
+    {
+        g_data->m_settings.VoxelGridyOffset = p.GetFloat().m_value;
+
+        g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+        g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+        g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
+            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+    }
+
+    void SetLVGEnablement(bool enable)
+    {
+        if (enable)
+        {
+            ParamVariant extents;
+            extents.InitFloat3("Renderer", "Light Voxel Grid", "Extents",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::VoxelExtentsCallback),
+                g_data->m_settings.VoxelExtents,
+                0.1,
+                2,
+                0.1);
+            App::AddParam(extents);
+
+            ParamVariant offset_y;
+            offset_y.InitFloat("Renderer", "Light Voxel Grid", "Y Offset",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::YOffsetCallback),
+                g_data->m_settings.VoxelGridyOffset,
+                0,
+                2,
+                0.1);
+            App::AddParam(offset_y);
+
+            g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
+                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+            g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
+                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+            g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
+                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
+        }
+        else
+        {
+            App::RemoveParam("Renderer", "Light Voxel Grid", "Extents");
+            App::RemoveParam("Renderer", "Light Voxel Grid", "Y Offset");
+
+            g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
+            g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
+        }
+    }
+
+    void SetLVG(const ParamVariant& p)
+    {
+        bool newVal = p.GetBool();
+        if (newVal == g_data->m_settings.UseLVG)
+            return;
+
+        g_data->m_settings.UseLVG = newVal;
+        SetLVGEnablement(newVal);
+    }
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -240,7 +321,8 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.SunIlluminance = 20.0f;
         constexpr float angularRadius = DegreesToRadians(0.5f * Defaults::SUN_ANGULAR_DIAMETER);
         g_data->m_frameConstants.SunCosAngularRadius = cosf(angularRadius);
-        g_data->m_frameConstants.SunSinAngularRadius = sqrtf(1.0f - g_data->m_frameConstants.SunCosAngularRadius * g_data->m_frameConstants.SunCosAngularRadius);
+        g_data->m_frameConstants.SunSinAngularRadius = sqrtf(1.0f - g_data->m_frameConstants.SunCosAngularRadius * 
+            g_data->m_frameConstants.SunCosAngularRadius);
         g_data->m_frameConstants.AtmosphereAltitude = Defaults::ATMOSPHERE_ALTITUDE;
         g_data->m_frameConstants.PlanetRadius = Defaults::PLANET_RADIUS;
         g_data->m_frameConstants.g = Defaults::g;
@@ -291,11 +373,30 @@ namespace ZetaRay::DefaultRenderer
                 g_data->m_settings.Inscattering);
             App::AddParam(enableInscattering);
 
-            ParamVariant p6;
-            p6.InitEnum("Renderer", "Anti-Aliasing", "Method",
+            ParamVariant p;
+            p.InitEnum("Renderer", "Anti-Aliasing", "Method",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAA),
                 AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
-            App::AddParam(p6);
+            App::AddParam(p);
+
+            ParamVariant p0;
+            p0.InitBool("Renderer", "Lighting", "Direct (Sky)", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
+                g_data->m_settings.SkyIllumination);
+            App::AddParam(p0);
+
+            ParamVariant p1;
+            p1.InitBool("Renderer", "Lighting", "Accumulate", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
+                g_data->m_frameConstants.Accumulate);
+            App::AddParam(p1);
+
+            ParamVariant p2;
+            p2.InitEnum("Renderer", "Indirect Lighting", "Method",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetIndirect),
+                IndirectOptions, ZetaArrayLen(IndirectOptions), (int)g_data->m_settings.Indirect);
+            App::AddParam(p2);
+
+            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
+            g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
         }
 
         // Sun
@@ -306,23 +407,23 @@ namespace ZetaRay::DefaultRenderer
                 -g_data->m_frameConstants.SunDir);
             App::AddParam(p0);
 
-            ParamVariant p2;
-            p2.InitFloat("Light Source", "Sun", "Illuminance",
+            ParamVariant p1;
+            p1.InitFloat("Light Source", "Sun", "Illuminance",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunLux),
                 g_data->m_frameConstants.SunIlluminance,
                 1.0f,
                 100.0f,
                 1.0f);
-            App::AddParam(p2);
+            App::AddParam(p1);
 
-            ParamVariant p3;
-            p3.InitFloat("Light Source", "Sun", "Angular Diameter (degrees)",
+            ParamVariant p2;
+            p2.InitFloat("Light Source", "Sun", "Angular Diameter (degrees)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularDiameter),
                 Defaults::SUN_ANGULAR_DIAMETER,
                 0.1f,
                 10.0f,
                 1e-2f);
-            App::AddParam(p3);
+            App::AddParam(p2);
         }
 
         // Atmosphere
@@ -369,36 +470,53 @@ namespace ZetaRay::DefaultRenderer
                 1e-4f);
             App::AddParam(p4);
 
-            ParamVariant p6;
-            p6.InitColor("Scene", "Atmosphere", "Ozone absorption color",
+            ParamVariant p5;
+            p5.InitColor("Scene", "Atmosphere", "Ozone absorption color",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAColor),
                 g_data->m_frameConstants.OzoneSigmaAColor);
-            App::AddParam(p6);
+            App::AddParam(p5);
 
-            ParamVariant p7;
-            p7.InitFloat("Scene", "Atmosphere", "g (HG Phase Function)",
+            ParamVariant p6;
+            p6.InitFloat("Scene", "Atmosphere", "g (HG Phase Function)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetgForPhaseHG),
                 Defaults::g,
                 -0.99f,
                 0.99f,
                 0.2f);
-            App::AddParam(p7);
+            App::AddParam(p6);
         }
-
-        ParamVariant p8;
-        p8.InitBool("Renderer", "Lighting", "Direct (Sky)", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
-            g_data->m_settings.SkyIllumination);
-        App::AddParam(p8);
-
-        ParamVariant p9;
-        p9.InitBool("Renderer", "Lighting", "Accumulate", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
-            g_data->m_frameConstants.Accumulate);
-        App::AddParam(p9);
     }
 
     void Update(TaskSet& ts)
     {
         g_data->m_settings.AntiAliasing = g_data->PendingAA;
+
+        if (App::GetScene().AreEmissivesStale())
+        {
+            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
+            g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
+
+            if (g_data->m_settings.LightPresampling)
+            {
+                // Notes:
+                // 1. Light presampling is off by default. SO the following calls are only needed when it's been enabled.
+                // 2. Render graph ensures alias table and presampled sets are already computed when GPU 
+                //    accesses them in the following render passes.
+                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
+                    Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
+                g_data->m_raytracerData.IndirecLightingPass.SetLightPresamplingParams(true,
+                    Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
+
+                ParamVariant p;
+                p.InitBool("Renderer", "Lighting", "Light Voxel Grid", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLVG),
+                    g_data->m_settings.UseLVG);
+                App::AddParam(p);
+            }
+            else
+                App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
+
+            SetLVGEnablement(g_data->m_settings.UseLVG);
+        }
 
         auto h0 = ts.EmplaceTask("SceneRenderer::GBuffer_RT", []()
             {

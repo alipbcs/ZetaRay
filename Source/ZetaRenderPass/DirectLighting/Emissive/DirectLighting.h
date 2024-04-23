@@ -33,13 +33,13 @@ namespace ZetaRay::RenderPass
         bool IsInitialized() const { return m_psos[0] != nullptr; };
         void Reset();
         void OnWindowResized();
-        void SetLightPresamplingEnabled(bool b, int numSampleSets, int sampleSetSize) 
-        { 
-            Assert(!b || (b && numSampleSets && sampleSetSize), "presampling is enabled, but number of sample sets is zero.");
+        void SetLightPresamplingParams(bool enabled, int numSampleSets, int sampleSetSize)
+        {
+            Assert(!enabled || (numSampleSets > 0 && sampleSetSize > 0), "Presampling is enabled, but the number of sample sets is zero.");
 
-            m_preSampling = b;
-            m_cbSpatioTemporal.NumSampleSets = b ? (uint16_t)numSampleSets : 0;
-            m_cbSpatioTemporal.SampleSetSize = b ? (uint16_t)sampleSetSize : 0;
+            m_preSampling = enabled;
+            m_cbSpatioTemporal.NumSampleSets = enabled ? (uint16_t)numSampleSets : 0;
+            m_cbSpatioTemporal.SampleSetSize = enabled ? (uint16_t)sampleSetSize : 0;
         }
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {

@@ -118,13 +118,10 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
 
-        if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
+        if (App::GetScene().NumEmissiveInstances())
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
-
-            data.CompositingPass.SetLightVoxelGridParams(rtData.PreLightingPass.GetLightVoxelGridDim(),
-                rtData.PreLightingPass.GetLightVoxelGridExtents(), rtData.PreLightingPass.GetLightVoxelGridYOffset());
         }
 
         // Indirect lighting
@@ -305,8 +302,8 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
 
-            // Emissive di
-            if (settings.EmissiveLighting && App::GetScene().NumEmissiveInstances())
+            // Emissive DI
+            if (App::GetScene().NumEmissiveInstances())
             {
                 renderGraph.AddInput(data.CompositingHandle,
                     rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),

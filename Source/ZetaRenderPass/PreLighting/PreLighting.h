@@ -18,9 +18,9 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    // prepares for lighting by
+    // Prepares for lighting by
     //  - estimating lumen for each emissive triangle (needed for power sampling light sources)
-    //  - estimating local curvature (needed for virtual motion vectors and ray cones)
+    //  - estimating local curvature (needed for ray cones)
     struct PreLighting final : public RenderPassBase
     {
         PreLighting();
@@ -30,22 +30,29 @@ namespace ZetaRay::RenderPass
         bool IsInitialized() const { return m_psos[0] != nullptr; };
         void Reset();
         void OnWindowResized();
-        constexpr int GetNumSampleSets() { return DefaultParamVals::NUM_SAMPLE_SETS; }
-        constexpr int GetSampleSetSize() { return DefaultParamVals::SAMPLE_SET_SIZE; }
-        bool IsPresamplingEnabled() const { return m_sampleSets.IsInitialized(); }
+        void SetLightPresamplingParams(uint32_t minToEnale, uint32_t numSampleSets, uint32_t sampleSetSize)
+        { 
+            m_minNumLightsForPresampling = minToEnale;
+            m_numSampleSets = numSampleSets;
+            m_sampleSetSize = sampleSetSize;
+        }
+        void SetLightVoxelGridParams(bool enabled, const Math::uint3& gridDim, const Math::float3& extents, float offset_y)
+        {
+            m_useLVG = enabled;
+            m_voxelGridDim = gridDim;
+            m_voxelExtents = extents;
+            m_yOffset = offset_y;
+        }
         const Core::GpuMemory::DefaultHeapBuffer& GetLumenBuffer() { return m_lumen; }
         const Core::GpuMemory::DefaultHeapBuffer& GePresampledSets() { return m_sampleSets; }
         const Core::GpuMemory::DefaultHeapBuffer& GetLightVoxelGrid() { return m_lvg; }
         Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
         const Core::GpuMemory::Texture& GetCurvatureTexture() { return m_curvature; }
-        Math::uint3 GetLightVoxelGridDim() const { return m_voxelGridDim; }
-        Math::float3 GetLightVoxelGridExtents() const { return m_voxelExtents; }
-        float GetLightVoxelGridYOffset() const { return m_yOffset; }
         // Releasing the lumen buffer and its readback buffer should happen after the alias table 
-        // has been calculated. Delegate that to code that that does that calculation.
+        // has been calculated. Delegate that to code that does that calculation.
         auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseLumenBufferAndReadback); };
 
-        void Update(bool emissiveLighting);
+        void Update();
         void Render(Core::CommandList& cmdList);
 
     private:
@@ -72,17 +79,6 @@ namespace ZetaRay::RenderPass
             "BuildLightVoxelGrid_cs.cso"
         };
 
-        struct DefaultParamVals
-        {
-            static constexpr int NUM_SAMPLE_SETS = 128;
-            static constexpr int SAMPLE_SET_SIZE = 512;
-            static constexpr float EMISSIVE_SET_MEM_BUDGET_MB = 0.5;
-            static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) / 
-                sizeof(RT::PresampledEmissiveTriangle));
-            static constexpr Math::uint3 VOXEL_GRID_DIM = Math::uint3(32, 8, 40);
-            static constexpr Math::float3 VOXEL_EXTENTS = Math::float3(0.6, 0.45, 0.6);
-        };
-
         enum class DESC_TABLE
         {
             CURVATURE_UAV,
@@ -94,11 +90,10 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT CURVATURE = DXGI_FORMAT_R16_FLOAT;
         };
 
+        void ToggleLVG();
         void CreateOutputs();
         void ReleaseLumenBufferAndReadback();
         void ReloadBuildLVG();
-        void VoxelExtentsCallback(const Support::ParamVariant& p);
-        void YOffsetCallback(const Support::ParamVariant& p);
 
         Core::GpuMemory::DefaultHeapBuffer m_halton;
         Core::GpuMemory::DefaultHeapBuffer m_lumen;
@@ -109,12 +104,16 @@ namespace ZetaRay::RenderPass
         Core::DescriptorTable m_descTable;
         ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
         uint32_t m_currNumTris = 0;
-        Math::uint3 m_voxelGridDim = DefaultParamVals::VOXEL_GRID_DIM;
-        Math::float3 m_voxelExtents = DefaultParamVals::VOXEL_EXTENTS;
-        float m_yOffset = 0.1;
+        uint32_t m_minNumLightsForPresampling = UINT32_MAX;
+        uint32_t m_numSampleSets = 0;
+        uint32_t m_sampleSetSize = 0;
+        Math::uint3 m_voxelGridDim;
+        Math::float3 m_voxelExtents;
+        float m_yOffset = 0.0;
         bool m_estimateLumenThisFrame;
         bool m_doPresamplingThisFrame;
         bool m_buildLVGThisFrame = false;
+        bool m_useLVG = false;
     };
 
     struct EmissiveTriangleAliasTable

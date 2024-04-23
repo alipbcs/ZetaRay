@@ -232,26 +232,6 @@ void PreLighting::Init()
 
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateOutputs();
-
-    ParamVariant extents;
-    extents.InitFloat3("Renderer", "Light Voxel Grid", "Extents",
-        fastdelegate::MakeDelegate(this, &PreLighting::VoxelExtentsCallback),
-        m_voxelExtents,
-        0.1,
-        2,
-        0.1);
-    App::AddParam(extents);
-
-    ParamVariant offset_y;
-    offset_y.InitFloat("Renderer", "Light Voxel Grid", "Y Offset",
-        fastdelegate::MakeDelegate(this, &PreLighting::YOffsetCallback),
-        m_yOffset,
-        0,
-        2,
-        0.1);
-    App::AddParam(offset_y);
-
-    App::AddShaderReloadHandler("BuildLightVoxelGrid", fastdelegate::MakeDelegate(this, &PreLighting::ReloadBuildLVG));
 }
 
 void PreLighting::Reset()
@@ -275,65 +255,54 @@ void PreLighting::OnWindowResized()
     CreateOutputs();
 }
 
-void PreLighting::Update(bool emissiveLighting)
+void PreLighting::Update()
 {
     m_estimateLumenThisFrame = false;
     m_doPresamplingThisFrame = false;
+    m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
+    m_useLVG = m_useLVG && (m_currNumTris >= m_minNumLightsForPresampling);
 
-    if (!emissiveLighting)
+    if (m_currNumTris == 0)
         return;
 
-    if (m_currNumTris && !m_lvg.IsInitialized())
-    {
-        const size_t sizeInBytes = NUM_SAMPLES_PER_VOXEL * m_voxelGridDim.x * m_voxelGridDim.y * m_voxelGridDim.z *
-            sizeof(RT::VoxelSample);
+    const bool isLVGAllocated = m_lvg.IsInitialized();
 
-        m_lvg = GpuMemory::GetDefaultHeapBuffer("LVG",
-            (uint32_t)sizeInBytes,
-            D3D12_RESOURCE_STATE_COMMON,
-            true);
-
-        auto& r = App::GetRenderer().GetSharedShaderResources();
-        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::LIGHT_VOXEL_GRID, m_lvg);
-    }
+    if ((m_useLVG && !isLVGAllocated) || (!m_useLVG && isLVGAllocated))
+        ToggleLVG();
 
     if (App::GetScene().AreEmissivesStale())
     {
         m_estimateLumenThisFrame = true;
-
         const size_t currLumenBuffLen = m_lumen.IsInitialized() ? m_lumen.Desc().Width / sizeof(float) : 0;
-        m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
-        Assert(m_currNumTris, "Redundant call.");
 
         if (currLumenBuffLen < m_currNumTris)
         {
             const uint32_t sizeInBytes = m_currNumTris * sizeof(float);
 
-            // allocate a GPU buffer conatining lumen estimates per triangle
+            // GPU buffer conatining lumen estimates per triangle
             m_lumen = GpuMemory::GetDefaultHeapBuffer("TriLumen",
                 sizeInBytes,
                 D3D12_RESOURCE_STATE_COMMON,
                 true);
 
-            // allocate a readback buffer so the results can be read back on CPU
+            // Readback buffer to read results on CPU
             m_readback = GpuMemory::GetReadbackHeapBuffer(sizeInBytes);
         }
 
         return;
     }
 
-    // light presampling is not effective when number of lights is low
-    if (m_currNumTris < DefaultParamVals::MIN_NUM_LIGHTS_PRESAMPLING)
+    // Skip light presampling when number of emissives is low
+    Assert(m_minNumLightsForPresampling != UINT32_MAX, "Light presampling is enabled, but min #lights for it hasn't been set.");
+    if (m_currNumTris < m_minNumLightsForPresampling)
         return;
 
-    // since the code reached there, we know emissive lighting is enabled and number of lights
-    // exceeds the threashold
     m_doPresamplingThisFrame = true;
 
     if (!m_sampleSets.IsInitialized())
     {
-        constexpr size_t sizeInBytes = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE * 
-            sizeof(RT::PresampledEmissiveTriangle);
+        Assert(m_numSampleSets > 0 && m_sampleSetSize > 0, "Sample set params hasn't been set.");
+        const uint32_t sizeInBytes = m_numSampleSets * m_sampleSetSize * sizeof(RT::PresampledEmissiveTriangle);
 
         m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
             sizeInBytes,
@@ -367,10 +336,9 @@ void PreLighting::Render(CommandList& cmdList)
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_currNumTris, ESTIMATE_TRI_LUMEN_NUM_TRIS_PER_GROUP);
         Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
 
-        // record the timestamp prior to execution
+        computeCmdList.PIXBeginEvent("EstimateTriLumen");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateTriLumen");
 
-        computeCmdList.PIXBeginEvent("EstimateTriLumen");
         computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_TRIANGLE_LUMEN]);
 
         computeCmdList.ResourceBarrier(m_lumen.Resource(),
@@ -395,22 +363,19 @@ void PreLighting::Render(CommandList& cmdList)
             0,
             m_currNumTris * sizeof(float));
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         computeCmdList.PIXEndEvent();
     }
 
     if (m_doPresamplingThisFrame)
     {
-        constexpr uint32_t numSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
+        const uint32_t numSamples = m_numSampleSets * m_sampleSetSize;
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(numSamples, PRESAMPLE_EMISSIVE_GROUP_DIM_X);
         Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
 
-        // record the timestamp prior to execution
+        computeCmdList.PIXBeginEvent("PresampleEmissives");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "PresampleEmissives");
 
-        computeCmdList.PIXBeginEvent("PresampleEmissives");
         computeCmdList.SetPipelineState(m_psos[(int)SHADERS::PRESAMPLING]);
 
         // "buffers MAY be initially accessed in an ExecuteCommandLists scope without a Barrier...Additionally, a buffer 
@@ -427,30 +392,26 @@ void PreLighting::Render(CommandList& cmdList)
 #endif
 
         cbPresampling cb;
-        cb.NumTotalSamples = DefaultParamVals::NUM_SAMPLE_SETS * DefaultParamVals::SAMPLE_SET_SIZE;
+        cb.NumTotalSamples = numSamples;
 
         m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
         m_rootSig.SetRootUAV(5, m_sampleSets.GpuVA());
-
         m_rootSig.End(computeCmdList);
 
         computeCmdList.Dispatch(dispatchDimX, 1, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         cmdList.PIXEndEvent();
     }
 
-    // estimate curvature
+    // Estimate curvature
     {
         const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, ESTIMATE_CURVATURE_GROUP_DIM_X);
         const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, ESTIMATE_CURVATURE_GROUP_DIM_Y);
 
-        // record the timestamp prior to execution
+        computeCmdList.PIXBeginEvent("EstimateCurvature");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateCurvature");
 
-        computeCmdList.PIXBeginEvent("EstimateCurvature");
         computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_CURVATURE]);
 
         cbCurvature cb;
@@ -461,18 +422,15 @@ void PreLighting::Render(CommandList& cmdList)
 
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         cmdList.PIXEndEvent();
     }
 
-    if (m_buildLVGThisFrame)
+    if (m_buildLVGThisFrame && m_lvg.IsInitialized())
     {
-        // record the timestamp prior to execution
+        computeCmdList.PIXBeginEvent("LightVoxelGrid");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "LightVoxelGrid");
 
-        computeCmdList.PIXBeginEvent("LightVoxelGrid");
         computeCmdList.SetPipelineState(m_psos[(int)SHADERS::BUILD_LIGHT_VOXEL_GRID]);
 
         cbLVG cb;
@@ -490,10 +448,43 @@ void PreLighting::Render(CommandList& cmdList)
 
         computeCmdList.Dispatch(m_voxelGridDim.x, m_voxelGridDim.y, m_voxelGridDim.z);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         cmdList.PIXEndEvent();
+    }
+}
+
+void PreLighting::ToggleLVG()
+{
+    if (m_useLVG)
+    {
+        Assert(!m_lvg.IsInitialized(), "Redundant call.");
+        const size_t sizeInBytes = NUM_SAMPLES_PER_VOXEL * m_voxelGridDim.x * m_voxelGridDim.y * m_voxelGridDim.z *
+            sizeof(RT::VoxelSample);
+
+        m_lvg = GpuMemory::GetDefaultHeapBuffer("LVG",
+            (uint32_t)sizeInBytes,
+            D3D12_RESOURCE_STATE_COMMON,
+            true);
+
+        auto& r = App::GetRenderer().GetSharedShaderResources();
+        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::LIGHT_VOXEL_GRID, m_lvg);
+
+
+
+        App::AddShaderReloadHandler("BuildLightVoxelGrid", fastdelegate::MakeDelegate(this, &PreLighting::ReloadBuildLVG));
+    }
+    else
+    {
+        Assert(m_lvg.IsInitialized(), "Redundant call.");
+
+        auto& r = App::GetRenderer().GetSharedShaderResources();
+        r.RemoveDefaultHeapBuffer(GlobalResource::LIGHT_VOXEL_GRID, m_lvg);
+
+        App::RemoveParam("Renderer", "Light Voxel Grid", "Extents");
+        App::RemoveParam("Renderer", "Light Voxel Grid", "Y Offset");
+
+        App::RemoveShaderReloadHandler("BuildLightVoxelGrid");
+        m_lvg.Reset();
     }
 }
 
@@ -514,7 +505,7 @@ void PreLighting::ReleaseLumenBufferAndReadback()
 {
     m_lumen.Reset();
     m_readback.Reset();
-    m_buildLVGThisFrame = true;
+    m_buildLVGThisFrame = m_useLVG;
 }
 
 void PreLighting::ReloadBuildLVG()
@@ -523,16 +514,6 @@ void PreLighting::ReloadBuildLVG()
 
     m_psoLib.Reload(i, "PreLighting\\BuildLightVoxelGrid.hlsl", true);
     m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
-}
-
-void PreLighting::VoxelExtentsCallback(const Support::ParamVariant& p)
-{
-    m_voxelExtents = p.GetFloat3().m_value;
-}
-
-void PreLighting::YOffsetCallback(const Support::ParamVariant& p)
-{
-    m_yOffset = p.GetFloat().m_value;
 }
 
 //--------------------------------------------------------------------------------------

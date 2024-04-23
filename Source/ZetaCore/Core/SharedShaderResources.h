@@ -27,20 +27,22 @@ namespace ZetaRay::Core
         // Upload heap buffers
         const GpuMemory::UploadHeapBuffer* GetUploadHeapBuffer(uint64_t id);
         const GpuMemory::UploadHeapBuffer* GetUploadHeapBuffer(std::string_view id);
-        void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buf);
-        void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buf);
+        void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buffer);
+        void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buffer);
 
         // Default heap buffers
         const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuffer(uint64_t id);
         const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuffer(std::string_view id);
-        void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buf);
-        void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buf);
+        void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buffer);
+        void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buffer);
+        void RemoveDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buffer);
+        void RemoveDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buffer);
 
         // Descriptor tables
         const DescriptorTable* GetDescriptorTable(uint64_t id);
         const DescriptorTable* GetDescriptorTable(std::string_view id);
-        void InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& t);
-        void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t);
+        void InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& table);
+        void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& table);
 
     private:
         Util::HashTable<const DescriptorTable*> m_descTables;

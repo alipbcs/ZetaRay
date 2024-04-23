@@ -13,7 +13,6 @@
 #include <GUI/GuiPass.h>
 #include <Sky/Sky.h>
 #include <RayTracing/RtAccelerationStructure.h>
-//#include <RayTracing/Sampler.h>
 #include <FSR2/FSR2.h>
 #include <DirectLighting/Emissive/DirectLighting.h>
 #include <DirectLighting/Sky/SkyDI.h>
@@ -26,6 +25,26 @@
 
 namespace ZetaRay::DefaultRenderer
 {
+    struct Defaults
+    {
+        // Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
+        inline static constexpr Math::float3 SIGMA_S_RAYLEIGH = Math::float3(5.802f, 13.558f, 33.1f) * 1e-3f;    // 1 / km
+        inline static constexpr float SIGMA_S_MIE = 3.996f * 1e-3f;        // Mie scattering is not wavelength dependent
+        inline static constexpr float SIGMA_A_MIE = 4.4f * 1e-3f;
+        inline static constexpr Math::float3 SIGMA_A_OZONE = Math::float3(0.65f, 1.881f, 0.085f) * 1e-3f;
+        static constexpr float g = 0.8f;
+        static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;       // km
+        static constexpr float PLANET_RADIUS = 6360.0f;            // km
+        static constexpr float SUN_ANGULAR_DIAMETER = 0.526f;      // degrees
+        static constexpr int NUM_SAMPLE_SETS = 128;
+        static constexpr int SAMPLE_SET_SIZE = 512;
+        static constexpr float EMISSIVE_SET_MEM_BUDGET_MB = 0.5;
+        static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) /
+            sizeof(RT::PresampledEmissiveTriangle));
+        static constexpr Math::uint3 VOXEL_GRID_DIM = Math::uint3(32, 8, 40);
+        static constexpr Math::float3 VOXEL_EXTENTS = Math::float3(0.6, 0.45, 0.6);
+    };
+
     enum class AA
     {
         NONE,
@@ -37,14 +56,26 @@ namespace ZetaRay::DefaultRenderer
     inline static const char* AAOptions[] = { "None", "TAA", "AMD FSR 2.2 (Quality)" };
     static_assert((int)AA::COUNT == ZetaArrayLen(AAOptions), "enum <-> string mismatch.");
 
+    inline static const char* IndirectOptions[] = { "Path Tracing", "ReSTIR GI", "ReSTIR PT" };
+    static_assert((int)RenderPass::IndirectLighting::METHOD::COUNT == ZetaArrayLen(IndirectOptions), "enum <-> string mismatch.");
+
     static constexpr auto DEFAULT_AA = AA::TAA;
 
     struct alignas(64) RenderSettings
     {
         bool Inscattering = false;
         bool SkyIllumination = false;
-        bool EmissiveLighting = true;
         AA AntiAliasing = DEFAULT_AA;
+        RenderPass::IndirectLighting::METHOD Indirect = RenderPass::IndirectLighting::METHOD::ReSTIR_GI;
+
+        // Presampled sets
+        bool LightPresampling = false;
+
+        // LVG
+        bool UseLVG = false;
+        Math::uint3 VoxelGridDim = Defaults::VOXEL_GRID_DIM;
+        Math::float3 VoxelExtents = Defaults::VOXEL_EXTENTS;
+        float VoxelGridyOffset = 0.1f;
     };
 
     struct alignas(64) GBufferData
@@ -128,9 +159,6 @@ namespace ZetaRay::DefaultRenderer
         // Scene BVH
         RT::TLAS RtAS;
 
-        // Sampler
-        //RT::Sampler RtSampler;
-
         // Render Passes
         Core::RenderNodeHandle RtASBuildHandle;
 
@@ -190,19 +218,6 @@ namespace ZetaRay::DefaultRenderer
         RayTracerData m_raytracerData;
 
         AA PendingAA = DEFAULT_AA;
-    };
-
-    struct Defaults
-    {
-        // Ref: S. Hillaire, "A Scalable and Production Ready Sky and Atmosphere Rendering Technique," Computer Graphics Forum, 2020.
-        inline static constexpr Math::float3 SIGMA_S_RAYLEIGH = Math::float3(5.802f, 13.558f, 33.1f) * 1e-3f;    // 1 / km
-        inline static constexpr float SIGMA_S_MIE = 3.996f * 1e-3f;        // Mie scattering is not wavelength dependent
-        inline static constexpr float SIGMA_A_MIE = 4.4f * 1e-3f;
-        inline static constexpr Math::float3 SIGMA_A_OZONE = Math::float3(0.65f, 1.881f, 0.085f) * 1e-3f;
-        static constexpr float g = 0.8f;
-        static constexpr float ATMOSPHERE_ALTITUDE = 100.0f;       // km
-        static constexpr float PLANET_RADIUS = 6360.0f;            // km
-        static constexpr float SUN_ANGULAR_DIAMETER = 0.526f;      // degrees
     };
 }
 

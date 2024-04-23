@@ -37,12 +37,6 @@ void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const Up
     m_uploadHeapBuffs[id] = &buf;
 }
 
-//void SharedShaderResources::RemoveUploadHeapBuffer(uint64_t id)
-//{
-//    std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
-//    m_uploadHeapBuffs.erase(id);
-//}
-
 const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
     std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
@@ -71,16 +65,23 @@ void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(std::string_view id,
     InsertOrAssignDefaultHeapBuffer(h, buf);
 }
 
-//void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id)
-//{
-//    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
-//    m_defaultHeapBuffs.erase(id);
-//}
+void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf)
+{
+    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    auto numDeleted = m_defaultHeapBuffs.erase(id);
+    Assert(numDeleted == 1, "Buffer with ID %llu was not found.", id);
+}
+
+void SharedShaderResources::RemoveDefaultHeapBuffer(std::string_view id, const DefaultHeapBuffer& buf)
+{
+    uint64_t h = XXH3_64bits(id.data(), id.size());
+    auto numDeleted = m_defaultHeapBuffs.erase(h);
+    Assert(numDeleted == 1, "Buffer with ID %llu was not found.", id);
+}
 
 const DescriptorTable* SharedShaderResources::GetDescriptorTable(uint64_t id)
 {
     std::shared_lock<std::shared_mutex> lock(m_descTableMtx);
-
     if (auto it = m_descTables.find(id); it != nullptr)
         return *it;
 
