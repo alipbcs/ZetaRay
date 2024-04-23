@@ -1,4 +1,5 @@
 #include <Utility/SmallVector.h>
+#include <Utility/HashTable.h>
 #include <App/App.h>
 #include <Support/MemoryArena.h>
 #include <doctest/doctest.h>
@@ -140,5 +141,132 @@ TEST_SUITE("SmallVector")
 
         for (int i = 0; i < 10; i++)
             CHECK(vec1[i] == i);
+    }
+};
+
+TEST_SUITE("HashTable")
+{
+    TEST_CASE("Basic")
+    {
+        HashTable<int> table(6);
+
+        CHECK(table.empty());
+        CHECK(table.size() == 0);
+        CHECK(table.load_factor() == 0.0f);
+        CHECK(table.find(1) == nullptr);
+        CHECK(table.bucket_count() == 8);
+
+        CHECK(table.try_emplace(0, 100));
+        CHECK(!table.empty());
+        CHECK(table.try_emplace(1, 101));
+        CHECK(table.try_emplace(2, 102));
+        CHECK(table.try_emplace(3, 103));
+
+        const auto oldSize = table.size();
+        const auto oldLoad = table.load_factor();
+        CHECK(!table.try_emplace(3, 103));
+        const auto newSize = table.size();
+        const auto newLoad = table.load_factor();
+        CHECK(oldSize == newSize);
+        CHECK(oldLoad == newLoad);
+
+        auto* entry = table.find(2);
+        CHECK(entry);
+        CHECK(*entry == 102);
+
+        table.insert_or_assign(0, 200);
+        CHECK(newSize == table.size());
+        entry = table.find(0);
+        CHECK(*entry == 200);
+    }
+
+    TEST_CASE("Relocation")
+    {
+        HashTable<int> table(6);
+        CHECK(table.bucket_count() == 8);
+
+        table.try_emplace(0, 100);
+        table[1] = 101;
+        table[2] = 102;
+        table[3] = 103;
+        table[4] = 104;
+        table[5] = 105;
+        table[6] = 106;
+
+        const auto oldLoad = table.load_factor();
+        CHECK(table.size() == 7);
+
+        // Should trigger relocation
+        table[7] = 107;
+        const auto newLoad = table.load_factor();
+        CHECK(newLoad < oldLoad);
+        CHECK(table.size() == 8);
+
+        for (int i = 0; i < 8; i++)
+        {
+            auto* entry = table.find(i);
+            CHECK(*entry == 100 + i);
+        }
+    }
+
+    TEST_CASE("Erase")
+    {
+        HashTable<int> table(6);
+        CHECK(table.bucket_count() == 8);
+
+        table[3] = 103;
+        table[3 + 8] = 104;
+        table[3 + 8 * 2] = 105;
+        CHECK(table.size() == 3);
+
+        auto numErased = table.erase(3 + 8);
+        CHECK(numErased == 1);
+        auto* entry = table.find(3 + 8);
+        CHECK(!entry);
+        numErased = table.erase(10);
+        CHECK(numErased == 0);
+
+        // Probing with tombstones in between
+        entry = table.find(3 + 8 * 2);
+        CHECK(entry);
+        CHECK(*entry == 105);
+
+        // Erase shouldn't change the size
+        CHECK(table.size() == 3);
+
+        // Should reuse the removed entry
+        table[3 + 8 * 3] = 106;
+        CHECK(table.size() == 3);
+
+        // Delete all the entries
+        numErased = table.erase(3);
+        CHECK(numErased == 1);
+        numErased = table.erase(3 + 8 * 2);
+        CHECK(numErased == 1);
+        numErased = table.erase(3 + 8 * 3);
+        CHECK(numErased == 1);
+        CHECK(table.size() == 3);
+
+        table[0] = 100;
+        table[1] = 101;
+        table[2] = 102;
+        table[3] = 103;
+        // We've had 4 inserts, one of which should resue: 3 + 4 - 1 = 6
+        CHECK(table.size() == 6);
+
+        table.erase(0);
+        table.erase(1);
+        table.erase(2);
+        CHECK(table.size() == 6);
+
+        // Insert new entris to force resize
+        table[6] = 106;
+        auto oldLoad = table.load_factor();
+        CHECK(table.size() == 7);
+        table[7] = 107;
+        auto newLoad = table.load_factor();
+        CHECK(newLoad < oldLoad);
+        // Tombstones shouldn't be carried over to new table
+        CHECK(table.size() == 3);
     }
 };

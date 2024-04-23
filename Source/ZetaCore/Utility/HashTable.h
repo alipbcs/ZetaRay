@@ -8,10 +8,10 @@ namespace ZetaRay::Util
     // Open-set addressing with linear probing
     // 
     //  - Assumes keys are already hashed; key itself is not stored, only its hash (uint64_t). Consequently,
-    //      collisions on keys could lead to wrong results. By using a decent hash function, chances of 
+    //    collisions on keys could lead to wrong results. By using a decent hash function, chances of 
     //    such collisions should be low.
     //  - Iterators (pointers) are NOT stable; pointer to an entry found earlier might not be valid
-    //      anymore due to subsequent insertions and possible resize.
+    //    anymore due to subsequent insertions and possible resize.
     //  - Not thread-safe
     template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator>
     class HashTable
@@ -19,7 +19,6 @@ namespace ZetaRay::Util
         static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
 
     public:
-
         struct Entry
         {
             uint64_t Key;
@@ -34,7 +33,7 @@ namespace ZetaRay::Util
             : m_allocator(a)
         {
             static_assert(std::is_default_constructible_v<T>);
-            relocate(initialSize);
+            relocate(Math::NextPow2(initialSize));
         }
 
         // TODO implement move & copy constructors/assignments
@@ -43,49 +42,53 @@ namespace ZetaRay::Util
 
         void resize(size_t n)
         {
-            const size_t numBuckets = bucket_count();
-            if (n <= numBuckets)        // also covers when n == 0
+            if (n <= bucket_count()) // also covers when n == 0
                 return;
 
             n = Math::Max(n, MIN_NUM_BUCKETS);
-
-            // n > #buckets, so the next power of 2 will necessarily respect the max load factor
-            n = Math::NextPow2(n);
-
+            n = Math::NextPow2(n);  // n > #buckets, so the next power of two will also respect the max load factor
             relocate(n);
         }
 
-        // Returns NULL if an element with the given key is not found
-        // Note: in contrast to find(), find_entry() only returns NULL when the table is empty
+        // Returns NULL if an element with the given key is not found.
+        // Note: in contrast to find(), find_entry() returns NULL only when the table is empty.
         T* find(uint64_t key) const
         {
             Entry* e = find_entry(key);
-            if (e && e->Key != NULL_KEY)
+            if (e && e->Key == key)
                 return &e->Val;
 
             return nullptr;
         }
 
+        // Inserts a new entry only if it doesn't already exist
         template<typename... Args>
         bool try_emplace(uint64_t key, Args&&... args)
         {
-            Assert(key != NULL_KEY, "Invalid key");
+            Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
-            if (!elem || elem->Key == NULL_KEY)
+            if (!elem || elem->Key != key)
             {
-                const size_t numBuckets = bucket_count();
-                const float load = load_factor();
+                if (elem && elem->Key == TOMBSTONE_KEY)
+                {
+                    elem->Key = key;
+                    new (&elem->Val) T(ZetaForward(args)...);
 
-                if (!m_beg || load >= MAX_LOAD)
-                    relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+                    return true;
+                }
 
-                // Find the new position to construct this Entry
-                elem = find_entry(key);
+                if (!m_beg || load_factor() >= MAX_LOAD || m_numEntries + 1 == bucket_count())
+                {
+                    relocate(Math::Max(bucket_count() << 1, MIN_NUM_BUCKETS));
+                    // Find the new position to construct this Entry
+                    elem = find_entry(key);
+                }
+
                 elem->Key = key;
                 new (&elem->Val) T(ZetaForward(args)...);
-
                 m_numEntries++;
+                Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
 
                 return true;
             }
@@ -93,26 +96,32 @@ namespace ZetaRay::Util
             return false;
         }
 
+        // Assign to the entry if already exists, otherwise inserts a new entry
         Entry& insert_or_assign(uint64_t key, const T& val)
         {
             static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
-
-            Assert(key != NULL_KEY, "Invalid key");
+            Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
-            if (!elem || elem->Key == NULL_KEY)
+            if (!elem || elem->Key != key)
             {
-                const size_t numBuckets = bucket_count();
-                const float load = load_factor();
+                if (elem && elem->Key == TOMBSTONE_KEY)
+                {
+                    elem->Key = key;
+                    new (&elem->Val) T(val);
 
-                if (!m_beg || load >= MAX_LOAD)
-                    relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+                    return *elem;
+                }
 
-                // Find the new position to insert this Entry
-                elem = find_entry(key);
+                if (!m_beg || load_factor() >= MAX_LOAD || m_numEntries + 1 == bucket_count())
+                {
+                    relocate(Math::Max(bucket_count() << 1, MIN_NUM_BUCKETS));
+                    elem = find_entry(key);
+                }
+
                 elem->Key = key;
-
                 m_numEntries++;
+                Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
             new (&elem->Val) T(val);
@@ -123,28 +132,46 @@ namespace ZetaRay::Util
         Entry& insert_or_assign(uint64_t key, T&& val)
         {
             static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
-
-            Assert(key != NULL_KEY, "Invalid key");
+            Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
-            if (!elem || elem->Key == NULL_KEY)
+            if (!elem || elem->Key != key)
             {
-                const size_t numBuckets = bucket_count();
-                const float load = load_factor();
+                if (elem && elem->Key == TOMBSTONE_KEY)
+                {
+                    elem->Key = key;
+                    new (&elem->Val) T(ZetaForward(val));
 
-                if (!m_beg || load >= MAX_LOAD)
-                    relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+                    return *elem;
+                }
 
-                // find the new position to insert this Entry
-                elem = find_entry(key);
+                if (!m_beg || load_factor() >= MAX_LOAD || m_numEntries + 1 == bucket_count())
+                {
+                    relocate(Math::Max(bucket_count() << 1, MIN_NUM_BUCKETS));
+                    elem = find_entry(key);
+                }
+
                 elem->Key = key;
-
                 m_numEntries++;
+                Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
             new (&elem->Val) T(ZetaForward(val));
 
             return *elem;
+        }
+
+        ZetaInline size_t erase(uint64_t key)
+        {
+            Entry* elem = find_entry(key);
+            if (elem->Key != key)
+                return 0;
+
+            elem->Key = TOMBSTONE_KEY;
+            if constexpr (!std::is_trivially_destructible_v<T>)
+                elem->~Entry();
+
+            return 1;
         }
 
         ZetaInline size_t bucket_count() const
@@ -159,28 +186,23 @@ namespace ZetaRay::Util
 
         ZetaInline float load_factor() const
         {
-            // Necessary to avoid divide-by-zero
-            if (empty())
-                return 0.0f;
-
-            return (float)m_numEntries / bucket_count();
+            // Avoid divide-by-zero
+            return empty() ? 0.0f : (float)m_numEntries / bucket_count();
         }
 
         ZetaInline bool empty() const
         {
-            return m_end - m_beg == 0;
+            return m_numEntries == 0;
         }
 
         void clear()
         {
-            Entry* curr = m_beg;
-
-            while (curr != m_end)
+            for (Entry* curr = m_beg; curr != m_end; curr++)
             {
                 if constexpr (!std::is_trivially_destructible_v<T>)
                     curr->~Entry();
 
-                curr++->Key = NULL_KEY;
+                curr->Key = NULL_KEY;
             }
 
             m_numEntries = 0;
@@ -189,12 +211,10 @@ namespace ZetaRay::Util
 
         void free()
         {
-            Entry* curr = m_beg;
-
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                while (curr != m_end)
-                    curr++->~Entry();
+                for (Entry* curr = m_beg; curr != m_end; curr++)
+                    curr->~Entry();
             }
 
             m_numEntries = 0;
@@ -215,22 +235,29 @@ namespace ZetaRay::Util
         ZetaInline T& operator[](uint64_t key)
         {
             static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
+            Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
-            if (!elem || elem->Key == NULL_KEY)
+            if (!elem || elem->Key != key)
             {
-                const size_t numBuckets = bucket_count();
-                const float load = load_factor();
+                if (elem && elem->Key == TOMBSTONE_KEY)
+                {
+                    elem->Key = key;
+                    new (&elem->Val) T();
 
-                if (!m_beg || load >= MAX_LOAD)
-                    relocate(Math::Max(numBuckets << 1, MIN_NUM_BUCKETS));
+                    return elem->Val;
+                }
 
-                // Find the new position to insert this Entry
-                elem = find_entry(key);
+                if (!m_beg || load_factor() >= MAX_LOAD || m_numEntries + 1 == bucket_count())
+                {
+                    relocate(Math::Max(bucket_count() << 1, MIN_NUM_BUCKETS));
+                    elem = find_entry(key);
+                }
+
                 elem->Key = key;
                 new (&elem->Val) T();
-
                 m_numEntries++;
+                Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
             return elem->Val;
@@ -262,32 +289,40 @@ namespace ZetaRay::Util
             if (n == 0)
                 return nullptr;
 
-            const size_t origPos = key & (n - 1);    // == key % n (n is a power of 2)
+            const size_t origPos = key & (n - 1);    // == key % n (n is a power of two)
             size_t nextPos = origPos;
             Entry* curr = m_beg + origPos;
+            Entry* tombstone = nullptr;
 
             // Which bucket the entry belongs to
             while (curr->Key != key && curr->Key != NULL_KEY)
             {
+                // Remember tombstone entries but keep probing
+                if (curr->Key == TOMBSTONE_KEY)
+                    tombstone = curr;
+ 
                 nextPos++;                                  // Linear probing
                 nextPos = nextPos < n ? nextPos : 0;        // Wrap around to zero
                 curr = m_beg + nextPos;
                 Assert(nextPos != origPos, "infinite loop");    // Should never happen due to load_factor < 1
             }
 
-            return m_beg + nextPos;
+            if (curr->Key == key)
+                return curr;
+
+            return tombstone ? tombstone : curr;
         }
 
         void relocate(size_t n)
         {
-            Assert(Math::IsPow2(n), "n must be a power of 2");
+            Assert(Math::IsPow2(n), "n must be a power of two.");
             Assert(n > bucket_count(), "n must be greater than the current bucket count.");
             Entry* oldTable = m_beg;
             const size_t oldBucketCount = bucket_count();
 
             m_beg = reinterpret_cast<Entry*>(m_allocator.AllocateAligned(n * sizeof(Entry), alignof(Entry)));
-            // Adjust the end pointer
-            m_end = m_beg + n;
+            m_end = m_beg + n;  // Adjust the end pointer
+            m_numEntries = 0;
 
             // Initialize the new table
             const Entry* end = m_beg + n;
@@ -303,13 +338,14 @@ namespace ZetaRay::Util
             // Reinsert all the elements
             for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
             {
-                if (curr->Key == NULL_KEY)
+                if (curr->Key == NULL_KEY || curr->Key == TOMBSTONE_KEY)
                     continue;
 
                 Entry* elem = find_entry(curr->Key);
-                Assert(elem->Key == NULL_KEY, "duplicate keys");
+                Assert(elem->Key == NULL_KEY, "duplicate keys.");
                 elem->Key = curr->Key;
                 elem->Val = ZetaMove(curr->Val);
+                m_numEntries++;
             }
 
             // Destruct previous elements (if necessary)
@@ -325,14 +361,13 @@ namespace ZetaRay::Util
         }
 
         static constexpr size_t MIN_NUM_BUCKETS = 4;
-        static constexpr float MAX_LOAD = 0.75f;
-        //static constexpr float GROWTH_RATE = 1.5f;
+        static constexpr float MAX_LOAD = 0.8f;
         static constexpr uint64_t NULL_KEY = uint64_t(-1);
+        static constexpr uint64_t TOMBSTONE_KEY = uint64_t(-2);
 
         Entry* m_beg = nullptr;        // Pointer to the begining of memory block
         Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
-
-        Allocator m_allocator;
+        [[msvc::no_unique_address]] Allocator m_allocator;
     };
 }
