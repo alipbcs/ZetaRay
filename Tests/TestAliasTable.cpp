@@ -114,7 +114,7 @@ TEST_SUITE("AliasTable")
         }
 
         // corresponding to alpha = 0.05 and dof = sampleSize - 1 = 99
-        const double criticalValue = 69.126;
+        const double criticalValue = 124.34211340400407;
 
         INFO("Test statistic: ", chiSquared, ", critical value: ", criticalValue);
         CHECK(chiSquared <= criticalValue);
