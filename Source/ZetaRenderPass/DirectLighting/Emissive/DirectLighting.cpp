@@ -3,7 +3,6 @@
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
-#include <RayTracing/Sampler.h>
 #include <Scene/SceneCore.h>
 #include <Core/SharedShaderResources.h>
 #include <Support/Task.h>

@@ -3,7 +3,6 @@
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
-#include <RayTracing/Sampler.h>
 #include <Support/Task.h>
 
 using namespace ZetaRay::Core;
@@ -12,7 +11,6 @@ using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Support;
-using namespace ZetaRay::RT;
 using namespace ZetaRay::Util;
 
 //--------------------------------------------------------------------------------------
