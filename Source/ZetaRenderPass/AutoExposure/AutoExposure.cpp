@@ -74,15 +74,15 @@ void AutoExposure::Init()
         DefaultParamVals::MaxLum, 0.5f, 8.0f, 1e-2f);
     App::AddParam(p2);
 
-    ParamVariant p5;
-    p5.InitFloat("Renderer", "Auto Exposure", "Lower Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::LowerPercentileCallback),
-        DefaultParamVals::LowerPercentile, 0.0f, 0.3f, 0.01f);
-    App::AddParam(p5);
+    //ParamVariant p5;
+    //p5.InitFloat("Renderer", "Auto Exposure", "Lower Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::LowerPercentileCallback),
+    //    DefaultParamVals::LowerPercentile, 0.0f, 0.3f, 0.01f);
+    //App::AddParam(p5);
 
-    ParamVariant p6;
-    p6.InitFloat("Renderer", "Auto Exposure", "Upper Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::UpperPercentileCallback),
-        DefaultParamVals::UpperPercentile, 0.6f, 1.0f, 0.01f);
-    App::AddParam(p6);
+    //ParamVariant p6;
+    //p6.InitFloat("Renderer", "Auto Exposure", "Upper Percentile", fastdelegate::MakeDelegate(this, &AutoExposure::UpperPercentileCallback),
+    //    DefaultParamVals::UpperPercentile, 0.6f, 1.0f, 0.01f);
+    //App::AddParam(p6);
 
     ParamVariant p3;
     p3.InitFloat("Renderer", "Auto Exposure", "Lum Map Exp", fastdelegate::MakeDelegate(this, &AutoExposure::LumMapExpCallback),
@@ -91,10 +91,12 @@ void AutoExposure::Init()
 
     m_psos[(int)SHADERS::HISTOGRAM] = m_psoLib.GetComputePSO((int)SHADERS::HISTOGRAM, m_rootSigObj.Get(),
         COMPILED_CS[(int)SHADERS::HISTOGRAM]);
-    m_psos[(int)SHADERS::EXPECTED_VALUE] = m_psoLib.GetComputePSO((int)SHADERS::EXPECTED_VALUE, m_rootSigObj.Get(),
-        COMPILED_CS[(int)SHADERS::EXPECTED_VALUE]);
+    m_psos[(int)SHADERS::WEIGHTED_AVG] = m_psoLib.GetComputePSO((int)SHADERS::WEIGHTED_AVG, m_rootSigObj.Get(),
+        COMPILED_CS[(int)SHADERS::WEIGHTED_AVG]);
 
     CreateResources();
+
+    App::AddShaderReloadHandler("AutoExposure", fastdelegate::MakeDelegate(this, &AutoExposure::Reload));
 }
 
 void AutoExposure::Reset()
@@ -149,7 +151,7 @@ void AutoExposure::Render(CommandList& cmdList)
     auto uavBarrier = Direct3DUtil::UAVBarrier(m_hist.Resource());
     computeCmdList.UAVBarrier(1, &uavBarrier);
 
-    computeCmdList.SetPipelineState(m_psos[(int)SHADERS::EXPECTED_VALUE]);
+    computeCmdList.SetPipelineState(m_psos[(int)SHADERS::WEIGHTED_AVG]);
     computeCmdList.Dispatch(1, 1, 1);
 
     // record the timestamp after execution
@@ -207,4 +209,12 @@ void AutoExposure::LowerPercentileCallback(const Support::ParamVariant& p)
 void AutoExposure::UpperPercentileCallback(const Support::ParamVariant& p)
 {
     m_cbHist.UpperPercentile = p.GetFloat().m_value;
+}
+
+void ZetaRay::RenderPass::AutoExposure::Reload()
+{
+    const int i = (int)SHADERS::WEIGHTED_AVG;
+
+    m_psoLib.Reload(i, "AutoExposure\\AutoExposure_WeightedAvg.hlsl", true);
+    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 }

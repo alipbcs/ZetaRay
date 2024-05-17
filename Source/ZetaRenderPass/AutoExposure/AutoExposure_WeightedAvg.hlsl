@@ -3,6 +3,8 @@
 #include "../Common/FrameConstants.h"
 #include "../Common/StaticTextureSamplers.hlsli"
 
+#define SKIP_OUTSIDE_PERCENTILE_RANGE 0
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -32,69 +34,75 @@ float ComputeAutoExposure(float avgLum)
 static const int MinWaveSize = 16;
 static const int MaxNumWaves = HIST_BIN_COUNT / MinWaveSize;
 groupshared float g_waveSum[MaxNumWaves];
+
+#if SKIP_OUTSIDE_PERCENTILE_RANGE == 1
 groupshared uint g_waveSampleCount[MaxNumWaves];
+#endif
 
 [numthreads(HIST_BIN_COUNT, 1, 1)]
 void main(uint Gidx : SV_GroupIndex)
 {
-    // exclude the first (invalid) & last (too bright) bins
-    const bool isFirstOrLastBin = (Gidx == 0) || (Gidx == (HIST_BIN_COUNT - 1));
-    const int binSize = isFirstOrLastBin ? 0 : g_hist.Load(Gidx * sizeof(uint));
+    // Exclude the first (invalid) bin
+    const bool isFirstBin = (Gidx == 0);
+    const int binSize = isFirstBin ? 0 : g_hist.Load(Gidx * sizeof(uint));
     const int numLanesInWave = WaveGetLaneCount();
     const int wave = Gidx / numLanesInWave;
     const int numWavesInGroup = HIST_BIN_COUNT / numLanesInWave;	// HIST_BIN_COUNT is always divisible by wave size
-    const int numExcludedSamples = g_hist.Load(0) + g_hist.Load((HIST_BIN_COUNT - 1) * sizeof(uint));
+    const int numExcludedSamples = g_hist.Load(0);
     const int numSamples = g_frame.RenderWidth * g_frame.RenderHeight - numExcludedSamples;
 
-    // do a prefix sum for the whole group to calculate the percentile up to each bin
+    // Prefix sum for the whole group to calculate the percentiles up to each bin
+#if SKIP_OUTSIDE_PERCENTILE_RANGE == 1
     uint binPercentile = WavePrefixSum(binSize) + binSize;
 
     if (WaveGetLaneIndex() == WaveGetLaneCount() - 1)
         g_waveSampleCount[wave] = binPercentile;
+#endif
 
     GroupMemoryBarrierWithGroupSync();
 
-    // add in the samples from previous waves
+    // Add in the samples from previous waves
+#if SKIP_OUTSIDE_PERCENTILE_RANGE == 1
     for (int w = 0; w < wave; w++)
         binPercentile += g_waveSampleCount[w];
 
-    const uint lowerPercentileNumSamples = (uint) (numSamples * g_local.LowerPercentile);
-    const uint upperPercentileNumSamples = (uint) (numSamples * g_local.UpperPercentile);
+    const uint lowerPercentileNumSamples = (uint)(numSamples * g_local.LowerPercentile);
+    const uint upperPercentileNumSamples = (uint)(numSamples * g_local.UpperPercentile);
 
-    // exclude bins that don't fall in the intended range
+    // Exclude bins that don't fall in the intended range
     bool skip = (binPercentile < lowerPercentileNumSamples) || (binPercentile > upperPercentileNumSamples);
-    skip = skip || isFirstOrLastBin;
+    skip = skip || isFirstBin;
+#else
+    bool skip = isFirstBin;
+#endif
 
-    // skipped bins don't contribute to average
+    // Skipped bins don't contribute to average
     float val = skip ? 0 : binSize * (Gidx - 1 + 0.5f) / HIST_BIN_COUNT;
     val = WaveActiveSum(val);
 
-	if (WaveIsFirstLane())
+    if (WaveIsFirstLane())
         g_waveSum[wave] = val;
 
     GroupMemoryBarrierWithGroupSync();
 
-    // sum across the waves
-    float expectedVal = Gidx < numWavesInGroup ? g_waveSum[Gidx] : 0.0;
-    // assuming min wave size of 16, there are at most 16 values to sum together, so one WaveActiveSum is enough
-    expectedVal = WaveActiveSum(expectedVal);
-    expectedVal /= max(numSamples, 1);
+    // Sum across the waves
+    float mean = Gidx < numWavesInGroup ? g_waveSum[Gidx] : 0.0;
+    // Assuming min wave size of at least 16, there are at most 16 values to sum together, 
+    // so one WaveActiveSum is enough
+    mean = WaveActiveSum(mean);
+    mean /= max(numSamples, 1);
 
     if (Gidx == 0)
     {
-        // undo the mapping
-        float result = pow(expectedVal, 1.0 / g_local.LumMapExp);
-        // bring it to the given luminance range
+        // Do the inverse mapping
+        float result = pow(mean, 1.0 / g_local.LumMapExp);
         result = result * g_local.LumRange + g_local.MinLum;
 
         RWTexture2D<float2> g_out = ResourceDescriptorHeap[g_local.ExposureDescHeapIdx];
         float prev = g_out[int2(0, 0)].y;
 
         if (prev < 1e8f)
-        {
-            float rate = 1.0f;
             result = prev + (result - prev) * (1 - exp(-g_frame.dt * 1000.0f * g_local.AdaptationRate));
-        }
 
         float exposure = ComputeAutoExposure(result);
         g_out[int2(0, 0)] = float2(exposure, result);

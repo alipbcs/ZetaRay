@@ -71,7 +71,7 @@ namespace ZetaRay::RenderPass
         enum class SHADERS
         {
             HISTOGRAM,
-            EXPECTED_VALUE,
+            WEIGHTED_AVG,
             COUNT
         };
 
@@ -79,7 +79,7 @@ namespace ZetaRay::RenderPass
         inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
         {
             "AutoExposure_Histogram_cs.cso",
-            "AutoExposure_ExpectedVal_cs.cso"
+            "AutoExposure_WeightedAvg_cs.cso"
         };
 
         struct DefaultParamVals
@@ -87,7 +87,7 @@ namespace ZetaRay::RenderPass
             static constexpr float MinLum = 5e-3f;
             static constexpr float MaxLum = 4.0f;
             static constexpr float LumMapExp = 0.5f;
-            static constexpr float AdaptationRate = 0.3f;
+            static constexpr float AdaptationRate = 1.0f;
             static constexpr float LowerPercentile = 0.01f;
             static constexpr float UpperPercentile = 0.9f;
         };
@@ -102,5 +102,7 @@ namespace ZetaRay::RenderPass
         void LumMapExpCallback(const Support::ParamVariant& p);
         void LowerPercentileCallback(const Support::ParamVariant& p);
         void UpperPercentileCallback(const Support::ParamVariant& p);
+
+        void Reload();
     };
 }
