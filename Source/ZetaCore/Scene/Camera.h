@@ -16,14 +16,14 @@ namespace ZetaRay::Scene
         {
             dt = 0.0f;
             Acceleration = Math::float3(0.0f);
-            RotationDegreesX = 0.0f;
-            RotationDegreesY = 0.0f;
+            dMouse_x = 0;
+            dMouse_y = 0;
         }
 
         float dt;
         Math::float3 Acceleration;
-        float RotationDegreesX;
-        float RotationDegreesY;
+        int16_t dMouse_x;
+        int16_t dMouse_y;
     };
 
     class Camera
@@ -60,10 +60,12 @@ namespace ZetaRay::Scene
         void SetFOV(const Support::ParamVariant& p);
         void SetJitteringEnabled(const Support::ParamVariant& p);
         void SetFrictionCoeff(const Support::ParamVariant& p);
+        void SetAngularFrictionCoeff(const Support::ParamVariant& p);
         void ClampSmallV0To0(const Support::ParamVariant& p);
+        void SetAngularAcceleration(const Support::ParamVariant& p);
 
-        void RotateX(float dt);
-        void RotateY(float dt);
+        void RotateX(float theta);
+        void RotateY(float theta);
 
         Math::float4x4a m_view;
         Math::float4x4a m_viewInv;
@@ -71,6 +73,7 @@ namespace ZetaRay::Scene
 
         Math::float4a m_posW;
         Math::float4a m_initialVelocity = Math::float4a(0.0f);
+        Math::float2 m_initialAngularVelocity = Math::float2(0.0f);
 
         Math::float4a m_upW = Math::float4a(0.0f, 1.0f, 0.0f, 0.0f);
 
@@ -93,5 +96,7 @@ namespace ZetaRay::Scene
         bool m_jitteringEnabled = false;
         float m_frictionCoeff = 10.0f;
         bool m_clampSmallV0ToZero = true;
+        Math::float2 m_rotAccScale = Math::float2(31.0f, 25.0f);
+        Math::float2 m_rotFrictionCoeff = Math::float2(27.0f, 22.0f);
     };
 }

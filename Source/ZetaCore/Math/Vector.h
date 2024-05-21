@@ -57,9 +57,25 @@ namespace ZetaRay::Math
             return *this;
         }
 
-        constexpr float dot(const float2& other)
+        constexpr float dot(const float2& other) const
         {
             return x * other.x + y * other.y;
+        }
+
+        float length() const
+        {
+            return sqrtf(dot(*this));
+        }
+
+        void normalize()
+        {
+            float norm = length();
+            if (norm <= FLT_EPSILON)
+                return;
+            float oneDivNorm = 1.0f / norm;
+
+            x *= oneDivNorm;
+            y *= oneDivNorm;
         }
 
         float x;
@@ -123,12 +139,12 @@ namespace ZetaRay::Math
             return *this;
         }
 
-        float length()
+        float length() const
         {
             return sqrtf(dot(*this));
         }
 
-        constexpr float dot(const float3& other)
+        constexpr float dot(const float3& other) const
         {
             return x * other.x + y * other.y + z * other.z;
         }

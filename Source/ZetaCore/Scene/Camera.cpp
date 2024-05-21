@@ -87,7 +87,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
     m_view = store(vView);
 
-    // Extract the basis vectors from the view matrix. make sure the 4th element is zero
+    // Extract the basis vectors from the view matrix. Make sure the 4th element is zero.
     v_float4x4 vT = transpose(vView);
     __m128 vBasisX = _mm_insert_ps(vT.vRow[0], vT.vRow[0], 0x8);
     __m128 vBasisY = _mm_insert_ps(vT.vRow[1], vT.vRow[1], 0x8);
@@ -115,8 +115,20 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
     ParamVariant coeff;
     coeff.InitFloat("Scene", "Camera", "Friction Coeff.", fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
-        m_frictionCoeff, 1, 16, 1);
+        m_frictionCoeff, 1, 20, 1);
     App::AddParam(coeff);
+
+    ParamVariant accAng;
+    accAng.InitFloat2("Scene", "Camera", "Acceleration (Angular)", 
+        fastdelegate::MakeDelegate(this, &Camera::SetAngularAcceleration),
+        m_rotAccScale, 1.0f, 70.0f, 1.0f);
+    App::AddParam(accAng);
+
+    ParamVariant coeffAng;
+    coeffAng.InitFloat2("Scene", "Camera", "Friction Coeff. (Angular)", 
+        fastdelegate::MakeDelegate(this, &Camera::SetAngularFrictionCoeff),
+        m_rotFrictionCoeff, 1, 50, 1);
+    App::AddParam(coeffAng);
 
     ParamVariant clampTo0;
     clampTo0.InitBool("Scene", "Camera", "Snap Small V0 To Zero", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
@@ -128,10 +140,16 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
 void Camera::Update(const Motion& m)
 {
-    if (m.RotationDegreesY != 0.0)
-        RotateY(m.RotationDegreesY);
-    if (m.RotationDegreesX != 0.0)
-        RotateX(m.RotationDegreesX);
+    float2 dMouse = float2(m.dMouse_x, m.dMouse_y) * m_rotAccScale;
+    float2 acc = dMouse - m_rotFrictionCoeff * m_initialAngularVelocity;
+    float2 newVelocity = acc * m.dt + m_initialAngularVelocity;
+    float2 dtheta = acc * m.dt * m.dt / 2 + m_initialAngularVelocity * m.dt;
+    m_initialAngularVelocity = newVelocity;
+
+    if (dtheta.x != 0.0)
+        RotateY(dtheta.x);
+    if (dtheta.y != 0.0)
+        RotateX(dtheta.y);
 
     const __m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
     const __m128 vBasisZ = _mm_load_ps(reinterpret_cast<float*>(&m_basisZ));
@@ -208,27 +226,14 @@ void Camera::OnWindowSizeChanged()
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
-/*
-void Camera::MoveY(float dt)
-{
-    const __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&m_upW));
-    __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
-
-    vEye = _mm_fmadd_ps(_mm_set1_ps(dt), vUp, vEye);
-    setCamPos(vEye, m_view, m_viewInv);
-
-    m_posW = store(vEye);
-}
-*/
-
-void Camera::RotateX(float dt)
+void Camera::RotateX(float theta)
 {
     __m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
     __m128 vBasisY = _mm_load_ps(reinterpret_cast<float*>(&m_basisY));
     __m128 vBasisZ = _mm_load_ps(reinterpret_cast<float*>(&m_basisZ));
     const __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
 
-    v_float4x4 vR = rotate(vBasisX, dt);
+    v_float4x4 vR = rotate(vBasisX, theta);
     vBasisY = mul(vR, vBasisY);
     vBasisZ = mul(vR, vBasisZ);
 
@@ -245,14 +250,14 @@ void Camera::RotateX(float dt)
     m_basisZ = store(vBasisZ);
 }
 
-void Camera::RotateY(float dt)
+void Camera::RotateY(float theta)
 {
     __m128 vBasisX = _mm_load_ps(reinterpret_cast<float*>(&m_basisX));
     __m128 vBasisY = _mm_load_ps(reinterpret_cast<float*>(&m_basisY));
     __m128 vBasisZ = _mm_load_ps(reinterpret_cast<float*>(&m_basisZ));
     const __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
 
-    v_float4x4 vR = rotateY(dt);
+    v_float4x4 vR = rotateY(theta);
 
     vBasisX = mul(vR, vBasisX);
     vBasisY = mul(vR, vBasisY);
@@ -294,7 +299,17 @@ void Camera::SetFrictionCoeff(const Support::ParamVariant& p)
     m_frictionCoeff = p.GetFloat().m_value;
 }
 
+void Camera::SetAngularFrictionCoeff(const Support::ParamVariant& p)
+{
+    m_rotFrictionCoeff = p.GetFloat2().m_value;
+}
+
 void Camera::ClampSmallV0To0(const Support::ParamVariant& p)
 {
     m_clampSmallV0ToZero = p.GetBool();
+}
+
+void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
+{
+    m_rotAccScale = p.GetFloat2().m_value;
 }

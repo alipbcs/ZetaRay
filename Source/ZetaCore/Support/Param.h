@@ -28,6 +28,28 @@ namespace ZetaRay::Support
     };
 
     //--------------------------------------------------------------------------------------
+    // Float2Param
+    //--------------------------------------------------------------------------------------
+
+    struct Float2Param
+    {
+        void Init(Math::float2 val, float min, float max, float step, bool keepNormalized)
+        {
+            m_value = val;
+            m_min = min;
+            m_max = max;
+            m_stepSize = step;
+            m_keepNormalized = keepNormalized;
+        }
+
+        Math::float2 m_value;
+        float m_min;
+        float m_max;
+        float m_stepSize;
+        bool m_keepNormalized;
+    };
+
+    //--------------------------------------------------------------------------------------
     // Float3Param
     //--------------------------------------------------------------------------------------
 
@@ -162,6 +184,9 @@ namespace ZetaRay::Support
         void InitInt(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
             int val, int min, int max, int step);
 
+        void InitFloat2(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float2 val, float min, float max, float step);
+
         void InitFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
             Math::float3 val, float min, float max, float step);
 
@@ -192,6 +217,9 @@ namespace ZetaRay::Support
 
         const FloatParam& GetFloat() const;
         void SetFloat(float v);
+
+        const Float2Param& GetFloat2() const;
+        void SetFloat2(const Math::float2& v);
 
         const Float3Param& GetFloat3() const;
         void SetFloat3(const Math::float3& v);
@@ -224,6 +252,7 @@ namespace ZetaRay::Support
         union
         {
             FloatParam m_float;
+            Float2Param m_float2;
             Float3Param m_float3;
             UnitDirParam m_unitDir;
             IntParam m_int;

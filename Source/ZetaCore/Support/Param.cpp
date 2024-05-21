@@ -6,6 +6,10 @@
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Math;
 
+//--------------------------------------------------------------------------------------
+// ParamVariant
+//--------------------------------------------------------------------------------------
+
 void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
     fastdelegate::FastDelegate1<const ParamVariant&> dlg)
 {
@@ -61,8 +65,17 @@ void ParamVariant::InitInt(const char* group, const char* subgroup, const char* 
     m_int.Init(val, min, max, step);
 }
 
+void ParamVariant::InitFloat2(const char* group, const char* subgroup, const char* name, 
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float2 val, float min, float max, float step)
+{
+    InitCommon(group, subgroup, name, dlg);
+
+    m_type = PARAM_TYPE::PT_float2;
+    m_float2.Init(val, min, max, step, false);
+}
+
 void ParamVariant::InitFloat3(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val, float min, float max, float step)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float3 val, float min, float max, float step)
 {
     InitCommon(group, subgroup, name, dlg);
 
@@ -141,6 +154,23 @@ void ParamVariant::SetFloat(float v)
 {
     Assert(m_type == PARAM_TYPE::PT_float, "Invalid union type.");
     m_float.m_value = v;
+    m_dlg(*this);
+}
+
+const Float2Param& ParamVariant::GetFloat2() const
+{
+    Assert(m_type == PARAM_TYPE::PT_float2, "Invalid union type.");
+    return m_float2;
+}
+
+void ParamVariant::SetFloat2(const float2& v)
+{
+    Assert(m_type == PARAM_TYPE::PT_float2, "Invalid union type.");
+    m_float2.m_value = v;
+
+    if (m_float2.m_keepNormalized)
+        m_float2.m_value.normalize();
+
     m_dlg(*this);
 }
 

@@ -777,11 +777,8 @@ namespace ZetaRay::AppImpl
                 int x = GET_X_LPARAM(lParam);
                 int y = GET_Y_LPARAM(lParam);
 
-                //g_app->m_scene.GetCamera().RotateY(Math::DegreeToRadians((float)(x - g_app->m_lastMousePosX)));
-                //g_app->m_scene.GetCamera().RotateX(Math::DegreeToRadians((float)(y - g_app->m_lastMousePosY)));
-
-                g_app->m_frameMotion.RotationDegreesY = Math::DegreesToRadians((float)(x - g_app->m_lastMousePosX));
-                g_app->m_frameMotion.RotationDegreesX = Math::DegreesToRadians((float)(y - g_app->m_lastMousePosY));
+                g_app->m_frameMotion.dMouse_x = int16_t(x - g_app->m_lastMousePosX);
+                g_app->m_frameMotion.dMouse_y = int16_t(y - g_app->m_lastMousePosY);
 
                 g_app->m_lastMousePosX = x;
                 g_app->m_lastMousePosY = y;

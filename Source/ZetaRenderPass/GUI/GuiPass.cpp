@@ -66,6 +66,14 @@ namespace
                 if (ImGui::SliderInt(param.GetName(), &v, ip.m_min, ip.m_max))
                     param.SetInt(v);
             }
+            else if (param.GetType() == PARAM_TYPE::PT_float2)
+            {
+                auto& fp = param.GetFloat2();
+                float2 v = fp.m_value;
+
+                if (ImGui::SliderFloat2(param.GetName(), reinterpret_cast<float*>(&v), fp.m_min, fp.m_max, "%.2f"))
+                    param.SetFloat2(v);
+            }            
             else if (param.GetType() == PARAM_TYPE::PT_float3)
             {
                 auto& fp = param.GetFloat3();
