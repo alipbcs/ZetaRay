@@ -42,7 +42,7 @@ VSOut mainVS(uint vertexID : SV_VertexID)
 float4 mainPS(VSOut psin) : SV_Target
 {
     const float2 uv = psin.PosSS.xy / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
-    
+
     Texture2D<half4> g_composited = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
     //float4 composited = g_composited[psin.PosSS.xy].rgba;
     float3 composited = g_composited.SampleLevel(g_samPointClamp, uv, 0).rgb;
@@ -60,22 +60,20 @@ float4 mainPS(VSOut psin) : SV_Target
         const float3 exposedColor = composited * exposure;
         display = exposedColor;
     }
-    
-    if (g_local.Tonemapper == (int) Tonemapper::ACES_FITTED)
-        display = Tonemap::ACESFitted(display);
-    else if (g_local.Tonemapper == (int) Tonemapper::NEUTRAL)
-        display = Tonemap::tony_mc_mapface(display, g_local.LUTDescHeapIdx);
-    else if (g_local.Tonemapper == (int) Tonemapper::AgX_DEFAULT)
-        display = Tonemap::AgX_Default(display);
-    else if (g_local.Tonemapper == (int) Tonemapper::AgX_PUNCHY)
-        display = Tonemap::AgX_Punchy(display, g_local.Saturation);
 
-    if(g_local.Tonemapper != (int) Tonemapper::AgX_PUNCHY)
+    if (g_local.Tonemapper == (int) Tonemapper::NEUTRAL)
     {
+        display = Tonemap::tony_mc_mapface(display, g_local.LUTDescHeapIdx);
         float3 desaturation = Math::Luminance(display);
         display = lerp(desaturation, display, g_local.Saturation);
     }
-        
+    else if (g_local.Tonemapper == (int) Tonemapper::AgX_DEFAULT)
+        display = Tonemap::AgX_Default(display);
+    else if (g_local.Tonemapper == (int) Tonemapper::AgX_GOLDEN)
+        display = Tonemap::AgX_Golden(display, g_local.Saturation);
+    else if (g_local.Tonemapper == (int) Tonemapper::AgX_PUNCHY)
+        display = Tonemap::AgX_Punchy(display, g_local.Saturation);
+
     if (g_local.DisplayOption == (int) DisplayOption::DEPTH)
     {
         float z_ndc = z = g_frame.CameraNear / z;

@@ -85,7 +85,7 @@ namespace ZetaRay::RenderPass
                 "MetalnessRoughness", "Emission", "Transmission", "Depth" };
             static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");
 
-            inline static const char* Tonemappers[] = { "None", "ACES", "Neutral", "AgX (Default)", "AgX (Punchy)" };
+            inline static const char* Tonemappers[] = { "None", "Neutral", "AgX (Default)", "AgX (Golden)", "AgX (Punchy)" };
             static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
         };
 

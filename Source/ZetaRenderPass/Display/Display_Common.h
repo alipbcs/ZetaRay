@@ -18,9 +18,9 @@ enum class DisplayOption
 enum class Tonemapper
 {
     NONE,
-    ACES_FITTED,
     NEUTRAL,
     AgX_DEFAULT,
+    AgX_GOLDEN,
     AgX_PUNCHY,
     COUNT
 };

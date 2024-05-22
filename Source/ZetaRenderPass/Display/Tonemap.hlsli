@@ -3,49 +3,6 @@
 namespace Tonemap
 {
     //--------------------------------------------------------------------------------------
-    // ACES
-    // Ref: https://github.com/TheRealMJP/BakingLab/blob/master/BakingLab/ACES.hlsl
-    //--------------------------------------------------------------------------------------
-
-    // sRGB => XYZ => D65_2_D60 => AP1 => RRT_SAT
-    static const float3x3 ACESInputMat =
-    {
-        { 0.59719, 0.35458, 0.04823 },
-        { 0.07600, 0.90834, 0.01566 },
-        { 0.02840, 0.13383, 0.83777 }
-    };
-
-    // ODT_SAT => XYZ => D60_2_D65 => sRGB
-    static const float3x3 ACESOutputMat =
-    {
-        { 1.60475, -0.53108, -0.07367 },
-        { -0.10208, 1.10813, -0.00605 },
-        { -0.00327, -0.07276, 1.07602 }
-    };
-
-    float3 RRTAndODTFit(float3 v)
-    {
-        float3 a = v * (v + 0.0245786f) - 0.000090537f;
-        float3 b = v * (0.983729f * v + 0.4329510f) + 0.238081f;
-        return a / b;
-    }
-
-    float3 ACESFitted(float3 color)
-    {
-        color = mul(ACESInputMat, color);
-
-        // Apply RRT and ODT
-        color = RRTAndODTFit(color);
-
-        color = mul(ACESOutputMat, color);
-
-        // Clamp to [0, 1]
-        color = saturate(color);
-
-        return color;
-    }
-
-    //--------------------------------------------------------------------------------------
     // Tony McMapface
     // Ref: https://github.com/h3r2tic/tony-mc-mapface
     //--------------------------------------------------------------------------------------
@@ -96,12 +53,12 @@ namespace Tonemap
         const float max_ev = 4.026069f;
 
         // Input transform (inset)
-        val = mul(agx_mat, val);
+        val = mul(val, agx_mat);
     
         // Log2 space encoding
         val = clamp(log2(val), min_ev, max_ev);
         val = (val - min_ev) / (max_ev - min_ev);
-    
+
         // Apply sigmoid function approximation
         val = agxDefaultContrastApprox(val);
 
@@ -114,46 +71,57 @@ namespace Tonemap
             1.19687900512017, -0.0528968517574562, -0.0529716355144438,
             -0.0980208811401368, 1.15190312990417, -0.0980434501171241,
             -0.0990297440797205, -0.0989611768448433, 1.15107367264116);
-        
+
         // Inverse input transform (outset)
-        val = mul(agx_mat_inv, val);
-    
+        val = mul(val, agx_mat_inv);
+
         // sRGB IEC 61966-2-1 2.2 Exponent Reference EOTF Display
+        // NOTE: We're linearizing the output here. Comment/adjust when
+        // *not* using a sRGB render target
         val = pow(val, 2.2);
 
         return val;
     }
 
-    float3 agxLook_Punchy(float3 val, float saturation) 
+    float3 agxLook(float3 val, float offset, float3 slope, float power, float saturation)
     {
         const float3 lw = float3(0.2126, 0.7152, 0.0722);
         float luma = dot(val, lw);
-        // Punchy
-        float3 offset = 0.0;
-        float slope = 1.0;
-        float power = 1.35;
-        float sat = saturation;
-
         // ASC CDL
         val = pow(val * slope + offset, power);
 
-        return luma + sat * (val - luma);
+        return luma + saturation * (val - luma);       
     }
 
     float3 AgX_Default(float3 value)
     {
         float3 tonemapped = agxInset(value);
         tonemapped = agxEotf(tonemapped);
-        
+
+        return tonemapped;
+    }
+
+    float3 AgX_Golden(float3 value, float saturation = 0.8f)
+    {
+        float3 tonemapped = agxInset(value);
+        float offset = 0.0;
+        float3 slope = float3(1.0, 0.9, 0.5);
+        float power = 0.8;
+        tonemapped = agxLook(tonemapped, offset, slope, power, saturation);
+        tonemapped = agxEotf(tonemapped);
+
         return tonemapped;
     }
 
     float3 AgX_Punchy(float3 value, float saturation = 1.4f)
     {
         float3 tonemapped = agxInset(value);
-        tonemapped = agxLook_Punchy(tonemapped, saturation);
+        float offset = 0.0;
+        float slope = 1.0;
+        float power = 1.35;
+        tonemapped = agxLook(tonemapped, offset, slope, power, saturation);
         tonemapped = agxEotf(tonemapped);
-        
+
         return tonemapped;
     }
 }
