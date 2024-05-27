@@ -115,6 +115,15 @@ void DeviceObjects::CreateDevice()
     D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)));
     Check(options12.EnhancedBarriersSupported, "Enhanced barriers is not supported.");
+
+    // RGBE support
+    D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport{};
+    formatSupport.Format = DXGI_FORMAT_R9G9B9E5_SHAREDEXP;
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport)));
+
+    if (formatSupport.Support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW
+        & D3D12_FORMAT_SUPPORT1_SHADER_LOAD)
+        m_rgbeSupport = true;
 }
 
 void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, int h, int numBuffers,

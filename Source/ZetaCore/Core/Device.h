@@ -90,6 +90,7 @@ namespace ZetaRay::Core
         ComPtr<IDXGISwapChain3> m_dxgiSwapChain;
 
         bool m_tearingSupport = false;
+        bool m_rgbeSupport = false;
         //UINT m_swapChainFlags = DXGI_SWAP_CHAIN_FLAG_ALLOW_MODE_SWITCH;
         UINT m_swapChainFlags = DXGI_SWAP_CHAIN_FLAG_FRAME_LATENCY_WAITABLE_OBJECT;
         HANDLE m_frameLatencyWaitableObj;

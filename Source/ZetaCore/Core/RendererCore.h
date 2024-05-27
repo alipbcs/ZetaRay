@@ -95,6 +95,7 @@ namespace ZetaRay::Core
         ZetaInline const GpuMemory::Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
         ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
+        ZetaInline bool IsRGBESupported() const { return m_deviceObjs.m_rgbeSupport; };
         ZetaInline bool IsTearingSupported() const { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };
         ZetaInline int GetVSyncInterval() const { return m_vsyncInterval; }
 
