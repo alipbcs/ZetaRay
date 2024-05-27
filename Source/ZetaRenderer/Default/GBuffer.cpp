@@ -127,9 +127,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
 
     // Emissive color
     {
+        const auto format = App::GetRenderer().IsRGBESupported() ?
+            DXGI_FORMAT_R9G9B9E5_SHAREDEXP :
+            DXGI_FORMAT_R11G11B10_FLOAT;
+
         data.EmissiveColor = ZetaMove(GpuMemory::GetTexture2D("GBuffer_Emissive", 
             width, height,
-            GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::EMISSIVE_COLOR],
+            format,
             D3D12_RESOURCE_STATE_COMMON,
             texFlags,
             1,
