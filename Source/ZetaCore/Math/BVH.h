@@ -19,14 +19,14 @@ namespace ZetaRay::Math
         struct alignas(16) BVHInput
         {
             Math::AABB AABB;
-            uint64_t ID;
+            uint64_t InstanceID;
         };
 
         struct alignas(16) BVHUpdateInput
         {
             Math::AABB OldBox;
             Math::AABB NewBox;
-            uint64_t ID;
+            uint64_t InstanceID;
         };
 
         BVH();
@@ -43,19 +43,19 @@ namespace ZetaRay::Math
         void Remove(uint64_t ID, const Math::AABB& AABB);
 
         // Returns ID of instances that at least partially overlap the view frustum. Assumes 
-        // the view frustum is in the view space
+        // the view frustum is in view space.
         void DoFrustumCulling(const Math::ViewFrustum& viewFrustum, 
             const Math::float4x4a& viewToWorld,
             Util::Vector<uint64_t, App::FrameAllocator>& visibleInstanceIDs);
 
         // Returns IDs & AABBs of instances that at least partially overlap the view frustum. Assumes 
-        // the view frustum is in the view space
+        // the view frustum is in view space.
         void DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
             const Math::float4x4a& viewToWorld,
             Util::Vector<BVHInput, App::FrameAllocator>& visibleInstanceIDs);
 
-        // Casts a ray into the BVH and returns the closest-hit intersection. Ray is assumed to 
-        // be in world space
+        // Casts a ray into the BVH and returns the closest intersection. Ray is assumed to 
+        // be in world space.
         uint64_t CastRay(Math::Ray& r);
 
         // Returns AABB that contains the scene
@@ -110,7 +110,7 @@ namespace ZetaRay::Math
         int BuildSubtree(int base, int count, int parent);
 
         // Finds the leaf node that contains the given instance. Returns -1 otherwise.
-        int Find(uint64_t ID, const Math::AABB& AABB, int& modelIdx);
+        int Find(uint64_t instanceID, const Math::AABB& AABB, int& modelIdx);
 
         Support::MemoryArena m_arena;
 

@@ -3,11 +3,14 @@
 #include "../Utility/Utility.h"
 #include "../App/Log.h"
 #include <App/Common.h>
+#include <App/Timer.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
+
+#define LOGGING 1
 
 namespace
 {
@@ -138,9 +141,9 @@ void PipelineStateLibrary::ResetPsoLib(bool forceReset)
 
 void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO)
 {
-//    ID3D12PipelineState* pso = Find(nameID);
-//    if (!pso)
-//        return;
+    //    ID3D12PipelineState* pso = Find(nameID);
+    //    if (!pso)
+    //        return;
 
     Filesystem::Path hlsl(App::GetRenderPassDir());
     hlsl.Append(pathToHlsl);
@@ -156,11 +159,11 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
     if (isComputePSO)
     {
         // dxc.exe -T cs_6_6 -Fo <shader>_cs.csp -E main ...
-#ifdef _DEBUG
-        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
+        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
-#endif // _DEBUG
+        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#endif
 
         HANDLE readPipe;
         HANDLE writePipe;
@@ -205,11 +208,11 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 
         // VS
         {
-#ifdef _DEBUG
-            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
+            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021%s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
-#endif // _DEBUG
+            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#endif
 
             siVS.cb = sizeof(siVS);
             CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, CREATE_NO_WINDOW, nullptr, nullptr, &siVS, &piVS));
@@ -224,11 +227,11 @@ void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool 
 
         // PS
         {
-#ifdef _DEBUG
-            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
+            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
 #else
-            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 2021 %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
-#endif // _DEBUG
+            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#endif
 
             siPS.cb = sizeof(siPS);
             CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &siPS, &piPS));
@@ -314,7 +317,7 @@ void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e)
 
 ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
     D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
-    ID3D12RootSignature* rootSig, 
+    ID3D12RootSignature* rootSig,
     const char* pathToCompiledVS,
     const char* pathToCompiledPS)
 {
@@ -420,6 +423,15 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12
         // can cause a hitch as the CPU is stalled
         auto* device = App::GetRenderer().GetDevice();
         CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+#if LOGGING == 1
+        App::DeltaTimer timer;
+        timer.Start();
+#endif
+
+#if LOGGING == 1
+        timer.End();
+        LOG_UI_INFO("Compiled shader %s in %u [ms].", pathToCompiledCS, (uint32_t)timer.DeltaMilli());
+#endif
 
         CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
     }
@@ -433,7 +445,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12
     return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3D12RootSignature* rootSig, 
+ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3D12RootSignature* rootSig,
     const char* pathToCompiledCS)
 {
     AcquireSRWLockExclusive(&m_mapLock);
@@ -461,8 +473,8 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
     StackStr(name, n, "%u", nameID);
     Common::CharToWideStr(name, nameWide);
 
-    // For a cached PSO library, If some PSO is modified or not found, the PSO lib needs
-    // to be recreated. So all the operations with the PSO lib need to be synchronized.
+    // For a cached PSO library, if some PSO is modified or not found, then the PSO library
+    // needs to be recreated. So all the operations on the PSO library have to be synchronized.
 
     AcquireSRWLockExclusive(&m_psoLibLock);
     HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
@@ -479,7 +491,16 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
 
         // Can cause a hitch as the CPU is stalled
         auto* device = App::GetRenderer().GetDevice();
+#if LOGGING == 1
+        App::DeltaTimer timer;
+        timer.Start();
+#endif
         CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
+#if LOGGING == 1
+        timer.End();
+        LOG_UI_INFO("Compiled shader %s in %u[ms].", pathToCompiledCS, (uint32_t)timer.DeltaMilli());
+#endif
 
         AcquireSRWLockExclusive(&m_psoLibLock);
         CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
@@ -497,7 +518,7 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
     return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig, 
+ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig,
     Span<const uint8_t> compiledBlob)
 {
     // If the PSO has already been created, just return it

@@ -72,7 +72,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
             if (flags.MeshMode == RT_MESH_MODE::STATIC)
             {
                 const uint64_t meshID = currTreeLevel.m_meshIDs[i];
-                if (meshID == SceneCore::NULL_MESH)
+                if (meshID == Scene::INVALID_MESH)
                     continue;
 
                 const TriangleMesh* mesh = scene.GetMesh(meshID).value();
@@ -187,7 +187,7 @@ void StaticBLAS::FillMeshTransformBufferForBuild()
 
         for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
         {
-            if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+            if (currTreeLevel.m_meshIDs[i] == Scene::INVALID_MESH)
                 continue;
 
             const auto rtFlags = Scene::GetRtFlags(currTreeLevel.m_rtFlags[i]);
@@ -361,7 +361,7 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
         // Add one TLAS instance for every dynamic mesh
         for (int i = 0; i < rtFlagVec.size(); i++)
         {
-            if (currTreeLevel.m_meshIDs[i] == SceneCore::NULL_MESH)
+            if (currTreeLevel.m_meshIDs[i] == Scene::INVALID_MESH)
                 continue;
 
             const auto flags = Scene::GetRtFlags(rtFlagVec[i]);
@@ -664,7 +664,7 @@ void TLAS::BuildFrameMeshInstanceData()
     auto addTLASInstance = [&scene, this, &currInstance, sceneHasEmissives](const SceneCore::TreeLevel& currTreeLevel,
         int levelIdx, bool staticMesh)
     {
-        if (currTreeLevel.m_meshIDs[levelIdx] == SceneCore::NULL_MESH)
+        if (currTreeLevel.m_meshIDs[levelIdx] == Scene::INVALID_MESH)
             return;
 
         const auto rtFlags = Scene::GetRtFlags(currTreeLevel.m_rtFlags[levelIdx]);
@@ -703,9 +703,9 @@ void TLAS::BuildFrameMeshInstanceData()
         m_frameInstanceData[currInstance].Rotation = snorm4(r);
         m_frameInstanceData[currInstance].Scale = half3(s);
         m_frameInstanceData[currInstance].Translation = float3(t.x, t.y, t.z);
-        m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : uint32_t(-1);
-        m_frameInstanceData[currInstance].BaseColorTex = mat->BaseColorTexture == uint32_t(-1) 
-            ? uint16_t(-1) :
+        m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : UINT32_MAX;
+        m_frameInstanceData[currInstance].BaseColorTex = mat->BaseColorTexture == UINT32_MAX
+            ? UINT16_MAX :
             (uint16_t)mat->BaseColorTexture;
 
         float alpha = float((mat->BaseColorFactor >> 24) & 0xff) / 255.0f;

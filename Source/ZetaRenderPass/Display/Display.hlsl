@@ -103,6 +103,14 @@ float4 mainPS(VSOut psin) : SV_Target
 
         display = float3(mr, 0.0f);
     }
+    else if (g_local.DisplayOption == (int) DisplayOption::ROUGHNESS_TH)
+    {
+        GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+        float r = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0).y;
+
+        display = (r >= g_local.RoughnessTh) * float3(0.26, 0.014, 0.021);
+    }
     else if (g_local.DisplayOption == (int) DisplayOption::EMISSIVE)
     {
         GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

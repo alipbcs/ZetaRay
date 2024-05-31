@@ -41,11 +41,13 @@ namespace ZetaRay::Model::glTF::Asset
 
     struct MaterialDesc
     {
+        static constexpr uint64_t INVALID_PATH = UINT64_MAX;
+
         MaterialDesc()
-            : BaseColorTexPath(uint64_t(-1)),
-            MetallicRoughnessTexPath(uint64_t(-1)),
-            NormalTexPath(uint64_t(-1)),
-            EmissiveTexPath(uint64_t(-1)),
+            : BaseColorTexPath(INVALID_PATH),
+            MetallicRoughnessTexPath(INVALID_PATH),
+            NormalTexPath(INVALID_PATH),
+            EmissiveTexPath(INVALID_PATH),
             MetallicFactor(1.0f),
             RoughnessFactor(1.0f),
             NormalScale(1.0f),

@@ -19,7 +19,7 @@ namespace ZetaRay::Math
     {
         float P_Curr = 0.0f;
         float P_Orig = 0.0f;
-        uint32_t Alias = uint32_t(-1);
+        uint32_t Alias = UINT32_MAX;
     };
 
     // Alias Table

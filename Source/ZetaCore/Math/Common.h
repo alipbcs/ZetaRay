@@ -119,9 +119,8 @@ namespace ZetaRay::Math
 
     // Returns x / y, where x and y are unsigned integers
     template<typename T>
-    ZetaInline T CeilUnsignedIntDiv(T x, T y)
+    ZetaInline constexpr T CeilUnsignedIntDiv(T x, T y)
     {
-        Assert(x != 0, "Input must be greater than 0");
         return 1 + ((x - 1) / y);
     }
 

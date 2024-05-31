@@ -74,9 +74,21 @@ namespace ZetaRay::App
 
         void Start();
         void End();
-        double DeltaMicro();
         double DeltaMilli();
+        double DeltaMicro();
         double DeltaNano();
+        double MinDeltaGt0()
+        {
+            double d0 = DeltaMilli();
+            if (d0 > 0)
+                return d0;
+
+            double d1 = DeltaMicro();
+            if (d1 > 0)
+                return d1;
+
+            return DeltaNano();
+        }
 
     private:
         // frequency of the counter. Units are counts/sec

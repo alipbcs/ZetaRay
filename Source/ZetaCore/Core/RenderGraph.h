@@ -118,7 +118,7 @@ namespace ZetaRay::Core
 
 #ifdef _DEBUG
         void Log();
-#endif // _DEBUG
+#endif
 
         //
         // Frame Resources
@@ -163,7 +163,7 @@ namespace ZetaRay::Core
 
             void Reset()
             {
-                ID = uint64_t(-1);
+                ID = INVALID_ID;
                 Res = nullptr;
                 CurrProdIdx = 0;
                 State = State = D3D12_RESOURCE_STATES(-1);
@@ -172,7 +172,9 @@ namespace ZetaRay::Core
                     Producers[i] = RenderNodeHandle(INVALID_NODE_HANDLE);
             }
 
-            uint64_t ID = uint64_t(-1);
+            static constexpr uint64_t INVALID_ID = UINT64_MAX;
+
+            uint64_t ID = INVALID_ID;
             ID3D12Resource* Res = nullptr;
             std::atomic_uint16_t CurrProdIdx = 0;
             RenderNodeHandle Producers[MAX_NUM_PRODUCERS] = { RenderNodeHandle(INVALID_NODE_HANDLE) };
@@ -196,12 +198,14 @@ namespace ZetaRay::Core
 
         struct Dependency
         {
+            static constexpr uint64_t INVALID_RES_ID = UINT64_MAX;
+
             Dependency() = default;
             Dependency(uint64_t id, D3D12_RESOURCE_STATES s)
                 : ResID(id), ExpectedState(s)
             {}
 
-            uint64_t ResID = uint64_t(-1);
+            uint64_t ResID = INVALID_RES_ID;
             D3D12_RESOURCE_STATES ExpectedState;
         };
 
@@ -273,8 +277,7 @@ namespace ZetaRay::Core
             AggregateRenderNode() = default;
             AggregateRenderNode(bool isAsyncCompute)
                 : IsAsyncCompute(isAsyncCompute)
-            {
-            }
+            {}
 
             void Reset()
             {
@@ -283,9 +286,9 @@ namespace ZetaRay::Core
 
 #if 0
                 HasUnsupportedBarrier = false;
-                CompletionFence = uint64_t(-1);
+                CompletionFence = UINT64_MAX;
                 GpuDepIdx = RenderNodeHandle(-1);
-                TaskH = uint32_t(-1);
+                TaskH = UINT32_MAX;
                 IsAsyncCompute = false;
                 IsLast = false;
                 ForceSeparate = false;
@@ -298,7 +301,7 @@ namespace ZetaRay::Core
             Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
             Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;
 
-            uint64_t CompletionFence = uint64_t(-1);
+            uint64_t CompletionFence = UINT64_MAX;
             uint32_t TaskH;
             int BatchIdx = -1;
 

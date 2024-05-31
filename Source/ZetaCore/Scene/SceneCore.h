@@ -3,6 +3,7 @@
 #include "../Math/BVH.h"
 #include "Asset.h"
 #include "SceneRenderer.h"
+#include "SceneCommon.h"
 #include "../Utility/Utility.h"
 #include <xxHash/xxhash.h>
 
@@ -75,8 +76,7 @@ namespace ZetaRay::Scene
         friend struct RT::TLAS;
 
     public:
-        static constexpr uint64_t ROOT_ID = uint64_t(-1);
-        static constexpr uint64_t NULL_MESH = uint64_t(-1);
+        static constexpr uint64_t ROOT_ID = UINT64_MAX;
         static constexpr uint32_t DEFAULT_MATERIAL_IDX = 0;
 
         static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim)

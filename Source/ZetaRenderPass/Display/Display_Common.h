@@ -1,5 +1,5 @@
-#ifndef FINAL_PASS_H
-#define FINAL_PASS_H
+#ifndef DISPLAY_PASS_H
+#define DISPLAY_PASS_H
 
 #include "../../ZetaCore/Core/HLSLCompat.h"
 
@@ -9,6 +9,7 @@ enum class DisplayOption
     BASE_COLOR,
     NORMAL,
     METALNESS_ROUGHNESS,
+    ROUGHNESS_TH,
     EMISSIVE,
     TRANSMISSION,
     DEPTH,
@@ -29,7 +30,6 @@ struct cbDisplayPass
 {
     uint16_t DisplayOption;
     uint16_t Tonemapper;
-    //uint16_t VisualizeOcclusion;
     uint16_t AutoExposure;
     uint16_t pad;
 
@@ -43,6 +43,7 @@ struct cbDisplayPass
     uint32_t LUTDescHeapIdx;
 
     float Saturation;
+    float RoughnessTh;
 };
 
-#endif // FINAL_PASS_H
+#endif

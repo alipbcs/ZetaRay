@@ -72,8 +72,6 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.CurrViewInv = float3x4(cam.GetViewInv());
     frameConsts.PrevCameraJitter = frameConsts.CurrCameraJitter;
     frameConsts.CurrCameraJitter = cam.GetCurrJitter();
-    frameConsts.PrevViewProj = frameConsts.CurrViewProj;
-    frameConsts.CurrViewProj = store(vVP);
 
     // Frame g-buffer SRV descriptor table
     frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDesciptorHeapIndex();
@@ -307,10 +305,6 @@ namespace ZetaRay::DefaultRenderer
         v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
 
         // For 1st frame
-        v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
-        v_float4x4 vVP = mul(vCurrV, vP);
-
-        g_data->m_frameConstants.PrevViewProj = store(vVP);
         g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
         g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
 

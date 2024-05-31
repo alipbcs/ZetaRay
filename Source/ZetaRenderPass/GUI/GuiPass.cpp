@@ -417,8 +417,6 @@ void GuiPass::Render(CommandList& cmdList)
     auto& gpuTimer = renderer.GetGpuTimer();
 
     directCmdList.PIXBeginEvent("ImGui");
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "ImGui");
 
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
@@ -519,7 +517,6 @@ void GuiPass::Render(CommandList& cmdList)
         global_vtx_offset += cmd_list->VtxBuffer.Size;
     }
 
-    // record the timestamp after execution
     gpuTimer.EndQuery(directCmdList, queryIdx);
 
     // HACK this is the last RenderPass, transition to PRESENT can be done here
@@ -674,7 +671,7 @@ void GuiPass::RenderProfiler()
 
 void GuiPass::RenderLogWindow()
 {
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(6/ 255.0f, 6 / 255.0f, 6 / 255.0f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.014286487, 0.014286487, 0.0142864870, 0.995f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
 
     const float h_prev = ImGui::GetWindowSize().y;

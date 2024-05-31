@@ -2,6 +2,7 @@
 #include "../Utility/Error.h"
 #include "../Math/Common.h"
 #include <intrin.h>
+#include <concepts>
 
 using namespace ZetaRay::Support;
 
@@ -16,7 +17,7 @@ namespace SmallFloat
     // This ensures that for each size class, the average overhead percentage stays the same
     uint32_t uintToFloatRoundUp(uint32_t size)
     {
-        Assert(size > 0, "invalid arg.");
+        Assert(size > 0, "Invalid arg.");
 
         uint32_t exp = 0;
         uint32_t mantissa = 0;
@@ -48,7 +49,7 @@ namespace SmallFloat
 
     uint32_t uintToFloatRoundDown(uint32_t size)
     {
-        Assert(size > 0, "invalid arg.");
+        Assert(size > 0, "Invalid arg.");
 
         uint32_t exp = 0;
         uint32_t mantissa = 0;
@@ -157,11 +158,11 @@ OffsetAllocator& OffsetAllocator::operator=(OffsetAllocator&& rhs)
 
 void OffsetAllocator::Init(uint32_t size, uint32_t maxNumAllocs)
 {
+    Assert(size >= 1 && maxNumAllocs >= 1 && maxNumAllocs <= size, "Invalid args.");
     m_size = size;
-    // + 1 so that the first stack entry (whole memory region) doesn't count towards maximum
+    // + 1 so the first stack entry (whole memory region) doesn't count towards maximum
     m_maxNumAllocs = maxNumAllocs + 1;
 
-    Assert(size >= 1 && maxNumAllocs >= 1 && maxNumAllocs <= size, "invalid args.");
     Reset();
 }
 
@@ -178,8 +179,9 @@ void OffsetAllocator::Reset()
     m_nodes = new Node[m_maxNumAllocs];
     m_nodeStack = new uint32_t[m_maxNumAllocs];
 
-    for (uint32_t i = 0; i < m_maxNumAllocs; i++)
-        m_nodeStack[i] = m_maxNumAllocs - 1 - i;
+    // Push 0...m_maxNumAllocs - 1 in reverse
+    for (int64 i = 0; i < m_maxNumAllocs; i++)
+        m_nodeStack[i] = m_maxNumAllocs - 1 - (uint32)i;
 
     m_firstLevelMask = 0;
 
@@ -197,13 +199,13 @@ void OffsetAllocator::Reset()
 
 uint32_t OffsetAllocator::InsertNode(uint32_t offset, uint32_t size)
 {
-    Assert(offset + size <= m_size, "requested node exceeded memory region bounds.");
-    Assert(m_stackTop >= 0, "out of stack storage, InsertNode shouldn't have been called.");
+    Assert(offset + size <= m_size, "Requested node exceeded memory region bounds.");
+    Assert(m_stackTop >= 0, "Out of stack storage, InsertNode() shouldn't have been called.");
 
     const uint32_t listIdx = SmallFloat::uintToFloatRoundDown(size);
     const uint32_t currHead = m_freeListsHeads[listIdx];
     const uint32_t nodeIdx = m_nodeStack[m_stackTop--];
-    Assert(nodeIdx >= 0 && nodeIdx < m_maxNumAllocs, "out-of-bound access.");
+    Assert(nodeIdx >= 0 && nodeIdx < m_maxNumAllocs, "Out-of-bound stack access.");
 
     Node& node = m_nodes[nodeIdx];
     node = Node{ .Offset = offset, 
@@ -224,7 +226,7 @@ uint32_t OffsetAllocator::InsertNode(uint32_t offset, uint32_t size)
     m_secondLevelMask[firstLevelIdx] |= 1 << secondLevelIdx;
 
     m_freeStorage += size;
-    Assert(m_freeStorage <= m_size, "free storage exceeded maximum.");
+    Assert(m_freeStorage <= m_size, "Size of free storage exceeded maximum.");
 
     return nodeIdx;
 }
@@ -265,14 +267,17 @@ void OffsetAllocator::RemoveNode(uint32_t nodeIdx)
 
 OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t alignment)
 {
-    Assert(alignment >= 1, "invalid alignment.");
-    Assert(size >= 1, "redundant call.");
+    Assert(alignment >= 1, "Invalid alignment.");
+    Assert(size != 0, "Redundant call.");
 
-    if (size == 0)
-        return Allocation::Empty();
+    //if (size == 0)
+    //    return Allocation::Empty();
 
-    // Out of node storage
-    if (m_stackTop == INVALID_NODE)
+    // Out of node storage. 
+    // Note: Entries are pushed in the order 0, ..., m_maxNumAllocs - 1, so
+    // after popping the last entry, top index becomes 0 - 1 = uint32_max.
+    static_assert(std::same_as<decltype(m_stackTop), uint32>, "Stack index must be uint32.");
+    if (m_stackTop == UINT32_MAX)
         return Allocation::Empty();
 
     // Assuming start offset is aligned, at most alignment - 1 extra bytes are required
@@ -291,18 +296,17 @@ OffsetAllocator::Allocation OffsetAllocator::Allocate(uint32_t size, uint32_t al
     if (firstLevelIdx == INVALID_INDEX)
         return Allocation::Empty();
 
-    Assert(m_firstLevelMask & (1 << firstLevelIdx), "first/second level mask mismatch.");
+    Assert(m_firstLevelMask & (1 << firstLevelIdx), "1st/2nd level mask mismatch.");
 
     secondLevelIdx = secondLevelIdx != INVALID_INDEX ?
         secondLevelIdx :
         _tzcnt_u32(m_secondLevelMask[firstLevelIdx]);
 
     listIdx = (firstLevelIdx << FIRST_LEVEL_INDEX_SHIFT) + secondLevelIdx;
-    Assert(m_freeListsHeads[listIdx] != INVALID_NODE, "list/mask mismatch.");
+    Assert(m_freeListsHeads[listIdx] != INVALID_NODE, "List/mask mismatch.");
     const uint32_t nodeIdx = m_freeListsHeads[listIdx];
-
     Node& head = m_nodes[nodeIdx];
-    Assert(!head.InUse, "a freelist node shoudn't be in use.");
+    Assert(!head.InUse, "A freelist node shouldn't be in use.");
 
     const uint32_t oldSize = head.Size;
     const uint32_t oldRightNeighbor = head.RightNeighbor;

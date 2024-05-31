@@ -57,6 +57,7 @@ void DisplayPass::Init()
     m_cbLocal.DisplayOption = (uint16_t)DisplayOption::DEFAULT;
     m_cbLocal.Tonemapper = (uint16_t)Tonemapper::NEUTRAL;
     m_cbLocal.Saturation = 1.0f;
+    m_cbLocal.RoughnessTh = 1.0f;
     m_cbLocal.AutoExposure = true;
 
     ParamVariant p1;
@@ -99,7 +100,7 @@ void DisplayPass::Render(CommandList& cmdList)
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
     GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
-    Assert(m_compositedSrvDescHeapIdx != uint32_t(-1), "Gpu Desc Idx hasn't been set.");
+    Assert(m_compositedSrvDescHeapIdx != UINT32_MAX, "Gpu Desc Idx hasn't been set.");
     Assert(m_cbLocal.ExposureDescHeapIdx > 0, "Gpu Desc Idx hasn't been set.");
 
     auto& renderer = App::GetRenderer();
@@ -159,6 +160,17 @@ void DisplayPass::CreatePSOs()
 void DisplayPass::DisplayOptionCallback(const ParamVariant& p)
 {
     m_cbLocal.DisplayOption = (uint16_t)p.GetEnum().m_curr;
+
+    if (m_cbLocal.DisplayOption == (uint32)DisplayOption::ROUGHNESS_TH)
+    {
+        ParamVariant p1;
+        p1.InitFloat("Renderer", "Display", "Roughness (Th)",
+            fastdelegate::MakeDelegate(this, &DisplayPass::RoughnessThCallback),
+            1, 0.0, 1.0f, 1e-2f);
+        App::AddParam(p1);
+    }
+    else
+        App::RemoveParam("Renderer", "Display", "Roughness (Th)");
 }
 
 void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
@@ -174,4 +186,9 @@ void DisplayPass::SaturationCallback(const Support::ParamVariant& p)
 void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p)
 {
     m_cbLocal.AutoExposure = p.GetBool();
+}
+
+void DisplayPass::RoughnessThCallback(const Support::ParamVariant& p)
+{
+    m_cbLocal.RoughnessTh = p.GetFloat().m_value;
 }

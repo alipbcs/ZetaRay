@@ -57,7 +57,7 @@ namespace ZetaRay::Scene::Internal
         struct CacheEntry
         {
             Core::GpuMemory::Texture T;
-            uint32_t DescTableOffset = uint32_t(-1);
+            uint32_t DescTableOffset = UINT32_MAX;
             uint32_t RefCount = 0;
         };
 

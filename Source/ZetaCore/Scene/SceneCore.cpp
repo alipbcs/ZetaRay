@@ -6,6 +6,7 @@
 #include "../Support/Task.h"
 #include "Camera.h"
 #include <App/Timer.h>
+#include <App/Log.h>
 #include <Support/Param.h>
 #include <algorithm>
 
@@ -121,8 +122,14 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
             if (m_rebuildBVHFlag)
             {
+                App::DeltaTimer timer;
+                timer.Start();
+
                 RebuildBVH();
                 m_rebuildBVHFlag = false;
+
+                timer.End();
+                LOG_UI_INFO("BVH built in %u [ms].", (uint32_t)timer.DeltaMilli());
             }
             else if (!toUpdateInstances.empty())
                 m_bvh.Update(toUpdateInstances);
@@ -344,33 +351,33 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         AcquireSRWLockExclusive(&m_matLock);
 
     {
-        uint32_t tableOffset = uint32_t(-1);    // i.e. index in GPU descriptor table
+        uint32_t tableOffset = Material::INVALID_ID;    // i.e. index in GPU descriptor table
 
-        if (matDesc.BaseColorTexPath != uint64_t(-1))
+        if (matDesc.BaseColorTexPath != MaterialDesc::INVALID_PATH)
             addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
 
         mat.BaseColorTexture = tableOffset;
     }
 
     {
-        uint32_t tableOffset = uint32_t(-1);
-        if (matDesc.NormalTexPath != uint64_t(-1))
+        uint32_t tableOffset = Material::INVALID_ID;
+        if (matDesc.NormalTexPath != MaterialDesc::INVALID_PATH)
             addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
 
         mat.SetNormalTex(tableOffset);
     }
 
     {
-        uint32_t tableOffset = uint32_t(-1);
-        if (matDesc.MetallicRoughnessTexPath != uint64_t(-1))
+        uint32_t tableOffset = Material::INVALID_ID;
+        if (matDesc.MetallicRoughnessTexPath != MaterialDesc::INVALID_PATH)
             addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", m_metallicRoughnessDescTable, tableOffset, ddsImages);
 
         mat.SetMetallicRoughnessTex(tableOffset);
     }
 
     {
-        uint32_t tableOffset = uint32_t(-1);
-        if (matDesc.EmissiveTexPath != uint64_t(-1))
+        uint32_t tableOffset = Material::INVALID_ID;
+        if (matDesc.EmissiveTexPath != MaterialDesc::INVALID_PATH)
             addTex(matDesc.EmissiveTexPath, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
 
         mat.SetEmissiveTex(tableOffset);
@@ -392,12 +399,13 @@ void SceneCore::ResizeAdditionalMaterials(uint32_t num)
 
 void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
 {
-    const uint64_t meshID = instance.MeshIdx == -1 ? NULL_MESH : MeshID(instance.MeshIdx, instance.MeshPrimIdx);
+    const uint64_t meshID = instance.MeshIdx == -1 ? INVALID_MESH : 
+        MeshID(instance.MeshIdx, instance.MeshPrimIdx);
 
     if(lock)
         AcquireSRWLockExclusive(&m_instanceLock);
 
-    if (meshID != NULL_MESH)
+    if (meshID != INVALID_MESH)
     {
         m_meshBufferStale = true;
 
@@ -565,7 +573,7 @@ void SceneCore::RebuildBVH()
         {
             // Find the mesh instance
             const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
-            if (meshID == NULL_MESH)
+            if (meshID == INVALID_MESH)
                 continue;
 
             const TriangleMesh& mesh = *m_meshes.GetMesh(meshID).value();
@@ -576,7 +584,7 @@ void SceneCore::RebuildBVH()
             vBox = transform(vM, vBox);
             const uint64_t insID = m_sceneGraph[level].m_IDs[i];
 
-            allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .ID = insID });
+            allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .InstanceID = insID });
         }
     }
 

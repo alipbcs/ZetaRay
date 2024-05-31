@@ -82,7 +82,7 @@ namespace ZetaRay::RenderPass
         struct Params
         {
             inline static const char* DisplayOptions[] = { "Default", "BaseColor", "Normal",
-                "MetalnessRoughness", "Emission", "Transmission", "Depth" };
+                "Metalness-Roughness", "Roughness (Threshold)", "Emission", "Transmission", "Depth" };
             static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");
 
             inline static const char* Tonemappers[] = { "None", "Neutral", "AgX (Default)", "AgX (Golden)", "AgX (Punchy)" };
@@ -98,13 +98,14 @@ namespace ZetaRay::RenderPass
         void TonemapperCallback(const Support::ParamVariant& p);
         void SaturationCallback(const Support::ParamVariant& p);
         void AutoExposureCallback(const Support::ParamVariant& p);
+        void RoughnessThCallback(const Support::ParamVariant& p);
 
         ID3D12PipelineState* m_psosPS[(int)PS_SHADERS::COUNT] = { 0 };
         Core::GpuMemory::Texture m_lut;
         Core::DescriptorTable m_descTable;
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
         cbDisplayPass m_cbLocal;
-        uint32_t m_compositedSrvDescHeapIdx = uint32_t(-1);
+        uint32_t m_compositedSrvDescHeapIdx = UINT32_MAX;
         bool m_dof = false;
     };
 }

@@ -2,6 +2,7 @@
 #include "../Math/CollisionFuncs.h"
 #include "../Utility/Error.h"
 #include "../App/Log.h"
+#include "../Scene/SceneCommon.h"
 #include <algorithm>
 
 using namespace ZetaRay::Util;
@@ -66,8 +67,7 @@ BVH::BVH()
     : m_arena(4 * 1096),
     m_instances(m_arena),
     m_nodes(m_arena)
-{
-}
+{}
 
 void BVH::Clear()
 {
@@ -285,7 +285,7 @@ int BVH::BuildSubtree(int base, int count, int parent)
     return currNodeIdx;
 }
 
-int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
+int BVH::Find(uint64_t instanceID, const Math::AABB& AABB, int& nodeIdx)
 {
     nodeIdx = -1;
 
@@ -315,7 +315,7 @@ int BVH::Find(uint64_t ID, const Math::AABB& AABB, int& nodeIdx)
         {
             for (int i = node.Base; i < node.Base + node.Count; i++)
             {
-                if (m_instances[i].ID == ID)
+                if (m_instances[i].InstanceID == instanceID)
                 {
                     nodeIdx = currNodeIdx;
                     return i;
@@ -414,7 +414,7 @@ void BVH::Remove(uint64_t ID, const Math::AABB& AABB)
     const int instanceIdx = Find(ID, AABB, nodeIdx);
     Assert(instanceIdx != -1, "Instance with ID %u was not found.", ID);
 
-    m_instances[instanceIdx].ID = uint64_t(-1);
+    m_instances[instanceIdx].InstanceID = Scene::INVALID_INSTANCE;
     m_instances[instanceIdx].AABB.Extents = float3(-1.0f, -1.0f, -1.0f);
     m_instances[instanceIdx].AABB.Center = float3(0.0f, 0.0f, 0.0f);
 
@@ -462,7 +462,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
                 vBox.Reset(m_instances[i].AABB);
 
                 if (Math::instersectFrustumVsAABB(vFrustum, vBox) != COLLISION_TYPE::DISJOINT)
-                    visibleInstanceIDs.push_back(m_instances[i].ID);
+                    visibleInstanceIDs.push_back(m_instances[i].InstanceID);
             }
         }
         else
@@ -519,7 +519,7 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
                 {
                     visibleInstanceIDs.emplace_back(BVH::BVHInput{
                         .AABB = m_instances[i].AABB,
-                        .ID = m_instances[i].ID });
+                        .InstanceID = m_instances[i].InstanceID });
                 }
             }
         }
@@ -548,7 +548,7 @@ uint64_t BVH::CastRay(Math::Ray& r)
 
     // Can return early if ray doesn't intersect root AABB
     if (!Math::intersectRayVsAABB(vRay, vDirRcp, vDirIsPos, vIsParallel, vBox, t))
-        return uint64_t(-1);
+        return Scene::INVALID_INSTANCE;
 
     // Manual stack
     constexpr int STACK_SIZE = 64;
@@ -559,7 +559,7 @@ uint64_t BVH::CastRay(Math::Ray& r)
     stack[currStackIdx] = 0;
     int currNode = -1;
     float minT = FLT_MAX;
-    uint64_t closestID = uint64_t(-1);
+    uint64_t closestID = Scene::INVALID_INSTANCE;
 
     while (currStackIdx >= 0)
     {
@@ -578,7 +578,7 @@ uint64_t BVH::CastRay(Math::Ray& r)
                 {
                     const bool tLtTmin = t < minT;
                     minT = tLtTmin ? t : minT;
-                    closestID = tLtTmin ? m_instances[i].ID : closestID;
+                    closestID = tLtTmin ? m_instances[i].InstanceID : closestID;
                 }
             }
         }

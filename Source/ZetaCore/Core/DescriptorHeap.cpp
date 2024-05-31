@@ -42,7 +42,7 @@ DescriptorTable::DescriptorTable(DescriptorTable&& other)
     other.m_numDescriptors = 0;
     other.m_descHeap = nullptr;
     other.m_descriptorSize = 0;
-    other.m_internal = uint32_t(-1);
+    other.m_internal = UINT32_MAX;
 }
 
 DescriptorTable& DescriptorTable::operator=(DescriptorTable&& other)
@@ -71,7 +71,7 @@ void DescriptorTable::Reset()
     m_numDescriptors = 0;
     m_descHeap = nullptr;
     m_descriptorSize = 0;
-    m_internal = uint32_t(-1);
+    m_internal = UINT32_MAX;
 }
 
 //--------------------------------------------------------------------------------------
@@ -101,7 +101,7 @@ DescriptorHeap::DescriptorHeap(uint32_t blockSize)
 
     // Initialize blocks
     for (uint32_t i = 0; i < MAX_NUM_LISTS; i++)
-        m_heads[i].Head = uint32_t(-1);
+        m_heads[i].Head = UINT32_MAX;
 }
 
 void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
@@ -168,7 +168,7 @@ bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
     for (int i = 0; i < (int)blockSize; i += descTableSize)
     {
         Entry e{ .HeapOffset = nextHeapIdx + i,
-            .Next = (currEntry != numDescTablesInBlock - 1) ? (uint32_t)(currEntry + 1) : uint32_t(-1) };
+            .Next = (currEntry != numDescTablesInBlock - 1) ? (uint32_t)(currEntry + 1) : UINT32_MAX };
 
         m_heads[listIdx].Entries[currEntry++] = e;
     }
@@ -193,7 +193,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
         Assert(m_nextHeapIdx + count < m_totalHeapSize, "out of free space in descriptor heap.");
 
         heapOffset = m_nextHeapIdx;
-        arrayOffset = uint32_t(-1);
+        arrayOffset = UINT32_MAX;
         m_nextHeapIdx += count;
 
         m_freeDescCount -= count;
@@ -206,7 +206,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
         bool success = true;
 
         // build a new linked list
-        if (m_heads[listIdx].Head == uint32_t(-1))
+        if (m_heads[listIdx].Head == UINT32_MAX)
         {
             m_heads[listIdx].Entries.clear();
             success = AllocateNewBlock(listIdx);
@@ -219,7 +219,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
             // TODO instead of returning a larger block directly, break it into chunks (with size
             // of each equal to the best fit for this request), insert those chunks into the current
             // (empty) list and then return the head
-            while (m_heads[listIdx].Head == uint32_t(-1))
+            while (m_heads[listIdx].Head == UINT32_MAX)
             {
                 listIdx++;
                 Assert(listIdx < m_numLists, "out of free space in the descriptor heap.");
@@ -232,7 +232,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 
         // Set the new head
         const uint32_t nextHeadIdx = e.Next;
-        m_heads[listIdx].Entries[currHeadIdx].Next = uint32_t(-1);
+        m_heads[listIdx].Entries[currHeadIdx].Next = UINT32_MAX;
         m_heads[listIdx].Head = nextHeadIdx;
 
         heapOffset = e.HeapOffset;
@@ -303,10 +303,10 @@ void DescriptorHeap::Recycle()
             // to grow indefinitely. To avoid that, attempt to reuse the previous array position instead
             // of appending to the end. Note that when a new block is added, SmallVector is cleared first 
             // and unbounded growth is avoided.
-            if (internalVal != uint32_t(-1) && internalVal < m_heads[listIdx].Entries.size() &&
+            if (internalVal != UINT32_MAX && internalVal < m_heads[listIdx].Entries.size() &&
                 m_heads[listIdx].Entries[internalVal].HeapOffset == offset)
             {
-                Assert(m_heads[listIdx].Entries[internalVal].Next == uint32_t(-1), "these must match.");
+                Assert(m_heads[listIdx].Entries[internalVal].Next == UINT32_MAX, "these must match.");
 
                 m_heads[listIdx].Entries[internalVal] = e;
                 m_heads[listIdx].Head = internalVal;

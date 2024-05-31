@@ -8,8 +8,8 @@ namespace ZetaRay::Support
     class OffsetAllocator
     {
     public:
-        static constexpr uint32_t INVALID_INDEX = uint32_t(-1);
-        static constexpr uint32_t INVALID_NODE = uint32_t(-1);
+        static constexpr uint32_t INVALID_INDEX = UINT32_MAX;
+        static constexpr uint32_t INVALID_NODE = UINT32_MAX;
 
         struct Allocation
         {
@@ -76,11 +76,14 @@ namespace ZetaRay::Support
 
         // List i contains nodes N such that,
         //        i = SmallFloat(N.size)
-        // 
-        // e.g. for i = 35, SmallFloat(x) = 35 for x in [88, 96) 
+        // e.g. when i = 35, SmallFloat(x) = 35 for x in [88, 96) 
         uint32_t m_freeListsHeads[NUM_FIRST_LEVEL_BINS * NUM_SPLITS_PER_FIRST_LEVEL_BIN];
         Node* m_nodes = nullptr;
+        // A stack of at most m_maxNumAllocs entries where every node points to some
+        // contiguous region (i.e. [offset, offset + size)) of underlying resource. Also,
+        // each node maintains pointers to its siblings in the same bin.
         uint32_t* m_nodeStack = nullptr;
+        // Index to top stack entry in [0, m_maxNumAllocs - 1]
         uint32_t m_stackTop;
     };
 }

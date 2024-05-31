@@ -14,7 +14,7 @@
 #ifdef _DEBUG
 #include "../App/Log.h"
 #include <string>
-#endif // _DEBUG
+#endif
 
 using namespace ZetaRay;
 using namespace ZetaRay::Support;
@@ -218,7 +218,7 @@ void RenderGraph::BeginFrame()
     for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
     {
         m_renderNodes[currNode].Reset();
-        m_aggregateFenceVals[currNode] = uint64_t(-1);
+        m_aggregateFenceVals[currNode] = UINT64_MAX;
     }
 
     m_aggregateNodes.free_memory();
@@ -295,7 +295,7 @@ void RenderGraph::MoveToPostRegister()
             Assert(false, "Duplicate entries for resource %s.", name);
         }
     }
-#endif // _DEBUG
+#endif
 
     m_inPreRegister = false;
 }
@@ -411,7 +411,7 @@ void RenderGraph::Build(TaskSet& ts)
 
 #ifdef _DEBUG
     //Log();
-#endif // _DEBUG
+#endif
 }
 
 void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
@@ -443,7 +443,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
 
 #ifdef _DEBUG
                 cmdList->SetName(aggregateNode.Name);
-#endif // _DEBUG
+#endif
 
                 if (aggregateNode.HasUnsupportedBarrier)
                 {
@@ -451,7 +451,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                     GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(*barrierCmdList);
 #ifdef _DEBUG
                     directCmdList.SetName("Barrier");
-#endif // _DEBUG
+#endif
 
                     directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), (UINT)aggregateNode.Barriers.size());
                     uint64_t f = renderer.ExecuteCmdList(barrierCmdList);
@@ -469,7 +469,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                 if (!aggregateNode.HasUnsupportedBarrier && aggregateNode.GpuDepIdx.Val != -1)
                 {
                     uint64_t f = m_aggregateNodes[aggregateNode.GpuDepIdx.Val].CompletionFence;
-                    Assert(f != uint64_t(-1), "GPU hasn't finished executing");
+                    Assert(f != UINT64_MAX, "GPU hasn't finished executing.");
 
                     if (aggregateNode.IsAsyncCompute)
                         renderer.WaitForDirectQueueOnComputeQueue(f);
@@ -939,7 +939,7 @@ void RenderGraph::DebugDrawGraph()
                 GetResStateName(b.Transition.StateBefore),
                 GetResStateName(b.Transition.StateAfter));
         }
-#endif // _DEBUG
+#endif
 
         const int prevBatchSize = currBatchIdx > 0 ? batchSize[currBatchIdx - 1] : 0;
         const int currBatchSize = batchSize[currBatchIdx];
@@ -973,7 +973,7 @@ void RenderGraph::DebugDrawGraph()
             const float y = 50.0f + idxInBatch++ * 75.0f + numBarriersInBatch * 60.0f;
 #else
             const float y = 50.0f + idxInBatch++ * 75.0f;
-#endif // _DEBUG
+#endif
 
             ImNodes::SetNodeEditorSpacePos(currNode, ImVec2(x, y));
 

@@ -90,7 +90,7 @@ void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntr
         Assert(largerProb >= 1.0f, "should be >= 1.0");
 
         auto& e = table[smallerIdx];
-        Assert(e.Alias == uint32_t(-1), "Every element must be inserted exactly one time.");
+        Assert(e.Alias == UINT32_MAX, "Every element must be inserted exactly one time.");
         e.Alias = largerIdx;
         e.P_Curr = smallerProb;
 

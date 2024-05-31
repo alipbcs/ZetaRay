@@ -22,6 +22,8 @@ namespace ZetaRay
     {
 #ifdef __cplusplus
 
+        static constexpr uint32_t INVALID_ID = UINT32_MAX;
+
         enum class ALPHA_MODE : uint8_t
         {
             // "OPAQUE" is defined in wingdi.h!
@@ -36,10 +38,10 @@ namespace ZetaRay
         Material()
             : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
             RoughnessFactor((1 << 16) - 1),
-            BaseColorTexture(uint32_t(-1)),
+            BaseColorTexture(INVALID_ID),
             MetallicRoughnessTexture_Transmission(0xffff),
-            NormalTexture_IOR(uint32_t(-1)),
-            EmissiveTexture_Strength(uint32_t(-1)),
+            NormalTexture_IOR(INVALID_ID),
+            EmissiveTexture_Strength(INVALID_ID),
             Packed(0),
             BaseColorFactor(Math::Float4ToRGBA8(Math::float4(1.0f, 1.0f, 1.0f, 1.0f))),
             EmissiveFactorNormalScale(Math::Float4ToRGBA8(Math::float4(0.0f, 0.0f, 0.0f, 1.0f)))
@@ -112,19 +114,19 @@ namespace ZetaRay
 #ifdef __cplusplus
         void SetNormalTex(uint32_t idx)
         {
-            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
             NormalTexture_IOR = (idx & 0xffff) | (NormalTexture_IOR & 0xffff0000);
         }
 
         void SetMetallicRoughnessTex(uint32_t idx)
         {
-            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
             MetallicRoughnessTexture_Transmission = (idx & 0xffff) | (MetallicRoughnessTexture_Transmission & 0xff0000);
         }
 
         void SetEmissiveTex(uint32_t idx)
         {
-            Assert(idx == uint32_t(-1) || idx < UINT16_MAX, "Invalid texture index.");
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
             EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
         }
 

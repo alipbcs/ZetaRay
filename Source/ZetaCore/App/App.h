@@ -71,8 +71,9 @@ namespace ZetaRay::App
         ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg);
 
         static constexpr int MAX_LEN = 32;
+        static constexpr uint64_t INVALID_ID = UINT64_MAX;
 
-        uint64_t ID = uint64_t(-1);
+        uint64_t ID = INVALID_ID;
         char Name[MAX_LEN];
         fastdelegate::FastDelegate0<> Dlg;
     };

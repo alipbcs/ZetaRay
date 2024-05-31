@@ -42,7 +42,7 @@ namespace ZetaRay::App::Filesystem
         void ConvertToForwardSlashes();
 
     private:
-        static constexpr size_t DEFAULT_PATH_LENGTH = 260;
+        static constexpr size_t DEFAULT_PATH_LENGTH = 128;
         Util::SmallVector<char, Support::SystemAllocator, DEFAULT_PATH_LENGTH> m_path;
     };
 }

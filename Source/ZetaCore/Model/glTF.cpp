@@ -121,7 +121,7 @@ namespace
 
         uintptr_t ptr = reinterpret_cast<uintptr_t>(subsets.data());
 
-        __m256i vVal = _mm256_set1_epi64x(uint64_t(-1));
+        __m256i vVal = _mm256_set1_epi64x(Scene::INVALID_MESH);
         for (int i = 0; i < numSimdBytes; i++)
         {
             _mm256_storeu_epi64(reinterpret_cast<void*>(ptr), vVal);
@@ -129,7 +129,7 @@ namespace
         }
 
         for (int i = 0; i < numToSetManually; i++)
-            subsets[subsets.size() - 1 - i].MeshID = uint64_t(-1);
+            subsets[subsets.size() - 1 - i].MeshID = Scene::INVALID_MESH;
     }
 
     void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
@@ -435,7 +435,7 @@ namespace
                 {
                     if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
                     {
-                        LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but was not found in disk. Skipping...\n", p.Get());
+                        LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n", p.Get());
                         continue;
                     }
                     else

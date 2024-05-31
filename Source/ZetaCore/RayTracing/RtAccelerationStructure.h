@@ -2,6 +2,7 @@
 
 #include "../Core/GpuMemory.h"
 #include "RtCommon.h"
+#include "../Scene/SceneCommon.h"
 
 namespace ZetaRay::Core
 {
@@ -60,8 +61,8 @@ namespace ZetaRay::RT
 
         DynamicBlasBuildItem Rebuild();
 
-        uint64_t m_instanceID = uint64_t(-1);
-        uint64_t m_meshID = uint64_t(-1);
+        uint64_t m_instanceID = Scene::INVALID_INSTANCE;
+        uint64_t m_meshID = Scene::INVALID_MESH;
         uint32_t m_blasBufferOffset = 0;
     };
 
@@ -95,7 +96,7 @@ namespace ZetaRay::RT
 
         Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
 
-        uint32_t m_staticBLASrebuiltFrame = uint32_t(-1);
+        uint32_t m_staticBLASrebuiltFrame = UINT32_MAX;
         bool m_ready = false;
     };
 }

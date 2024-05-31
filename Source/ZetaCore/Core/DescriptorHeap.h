@@ -59,7 +59,7 @@ namespace ZetaRay::Core
         struct Block
         {
             Block(Support::MemoryPool &mp)
-                : Head(uint32_t(-1)),
+                : Head(UINT32_MAX),
                 Entries(mp)
             {}
 
@@ -175,6 +175,6 @@ namespace ZetaRay::Core
 
         uint32_t m_numDescriptors = 0;
         uint32_t m_descriptorSize = 0;
-        uint32_t m_internal = uint32_t(-1);
+        uint32_t m_internal = UINT32_MAX;
     };
 }
