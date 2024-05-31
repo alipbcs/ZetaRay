@@ -6,7 +6,7 @@ function(Setupcgltf)
         file(MAKE_DIRECTORY ${CGLTF_DIR})
 
         # download
-        set(URL "https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.13.zip")
+        set(URL "https://github.com/jkuhlmann/cgltf/archive/refs/tags/v1.14.zip")
         message(STATUS "Downloading cgltf 1.13 from ${URL}...")
         set(ARCHIVE_PATH "${CGLTF_DIR}/temp/cgltf.zip")
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)
