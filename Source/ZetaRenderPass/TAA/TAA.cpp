@@ -142,13 +142,13 @@ void TAA::CreateResources()
         renderer.GetRenderWidth(), renderer.GetRenderHeight(),
         DXGI_FORMAT_R16G16B16A16_FLOAT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     m_antiAliased[1] = GpuMemory::GetTexture2D("TAA_B",
         renderer.GetRenderWidth(), renderer.GetRenderHeight(),
         DXGI_FORMAT_R16G16B16A16_FLOAT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     // SRVs
     Direct3DUtil::CreateTexture2DSRV(m_antiAliased[0], m_descTable.CPUHandle((int)DESC_TABLE::TEX_A_SRV));

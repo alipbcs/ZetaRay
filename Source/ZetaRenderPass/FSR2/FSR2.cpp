@@ -518,8 +518,8 @@ namespace
         const bool allowRT = resDesc->usage & FFX_RESOURCE_USAGE_RENDERTARGET;
         const D3D12_RESOURCE_STATES state = GetD3D12State(resDesc->initalState);
         uint8_t textureFlags = 0;
-        textureFlags = allowUAV ? textureFlags | CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS : textureFlags;
-        textureFlags = allowRT ? textureFlags | CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET : textureFlags;
+        textureFlags = allowUAV ? textureFlags | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS : textureFlags;
+        textureFlags = allowRT ? textureFlags | TEXTURE_FLAGS::ALLOW_RENDER_TARGET : textureFlags;
         //const DXGI_FORMAT fmt = GetDXGIFormat(resDesc->resourceDescription.format);
 
         if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
@@ -1053,7 +1053,7 @@ void FSR2Pass::Activate()
         m_displayHeight,
         DXGI_FORMAT_R16G16B16A16_FLOAT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     // render graph performs the transition to UAV prior to recording
     g_fsr2Data->m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_UPSCALED_OUTPUT].State = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;

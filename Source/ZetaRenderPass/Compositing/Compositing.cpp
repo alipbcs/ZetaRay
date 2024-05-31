@@ -195,7 +195,7 @@ void Compositing::CreateLightAccumTexure()
         renderer.GetRenderWidth(), renderer.GetRenderHeight(),
         ResourceFormats::LIGHT_ACCUM,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_RENDER_TARGET | CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
+        TEXTURE_FLAGS::ALLOW_RENDER_TARGET | TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS,
         1,
         &clearValue);
 

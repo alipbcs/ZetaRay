@@ -322,7 +322,7 @@ void SunShadow::CreateResources()
             texWidth, texHeight,
             ResourceFormats::SHADOW_MASK,
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DSRV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_SRV));
         Direct3DUtil::CreateTexture2DUAV(m_shadowMask, m_descTable.CPUHandle((uint32_t)DESC_TABLE::SHADOW_MASK_UAV));
@@ -337,7 +337,7 @@ void SunShadow::CreateResources()
             texWidth, texHeight,
             ResourceFormats::THREAD_GROUP_METADATA,
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DSRV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_SRV));
         Direct3DUtil::CreateTexture2DUAV(m_metadata, m_descTable.CPUHandle((uint32_t)DESC_TABLE::METADATA_UAV));
@@ -349,7 +349,7 @@ void SunShadow::CreateResources()
             w, h,
             ResourceFormats::MOMENTS,
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DUAV(m_moments, m_descTable.CPUHandle((uint32_t)DESC_TABLE::MOMENTS_UAV));
     }
@@ -361,13 +361,13 @@ void SunShadow::CreateResources()
             w, h,
             ResourceFormats::TEMPORAL_CACHE,
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         m_temporalCache[1] = GpuMemory::GetTexture2D("SunShadowTemporal_1",
             w, h,
             ResourceFormats::TEMPORAL_CACHE,
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DSRV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_0_SRV));
         Direct3DUtil::CreateTexture2DUAV(m_temporalCache[0], m_descTable.CPUHandle((uint32_t)DESC_TABLE::TEMPORAL_CACHE_0_UAV));
@@ -382,7 +382,7 @@ void SunShadow::CreateResources()
             w, h,
             ResourceFormats::DENOISED,
             D3D12_RESOURCE_STATE_COMMON,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DUAV(m_denoised, m_descTable.CPUHandle((uint32_t)DESC_TABLE::DENOISED_UAV));
     }

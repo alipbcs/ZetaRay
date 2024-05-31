@@ -702,6 +702,21 @@ namespace
 // Direct3DUtil
 //--------------------------------------------------------------------------------------
 
+D3D12_RESOURCE_ALLOCATION_INFO Direct3DUtil::AllocationInfo(D3D12_RESOURCE_DESC& desc)
+{
+    auto* device = App::GetRenderer().GetDevice();
+    return device->GetResourceAllocationInfo(0, 1, &desc);
+}
+
+D3D12_RESOURCE_ALLOCATION_INFO Direct3DUtil::AllocationInfo(Span<D3D12_RESOURCE_DESC1> descs, 
+    MutableSpan<D3D12_RESOURCE_ALLOCATION_INFO1> infos)
+{
+    Assert(descs.size() == infos.size(), "Must have the same length.");
+
+    auto* device = App::GetRenderer().GetDevice();
+    return device->GetResourceAllocationInfo2(0, (UINT)descs.size(), descs.data(), infos.data());
+}
+
 size_t Direct3DUtil::BitsPerPixel(DXGI_FORMAT fmt)
 {
     switch (fmt)

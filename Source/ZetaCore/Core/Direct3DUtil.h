@@ -211,6 +211,10 @@ namespace ZetaRay::Core::Direct3DUtil
         return tex2DDesc;
     }
 
+    D3D12_RESOURCE_ALLOCATION_INFO AllocationInfo(D3D12_RESOURCE_DESC& desc);
+    D3D12_RESOURCE_ALLOCATION_INFO AllocationInfo(Util::Span<D3D12_RESOURCE_DESC1> descs, 
+        Util::MutableSpan<D3D12_RESOURCE_ALLOCATION_INFO1> infos);
+
     inline D3D12_RESOURCE_BARRIER TransitionBarrier(ID3D12Resource* res,
         D3D12_RESOURCE_STATES before,
         D3D12_RESOURCE_STATES after,

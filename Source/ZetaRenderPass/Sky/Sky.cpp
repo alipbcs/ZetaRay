@@ -213,7 +213,7 @@ void Sky::CreateSkyviewLUT()
         m_localCB.LutWidth, m_localCB.LutHeight,
         ResourceFormats::SKY_VIEW_LUT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE2D;
@@ -234,7 +234,7 @@ void Sky::CreateVoxelGrid()
         m_localCB.NumVoxelsX, m_localCB.NumVoxelsY, INSCATTERING_THREAD_GROUP_SIZE_X,
         ResourceFormats::INSCATTERING_VOXEL_GRID,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
     uavDesc.ViewDimension = D3D12_UAV_DIMENSION_TEXTURE3D;

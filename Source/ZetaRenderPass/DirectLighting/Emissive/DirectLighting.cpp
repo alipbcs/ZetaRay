@@ -477,12 +477,12 @@ void DirectLighting::CreateOutputs()
 
     auto func = [&renderer, this](Texture& tex, DXGI_FORMAT format, const char* name,
         DESC_TABLE srv, DESC_TABLE uav)
-        {
-            tex = GpuMemory::GetTexture2D(name,
-                renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-                format,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    {
+        tex = GpuMemory::GetTexture2D(name,
+            renderer.GetRenderWidth(), renderer.GetRenderHeight(),
+            format,
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
             Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
             Direct3DUtil::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
@@ -520,7 +520,7 @@ void DirectLighting::CreateOutputs()
             renderer.GetRenderWidth(), renderer.GetRenderHeight(),
             ResourceFormats::DNSR_TEMPORAL_CACHE,
             D3D12_RESOURCE_STATE_COMMON,
-            CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
         Direct3DUtil::CreateTexture2DUAV(m_denoised, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
     }

@@ -55,7 +55,7 @@ void GenerateRasterDepth::Resize(uint32_t w, uint32_t h)
         h,
         DXGI_FORMAT_R32_FLOAT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     Direct3DUtil::CreateTexture2DUAV(m_depthBuffer, m_descTable.CPUHandle(0));
 }

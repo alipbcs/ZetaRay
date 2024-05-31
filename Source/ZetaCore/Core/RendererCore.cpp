@@ -21,8 +21,7 @@ RendererCore::RendererCore()
     m_cbvSrvUavDescHeapCpu(32),
     m_rtvDescHeap(8),
     m_dsvDescHeap(8)
-{
-}
+{}
 
 RendererCore::~RendererCore()
 {
@@ -137,7 +136,7 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
         CheckHR(m_deviceObjs.m_dxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(&backbuff)));
 
         StackStr(buff, n, "Backbuffer_%d", i);
-        m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff)));
+        m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff), RESOURCE_HEAP_TYPE::COMMITTED));
     }
 
     for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
@@ -318,7 +317,7 @@ DXGI_OUTPUT_DESC RendererCore::GetOutputMonitorDesc() const
 
 uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE t) const
 {
-    uint64_t freq = uint64_t(-1);
+    uint64_t freq = UINT64_MAX;
 
     switch (t)
     {
@@ -375,7 +374,7 @@ uint64_t RendererCore::ExecuteCmdList(CommandList* ctx)
     else if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE)
         return m_computeQueue->ExecuteCommandList(ctx);
 
-    return uint64_t(-1);
+    return UINT64_MAX;
 }
 
 void RendererCore::SignalDirectQueue(ID3D12Fence* f, uint64_t v)

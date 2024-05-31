@@ -34,8 +34,8 @@ void GBuffer::CreateGBuffers(GBufferData& data)
     const int width = App::GetRenderer().GetRenderWidth();
     const int height = App::GetRenderer().GetRenderHeight();
 
-    const auto texFlags = CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
-    const auto texFlagsDepth = CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
+    const auto texFlags = TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
+    const auto texFlagsDepth = TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
 
     D3D12_CLEAR_VALUE* clearValuePtr = nullptr;
     D3D12_CLEAR_VALUE* clearValuePtrDepth = nullptr;

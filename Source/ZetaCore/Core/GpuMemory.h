@@ -11,16 +11,74 @@ namespace ZetaRay::App::Filesystem
 
 namespace ZetaRay::Core::GpuMemory
 {
-    static constexpr uint64_t INVALID_ID = uint64_t(-1);
+    static constexpr uint32_t INVALID_ID = UINT32_MAX;
 
     //
     // Types
     //
 
+    enum TEXTURE_FLAGS
+    {
+        NONE = 0,
+        ALLOW_RENDER_TARGET = 1 << 0,
+        ALLOW_DEPTH_STENCIL = 1 << 1,
+        ALLOW_UNORDERED_ACCESS = 1 << 2,
+        INIT_TO_ZERO = 1 << 3
+    };
+
+    enum class RESOURCE_HEAP_TYPE
+    {
+        COMMITTED,
+        PLACED,
+        COUNT
+    };
+
+    template<int N = 1>
+    struct PlacedResourceList
+    {
+        void PushBuffer(uint32_t sizeInBytes, bool allowUAV)
+        {
+            D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+            D3D12_RESOURCE_DESC1 desc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
+            m_descs.push_back(desc);
+
+            //m_size = Math::AlignUp(m_size, (uint64_t)D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+            //m_size += sizeInBytes;
+        }
+        void PushTex2D(DXGI_FORMAT format, uint64_t width, uint32_t height, uint32_t flags = TEXTURE_FLAGS::NONE)
+        {
+            D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+
+            if (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
+                f |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+            if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
+                f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+            if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
+                f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+
+            auto desc = Direct3DUtil::Tex2D1(format, width, height, 1, 1, f);
+            m_descs.push_back(desc);
+        }
+        void End()
+        {
+            m_infos.resize(N);
+            D3D12_RESOURCE_ALLOCATION_INFO info = Direct3DUtil::AllocationInfo(m_descs, m_infos);
+            m_size = info.SizeInBytes;
+        }
+        ZetaInline uint64_t Size() const { return m_size; }
+        ZetaInline Util::Span<D3D12_RESOURCE_ALLOCATION_INFO1> AllocInfos() const { return m_infos; }
+
+    private:
+        Util::SmallVector<D3D12_RESOURCE_DESC1, Support::SystemAllocator, N> m_descs;
+        Util::SmallVector<D3D12_RESOURCE_ALLOCATION_INFO1, Support::SystemAllocator, N> m_infos;
+        uint64_t m_size = 0;
+    };
+
     struct UploadHeapBuffer
     {
         UploadHeapBuffer() = default;
-        UploadHeapBuffer(ID3D12Resource* r, void* mapped, const Support::OffsetAllocator::Allocation& alloc = Support::OffsetAllocator::Allocation::Empty());
+        UploadHeapBuffer(ID3D12Resource* r, void* mapped, const Support::OffsetAllocator::Allocation& alloc = 
+            Support::OffsetAllocator::Allocation::Empty());
         ~UploadHeapBuffer();
         UploadHeapBuffer(UploadHeapBuffer&& other);
         UploadHeapBuffer& operator=(UploadHeapBuffer&& other);
@@ -138,27 +196,27 @@ namespace ZetaRay::Core::GpuMemory
             Assert(m_resource, "Buffer hasn't been initialized.");
             return m_resource->GetDesc();
         }
-        ZetaInline uint64_t ID() const
+        ZetaInline uint32_t ID() const
         {
             Assert(m_resource, "Buffer hasn't been initialized.");
             return m_ID;
         }
 
     private:
-        uint64_t m_ID = INVALID_ID;
         ID3D12Resource* m_resource = nullptr;
+        uint32_t m_ID = INVALID_ID;
     };
 
     struct Texture
     {
         Texture() = default;
-        Texture(const char* p, ID3D12Resource* r);
+        Texture(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType);
         ~Texture();
         Texture(Texture&&);
         Texture& operator=(Texture&&);
 
         void Reset(bool waitForGpu = true, bool checkRefCount = true);
-        ZetaInline bool IsInitialized() const { return m_ID != uint64_t(-1); }
+        ZetaInline bool IsInitialized() const { return m_ID != INVALID_ID; }
         ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
         {
             Assert(m_resource, "Texture hasn't been initialized.");
@@ -169,7 +227,7 @@ namespace ZetaRay::Core::GpuMemory
             Assert(m_resource, "Texture hasn't been initialized.");
             return m_resource;
         }
-        ZetaInline uint64_t ID() const
+        ZetaInline uint32_t ID() const
         {
             Assert(m_resource, "Texture hasn't been initialized.");
             return m_ID;
@@ -180,22 +238,39 @@ namespace ZetaRay::Core::GpuMemory
             return m_resource->GetDesc();
         }
 
+        RESOURCE_HEAP_TYPE HeapType() const
+        {
+            return m_heapType;
+        }
+
     private:
-        uint64_t m_ID = INVALID_ID;
         ID3D12Resource* m_resource = nullptr;
+        uint32_t m_ID = INVALID_ID;
+        RESOURCE_HEAP_TYPE m_heapType;
+    };
+
+    struct ResourceHeap
+    {
+        ResourceHeap() = default;
+        ResourceHeap(ID3D12Heap* heap);
+        ~ResourceHeap();
+        ResourceHeap(ResourceHeap&&);
+        ResourceHeap& operator=(ResourceHeap&&);
+
+        void Reset();
+        ZetaInline ID3D12Heap* Heap()
+        {
+            Assert(m_heap, "Heap hasn't been initialized.");
+            return m_heap;
+        }
+
+    private:
+        ID3D12Heap* m_heap = nullptr;
     };
 
     //
     // API
     //
-
-    enum CREATE_TEXTURE_FLAGS
-    {
-        ALLOW_RENDER_TARGET = 1 << 0,
-        ALLOW_DEPTH_STENCIL = 1 << 1,
-        ALLOW_UNORDERED_ACCESS = 1 << 2,
-        INIT_TO_ZERO = 1 << 3
-    };
 
     void Init();
     void BeginFrame();
@@ -220,17 +295,20 @@ namespace ZetaRay::Core::GpuMemory
         void* data,
         bool forceSeparateUploadBuffer = false);
     void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, uint32_t destOffset = 0);
+    ResourceHeap GetResourceHeap(uint64_t size, uint64_t alignemnt = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
     void ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer);
     void ReleaseTexture(Texture& textue);
+    void ReleaseResourceHeap(ResourceHeap& heap);
 
     Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
         D3D12_CLEAR_VALUE* clearVal = nullptr);
-
+    Texture GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
+        ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0,
+        uint16_t mipLevels = 1, D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0, uint16_t mipLevels = 1,
         D3D12_CLEAR_VALUE* clearVal = nullptr);
-
     Texture GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
         DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
         uint32_t flags = 0, uint16_t mipLevels = 1);

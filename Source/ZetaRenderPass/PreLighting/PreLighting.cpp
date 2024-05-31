@@ -34,7 +34,7 @@ namespace
         {
             table[i].CachedP_Orig = probs[i] * oneDivN;
 #ifdef _DEBUG
-            table[i].Alias = uint32_t(-1);
+            table[i].Alias = UINT32_MAX;
 #endif
         }
 
@@ -492,13 +492,18 @@ void PreLighting::CreateOutputs()
 {
     auto& renderer = App::GetRenderer();
 
-    m_curvature = GpuMemory::GetTexture2D("Curvature",
-        renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-        ResourceFormats::CURVATURE,
-        D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-    Direct3DUtil::CreateTexture2DUAV(m_curvature, m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_UAV));
+    for (int i = 0; i < 2; i++)
+    {
+        StackStr(buff, n, "Curvature_%d", i);
+        m_curvature[i] = GpuMemory::GetTexture2D(buff,
+            renderer.GetRenderWidth(), renderer.GetRenderHeight(),
+            ResourceFormats::CURVATURE,
+            D3D12_RESOURCE_STATE_COMMON,
+            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    }
+       
+    Direct3DUtil::CreateTexture2DUAV(m_curvature[0], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_0_UAV));
+    Direct3DUtil::CreateTexture2DUAV(m_curvature[1], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_1_UAV));
 }
 
 void PreLighting::ReleaseLumenBufferAndReadback()
@@ -561,7 +566,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
     table.resize(m_currNumTris);
 
     const uint64_t fence = scene.GetRenderGraph()->GetCompletionFence(RenderNodeHandle(m_emissiveTriHandle));
-    Assert(fence != uint64_t(-1), "invalid fence value.");
+    Assert(fence != UINT64_MAX, "invalid fence value.");
 
     // wait until GPU finishes copying data to readback buffer
     //renderer.WaitForComputeQueueFenceCPU(fence);

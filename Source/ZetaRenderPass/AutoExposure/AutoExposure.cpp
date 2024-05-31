@@ -174,7 +174,7 @@ void AutoExposure::CreateResources()
         1,
         DXGI_FORMAT_R32G32_FLOAT,
         D3D12_RESOURCE_STATE_COMMON,
-        CREATE_TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | CREATE_TEXTURE_FLAGS::INIT_TO_ZERO);
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS | TEXTURE_FLAGS::INIT_TO_ZERO);
 
     // create a zero-initialized buffer for resetting the counter
     m_zeroBuffer = GpuMemory::GetDefaultHeapBuffer("Zero",
