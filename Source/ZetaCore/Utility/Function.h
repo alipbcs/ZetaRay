@@ -69,7 +69,12 @@ namespace ZetaRay::Util
         }
 
     private:
+#if defined(__clang__)
+        // Due to [[no_unique_address]] not working, following needs to be larger
+        static constexpr int BUFFER_SIZE = 40;
+#elif defined(_MSC_VER)
         static constexpr int BUFFER_SIZE = 32;
+#endif
 
         struct LambdaFuncPtrs
         {

@@ -290,7 +290,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS)
             m_globalDoubleBuffIdx = (m_globalDoubleBuffIdx + 1) & 0x1;
         });
 
-    auto h1 = endFrameTS.EmplaceTask("RecycleGpuMem", [this]()
+    auto h1 = endFrameTS.EmplaceTask("RecycleGpuMem", []()
         {
             GpuMemory::Recycle();
         });

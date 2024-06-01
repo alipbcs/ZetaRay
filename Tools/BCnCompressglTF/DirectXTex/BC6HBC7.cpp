@@ -453,6 +453,15 @@ namespace
         INTColor() = default;
         INTColor(int nr, int ng, int nb) noexcept : r(nr), g(ng), b(nb), pad(0) {}
         INTColor(const INTColor& c) noexcept : r(c.r), g(c.g), b(c.b), pad(0) {}
+        INTColor& operator=(const INTColor& c) noexcept
+        {
+            r = c.r;
+            g = c.g;
+            b = c.b;
+            pad = 0;
+
+            return *this;
+        }
 
         INTColor& operator += (_In_ const INTColor& c) noexcept
         {

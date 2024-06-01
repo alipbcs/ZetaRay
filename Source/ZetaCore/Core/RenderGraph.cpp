@@ -9,7 +9,7 @@
 #include "../Utility/Utility.h"
 #include <algorithm>
 #include <xxHash/xxhash.h>
-#include <imgui/imnodes.h>
+#include <ImGui/imnodes.h>
 
 #ifdef _DEBUG
 #include "../App/Log.h"
@@ -1047,7 +1047,7 @@ void RenderGraph::Log()
     int currBatch = 0;
     temp[0] = '\0';
 
-    for (auto node : m_aggregateNodes)
+    for (auto& node : m_aggregateNodes)
     {
         stbsp_snprintf(temp, sizeof(temp), "Batch %d\n", currBatch);
         formattedRenderGraph += temp;
@@ -1056,7 +1056,7 @@ void RenderGraph::Log()
             node.GpuDepIdx.Val != -1 ? m_aggregateNodes[node.GpuDepIdx.Val].Name : "None");
         formattedRenderGraph += temp;
 
-        for (auto b : node.Barriers)
+        for (auto& b : node.Barriers)
         {
             char buff[64] = { '\0' };
             UINT n = sizeof(buff);
@@ -1075,6 +1075,13 @@ void RenderGraph::Log()
 
     formattedRenderGraph += '\n';
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wformat-security"
+#endif
     LOG_CONSOLE(formattedRenderGraph.c_str());
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 }
 #endif

@@ -359,7 +359,7 @@ namespace
         ComPtr<ID3D12Fence> m_fenceCompute;
         uint64_t m_nextFenceVal = 1;    // no need to be atomic
 
-        ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
+        alignas(32) ZETA_THREAD_ID_TYPE m_threadIDs [ZETA_MAX_NUM_THREADS];
         ResourceUploadBatch m_uploaders[ZETA_MAX_NUM_THREADS];
     };
 
@@ -833,7 +833,7 @@ void GpuMemory::Recycle()
 
         const auto numUploadBuffers = toDelete.end() - first;
 
-        for(auto it = first; it < toDelete.end(); it++)
+        for (auto it = first; it < toDelete.end(); it++)
         {
             Assert(!it->Allocation.IsEmpty(), "unexpected result.");
             Assert(it->MappedMemory == g_data->m_uploadHeapMapped, "unexpected result.");
@@ -895,15 +895,15 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 
         if (alloc.IsEmpty())
         {
-            StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a separate allocation...", 
+            StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a separate allocation...",
                 sizeInBytes / (1024 * 1024));
             App::Log(msg, LogMessage::MsgType::WARNING);
 
             return GetUploadHeapBuffer(sizeInBytes, alignment, true);
         }
 
-        return UploadHeapBuffer(g_data->m_uploadHeap.Get(), 
-            g_data->m_uploadHeapMapped, 
+        return UploadHeapBuffer(g_data->m_uploadHeap.Get(),
+            g_data->m_uploadHeapMapped,
             alloc);
     }
     else
@@ -944,7 +944,7 @@ void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer)
         GpuMemoryImplData::PendingResource{ .Res = buffer.Resource(),
             .ReleaseFence = g_data->m_nextFenceVal,
             .MappedMemory = buffer.MappedMemory(),
-            .Allocation = buffer.Allocation()});
+            .Allocation = buffer.Allocation() });
 
     ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
@@ -1002,7 +1002,7 @@ void GpuMemory::ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer)
     g_data->m_toRelease.emplace_back(
         GpuMemoryImplData::PendingResource{ .Res = buffer.Resource(),
             .ReleaseFence = g_data->m_nextFenceVal,
-            .MappedMemory = buffer.MappedMemory()});
+            .MappedMemory = buffer.MappedMemory() });
 
     ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
@@ -1063,13 +1063,13 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
     return DefaultHeapBuffer(name, r);
 }
 
-DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, bool allowUAV, void* data, 
+DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, bool allowUAV, void* data,
     bool forceSeparateUploadBuffer)
 {
-    auto buff = GpuMemory::GetDefaultHeapBuffer(name, 
+    auto buff = GpuMemory::GetDefaultHeapBuffer(name,
         sizeInBytes,
-        D3D12_RESOURCE_STATE_COMMON, 
-        allowUAV, 
+        D3D12_RESOURCE_STATE_COMMON,
+        allowUAV,
         false);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
@@ -1111,7 +1111,7 @@ void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer)
 
     g_data->m_toRelease.emplace_back(
         GpuMemoryImplData::PendingResource{ .Res = buffer.Resource(),
-            .ReleaseFence = g_data->m_nextFenceVal});
+            .ReleaseFence = g_data->m_nextFenceVal });
 
     ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
@@ -1124,7 +1124,7 @@ void GpuMemory::ReleaseTexture(Texture& texture)
 
     g_data->m_toRelease.emplace_back(
         GpuMemoryImplData::PendingResource{ .Res = texture.Resource(),
-            .ReleaseFence = g_data->m_nextFenceVal});
+            .ReleaseFence = g_data->m_nextFenceVal });
 
     ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
@@ -1183,7 +1183,7 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
-Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, 
+Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height,
     DXGI_FORMAT format, ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_BARRIER_LAYOUT initialLayout,
     uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {

@@ -85,7 +85,7 @@ namespace dbg
 
         if (SymInitialize(process, NULL, TRUE) == FALSE)
         {
-            LOG_CONSOLE(__FUNCTION__ ": Failed to call SymInitialize.");
+            LOG_CONSOLE("%s: Failed to call SymInitialize.", __func__);
             return;
         }
 
@@ -124,7 +124,7 @@ namespace dbg
 
             char symbolBuffer[sizeof(IMAGEHLP_SYMBOL) + 255];
             PIMAGEHLP_SYMBOL symbol = (PIMAGEHLP_SYMBOL)symbolBuffer;
-            symbol->SizeOfStruct = (sizeof IMAGEHLP_SYMBOL) + 255;
+            symbol->SizeOfStruct = (sizeof(IMAGEHLP_SYMBOL)) + 255;
             symbol->MaxNameLength = 254;
 
             if (SymGetSymFromAddr(process, frame.AddrPC.Offset, &offset, symbol))
@@ -132,7 +132,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                LOG_CONSOLE(__FUNCTION__ ": Failed to resolve address 0x%llX: %u\n", frame.AddrPC.Offset, error);
+                LOG_CONSOLE("%s: Failed to resolve address 0x%llX: %lu\n", __func__, frame.AddrPC.Offset, error);
                 f.name = "Unknown Function";
             }
 
@@ -148,7 +148,7 @@ namespace dbg
             else
             {
                 DWORD error = GetLastError();
-                LOG_CONSOLE(__FUNCTION__ ": Failed to resolve line for 0x%llX: %u\n", frame.AddrPC.Offset, error);
+                LOG_CONSOLE("%s: Failed to resolve line for 0x%llX: %lu\n", __func__, frame.AddrPC.Offset, error);
                 f.line = 0;
             }
 

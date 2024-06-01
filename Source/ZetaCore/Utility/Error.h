@@ -33,7 +33,6 @@ namespace ZetaRay::Util
 
 #ifdef _DEBUG
 #define Assert(expr, formatStr, ...)                                                          \
-    [[unlikely]]                                                                              \
     if(!(expr))                                                                               \
     {                                                                                         \
         char buff_[256];                                                                      \

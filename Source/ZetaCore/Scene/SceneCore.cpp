@@ -107,7 +107,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
     if (m_isPaused)
         return;
 
-    auto updateWorldTransforms = sceneTS.EmplaceTask("Scene::UpdateWorldTransform", [this, dt]()
+    auto updateWorldTransforms = sceneTS.EmplaceTask("Scene::UpdateWorldTransform", [this]()
         {
             SmallVector<BVH::BVHUpdateInput, App::FrameAllocator> toUpdateInstances;
 

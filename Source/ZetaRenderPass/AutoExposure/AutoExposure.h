@@ -95,7 +95,6 @@ namespace ZetaRay::RenderPass
         float m_minLum;
         float m_maxLum;
         cbAutoExposureHist m_cbHist;
-        bool m_clampLum;
 
         void MinLumCallback(const Support::ParamVariant& p);
         void MaxLumCallback(const Support::ParamVariant& p);

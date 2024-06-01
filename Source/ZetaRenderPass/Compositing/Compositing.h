@@ -127,8 +127,6 @@ namespace ZetaRay::RenderPass
         Core::DescriptorTable m_descTable;
         cbCompositing m_cbComposit;
         bool m_filterFirefly = false;
-        bool m_needToUavBarrierOnHDR = false;
-        bool m_needToUavBarrierOnFilter = false;
 
         void CreateLightAccumTexure();
 

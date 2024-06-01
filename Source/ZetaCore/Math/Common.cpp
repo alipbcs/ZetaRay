@@ -69,7 +69,10 @@ size_t Math::SubdivideRangeWithMin(size_t n, size_t maxNumGroups, MutableSpan<si
 // Fast math must be disabled for Kahan summation
 #pragma float_control(precise, on, push)
 
-float Math::KahanSum(Span<float> data)
+float Math::KahanSum(Span<float> data) 
+#if defined(__clang__)
+ __attribute__((optnone))
+#endif
 {
     const int64_t N = data.size();
     float sum = 0.0f;

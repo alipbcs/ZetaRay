@@ -368,6 +368,10 @@ namespace ZetaRay::Util
         Entry* m_beg = nullptr;        // Pointer to the begining of memory block
         Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
+#if defined(__clang__)
+        Allocator m_allocator;
+#elif defined(_MSC_VER)
         [[msvc::no_unique_address]] Allocator m_allocator;
+#endif
     };
 }

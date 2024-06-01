@@ -106,6 +106,5 @@ namespace ZetaRay::RenderPass
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
         cbDisplayPass m_cbLocal;
         uint32_t m_compositedSrvDescHeapIdx = UINT32_MAX;
-        bool m_dof = false;
     };
 }

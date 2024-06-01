@@ -111,7 +111,6 @@ namespace ZetaRay::RenderPass
         ComPtr<ID3D12StateObject> m_rtPSO;
         ShaderTable m_shaderTable;
         cbGBufferRt m_localCB;
-        bool m_inline = true;
 
         void CreateRTPSO();
         void BuildShaderTable();

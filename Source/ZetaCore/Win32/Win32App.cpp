@@ -118,7 +118,7 @@ namespace
 {
     struct FrameMemoryContext
     {
-        int alignas(64) m_threadFrameAllocIndices[ZETA_MAX_NUM_THREADS] = { -1 };
+        alignas(64) int m_threadFrameAllocIndices[ZETA_MAX_NUM_THREADS] = { -1 };
         std::atomic_int32_t m_currFrameAllocIndex;
     };
 
@@ -202,7 +202,7 @@ namespace
         SRWLOCK m_statsLock = SRWLOCK_INIT;
         SRWLOCK m_logLock = SRWLOCK_INIT;
 
-        ZETA_THREAD_ID_TYPE alignas(64) m_threadIDs[ZETA_MAX_NUM_THREADS];
+        alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
         std::atomic_int32_t m_currTaskSignalIdx = 0;
         Motion m_frameMotion;
@@ -259,7 +259,7 @@ namespace ZetaRay::AppImpl
         int height;
         io.Fonts->GetTexDataAsRGBA32(&pixels, &width, &height);
 
-        g_app->m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFont", width, height, 
+        g_app->m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFont", width, height,
             DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, pixels);
 
         g_app->m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
@@ -443,7 +443,7 @@ namespace ZetaRay::AppImpl
         ImNodes::GetIO().AltMouseButton = ImGuiMouseButton_Right;
     }
 
-    void UpdateStats()
+    void UpdateStats(size_t tempMemoryUsage)
     {
         g_app->m_frameStats.free_memory();
 
@@ -473,11 +473,12 @@ namespace ZetaRay::AppImpl
         g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
         g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
         g_app->m_frameStats.emplace_back("GPU", "VRam Budget (MB)", memoryInfo.Budget >> 20);
+        g_app->m_frameStats.emplace_back("Frame", "Frame temp memory usage (kb)", tempMemoryUsage >> 10);
     }
 
-    void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS)
+    void Update(TaskSet& sceneTS, TaskSet& sceneRendererTS, size_t tempMemoryUsage)
     {
-        UpdateStats();
+        UpdateStats(tempMemoryUsage);
 
         if (g_app->m_timer.GetTotalFrameCount() > 1)
             g_app->m_frameLogs.free_memory();
@@ -897,7 +898,10 @@ namespace ZetaRay::AppImpl
                 refreshImmersiveColorPolicyState();
 
                 bool isHighContrast = false;
-                HIGHCONTRASTW highContrast = { sizeof(highContrast) };
+                HIGHCONTRASTW highContrast;
+                highContrast.cbSize = sizeof(highContrast);
+                highContrast.dwFlags = 0;
+                highContrast.lpszDefaultScheme = nullptr;
                 if (SystemParametersInfoW(SPI_GETHIGHCONTRAST, sizeof(highContrast), &highContrast, FALSE))
                     isHighContrast = highContrast.dwFlags & HCF_HIGHCONTRASTON;
 
@@ -1133,7 +1137,7 @@ namespace ZetaRay::AppImpl
             const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
             const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
 
-            g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, 
+            g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight,
                 g_app->m_displayWidth, g_app->m_displayHeight);
             g_app->m_scene.OnWindowSizeChanged();
             g_app->m_camera.OnWindowSizeChanged();
@@ -1168,13 +1172,13 @@ namespace ZetaRay::AppImpl
     }
 
     template<size_t blockSize>
-    ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context, 
+    ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context,
         size_t size, size_t alignment)
     {
         alignment = Math::Max(alignof(std::max_align_t), alignment);
 
         // at most alignment - 1 extra bytes are required
-        Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE, 
+        Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE,
             "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
 
         const int threadIdx = GetThreadIdx();
@@ -1382,16 +1386,19 @@ namespace ZetaRay
 
             // at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
             g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
+            const size_t tempMemoryUsed = g_app->m_smallFrameMemory.TotalSize();
 
             if (g_app->m_timer.GetTotalFrameCount() > 1)
             {
                 g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-                memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
-                g_app->m_smallFrameMemory.Reset();        // set the offset to 0, essentially freeing the memory
+                for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
+                    g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices[i] = -1;
+                g_app->m_smallFrameMemory.Reset();        // set the offset to 0, essentially releasing the memory
 
                 g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-                memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
-                g_app->m_largeFrameMemory.Reset();        // set the offset to 0, essentially freeing the memory
+                for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
+                    g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices[i] = -1;
+                g_app->m_largeFrameMemory.Reset();        // set the offset to 0, essentially releasing the memory
             }
 
             // update app
@@ -1412,7 +1419,7 @@ namespace ZetaRay
             {
                 TaskSet sceneTS;
                 TaskSet sceneRendererTS;
-                AppImpl::Update(sceneTS, sceneRendererTS);
+                AppImpl::Update(sceneTS, sceneRendererTS, tempMemoryUsed);
 
                 auto h0 = sceneRendererTS.EmplaceTask("ResourceUploadSubmission", []()
                     {
@@ -1425,8 +1432,8 @@ namespace ZetaRay
                 sceneTS.Sort();
                 sceneRendererTS.Sort();
 
-                // sceneRendererTS has to run after sceneTS. this may seem sequential but
-                // each taskset is spawning more tasks (which can potentially run in parallel)
+                // sceneRendererTS has to run after sceneTS. This may seem sequential but
+                // each taskset is spawning more tasks (which can potentially run in parallel).
                 sceneTS.ConnectTo(sceneRendererTS);
 
                 sceneTS.Finalize();

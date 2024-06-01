@@ -77,7 +77,6 @@ namespace ZetaRay::RenderPass
         static constexpr float m_logWndHeightPct = 0.21f;
         static constexpr float m_headerWndHeightPct = 0.02f;
         bool m_firstTime = true;
-        bool m_isFullScreen = false;
         bool m_closeLogsTab = false;
         int m_prevNumLogs = 0;
 

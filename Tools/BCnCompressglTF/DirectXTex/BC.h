@@ -61,6 +61,15 @@ namespace DirectX
         HDRColorA() = default;
         HDRColorA(float _r, float _g, float _b, float _a) noexcept : r(_r), g(_g), b(_b), a(_a) {}
         HDRColorA(const HDRColorA& c) noexcept : r(c.r), g(c.g), b(c.b), a(c.a) {}
+        HDRColorA& operator=(const HDRColorA& c) noexcept
+        {
+            r = c.r;
+            g = c.g;
+            b = c.b;
+            a = c.a;
+
+            return *this;
+        }
 
         // binary operators
         HDRColorA operator + (const HDRColorA& c) const noexcept
