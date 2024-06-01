@@ -74,6 +74,21 @@ if(MSVC)
     add_compile_options(/arch:AVX2)
 endif()
 
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wno-reorder-ctor)
+    add_compile_options(-Wno-unused-variable)
+    add_compile_options(-Wno-unused-but-set-variable)
+    add_compile_options(-Wno-sign-compare)
+    add_compile_options(-Wno-missing-braces)
+    add_compile_options(-Wno-unused-local-typedef)
+    add_compile_options(-Wno-unused-function)
+    
+    # Echo the currently compiled filename
+    if (${CMAKE_CXX_SIMULATE_ID} STREQUAL MSVC)
+        set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /showFilenames")
+    endif()
+endif()
+
 # 
 # common paths
 # 
