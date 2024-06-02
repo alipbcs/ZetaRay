@@ -18,11 +18,6 @@ namespace ZetaRay::Util
         static constexpr size_t MIN_CAPACITY = Math::Max(64 / sizeof(T), 4llu);
 
     public:
-        ~Vector()
-        {
-            free_memory();
-        }
-
         bool has_inline_storage() const
         {
             constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
@@ -52,10 +47,10 @@ namespace ZetaRay::Util
             const size_t minSize = Math::Min(oldSize, oldOtherSize);
             const size_t maxSize = Math::Max(oldSize, oldOtherSize);
 
-            if(!other.empty())
+            if (!other.empty())
                 reserve(oldOtherSize);         // Doesn't allocate if inline storage happens to be large enough
-    
-            if(!empty())
+
+            if (!empty())
                 other.reserve(oldSize);        // Doesn't allocate if inline storage happens to be large enough
 
             T* largerBeg = otherIsLarger ? other.m_beg : m_beg;
@@ -177,7 +172,7 @@ namespace ZetaRay::Util
             const size_t oldSize = size();
 
             // Check if current capacity is enough, otherwise just adjust the "end" pointer
-            if (n > currCapacity)
+            if (currCapacity < n)
             {
                 void* mem = relocate(n);
                 m_beg = reinterpret_cast<T*>(mem);
@@ -190,16 +185,32 @@ namespace ZetaRay::Util
             // Default construct the newly added elements
             if constexpr (!std::is_trivially_default_constructible_v<T>)
             {
-                T* curr = m_beg + oldSize;
-
-                while (curr != m_end)
+                if (oldSize < n)
                 {
-                    new (curr) T;
-                    curr++;
+                    T* curr = m_beg + oldSize;
+                    while (curr != m_end)
+                    {
+                        new (curr) T;
+                        curr++;
+                    }
+                }
+            }
+
+            // Default destruct leftovers if size decreased
+            if constexpr (!std::is_trivially_destructible_v<T>)
+            {
+                if (n < oldSize)
+                {
+                    T* curr = m_beg + n;
+                    const T* oldEnd = m_beg + oldSize;
+                    while (curr != oldEnd)
+                        curr++->~T();
                 }
             }
         }
 
+        // Note: "Val" is used to initialize the newly added elements (if any) and the 
+        // existing elements aren't replaced by it. May have to change in the future.
         void resize(size_t n, const T& val)
         {
             static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T cannot be copy or move constructed.");
@@ -207,7 +218,7 @@ namespace ZetaRay::Util
             const size_t oldSize = size();
             const size_t currCapacity = capacity();
 
-            if (n > currCapacity)
+            if (currCapacity < n)
             {
                 void* mem = relocate(n);
                 m_beg = reinterpret_cast<T*>(mem);
@@ -217,13 +228,27 @@ namespace ZetaRay::Util
             // Adjust the pointers
             m_end = m_beg + n;
 
-            T* curr = m_beg + oldSize;
-
             // Copy/move construct the new elements
-            while (curr != m_end)
+            if (oldSize < n)
             {
-                new (curr) T(ZetaForward(val));
-                curr++;
+                T* curr = m_beg + oldSize;
+                while (curr != m_end)
+                {
+                    new (curr) T(ZetaForward(val));
+                    curr++;
+                }
+            }
+
+            // Default destruct leftovers if size decreased
+            if constexpr (!std::is_trivially_destructible_v<T>)
+            {
+                if (n < oldSize)
+                {
+                    T* curr = m_beg + n;
+                    const T* oldEnd = m_beg + oldSize;
+                    while (curr != oldEnd)
+                        curr++->~T();
+                }
             }
         }
 
@@ -280,7 +305,7 @@ namespace ZetaRay::Util
             if (currCapacity < oldSize + num)
             {
                 size_t newCapacity = oldSize + num;
-                newCapacity = !exact ? Math::Max(MIN_CAPACITY, newCapacity + (newCapacity >> 1)) : 
+                newCapacity = !exact ? Math::Max(MIN_CAPACITY, newCapacity + (newCapacity >> 1)) :
                     Math::Max(MIN_CAPACITY, newCapacity);
 
                 reserve(newCapacity);
@@ -403,202 +428,26 @@ namespace ZetaRay::Util
             m_end = m_beg;
         }
 
-        void free_memory()
-        {
-            clear();
-
-            size_t currCapacity = capacity();
-
-            // Free the previously allocated memory
-            if (currCapacity && !has_inline_storage())
-            {
-                m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
-
-                // TODO these should reset to pointing to the inline storage
-                m_beg = nullptr;
-                m_end = nullptr;
-                m_last = nullptr;
-            }
-        }
-
     protected:
+        // Constructor
         Vector(const Allocator& a)
             : m_allocator(a)
         {}
-
-        Vector(size_t N, const Allocator& a)
-            : m_allocator(a)
+        Vector(Allocator&& a)
+            : m_allocator(ZetaMove(a))
+        {}
+        // Copy constructor
+        Vector(const Vector& other)
+            : m_allocator(other.m_allocator)
+        {}
+        // Move constructor
+        Vector(Vector&& other)
+            : m_allocator(ZetaMove(other.m_allocator))
+        {}
+        // Move assignment
+        Vector& operator=(Vector<T, Allocator>&& other)
         {
-            static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
-
-            constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
-            m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
-            m_end = m_beg;
-            m_last = m_beg + N;
-
-            if constexpr (!std::is_trivially_default_constructible_v<T>)
-            {
-                T* curr = m_beg;
-
-                while (curr != m_last)
-                {
-                    new (curr) T;
-                    curr++;
-                }
-            }
-        }
-
-        Vector(size_t N, const T& t, const Allocator& a)
-            : m_allocator(a)
-        {
-            static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
-
-            constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
-            m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
-            m_end = m_beg;
-            m_last = m_beg + N;
-
-            T* curr = m_beg;
-
-            while (curr != m_last)
-            {
-                new (curr) T(t);
-                curr++;
-            }
-        }
-
-        Vector& operator=(const Vector& other)
-        {
-            static_assert(std::is_copy_assignable_v<T>, "T cannot be copy-assigned.");
-
-            if (this == &other)
-                return *this;
-
-            m_allocator = other.m_allocator;
-
-            const size_t currSize = size();
-            const size_t currCapacity = capacity();
-            const size_t newSize = other.size();
-
-            // Destruct old elements
-            clear();
-
-            if (newSize == 0)
-                return *this;
-
-            if (currCapacity < newSize)
-            {
-                // Free the previously allocated memory
-                if (currCapacity > 0 && !has_inline_storage())
-                    m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
-
-                // Allocate memory to accomodate new size
-                void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), alignof(T));
-
-                // Adjust the pointers
-                m_beg = reinterpret_cast<T*>(mem);
-                m_last = m_beg + newSize;
-            }
-
-            // Aegardless of whether memory was allocated
-            m_end = m_beg + newSize;
-
-            // Just copy the memory
-            if constexpr (std::is_trivially_copyable_v<T>)
-            {
-                memcpy(m_beg, other.m_beg, sizeof(T) * newSize);
-            }
-            // Call the copy constructor
-            else
-            {
-                T* source = m_beg;
-                T* target = other.m_beg;
-
-                for (size_t i = 0; i < newSize; i++)
-                {
-                    new (source) T(*target);
-
-                    source++;
-                    target++;
-                }
-            }
-
-            return *this;
-        }
-
-        Vector& operator=(Vector&& other)
-        {
-            static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
-                "T cannot be copy or move assigned.");
-            static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
-                "Allocator cannot be copy or move assigned.");
-
-            if (this == &other)
-                return *this;
-
-            m_allocator = ZetaForward(other.m_allocator);
-
-            // Previously allocated memory is not needed anymore and can be released
-            free_memory();
-
-            // Just switch pointers when:
-            // 1. Both Vectors are using the heap
-            // 2. MovedFrom is using the heap AND MovedTo's inline storage isn't large enough
-            if (((capacity() < other.size()) || !has_inline_storage()) && !other.has_inline_storage())
-            {
-                m_beg = other.m_beg;
-                m_end = other.m_end;
-                m_last = other.m_last;
-
-                other.m_beg = nullptr;
-                other.m_end = nullptr;
-                other.m_last = nullptr;
-            }
-            else if(!other.empty())
-            {
-                // Doesn't allocate if inline storage happens to be large enough
-                reserve(other.size());
-
-                if constexpr (std::is_trivially_copyable_v<T>)
-                {
-                    memcpy(m_beg, other.m_beg, sizeof(T) * other.size());
-                }
-                else if constexpr (std::is_move_constructible_v<T>)
-                {
-                    T* source = other.m_beg;
-                    T* target = this->m_beg;
-                    const T* end = target + other.size();
-
-                    while (target != end)
-                    {
-                        new (target) T(ZetaMove(*source));
-
-                        source++;
-                        target++;
-                    }
-                }
-                else if constexpr (std::is_copy_constructible_v<T>)
-                {
-                    T* source = other.m_beg;
-                    T* target = this->m_beg;
-                    const T* end = target + other.size();
-
-                    while (target != end)
-                    {
-                        new (target) T(*source);
-
-                        source++;
-                        target++;
-                    }
-                }
-
-                // Adjust the pointers
-                m_end = m_beg + other.size();
-                Assert(size() == other.size(), "These must be equal.");
-                
-                other.clear();
-            }
-
+            m_allocator = ZetaMove(other.m_allocator);
             return *this;
         }
 
@@ -664,13 +513,132 @@ namespace ZetaRay::Util
             return mem;
         }
 
-        const Allocator& GetAllocator() { return m_allocator; }
+        void move_from(size_t N, Vector<T, Allocator>&& other)
+        {
+            static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
+                "T cannot be copy or move assigned.");
+            static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
+                "Allocator cannot be copy or move assigned.");
 
-        T* m_beg = nullptr;        // Pointer to the begining of memory block
+            // Just switch pointers when MovedFrom is using the heap and MovedTo's 
+            // inline storage isn't large enough
+            if ((N < other.size()) && !other.has_inline_storage())
+            {
+                m_beg = other.m_beg;
+                m_end = other.m_end;
+                m_last = other.m_last;
+
+                other.m_beg = nullptr;
+                other.m_end = nullptr;
+                other.m_last = nullptr;
+            }
+            // Existing inline storage isn't large enough or MoveFrom isn't using the heap
+            else if (!other.empty())
+            {
+                // Doesn't allocate if inline storage happens to be large enough
+                reserve(other.size());
+
+                if constexpr (std::is_trivially_copyable_v<T>)
+                {
+                    memcpy(m_beg, other.m_beg, sizeof(T) * other.size());
+                }
+                else if constexpr (std::is_move_constructible_v<T>)
+                {
+                    T* source = other.m_beg;
+                    T* target = m_beg;
+                    const T* end = target + other.size();
+
+                    while (target != end)
+                    {
+                        new (target) T(ZetaMove(*source));
+
+                        source++;
+                        target++;
+                    }
+                }
+                else if constexpr (std::is_copy_constructible_v<T>)
+                {
+                    T* source = other.m_beg;
+                    T* target = m_beg;
+                    const T* end = target + other.size();
+
+                    while (target != end)
+                    {
+                        new (target) T(*source);
+
+                        source++;
+                        target++;
+                    }
+                }
+
+                // Adjust the pointers (m_last was set by reserve())
+                m_end = m_beg + other.size();
+                Assert(size() == other.size(), "These must be equal.");
+
+                other.clear();
+            }
+        }
+
+        void copy_from(const Vector<T, Allocator>& other)
+        {
+            static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
+                "T cannot be copy or move assigned.");
+            static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
+                "Allocator cannot be copy or move assigned.");
+
+            const size_t currCapacity = capacity();
+            const size_t newSize = other.size();
+
+            if (newSize == 0)
+                return;
+
+            if (currCapacity < newSize)
+            {
+                // Free the previously allocated memory
+                if (currCapacity > 0 && !has_inline_storage())
+                    m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
+
+                // Allocate memory to accomodate new size
+                void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), alignof(T));
+
+                // Adjust the pointers
+                m_beg = reinterpret_cast<T*>(mem);
+                m_last = m_beg + newSize;
+            }
+
+            // Regardless of whether new memory was allocated
+            m_end = m_beg + newSize;
+
+            // Just copy the memory
+            if constexpr (std::is_trivially_copyable_v<T>)
+            {
+                memcpy(m_beg, other.m_beg, sizeof(T) * newSize);
+            }
+            // Call the copy constructor
+            else
+            {
+                T* source = m_beg;
+                T* target = other.m_beg;
+
+                for (int64_t i = 0; i < newSize; i++)
+                {
+                    new (source) T(*target);
+
+                    source++;
+                    target++;
+                }
+            }
+        }
+
+        T* m_beg = nullptr;        // Pointer to the beginning of memory block
         T* m_end = nullptr;        // Pointer to element to insert at next (one past the last inserted element)
         T* m_last = nullptr;       // Pointer to the end of memory block
 
+#if defined(__clang__)
+        Allocator m_allocator;
+#elif defined(_MSC_VER)
         [[msvc::no_unique_address]] Allocator m_allocator;
+#endif
     };
 
     //--------------------------------------------------------------------------------------
@@ -707,62 +675,193 @@ namespace ZetaRay::Util
     class SmallVector : public Vector<T, Allocator>
     {
     public:
-        SmallVector(const Allocator& a = Allocator())
-            : Vector<T, Allocator>(N, a)
-        {}
+        // Constructor
+        SmallVector()
+            : Vector<T, Allocator>(Allocator())
+        {
+            static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
+            static_assert(std::is_default_constructible_v<Allocator>, "Allocator cannot be default-constructed.");
+            init_storage();
+        }
+        ~SmallVector()
+        {
+            free_memory();
 
-        SmallVector(const T& t, const Allocator& a = Allocator())
-            : Vector<T, Allocator>(N, t, a)
-        {}
-
+            if constexpr (!std::is_trivially_destructible_v<Allocator>)
+                this->m_allocator.~Allocator();
+        }
+        explicit SmallVector(const Allocator& a)
+            : Vector<T, Allocator>(a)
+        {
+            static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
+            init_storage();
+        }
+        explicit SmallVector(const T& t)
+            : Vector<T, Allocator>(Allocator())
+        {
+            static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
+            static_assert(std::is_default_constructible_v<Allocator>, "Allocator cannot be default-constructed.");
+            init_storage(t);
+        }
+        SmallVector(const T& t, const Allocator& a)
+            : Vector<T, Allocator>(a)
+        {
+            static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
+            init_storage(t);
+        }
+        // Copy constructor/assignment
         SmallVector(const SmallVector& other)
-            : Vector<T, Allocator>(N, this->GetAllocator())
+            : Vector<T, Allocator>(other)
         {
-            Vector<T, Allocator>::operator=(other);
+            init_storage();
+            this->copy_from(other);
         }
-
         SmallVector(const Vector<T, Allocator>& other)
-            : Vector<T, Allocator>(N, this->GetAllocator())
+            : Vector<T, Allocator>(other)
         {
-            Vector<T, Allocator>::operator=(other);
+            init_storage();
+            this->copy_from(other);
         }
-
+        // Note: Currently, copy assignment doesn't change the allocator. Furthermore, 
+        // the existing memory is retained if it can accomodate the new size. May need
+        // to change in the future.
         SmallVector& operator=(const SmallVector& other)
         {
-            Vector<T, Allocator>::operator=(other);
+            if (this == &other)
+                return *this;
+
+            // Destruct existing elements
+            this->clear();
+            reset_storage();
+            this->copy_from(other);
+
             return *this;
         }
-
         SmallVector& operator=(const Vector<T, Allocator>& other)
         {
-            Vector<T, Allocator>::operator=(other);
+            if (this == &other)
+                return *this;
+
+            // Destruct existing elements
+            this->clear();
+            reset_storage();
+            this->copy_from(other);
+
             return *this;
         }
-
+        // Move constructor/assignment
         SmallVector(SmallVector&& other)
-            : Vector<T, Allocator>(N, this->GetAllocator())
+            : Vector<T, Allocator>(ZetaMove(other))
         {
-            Vector<T, Allocator>::operator=(ZetaMove(other));
+            init_storage();
+            this->move_from(N, ZetaMove(other));
         }
-
         SmallVector(Vector<T, Allocator>&& other)
+            : Vector<T, Allocator>(ZetaMove(other))
         {
-            Vector<T, Allocator>::operator=(ZetaMove(other));
+            init_storage();
+            this->move_from(N, ZetaMove(other));
         }
-
         SmallVector& operator=(SmallVector&& other)
         {
+            if (this == &other)
+                return *this;
+
+            // Previously allocated memory is not needed anymore and can be released. Also
+            // storage is reverted to inline storage.
+            free_memory();
+
+            if constexpr (!std::is_trivially_destructible_v<Allocator>)
+                this->m_allocator.~Allocator();
+
+            this->m_allocator = ZetaMove(other.m_allocator);
+            this->move_from(N, ZetaMove(other));
+
+            return *this;
+        }
+        SmallVector& operator=(Vector<T, Allocator>&& other)
+        {
+            if (this == &other)
+                return *this;
+
+            // Previously allocated memory is not needed anymore and can be released. Also
+            // storage is reverted to inline storage.
+            free_memory();
+
+            if constexpr (!std::is_trivially_destructible_v<Allocator>)
+                this->m_allocator.~Allocator();
+
             Vector<T, Allocator>::operator=(ZetaMove(other));
+            this->move_from(N, ZetaMove(other));
+
             return *this;
         }
 
-        SmallVector& operator=(Vector<T, Allocator>&& other)
+        void free_memory()
         {
-            Vector<T, Allocator>::operator=(ZetaMove(other));
-            return *this;
+            // Destruct existing items (if any)
+            this->clear();
+
+            const size_t currCapacity = this->capacity();
+
+            // Free the previously allocated memory
+            if (currCapacity && !this->has_inline_storage())
+                this->m_allocator.FreeAligned(this->m_beg, currCapacity * sizeof(T), alignof(T));
+
+            // Revert back to inline storage
+            reset_storage();
         }
 
     private:
+        void init_storage()
+        {
+            constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
+            this->m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
+            this->m_end = this->m_beg;
+            this->m_last = this->m_beg + N;
+
+            if constexpr (!std::is_trivially_default_constructible_v<T>)
+            {
+                T* curr = this->m_beg;
+
+                while (curr != this->m_last)
+                {
+                    new (curr) T;
+                    curr++;
+                }
+            }
+
+            Assert(this->has_inline_storage(), "Must've reverted to inline storage.");
+            Assert(this->capacity() == N, "Capacity must be N.");
+        }
+        void init_storage(const T& t)
+        {
+            constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
+            this->m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
+            this->m_end = this->m_beg + N;
+            this->m_last = this->m_beg + N;
+
+            T* curr = this->m_beg;
+
+            while (curr != this->m_last)
+            {
+                new (curr) T(t);
+                curr++;
+            }
+
+            Assert(this->has_inline_storage(), "Must've reverted to inline storage.");
+            Assert(this->capacity() == N, "Capacity must be N.");
+        }
+        void reset_storage()
+        {
+            constexpr size_t inlineStorageOffset = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
+            this->m_beg = reinterpret_cast<T*>(reinterpret_cast<uintptr_t>(this) + inlineStorageOffset);
+            this->m_end = this->m_beg;
+            this->m_last = this->m_beg + N;
+            Assert(this->has_inline_storage(), "Must've reverted to inline storage.");
+            Assert(this->capacity() == N, "Capacity must be N.");
+        }
+
         InlineStorage<T, N> m_inlineStorage;
     };
 }

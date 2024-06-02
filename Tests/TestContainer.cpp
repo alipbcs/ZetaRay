@@ -29,9 +29,28 @@ TEST_SUITE("SmallVector")
 
         vec1.push_back(4);
         CHECK(vec1.has_inline_storage() == false);
+
+        SmallVector<int, SystemAllocator, 5> vec2(12);
+        CHECK(vec2.size() == 5);
+        for(int i = 0; i < 5; i++)
+            CHECK(vec2[i] == 12);
+
+        SmallVector<int, SystemAllocator, 15> vec3;
+        CHECK(vec3.has_inline_storage());
+
+        vec3.reserve(3);
+        CHECK(vec3.has_inline_storage());
+
+        vec3.resize(10);
+        CHECK(vec3.capacity() == 15);
+        vec3.resize(20);
+        CHECK(!vec3.has_inline_storage());
+        CHECK(vec3.capacity() == 20);
+        vec3.resize(3);
+        CHECK(vec3.capacity() == 20);
     }
 
-    TEST_CASE("Move-constructor-HeapHeap")
+    TEST_CASE("Move constructor-HeapHeap")
     {
         MemoryArena ma(8);
         ArenaAllocator aa(ma);
@@ -55,13 +74,15 @@ TEST_SUITE("SmallVector")
             CHECK(vec2[i] == i);
     }
 
-    TEST_CASE("Move-constructor-HeapInline")
+    TEST_CASE("Move constructor-HeapInline")
     {
         MemoryArena ma(16);
         ArenaAllocator aa(ma);
 
         SmallVector<int, ArenaAllocator> vec1(aa);
         SmallVector<int, ArenaAllocator, 10> vec2(aa);
+        vec2.push_back(10);
+        vec2.push_back(11);
 
         for (int i = 0; i < 4; i++)
             vec1.push_back(i);
@@ -76,7 +97,7 @@ TEST_SUITE("SmallVector")
             CHECK(vec2[i] == i);
     }
 
-    TEST_CASE("Move-constructor-InlineInline")
+    TEST_CASE("Move constructor-InlineInline")
     {
         MemoryArena ma(8);
         ArenaAllocator aa(ma);
@@ -100,17 +121,17 @@ TEST_SUITE("SmallVector")
         }
     }
 
-    TEST_CASE("Copy-constructor")
+    TEST_CASE("Copy assignment")
     {
         MemoryArena ma(128);
         ArenaAllocator aa(ma);
 
         SmallVector<int, ArenaAllocator> vec1(aa);
+        SmallVector<int, ArenaAllocator> vec2(aa);
 
         for (int i = 0; i < 4; i++)
             vec1.push_back(i);
 
-        SmallVector<int, ArenaAllocator> vec2(aa);
         vec2 = vec1;
         CHECK(vec2.has_inline_storage() == false);
 
@@ -122,6 +143,23 @@ TEST_SUITE("SmallVector")
             CHECK(vec1[i] == i);
             CHECK(vec2[i] == i);
         }
+    }
+
+    TEST_CASE("Default constructor")
+    {
+        struct A
+        {
+            A()
+                : m_a(3)
+            {}
+            int m_a;
+        };
+
+        SmallVector<A, SystemAllocator, 5> vec;
+        vec.resize(3);
+
+        for (auto& a : vec)
+            CHECK(a.m_a == 3);
     }
 
     TEST_CASE("Swap")
