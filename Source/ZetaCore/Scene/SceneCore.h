@@ -113,7 +113,7 @@ namespace ZetaRay::Scene
         //
         // Mesh
         //
-        uint32_t AddMesh(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices, 
+        uint32_t AddMesh(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices,
             uint32_t matIdx, bool lock = true);
         void AddMeshes(Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes,
             Util::SmallVector<Core::Vertex>&& vertices,
@@ -156,30 +156,27 @@ namespace ZetaRay::Scene
 
             return {};
         }
-
         ZetaInline const Math::float4x3& GetToWorld(uint64_t id) const
         {
             const TreePos& p = FindTreePosFromID(id).value();
             return m_sceneGraph[p.Level].m_toWorlds[p.Offset];
         }
-
         ZetaInline uint64_t GetInstanceMeshID(uint64_t id) const
         {
             const TreePos& p = FindTreePosFromID(id).value();
             return m_sceneGraph[p.Level].m_meshIDs[p.Offset];
         }
-
         ZetaInline RT_AS_Info GetInstanceRtASInfo(uint64_t id) const
         {
             const TreePos& p = FindTreePosFromID(id).value();
             return m_sceneGraph[p.Level].m_rtASInfo[p.Offset];
         }
-
         ZetaInline RT_Flags GetInstanceRtFlags(uint64_t id) const
         {
             const TreePos& p = FindTreePosFromID(id).value();
             return Scene::GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
         }
+        void ReserveInstances(int height, int num);
 
         //
         // Emissive
@@ -193,7 +190,7 @@ namespace ZetaRay::Scene
         //
         // Animation
         //
-        void AddAnimation(uint64_t id, Util::MutableSpan<Keyframe> keyframes, float t_start, 
+        void AddAnimation(uint64_t id, Util::MutableSpan<Keyframe> keyframes, float t_start,
             bool loop = true, bool isSorted = true);
         void AnimateCallback(const Support::ParamVariant& p);
 
@@ -240,23 +237,13 @@ namespace ZetaRay::Scene
 
         struct TreeLevel
         {
-            TreeLevel(Support::MemoryPool& mp)
-                : m_IDs(mp),
-                m_localTransforms(mp),
-                m_toWorlds(mp),
-                m_meshIDs(mp),
-                m_subtreeRanges(mp),
-                m_rtFlags(mp),
-                m_rtASInfo(mp)
-            {}
-
-            Util::SmallVector<uint64_t, Support::PoolAllocator> m_IDs;
-            Util::SmallVector<Math::AffineTransformation, Support::PoolAllocator> m_localTransforms;
-            Util::SmallVector<Math::float4x3, Support::PoolAllocator> m_toWorlds;
-            Util::SmallVector<uint64_t, Support::PoolAllocator> m_meshIDs;
-            Util::SmallVector<Range, Support::PoolAllocator> m_subtreeRanges;
-            Util::SmallVector<uint8_t, Support::PoolAllocator> m_rtFlags;
-            Util::SmallVector<RT_AS_Info, Support::PoolAllocator> m_rtASInfo;
+            Util::SmallVector<uint64_t> m_IDs;
+            Util::SmallVector<Math::AffineTransformation> m_localTransforms;
+            Util::SmallVector<Math::float4x3> m_toWorlds;
+            Util::SmallVector<uint64_t> m_meshIDs;
+            Util::SmallVector<Range> m_subtreeRanges;
+            Util::SmallVector<uint8_t> m_rtFlags;
+            Util::SmallVector<RT_AS_Info> m_rtASInfo;
         };
 
         struct PrevToWorld
@@ -292,15 +279,11 @@ namespace ZetaRay::Scene
         void UpdateLocalTransforms(Util::Span<AnimationUpdate> animVec);
         void UpdateEmissives(Util::MutableSpan<Model::glTF::Asset::EmissiveInstance> instances);
 
-        // Make sure memory pool is declared first; "members are guaranteed to be initialized 
-        // by order of declaration and destroyed in reverse order".
-        Support::MemoryPool m_memoryPool;
-
         // Maps instance ID to tree position
         Util::HashTable<TreePos> m_IDtoTreePos;
-        Util::SmallVector<TreeLevel, Support::PoolAllocator> m_sceneGraph;
+        Util::SmallVector<TreeLevel, Support::SystemAllocator, 3> m_sceneGraph;
         // Previous frame's world transformation
-        Util::SmallVector<PrevToWorld, Support::PoolAllocator> m_prevToWorlds;
+        Util::SmallVector<PrevToWorld> m_prevToWorlds;
         bool m_isPaused = false;
 
         //
@@ -351,8 +334,8 @@ namespace ZetaRay::Scene
         //
         // Animation
         //
-        Util::SmallVector<AnimationMetadata, Support::PoolAllocator> m_animationMetadata;
-        Util::SmallVector<Keyframe, Support::PoolAllocator> m_keyframes;
+        Util::SmallVector<AnimationMetadata> m_animationMetadata;
+        Util::SmallVector<Keyframe> m_keyframes;
         bool m_animate = true;
 
         //

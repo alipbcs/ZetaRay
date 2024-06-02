@@ -45,11 +45,7 @@ SceneCore::SceneCore()
     : m_baseColorDescTable(BASE_COLOR_DESC_TABLE_SIZE),
     m_normalDescTable(NORMAL_DESC_TABLE_SIZE),
     m_metallicRoughnessDescTable(METALLIC_ROUGHNESS_DESC_TABLE_SIZE),
-    m_emissiveDescTable(EMISSIVE_DESC_TABLE_SIZE),
-    m_sceneGraph(m_memoryPool, m_memoryPool),
-    m_prevToWorlds(m_memoryPool),
-    m_keyframes(m_memoryPool),
-    m_animationMetadata(m_memoryPool)
+    m_emissiveDescTable(EMISSIVE_DESC_TABLE_SIZE)
 {}
 
 void SceneCore::Init(Renderer::Interface& rendererInterface)
@@ -63,10 +59,10 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
     Assert(m_rendererInterface.DebugDrawRenderGraph, "DebugDrawRenderGraph() was null.");
 
     // Level 0 is just a (dummy) root
-    m_sceneGraph.reserve(2);
-
-    m_sceneGraph.emplace_back(m_memoryPool);
-    m_sceneGraph.emplace_back(m_memoryPool);
+    //m_sceneGraph.reserve(2);
+    //m_sceneGraph.emplace_back(TreeLevel());
+    //m_sceneGraph.emplace_back(TreeLevel());
+    m_sceneGraph.resize(2);
 
     m_sceneGraph[0].m_toWorlds.resize(1);
     m_sceneGraph[0].m_subtreeRanges.resize(1);
@@ -269,7 +265,7 @@ void SceneCore::Shutdown()
     m_rendererInterface.Shutdown();
 }
 
-uint32_t SceneCore::AddMesh(SmallVector<Vertex>&& vertices, SmallVector<uint32_t>&& indices, 
+uint32_t SceneCore::AddMesh(SmallVector<Vertex>&& vertices, SmallVector<uint32_t>&& indices,
     uint32_t matIdx, bool lock)
 {
     if (lock)
@@ -283,15 +279,15 @@ uint32_t SceneCore::AddMesh(SmallVector<Vertex>&& vertices, SmallVector<uint32_t
     return idx;
 }
 
-void SceneCore::AddMeshes(SmallVector<Asset::Mesh>&& meshes, SmallVector<Vertex>&& vertices, 
+void SceneCore::AddMeshes(SmallVector<Asset::Mesh>&& meshes, SmallVector<Vertex>&& vertices,
     SmallVector<uint32_t>&& indices, bool lock)
 {
-    if(lock)
+    if (lock)
         AcquireSRWLockExclusive(&m_meshLock);
 
     m_meshes.AddBatch(ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
 
-    if(lock)
+    if (lock)
         ReleaseSRWLockExclusive(&m_meshLock);
 }
 
@@ -347,7 +343,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
             tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
         };
 
-    if(lock)
+    if (lock)
         AcquireSRWLockExclusive(&m_matLock);
 
     {
@@ -399,10 +395,10 @@ void SceneCore::ResizeAdditionalMaterials(uint32_t num)
 
 void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
 {
-    const uint64_t meshID = instance.MeshIdx == -1 ? INVALID_MESH : 
+    const uint64_t meshID = instance.MeshIdx == -1 ? INVALID_MESH :
         MeshID(instance.MeshIdx, instance.MeshPrimIdx);
 
-    if(lock)
+    if (lock)
         AcquireSRWLockExclusive(&m_instanceLock);
 
     if (meshID != INVALID_MESH)
@@ -473,8 +469,10 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
 int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
     uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque)
 {
-    while (treeLevel >= m_sceneGraph.size())
-        m_sceneGraph.emplace_back(m_memoryPool);
+    m_sceneGraph.resize(Math::Max(treeLevel + 1, (int)m_sceneGraph.size()));
+
+    //while (m_sceneGraph.size() <= treeLevel)
+    //    m_sceneGraph.emplace_back(TreeLevel());
 
     auto& parentLevel = m_sceneGraph[treeLevel - 1];
     auto& currLevel = m_sceneGraph[treeLevel];
@@ -483,12 +481,12 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     // Insert position is right next to parent's rightmost child
     const int insertIdx = parentRange.Base + parentRange.Count;
 
-    // Increment parent's children count
+    // Increment parent's child count
     parentRange.Count++;
 
     // Append it to end, then keep swapping it back until it's at insertIdx
     auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-        (Vector<T, Support::PoolAllocator>& vec, int insertIdx, Args&&... args)
+        (Vector<T>& vec, int insertIdx, Args&&... args)
     {
         vec.emplace_back(T(ZetaForward(args)...));
 
@@ -498,11 +496,13 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 
     float4x3 I = float4x3(store(identity()));
 
+    Assert(insertIdx <= currLevel.m_IDs.size(), "Insertion index for instance is out-of-bounds.");
     rearrange(currLevel.m_IDs, insertIdx, id);
     rearrange(currLevel.m_localTransforms, insertIdx, localTransform);
     rearrange(currLevel.m_toWorlds, insertIdx, I);
     rearrange(currLevel.m_meshIDs, insertIdx, meshID);
-    const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
+    const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : 
+        currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
     rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
     // Set rebuild flag to true when there's new any instance
     auto flags = SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0, isOpaque);
@@ -520,7 +520,7 @@ void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float
 {
 #ifdef _DEBUG
     TreePos& p = FindTreePosFromID(id).value();
-    Assert(GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC, 
+    Assert(GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC,
         "Static instances can't be animated.");
 #endif
 
@@ -546,6 +546,14 @@ void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float
         });
 
     m_keyframes.append_range(keyframes.begin(), keyframes.end());
+}
+
+void SceneCore::ReserveInstances(int height, int num)
+{
+    // +1 for root
+    m_sceneGraph.reserve(height + 1);
+    m_prevToWorlds.reserve(num);
+    m_IDtoTreePos.resize(num);
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissiveInstances,
@@ -684,7 +692,7 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllo
         {
             vRes = kEnd.Transform;
         }
-        else 
+        else
         {
             if (t >= kEnd.Time + t_start)
             {
@@ -728,7 +736,7 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllo
         }
 
         animVec.push_back(AnimationUpdate{
-            .M = vRes, 
+            .M = vRes,
             .InstanceID = anim.InstanceID });
     }
 }

@@ -120,11 +120,11 @@ namespace
         int numToSetManually = numRemainingBytes > 0 ? Math::CeilUnsignedIntDiv(numRemainingBytes, (int)sizeof(EmissiveMeshPrim)) : 0;
 
         uintptr_t ptr = reinterpret_cast<uintptr_t>(subsets.data());
-
         __m256i vVal = _mm256_set1_epi64x(Scene::INVALID_MESH);
+
         for (int i = 0; i < numSimdBytes; i++)
         {
-            _mm256_storeu_epi64(reinterpret_cast<void*>(ptr), vVal);
+            _mm256_storeu_si256((__m256i*) ptr, vVal);
             ptr += 32;
         }
 
@@ -132,7 +132,8 @@ namespace
             subsets[subsets.size() - 1 - i].MeshID = Scene::INVALID_MESH;
     }
 
-    void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
+    void ProcessPositions(const cgltf_data& model, const cgltf_accessor& accessor, 
+        MutableSpan<Vertex> vertices, uint32_t baseOffset)
     {
         Check(accessor.type == cgltf_type_vec3, "Invalid type for POSITION attribute.");
         Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -153,7 +154,8 @@ namespace
         }
     }
 
-    void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
+    void ProcessNormals(const cgltf_data& model, const cgltf_accessor& accessor, 
+        MutableSpan<Vertex> vertices, uint32_t baseOffset)
     {
         Check(accessor.type == cgltf_type_vec3, "Invalid type for NORMAL attribute.");
         Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -174,7 +176,8 @@ namespace
         }
     }
 
-    void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
+    void ProcessTexCoords(const cgltf_data& model, const cgltf_accessor& accessor, 
+        MutableSpan<Vertex> vertices, uint32_t baseOffset)
     {
         Check(accessor.type == cgltf_type_vec2, "Invalid type for TEXCOORD_0 attribute.");
         Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -193,7 +196,8 @@ namespace
         }
     }
 
-    void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<Vertex> vertices, uint32_t baseOffset)
+    void ProcessTangents(const cgltf_data& model, const cgltf_accessor& accessor, 
+        MutableSpan<Vertex> vertices, uint32_t baseOffset)
     {
         Check(accessor.type == cgltf_type_vec4, "Invalid type for TANGENT attribute.");
         Check(accessor.component_type == cgltf_component_type_r_32f,
@@ -213,7 +217,8 @@ namespace
         }
     }
 
-    void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, MutableSpan<uint32_t> indices, uint32_t baseOffset)
+    void ProcessIndices(const cgltf_data& model, const cgltf_accessor& accessor, 
+        MutableSpan<uint32_t> indices, uint32_t baseOffset)
     {
         Check(accessor.type == cgltf_type_scalar, "Invalid index type.");
         Check(accessor.stride != -1, "Invalid index stride.");
@@ -692,7 +697,8 @@ namespace
         Assert(rtEmissiveTriIdx == context.NumEmissiveTris, "these must match.");
     }
 
-    void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, uint64_t parentId)
+    void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, 
+        uint64_t parentId)
     {
         uint64_t currInstanceID = SceneCore::ROOT_ID;
 
@@ -806,7 +812,7 @@ namespace
 
                 const uint8_t rtInsMask = meshPrim.material &&
                     (meshPrim.material->emissive_texture.texture || oneDotEmissvieFactor > 1e-4f) ?
-                    RT_AS_SUBGROUP::EMISSIVE : 
+                    RT_AS_SUBGROUP::EMISSIVE :
                     RT_AS_SUBGROUP::NON_EMISSIVE;
 
                 // Parent-child relationships will be w.r.t. the last mesh primitive
@@ -863,7 +869,34 @@ namespace
         }
     }
 
-    void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices, size_t& numMeshes)
+    int TreeHeight(const cgltf_node& node)
+    {
+        int height = 0;
+
+        for (size_t i = 0; i < node.children_count; i++)
+        {
+            const cgltf_node& childNode = *node.children[i];
+            height = Math::Max(height, TreeHeight(childNode) + 1);
+        }
+
+        return height;
+    }
+
+    int ComputeNodeHierarchyHeight(const cgltf_data& model)
+    {
+        int height = 0;
+
+        for (size_t i = 0; i < model.scene->nodes_count; i++)
+        {
+            const cgltf_node& childNode = *model.scene->nodes[i];
+            height = Math::Max(height, TreeHeight(childNode) + 1);
+        }
+
+        return height;
+    }
+
+    void TotalNumVerticesAndIndices(cgltf_data* model, size_t& numVertices, size_t& numIndices, 
+        size_t& numMeshes)
     {
         numVertices = 0;
         numIndices = 0;
@@ -928,6 +961,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     size_t totalNumMeshPrims;
     TotalNumVerticesAndIndices(model, totalNumVertices, totalNumIndices, totalNumMeshPrims);
 
+    // Height of the node hierarchy
+    const int height = ComputeNodeHierarchyHeight(*model);
+
     // Preallocate
     SmallVector<Core::Vertex> vertices;
     SmallVector<uint32_t> indices;
@@ -942,6 +978,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     emissivePrims.resize(totalNumMeshPrims);
     ResetEmissiveSubsets(emissivePrims);
     scene.ResizeAdditionalMaterials((uint32_t)model->materials_count);
+    scene.ReserveInstances(height, (uint32_t)model->nodes_count);
 
     // How many meshes are processed by each worker
     constexpr size_t MAX_NUM_MESH_WORKERS = 4;
@@ -1027,10 +1064,10 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         auto procMesh = ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
             {
                 ProcessMeshes(*tc.Model, tc.SceneID, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx],
-                    tc.Vertices, tc.CurrVtxOffset,
-                    tc.Indices, tc.CurrIdxOffset,
-                    tc.Meshes, tc.CurrMeshPrimOffset,
-                    tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCounterPerWorker[rangeIdx]);
+                tc.Vertices, tc.CurrVtxOffset,
+                tc.Indices, tc.CurrIdxOffset,
+                tc.Meshes, tc.CurrMeshPrimOffset,
+                tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCounterPerWorker[rangeIdx]);
             });
 
         ts.AddOutgoingEdge(procMesh, procEmissiveMeshPrims);
@@ -1091,6 +1128,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     ts.Finalize(&waitObj);
     App::Submit(ZetaMove(ts));
 
+    // Help out with ufinished tasks from previous frame. Note: This thread might help
+    // with tasks that are not related to loading glTF.
+    App::FlushWorkerThreadPool();
     waitObj.Wait();
 
     // Transfer ownership of mesh buffers.
