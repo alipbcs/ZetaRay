@@ -241,6 +241,9 @@ namespace ZetaRay::Math
         __m128 vT0 = _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(0, 0, 0, 0));
         __m128 vT1 = _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(0, 0, 0, 0));
 
+        vTmax = _mm_blendv_ps(vTmax, _mm_set1_ps(FLT_MAX), vIsParallel);
+        vTmin = _mm_blendv_ps(vTmin, _mm_set1_ps(-FLT_MAX), vIsParallel);
+
         // Find maximum of vTmin
         vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(1, 1, 1, 1)));
         vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(2, 2, 2, 2)));

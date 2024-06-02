@@ -287,7 +287,7 @@ TEST_CASE("RayVsAABB")
         return res;
     };
 
-    const int N = 100000;
+    const int N = 100'000;
 
     for (int i = 0; i < N; i++)
     {
@@ -307,8 +307,8 @@ TEST_CASE("RayVsAABB")
         v_Ray vRay(Origin, Dir);
         auto resZeta = intersectRayVsAABB(vRay, b1, t);
 
-        INFO("Center:(", Center.x, ", ", Center.y, ", ", Center.z, ")", "Extents:(", Extents.x, ", ", Extents.y, ", ", Extents.z, ")");
-        INFO("Origin:(", Origin.x, ", ", Origin.y, ", ", Origin.z, ")", "Dir:(", Dir.x, ", ", Dir.y, ", ", Dir.z, ")");
+        INFO("Center:(", Center.x, ", ", Center.y, ", ", Center.z, ")", ", Extents:(", Extents.x, ", ", Extents.y, ", ", Extents.z, ")");
+        INFO("Origin:(", Origin.x, ", ", Origin.y, ", ", Origin.z, ")", ", Dir:(", Dir.x, ", ", Dir.y, ", ", Dir.z, ")");
         INFO("DirecXMath: ", resDx, ", ZetaRay: ", resZeta);
 
         CHECK(resDx == resZeta);
