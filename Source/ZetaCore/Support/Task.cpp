@@ -188,7 +188,7 @@ void TaskSet::Finalize(WaitObject* waitObj)
         // ConnectTo(m_tasks[m_currSize]);
         Task& notifyTask = m_tasks[m_currSize - 1];
         uint64_t mask = m_leafMask;
-        notifyTask.m_indegree += __popcnt16((uint16_t)mask);
+        notifyTask.m_indegree += __popcnt((uint32_t)mask);
 
         unsigned long idx;
         while (_BitScanForward64(&idx, mask))
@@ -218,7 +218,7 @@ void TaskSet::ComputeInOutMask()
 void TaskSet::TopologicalSort()
 {
     // Find the root nodes
-    uint16_t rootMask = 0;
+    uint32_t rootMask = 0;
 
     for (int i = 0; i < m_currSize; ++i)
     {
@@ -334,7 +334,7 @@ void TaskSet::ConnectTo(Task& other)
         mask &= ~(1llu << idx);
     }
 
-    other.m_indegree += __popcnt16((uint16_t)mask);
+    other.m_indegree += __popcnt((uint32_t)mask);
 }
 
 void TaskSet::ConnectFrom(Task& other)

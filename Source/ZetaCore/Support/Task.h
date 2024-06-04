@@ -98,8 +98,7 @@ namespace ZetaRay::Support
     // 5. Finalize
     struct TaskSet
     {
-        //static constexpr int MAX_NUM_TASKS = sizeof(uint64_t) * 8;
-        static constexpr int MAX_NUM_TASKS = 18;
+        static constexpr int MAX_NUM_TASKS = 16;
         using TaskHandle = int;
 
         TaskSet() = default;
@@ -110,8 +109,8 @@ namespace ZetaRay::Support
 
         TaskHandle EmplaceTask(const char* name, Util::Function&& f)
         {
-            Check(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
-            Check(m_currSize < MAX_NUM_TASKS - 2, "current implementation of this functions doesn't support more than 64 tasks.");
+            Assert(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
+            Assert(m_currSize < MAX_NUM_TASKS, "Current implementation doesn't support more than %d tasks.", MAX_NUM_TASKS);
 
             // TaskSet is not needed for background tasks
             m_tasks[m_currSize++].Reset(name, TASK_PRIORITY::NORMAL, ZetaMove(f));
