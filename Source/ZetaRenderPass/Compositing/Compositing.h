@@ -21,11 +21,11 @@ namespace ZetaRay::RenderPass
     {
         enum class SHADER_IN_GPU_DESC
         {
-            SKY_DI_DENOISED,
+            SKY_DI,
             INSCATTERING,
             SUN_SHADOW,
-            EMISSIVE_DI_DENOISED,
-            INDIRECT_DENOISED,
+            EMISSIVE_DI,
+            INDIRECT,
             COUNT
         };
 
@@ -69,14 +69,14 @@ namespace ZetaRay::RenderPass
             case SHADER_IN_GPU_DESC::SUN_SHADOW:
                 m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
                 return;
-            case SHADER_IN_GPU_DESC::SKY_DI_DENOISED:
-                m_cbComposit.SkyDIDenoisedDescHeapIdx = descHeapIdx;
+            case SHADER_IN_GPU_DESC::SKY_DI:
+                m_cbComposit.SkyDIDescHeapIdx = descHeapIdx;
                 return;
-            case SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED:
-                m_cbComposit.EmissiveDIDenoisedDescHeapIdx = descHeapIdx;
+            case SHADER_IN_GPU_DESC::EMISSIVE_DI:
+                m_cbComposit.EmissiveDIDescHeapIdx = descHeapIdx;
                 return;
-            case SHADER_IN_GPU_DESC::INDIRECT_DENOISED:
-                m_cbComposit.IndirectDenoisedDescHeapIdx = descHeapIdx;
+            case SHADER_IN_GPU_DESC::INDIRECT:
+                m_cbComposit.IndirectDescHeapIdx = descHeapIdx;
                 return;
             default:
                 Assert(false, "unreachable case.");

@@ -230,6 +230,16 @@ namespace RT
         return normalize(dirW);
     }
 
+    float3 GeneratePinholeCameraRay_CS(uint2 pixel, float2 renderDim, float aspectRatio, float tanHalfFOV, 
+        float2 jitter)
+    {
+        float2 uv = (pixel + 0.5f + jitter) / renderDim;
+        float2 ndc = Math::NDCFromUV(uv);
+        float3 dirV = float3(ndc.x * aspectRatio * tanHalfFOV, ndc.y * tanHalfFOV, 1);
+
+        return dirV;
+    }
+
     // Geometric Normal points outward for rays exiting the surface, else should be flipped.
     // Ref: C. Wachter and N. Binder, "A Fast and Robust Method for Avoiding Self-Intersection", in Ray Tracing Gems 1, 2019.
     float3 OffsetRayRTG(float3 pos, float3 geometricNormal)

@@ -191,6 +191,37 @@ namespace Math
         return pos_w;
     }
 
+    float3 WorldPosFromScreenSpace2(float2 pos_ss, float2 renderDim, float z_view, float tanHalfFOV,
+        float aspectRatio, float2 jitter, float3 viewBasisX, float3 viewBasisY, float3 viewBasisZ, 
+        bool thinLens, float2 lensSample, float focusDepth, inout float3 origin)
+    {
+        float2 uv = (pos_ss + 0.5f + jitter) / renderDim;
+        float2 ndc = NDCFromUV(uv);
+        float3 dir_w;
+
+        if(!thinLens)
+        {
+            float3 dir_v = float3(ndc.x * aspectRatio * tanHalfFOV * z_view, 
+                ndc.y * tanHalfFOV * z_view, 
+                z_view);
+            dir_w = mad(dir_v.x, viewBasisX, mad(dir_v.y, viewBasisY, dir_v.z * viewBasisZ));
+        }
+        else
+        {
+            float3 dir_v = float3(ndc.x * aspectRatio * tanHalfFOV, ndc.y * tanHalfFOV, 1);
+            float3 focalPoint = focusDepth * dir_v;
+            dir_v = focalPoint - float3(lensSample, 0);
+
+            dir_w = mad(dir_v.x, viewBasisX, mad(dir_v.y, viewBasisY, dir_v.z * viewBasisZ));
+            dir_w = normalize(dir_w);
+            dir_w *= z_view;
+
+            origin += mad(lensSample.x, viewBasisX, lensSample.y * viewBasisY);
+        }
+
+        return origin + dir_w;
+    }
+
     float2 UVFromWorldPos(float3 posW, float2 renderDim, float tanHalfFOV, float aspectRatio, 
         float3x4 view, float2 jitter = 0.0)
     {

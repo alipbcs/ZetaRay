@@ -61,19 +61,20 @@ namespace GBufferRT
 
     // Rate of change of texture uv coordinates w.r.t. screen space
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
-    float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, float t, float3 dpdu, 
+    float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, 
+        bool thinLens, float2 lensSample, float focusDepth, float t, float3 dpdu, 
         float3 dpdv, ConstantBuffer<cbFrameConstants> g_frame)
     {
-        // 1. Form auxilary rays offset one pixel to right and above of main ray (r_x and r_y).
+        // 1. Form auxilary rays offset one pixel to right and above of camera ray (r_x and r_y).
         // 2. Form tangent plane at hit point (P).
         // 3. Approximae surface around hit point using a first-order approximation at P. Hit 
-        // points for auxilary rays can be solved for using the ray-plane intersection 
-        // algorithm (denote by p_x and p_y).
+        //    points for auxilary rays can be solved for using the ray-plane intersection 
+        //    algorithm (denote by p_x and p_y).
         // 4. Each triangle can be described as a parametric surface p = f(u, v). Since triangle 
-        // is planar, the first-order approximation is exact:
-        //      p' - p0 = [dpdu dpdv] duv
-        // 5. Since dpdu and dpdv are known, by replacing p_x and p_y for p' in above, ddx(uv) 
-        // and ddy(uv) can be approximated by solving the linear system.
+        //    is planar, the first-order approximation is exact:
+        //          p' - p0 = [dpdu dpdv] duv
+        // 5. Since dpdu and dpdv for the hit triangle are known, by replacing p_x and p_y for p' 
+        //    in above, ddx(uv) and ddy(uv) can be approximated by solving the linear system.
 
         // determinat of square matrix A^T A
         float dpduDotdpdu = dot(dpdu, dpdu);
@@ -84,33 +85,42 @@ namespace GBufferRT
         if (abs(det) < 1e-7f)
             return 0;
 
-        float3 faceNormal = normalize(cross(dpdu, dpdv));
-        float3 p = origin + t * dir;
-        float d = -dot(faceNormal, p);
-        
         // form ray differentials
         float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
-        float3 dir_x = RT::GeneratePinholeCameraRay(int2(DTid.x + 1, DTid.y), 
-            renderDim, 
-            g_frame.AspectRatio, 
-            g_frame.TanHalfFOV, 
-            g_frame.CurrView[0].xyz, 
-            g_frame.CurrView[1].xyz, 
-            g_frame.CurrView[2].xyz,
-            jitter);
-        float3 dir_y = RT::GeneratePinholeCameraRay(int2(DTid.x, DTid.y - 1), 
-            renderDim, 
-            g_frame.AspectRatio, 
-            g_frame.TanHalfFOV, 
-            g_frame.CurrView[0].xyz, 
-            g_frame.CurrView[1].xyz, 
-            g_frame.CurrView[2].xyz,
-            jitter);
-        
-        // compute intersection with tangent plane at hit point
+        float3 dir_cs_x = RT::GeneratePinholeCameraRay_CS(int2(DTid.x + 1, DTid.y), 
+            renderDim, g_frame.AspectRatio, g_frame.TanHalfFOV, 
+            g_frame.CurrCameraJitter);
+        float3 dir_cs_y = RT::GeneratePinholeCameraRay_CS(int2(DTid.x, DTid.y - 1), 
+            renderDim, g_frame.AspectRatio, g_frame.TanHalfFOV, 
+            g_frame.CurrCameraJitter);
+
+        // change ray directions given the lens sample
+        if(thinLens)
+        {
+            float3 focalPoint_x = focusDepth * dir_cs_x;
+            dir_cs_x = focalPoint_x - float3(lensSample, 0);
+
+            float3 focalPoint_y = focusDepth * dir_cs_y;
+            dir_cs_y = focalPoint_y - float3(lensSample, 0);
+        }
+
+        // camera space to world space
+        float3 dir_x = mad(dir_cs_x.x, g_frame.CurrView[0].xyz, 
+            mad(dir_cs_x.y, g_frame.CurrView[1].xyz, dir_cs_x.z * g_frame.CurrView[2].xyz));
+        dir_x = normalize(dir_x);
+
+        float3 dir_y = mad(dir_cs_y.x, g_frame.CurrView[0].xyz, 
+            mad(dir_cs_y.y, g_frame.CurrView[1].xyz, dir_cs_y.z * g_frame.CurrView[2].xyz));
+        dir_y = normalize(dir_y);
+
+        // compute intersection with tangent plane at hit point for camera ray
+        float3 faceNormal = normalize(cross(dpdu, dpdv));
+        float3 p = origin + t * dir;
+        float d = -dot(faceNormal, p);
         float numerator = -dot(faceNormal, origin) - d;
         
+        // compute intersection with tangent plane for ray differentials
         float denom_x = dot(faceNormal, dir_x);
         denom_x = (denom_x < 0 ? -1 : 1) * max(abs(denom_x), 1e-8);
         float t_x = numerator / denom_x;
@@ -130,7 +140,6 @@ namespace GBufferRT
         // division by determinant happens below
         float2x2 A_T_A_Inv = float2x2(dpdvDotdpdv, -dpduDotdpdv,
                                      -dpduDotdpdv, dpduDotdpdu);
-        
         float3 delta_p_x = p_x - p;
         float2 b_x = float2(dot(dpdu, delta_p_x), dot(dpdv, delta_p_x));
         float2 grads_x = mul(A_T_A_Inv, b_x) / det;

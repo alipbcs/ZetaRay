@@ -1,5 +1,6 @@
 #include "SunShadow_Common.h"
 #include "../Common/FrameConstants.h"
+#include "../Common/Common.hlsli"
 #include "../Common/LightSource.hlsli"
 #include "../Common/GBuffers.hlsli"
 
@@ -57,15 +58,24 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float t_primary = g_depth[DTid.xy];
-
-    if (t_primary == FLT_MAX)
+    const float z_view = g_depth[DTid.xy];
+    if(z_view == FLT_MAX)
         return;
 
-    const float3 pos = Math::WorldPosFromScreenSpace(DTid.xy,
-        float2(g_frame.RenderWidth, g_frame.RenderHeight), t_primary, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
-        g_frame.CurrCameraJitter);
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(DTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
+    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const float3 pos = Math::WorldPosFromScreenSpace2(DTid.xy, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
 
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
@@ -73,7 +83,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[DTid.xy];
-
     bool isMetallic;
     bool isEmissive;
     bool isTransmissive;
@@ -103,7 +112,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         baseColor = g_baseColor[DTid.xy].rgb;
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - pos);
+    const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
         eta_i, eta_t, tr);
 

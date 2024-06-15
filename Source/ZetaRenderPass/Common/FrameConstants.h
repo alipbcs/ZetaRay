@@ -68,6 +68,11 @@ namespace ZetaRay
         float MipBias;
         float OneDivNumEmissiveTriangles;
         uint32_t NumEmissiveTriangles;
+
+        float FocusDepth;
+        float LensRadius;
+        uint32_t DoF;
+        uint32_t pad2;
     };
 #ifdef __cplusplus
 }

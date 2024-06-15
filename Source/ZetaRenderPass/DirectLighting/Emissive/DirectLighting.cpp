@@ -140,10 +140,7 @@ void DirectLighting::Init()
     ParamVariant maxTemporalM;
     maxTemporalM.InitInt("Renderer", "Direct Lighting", "M_max",
         fastdelegate::MakeDelegate(this, &DirectLighting::MaxTemporalMCallback),
-        m_cbSpatioTemporal.M_max,
-        1,
-        30,
-        1);
+        m_cbSpatioTemporal.M_max, 1, 30, 1);
     App::AddParam(maxTemporalM);
 
     ParamVariant denoise;
@@ -154,19 +151,13 @@ void DirectLighting::Init()
     ParamVariant tsppDiffuse;
     tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
         fastdelegate::MakeDelegate(this, &DirectLighting::TsppDiffuseCallback),
-        m_cbDnsrTemporal.MaxTsppDiffuse,            // val
-        1,                                          // min
-        32,                                         // max
-        1);                                         // step
+        m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1);
     App::AddParam(tsppDiffuse);
 
     ParamVariant tsppSpecular;
     tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
         fastdelegate::MakeDelegate(this, &DirectLighting::TsppSpecularCallback),
-        m_cbDnsrTemporal.MaxTsppSpecular,            // val
-        1,                                           // min
-        32,                                          // max
-        1);                                          // step
+        m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1);
     App::AddParam(tsppSpecular);
 
     ParamVariant dnsrSpatialFilterDiffuse;

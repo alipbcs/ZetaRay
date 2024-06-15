@@ -24,6 +24,7 @@ THE SOFTWARE.
 #include "../Common/Math.hlsli"
 #include "../Common/FrameConstants.h"
 #include "../Common/GBuffers.hlsli"
+#include "../Common/Sampling.hlsli"
 #include "SunShadow_Common.h"
 
 #define KERNEL_RADIUS 1
@@ -181,10 +182,21 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
     const float std_deviation = sqrt(max(variance + 1e-9f, 0.0f));
     const float3 currNormal = Math::DecodeUnitVector(g_FFX_DNSR_shared_normal[GTid.y][GTid.x]);
     const float currLinearDepth = depth;
+
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(DTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 currPos = Math::WorldPosFromScreenSpace(DTid, renderDim,
-        currLinearDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, 
-        g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+    const float3 currPos = Math::WorldPosFromScreenSpace2(DTid, renderDim, currLinearDepth, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter,
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
     
     // Iterate filter kernel
     for (int y = -KERNEL_RADIUS; y <= KERNEL_RADIUS; ++y)
@@ -205,10 +217,21 @@ void FFX_DNSR_Shadows_DenoiseFromGroupSharedMemory(uint2 DTid, uint2 GTid, float
 
             float sky_pixel_multiplier = ((x == 0 && y == 0) || neighborDepth == FLT_MAX) ? 0 : 1; // Zero weight for sky pixels
 
+            float2 neighborLensSample = 0;
+            float3 origin = g_frame.CameraPos;
+            if(g_frame.DoF)
+            {
+                RNG rngDoF = RNG::Init(RNG::PCG3d(did_idx.xyx).zy, g_frame.FrameNum);
+                neighborLensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+                neighborLensSample *= g_frame.LensRadius;
+            }
+
             // Fetch our filtering values
-            float3 posNeighbor = Math::WorldPosFromScreenSpace(did_idx, renderDim,
+            float3 posNeighbor = Math::WorldPosFromScreenSpace2(did_idx, renderDim,
                 neighborDepth, g_frame.TanHalfFOV, g_frame.AspectRatio,
-                g_frame.CurrViewInv, g_frame.CurrCameraJitter);
+                g_frame.CurrCameraJitter, g_frame.CurrView[0].xyz, 
+                g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, g_frame.DoF, 
+                neighborLensSample, g_frame.FocusDepth, origin);
             
             // Evaluate the edge-stopping function
             float w = Kernel[abs(y)][abs(x)]; // kernel weight

@@ -110,7 +110,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
         // Sky DI
         if (settings.SkyIllumination)
         {
-            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI_DENOISED,
+            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
         }
 
@@ -120,12 +120,12 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 
         if (App::GetScene().NumEmissiveInstances())
         {
-            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI_DENOISED,
+            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
         }
 
         // Indirect lighting
-        data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT_DENOISED,
+        data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
 
         if (settings.Inscattering)

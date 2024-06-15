@@ -32,7 +32,7 @@ namespace ZetaRay::Scene
         Camera() = default;
         ~Camera() = default;
 
-        void Init(Math::float3 posw, float aspectRatio, float fov, float nearZ = 0.1f, bool jitter = false, 
+        void Init(Math::float3 pos, float aspectRatio, float fov, float nearZ = 1.0f, bool jitter = false, 
             Math::float3 focusOrViewDir = Math::float3(0.0f), bool lookAt = true);
         void Update(const Motion& m);
         void OnWindowSizeChanged();
@@ -47,6 +47,9 @@ namespace ZetaRay::Scene
         float GetFarZ() const { return m_farZ; }
         float GetTanHalfFOV() const { return m_tanHalfFOV; }
         float GetPixelSpreadAngle() const { return m_pixelSpreadAngle; }
+        float GetFocalLength() const { return m_focalLength; }
+        float GetFStop() const { return m_fStop; }
+        float GetFocusDepth() const { return m_focusDepth; }
         Math::float2 GetCurrJitter() const { return m_currJitter; }
         Math::float3 GetBasisX() const { return Math::float3(m_basisX.x, m_basisX.y, m_basisX.z); }
         Math::float3 GetBasisY() const { return Math::float3(m_basisY.x, m_basisY.y, m_basisY.z); }
@@ -57,31 +60,32 @@ namespace ZetaRay::Scene
         static constexpr int BASE_PHASE_COUNT = 16;
 
         void UpdateProj();
+        void RotateX(float theta);
+        void RotateY(float theta);
+
+        // param callbacks
         void SetFOV(const Support::ParamVariant& p);
         void SetJitteringEnabled(const Support::ParamVariant& p);
         void SetFrictionCoeff(const Support::ParamVariant& p);
         void SetAngularFrictionCoeff(const Support::ParamVariant& p);
         void ClampSmallV0To0(const Support::ParamVariant& p);
         void SetAngularAcceleration(const Support::ParamVariant& p);
-
-        void RotateX(float theta);
-        void RotateY(float theta);
+        void FocusDepthCallback(const Support::ParamVariant& p);
+        void FStopCallback(const Support::ParamVariant& p);
+        void FocalLengthCallback(const Support::ParamVariant& p);
 
         Math::float4x4a m_view;
         Math::float4x4a m_viewInv;
         Math::float4x4a m_proj;
-
         Math::float4a m_posW;
         Math::float4a m_initialVelocity = Math::float4a(0.0f);
         Math::float2 m_initialAngularVelocity = Math::float2(0.0f);
-
+        Math::ViewFrustum m_viewFrustum;
         Math::float4a m_upW = Math::float4a(0.0f, 1.0f, 0.0f, 0.0f);
 
         Math::float4a m_basisX;
         Math::float4a m_basisY;
         Math::float4a m_basisZ;
-
-        Math::ViewFrustum m_viewFrustum;
 
         float m_FOV;
         float m_aspectRatio;
@@ -89,6 +93,14 @@ namespace ZetaRay::Scene
         float m_farZ;
         float m_tanHalfFOV;
         float m_pixelSpreadAngle;
+        // - Focal point: point where incident rays that are parallel to the optical axis 
+        //   and pass through the lens focus at 
+        // - Focal length (f): distance from the focal point to the lens (in mm)
+        float m_focalLength = 50;
+        // f-number n expresses lens diameter as a fraction of focal length, d = f / n
+        float m_fStop = 1.4f;
+        // The distance that camera is focusing at
+        float m_focusDepth = 5.0f;
         Math::float2 m_currJitter = Math::float2(0);
         float m_pixelSampleAreaWidth;
         float m_pixelSampleAreaHeight;

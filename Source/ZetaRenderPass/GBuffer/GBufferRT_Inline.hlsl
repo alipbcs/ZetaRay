@@ -64,13 +64,13 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
     return true;
 }
 
-RayPayload TracePrimaryHit(float3 cameraRayDir)
+RayPayload TracePrimaryHit(float3 origin, float3 dir)
 {
     RayDesc cameraRay;
-    cameraRay.Origin = g_frame.CameraPos;
+    cameraRay.Origin = origin;
     cameraRay.TMin = 0;
     cameraRay.TMax = FLT_MAX;
-    cameraRay.Direction = cameraRayDir;
+    cameraRay.Direction = dir;
 
     RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> rayQuery;
     rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, cameraRay);
@@ -180,17 +180,36 @@ void main(uint3 DTid : SV_DispatchThreadID)
     if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
         return;
 
+    float2 lensSample = 0;
     float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    float3 cameraRayDir = RT::GeneratePinholeCameraRay(DTid.xy, 
-        renderDim,
-        g_frame.AspectRatio, 
-        g_frame.TanHalfFOV, 
-        g_frame.CurrView[0].xyz, 
-        g_frame.CurrView[1].xyz, 
-        g_frame.CurrView[2].xyz,
-        g_frame.CurrCameraJitter);
+    float3 rayDirCS = RT::GeneratePinholeCameraRay_CS(DTid.xy, renderDim,
+        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrCameraJitter);
+    float3 rayOrigin = g_frame.CameraPos;
 
-    RayPayload rayPayload = TracePrimaryHit(cameraRayDir);
+    if(g_frame.DoF)
+    {
+        RNG rng = RNG::Init(RNG::PCG3d(DTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rng.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+        // Camera space to world space
+        rayOrigin += mad(lensSample.x, g_frame.CurrView[0].xyz, lensSample.y * g_frame.CurrView[1].xyz);
+
+#if 0
+        // rayDirCS.z = 1
+        float t = g_frame.FocusDepth / rayDirCS.z;
+        float3 focalPoint = t * rayDirCS;
+#else
+        float3 focalPoint = g_frame.FocusDepth * rayDirCS;
+#endif
+        rayDirCS = focalPoint - float3(lensSample, 0);
+    }
+
+    // Camera space to world space
+    float3 rayDir = mad(rayDirCS.x, g_frame.CurrView[0].xyz, 
+        mad(rayDirCS.y, g_frame.CurrView[1].xyz, rayDirCS.z * g_frame.CurrView[2].xyz));
+    rayDir = normalize(rayDir);
+
+    RayPayload rayPayload = TracePrimaryHit(rayOrigin, rayDir);
 
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)
@@ -218,13 +237,15 @@ void main(uint3 DTid : SV_DispatchThreadID)
     float2 motionVec = currUV - prevUV;
 
     // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.
-    float4 grads = GBufferRT::UVDifferentials(DTid.xy, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
-        rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
+    float4 grads = GBufferRT::UVDifferentials(DTid.xy, rayOrigin, rayDir, g_frame.CurrCameraJitter, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, rayPayload.t, rayPayload.dpdu, 
+        rayPayload.dpdv, g_frame);
 
-    float3 pos = g_frame.CameraPos + rayPayload.t * cameraRayDir;
-    // Instead of hit distance, save view z so that position reconstruction becomes
-    // slightly cheaper
+    // Instead of hit distance, save view z for slighly faster position reconstruction
+    float3 pos = g_frame.CameraPos + rayPayload.t * rayDir;
     float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
-    GBufferRT::ApplyTextureMaps(DTid.xy, posV.z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
+    float z = g_frame.DoF ? rayPayload.t : posV.z;
+
+    GBufferRT::ApplyTextureMaps(DTid.xy, z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
         rayPayload.tangent, motionVec, grads, pos, g_frame, g_local, g_materials);
 }

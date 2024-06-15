@@ -105,7 +105,7 @@ void GBufferRT::Init()
     }
 #endif
 
-    memset(&m_localCB, 0, sizeof(m_localCB));
+    memset(&m_cbLocal, 0, sizeof(m_cbLocal));
 
     //ParamVariant p1;
     //p1.InitEnum("Renderer", "G-Buffer", "Mipmap Selection", fastdelegate::MakeDelegate(this, &GBufferRT::MipmapSelectionCallback),
@@ -151,11 +151,11 @@ void GBufferRT::Render(CommandList& cmdList)
     const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, GBUFFER_RT_GROUP_DIM_X);
     const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, GBUFFER_RT_GROUP_DIM_Y);
 
-    m_localCB.DispatchDimX = (uint16_t)dispatchDimX;
-    m_localCB.DispatchDimY = (uint16_t)dispatchDimY;
-    m_localCB.NumGroupsInTile = GBUFFER_RT_TILE_WIDTH * m_localCB.DispatchDimY;
+    m_cbLocal.DispatchDimX = (uint16_t)dispatchDimX;
+    m_cbLocal.DispatchDimY = (uint16_t)dispatchDimY;
+    m_cbLocal.NumGroupsInTile = GBUFFER_RT_TILE_WIDTH * m_cbLocal.DispatchDimY;
 
-    m_rootSig.SetRootConstants(0, sizeof(m_localCB) / sizeof(DWORD), &m_localCB);
+    m_rootSig.SetRootConstants(0, sizeof(m_cbLocal) / sizeof(DWORD), &m_cbLocal);
     m_rootSig.End(computeCmdList);
 
 #if TRACE_INLINE == 0

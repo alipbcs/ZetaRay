@@ -82,7 +82,8 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
         vView = lookAtLH(m_posW, focusOrViewDir, m_upW);
     else
     {
-        Assert(fabs(focusOrViewDir.x) + fabs(focusOrViewDir.y) + fabs(focusOrViewDir.z) > 1e-6, "(0, 0, 0) is not a valid view vector.");
+        Assert(fabs(focusOrViewDir.dot(focusOrViewDir)) > 1e-7,
+            "(0, 0, 0) is not a valid view vector.");
         vView = lookToLH(m_posW, focusOrViewDir, m_upW);
     }
 
@@ -135,6 +136,24 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     clampTo0.InitBool("Scene", "Camera", "Snap Small V0 To Zero", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
         m_clampSmallV0ToZero);
     App::AddParam(clampTo0);
+
+    ParamVariant focusDepth;
+    focusDepth.InitFloat("Scene", "Camera", "Focus Depth",
+        fastdelegate::MakeDelegate(this, &Camera::FocusDepthCallback),
+        m_focusDepth, 1.0f, 25.0f, 1e-2f);
+    App::AddParam(focusDepth);
+
+    ParamVariant fstop;
+    fstop.InitFloat("Scene", "Camera", "F-Stop",
+        fastdelegate::MakeDelegate(this, &Camera::FStopCallback),
+        m_fStop, 1.0f, 5.0f, 1e-2f);
+    App::AddParam(fstop);
+
+    ParamVariant focalLen;
+    focalLen.InitFloat("Scene", "Camera", "Focal Length (mm)",
+        fastdelegate::MakeDelegate(this, &Camera::FocalLengthCallback),
+        m_focalLength, 10.0f, 100.0f, 1e-1f);
+    App::AddParam(focalLen);
 
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
@@ -315,3 +334,17 @@ void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
     m_rotAccScale = p.GetFloat2().m_value;
 }
 
+void Camera::FocusDepthCallback(const Support::ParamVariant& p)
+{
+    m_focusDepth = p.GetFloat().m_value;
+}
+
+void Camera::FStopCallback(const Support::ParamVariant& p)
+{
+    m_fStop = p.GetFloat().m_value;
+}
+
+void Camera::FocalLengthCallback(const Support::ParamVariant& p)
+{
+    m_focalLength = p.GetFloat().m_value;
+}

@@ -21,14 +21,12 @@ namespace CB_COMPOSIT_FLAGS
 
 struct cbCompositing
 {
-    uint32_t CompositedUAVDescHeapIdx;
-    uint32_t DiffuseDNSRCacheDescHeapIdx;
     uint32_t InscatteringDescHeapIdx;
     uint32_t SunShadowDescHeapIdx;
-    uint32_t SpecularDNSRCacheDescHeapIdx;
-    uint32_t SkyDIDenoisedDescHeapIdx;
-    uint32_t EmissiveDIDenoisedDescHeapIdx;
-    uint32_t IndirectDenoisedDescHeapIdx;
+    uint32_t SkyDIDescHeapIdx;
+    uint32_t EmissiveDIDescHeapIdx;
+    uint32_t IndirectDescHeapIdx;
+    uint32_t OutputUAVDescHeapIdx;
 
     float DepthMappingExp;
     float VoxelGridNearZ;

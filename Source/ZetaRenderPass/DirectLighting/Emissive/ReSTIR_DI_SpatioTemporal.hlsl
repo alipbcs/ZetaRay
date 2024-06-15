@@ -255,20 +255,51 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     bool invalid;
     GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
 
-    if (invalid || isEmissive)
+    if (invalid)
         return;
 
-    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+    if(isEmissive)
+    {
+        GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::EMISSIVE_COLOR];
+        float3 le = g_emissiveColor[swizzledDTid].rgb;
+
+        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
+
+        if(g_frame.Accumulate && g_frame.CameraStatic)
+        {
+            float3 prev = g_final[swizzledDTid].rgb;
+            g_final[swizzledDTid].rgb = prev + le;
+        }
+        else
+            g_final[swizzledDTid].rgb = le;
+
+        return;
+    }
+
+    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid.xy]);
 
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float t_primary = g_depth[swizzledDTid];
+    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    const float z_view = g_depth[swizzledDTid];
     
     // Reconstruct primary position from depth buffer
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(swizzledDTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 pos = Math::WorldPosFromScreenSpace(swizzledDTid, renderDim,
-        t_primary, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
-        g_frame.CurrCameraJitter);
+    const float3 pos = Math::WorldPosFromScreenSpace2(swizzledDTid, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -288,7 +319,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         eta_i = GBuffer::DecodeIOR(tr_ior.y);
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - pos);
+    const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
         eta_i, eta_t, tr);
 
@@ -306,7 +337,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
     RDI_Util::Target target = RDI_Util::Target::Init();
 
-    RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, t_primary, mr.y, baseColor, 
+    RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, mr.y, baseColor, 
         sampleSetIdx, surface, prevUV, target, rng);
 
     if(g_local.Denoise)

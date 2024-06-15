@@ -30,6 +30,8 @@ struct TemporalCandidate
     float roughness;
     float3 normal;
     int16_t2 posSS;
+    float eta_i;
+    float transmission;
     bool valid;
 };
 
@@ -171,12 +173,15 @@ struct PairwiseMIS
         // m_i
         if(r_i.IsValid())
         {
-            surface_c.SetWi_Refl(r_i.wi, normal_c);
-            const float3 brdfCosTheta_c = BSDF::UnifiedBRDF(surface_c);
+            surface_c.SetWi(r_i.wi, normal_c);
+            const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
             currTarget = r_i.Le * brdfCosTheta_c;
 
             if(Math::Luminance(currTarget) > 1e-5)
-                currTarget *= Visibility(pos_c, r_i.wi, normal_c, surface_c.HasSpecularTransmission());
+            {
+                currTarget *= Visibility(pos_c, r_i.wi, normal_c, 
+                    surface_c.HasSpecularTransmission());
+            }
 
             const float targetLum = Math::Luminance(currTarget);
             m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i);
@@ -187,11 +192,14 @@ struct PairwiseMIS
         // m_c
         if(r_c.IsValid())
         {
-            surface_i.SetWi_Refl(r_c.wi, normal_i);
-            brdfCosTheta_i = BSDF::UnifiedBRDF(surface_i);
+            surface_i.SetWi(r_c.wi, normal_i);
+            brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
 
             if(Math::Luminance(brdfCosTheta_i) > 1e-5)
-                brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, surface_i.HasSpecularTransmission());
+            {
+                brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, 
+                    surface_i.HasSpecularTransmission());
+            }
         }    
 
         Update_m_c(r_c, r_i, brdfCosTheta_i);
@@ -233,13 +241,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
     {
         const float2 u = rng.Uniform2D();
         float p_e;
-#if 1
         float3 wi_e = BSDF::SampleLambertianBRDF(normal, u, p_e);
-#else
-        float3 wi_e = !surface.HasSpecularTransmission() ? 
-            BSDF::SampleLambertianBRDF(normal, u, p_e) :
-            Sampling::SampleCosineWeightedHemisphere(u, p_e);
-#endif
         const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
@@ -261,14 +263,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
         float p_s = bsdfSample.pdf;
 
         surface.ndotwi = abs(dot(wi_s, normal));
-
-#if 1
         const float p_e = surface.ndotwi * ONE_OVER_PI;
-#else
-        const float p_e = !surface.HasSpecularTransmission() ? 
-            surface.ndotwi * ONE_OVER_PI : 
-            saturate(wi_s.y) * ONE_OVER_PI;
-#endif
         const float3 le = Le(pos, normal, wi_s, surface);
         const float3 target = le * f;
 
@@ -285,23 +280,25 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
     return r;
 }
 
-bool PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth)
+bool PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth,
+    float tolerance = MAX_PLANE_DIST_REUSE)
 {
     float planeDist = dot(currNormal, samplePos - currPos);
-    bool weight = abs(planeDist) <= MAX_PLANE_DIST_REUSE * linearDepth;
+    bool weight = abs(planeDist) <= tolerance * linearDepth;
 
     return weight;
 }
 
-TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, float linearDepth, 
+TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, float z_view, 
     bool metallic, float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     TemporalCandidate candidate = TemporalCandidate::Init();
     const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
 
     // reverse reproject current pixel
-    GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::MOTION_VECTOR];
-    const float2 motionVec = g_motionVector[DTid.xy];
+    GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::MOTION_VECTOR];
+    const float2 motionVec = g_motionVector[DTid];
     const float2 prevUV_surface = (DTid + 0.5) / renderDim - motionVec;
     // TODO surface motion can be laggy for glossy surfaces
     float2 prevUV = prevUV_surface;
@@ -309,12 +306,18 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
     if (any(prevUV < 0.0f.xx) || any(prevUV > 1.0f.xx))
         return candidate;
 
-    GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-    GBUFFER_METALLIC_ROUGHNESS g_prevMetallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+    GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
+    GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+    GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_OFFSET::TRANSMISSION];
 
     const int2 prevPixel = prevUV * renderDim;
+    const float3 prevCamPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
+        g_frame.PrevViewInv._m23);
 
     for(int i = 0; i < MAX_NUM_TEMPORAL_SAMPLES; i++)
     {
@@ -326,23 +329,34 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
         if(samplePosSS.x >= renderDim.x || samplePosSS.y >= renderDim.y)
             continue;
 
-        // plane-based heuristic
-        float prevDepth = g_prevDepth[samplePosSS];
-        float3 prevPos = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
-            prevDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
-            g_frame.PrevCameraJitter);
-
-        if(!PlaneHeuristic(prevPos, normal, pos, linearDepth))
-            continue;
-
-        const float2 prevMR = g_prevMetallicRoughness[samplePosSS];
-
+        const float2 prevMR = g_prevMR[samplePosSS];
         bool prevMetallic;
         bool prevEmissive;
-        GBuffer::DecodeMetallicEmissive(prevMR.x, prevMetallic, prevEmissive);
+        bool prevTransmissive;
+        bool prevInvalid;
+        GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive, prevInvalid);
 
-        // skip invalid reservoirs
-        if(prevEmissive)
+        if(prevInvalid || prevEmissive)
+            continue;
+
+        // plane-based heuristic
+        float prevDepth = g_prevDepth[samplePosSS];
+        float2 lensSample = 0;
+        float3 origin = prevCamPos;
+        if(g_frame.DoF)
+        {
+            RNG rngDoF = RNG::Init(RNG::PCG3d(samplePosSS.xyx).zy, g_frame.FrameNum - 1);
+            lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+            lensSample *= g_frame.LensRadius;
+        }
+
+        float3 prevPos = Math::WorldPosFromScreenSpace2(samplePosSS, renderDim, prevDepth, 
+            g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
+            g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
+            g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
+
+        float tolerance = MAX_PLANE_DIST_REUSE * (g_frame.DoF ? 10 : 1);
+        if(!PlaneHeuristic(prevPos, normal, pos, z_view, tolerance))
             continue;
 
         // normal heuristic
@@ -352,14 +366,28 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
             
         // roughness heuristic
         const bool roughnessSimilarity = abs(prevMR.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE;
-        candidate.valid = normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && roughnessSimilarity && (metallic == prevMetallic);
+        candidate.valid = g_frame.DoF ? true : 
+            normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && 
+            roughnessSimilarity && (metallic == prevMetallic);
 
         if(candidate.valid)
         {
+            float prevTransmission = DEFAULT_SPECULAR_TRANSMISSION;
+            float prevEta_i = DEFAULT_ETA_I;
+
+            if(prevTransmissive)
+            {
+                float2 tr_ior = g_prevTr[samplePosSS];
+                prevTransmission = tr_ior.x;
+                prevEta_i = GBuffer::DecodeIOR(tr_ior.y);
+            }
+
             candidate.posSS = (int16_t2)samplePosSS;
             candidate.pos = prevPos;
             candidate.normal = prevNormal;
             candidate.roughness = prevMR.y;
+            candidate.transmission = prevTransmission;
+            candidate.eta_i = prevEta_i;
 
             break;
         }
@@ -371,7 +399,8 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
 void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bool metallic,
     BSDF::ShadingData surface, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
-    SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, g_local.PrevReservoir_A_DescHeapIdx);
+    SkyDI_Util::Reservoir prev = SkyDI_Util::PartialReadReservoir_Reuse(candidate.posSS, 
+        g_local.PrevReservoir_A_DescHeapIdx);
     const half newM = r.M + prev.M;
 
     if(r.w_sum != 0)
@@ -384,11 +413,22 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
         if(Math::Luminance(r.Le) > 1e-6)
         {
             const float3 prevBaseColor = g_prevBaseColor[candidate.posSS].rgb;
-            const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
+            float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
+                g_frame.PrevViewInv._m23);
+            if(g_frame.DoF)
+            {
+                RNG rngDoF = RNG::Init(RNG::PCG3d(candidate.posSS.xyx).zy, g_frame.FrameNum - 1);
+                float2 lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+                lensSample *= g_frame.LensRadius;
+
+                prevCameraPos += mad(lensSample.x, g_frame.PrevView[0].xyz, 
+                    lensSample.y * g_frame.PrevView[1].xyz);
+            }
             const float3 prevWo = normalize(prevCameraPos - candidate.pos);
 
             BSDF::ShadingData prevSurface = BSDF::ShadingData::Init(candidate.normal, prevWo,
-                metallic, candidate.roughness, prevBaseColor);
+                metallic, candidate.roughness, prevBaseColor, candidate.eta_i, DEFAULT_ETA_T, 
+                candidate.transmission);
 
             prevSurface.SetWi(r.wi, candidate.normal);
 
@@ -396,7 +436,10 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
             if(targetLumAtPrev > 1e-6)
-                targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, prevSurface.HasSpecularTransmission());
+            {
+                targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, 
+                    prevSurface.HasSpecularTransmission());
+            }
         }
 
         const float p_curr = (float)r.M * Math::Luminance(r.Target);
@@ -450,12 +493,16 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         float2(-0.875, 0.7777777777777777)
     };
 
-    GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-    GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    GBUFFER_METALLIC_ROUGHNESS g_prevMetallicRoughness = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+    GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
+    GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
+    GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_OFFSET::TRANSMISSION];
 
     // rotate sample sequence per pixel
     const float u0 = rng.Uniform();
@@ -468,10 +515,15 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
     PairwiseMIS pairwiseMIS = PairwiseMIS::Init(numSamples, r);
 
     float3 samplePos[3];
+    float3 sampleOrigin[3];
     int16_t2 samplePosSS[3];
     float sampleRoughness[3];
     bool sampleMetallic[3];
+    float sampleTr[3];
+    float sampleEta_i[3];
     uint16_t k = 0;
+    const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
+        g_frame.PrevViewInv._m23);
 
     for (int i = 0; i < numSamples; i++)
     {
@@ -484,35 +536,57 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
 
         if (Math::IsWithinBounds(posSS_i, (int2)renderDim))
         {
-            const float depth_i = g_prevDepth[posSS_i];
-            if (depth_i == 0.0)
+            const float2 mr_i = g_prevMR[posSS_i];
+            bool metallic_i;
+            bool transmissive_i;
+            bool emissive_i;
+            bool invalid_i;
+            GBuffer::DecodeMetallic(mr_i.x, metallic_i, emissive_i, invalid_i);
+
+            if (invalid_i || emissive_i)
                 continue;
 
-            float3 pos_i = Math::WorldPosFromScreenSpace(posSS_i, renderDim,
-                depth_i, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevViewInv, 
-                g_frame.PrevCameraJitter);
-            bool valid = PlaneHeuristic(pos_i, normal, pos, linearDepth);
+            const float depth_i = g_prevDepth[posSS_i];
+            float2 lensSample = 0;
+            float3 origin_i = prevCameraPos;
+            if(g_frame.DoF)
+            {
+                RNG rngDoF = RNG::Init(RNG::PCG3d(posSS_i.xyx).zy, g_frame.FrameNum - 1);
+                lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+                lensSample *= g_frame.LensRadius;
+            }
 
-            const float2 mr_i = g_prevMetallicRoughness[posSS_i];
-            
-            bool metallic_i;
-            bool emissive_i;
-            GBuffer::DecodeMetallicEmissive(mr_i.x, metallic_i, emissive_i);
+            float3 pos_i = Math::WorldPosFromScreenSpace2(posSS_i, renderDim, depth_i, 
+                g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
+                g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
+                g_frame.DoF, lensSample, g_frame.FocusDepth, origin_i);
 
-            valid = valid && !emissive_i && (abs(mr_i.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE);
+            float tolerance = MAX_PLANE_DIST_REUSE * (g_frame.DoF ? 10 : 1);
+            bool valid = PlaneHeuristic(pos_i, normal, pos, linearDepth, tolerance);          
+            valid = valid && (abs(mr_i.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE);
 
             if (!valid)
                 continue;
 
             samplePos[k] = pos_i;
+            sampleOrigin[k] = origin_i;
             samplePosSS[k] = (int16_t2)posSS_i;
             sampleMetallic[k] = metallic_i;
             sampleRoughness[k] = mr_i.y;
+            sampleTr[k] = DEFAULT_SPECULAR_TRANSMISSION;
+            sampleEta_i[k] = DEFAULT_ETA_I;
+
+            if(transmissive_i)
+            {
+                float2 tr_ior = g_prevTr[posSS_i];
+                sampleTr[k] = tr_ior.x;
+                sampleEta_i[k] = GBuffer::DecodeIOR(tr_ior.y);
+            }
+
             k++;
         }
     }
 
-    const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
     pairwiseMIS.k = k;
 
     for (int i = 0; i < k; i++)
@@ -520,12 +594,15 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
         const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
 
-        const float3 wo_i = normalize(prevCameraPos - samplePos[i]);
+        const float3 wo_i = normalize(sampleOrigin[i] - samplePos[i]);
         BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
-            sampleMetallic[i], sampleRoughness[i], sampleBaseColor);
+            sampleMetallic[i], sampleRoughness[i], sampleBaseColor, sampleEta_i[i],
+            DEFAULT_ETA_T, sampleTr[i]);
 
-        SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], g_local.PrevReservoir_A_DescHeapIdx);
-        const float neighborWSum = SkyDI_Util::PartialReadReservoir_WSum(samplePosSS[i], prevReservoir_B_DescHeapIdx);
+        SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], 
+            g_local.PrevReservoir_A_DescHeapIdx);
+        const float neighborWSum = SkyDI_Util::PartialReadReservoir_WSum(samplePosSS[i], 
+            prevReservoir_B_DescHeapIdx);
 
         pairwiseMIS.Stream(r, pos, normal, linearDepth, surface, neighbor, samplePos[i], 
             sampleNormal, neighborWSum, surface_i, rng);
@@ -542,12 +619,13 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 norm
         surface, rng);
 
     // skip resampling for mirror-like metals & dark-colored glossy dielectrics
-    const bool resample = (roughness > g_local.MinRoughnessResample || (!metallic && Math::Luminance(baseColor) > 1e-2));
+    const bool resample = (roughness > g_local.MinRoughnessResample || 
+        (!metallic && Math::Luminance(baseColor) > 1e-2));
     
     if (IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE) && resample) 
     {
-        TemporalCandidate candidate = FindTemporalCandidate(DTid, pos, normal, linearDepth, metallic, roughness, 
-            surface, rng);
+        TemporalCandidate candidate = FindTemporalCandidate(DTid, pos, normal, linearDepth, 
+            metallic, roughness, surface, rng);
 
         if(candidate.valid)
             TemporalResample(candidate, pos, normal, metallic, surface, r, rng);
@@ -558,7 +636,6 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 norm
     SkyDI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
             g_local.CurrReservoir_B_DescHeapIdx, (half)m_max);
 
-    // spatial resampling
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE) && resample)
     {
         SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, pos, normal, linearDepth, roughness, surface, 
@@ -573,7 +650,7 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 norm
 //--------------------------------------------------------------------------------------
 
 [numthreads(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y, 1)]
-void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
+void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
     uint16_t2 swizzledGid;
@@ -595,32 +672,40 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
         return;
 
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
-    const float t_primary = g_depth[swizzledDTid];
-    
-    if (t_primary == FLT_MAX)
-        return;
-
-    // reconstruct position from depth buffer
-    const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 pos = Math::WorldPosFromScreenSpace(swizzledDTid, renderDim,
-        t_primary, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
-        g_frame.CurrCameraJitter);
-
-    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
-    const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
-
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-
     bool metallic;
     bool transmissive;
     bool emissive;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive);
+    bool invalid;
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
-    if (emissive)
+    if (invalid || emissive)
         return;
+
+    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
+    const float z_view = g_depth[swizzledDTid];
+    
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(swizzledDTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
+    const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
+    const float3 pos = Math::WorldPosFromScreenSpace2(swizzledDTid, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
+
+    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
+    const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -640,14 +725,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         eta_i = GBuffer::DecodeIOR(tr_ior.y);
     }
 
-    const float3 wo = normalize(g_frame.CameraPos - pos);
+    const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
         eta_i, eta_t, tr);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 
-    // generate candidates followed by spatiotemporal resampling
-    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, t_primary, metallic, 
+    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, metallic, 
         mr.y, baseColor, surface, rng);
 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))

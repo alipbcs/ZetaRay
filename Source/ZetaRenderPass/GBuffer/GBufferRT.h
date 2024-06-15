@@ -46,25 +46,25 @@ namespace ZetaRay::RenderPass
             switch (input)
             {
             case SHADER_IN_GPU_DESC::BASE_COLOR_UAV:
-                m_localCB.BaseColorUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.BaseColorUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::NORMAL_UAV:
-                m_localCB.NormalUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.NormalUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::METALLIC_ROUGHNESS_UAV:
-                m_localCB.MetallicRoughnessUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.MetallicRoughnessUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::EMISSIVE_COLOR_UAV:
-                m_localCB.EmissiveColorUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.EmissiveColorUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::MOTION_VECTOR_UAV:
-                m_localCB.MotionVectorUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.MotionVectorUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::TRANSMISSION_UAV:
-                m_localCB.TransmissionUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.TransmissionUavDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::DEPTH_UAV:
-                m_localCB.DepthUavDescHeapIdx = descHeapIdx;
+                m_cbLocal.DepthUavDescHeapIdx = descHeapIdx;
                 return;
             default:
                 Assert(false, "unreachable case.");
@@ -110,7 +110,7 @@ namespace ZetaRay::RenderPass
         ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
         ComPtr<ID3D12StateObject> m_rtPSO;
         ShaderTable m_shaderTable;
-        cbGBufferRt m_localCB;
+        cbGBufferRt m_cbLocal;
 
         void CreateRTPSO();
         void BuildShaderTable();

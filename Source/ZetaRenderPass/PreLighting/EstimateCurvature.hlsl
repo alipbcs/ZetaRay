@@ -2,6 +2,7 @@
 #include "../Common/Math.hlsli"
 #include "../Common/GBuffers.hlsli"
 #include "../Common/FrameConstants.h"
+#include "../Common/Sampling.hlsli"
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -84,11 +85,20 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     if(z_view == FLT_MAX)
         return;
 
-    // reconstruct position from depth buffer
+    float2 lensSample = 0;
+    float3 origin = g_frame.CameraPos;
+    if(g_frame.DoF)
+    {
+        RNG rngDoF = RNG::Init(RNG::PCG3d(DTid.xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+    }
+
     const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
-    const float3 pos = Math::WorldPosFromScreenSpace(DTid.xy, renderDim, z_view, 
-        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
-        g_frame.CurrCameraJitter);
+    const float3 pos = Math::WorldPosFromScreenSpace2(DTid.xy, renderDim, z_view, 
+        g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter,
+        g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
+        g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
 
     GBUFFER_NORMAL g_shadingNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::NORMAL];

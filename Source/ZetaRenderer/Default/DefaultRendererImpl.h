@@ -59,6 +59,8 @@ namespace ZetaRay::DefaultRenderer
     inline static const char* IndirectOptions[] = { "Path Tracing", "ReSTIR GI", "ReSTIR PT" };
     static_assert((int)RenderPass::IndirectLighting::INTEGRATOR::COUNT == ZetaArrayLen(IndirectOptions), "enum <-> string mismatch.");
 
+    inline static const char* LensTypes[] = { "Pinhole", "Thin Lens" };
+
     static constexpr auto DEFAULT_AA = AA::TAA;
 
     struct alignas(64) RenderSettings

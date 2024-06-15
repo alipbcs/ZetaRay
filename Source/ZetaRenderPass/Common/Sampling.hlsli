@@ -209,10 +209,12 @@ namespace Sampling
         return float2(r * cos(phi), r * sin(phi));
     }
 
-    float2 UniformSampleDiskConcentricMapping(float2 u)
+    float2 UniformSampleDiskConcentric(float2 u)
     {
         float a = 2.0f * u.x - 1.0f;
         float b = 2.0f * u.y - 1.0f;
+        if(a == 0 && b == 0)
+            return 0;
 
         float r;
         float phi;

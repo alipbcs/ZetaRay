@@ -54,6 +54,8 @@ namespace RDI_Util
         float3 normal;
         float roughness;
         int16_t2 posSS;
+        float transmission;
+        float eta_i;
         bool valid;
         bool metallic;
     };
@@ -184,7 +186,8 @@ namespace RDI_Util
         // triangle intersection only when hit_t < t_max
         if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         {
-            uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), rayQuery.CommittedPrimitiveIndex());
+            uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), 
+                rayQuery.CommittedPrimitiveIndex());
             uint hash = RNG::PCG3d(key).x;
 
             return triID == hash;

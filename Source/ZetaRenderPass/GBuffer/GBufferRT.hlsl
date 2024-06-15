@@ -55,15 +55,35 @@ RaytracingPipelineConfig1 MyPipelineConfig =
 [shader("raygeneration")]
 void Raygen()
 {
-    float3 cameraRayDir = RT::GeneratePinholeCameraRay(DispatchRaysIndex().xy, DispatchRaysDimensions().xy, 
-        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, 
-        g_frame.CurrView[2].xyz, g_frame.CurrCameraJitter);
+    float2 lensSample = 0;
+    float2 renderDim = DispatchRaysDimensions().xy;
+    float3 rayDirCS = RT::GeneratePinholeCameraRay_CS(DispatchRaysIndex().xy, renderDim,
+        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrCameraJitter);
+
+    if(g_frame.DoF)
+    {
+        RNG rng = RNG::Init(RNG::PCG3d(DispatchRaysIndex().xyx).zy, g_frame.FrameNum);
+        lensSample = Sampling::UniformSampleDiskConcentric(rng.Uniform2D());
+        lensSample *= g_frame.LensRadius;
+
+        float t = g_frame.FocusDepth / rayDirCS.z;
+        float3 focalPoint = t * rayDirCS;
+        rayDirCS = focalPoint - float3(lensSample, 0);
+    }
+
+    // Camera space to world space
+    float3 rayOrigin = g_frame.CameraPos;
+    rayOrigin += mad(lensSample.x, g_frame.CurrView[0].xyz, lensSample.y * g_frame.CurrView[1].xyz);
+
+    float3 rayDir = mad(rayDirCS.x, g_frame.CurrView[0].xyz, 
+        mad(rayDirCS.y, g_frame.CurrView[1].xyz, rayDirCS.z * g_frame.CurrView[2].xyz));
+    rayDir = normalize(rayDir);
 
     RayDesc cameraRay;
-    cameraRay.Origin = g_frame.CameraPos;
-    cameraRay.TMin = g_frame.CameraNear;
+    cameraRay.Origin = rayOrigin;
+    cameraRay.TMin = 0;
     cameraRay.TMax = FLT_MAX;
-    cameraRay.Direction = cameraRayDir;
+    cameraRay.Direction = rayDir;
 
     // find primary surface point
     RayPayload rayPayload;
@@ -104,10 +124,11 @@ void Raygen()
     float2 currUV = (DispatchRaysIndex().xy + 0.5 + g_frame.CurrCameraJitter) / DispatchRaysDimensions().xy;
     float2 motionVec = currUV - prevUV;
 
-    float4 grads = GBufferRT::UVDifferentials(DispatchRaysIndex().xy, g_frame.CameraPos, cameraRayDir, g_frame.CurrCameraJitter, 
-        rayPayload.t, rayPayload.dpdu, rayPayload.dpdv, g_frame);
+    float4 grads = GBufferRT::UVDifferentials(DispatchRaysIndex().xy, rayOrigin, rayDir, 
+        g_frame.CurrCameraJitter, g_frame.DoF, lensSample, g_frame.FocusDepth, rayPayload.t, 
+        rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
-    float3 pos = g_frame.CameraPos + rayPayload.t * cameraRayDir;
+    float3 pos = g_frame.CameraPos + rayPayload.t * rayDir;
     float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
     GBufferRT::ApplyTextureMaps(DispatchRaysIndex().xy, posV.z, rayPayload.uv, matIdx, normal, tangent, motionVec, 
         grads, pos, g_frame, g_local, g_materials);

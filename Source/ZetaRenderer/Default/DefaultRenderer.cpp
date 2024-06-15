@@ -66,6 +66,9 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.AspectRatio = cam.GetAspectRatio();
     frameConsts.PixelSpreadAngle = cam.GetPixelSpreadAngle();
     frameConsts.TanHalfFOV = cam.GetTanHalfFOV();
+    frameConsts.FocusDepth = cam.GetFocusDepth();
+    // mul by 0.5 to get radius from diameter
+    frameConsts.LensRadius = 0.5f * (cam.GetFocalLength() / 1000.0f) / cam.GetFStop();
     frameConsts.PrevView = frameConsts.CurrView;
     frameConsts.CurrView = float3x4(cam.GetCurrView());
     frameConsts.PrevViewInv = frameConsts.CurrViewInv;
@@ -291,6 +294,11 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_settings.UseLVG = newVal;
         SetLVGEnablement(newVal);
     }
+
+    void SetLensType(const Support::ParamVariant& p)
+    {
+        g_data->m_frameConstants.DoF = p.GetEnum().m_curr;
+    }
 }
 
 namespace ZetaRay::DefaultRenderer
@@ -322,6 +330,7 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.g = Defaults::g;
         g_data->m_frameConstants.NumFramesCameraStatic = 0;
         g_data->m_frameConstants.Accumulate = false;
+        g_data->m_frameConstants.DoF = 0;
 
         auto normalizeAndStore = [](float3 v, float3& cbVal, float& cbScale)
         {
@@ -389,6 +398,12 @@ namespace ZetaRay::DefaultRenderer
                 IndirectOptions, ZetaArrayLen(IndirectOptions), (int)g_data->m_settings.Indirect);
             App::AddParam(p2);
 
+            ParamVariant p3;
+            p3.InitEnum("Scene", "Camera", "Lens Type",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLensType),
+                LensTypes, ZetaArrayLen(LensTypes), 0);
+            App::AddParam(p3);
+
             g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
             g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
         }
@@ -404,19 +419,13 @@ namespace ZetaRay::DefaultRenderer
             ParamVariant p1;
             p1.InitFloat("Light Source", "Sun", "Illuminance",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunLux),
-                g_data->m_frameConstants.SunIlluminance,
-                1.0f,
-                100.0f,
-                1.0f);
+                g_data->m_frameConstants.SunIlluminance, 1.0f, 100.0f, 1.0f);
             App::AddParam(p1);
 
             ParamVariant p2;
             p2.InitFloat("Light Source", "Sun", "Angular Diameter (degrees)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularDiameter),
-                Defaults::SUN_ANGULAR_DIAMETER,
-                0.1f,
-                10.0f,
-                1e-2f);
+                Defaults::SUN_ANGULAR_DIAMETER, 0.1f, 10.0f, 1e-2f);
             App::AddParam(p2);
         }
 
@@ -431,37 +440,25 @@ namespace ZetaRay::DefaultRenderer
             ParamVariant p1;
             p1.InitFloat("Scene", "Atmosphere", "Rayleigh scattering scale",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetRayleighSigmaSScale),
-                g_data->m_frameConstants.RayleighSigmaSScale,
-                0.0f,
-                10.0f,
-                1e-3f);
+                g_data->m_frameConstants.RayleighSigmaSScale, 0.0f, 10.0f, 1e-3f);
             App::AddParam(p1);
 
             ParamVariant p2;
             p2.InitFloat("Scene", "Atmosphere", "Mie scattering coeff.",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaS),
-                Defaults::SIGMA_S_MIE,
-                1e-6f,
-                1e-1f,
-                1e-3f);
+                Defaults::SIGMA_S_MIE, 1e-6f, 1e-1f, 1e-3f);
             App::AddParam(p2);
 
             ParamVariant p3;
             p3.InitFloat("Scene", "Atmosphere", "Mie absorption coeff.",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaA),
-                Defaults::SIGMA_A_MIE,
-                1e-6f,
-                10.0f,
-                1e-3f);
+                Defaults::SIGMA_A_MIE, 1e-6f, 10.0f, 1e-3f);
             App::AddParam(p3);
 
             ParamVariant p4;
             p4.InitFloat("Scene", "Atmosphere", "Ozone absorption scale",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAScale),
-                g_data->m_frameConstants.OzoneSigmaAScale,
-                0.0f,
-                10.0f,
-                1e-4f);
+                g_data->m_frameConstants.OzoneSigmaAScale, 0.0f, 10.0f, 1e-4f);
             App::AddParam(p4);
 
             ParamVariant p5;
@@ -473,10 +470,7 @@ namespace ZetaRay::DefaultRenderer
             ParamVariant p6;
             p6.InitFloat("Scene", "Atmosphere", "g (HG Phase Function)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetgForPhaseHG),
-                Defaults::g,
-                -0.99f,
-                0.99f,
-                0.2f);
+                Defaults::g, -0.99f, 0.99f, 0.2f);
             App::AddParam(p6);
         }
     }
