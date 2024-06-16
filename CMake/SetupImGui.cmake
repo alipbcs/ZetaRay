@@ -1,5 +1,5 @@
 function(SetupImGui)
-    set(IMGUI_VER "1.90")
+    set(IMGUI_VER "1.90.8")
     set(IMPLOT_VER "0.15")
     set(IMNODES_COMMIT "d88f99125bb72cdb71b4c27ff6eb7f318d89a4c5")
     set(IMGUI_DIR "${EXTERNAL_DIR}/ImGui")
