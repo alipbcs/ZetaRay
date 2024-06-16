@@ -68,17 +68,17 @@ void Compositing::Init(bool skyIllum)
 
     ParamVariant p0;
     p0.InitBool("Renderer", "Lighting", "Direct (Sun)", fastdelegate::MakeDelegate(this, &Compositing::DirectSunCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
+        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI), "Compositing");
     App::AddParam(p0);
 
     ParamVariant p6;
     p6.InitBool("Renderer", "Lighting", "Indirect", fastdelegate::MakeDelegate(this, &Compositing::IndirectCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT));
+        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT), "Compositing");
     App::AddParam(p6);
 
     ParamVariant p7;
     p7.InitBool("Renderer", "Lighting", "Direct (Emissives)", fastdelegate::MakeDelegate(this, &Compositing::DirectEmissiveCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
+        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI), "Compositing");
     App::AddParam(p7);
 
     ParamVariant p9;

@@ -10,7 +10,8 @@ using namespace ZetaRay::Math;
 // ParamVariant
 //--------------------------------------------------------------------------------------
 
-void ParamVariant::InitCommon(const char* group, const char* subgroup, const char* name, 
+void ParamVariant::InitCommon(const char* group, const char* subgroup, 
+    const char* subsubgroup, const char* name, 
     fastdelegate::FastDelegate1<const ParamVariant&> dlg)
 {
     Assert(group, "Group can't be null.");
@@ -19,22 +20,29 @@ void ParamVariant::InitCommon(const char* group, const char* subgroup, const cha
 
     m_dlg = dlg;
 
-    size_t lenGroup = Math::Min((int)strlen(group), (MAX_GROUP_LEN - 1));
+    size_t lenGroup = Min((int)strlen(group), (MAX_GROUP_LEN - 1));
     Assert(lenGroup >= 1, "Empty group name.");
     memcpy(m_group, group, lenGroup);
     m_group[lenGroup] = '\0';
 
-    size_t lenSubgroup = Math::Min((int)strlen(subgroup), (MAX_SUBGROUP_LEN - 1));
+    size_t lenSubgroup = Min((int)strlen(subgroup), (MAX_SUBGROUP_LEN - 1));
     Assert(lenSubgroup >= 1, "Empty subgroup name.");
     memcpy(m_subgroup, subgroup, lenSubgroup);
     m_subgroup[lenSubgroup] = '\0';
 
-    size_t lenName = Math::Min((int)strlen(name), (MAX_NAME_LEN - 1));
+    size_t lenSubSubgroup = subsubgroup ? Min((int)strlen(subsubgroup), (MAX_SUBSUBGROUP_LEN - 1)) : 0;
+    if (subsubgroup)
+        memcpy(m_subsubgroup, subsubgroup, lenSubSubgroup);
+    
+    m_subsubgroup[lenSubSubgroup] = '\0';
+
+    size_t lenName = Min((int)strlen(name), (MAX_NAME_LEN - 1));
     Assert(lenName >= 1, "Empty name.");
     memcpy(m_name, name, lenName);
     m_name[lenName] = '\0';
 
-    constexpr int BUFF_SIZE = ParamVariant::MAX_GROUP_LEN + ParamVariant::MAX_SUBGROUP_LEN + ParamVariant::MAX_NAME_LEN;
+    constexpr int BUFF_SIZE = ParamVariant::MAX_GROUP_LEN + ParamVariant::MAX_SUBGROUP_LEN + 
+        ParamVariant::MAX_NAME_LEN;
     char buff[BUFF_SIZE];
     size_t ptr = 0;
 
@@ -48,45 +56,50 @@ void ParamVariant::InitCommon(const char* group, const char* subgroup, const cha
 }
 
 void ParamVariant::InitFloat(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float val, float min, float max, float step)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float val, float min, float max, 
+    float step, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_float;
     m_float.Init(val, min, max, step);
 }
 
 void ParamVariant::InitInt(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, int val, int min, int max, int step)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, int val, int min, int max, 
+    int step, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_int;
     m_int.Init(val, min, max, step);
 }
 
 void ParamVariant::InitFloat2(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float2 val, float min, float max, float step)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float2 val, float min, 
+    float max, float step, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_float2;
     m_float2.Init(val, min, max, step, false);
 }
 
 void ParamVariant::InitFloat3(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float3 val, float min, float max, float step)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float3 val, float min, float max, 
+    float step, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_float3;
     m_float3.Init(val, min, max, step, false);
 }
 
 void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float pitch, float yaw)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float pitch, float yaw, 
+    const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     Assert(pitch >= 0 && pitch <= Math::PI, "Pitch must be in [0, +PI].");
     Assert(yaw >= 0 && yaw <= Math::TWO_PI, "Yaw must be in [0, 2 * PI].");
@@ -95,49 +108,54 @@ void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const ch
 }
 
 void ParamVariant::InitUnitDir(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 dir)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float3 dir, 
+    const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     float theta;
     float phi;
-    Math::SphericalFromCartesian(dir, theta, phi);
+    SphericalFromCartesian(dir, theta, phi);
 
     m_type = PARAM_TYPE::PT_unit_dir;
     m_unitDir.Init(theta, phi);
 }
 
-void ParamVariant::InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val)
+void ParamVariant::InitNormalizedFloat3(const char* group, const char* subgroup, 
+    const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg, 
+    float3 val, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_float3;
     m_float3.Init(val, -1.0f, 1.0f, 1e-2f, true);
 }
 
 void ParamVariant::InitColor(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, Math::float3 val)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, float3 val, 
+    const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_color;
     m_float3.Init(val, 0.0f, 1.0f, 0.01f, false);
 }
 
 void ParamVariant::InitBool(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val, 
+    const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_bool;
     m_bool = val;
 }
 
 void ParamVariant::InitEnum(const char* group, const char* subgroup, const char* name, 
-    fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, int index)
+    fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** vals, int num, 
+    int index, const char* subsubgroup)
 {
-    InitCommon(group, subgroup, name, dlg);
+    InitCommon(group, subgroup, subsubgroup, name, dlg);
 
     m_type = PARAM_TYPE::PT_enum;
     Assert(index < num, "Out-of-bound index.");
@@ -258,7 +276,7 @@ void ParamVariant::SetEnum(int v)
     m_dlg(*this);
 }
 
-float3 UnitDirParam::GetDir()
+float3 UnitDirParam::GetDir() const
 {
-    return Math::SphericalToCartesian(m_pitch, m_yaw);
+    return SphericalToCartesian(m_pitch, m_yaw);
 }

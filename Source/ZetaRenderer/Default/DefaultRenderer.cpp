@@ -81,19 +81,25 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.PrevGBufferDescHeapOffset = gbuffData.SrvDescTable[1 - currIdx].GPUDesciptorHeapIndex();
 
     // Sky-view LUT SRV
-    frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
+    frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDesciptorHeapIndex(
+        (int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
-    float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, frameConsts.PrevViewInv.m[2].z);
-    float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, frameConsts.CurrViewInv.m[2].z);
+    float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, 
+        frameConsts.PrevViewInv.m[2].z);
+    float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, 
+        frameConsts.CurrViewInv.m[2].z);
     float3 one(1.0f);
-    const bool cameraStatic = (one.dot(prevCameraPos - frameConsts.CameraPos) == 0) && (one.dot(prevViewDir - currViewDir) == 0);
-    frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? frameConsts.NumFramesCameraStatic + 1 : 0;
+    const bool cameraStatic = (one.dot(prevCameraPos - frameConsts.CameraPos) == 0) && 
+        (one.dot(prevViewDir - currViewDir) == 0);
+    frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
+        frameConsts.NumFramesCameraStatic + 1 : 0;
     frameConsts.CameraStatic = cameraStatic;
 
     frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
     frameConsts.OneDivNumEmissiveTriangles = 1.0f / frameConsts.NumEmissiveTriangles;
 
-    constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+    constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), 
+        (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
     if (!frameConstsBuff.IsInitialized())
     {
@@ -344,8 +350,10 @@ namespace ZetaRay::DefaultRenderer
             }
         };
 
-        normalizeAndStore(Defaults::SIGMA_S_RAYLEIGH, g_data->m_frameConstants.RayleighSigmaSColor, g_data->m_frameConstants.RayleighSigmaSScale);
-        normalizeAndStore(float3(Defaults::SIGMA_A_OZONE), g_data->m_frameConstants.OzoneSigmaAColor, g_data->m_frameConstants.OzoneSigmaAScale);
+        normalizeAndStore(Defaults::SIGMA_S_RAYLEIGH, g_data->m_frameConstants.RayleighSigmaSColor, 
+            g_data->m_frameConstants.RayleighSigmaSScale);
+        normalizeAndStore(float3(Defaults::SIGMA_A_OZONE), g_data->m_frameConstants.OzoneSigmaAColor, 
+            g_data->m_frameConstants.OzoneSigmaAScale);
 
         g_data->m_frameConstants.MieSigmaA = Defaults::SIGMA_A_MIE;
         g_data->m_frameConstants.MieSigmaS = Defaults::SIGMA_S_MIE;
@@ -371,7 +379,7 @@ namespace ZetaRay::DefaultRenderer
         // Render settings
         {
             ParamVariant enableInscattering;
-            enableInscattering.InitBool("Renderer", "Lighting", "Inscattering",
+            enableInscattering.InitBool("Renderer", "Compositing", "Inscattering",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetInscatteringEnablement),
                 g_data->m_settings.Inscattering);
             App::AddParam(enableInscattering);
@@ -383,12 +391,14 @@ namespace ZetaRay::DefaultRenderer
             App::AddParam(p);
 
             ParamVariant p0;
-            p0.InitBool("Renderer", "Lighting", "Direct (Sky)", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
+            p0.InitBool("Renderer", "Compositing", "Direct (Sky)", 
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
                 g_data->m_settings.SkyIllumination);
             App::AddParam(p0);
 
             ParamVariant p1;
-            p1.InitBool("Renderer", "Lighting", "Accumulate", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
+            p1.InitBool("Renderer", "Compositing", "Accumulate", 
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
                 g_data->m_frameConstants.Accumulate);
             App::AddParam(p1);
 
@@ -399,9 +409,9 @@ namespace ZetaRay::DefaultRenderer
             App::AddParam(p2);
 
             ParamVariant p3;
-            p3.InitEnum("Scene", "Camera", "Lens Type",
+            p3.InitEnum("Scene", "Camera", "Type",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLensType),
-                LensTypes, ZetaArrayLen(LensTypes), 0);
+                LensTypes, ZetaArrayLen(LensTypes), 0, "Lens");
             App::AddParam(p3);
 
             g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
@@ -501,7 +511,12 @@ namespace ZetaRay::DefaultRenderer
                 App::AddParam(p);
             }
             else
+            {
+                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
+                    0, 0);
+
                 App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
+            }
 
             SetLVGEnablement(g_data->m_settings.UseLVG);
         }

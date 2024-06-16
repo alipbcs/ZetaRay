@@ -27,14 +27,16 @@ using namespace ZetaRay::Scene;
 
 namespace
 {
-    void AddParamRange(MutableSpan<ParamVariant> params, size_t offset, size_t count)
+    void AddParamRange(MutableSpan<ParamVariant> params, int offset, int count)
     {
-        std::sort(params.begin() + offset, params.begin() + offset + count, [](ParamVariant& p1, ParamVariant& p2)
+        // Sort by name among current subgroup
+        std::sort(params.begin() + offset, params.begin() + offset + count, 
+            [](const ParamVariant& p1, const ParamVariant& p2)
             {
                 return strcmp(p1.GetName(), p2.GetName()) < 0;
             });
 
-        for (size_t p = offset; p < offset + count; p++)
+        for (int p = offset; p < offset + count; p++)
         {
             ParamVariant& param = params[p];
 
@@ -791,7 +793,16 @@ void GuiPass::RenderMainHeader()
 
     flags = ImGuiTabItemFlags_None;
     if (!m_firstTime && m_logs.size() != m_prevNumLogs)
-        flags = ImGuiTabItemFlags_SetSelected;
+    {
+        for (int i = m_prevNumLogs; i < (int)m_logs.size(); i++)
+        {
+            if (m_logs[i].Type == App::LogMessage::WARNING)
+            {
+                flags = ImGuiTabItemFlags_SetSelected;
+                break;
+            }
+        }
+    }
 
     if(ImGui::BeginTabItem(ICON_FA_TERMINAL "        Logs        ", nullptr, flags))
     {
@@ -878,78 +889,118 @@ void GuiPass::CameraTab()
 
 void GuiPass::ParameterTab()
 {
-    auto paramsView = App::GetParams();
-    MutableSpan<ParamVariant> params = paramsView.Variable();
+    MutableSpan<ParamVariant> params = App::GetParams().Variable();
     char currGroup[ParamVariant::MAX_GROUP_LEN];
 
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
 
-    {
-        std::sort(params.begin(), params.end(), [](ParamVariant& p1, ParamVariant& p2)
-            {
-                return strcmp(p1.GetGroup(), p2.GetGroup()) < 0;
-            });
-
-        for (size_t i = 0; i < params.size();)
+    // Sort by group
+    std::sort(params.begin(), params.end(), [](const ParamVariant& p1, const ParamVariant& p2)
         {
-            ParamVariant& p = params[i];
-            memcpy(currGroup, p.GetGroup(), ParamVariant::MAX_GROUP_LEN);
+            return strcmp(p1.GetGroup(), p2.GetGroup()) < 0;
+        });
 
-            const size_t beg = i;
+    for (int currGroupIdx = 0; currGroupIdx < (int)params.size();)
+    {
+        ParamVariant& currParam_g = params[currGroupIdx];
+        const size_t groupLen = strlen(currParam_g.GetGroup());
+        memcpy(currGroup, currParam_g.GetGroup(), groupLen);
+        currGroup[groupLen] = '\0';
 
-            while (i < params.size() && strcmp(params[i].GetGroup(), currGroup) == 0)
-                i++;
+        // Find the range of parameters for this group
+        int nextGroupIdx = currGroupIdx;
+        while (nextGroupIdx < params.size() && (strcmp(params[nextGroupIdx].GetGroup(), currGroup) == 0))
+            nextGroupIdx++;
 
-            std::sort(params.begin() + beg, params.begin() + i, [](ParamVariant& p1, ParamVariant& p2)
+        if (ImGui::TreeNode(currParam_g.GetGroup()))
+        {
+            char currSubGroup[ParamVariant::MAX_SUBGROUP_LEN];
+
+            // Sort by subgroup among current group
+            std::sort(params.begin() + currGroupIdx, params.begin() + nextGroupIdx,
+                [](const ParamVariant& p1, const ParamVariant& p2)
                 {
                     return strcmp(p1.GetSubGroup(), p2.GetSubGroup()) < 0;
                 });
-        }
-    }
 
-    char currSubGroup[ParamVariant::MAX_SUBGROUP_LEN];
-
-    for (size_t currGroupIdx = 0; currGroupIdx < params.size();)
-    {
-        ParamVariant& p = params[currGroupIdx];
-
-        const char* l1 = p.GetGroup();
-        size_t n1 = strlen(l1);
-        memcpy(currGroup, p.GetGroup(), n1);
-        currGroup[n1] = '\0';
-
-        size_t i = currGroupIdx;
-        while (i < params.size() && strcmp(params[i].GetGroup(), currGroup) == 0)
-            i++;
-
-        if (ImGui::TreeNode(p.GetGroup()))
-        {
-            for (size_t currSubgroupIdx = currGroupIdx; currSubgroupIdx < i;)
+            // Add the parameters in this subgroup
+            for (int currSubgroupIdx = currGroupIdx; currSubgroupIdx < nextGroupIdx;)
             {
-                ParamVariant& currParam = params[currSubgroupIdx];
+                ParamVariant& currParam_s = params[currSubgroupIdx];
+                const char* subGroupName = currParam_s.GetSubGroup();
+                const size_t subGroupLen = strlen(subGroupName);
+                memcpy(currSubGroup, subGroupName, subGroupLen);
+                currSubGroup[subGroupLen] = '\0';
 
-                const char* l2 = currParam.GetSubGroup();
-                size_t n2 = strlen(l2);
-                memcpy(currSubGroup, currParam.GetSubGroup(), n2);
-                currSubGroup[n2] = '\0';
+                int nextSubgroupIdx = currSubgroupIdx;
+                while (nextSubgroupIdx < params.size() && 
+                    (strcmp(params[nextSubgroupIdx].GetSubGroup(), currSubGroup) == 0))
+                    nextSubgroupIdx++;
 
-                size_t j = currSubgroupIdx;
-                while (j < params.size() && strcmp(params[j].GetSubGroup(), currSubGroup) == 0)
-                    j++;
-
-                if (ImGui::TreeNode(currParam.GetSubGroup()))
+                if (ImGui::TreeNode(currParam_s.GetSubGroup()))
                 {
-                    AddParamRange(params, currSubgroupIdx, j - currSubgroupIdx);
+                    char currSubsubGroup[ParamVariant::MAX_SUBSUBGROUP_LEN];
+
+                    // If there are no subsubgroups, show everything in just one subgroup
+                    // instead of a subgroup with one empty subsubgroup
+                    bool hasSubsubgroups = false;
+                    for (int i = currSubgroupIdx; i < nextSubgroupIdx; i++)
+                    {
+                        if (params[i].GetSubSubGroup()[0] != '\0')
+                        {
+                            hasSubsubgroups = true;
+                            break;
+                        }
+                    }
+
+                    // Sort by subsubgroup among current subgroup
+                    std::sort(params.begin() + currSubgroupIdx, params.begin() + nextSubgroupIdx,
+                        [](const ParamVariant& p1, const ParamVariant& p2)
+                        {
+                            return strcmp(p1.GetSubSubGroup(), p2.GetSubSubGroup()) < 0;
+                        });
+
+                    if (hasSubsubgroups)
+                    {
+                        for (int currSubsubgroupIdx = currSubgroupIdx; currSubsubgroupIdx < nextSubgroupIdx;)
+                        {
+                            ParamVariant& currParam_ss = params[currSubsubgroupIdx];
+                            const size_t subSubgroupLen = strlen(currParam_ss.GetSubSubGroup());
+                            memcpy(currSubsubGroup, currParam_ss.GetSubSubGroup(), subSubgroupLen);
+                            currSubsubGroup[subSubgroupLen] = '\0';
+
+                            int nextSubsubgroupIdx = currSubsubgroupIdx;
+                            while (nextSubsubgroupIdx < params.size() &&
+                                (strcmp(params[nextSubsubgroupIdx].GetSubSubGroup(), currSubsubGroup) == 0))
+                                nextSubsubgroupIdx++;
+
+                            if (subSubgroupLen > 0)
+                            {
+                                if (ImGui::TreeNodeEx(currParam_ss.GetSubSubGroup()))
+                                {
+                                    AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
+                                    ImGui::TreePop();
+                                }
+                            }
+                            else
+                                AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
+
+                            currSubsubgroupIdx = nextSubsubgroupIdx;
+                        }
+                    }
+                    else
+                        AddParamRange(params, currSubgroupIdx, nextSubgroupIdx - currSubgroupIdx);
+
                     ImGui::TreePop();
                 }
 
-                currSubgroupIdx = j;
+                currSubgroupIdx = nextSubgroupIdx;
             }
 
             ImGui::TreePop();
         }
 
-        currGroupIdx = i;
+        currGroupIdx = nextGroupIdx;
     }
 
     ImGui::PopItemWidth();

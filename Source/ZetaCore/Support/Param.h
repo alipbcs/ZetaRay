@@ -83,7 +83,7 @@ namespace ZetaRay::Support
             m_yaw = yaw;
         }
 
-        Math::float3 GetDir();
+        Math::float3 GetDir() const;
 
         float m_pitch;      // Angle of rotation around the x-axis (radians)
         float m_yaw;        // Angle of rotation around the y-axis (radians)
@@ -177,40 +177,42 @@ namespace ZetaRay::Support
         static const int MAX_NAME_LEN = 32;
         static const int MAX_GROUP_LEN = 16;
         static const int MAX_SUBGROUP_LEN = 24;
+        static const int MAX_SUBSUBGROUP_LEN = 16;
 
-        void InitFloat(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            float val, float min, float max, float step);
-
-        void InitInt(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            int val, int min, int max, int step);
-
-        void InitFloat2(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            Math::float2 val, float min, float max, float step);
-
-        void InitFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            Math::float3 val, float min, float max, float step);
-
-        void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            float pitch, float yaw);
-
-        void InitUnitDir(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            Math::float3 dir);
-
-        void InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            Math::float3 val);
-
-        void InitColor(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg,
-            Math::float3 val);
-
+        void InitFloat(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            float val, float min, float max, float step, const char* subsubgroup = nullptr);
+        void InitInt(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            int val, int min, int max, int step, const char* subsubgroup = nullptr);
+        void InitFloat2(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float2 val, float min, float max, float step, const char* subsubgroup = nullptr);
+        void InitFloat3(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val, float min, float max, float step, const char* subsubgroup = nullptr);
+        void InitUnitDir(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            float pitch, float yaw, const char* subsubgroup = nullptr);
+        void InitUnitDir(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 dir, const char* subsubgroup = nullptr);
+        void InitNormalizedFloat3(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val, const char* subsubgroup = nullptr);
+        void InitColor(const char* group, const char* subgroup, const char* name, 
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg,
+            Math::float3 val, const char* subsubgroup = nullptr);
         void InitBool(const char* group, const char* subgroup, const char* name, 
-            fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val);
-
+            fastdelegate::FastDelegate1<const ParamVariant&> dlg, bool val, 
+            const char* subsubgroup = nullptr);
         void InitEnum(const char* group, const char* subgroup, const char* name,
             fastdelegate::FastDelegate1<const ParamVariant&> dlg, const char** enumVals, 
-            int num, int curr);
+            int num, int curr, const char* subsubgroup = nullptr);
 
         const char* GetGroup() const { return m_group; }
         const char* GetSubGroup() const { return m_subgroup; }
+        const char* GetSubSubGroup() const { return m_subsubgroup; }
         const char* GetName() const { return m_name; }
         PARAM_TYPE GetType() const { return m_type; }
         uint64_t GetID() const { return m_id; }
@@ -240,13 +242,15 @@ namespace ZetaRay::Support
         void SetEnum(int v);
 
     private:
-        void InitCommon(const char* group, const char* subgroup, const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg);
+        void InitCommon(const char* group, const char* subgroup, const char* subsubgroup, 
+            const char* name, fastdelegate::FastDelegate1<const ParamVariant&> dlg);
 
         fastdelegate::FastDelegate1<const ParamVariant&> m_dlg;
         uint64_t m_id;
         PARAM_TYPE m_type;
         char m_group[MAX_GROUP_LEN];
         char m_subgroup[MAX_SUBGROUP_LEN];
+        char m_subsubgroup[MAX_SUBSUBGROUP_LEN];
         char m_name[MAX_NAME_LEN];
 
         union

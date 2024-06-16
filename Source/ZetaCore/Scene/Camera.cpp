@@ -106,53 +106,55 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     m_basisZ = store(vBasisZ);
 
     ParamVariant jitterCamera;
-    jitterCamera.InitBool("Scene", "Camera", "Jitter", fastdelegate::MakeDelegate(this, &Camera::SetJitteringEnabled),
-        m_jitteringEnabled);
+    jitterCamera.InitBool("Renderer", "Anti-Aliasing", "Jitter Camera Ray", 
+        fastdelegate::MakeDelegate(this, &Camera::SetJitteringEnabled), m_jitteringEnabled);
     App::AddParam(jitterCamera);
 
     ParamVariant fovParam;
     fovParam.InitFloat("Scene", "Camera", "FOV", fastdelegate::MakeDelegate(this, &Camera::SetFOV),
-        Math::RadiansToDegrees(m_FOV), 45, 90, 1);
+        Math::RadiansToDegrees(m_FOV), 45, 90, 1, "Lens");
     App::AddParam(fovParam);
 
     ParamVariant coeff;
-    coeff.InitFloat("Scene", "Camera", "Friction Coeff.", fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
-        m_frictionCoeff, 1, 20, 1);
+    coeff.InitFloat("Scene", "Camera", "Friction Coeff.", 
+        fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
+        m_frictionCoeff, 1, 20, 1, "Motion");
     App::AddParam(coeff);
 
     ParamVariant accAng;
     accAng.InitFloat2("Scene", "Camera", "Acceleration (Angular)", 
         fastdelegate::MakeDelegate(this, &Camera::SetAngularAcceleration),
-        m_rotAccScale, 1.0f, 70.0f, 1.0f);
+        m_rotAccScale, 1.0f, 70.0f, 1.0f, "Motion");
     App::AddParam(accAng);
 
     ParamVariant coeffAng;
     coeffAng.InitFloat2("Scene", "Camera", "Friction Coeff. (Angular)", 
         fastdelegate::MakeDelegate(this, &Camera::SetAngularFrictionCoeff),
-        m_rotFrictionCoeff, 1, 50, 1);
+        m_rotFrictionCoeff, 1, 50, 1, "Motion");
     App::AddParam(coeffAng);
 
     ParamVariant clampTo0;
-    clampTo0.InitBool("Scene", "Camera", "Snap Small V0 To Zero", fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
-        m_clampSmallV0ToZero);
+    clampTo0.InitBool("Scene", "Camera", "Snap Small V0 To Zero", 
+        fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
+        m_clampSmallV0ToZero, "Motion");
     App::AddParam(clampTo0);
 
     ParamVariant focusDepth;
     focusDepth.InitFloat("Scene", "Camera", "Focus Depth",
         fastdelegate::MakeDelegate(this, &Camera::FocusDepthCallback),
-        m_focusDepth, 1.0f, 25.0f, 1e-2f);
+        m_focusDepth, 0.1f, 25.0f, 1e-2f, "Lens");
     App::AddParam(focusDepth);
 
     ParamVariant fstop;
     fstop.InitFloat("Scene", "Camera", "F-Stop",
         fastdelegate::MakeDelegate(this, &Camera::FStopCallback),
-        m_fStop, 1.0f, 5.0f, 1e-2f);
+        m_fStop, 1.0f, 5.0f, 1e-2f, "Lens");
     App::AddParam(fstop);
 
     ParamVariant focalLen;
     focalLen.InitFloat("Scene", "Camera", "Focal Length (mm)",
         fastdelegate::MakeDelegate(this, &Camera::FocalLengthCallback),
-        m_focalLength, 10.0f, 100.0f, 1e-1f);
+        m_focalLength, 10.0f, 100.0f, 1e-1f, "Lens");
     App::AddParam(focalLen);
 
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
