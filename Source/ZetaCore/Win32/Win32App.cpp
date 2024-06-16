@@ -229,11 +229,11 @@ namespace ZetaRay::AppImpl
         auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
         CheckWin32(fpGetFont);
 
-        constexpr auto fontType = FONT_TYPE::ROBOTO_REGULAR;
+        constexpr auto fontType = FONT_TYPE::BFONT;
         FontSpan f = fpGetFont(fontType);
         Check(f.Data, "font was not found.");
 
-        constexpr float fontSizePixels96 = 12.8f;
+        constexpr float fontSizePixels96 = 12.0f;
         const float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
 
         ImFontConfig font_cfg;
