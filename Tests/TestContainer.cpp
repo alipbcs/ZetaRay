@@ -247,6 +247,54 @@ TEST_SUITE("HashTable")
         }
     }
 
+    TEST_CASE("Clear")
+    {
+        int desctructorCounter = 0;
+
+        struct Temp
+        {
+            Temp() = default;
+            Temp(float unused, int* p)
+                : val(unused),
+                ptr(p)
+            {}
+            ~Temp()
+            {
+                if(ptr)
+                    (*ptr)++;
+            }
+
+            float val;
+            int* ptr = nullptr;
+        };
+
+        {
+            HashTable<Temp> table(8);
+
+            table.try_emplace(0, 1.0f, &desctructorCounter);
+            table.try_emplace(1, 2.0f, &desctructorCounter);
+            CHECK(table.size() == 2);
+
+            const auto oldBucketCount = table.bucket_count();
+            table.clear();
+            CHECK(desctructorCounter == 2);
+            table.clear();
+            CHECK(desctructorCounter == 2);
+            CHECK(table.size() == 0);
+            CHECK(table.bucket_count() == oldBucketCount);
+        }
+
+        {
+            HashTable<Temp> table(8);
+
+            table.try_emplace(0, 1.0f, &desctructorCounter);
+            table.try_emplace(1, 2.0f, &desctructorCounter);
+            table.try_emplace(2, 3.0f, &desctructorCounter);
+        }
+
+        CHECK(desctructorCounter == 5);
+    }
+
     TEST_CASE("Erase")
     {
         HashTable<int> table(6);
@@ -306,5 +354,29 @@ TEST_SUITE("HashTable")
         CHECK(newLoad < oldLoad);
         // Tombstones shouldn't be carried over to new table
         CHECK(table.size() == 3);
+    }
+
+    TEST_CASE("Iteration")
+    {
+        HashTable<int> table(6);
+        int i = 0;
+
+        for (auto it = table.begin_it(); it < table.end_it(); it = table.next_it(it))
+            i++;
+
+        CHECK(i == 0);
+
+        table.try_emplace(1, 5);
+        table.try_emplace(2, 6);
+        table.try_emplace(6, 10);
+
+        i = 0;
+        for (auto it = table.begin_it(); it < table.end_it(); it = table.next_it(it))
+        {
+            CHECK(it->Val == it->Key + 4);
+            i++;
+        }
+
+        CHECK(i == 3);
     }
 };

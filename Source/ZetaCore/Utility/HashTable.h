@@ -25,15 +25,21 @@ namespace ZetaRay::Util
             T Val;
         };
 
-        HashTable(const Allocator& a = Allocator())
+        explicit HashTable(const Allocator& a = Allocator())
             : m_allocator(a)
         {}
-
         explicit HashTable(size_t initialSize, const Allocator& a = Allocator())
             : m_allocator(a)
         {
             static_assert(std::is_default_constructible_v<T>);
             relocate(Math::NextPow2(initialSize));
+        }
+        ~HashTable()
+        {
+            free_memory();
+
+            if constexpr (!std::is_trivially_destructible_v<Allocator>)
+                this->m_allocator.~Allocator();
         }
 
         // TODO implement move & copy constructors/assignments
@@ -70,7 +76,7 @@ namespace ZetaRay::Util
             Entry* elem = find_entry(key);
             if (!elem || elem->Key != key)
             {
-                if (elem && elem->Key == TOMBSTONE_KEY)
+                if (elem && (elem->Key == TOMBSTONE_KEY))
                 {
                     elem->Key = key;
                     new (&elem->Val) T(ZetaForward(args)...);
@@ -197,31 +203,48 @@ namespace ZetaRay::Util
 
         void clear()
         {
-            for (Entry* curr = m_beg; curr != m_end; curr++)
+            if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                if constexpr (!std::is_trivially_destructible_v<T>)
-                    curr->~Entry();
-
-                curr->Key = NULL_KEY;
+                size_t i = 0;
+                
+                for (auto it = begin_it(); it < end_it(); it = next_it(it))
+                {
+                    it->~Entry();
+                    i++;
+                }
+                
+                Assert(i == m_numEntries, "Number of cleared entries must match the number of entries.");
             }
+
+            for (Entry* curr = m_beg; curr != m_end; curr++)
+                curr->Key = NULL_KEY;
 
             m_numEntries = 0;
             // Don't free the memory
         }
 
-        void free()
+        void free_memory()
         {
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                for (Entry* curr = m_beg; curr != m_end; curr++)
-                    curr->~Entry();
-            }
+                size_t i = 0;
 
-            m_numEntries = 0;
+                for (auto it = begin_it(); it < end_it(); it = next_it(it))
+                {
+                    it->~Entry();
+                    i++;
+                }
+
+                Assert(i == m_numEntries, "Number of cleared entries must match the number of entries.");
+            }
 
             // Free the previously allocated memory
             if(bucket_count())
                 m_allocator.FreeAligned(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
+
+            m_numEntries = 0;
+            m_beg = nullptr;
+            m_end = nullptr;
         }
 
         void swap(HashTable& other)
@@ -265,7 +288,16 @@ namespace ZetaRay::Util
 
         ZetaInline Entry* begin_it()
         {
-            return m_beg;
+            // When memory is allocated, but there hasn't been any insertions,
+            // m_beg != m_end, which would erroneously indicate table is non-mepty.
+            if (m_numEntries == 0)
+                return m_end;
+
+            auto it = m_beg;
+            while (it != m_end && it->Key == NULL_KEY)
+                it++;
+
+            return it;
         }
 
         ZetaInline Entry* next_it(Entry* curr)
@@ -321,13 +353,11 @@ namespace ZetaRay::Util
             const size_t oldBucketCount = bucket_count();
 
             m_beg = reinterpret_cast<Entry*>(m_allocator.AllocateAligned(n * sizeof(Entry), alignof(Entry)));
-            m_end = m_beg + n;  // Adjust the end pointer
+            m_end = m_beg + n;  // Adjust end pointer
             m_numEntries = 0;
 
-            // Initialize the new table
-            const Entry* end = m_beg + n;
-
-            for (Entry* curr = m_beg; curr != end; curr++)
+            // Initialize new table
+            for (Entry* curr = m_beg; curr != m_beg + n; curr++)
             {
                 if constexpr (!std::is_trivially_default_constructible_v<Entry>)
                     new (curr) Entry;
@@ -335,7 +365,7 @@ namespace ZetaRay::Util
                 curr->Key = NULL_KEY;
             }
 
-            // Reinsert all the elements
+            // Reinsert all elements
             for (Entry* curr = oldTable; curr < oldTable + oldBucketCount; curr++)
             {
                 if (curr->Key == NULL_KEY || curr->Key == TOMBSTONE_KEY)
