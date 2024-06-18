@@ -9,63 +9,48 @@ namespace ZetaRay::Core
     class PipelineStateLibrary
     {
     public:
-        PipelineStateLibrary() = default;
+        explicit PipelineStateLibrary(Util::MutableSpan<ID3D12PipelineState*> psoCache);
         ~PipelineStateLibrary();
 
-        PipelineStateLibrary(const PipelineStateLibrary&) = delete;
-        PipelineStateLibrary& operator=(const PipelineStateLibrary&) = delete;
+        PipelineStateLibrary(PipelineStateLibrary&&) = delete;
+        PipelineStateLibrary& operator=(PipelineStateLibrary&&) = delete;
 
         void Init(const char* name);
+        void Reset();
+        void Reload(uint64_t idx, ID3D12RootSignature* rootSig, const char* pathToHlsl);
 
-        // Warning: shouldn't be called while the GPU is still referencing the contained PSOs
-        void ClearAndFlushToDisk();
-        void Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO);
-
-        ID3D12PipelineState* GetGraphicsPSO(uint32_t nameID,
+        ID3D12PipelineState* CompileGraphicsPSO(uint32_t idx,
             D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
             ID3D12RootSignature* rootSig,
             const char* pathToCompiledVS,
             const char* pathToCompiledPS);
-
-        ID3D12PipelineState* GetComputePSO(uint32_t nameID,
+        ID3D12PipelineState* CompileComputePSO(uint32_t idx,
             ID3D12RootSignature* rootSig,
             const char* pathToCompiledCS);
-        ID3D12PipelineState* GetComputePSO_MT(uint32_t nameID,
+        ID3D12PipelineState* CompileComputePSO_MT(uint32_t idx,
             ID3D12RootSignature* rootSig,
             const char* pathToCompiledCS);
-
-        ID3D12PipelineState* GetComputePSO(uint32_t nameID,
+        ID3D12PipelineState* CompileComputePSO(uint32_t idx,
             ID3D12RootSignature* rootSig,
             Util::Span<const uint8_t> compiledBlob);
 
-    private:
-        struct Entry
+        ZetaInline ID3D12PipelineState* GetPSO(uint32_t idx)
         {
-            uint64_t Key;
-            ID3D12PipelineState* PSO;
-        };
+            return m_compiledPSOs[idx];
+        }
 
-        // Following functions need to be synhronized across threads. This is assumed
-        // to be performed by the caller.
-        ID3D12PipelineState* Find(uint64_t key);
-        void InsertPSOAndKeepSorted(Entry e);
-        bool UpdatePSO(Entry e);
-        bool RemovePSO(uint64_t nameID);
+    private:
+        void ResetToEmptyPsoLib();
+        void ClearAndFlushToDisk();
 
-        void DeletePsoLibFile();
-        void ResetPsoLib(bool forceReset = false);
-
-        //char m_psoLibPath[MAX_PATH] = { '\0' };            // <Assets>/PSOCache/<name>.cache    
         App::Filesystem::Path m_psoLibPath1;
         ComPtr<ID3D12PipelineLibrary> m_psoLibrary;
-
-        Util::SmallVector<Entry, Support::SystemAllocator, 2> m_compiledPSOs;
+        Util::MutableSpan<ID3D12PipelineState*> m_compiledPSOs;
         Util::SmallVector<uint8_t> m_cachedBlob;
 
+        SRWLOCK m_mapLock = SRWLOCK_INIT;
+        std::atomic_bool m_needsRebuild = false;
         bool m_foundOnDisk = false;
         bool m_psoWasReset = false;
-
-        SRWLOCK m_psoLibLock = SRWLOCK_INIT;
-        SRWLOCK m_mapLock = SRWLOCK_INIT;
     };
 }

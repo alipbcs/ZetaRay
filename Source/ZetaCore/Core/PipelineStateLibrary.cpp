@@ -1,6 +1,5 @@
 #include "PipelineStateLibrary.h"
 #include "RendererCore.h"
-#include "../Utility/Utility.h"
 #include "../App/Log.h"
 #include <App/Common.h>
 #include <App/Timer.h>
@@ -45,6 +44,10 @@ namespace
 // PipelineStateLibrary
 //--------------------------------------------------------------------------------------
 
+PipelineStateLibrary::PipelineStateLibrary(MutableSpan<ID3D12PipelineState*> psoCache)
+    : m_compiledPSOs(psoCache)
+{}
+
 PipelineStateLibrary::~PipelineStateLibrary()
 {
     ClearAndFlushToDisk();
@@ -56,9 +59,10 @@ void PipelineStateLibrary::Init(const char* name)
     m_psoLibPath1.Reset(App::GetPSOCacheDir());
     m_psoLibPath1.Append(filename);
 
-    m_foundOnDisk = Filesystem::Exists(m_psoLibPath1.Get()) && Filesystem::GetFileSize(m_psoLibPath1.Get()) > 0;
+    m_foundOnDisk = Filesystem::Exists(m_psoLibPath1.Get()) && 
+        Filesystem::GetFileSize(m_psoLibPath1.Get()) > 0;
 
-    // PSO cache already exists on disk, just reload it
+    // PSO cache exists on disk, reload it
     if (m_foundOnDisk)
     {
         Filesystem::LoadFromFile(m_psoLibPath1.Get(), m_cachedBlob);
@@ -81,269 +85,188 @@ void PipelineStateLibrary::Init(const char* name)
             Check(hr == E_INVALIDARG || hr == D3D12_ERROR_DRIVER_VERSION_MISMATCH || hr == D3D12_ERROR_ADAPTER_NOT_FOUND,
                 "CreatePipelineLibrary() failed with HRESULT %d", hr);
 
-            DeletePsoLibFile();
-            ResetPsoLib();
+            ResetToEmptyPsoLib();
         }
     }
     else
-        ResetPsoLib();
+        ResetToEmptyPsoLib();
+}
+
+void PipelineStateLibrary::Reset()
+{
+    ClearAndFlushToDisk();
+
+    m_cachedBlob.free_memory();
+    memset(m_compiledPSOs.data(), 0, m_compiledPSOs.size() * sizeof(ID3D12PipelineState*));
+}
+
+void PipelineStateLibrary::ResetToEmptyPsoLib()
+{
+    // Avoid resetting twice
+    if (!m_psoWasReset)
+    {
+        auto* device = App::GetRenderer().GetDevice();
+        CheckHR(device->CreatePipelineLibrary(nullptr, 0, 
+            IID_PPV_ARGS(m_psoLibrary.ReleaseAndGetAddressOf())));
+
+        m_psoWasReset = true;
+    }
+
+    m_needsRebuild.store(true, std::memory_order_relaxed);
 }
 
 void PipelineStateLibrary::ClearAndFlushToDisk()
 {
+    // Needed when:
+    //  1. Cached library was invalid (e.g. driver mismatch)
+    //  2. One of the PSOs didn't match (e.g. modification after library was written to disk)
+    //  3. Shader hot-reload
+    if (m_needsRebuild.load(std::memory_order_relaxed))
+    {
+        // Create an empty PSO and release the existing one
+        ResetToEmptyPsoLib();
+
+        if (m_foundOnDisk)
+        {
+            Filesystem::RemoveFile(m_psoLibPath1.Get());
+            m_cachedBlob.free_memory();
+            m_foundOnDisk = false;
+        }
+
+        // Store all the compiled PSOs in the new library
+        for (int idx = 0; idx < (int)m_compiledPSOs.size(); idx++)
+        {
+            if (!m_compiledPSOs[idx])
+                continue;
+
+            wchar_t nameWide[8];
+            StackStr(name, n, "%d", idx);
+            Common::CharToWideStr(name, nameWide);
+
+            CheckHR(m_psoLibrary->StorePipeline(nameWide, m_compiledPSOs[idx]));
+        }
+
+        m_needsRebuild.store(false, std::memory_order_relaxed);
+    }
+
     if (m_psoLibrary)
     {
         if (!m_foundOnDisk)
         {
-            size_t serializedSize = m_psoLibrary->GetSerializedSize();
-            uint8_t* psoLib = new(std::nothrow) uint8_t[serializedSize];
+            const size_t serializedSize = m_psoLibrary->GetSerializedSize();
+            Assert(serializedSize > 0, "Serialized size was invalid.");
+            uint8_t* psoLib = (uint8_t*)malloc(serializedSize);
 
             CheckHR(m_psoLibrary->Serialize(psoLib, serializedSize));
             Filesystem::WriteToFile(m_psoLibPath1.Get(), psoLib, (uint32_t)serializedSize);
 
-            delete[] psoLib;
+            free(psoLib);
         }
 
         m_psoLibrary = nullptr;
     }
 
-    for (auto e : m_compiledPSOs)
-        e.PSO->Release();
-
-    m_compiledPSOs.free_memory();
-    m_cachedBlob.free_memory();
-}
-
-void PipelineStateLibrary::DeletePsoLibFile()
-{
-    if (m_foundOnDisk)
+    for (auto pso : m_compiledPSOs)
     {
-        Filesystem::RemoveFile(m_psoLibPath1.Get());
-        m_cachedBlob.free_memory();
-        m_foundOnDisk = false;
-    }
-
-    // Dont't delete the existing compiled PSOs as those are still valid
-    //m_compiledPSOs.clear();
-}
-
-void PipelineStateLibrary::ResetPsoLib(bool forceReset)
-{
-    // Avoid recreating PipelineStateLibrary object if it's been reset since the start of program
-    if (forceReset || !m_psoWasReset)
-    {
-        auto* device = App::GetRenderer().GetDevice();
-        CheckHR(device->CreatePipelineLibrary(nullptr, 0, IID_PPV_ARGS(m_psoLibrary.ReleaseAndGetAddressOf())));
-
-        m_psoWasReset = true;
+        // Note: PSO array is zero initialized, so PSOs that were never compiled
+        // are just NULL.
+        if(pso)
+            pso->Release();
     }
 }
 
-void PipelineStateLibrary::Reload(uint64_t nameID, const char* pathToHlsl, bool isComputePSO)
+void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig, 
+    const char* pathToHlsl)
 {
-    //    ID3D12PipelineState* pso = Find(nameID);
-    //    if (!pso)
-    //        return;
-
     Filesystem::Path hlsl(App::GetRenderPassDir());
     hlsl.Append(pathToHlsl);
-
-    Assert(Filesystem::Exists(hlsl.Get()), "unable to find path %s", hlsl.Get());
+    Assert(Filesystem::Exists(hlsl.Get()), "Path doesn't exist: %s", hlsl.Get());
 
     char filename[MAX_PATH];
     hlsl.Stem(filename);
 
-    Filesystem::Path outPath(App::GetCompileShadersDir());
-    outPath.Append(filename);
+    StackStr(csoFilename, N, "%s_cs.cso", filename);
+    Filesystem::Path csoPath(App::GetCompileShadersDir());
+    csoPath.Append(csoFilename);
 
-    if (isComputePSO)
-    {
-        // dxc.exe -T cs_6_6 -Fo <shader>_cs.csp -E main ...
 #if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
-        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+    StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), csoPath.Get(), hlsl.Get());
 #else
-        StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s_cs.cso -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+    StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), csoPath.Get(), hlsl.Get());
 #endif
 
-        HANDLE readPipe;
-        HANDLE writePipe;
-        InitPipe(readPipe, writePipe);
-
-        PROCESS_INFORMATION pi;
-        STARTUPINFO si{};
-        si.cb = sizeof(si);
-        si.hStdOutput = writePipe;
-        si.hStdError = writePipe;
-        si.dwFlags = STARTF_USESTDHANDLES;
-        CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &si, &pi));
-
-        // TODO following by itself is not enogh to guarantee PSO is not deleted while GPU is still referenceing 
-        // it. But since the calling thread blocks until PSO is compiled and processing for next frame won't 
-        // start until previous frame is done, it happens to work
-        App::GetRenderer().FlushAllCommandQueues();
-
-        DeletePsoLibFile();
-        ResetPsoLib(true);
-        m_compiledPSOs.clear();
-
-        WaitForSingleObject(pi.hProcess, INFINITE);
-        CloseHandle(pi.hThread);
-        CloseHandle(pi.hProcess);
-
-        ReleasePipe(readPipe, writePipe);
-    }
-    else
-    {
-        STARTUPINFO siVS{};
-        PROCESS_INFORMATION piVS;
-
-        STARTUPINFO siPS{};
-        PROCESS_INFORMATION piPS;
-
-        App::GetRenderer().FlushAllCommandQueues();
-
-        DeletePsoLibFile();
-        ResetPsoLib(true);
-        m_compiledPSOs.clear();
-
-        // VS
-        {
-#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
-            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
-#else
-            StackStr(cmdLine, n, "%s -T vs_6_6 -Fo %s_vs.cso -E mainVS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+#if LOGGING == 1
+    App::DeltaTimer timer;
+    timer.Start();
 #endif
 
-            siVS.cb = sizeof(siVS);
-            CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, false, CREATE_NO_WINDOW, nullptr, nullptr, &siVS, &piVS));
-        }
+    HANDLE readPipe;
+    HANDLE writePipe;
+    InitPipe(readPipe, writePipe);
 
-        HANDLE readPipe;
-        HANDLE writePipe;
-        InitPipe(readPipe, writePipe);
-        siPS.hStdOutput = writePipe;
-        siPS.hStdError = writePipe;
-        siPS.dwFlags = STARTF_USESTDHANDLES;
+    PROCESS_INFORMATION pi;
+    STARTUPINFO si{};
+    si.cb = sizeof(si);
+    si.hStdOutput = writePipe;
+    si.hStdError = writePipe;
+    si.dwFlags = STARTF_USESTDHANDLES;
+    CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, 
+        nullptr, nullptr, &si, &pi));
 
-        // PS
-        {
-#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
-            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
-#else
-            StackStr(cmdLine, n, "%s -T ps_6_6 -Fo %s_ps.cso -E mainPS -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), outPath.Get(), hlsl.Get());
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
+
+    ReleasePipe(readPipe, writePipe);
+
+    // Recreate the PSO
+    SmallVector<uint8_t> bytecode;
+    Filesystem::LoadFromFile(csoPath.Get(), bytecode);
+
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+    desc.pRootSignature = rootSig;
+    desc.CS.BytecodeLength = bytecode.size();
+    desc.CS.pShaderBytecode = bytecode.data();
+
+    auto* device = App::GetRenderer().GetDevice();
+    ID3D12PipelineState* pso = nullptr;
+    CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
+
+#if LOGGING == 1
+    timer.End();
+    LOG_UI_INFO("Reloaded shader %s in %u [ms].", pathToHlsl, (uint32_t)timer.DeltaMilli());
 #endif
 
-            siPS.cb = sizeof(siPS);
-            CheckWin32(CreateProcessA(nullptr, cmdLine, nullptr, nullptr, true, CREATE_NO_WINDOW, nullptr, nullptr, &siPS, &piPS));
-        }
+    m_needsRebuild.store(true, std::memory_order_relaxed);
 
-        HANDLE pis[] = { piVS.hProcess, piPS.hProcess };
-        WaitForMultipleObjects(ZetaArrayLen(pis), pis, true, INFINITE);
+    // GPU has to be finished with the old PSO before it can be released
+    App::GetRenderer().FlushAllCommandQueues();
 
-        CloseHandle(piVS.hThread);
-        CloseHandle(piVS.hProcess);
+    ID3D12PipelineState* oldPSO = m_compiledPSOs[idx];
+    Assert(oldPSO, "Reload was called for a shader that hasn't been loaded yet.");
+    oldPSO->Release();
 
-        CloseHandle(piPS.hThread);
-        CloseHandle(piPS.hProcess);
-
-        ReleasePipe(readPipe, writePipe);
-    }
+    // Replace the old PSO
+    m_compiledPSOs[idx] = pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::Find(uint64_t key)
-{
-    if (m_compiledPSOs.empty())
-        return nullptr;
-
-    auto idx = BinarySearch(Span(m_compiledPSOs), key, [](const Entry& e) {return e.Key; });
-    if (idx != -1)
-        return m_compiledPSOs[idx].PSO;
-
-    return nullptr;
-}
-
-bool PipelineStateLibrary::UpdatePSO(Entry e)
-{
-    if (m_compiledPSOs.empty())
-        return false;
-
-    auto i = BinarySearch(Span(m_compiledPSOs), e.Key, [](const Entry& e) {return e.Key; });
-
-    if (i != -1)
-    {
-        Assert(m_compiledPSOs[i].PSO, "PSO was NULL");
-        m_compiledPSOs[i].PSO->Release();
-        m_compiledPSOs[i].PSO = e.PSO;
-
-        return true;
-    }
-
-    return false;
-}
-
-bool PipelineStateLibrary::RemovePSO(uint64_t nameID)
-{
-    if (m_compiledPSOs.empty())
-        return false;
-
-    auto i = BinarySearch(Span(m_compiledPSOs), nameID, [](const Entry& e) {return e.Key; });
-
-    if (i == -1)
-        return false;
-
-    m_compiledPSOs.erase(i);
-
-    return true;
-}
-
-void PipelineStateLibrary::InsertPSOAndKeepSorted(Entry e)
-{
-    // If PSO with given key already exists, just update it
-    if (UpdatePSO(e))
-        return;
-
-    m_compiledPSOs.push_back(e);
-
-    const int n = (int)m_compiledPSOs.size();
-
-    // insertion sort
-    int idx = n - 1;
-    while (idx > 0 && m_compiledPSOs[idx - 1].Key < m_compiledPSOs[idx].Key)
-    {
-        std::swap(m_compiledPSOs[idx - 1], m_compiledPSOs[idx]);
-        idx--;
-    }
-}
-
-ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
-    D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,
-    ID3D12RootSignature* rootSig,
+ID3D12PipelineState* PipelineStateLibrary::CompileGraphicsPSO(uint32_t idx,
+    D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc, ID3D12RootSignature* rootSig,
     const char* pathToCompiledVS,
     const char* pathToCompiledPS)
 {
-    // If the PSO was already created, just return it
-    ID3D12PipelineState* pso = Find(nameID);
-    
-    if (pso)
-        return pso;
-
-    Assert(pathToCompiledVS, "path to vertex shader was NULL");
-    Assert(pathToCompiledPS, "path to pixel shader was NULL");
-
     SmallVector<uint8_t> vsBytecode;
     SmallVector<uint8_t> psBytecode;
 
     {
         Filesystem::Path pVs(App::GetCompileShadersDir());
         pVs.Append(pathToCompiledVS);
-
         Filesystem::LoadFromFile(pVs.Get(), vsBytecode);
     }
 
     {
         Filesystem::Path pPs(App::GetCompileShadersDir());
         pPs.Append(pathToCompiledPS);
-
         Filesystem::LoadFromFile(pPs.Get(), psBytecode);
     }
 
@@ -353,143 +276,107 @@ ID3D12PipelineState* PipelineStateLibrary::GetGraphicsPSO(uint32_t nameID,
     psoDesc.PS.pShaderBytecode = psBytecode.data();
     psoDesc.pRootSignature = rootSig;
 
-    wchar_t nameWide[32];
-    StackStr(name, n, "%u", nameID);
+    wchar_t nameWide[8];
+    StackStr(name, n, "%u", idx);
     Common::CharToWideStr(name, nameWide);
 
-    Assert(m_psoLibrary, "m_psoLibrary has not been created yet.");
-    HRESULT hr = m_psoLibrary->LoadGraphicsPipeline(nameWide, &psoDesc, IID_PPV_ARGS(&pso));
+    ID3D12PipelineState* pso = nullptr;
+    HRESULT hr = m_psoWasReset ? E_INVALIDARG :
+        m_psoLibrary->LoadGraphicsPipeline(nameWide, &psoDesc, IID_PPV_ARGS(&pso));
 
-    // A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
-    // Create the PSO and store it in the library for possible future reuse.
     if (hr == E_INVALIDARG)
     {
-        // Clear old pso libray (if it exists) 
-        DeletePsoLibFile();
-        // Set the ID3D12PipelineLibrary to empty, but only if it's non-empty
-        ResetPsoLib();
+        m_needsRebuild.store(true, std::memory_order_relaxed);
 
         auto* device = App::GetRenderer().GetDevice();
-
-        // can cause a hitch as the CPU is stalled
         CheckHR(device->CreateGraphicsPipelineState(&psoDesc, IID_PPV_ARGS(&pso)));
-        CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
     }
 
-    Entry e;
-    e.Key = nameID;
-    e.PSO = pso;
-
-    InsertPSOAndKeepSorted(e);
+    Assert(m_compiledPSOs[idx] == nullptr, "It's assumed that every PSO is loaded at most one time.");
+    m_compiledPSOs[idx] = pso;
 
     return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig,
-    const char* pathToCompiledCS)
+ID3D12PipelineState* PipelineStateLibrary::CompileComputePSO(uint32_t idx, 
+    ID3D12RootSignature* rootSig, const char* pathToCompiledCS)
 {
-    ID3D12PipelineState* pso = Find(nameID);
-
-    if (pso)
-        return pso;
-
-    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
-    desc.pRootSignature = rootSig;
-
-    Assert(pathToCompiledCS, "path was NULL");
-
     Filesystem::Path pCs(App::GetCompileShadersDir());
     pCs.Append(pathToCompiledCS);
 
     SmallVector<uint8_t> bytecode;
     Filesystem::LoadFromFile(pCs.Get(), bytecode);
 
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+    desc.pRootSignature = rootSig;
     desc.CS.BytecodeLength = bytecode.size();
     desc.CS.pShaderBytecode = bytecode.data();
 
-    wchar_t nameWide[32];
-    StackStr(name, n, "%u", nameID);
+    wchar_t nameWide[8];
+    StackStr(name, n, "%u", idx);
     Common::CharToWideStr(name, nameWide);
 
-    HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
+    ID3D12PipelineState* pso = nullptr;
+    HRESULT hr = m_psoWasReset ? E_INVALIDARG :
+        m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
-    // A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
-    // Create the PSO and then store it in the library for next time.
     if (hr == E_INVALIDARG)
     {
-        DeletePsoLibFile();
-        ResetPsoLib();
+        m_needsRebuild.store(true, std::memory_order_relaxed);
 
-        // can cause a hitch as the CPU is stalled
-        auto* device = App::GetRenderer().GetDevice();
-        CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
 #if LOGGING == 1
         App::DeltaTimer timer;
         timer.Start();
 #endif
+
+        auto* device = App::GetRenderer().GetDevice();
+        CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
 
 #if LOGGING == 1
         timer.End();
         LOG_UI_INFO("Compiled shader %s in %u [ms].", pathToCompiledCS, (uint32_t)timer.DeltaMilli());
 #endif
-
-        CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
     }
 
-    Entry e;
-    e.Key = nameID;
-    e.PSO = pso;
-
-    InsertPSOAndKeepSorted(e);
+    Assert(m_compiledPSOs[idx] == nullptr, "It's assumed that every PSO is loaded at most one time.");
+    m_compiledPSOs[idx] = pso;
 
     return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3D12RootSignature* rootSig,
-    const char* pathToCompiledCS)
+ID3D12PipelineState* PipelineStateLibrary::CompileComputePSO_MT(uint32_t idx, 
+    ID3D12RootSignature* rootSig, const char* pathToCompiledCS)
 {
-    AcquireSRWLockExclusive(&m_mapLock);
-    ID3D12PipelineState* pso = Find(nameID);
-    ReleaseSRWLockExclusive(&m_mapLock);
-
-    if (pso)
-        return pso;
-
-    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
-    desc.pRootSignature = rootSig;
-
-    Assert(pathToCompiledCS, "path was NULL");
-
     Filesystem::Path pCs(App::GetCompileShadersDir());
     pCs.Append(pathToCompiledCS);
 
     SmallVector<uint8_t> bytecode;
     Filesystem::LoadFromFile(pCs.Get(), bytecode);
 
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
+    desc.pRootSignature = rootSig;
     desc.CS.BytecodeLength = bytecode.size();
     desc.CS.pShaderBytecode = bytecode.data();
 
-    wchar_t nameWide[32];
-    StackStr(name, n, "%u", nameID);
+    wchar_t nameWide[8];
+    StackStr(name, n, "%u", idx);
     Common::CharToWideStr(name, nameWide);
 
-    // For a cached PSO library, if some PSO is modified or not found, then the PSO library
-    // needs to be recreated. So all the operations on the PSO library have to be synchronized.
+    // MS docs: "The pipeline library is thread-safe to use, and will internally synchronize 
+    // as necessary, with one exception: multiple threads loading the same PSO (via LoadComputePipeline, 
+    // LoadGraphicsPipeline, or LoadPipeline) should synchronize themselves, as this act may modify 
+    // the state of that pipeline within the library in a non-thread-safe manner."
+    ID3D12PipelineState* pso = nullptr;
+    HRESULT hr = m_psoWasReset ? E_INVALIDARG :
+        m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
-    AcquireSRWLockExclusive(&m_psoLibLock);
-    HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
-    ReleaseSRWLockExclusive(&m_psoLibLock);
-
-    // A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
-    // Create the PSO and then store it in the library for next time.
+    // A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in
+    // the library. Compile the PSO and then store it in the library for next time.
     if (hr == E_INVALIDARG)
     {
-        AcquireSRWLockExclusive(&m_psoLibLock);
-        DeletePsoLibFile();
-        ResetPsoLib();
-        ReleaseSRWLockExclusive(&m_psoLibLock);
+        // If some PSO is modified or not found, then the PSO library needs to be recreated.
+        m_needsRebuild.store(true, std::memory_order_relaxed);
 
-        // Can cause a hitch as the CPU is stalled
         auto* device = App::GetRenderer().GetDevice();
 #if LOGGING == 1
         App::DeltaTimer timer;
@@ -499,70 +386,44 @@ ID3D12PipelineState* PipelineStateLibrary::GetComputePSO_MT(uint32_t nameID, ID3
 
 #if LOGGING == 1
         timer.End();
-        LOG_UI_INFO("Compiled shader %s in %u[ms].", pathToCompiledCS, (uint32_t)timer.DeltaMilli());
+        LOG_UI_INFO("Compiled shader %s in %u [ms].", pathToCompiledCS, (uint32_t)timer.DeltaMilli());
 #endif
-
-        AcquireSRWLockExclusive(&m_psoLibLock);
-        CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
-        ReleaseSRWLockExclusive(&m_psoLibLock);
     }
 
-    Entry e;
-    e.Key = nameID;
-    e.PSO = pso;
-
     AcquireSRWLockExclusive(&m_mapLock);
-    InsertPSOAndKeepSorted(e);
+    Assert(m_compiledPSOs[idx] == nullptr, "It's assumed that every PSO is loaded at most one time.");
+    m_compiledPSOs[idx] = pso;
     ReleaseSRWLockExclusive(&m_mapLock);
 
     return pso;
 }
 
-ID3D12PipelineState* PipelineStateLibrary::GetComputePSO(uint32_t nameID, ID3D12RootSignature* rootSig,
-    Span<const uint8_t> compiledBlob)
+ID3D12PipelineState* PipelineStateLibrary::CompileComputePSO(uint32_t idx, 
+    ID3D12RootSignature* rootSig, Span<const uint8_t> compiledBlob)
 {
-    // If the PSO has already been created, just return it
-    ID3D12PipelineState* pso = Find(nameID);
-
-    if (pso)
-        return pso;
-
-    D3D12_COMPUTE_PIPELINE_STATE_DESC desc;
+    D3D12_COMPUTE_PIPELINE_STATE_DESC desc{};
     desc.pRootSignature = rootSig;
     desc.CS.BytecodeLength = compiledBlob.size();
     desc.CS.pShaderBytecode = compiledBlob.data();
-    desc.NodeMask = 0;
-    desc.CachedPSO.CachedBlobSizeInBytes = 0;
-    desc.CachedPSO.pCachedBlob = nullptr;
-    desc.Flags = D3D12_PIPELINE_STATE_FLAG_NONE;
 
-    wchar_t nameWide[32];
-    StackStr(name, n, "%u", nameID);
+    wchar_t nameWide[8];
+    StackStr(name, n, "%u", idx);
     Common::CharToWideStr(name, nameWide);
 
-    HRESULT hr = m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
+    ID3D12PipelineState* pso = nullptr;
+    HRESULT hr = m_psoWasReset ? E_INVALIDARG : 
+        m_psoLibrary->LoadComputePipeline(nameWide, &desc, IID_PPV_ARGS(&pso));
 
-    // A PSO with the specified name doesn’t exist, or the input desc doesn’t match the data in the library.
-    // Create the PSO and then store it in the library for next time.
     if (hr == E_INVALIDARG)
     {
-        // Clear old pso libray (if it exists) 
-        DeletePsoLibFile();
-        // Set the ID3D12PipelineLibrary to empty, but only if it's non-empty
-        ResetPsoLib();
+        m_needsRebuild.store(true, std::memory_order_relaxed);
 
         auto* device = App::GetRenderer().GetDevice();
-
-        // can cause a hitch as the CPU is stalled
         CheckHR(device->CreateComputePipelineState(&desc, IID_PPV_ARGS(&pso)));
-        CheckHR(m_psoLibrary->StorePipeline(nameWide, pso));
     }
 
-    Entry e;
-    e.Key = nameID;
-    e.PSO = pso;
-
-    InsertPSOAndKeepSorted(e);
+    Assert(m_compiledPSOs[idx] == nullptr, "It's assumed that every PSO is loaded at most one time.");
+    m_compiledPSOs[idx] = pso;
 
     return pso;
 }

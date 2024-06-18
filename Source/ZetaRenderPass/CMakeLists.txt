@@ -15,7 +15,6 @@ add_subdirectory(SunShadow)
 add_subdirectory(TAA)
 
 set(RENDERPASS_SRC 
-    "${ZETA_RENDER_PASS_DIR}/RenderPass.cpp"
     "${ZETA_RENDER_PASS_DIR}/RenderPass.h"
     ${RP_AUTO_EXPOSURE_SRC} 
     ${RP_COMMON_SRC} 
