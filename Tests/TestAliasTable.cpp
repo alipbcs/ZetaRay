@@ -73,25 +73,25 @@ TEST_SUITE("AliasTable")
         INFO("RNG seed: ", reinterpret_cast<uintptr_t>(&unused));
 
         // generate some weights
-        const uint32_t n = 50;
+        const int n = 50;
         SmallVector<float> vals;
         vals.resize(n);
 
-        for (uint32_t i = 0; i < n; i++)
+        for (int i = 0; i < n; i++)
             vals[i] = (float)rng.UniformUintBounded(1000);
 
         // normalize
         SmallVector<float> valsNormalized = vals;
         const float sum = Math::KahanSum(vals);
 
-        for (uint32_t i = 0; i < n; i++)
+        for (int i = 0; i < n; i++)
             valsNormalized[i] /= sum;
 
         SmallVector<AliasTableEntry> table;
         table.resize(n);
         AliasTable_Build(vals, table);
 
-        const uint32_t sampleSize = 100;
+        const int sampleSize = 100;
         SmallVector<size_t> count;
         count.resize(n, 0);
 
@@ -110,7 +110,7 @@ TEST_SUITE("AliasTable")
         {
             double expected = valsNormalized[i] * sampleSize;
             double diff = count[i] - expected;
-            chiSquared += (diff * diff) / expected;
+            chiSquared += expected == 0 ? 0 : (diff * diff) / expected;
         }
 
         // corresponding to alpha = 0.05 and dof = sampleSize - 1 = 99
