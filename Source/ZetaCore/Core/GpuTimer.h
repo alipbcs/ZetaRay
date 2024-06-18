@@ -27,7 +27,6 @@ namespace ZetaRay::Core
 
         void Init();
         void Shutdown();
-
         Util::Span<Timing> GetFrameTimings();
 
         // Call before recording commands for a particular command list

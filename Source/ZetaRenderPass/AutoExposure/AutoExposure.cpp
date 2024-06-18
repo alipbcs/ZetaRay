@@ -20,31 +20,18 @@ AutoExposure::AutoExposure()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        NUM_CONSTS,
-        1);
-
-    m_rootSig.InitAsBufferUAV(2,
-        0,
-        0,
-        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
-}
-
-AutoExposure::~AutoExposure()
-{
-    Reset();
+    m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
+    m_rootSig.InitAsBufferUAV(2, 0, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
 }
 
 void AutoExposure::Init()
 {
-    D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -89,25 +76,14 @@ void AutoExposure::Init()
         DefaultParamVals::LumMapExp, 1e-1f, 1.0f, 1e-2f);
     App::AddParam(p3);
 
-    m_psos[(int)SHADERS::HISTOGRAM] = m_psoLib.GetComputePSO((int)SHADERS::HISTOGRAM, m_rootSigObj.Get(),
-        COMPILED_CS[(int)SHADERS::HISTOGRAM]);
-    m_psos[(int)SHADERS::WEIGHTED_AVG] = m_psoLib.GetComputePSO((int)SHADERS::WEIGHTED_AVG, m_rootSigObj.Get(),
-        COMPILED_CS[(int)SHADERS::WEIGHTED_AVG]);
+    m_psoLib.CompileComputePSO((int)SHADER::HISTOGRAM, m_rootSigObj.Get(),
+        COMPILED_CS[(int)SHADER::HISTOGRAM]);
+    m_psoLib.CompileComputePSO((int)SHADER::WEIGHTED_AVG, m_rootSigObj.Get(),
+        COMPILED_CS[(int)SHADER::WEIGHTED_AVG]);
 
     CreateResources();
 
     App::AddShaderReloadHandler("AutoExposure", fastdelegate::MakeDelegate(this, &AutoExposure::Reload));
-}
-
-void AutoExposure::Reset()
-{
-    if (m_psos[0] || m_psos[1])
-    {
-        m_exposure.Reset();
-        m_counter.Reset();
-        m_hist.Reset();
-        RenderPassBase::ResetRenderPass();
-    }
 }
 
 void AutoExposure::Render(CommandList& cmdList)
@@ -124,10 +100,9 @@ void AutoExposure::Render(CommandList& cmdList)
     const uint32_t h = renderer.GetRenderHeight();
 
     computeCmdList.PIXBeginEvent("AutoExposure");
-    computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "AutoExposure");
+
+    computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
     m_cbHist.MinLum = m_minLum;
     m_cbHist.LumRange = m_maxLum - m_minLum;
@@ -145,18 +120,16 @@ void AutoExposure::Render(CommandList& cmdList)
     computeCmdList.CopyBufferRegion(m_hist.Resource(), 0, m_zeroBuffer.Resource(), 0, HIST_BIN_COUNT * sizeof(uint32_t));
     computeCmdList.ResourceBarrier(m_hist.Resource(), D3D12_RESOURCE_STATE_COPY_DEST, D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    computeCmdList.SetPipelineState(m_psos[(int)SHADERS::HISTOGRAM]);
+    computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::HISTOGRAM));
     computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
     auto uavBarrier = Direct3DUtil::UAVBarrier(m_hist.Resource());
     computeCmdList.UAVBarrier(1, &uavBarrier);
 
-    computeCmdList.SetPipelineState(m_psos[(int)SHADERS::WEIGHTED_AVG]);
+    computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::WEIGHTED_AVG));
     computeCmdList.Dispatch(1, 1, 1);
 
-    // record the timestamp after execution
     gpuTimer.EndQuery(computeCmdList, queryIdx);
-
     computeCmdList.PIXEndEvent();    
 }
 
@@ -211,10 +184,8 @@ void AutoExposure::UpperPercentileCallback(const Support::ParamVariant& p)
     m_cbHist.UpperPercentile = p.GetFloat().m_value;
 }
 
-void ZetaRay::RenderPass::AutoExposure::Reload()
+void AutoExposure::Reload()
 {
-    const int i = (int)SHADERS::WEIGHTED_AVG;
-
-    m_psoLib.Reload(i, "AutoExposure\\AutoExposure_WeightedAvg.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::WEIGHTED_AVG;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "AutoExposure\\AutoExposure_WeightedAvg.hlsl");
 }

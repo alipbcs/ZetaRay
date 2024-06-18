@@ -563,10 +563,18 @@ DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& other)
     return *this;
 }
 
-void DefaultHeapBuffer::Reset()
+void DefaultHeapBuffer::Reset(bool waitForGpu)
 {
     if (m_resource)
-        GpuMemory::ReleaseDefaultHeapBuffer(*this);
+    {
+        if (waitForGpu)
+            GpuMemory::ReleaseDefaultHeapBuffer(*this);
+        else
+        {
+            auto newRefCount = m_resource->Release();
+            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+        }
+    }
 
     m_ID = INVALID_ID;
     m_resource = nullptr;
@@ -605,10 +613,18 @@ ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& other)
     return *this;
 }
 
-void ReadbackHeapBuffer::Reset()
+void ReadbackHeapBuffer::Reset(bool waitForGpu)
 {
     if (m_resource)
-        GpuMemory::ReleaseReadbackHeapBuffer(*this);
+    {
+        if (waitForGpu)
+            GpuMemory::ReleaseReadbackHeapBuffer(*this);
+        else
+        {
+            auto newRefCount = m_resource->Release();
+            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+        }
+    }
 
     m_resource = nullptr;
     m_mappedMemory = nullptr;
@@ -868,24 +884,13 @@ void GpuMemory::Recycle()
 
 void GpuMemory::Shutdown()
 {
-    CheckHR(g_data->m_fenceDirect->Signal(g_data->m_nextFenceVal));
-    CheckHR(g_data->m_fenceCompute->Signal(g_data->m_nextFenceVal));
-
-    HANDLE h1 = CreateEventA(nullptr, false, false, "");
-    HANDLE h2 = CreateEventA(nullptr, false, false, "");
-
-    CheckHR(g_data->m_fenceDirect->SetEventOnCompletion(g_data->m_nextFenceVal, h1));
-    CheckHR(g_data->m_fenceCompute->SetEventOnCompletion(g_data->m_nextFenceVal, h2));
-
-    HANDLE handles[] = { h1, h2 };
-    WaitForMultipleObjects(ZetaArrayLen(handles), handles, true, INFINITE);
-
     Assert(g_data, "shoudn't be null.");
     delete g_data;
     g_data = nullptr;
 }
 
-UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment, bool forceSeparate)
+UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment, 
+    bool forceSeparate)
 {
     if (!forceSeparate && sizeInBytes <= GpuMemoryImplData::UPLOAD_HEAP_SIZE)
     {
@@ -914,7 +919,6 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 
         auto* device = App::GetRenderer().GetDevice();
         ID3D12Resource* buffer;
-
         CheckHR(device->CreateCommittedResource(&uploadHeap,
             D3D12_HEAP_FLAG_CREATE_NOT_ZEROED,
             &bufferDesc,
@@ -1021,7 +1025,6 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
 
     auto* device = App::GetRenderer().GetDevice();
     ID3D12Resource* r;
-
     CheckHR(device->CreateCommittedResource(&heapDesc,
         heapFlags,
         &bufferDesc,
@@ -1036,7 +1039,6 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
     bool isRtAs, bool allowUAV, bool initToZero)
 {
     D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
-
     if (isRtAs)
         f |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
 
@@ -1049,7 +1051,6 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
 
     auto* device = App::GetRenderer().GetDevice();
     ID3D12Resource* r;
-
     CheckHR(device->CreateCommittedResource3(&heapDesc,
         heapFlags,
         &bufferDesc,
@@ -1063,22 +1064,24 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
     return DefaultHeapBuffer(name, r);
 }
 
-DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, bool allowUAV, void* data,
-    bool forceSeparateUploadBuffer)
+DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, 
+    bool allowUAV, void* data, bool forceSeparateUploadBuffer)
 {
-    auto buff = GpuMemory::GetDefaultHeapBuffer(name,
+    auto buffer = GpuMemory::GetDefaultHeapBuffer(name,
         sizeInBytes,
         D3D12_RESOURCE_STATE_COMMON,
         allowUAV,
         false);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buff.Resource(), data, sizeInBytes, 0, forceSeparateUploadBuffer);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 0, 
+        forceSeparateUploadBuffer);
 
-    return buff;
+    return buffer;
 }
 
-void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, uint32_t destOffset)
+void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, 
+    void* data, uint32_t destOffset)
 {
     const int idx = GetThreadIndex(g_data->m_threadIDs);
     g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffset);
@@ -1153,26 +1156,24 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     Assert(((flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
         "A Depth-Stencil texture can't be used for unordered access.");
 
-    D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+    D3D12_RESOURCE_FLAGS resFlags = D3D12_RESOURCE_FLAG_NONE;
 
     if (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
 
     D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
-    D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex2D(format, width, height, 1, mipLevels, f);
-
-    ID3D12Resource* texture;
-    auto* device = App::GetRenderer().GetDevice();
+    D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex2D(format, width, height, 1, mipLevels, resFlags);
 
     D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
-
     if ((flags & TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
         heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
 
+    auto* device = App::GetRenderer().GetDevice();
+    ID3D12Resource* texture;
     CheckHR(device->CreateCommittedResource(&defaultHeap,
         heapFlags,
         &desc,
@@ -1195,20 +1196,18 @@ Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t
     Assert(((flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
         "A Depth-Stencil texture can't be used for unordered access.");
 
-    D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+    D3D12_RESOURCE_FLAGS resFlags = D3D12_RESOURCE_FLAG_NONE;
 
     if (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
 
-    D3D12_RESOURCE_DESC1 desc = Direct3DUtil::Tex2D1(format, width, height, 1, mipLevels, f);
-
+    D3D12_RESOURCE_DESC1 desc = Direct3DUtil::Tex2D1(format, width, height, 1, mipLevels, resFlags);
     ID3D12Resource* texture;
     auto* device = App::GetRenderer().GetDevice();
-
     CheckHR(device->CreatePlacedResource2(heap,
         offsetInBytes,
         &desc,
@@ -1232,26 +1231,24 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     Assert(((flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
         "A Depth-Stencil texture can't be used for unordered access.");
 
-    D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+    D3D12_RESOURCE_FLAGS resFlags = D3D12_RESOURCE_FLAG_NONE;
 
     if (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
 
     D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
-    D3D12_RESOURCE_DESC1 desc = Direct3DUtil::Tex2D1(format, width, height, 1, mipLevels, f);
-
-    ID3D12Resource* texture;
-    auto* device = App::GetRenderer().GetDevice();
+    D3D12_RESOURCE_DESC1 desc = Direct3DUtil::Tex2D1(format, width, height, 1, mipLevels, resFlags);
 
     D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
-
     if ((flags & TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
         heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
 
+    ID3D12Resource* texture;
+    auto* device = App::GetRenderer().GetDevice();
     CheckHR(device->CreateCommittedResource3(&defaultHeap,
         heapFlags,
         &desc,
@@ -1274,23 +1271,22 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
     Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
     Assert(!(flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL), "3D Texure can't be used as Depth Stencil.");
 
-    D3D12_RESOURCE_FLAGS f = D3D12_RESOURCE_FLAG_NONE;
+    D3D12_RESOURCE_FLAGS resFlags = D3D12_RESOURCE_FLAG_NONE;
 
     if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
     if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
-        f |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
 
     D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
-    D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex3D(format, width, height, depth, mipLevels, f);
-
-    ID3D12Resource* texture;
-    auto* device = App::GetRenderer().GetDevice();
+    D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex3D(format, width, height, depth, mipLevels, resFlags);
 
     D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE;
     if ((flags & TEXTURE_FLAGS::INIT_TO_ZERO) == 0)
         heapFlags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
 
+    ID3D12Resource* texture;
+    auto* device = App::GetRenderer().GetDevice();
     CheckHR(device->CreateCommittedResource(&defaultHeap,
         heapFlags,
         &desc,
@@ -1310,7 +1306,8 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, ddsData, width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+        ddsData, width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1334,7 +1331,8 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, ddsData, width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+        ddsData, width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1358,7 +1356,8 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, 
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, ddsData, width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+        ddsData, width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1368,7 +1367,6 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, 
     t = GetTexture3D(fn, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-
     g_data->m_uploaders[idx].UploadTexture(t.Resource(),
         subresources,
         0,

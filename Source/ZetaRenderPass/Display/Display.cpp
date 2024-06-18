@@ -20,28 +20,17 @@ DisplayPass::DisplayPass()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        NUM_CONSTS,
-        1);
-}
-
-DisplayPass::~DisplayPass()
-{
-    Reset();
+    m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
 }
 
 void DisplayPass::Init()
 {
-    auto& renderer = App::GetRenderer();
-
-    D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_DOMAIN_SHADER_ROOT_ACCESS |
@@ -49,6 +38,7 @@ void DisplayPass::Init()
         D3D12_ROOT_SIGNATURE_FLAG_DENY_MESH_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
+    auto& renderer = App::GetRenderer();
     auto samplers = renderer.GetStaticSamplers();
     RenderPassBase::InitRenderPass("Display", flags, samplers);
     CreatePSOs();
@@ -61,38 +51,37 @@ void DisplayPass::Init()
     m_cbLocal.AutoExposure = true;
 
     ParamVariant p1;
-    p1.InitEnum("Renderer", "Display", "Output", fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
+    p1.InitEnum("Renderer", "Display", "Output", 
+        fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
         Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
     App::AddParam(p1);
 
     ParamVariant p2;
-    p2.InitEnum("Renderer", "Display", "View Transform", fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
+    p2.InitEnum("Renderer", "Display", "View Transform", 
+        fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
         Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
     App::AddParam(p2);
 
     ParamVariant p3;
-    p3.InitBool("Renderer", "Auto Exposure", "Enable", fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
+    p3.InitBool("Renderer", "Auto Exposure", "Enable", 
+        fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
         m_cbLocal.AutoExposure);
     App::AddParam(p3);
 
     ParamVariant p7;
-    p7.InitFloat("Renderer", "Display", "Saturation", fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback), 
+    p7.InitFloat("Renderer", "Display", "Saturation", 
+        fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback), 
         1, 0.5, 1.5f, 1e-2f);
     App::AddParam(p7);
 
     App::Filesystem::Path p(App::GetAssetDir());
     p.Append("LUT\\tony_mc_mapface.dds");
     auto err = GpuMemory::GetTexture3DFromDisk(p, m_lut);
-    Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture from path %s: %d", p.Get(), err);
+    Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture from path %s: %d", 
+        p.Get(), err);
 
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate(DESC_TABLE::COUNT);
     Direct3DUtil::CreateTexture3DSRV(m_lut, m_descTable.CPUHandle(DESC_TABLE::TONEMAPPER_LUT_SRV));
-}
-
-void DisplayPass::Reset()
-{
-    if (IsInitialized())
-        RenderPassBase::ResetRenderPass();
 }
 
 void DisplayPass::Render(CommandList& cmdList)
@@ -107,12 +96,10 @@ void DisplayPass::Render(CommandList& cmdList)
     auto& gpuTimer = renderer.GetGpuTimer();
 
     directCmdList.PIXBeginEvent("Display");
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Display");
 
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-    directCmdList.SetPipelineState(m_psosPS[(int)PS_SHADERS::DISPLAY]);
+    directCmdList.SetPipelineState(m_psoLib.GetPSO((int)DISPLAY_SHADER::DISPLAY));
 
     m_cbLocal.LUTDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::TONEMAPPER_LUT_SRV);
     m_cbLocal.InputDescHeapIdx = m_compositedSrvDescHeapIdx;
@@ -127,9 +114,7 @@ void DisplayPass::Render(CommandList& cmdList)
     directCmdList.OMSetRenderTargets(1, &m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV], true, nullptr);
     directCmdList.DrawInstanced(3, 1, 0, 0);
 
-    // record the timestamp after execution
     gpuTimer.EndQuery(directCmdList, queryIdx);
-
     directCmdList.PIXEndEvent();
 }
 
@@ -137,8 +122,7 @@ void DisplayPass::CreatePSOs()
 {
     DXGI_FORMAT rtvFormats[1] = { Constants::BACK_BUFFER_FORMAT };
     D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(nullptr,
-        1,
-        rtvFormats);
+        1, rtvFormats);
 
     // no blending required
 
@@ -150,11 +134,11 @@ void DisplayPass::CreatePSOs()
     // disable triangle culling
     psoDesc.RasterizerState.CullMode = D3D12_CULL_MODE_NONE;
 
-    m_psosPS[(int)PS_SHADERS::DISPLAY] = m_psoLib.GetGraphicsPSO((int)PS_SHADERS::DISPLAY,
+    m_psoLib.CompileGraphicsPSO((int)DISPLAY_SHADER::DISPLAY,
         psoDesc,
         m_rootSigObj.Get(),
-        COMPILED_VS[(int)PS_SHADERS::DISPLAY],
-        COMPILED_PS[(int)PS_SHADERS::DISPLAY]);
+        COMPILED_VS[(int)DISPLAY_SHADER::DISPLAY],
+        COMPILED_PS[(int)DISPLAY_SHADER::DISPLAY]);
 }
 
 void DisplayPass::DisplayOptionCallback(const ParamVariant& p)

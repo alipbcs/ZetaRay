@@ -17,7 +17,7 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct TAA final : public RenderPassBase
+    struct TAA final : public RenderPassBase<1>
     {
         enum class SHADER_IN_DESC
         {
@@ -36,7 +36,6 @@ namespace ZetaRay::RenderPass
         ~TAA();
 
         void Init();
-        bool IsInitialized() { return m_pso != nullptr; }
         void Reset();
         void OnWindowResized();
         void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
@@ -52,10 +51,6 @@ namespace ZetaRay::RenderPass
         void Render(Core::CommandList& cmdList);
 
     private:
-        void CreateResources();
-        void BlendWeightCallback(const Support::ParamVariant& p);
-        void ReloadShader();
-
         static constexpr int NUM_CBV = 1;
         static constexpr int NUM_SRV = 0;
         static constexpr int NUM_UAV = 0;
@@ -78,11 +73,13 @@ namespace ZetaRay::RenderPass
             static constexpr float BlendWeight = 0.1f;
         };
 
+        void CreateResources();
+        void BlendWeightCallback(const Support::ParamVariant& p);
+        void ReloadShader();
+
         // ping-pong between input & output
         Core::GpuMemory::Texture m_antiAliased[2];
         uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT];
-
-        ID3D12PipelineState* m_pso = nullptr;
         cbTAA m_localCB;
         Core::DescriptorTable m_descTable;
         bool m_isTemporalTexValid;

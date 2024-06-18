@@ -17,7 +17,15 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct SunShadow final : public RenderPassBase
+    enum class SUN_SHADOW_SHADER
+    {
+        SHADOW_MASK,
+        DNSR_TEMPORAL_PASS,
+        DNSR_SPATIAL_FILTER,
+        COUNT
+    };
+
+    struct SunShadow final : public RenderPassBase<(int)SUN_SHADOW_SHADER::COUNT>
     {
         enum class SHADER_OUT_RES
         {
@@ -26,11 +34,9 @@ namespace ZetaRay::RenderPass
         };
 
         SunShadow();
-        ~SunShadow();
+        ~SunShadow() = default;
 
         void Init();
-        bool IsInitialized() { return m_psos[(int)SHADERS::SHADOW_MASK] != nullptr; };
-        void Reset();
         void OnWindowResized();
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
@@ -40,14 +46,13 @@ namespace ZetaRay::RenderPass
         void Render(Core::CommandList& cmdList);
 
     private:
-        void CreateResources();
-
         static constexpr int NUM_CBV = 1;
         static constexpr int NUM_SRV = 1;
         static constexpr int NUM_UAV = 0;
         static constexpr int NUM_GLOBS = 2;
         static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cbFFX_DNSR_Temporal) / sizeof(DWORD),
             sizeof(cbFFX_DNSR_Spatial) / sizeof(DWORD));
+        using SHADER = SUN_SHADOW_SHADER;
 
         struct ResourceFormats
         {
@@ -73,15 +78,7 @@ namespace ZetaRay::RenderPass
             COUNT
         };
 
-        enum class SHADERS
-        {
-            SHADOW_MASK,
-            DNSR_TEMPORAL_PASS,
-            DNSR_SPATIAL_FILTER,
-            COUNT
-        };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] =
         {
             "SunShadow_cs.cso",
             "ffx_denoiser_temporal_cs.cso",
@@ -94,7 +91,20 @@ namespace ZetaRay::RenderPass
             static constexpr float EdgeStoppingShadowStdScale = 0.5f;
         };
 
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
+        void CreateResources();
+
+        // param callbacks
+        void DoSoftShadowsCallback(const Support::ParamVariant& p);
+        void DenoiseCallback(const Support::ParamVariant& p);
+        //void NumSpatialFilterPassesCallback(const Support::ParamVariant& p);
+        void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p);
+        void MinFilterVarianceCallback(const Support::ParamVariant& p);
+
+        // shader reload
+        void ReloadDNSRTemporal();
+        void ReloadDNSRSpatial();
+        void ReloadSunShadowTrace();
+
         Core::GpuMemory::Texture m_shadowMask;
         Core::GpuMemory::Texture m_metadata;
         Core::GpuMemory::Texture m_moments;
@@ -107,15 +117,5 @@ namespace ZetaRay::RenderPass
 
         cbFFX_DNSR_Temporal m_temporalCB;
         cbFFX_DNSR_Spatial m_spatialCB;
-
-        void DoSoftShadowsCallback(const Support::ParamVariant& p);
-        void DenoiseCallback(const Support::ParamVariant& p);
-        //void NumSpatialFilterPassesCallback(const Support::ParamVariant& p);
-        void EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& p);
-        void MinFilterVarianceCallback(const Support::ParamVariant& p);
-
-        void ReloadDNSRTemporal();
-        void ReloadDNSRSpatial();
-        void ReloadSunShadowTrace();
     };
 }

@@ -76,7 +76,6 @@ namespace ZetaRay::RT
         void BuildFrameMeshInstanceData();
         void BuildStaticBLASTransforms();
         const Core::GpuMemory::DefaultHeapBuffer& GetTLAS() const { return m_tlasBuffer;  };
-        void Clear();
         bool IsReady() const { return m_ready; };
 
     private:

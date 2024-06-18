@@ -642,16 +642,6 @@ void TLAS::RebuildDynamicBLASes(Core::ComputeCmdList& cmdList)
     }
 }
 
-void TLAS::Clear()
-{
-    m_framesMeshInstances.Reset();
-    m_tlasBuffer.Reset();
-    m_scratchBuffer.Reset();
-    m_staticBLAS.Clear();
-    m_dynamicBlasBuffer.Reset();
-    m_tlasInstanceBuff.Reset();
-}
-
 void TLAS::BuildFrameMeshInstanceData()
 {
     SceneCore& scene = App::GetScene();

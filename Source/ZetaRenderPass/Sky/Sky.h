@@ -17,7 +17,14 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct Sky final : public RenderPassBase
+    enum class SKY_SHADER
+    {
+        SKY_LUT,
+        INSCATTERING,
+        COUNT
+    };
+
+    struct Sky final : public RenderPassBase<(int)SKY_SHADER::COUNT>
     {
         enum class SHADER_OUT_RES
         {
@@ -27,15 +34,20 @@ namespace ZetaRay::RenderPass
         };
 
         Sky();
-        ~Sky();
+        ~Sky() = default;
 
         void Init(int lutWidth, int lutHeight, bool doInscattering);
-        bool IsInitialized() { return m_psos[(int)SHADERS::SKY_LUT] != nullptr; };
         bool IsInscatteringEnabled() { return m_doInscattering; }
-        void Reset();
         void SetInscatteringEnablement(bool b);
-        void GetVoxelGridDim(uint32_t& x, uint32_t& y, uint32_t& z) const { x = m_localCB.NumVoxelsX; y = m_localCB.NumVoxelsY; z = INSCATTERING_THREAD_GROUP_SIZE_X; }
-        void GetVoxelGridDepth(float& zNear, float& zFar)  const{ zNear = m_localCB.VoxelGridNearZ, zFar = m_localCB.VoxelGridFarZ; }
+        Math::uint3 GetVoxelGridDim() const
+        { 
+            return Math::uint3(m_localCB.NumVoxelsX, m_localCB.NumVoxelsY,
+                INSCATTERING_THREAD_GROUP_SIZE_X);
+        }
+        Math::float2 GetVoxelGridDepth() const 
+        { 
+            return Math::float2(m_localCB.VoxelGridNearZ, m_localCB.VoxelGridFarZ); 
+        }
         float GetVoxelGridMappingExp() const { return m_localCB.DepthMappingExp; }
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
@@ -49,14 +61,12 @@ namespace ZetaRay::RenderPass
         void Render(Core::CommandList& cmdList);
 
     private:
-        void CreateSkyviewLUT();
-        void CreateVoxelGrid();
-
         static constexpr int NUM_CBV = 1;
         static constexpr int NUM_SRV = 1;
         static constexpr int NUM_UAV = 0;
         static constexpr int NUM_GLOBS = 1;
         static constexpr int NUM_CONSTS = sizeof(cbSky) / sizeof(DWORD);
+        using SHADER = SKY_SHADER;
 
         struct ResourceFormats
         {
@@ -80,21 +90,11 @@ namespace ZetaRay::RenderPass
             COUNT
         };
 
-        enum class SHADERS
-        {
-            SKY_LUT,
-            INSCATTERING,
-            COUNT
-        };
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
+            "SkyViewLUT_cs.cso", "Inscattering_cs.cso" };
 
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = { "SkyViewLUT_cs.cso", "Inscattering_cs.cso" };
-
-        Core::GpuMemory::Texture m_lut;
-        Core::GpuMemory::Texture m_voxelGrid;
-        Core::DescriptorTable m_descTable;
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { nullptr };
-        cbSky m_localCB;
-        bool m_doInscattering = false;
+        void CreateSkyviewLUT();
+        void CreateVoxelGrid();
 
         // parameter callbacks
         void DepthMapExpCallback(const Support::ParamVariant& p);
@@ -104,5 +104,11 @@ namespace ZetaRay::RenderPass
         // shader reload
         void ReloadInscatteringShader();
         void ReloadSkyLUTShader();
+
+        Core::GpuMemory::Texture m_lut;
+        Core::GpuMemory::Texture m_voxelGrid;
+        Core::DescriptorTable m_descTable;
+        cbSky m_localCB;
+        bool m_doInscattering = false;
     };
 }

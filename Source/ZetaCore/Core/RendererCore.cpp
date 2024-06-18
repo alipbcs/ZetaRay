@@ -170,22 +170,16 @@ void RendererCore::Shutdown()
         m_deviceObjs.m_dxgiSwapChain->SetFullscreenState(false, nullptr);
     }
 
+    // GPU has been flushed, no need to sync
     for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
         m_backBuffers[i].Reset(false, false);
 
-    m_backbuffDescTable.Reset();
-    m_depthBuffDescTable.Reset();
-    m_cbvSrvUavDescHeapGpu.Shutdown();
-    m_cbvSrvUavDescHeapCpu.Shutdown();
-    m_dsvDescHeap.Shutdown();
-    m_rtvDescHeap.Shutdown();
+    // Make sure all GPU resources (texture, buffers, etc) are manually released,
+    // as they normally call the GPU memmory subsystem upon destruction, which
+    // is deleted after this point.
     m_gpuTimer.Shutdown();
+
     GpuMemory::Shutdown();
-
-    FlushAllCommandQueues();
-
-    m_directQueue.reset();
-    m_computeQueue.reset();
 }
 
 void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight)

@@ -249,6 +249,9 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
 void SceneCore::Shutdown()
 {
+    // Make sure all GPU resources (texture, buffers, etc) are manually released,
+    // as they normally call the GPU memmory subsystem upon destruction, which
+    // is deleted at that point.
     m_matBuffer.Clear();
     m_baseColorDescTable.Clear();
     m_normalDescTable.Clear();
@@ -256,11 +259,6 @@ void SceneCore::Shutdown()
     m_emissiveDescTable.Clear();
     m_meshes.Clear();
     m_emissives.Clear();
-    m_bvh.Clear();
-
-    m_prevToWorlds.free_memory();
-    m_sceneGraph.free_memory();
-    m_IDtoTreePos.free();
 
     m_rendererInterface.Shutdown();
 }

@@ -277,11 +277,6 @@ GuiPass::GuiPass()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {}
 
-GuiPass::~GuiPass()
-{
-    Reset();
-}
-
 void GuiPass::Init()
 {
     ImGuiIO& io = ImGui::GetIO();
@@ -290,11 +285,9 @@ void GuiPass::Init()
     // root signature
     {
         // root constants
-        m_rootSig.InitAsConstants(0,
-            sizeof(cbGuiPass) / sizeof(DWORD),
-            0);
+        m_rootSig.InitAsConstants(0, sizeof(cbGuiPass) / sizeof(DWORD), 0);
 
-        D3D12_ROOT_SIGNATURE_FLAGS flags =
+        constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
             D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
             D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
             D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -322,8 +315,7 @@ void GuiPass::Init()
         DXGI_FORMAT rtv[1] = { Constants::BACK_BUFFER_FORMAT };
 
         D3D12_GRAPHICS_PIPELINE_STATE_DESC psoDesc = Direct3DUtil::GetPSODesc(&inputLayout,
-            1,
-            rtv);
+            1, rtv);
 
         // blending
         psoDesc.BlendState.RenderTarget[0].BlendEnable = true;
@@ -344,23 +336,7 @@ void GuiPass::Init()
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
         // use an arbitrary number as "nameID" since there's only one shader
-        m_pso = m_psoLib.GetGraphicsPSO(0, psoDesc, m_rootSigObj.Get(), COMPILED_VS[0], COMPILED_PS[0]);
-    }
-}
-
-void GuiPass::Reset()
-{
-    if (IsInitialized())
-    {
-        for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
-        {
-            m_imguiFrameBuffs[i].IndexBuffer.Reset();
-            m_imguiFrameBuffs[i].VertexBuffer.Reset();
-        }
-
-        m_cachedTimings.free_memory();
-
-        RenderPassBase::ResetRenderPass();
+        m_psoLib.CompileGraphicsPSO(0, psoDesc, m_rootSigObj.Get(), COMPILED_VS[0], COMPILED_PS[0]);
     }
 }
 
@@ -422,7 +398,7 @@ void GuiPass::Render(CommandList& cmdList)
     const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "ImGui");
 
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-    directCmdList.SetPipelineState(m_pso);
+    directCmdList.SetPipelineState(m_psoLib.GetPSO(0));
 
     RenderSettings();
     RenderMainHeader();

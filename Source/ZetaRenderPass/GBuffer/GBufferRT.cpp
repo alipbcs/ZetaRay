@@ -26,61 +26,42 @@ GBufferRT::GBufferRT()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        NUM_CONSTS,
-        1);
+    m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
 
     // BVH
-    m_rootSig.InitAsBufferSRV(2,
-        0,
-        0,
+    m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::RT_SCENE_BVH);
 
     // mesh buffer
-    m_rootSig.InitAsBufferSRV(3,
-        1,
-        0,
+    m_rootSig.InitAsBufferSRV(3, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::RT_FRAME_MESH_INSTANCES);
 
     // scene VB
-    m_rootSig.InitAsBufferSRV(4,
-        2,
-        0,
+    m_rootSig.InitAsBufferSRV(4, 2, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::SCENE_VERTEX_BUFFER);
 
     // scene IB
-    m_rootSig.InitAsBufferSRV(5,
-        3,
-        0,
+    m_rootSig.InitAsBufferSRV(5, 3, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::SCENE_INDEX_BUFFER);
 
     // material buffer
-    m_rootSig.InitAsBufferSRV(6,
-        4,
-        0,
+    m_rootSig.InitAsBufferSRV(6, 4, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::MATERIAL_BUFFER);
 }
 
-GBufferRT::~GBufferRT()
-{
-    Reset();
-}
-
 void GBufferRT::Init()
 {
-    D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -97,12 +78,8 @@ void GBufferRT::Init()
     CreateRTPSO();
     BuildShaderTable();
 #else
-    for (int i = 0; i < (int)SHADERS::COUNT; i++)
-    {
-        m_psos[i] = m_psoLib.GetComputePSO(i,
-            m_rootSigObj.Get(),
-            COMPILED_CS[i]);
-    }
+    for (int i = 0; i < (int)GBUFFER_SHADER::COUNT; i++)
+        m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 #endif
 
     memset(&m_cbLocal, 0, sizeof(m_cbLocal));
@@ -122,15 +99,6 @@ void GBufferRT::Init()
 #endif
 }
 
-void GBufferRT::Reset()
-{
-    if (IsInitialized())
-    {
-        m_shaderTable.ShaderRecords.Reset();
-        RenderPassBase::ResetRenderPass();
-    }
-}
-
 void GBufferRT::Render(CommandList& cmdList)
 {
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT ||
@@ -143,10 +111,9 @@ void GBufferRT::Render(CommandList& cmdList)
     const uint32_t h = renderer.GetRenderHeight();
 
     computeCmdList.PIXBeginEvent("G-Buffer");
-    computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "G-Buffer");
+
+    computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
     const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, GBUFFER_RT_GROUP_DIM_X);
     const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, GBUFFER_RT_GROUP_DIM_Y);
@@ -174,13 +141,11 @@ void GBufferRT::Render(CommandList& cmdList)
         w,
         h);
 #else
-    computeCmdList.SetPipelineState(m_psos[(int)SHADERS::GBUFFER_RT_INLINE]);
+    computeCmdList.SetPipelineState(m_psoLib.GetPSO(0));
     computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 #endif
 
-    // record the timestamp after execution
     gpuTimer.EndQuery(computeCmdList, queryIdx);
-
     cmdList.PIXEndEvent();
 }
 
@@ -266,8 +231,6 @@ void GBufferRT::BuildShaderTable()
 
 void GBufferRT::ReloadGBufferInline()
 {
-    const int i = (int)SHADERS::GBUFFER_RT_INLINE;
-
-    m_psoLib.Reload(i, "GBuffer\\GBufferRT_Inline.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    m_psoLib.Reload((int)GBUFFER_SHADER::GBUFFER, m_rootSigObj.Get(), 
+        "GBuffer\\GBufferRT_Inline.hlsl");
 }

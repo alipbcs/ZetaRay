@@ -151,6 +151,18 @@ namespace
             std::atomic_bool BlockFlag;
         };
 
+        ThreadPool m_workerThreadPool;
+        ThreadPool m_backgroundThreadPool;
+        RendererCore m_renderer;
+        Timer m_timer;
+        SceneCore m_scene;
+        Camera m_camera;
+
+        FrameMemory<512 * 1024> m_smallFrameMemory;
+        FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
+        FrameMemoryContext m_smallFrameMemoryContext;
+        FrameMemoryContext m_largeFrameMemoryContext;
+
         uint16_t m_processorCoreCount = 0;
         HWND m_hwnd;
         RECT m_wndRectCache;
@@ -176,18 +188,6 @@ namespace
         float m_upscaleFactor = 1.0f;
         float m_queuedUpscaleFactor = 1.0f;
         float m_cameraAcceleration = 40.0f;
-
-        Timer m_timer;
-        RendererCore m_renderer;
-        ThreadPool m_workerThreadPool;
-        ThreadPool m_backgroundThreadPool;
-        SceneCore m_scene;
-        Camera m_camera;
-
-        FrameMemory<512 * 1024> m_smallFrameMemory;
-        FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
-        FrameMemoryContext m_smallFrameMemoryContext;
-        FrameMemoryContext m_largeFrameMemoryContext;
 
         SmallVector<ParamVariant> m_params;
         SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
@@ -810,18 +810,21 @@ namespace ZetaRay::AppImpl
 
     void OnDestroy()
     {
+        App::FlushAllThreadPools();
+        g_app->m_renderer.FlushAllCommandQueues();
+
+        g_app->m_imguiFontTex.Reset(false);
+
+        // Shuts down render passes and releases scene GPU resources
+        g_app->m_scene.Shutdown();
+
         ImGui::DestroyContext();
         ImPlot::DestroyContext();
         ImNodes::DestroyContext();
 
-        App::FlushAllThreadPools();
-
-        g_app->m_imguiFontTex.Reset();
-        g_app->m_fontTexSRV.Reset();
-
-        g_app->m_scene.Shutdown();
+        // Shuts down GPU memory
         g_app->m_renderer.Shutdown();
-        g_app->m_params.free_memory();
+
         g_app->m_workerThreadPool.Shutdown();
         g_app->m_backgroundThreadPool.Shutdown();
 

@@ -198,24 +198,6 @@ void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& d
     GBuffer::CreateGBuffers(data);
 }
 
-void GBuffer::Shutdown(GBufferData& data)
-{
-    data.GBufferPass.Reset();
-
-    for (int i = 0; i < 2; i++)
-    {
-        data.BaseColor[i].Reset();
-        data.Normal[i].Reset();
-        data.DepthBuffer[i].Reset();
-        data.MetallicRoughness[i].Reset();
-        data.Transmission[i].Reset();
-        data.SrvDescTable[i].Reset();
-    }
-
-    data.EmissiveColor.Reset();
-    data.MotionVec.Reset();
-}
-
 void GBuffer::Update(GBufferData& gbufferData)
 {
     const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();

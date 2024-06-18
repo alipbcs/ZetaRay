@@ -69,12 +69,6 @@ BVH::BVH()
     m_nodes(m_arena)
 {}
 
-void BVH::Clear()
-{
-    m_nodes.free_memory();
-    m_instances.free_memory();
-}
-
 void BVH::Build(Span<BVHInput> instances)
 {
     if (instances.size() == 0)

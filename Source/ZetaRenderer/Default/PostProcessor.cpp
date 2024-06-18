@@ -84,18 +84,6 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
     UpdateWndDependentDescriptors(settings, data);
 }
 
-void PostProcessor::Shutdown(PostProcessData& data)
-{
-    data.WindowSizeConstSRVs.Reset();
-    data.TaaOrFsr2OutSRV.Reset();
-    data.CompositingPass.Reset();
-    data.DisplayPass.Reset();
-    data.AutoExposurePass.Reset();
-    data.TaaPass.Reset();
-    data.Fsr2Pass.Reset();
-    data.GuiPass.Reset();
-}
-
 void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
     const RayTracerData& rtData)
 {
@@ -133,12 +121,10 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
             data.CompositingPass.SetInscatteringEnablement(true);
 
             const float p = rtData.SkyPass.GetVoxelGridMappingExp();
-            float zNear;
-            float zFar;
-            rtData.SkyPass.GetVoxelGridDepth(zNear, zFar);
+            float2 depths = rtData.SkyPass.GetVoxelGridDepth();
 
             data.CompositingPass.SetVoxelGridMappingExp(p);
-            data.CompositingPass.SetVoxelGridDepth(zNear, zFar);
+            data.CompositingPass.SetVoxelGridDepth(depths.x, depths.y);
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
                 rtData.ConstDescTable.GPUDesciptorHeapIndex((int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
         }

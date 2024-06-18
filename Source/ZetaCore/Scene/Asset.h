@@ -28,31 +28,21 @@ namespace ZetaRay::Scene::Internal
         TexSRVDescriptorTable& operator=(const TexSRVDescriptorTable&) = delete;
 
         void Init(uint64_t id);
-
-        // Returns offset of the given texture in the desc. table. The texture is then loaded from
-        // the disk. "id" is hash of the texture path
-        uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id);
-        //void Remove(uint64_t id, uint64_t nextFenceVal);
-
+        // Assumes proper GPU synchronization has been performed
         void Clear();
+        // Returns offset of the given texture in the descriptor table. The texture is then loaded from
+        // the disk. "id" is hash of the texture path.
+        uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id);
         void Recycle(uint64_t completedFenceVal);
+        ZetaInline uint32_t GPUDesciptorHeapIndex() const { return m_descTable.GPUDesciptorHeapIndex(); }
 
+    private:
         struct ToBeFreedTexture
         {
             Core::GpuMemory::Texture T;
             uint64_t FenceVal;
             uint32_t DescTableOffset;
         };
-
-        Util::SmallVector<ToBeFreedTexture> m_pending;
-
-        static constexpr int MAX_NUM_DESCRIPTORS = 1024;
-        static constexpr int MAX_NUM_MASKS = MAX_NUM_DESCRIPTORS >> 6;
-        static_assert(MAX_NUM_MASKS * 64 == MAX_NUM_DESCRIPTORS, "these must match.");
-
-        const uint32_t m_descTableSize;
-        const uint32_t m_numMasks;
-        uint64_t m_inUseBitset[MAX_NUM_MASKS] = { 0 };
 
         struct CacheEntry
         {
@@ -61,6 +51,14 @@ namespace ZetaRay::Scene::Internal
             uint32_t RefCount = 0;
         };
 
+        static constexpr int MAX_NUM_DESCRIPTORS = 1024;
+        static constexpr int MAX_NUM_MASKS = MAX_NUM_DESCRIPTORS >> 6;
+        static_assert(MAX_NUM_MASKS * 64 == MAX_NUM_DESCRIPTORS, "these must match.");
+
+        Util::SmallVector<ToBeFreedTexture> m_pending;
+        const uint32_t m_descTableSize;
+        const uint32_t m_numMasks;
+        uint64_t m_inUseBitset[MAX_NUM_MASKS] = { 0 };
         Core::DescriptorTable m_descTable;
         Util::HashTable<CacheEntry> m_cache;
     };
@@ -78,6 +76,7 @@ namespace ZetaRay::Scene::Internal
         MaterialBuffer(const MaterialBuffer&) = delete;
         MaterialBuffer& operator=(const MaterialBuffer&) = delete;
 
+        void Clear();
         uint32_t Add(Material& mat);
         void Add(Material& mat, uint32_t idx);
         void UpdateGPUBufferIfStale();
@@ -90,8 +89,6 @@ namespace ZetaRay::Scene::Internal
 
             return &m_materials[idx];
         }
-
-        void Clear();
 
     private:
         static constexpr int MAX_NUM_MATERIALS = 2048;
@@ -117,8 +114,9 @@ namespace ZetaRay::Scene::Internal
             Util::SmallVector<uint32_t>&& indices);
         void Reserve(size_t numVertices, size_t numIndices);
         void RebuildBuffers();
+        void Clear();
 
-        // Note: not thread safe
+        // Note: not thread safe for reading and writing at the same time
         ZetaInline Util::Optional<const Model::TriangleMesh*> GetMesh(uint64_t id) const
         {
             auto mesh = m_meshes.find(id);
@@ -130,8 +128,6 @@ namespace ZetaRay::Scene::Internal
 
         const Core::GpuMemory::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
         const Core::GpuMemory::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
-
-        void Clear();
 
     private:
         Util::HashTable<Model::TriangleMesh> m_meshes;
@@ -162,6 +158,7 @@ namespace ZetaRay::Scene::Internal
         MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
 
         bool IsFirstTime() const { return m_firstTime; }
+        // Assumes proper GPU synchronization has been performed
         void Clear();
         Util::Optional<Model::glTF::Asset::EmissiveInstance*> FindEmissive(uint64_t ID);
         void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 

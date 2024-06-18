@@ -185,7 +185,7 @@ namespace ZetaRay::DefaultRenderer
         RenderPass::IndirectLighting IndirecLightingPass;
         Core::RenderNodeHandle IndirecLightingHandle;
 
-        // descriptor tables
+        // Descrtiptors
         enum class DESC_TABLE_WND_SIZE_CONST
         {
             CURVATURE_0,
@@ -245,7 +245,6 @@ namespace ZetaRay::DefaultRenderer::GBuffer
     void Init(const RenderSettings& settings, GBufferData& data);
     void CreateGBuffers(GBufferData& data);
     void OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data);
-    void Shutdown(GBufferData& data);
 
     void Update(GBufferData& gbuffData);
     void Register(GBufferData& data, const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
@@ -261,7 +260,6 @@ namespace ZetaRay::DefaultRenderer::RayTracer
 {
     void Init(const RenderSettings& settings, RayTracerData& data);
     void OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data);
-    void Shutdown(RayTracerData& data);
 
     void Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data);
     void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph);
@@ -278,7 +276,6 @@ namespace ZetaRay::DefaultRenderer::PostProcessor
     void Init(const RenderSettings& settings, PostProcessData& data);
     void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
         const RayTracerData& rtData);
-    void Shutdown(PostProcessData& data);
 
     void UpdateWndDependentDescriptors(const RenderSettings& settings, PostProcessData& data);
     void UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data);

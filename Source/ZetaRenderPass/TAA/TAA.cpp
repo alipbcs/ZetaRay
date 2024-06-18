@@ -19,16 +19,12 @@ TAA::TAA()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        sizeof(cbTAA) / sizeof(DWORD),
-        1);
+    m_rootSig.InitAsConstants(1, sizeof(cbTAA) / sizeof(DWORD), 1);
 }
 
 TAA::~TAA()
@@ -38,7 +34,7 @@ TAA::~TAA()
 
 void TAA::Init()
 {
-    D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -51,8 +47,7 @@ void TAA::Init()
     auto samplers = App::GetRenderer().GetStaticSamplers();
     RenderPassBase::InitRenderPass("TAA", flags, samplers);
 
-    // use an arbitrary number as "nameID" since there's only one shader
-    m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS[0]);
+    m_psoLib.CompileComputePSO(0, m_rootSigObj.Get(), COMPILED_CS[0]);
 
     m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateResources();
@@ -61,10 +56,7 @@ void TAA::Init()
 
     ParamVariant blendWeight;
     blendWeight.InitFloat("Renderer", "TAA", "BlendWeight", fastdelegate::MakeDelegate(this, &TAA::BlendWeightCallback),
-        DefaultParamVals::BlendWeight,           // val
-        0.0f,                                    // min
-        1.0f,                                    // max
-        0.1f);                                   // step
+        DefaultParamVals::BlendWeight, 0.0f, 1.0f, 0.1f);
     App::AddParam(blendWeight);
 
     m_isTemporalTexValid = false;
@@ -76,15 +68,13 @@ void TAA::Reset()
     if (IsInitialized())
     {
         App::RemoveParam("Renderer", "TAA", "BlendWeight");
-        App::RemoveShaderReloadHandler("TAA");
+        // App::RemoveShaderReloadHandler("TAA");
 
         m_antiAliased[0].Reset();
         m_antiAliased[1].Reset();
-
         m_descTable.Reset();
-        m_pso = nullptr;
 
-        RenderPassBase::ResetRenderPass();
+        RenderPassBase::Reset(true);
     }
 }
 
@@ -108,27 +98,25 @@ void TAA::Render(CommandList& cmdList)
 
     Assert(m_inputDesc[(int)SHADER_IN_DESC::SIGNAL] > 0, "Input SRV hasn't been set.");
     m_localCB.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::SIGNAL];
-    m_localCB.PrevOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? (int)DESC_TABLE::TEX_A_SRV : (int)DESC_TABLE::TEX_B_SRV);
-    m_localCB.CurrOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? (int)DESC_TABLE::TEX_B_UAV : (int)DESC_TABLE::TEX_A_UAV);
+    m_localCB.PrevOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? 
+        (int)DESC_TABLE::TEX_A_SRV : (int)DESC_TABLE::TEX_B_SRV);
+    m_localCB.CurrOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? 
+        (int)DESC_TABLE::TEX_B_UAV : (int)DESC_TABLE::TEX_A_UAV);
     m_localCB.TemporalIsValid = m_isTemporalTexValid;
 
     computeCmdList.PIXBeginEvent("TAA");
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "TAA");
 
     computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-    computeCmdList.SetPipelineState(m_pso);
 
     m_rootSig.SetRootConstants(0, sizeof(cbTAA) / sizeof(DWORD), &m_localCB);
     m_rootSig.End(computeCmdList);
 
+    computeCmdList.SetPipelineState(m_psoLib.GetPSO(0));
     computeCmdList.Dispatch(CeilUnsignedIntDiv(w, TAA_THREAD_GROUP_SIZE_X), 
         CeilUnsignedIntDiv(h, TAA_THREAD_GROUP_SIZE_Y), 1);
 
     computeCmdList.PIXEndEvent();
-
-    // record the timestamp after execution
     gpuTimer.EndQuery(computeCmdList, queryIdx);
 
     m_isTemporalTexValid = true;
@@ -166,6 +154,5 @@ void TAA::BlendWeightCallback(const ParamVariant& p)
 
 void TAA::ReloadShader()
 {
-    m_psoLib.Reload(0, "TAA\\TAA.hlsl", true);
-    m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS[0]);
+    m_psoLib.Reload(0, m_rootSigObj.Get(), "TAA\\TAA.hlsl");
 }

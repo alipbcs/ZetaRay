@@ -16,7 +16,13 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct GBufferRT : public RenderPassBase
+    enum class GBUFFER_SHADER
+    {
+        GBUFFER,
+        COUNT
+    };
+
+    struct GBufferRT : public RenderPassBase<(int)GBUFFER_SHADER::COUNT>
     {
         enum class SHADER_IN_GPU_DESC
         {
@@ -31,14 +37,12 @@ namespace ZetaRay::RenderPass
         };
 
         GBufferRT();
-        ~GBufferRT();
+        ~GBufferRT() = default;
 
         GBufferRT(GBufferRT&&) = delete;
         GBufferRT& operator=(GBufferRT&&) = delete;
 
         void Init();
-        bool IsInitialized() const { return m_rtPSO != nullptr; };
-        void Reset();
         void SetGpuDescriptor(SHADER_IN_GPU_DESC input, uint32_t descHeapIdx)
         {
             Assert((int)input < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
@@ -97,20 +101,9 @@ namespace ZetaRay::RenderPass
             size_t HitRecordStartInBytes;
         };
 
-        enum class SHADERS
-        {
-            GBUFFER_RT_INLINE,
-            COUNT
-        };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+        inline static constexpr const char* COMPILED_CS[(int)GBUFFER_SHADER::COUNT] = {
             "GBufferRT_Inline_cs.cso"
         };
-
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-        ComPtr<ID3D12StateObject> m_rtPSO;
-        ShaderTable m_shaderTable;
-        cbGBufferRt m_cbLocal;
 
         void CreateRTPSO();
         void BuildShaderTable();
@@ -121,5 +114,9 @@ namespace ZetaRay::RenderPass
 
         // shader reload
         void ReloadGBufferInline();
+
+        ComPtr<ID3D12StateObject> m_rtPSO;
+        ShaderTable m_shaderTable;
+        cbGBufferRt m_cbLocal;
     };
 }

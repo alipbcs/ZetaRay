@@ -17,7 +17,13 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct DisplayPass final : public RenderPassBase
+    enum class DISPLAY_SHADER
+    {
+        DISPLAY,
+        COUNT
+    };
+
+    struct DisplayPass final : public RenderPassBase<(int)DISPLAY_SHADER::COUNT>
     {
         enum class SHADER_IN_CPU_DESC
         {
@@ -33,11 +39,9 @@ namespace ZetaRay::RenderPass
         };
 
         DisplayPass();
-        ~DisplayPass();
+        ~DisplayPass() = default;
 
         void Init();
-        bool IsInitialized() { return m_psosPS[0] != nullptr; }
-        void Reset();
         void SetCpuDescriptor(SHADER_IN_CPU_DESC i, D3D12_CPU_DESCRIPTOR_HANDLE h)
         {
             Assert((int)i < (int)SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
@@ -67,12 +71,6 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_GLOBS = 1;
         static constexpr int NUM_CONSTS = (int)(sizeof(cbDisplayPass) / sizeof(DWORD));
 
-        enum class PS_SHADERS
-        {
-            DISPLAY,
-            COUNT
-        };
-
         enum DESC_TABLE
         {
             TONEMAPPER_LUT_SRV,
@@ -89,10 +87,11 @@ namespace ZetaRay::RenderPass
             static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
         };
 
-        inline static constexpr const char* COMPILED_VS[(int)PS_SHADERS::COUNT] = { "Display_vs.cso" };
-        inline static constexpr const char* COMPILED_PS[(int)PS_SHADERS::COUNT] = { "Display_ps.cso" };
+        inline static constexpr const char* COMPILED_VS[(int)DISPLAY_SHADER::COUNT] = { "Display_vs.cso" };
+        inline static constexpr const char* COMPILED_PS[(int)DISPLAY_SHADER::COUNT] = { "Display_ps.cso" };
 
         void CreatePSOs();
+
         // parameter callbacks
         void DisplayOptionCallback(const Support::ParamVariant& p);
         void TonemapperCallback(const Support::ParamVariant& p);
@@ -100,7 +99,6 @@ namespace ZetaRay::RenderPass
         void AutoExposureCallback(const Support::ParamVariant& p);
         void RoughnessThCallback(const Support::ParamVariant& p);
 
-        ID3D12PipelineState* m_psosPS[(int)PS_SHADERS::COUNT] = { 0 };
         Core::GpuMemory::Texture m_lut;
         Core::DescriptorTable m_descTable;
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };

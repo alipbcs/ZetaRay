@@ -135,8 +135,7 @@ namespace ZetaRay::Core::GpuMemory
         ReadbackHeapBuffer& operator=(ReadbackHeapBuffer&&);
 
         ZetaInline bool IsInitialized() { return m_resource != nullptr; }
-        void Reset();
-
+        void Reset(bool waitForGPU = true);
         ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
         {
             Assert(m_resource, "ReadbackHeapBuffer hasn't been initialized.");
@@ -179,7 +178,7 @@ namespace ZetaRay::Core::GpuMemory
         DefaultHeapBuffer(DefaultHeapBuffer&&);
         DefaultHeapBuffer& operator=(DefaultHeapBuffer&&);
 
-        void Reset();
+        void Reset(bool waitForGpu = true);
         ZetaInline bool IsInitialized() const { return m_resource != nullptr; }
         ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
         {
@@ -237,7 +236,6 @@ namespace ZetaRay::Core::GpuMemory
             Assert(m_resource, "Texture hasn't been initialized.");
             return m_resource->GetDesc();
         }
-
         RESOURCE_HEAP_TYPE HeapType() const
         {
             return m_heapType;
@@ -276,6 +274,7 @@ namespace ZetaRay::Core::GpuMemory
     void BeginFrame();
     void SubmitResourceCopies();
     void Recycle();
+    // Assumes GPU synchronization has been performed
     void Shutdown();
 
     UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, bool forceSeparate = false);

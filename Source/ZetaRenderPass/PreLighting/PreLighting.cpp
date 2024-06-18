@@ -134,53 +134,36 @@ PreLighting::PreLighting()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // root constants
-    m_rootSig.InitAsConstants(0,
-        NUM_CONSTS,
-        0);
+    m_rootSig.InitAsConstants(0, NUM_CONSTS, 0);
 
     // frame constants
-    m_rootSig.InitAsCBV(1,
-        1,
-        0,
+    m_rootSig.InitAsCBV(1, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // emissive triangles
-    m_rootSig.InitAsBufferSRV(2,
-        0,
-        0,
+    m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::EMISSIVE_TRIANGLE_BUFFER,
         true);
 
     // alias table
-    m_rootSig.InitAsBufferSRV(3,
-        1,
-        0,
+    m_rootSig.InitAsBufferSRV(3, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE,
         true);
 
     // halton
-    m_rootSig.InitAsBufferSRV(4,
-        2,
-        0,
+    m_rootSig.InitAsBufferSRV(4, 2, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         nullptr,
         true);
 
     // lumen/sample sets
-    m_rootSig.InitAsBufferUAV(5,
-        0,
-        0,
+    m_rootSig.InitAsBufferUAV(5, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE,
         nullptr,
         true);
-}
-
-PreLighting::~PreLighting()
-{
-    Reset();
 }
 
 void PreLighting::Init()
@@ -201,15 +184,13 @@ void PreLighting::Init()
 
     TaskSet ts;
 
-    for (int i = 0; i < (int)SHADERS::COUNT; i++)
+    for (int i = 0; i < (int)SHADER::COUNT; i++)
     {
         StackStr(buff, n, "PreLighting_shader_%d", i);
 
         ts.EmplaceTask(buff, [i, this]()
             {
-                m_psos[i] = m_psoLib.GetComputePSO_MT(i,
-                m_rootSigObj.Get(),
-                COMPILED_CS[i]);
+                m_psoLib.CompileComputePSO_MT(i, m_rootSigObj.Get(), COMPILED_CS[i]);
             });
     }
 
@@ -232,23 +213,6 @@ void PreLighting::Init()
 
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateOutputs();
-}
-
-void PreLighting::Reset()
-{
-    if (IsInitialized())
-    {
-        for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-            m_psos[i] = nullptr;
-
-        m_halton.Reset();
-        m_lumen.Reset();
-        m_readback.Reset();
-        m_curvature[0].Reset();
-        m_curvature[1].Reset();
-
-        RenderPassBase::ResetRenderPass();
-    }
 }
 
 void PreLighting::OnWindowResized()
@@ -340,8 +304,6 @@ void PreLighting::Render(CommandList& cmdList)
         computeCmdList.PIXBeginEvent("EstimateTriLumen");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateTriLumen");
 
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_TRIANGLE_LUMEN]);
-
         computeCmdList.ResourceBarrier(m_lumen.Resource(),
             D3D12_RESOURCE_STATE_COPY_SOURCE,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
@@ -351,6 +313,7 @@ void PreLighting::Render(CommandList& cmdList)
 
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ESTIMATE_TRIANGLE_LUMEN));
         computeCmdList.Dispatch(dispatchDimX, 1, 1);
 
         // copy results to readback buffer, so alias table can be computed on the cpu
@@ -377,8 +340,6 @@ void PreLighting::Render(CommandList& cmdList)
         computeCmdList.PIXBeginEvent("PresampleEmissives");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "PresampleEmissives");
 
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::PRESAMPLING]);
-
         // "buffers MAY be initially accessed in an ExecuteCommandLists scope without a Barrier...Additionally, a buffer 
         // or texture using a queue-specific common layout can use D3D12_BARRIER_ACCESS_UNORDERED_ACCESS without a barrier."
         // Ref: https://microsoft.github.io/DirectX-Specs/d3d/D3D12EnhancedBarriers.html
@@ -399,6 +360,7 @@ void PreLighting::Render(CommandList& cmdList)
         m_rootSig.SetRootUAV(5, m_sampleSets.GpuVA());
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::PRESAMPLING));
         computeCmdList.Dispatch(dispatchDimX, 1, 1);
 
         gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -413,8 +375,6 @@ void PreLighting::Render(CommandList& cmdList)
         computeCmdList.PIXBeginEvent("EstimateCurvature");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateCurvature");
 
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::ESTIMATE_CURVATURE]);
-
         auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
         auto uav = idx == 1 ? DESC_TABLE::CURVATURE_1_UAV : DESC_TABLE::CURVATURE_0_UAV;
 
@@ -424,6 +384,7 @@ void PreLighting::Render(CommandList& cmdList)
         m_rootSig.SetRootConstants(0, sizeof(cbCurvature) / sizeof(DWORD), &cb);
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ESTIMATE_CURVATURE));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
         gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -434,8 +395,6 @@ void PreLighting::Render(CommandList& cmdList)
     {
         computeCmdList.PIXBeginEvent("LightVoxelGrid");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "LightVoxelGrid");
-
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::BUILD_LIGHT_VOXEL_GRID]);
 
         cbLVG cb;
         cb.GridDim_x = m_voxelGridDim.x;
@@ -450,6 +409,7 @@ void PreLighting::Render(CommandList& cmdList)
         m_rootSig.SetRootUAV(5, m_lvg.GpuVA());
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::BUILD_LIGHT_VOXEL_GRID));
         computeCmdList.Dispatch(m_voxelGridDim.x, m_voxelGridDim.y, m_voxelGridDim.z);
 
         gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -519,10 +479,8 @@ void PreLighting::ReleaseLumenBufferAndReadback()
 
 void PreLighting::ReloadBuildLVG()
 {
-    const int i = (int)SHADERS::BUILD_LIGHT_VOXEL_GRID;
-
-    m_psoLib.Reload(i, "PreLighting\\BuildLightVoxelGrid.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::BUILD_LIGHT_VOXEL_GRID;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "PreLighting\\BuildLightVoxelGrid.hlsl");
 }
 
 //--------------------------------------------------------------------------------------

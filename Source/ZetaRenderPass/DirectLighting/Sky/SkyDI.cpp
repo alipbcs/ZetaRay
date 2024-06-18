@@ -21,28 +21,17 @@ SkyDI::SkyDI()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // root constants
-    m_rootSig.InitAsConstants(0,
-        NUM_CONSTS,
-        1);
+    m_rootSig.InitAsConstants(0, NUM_CONSTS, 1);
 
     // frame constants
-    m_rootSig.InitAsCBV(1,
-        0,
-        0,
+    m_rootSig.InitAsCBV(1, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // BVH
-    m_rootSig.InitAsBufferSRV(2,
-        0,
-        0,
+    m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::RT_SCENE_BVH);
-}
-
-SkyDI::~SkyDI()
-{
-    Reset();
 }
 
 void SkyDI::Init()
@@ -63,14 +52,13 @@ void SkyDI::Init()
 
     TaskSet ts;
 
-    for (int i = 0; i < (int)SHADERS::COUNT; i++)
+    for (int i = 0; i < (int)SHADER::COUNT; i++)
     {
         StackStr(buff, n, "SkyDI_shader_%d", i);
 
         ts.EmplaceTask(buff, [i, this]()
             {
-                m_psos[i] = m_psoLib.GetComputePSO_MT(i,
-                    m_rootSigObj.Get(),
+                m_psoLib.CompileComputePSO_MT(i, m_rootSigObj.Get(),
                     COMPILED_CS[i]);
             });
     }
@@ -111,47 +99,31 @@ void SkyDI::Init()
     ParamVariant maxTemporalM;
     maxTemporalM.InitInt("Renderer", "Direct Lighting (Sky)", "M_max",
         fastdelegate::MakeDelegate(this, &SkyDI::MaxTemporalMCallback),
-        m_cbSpatioTemporal.M_max,
-        1,
-        32,
-        1);
+        m_cbSpatioTemporal.M_max, 1, 32, 1);
     App::AddParam(maxTemporalM);
-
-    //ParamVariant checkerboarding;
-    //checkerboarding.InitBool("Renderer", "Direct Lighting (Sky)", "Checkerboarding",
-    //    fastdelegate::MakeDelegate(this, &SkyDI::CheckerboardingCallback), IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::CHECKERBOARDING));
-    //App::AddParam(checkerboarding);
 
     ParamVariant minRoughness;
     minRoughness.InitFloat("Renderer", "Direct Lighting (Sky)", "Min Resample Roughness",
         fastdelegate::MakeDelegate(this, &SkyDI::MinRoughnessResampleCallback),
-        m_cbSpatioTemporal.MinRoughnessResample,    // val    
-        0,                                          // min
-        1,                                          // max
-        0.1f);                                      // step
+        m_cbSpatioTemporal.MinRoughnessResample, 0, 1, 0.1f);
     App::AddParam(minRoughness);
 
     ParamVariant denoise;
     denoise.InitBool("Renderer", "Direct Lighting (Sky)", "Denoise",
-        fastdelegate::MakeDelegate(this, &SkyDI::DenoisingCallback), IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE));
+        fastdelegate::MakeDelegate(this, &SkyDI::DenoisingCallback), 
+        IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE));
     App::AddParam(denoise);
 
     ParamVariant tsppDiffuse;
     tsppDiffuse.InitInt("Renderer", "Direct Lighting (Sky)", "TSPP (Diffuse)",
         fastdelegate::MakeDelegate(this, &SkyDI::TsppDiffuseCallback),
-        m_cbDnsrTemporal.MaxTsppDiffuse,            // val
-        1,                                          // min
-        32,                                         // max
-        1);                                         // step
+        m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1);
     App::AddParam(tsppDiffuse);
 
     ParamVariant tsppSpecular;
     tsppSpecular.InitInt("Renderer", "Direct Lighting (Sky)", "TSPP (Specular)",
         fastdelegate::MakeDelegate(this, &SkyDI::TsppSpecularCallback),
-        m_cbDnsrTemporal.MaxTsppSpecular,            // val
-        1,                                           // min
-        32,                                          // max
-        1);                                          // step
+        m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1);
     App::AddParam(tsppSpecular);
 
     ParamVariant dnsrSpatialFilterDiffuse;
@@ -179,13 +151,12 @@ void SkyDI::Reset()
 {
     if (IsInitialized())
     {
-        App::RemoveShaderReloadHandler("SkyDI_Temporal");
-        App::RemoveShaderReloadHandler("SkyDI_DNSR_Temporal");
-        App::RemoveShaderReloadHandler("SkyDI_DNSR_Spatial");
+        App::RemoveShaderReloadHandler("SkyDI");
+        //App::RemoveShaderReloadHandler("SkyDI_DNSR_Temporal");
+        //App::RemoveShaderReloadHandler("SkyDI_DNSR_Spatial");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Temporal Resample");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Spatial Resample");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "M_max");
-        //App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Checkerboarding");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Min Resample Roughness");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "Denoise");
         App::RemoveParam("Renderer", "Direct Lighting (Sky)", "TSPP (Diffuse)");
@@ -201,15 +172,10 @@ void SkyDI::Reset()
             m_dnsrCache[i].Diffuse.Reset();
         }
 
-        //m_spatialReservoir.ReservoirA.Reset();
         m_denoised.Reset();
-
-        for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-            m_psos[i] = nullptr;
-
         m_descTable.Reset();
 
-        RenderPassBase::ResetRenderPass();
+        RenderPassBase::Reset(true);
     }
 }
 
@@ -238,11 +204,8 @@ void SkyDI::Render(CommandList& cmdList)
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_TEMPORAL_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_TEMPORAL_GROUP_DIM_Y);
 
-        // record the timestamp prior to execution
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_Temporal");
-
         computeCmdList.PIXBeginEvent("SkyDI_Temporal");
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::TEMPORAL_RESAMPLE]);
+        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_Temporal");
 
         SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
 
@@ -325,11 +288,10 @@ void SkyDI::Render(CommandList& cmdList)
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::TEMPORAL_RESAMPLE));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         cmdList.PIXEndEvent();
     }
 
@@ -338,12 +300,8 @@ void SkyDI::Render(CommandList& cmdList)
     {
         // denoiser - temporal
         {
-            computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL]);
-
-            // record the timestamp prior to execution
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Temporal");
-
             computeCmdList.PIXBeginEvent("SkyDI_DNSR_Temporal");
+            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Temporal");
 
             D3D12_TEXTURE_BARRIER barriers[4];
 
@@ -402,25 +360,17 @@ void SkyDI::Render(CommandList& cmdList)
 
             const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X);
             const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL));
             computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-            // record the timestamp after execution
             gpuTimer.EndQuery(computeCmdList, queryIdx);
-
             cmdList.PIXEndEvent();
         }
 
         // denoiser - spatial
         {
-            computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL]);
-
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_SPATIAL_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y);
-
-            // record the timestamp prior to execution
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Spatial");
-
             computeCmdList.PIXBeginEvent("SkyDI_DNSR_Spatial");
+            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Spatial");
 
             D3D12_TEXTURE_BARRIER spatialBarriers[2];
 
@@ -442,6 +392,9 @@ void SkyDI::Render(CommandList& cmdList)
 
             computeCmdList.ResourceBarrier(spatialBarriers, ZetaArrayLen(spatialBarriers));
 
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_SPATIAL_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y);
+
             auto spatialSrvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV : 
                 DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
             auto spatialSrvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : 
@@ -458,11 +411,10 @@ void SkyDI::Render(CommandList& cmdList)
             m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
             m_rootSig.End(computeCmdList);
 
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL));
             computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-            // record the timestamp after execution
             gpuTimer.EndQuery(computeCmdList, queryIdx);
-
             cmdList.PIXEndEvent();
         }
     }
@@ -580,31 +532,20 @@ void SkyDI::DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p)
     SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR, p.GetBool());
 }
 
-//void SkyDI::CheckerboardingCallback(const Support::ParamVariant& p)
-//{
-//    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::CHECKERBOARDING, p.GetBool());
-//}
-
 void SkyDI::ReloadTemporalPass()
 {
-    const int i = (int)SHADERS::TEMPORAL_RESAMPLE;
-
-    m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_SpatioTemporal.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::TEMPORAL_RESAMPLE;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_SpatioTemporal.hlsl");
 }
 
 void SkyDI::ReloadDNSRTemporal()
 {
-    const int i = (int)SHADERS::DNSR_TEMPORAL;
-
-    m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_DNSR_Temporal.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_TEMPORAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_DNSR_Temporal.hlsl");
 }
 
 void SkyDI::ReloadDNSRSpatial()
 {
-    const int i = (int)SHADERS::DNSR_SPATIAL;
-
-    m_psoLib.Reload(i, "DirectLighting\\Sky\\SkyDI_DNSR_Spatial.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_SPATIAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_DNSR_Spatial.hlsl");
 }

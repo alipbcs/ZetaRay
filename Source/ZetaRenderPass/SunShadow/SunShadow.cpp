@@ -19,36 +19,22 @@ SunShadow::SunShadow()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        NUM_CONSTS,
-        1);
+    m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
 
     // BVH
-    m_rootSig.InitAsBufferSRV(2,
-        0,
-        0,
+    m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::RT_SCENE_BVH);
 }
 
-SunShadow::~SunShadow() 
-{
-    Reset();
-}
-
 void SunShadow::Init()
 {
-    // required for correct barriers
-    Assert(m_currTemporalIdx == 0, "Initial temporal index must be zero.");
-
-    D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_ALLOW_INPUT_ASSEMBLER_INPUT_LAYOUT |
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -60,16 +46,8 @@ void SunShadow::Init()
     auto samplers = App::GetRenderer().GetStaticSamplers();
     RenderPassBase::InitRenderPass("SunShadow", flags, samplers);
 
-    auto createPSO = [this](int i)
-    {
-        m_psos[i] = m_psoLib.GetComputePSO(i,
-            m_rootSigObj.Get(),
-            COMPILED_CS[i]);
-    };
-
-    createPSO((int)SHADERS::SHADOW_MASK);
-    createPSO((int)SHADERS::DNSR_TEMPORAL_PASS);
-    createPSO((int)SHADERS::DNSR_SPATIAL_FILTER);
+    for(int i = 0; i < (int)SHADER::COUNT; i++)
+        m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 
     m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateResources();
@@ -92,26 +70,12 @@ void SunShadow::Init()
     ParamVariant minVar;
     minVar.InitFloat("Renderer", "Sun", "MinFilterVariance",
         fastdelegate::MakeDelegate(this, &SunShadow::MinFilterVarianceCallback),
-        m_spatialCB.MinFilterVar,                    // val
-        0.0f,                                        // min
-        8.0f,                                        // max
-        1e-2f);                                      // step
+        m_spatialCB.MinFilterVar, 0.0f, 8.0f, 1e-2f);
     App::AddParam(minVar);
 
     //App::AddShaderReloadHandler("SunShadow_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRTemporal));
     //App::AddShaderReloadHandler("SunShadow_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SunShadow::ReloadDNSRSpatial));
     App::AddShaderReloadHandler("SunShadow_Trace", fastdelegate::MakeDelegate(this, &SunShadow::ReloadSunShadowTrace));
-}
-
-void SunShadow::Reset() 
-{
-    if (IsInitialized())
-    {
-        m_shadowMask.Reset();
-        m_descTable.Reset();
-
-        RenderPassBase::ResetRenderPass();
-    }
 }
 
 void SunShadow::OnWindowResized()
@@ -135,12 +99,9 @@ void SunShadow::Render(CommandList& cmdList)
     // shadow mask
     {
         computeCmdList.PIXBeginEvent("SunShadowTrace");
-
-        // record the timestamp prior to execution
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SunShadowTrace");
 
         computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::SHADOW_MASK]);
 
         auto barrier = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
             D3D12_BARRIER_SYNC_NONE,
@@ -149,7 +110,6 @@ void SunShadow::Render(CommandList& cmdList)
             D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
             D3D12_BARRIER_ACCESS_NO_ACCESS,
             D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
-
         computeCmdList.ResourceBarrier(barrier);
 
         cbSunShadow localCB;
@@ -162,25 +122,19 @@ void SunShadow::Render(CommandList& cmdList)
         const uint32_t numGroupsX = CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
         const uint32_t numGroupsY = CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::SHADOW_MASK));
         computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         computeCmdList.PIXEndEvent();
     }
 
     // temporal pass
     {
         computeCmdList.PIXBeginEvent("ShadowDnsr_Temporal");
-
-        // record the timestamp prior to execution
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Temporal");
 
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL_PASS]);
-
         D3D12_TEXTURE_BARRIER barriers[2];
-
         barriers[0] = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
             D3D12_BARRIER_SYNC_COMPUTE_SHADING,
             D3D12_BARRIER_SYNC_COMPUTE_SHADING,
@@ -219,29 +173,23 @@ void SunShadow::Render(CommandList& cmdList)
         const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_TEMPORAL_THREAD_GROUP_SIZE_X);
         const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_TEMPORAL_THREAD_GROUP_SIZE_Y);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL_PASS));
         computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         computeCmdList.PIXEndEvent();
     }
 
     // spatial filter
     {
         computeCmdList.PIXBeginEvent("ShadowDnsr_Spatial");
-
-        // record the timestamp prior to execution
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Spatial");
-
-        computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL_FILTER]);
 
         const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
         const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
         m_spatialCB.MetadataSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_SRV);
 
         D3D12_TEXTURE_BARRIER barriers[3];
-
         barriers[0] = Direct3DUtil::TextureBarrier(m_metadata.Resource(),
             D3D12_BARRIER_SYNC_COMPUTE_SHADING,
             D3D12_BARRIER_SYNC_COMPUTE_SHADING,
@@ -296,11 +244,10 @@ void SunShadow::Render(CommandList& cmdList)
         m_rootSig.SetRootConstants(0, sizeof(cbFFX_DNSR_Spatial) / sizeof(DWORD), &m_spatialCB);
         m_rootSig.End(computeCmdList);
 
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL_FILTER));
         computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-        
         computeCmdList.PIXEndEvent();
     }
 
@@ -415,24 +362,18 @@ void SunShadow::EdgeStoppingShadowStdScaleCallback(const Support::ParamVariant& 
 
 void SunShadow::ReloadDNSRTemporal()
 {
-    const int i = (int)SHADERS::DNSR_TEMPORAL_PASS;
-
-    m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_temporal.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_TEMPORAL_PASS;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "SunShadow\\ffx_denoiser_temporal.hlsl");
 }
 
 void SunShadow::ReloadDNSRSpatial()
 {
-    const int i = (int)SHADERS::DNSR_SPATIAL_FILTER;
-
-    m_psoLib.Reload(i, "SunShadow\\ffx_denoiser_spatial_filter.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_SPATIAL_FILTER;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "SunShadow\\ffx_denoiser_spatial_filter.hlsl");
 }
 
 void SunShadow::ReloadSunShadowTrace()
 {
-    const int i = (int)SHADERS::SHADOW_MASK;
-
-    m_psoLib.Reload(i, "SunShadow\\SunShadow.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::SHADOW_MASK;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "SunShadow\\SunShadow.hlsl");
 }

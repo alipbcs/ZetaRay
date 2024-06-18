@@ -18,34 +18,17 @@ GenerateRasterDepth::GenerateRasterDepth()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // root constants
-    m_rootSig.InitAsConstants(0,
-        1,
-        0);
+    m_rootSig.InitAsConstants(0, 1, 0);
 
     // frame constants
-    m_rootSig.InitAsCBV(1,
-        1,
-        0,
+    m_rootSig.InitAsCBV(1, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         Scene::GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     RenderPassBase::InitRenderPass("RasterDepth", D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED);
 
-    m_pso = m_psoLib.GetComputePSO(0, m_rootSigObj.Get(), COMPILED_CS);
+    m_psoLib.CompileComputePSO(0, m_rootSigObj.Get(), COMPILED_CS);
     m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
-}
-
-GenerateRasterDepth::~GenerateRasterDepth()
-{
-    // Note: doesn't perform GPU synchronization
-
-    if (m_pso)
-    {
-        m_psoLib.ClearAndFlushToDisk();
-        m_rootSigObj.Reset();
-    }
-
-    m_depthBuffer.Reset(false);
 }
 
 void GenerateRasterDepth::Resize(uint32_t w, uint32_t h)
@@ -72,17 +55,16 @@ void GenerateRasterDepth::Render(ComputeCmdList& computeCmdList)
     const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, 8u);
     const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, 8u);
 
-    computeCmdList.SetPipelineState(m_pso);
-
     computeCmdList.ResourceBarrier(m_depthBuffer.Resource(),
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    uint32_t descHeapIdx = m_descTable.GPUDesciptorHeapIndex(0);
+    const uint32_t descHeapIdx = m_descTable.GPUDesciptorHeapIndex();
 
     m_rootSig.SetRootConstants(0, 1, &descHeapIdx);
     m_rootSig.End(computeCmdList);
 
+    computeCmdList.SetPipelineState(m_psoLib.GetPSO(0));
     computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
     computeCmdList.ResourceBarrier(m_depthBuffer.Resource(),

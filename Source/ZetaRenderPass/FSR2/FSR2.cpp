@@ -104,6 +104,10 @@ namespace
     //
     struct FSR2_Data
     {
+        FSR2_Data()
+            : m_psoLib(m_psoCache)
+        {}
+
         static constexpr uint32_t FLAGS = FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE |
             FFX_FSR2_ENABLE_DEPTH_INVERTED |
             FFX_FSR2_ENABLE_DEPTH_INFINITE;
@@ -149,6 +153,8 @@ namespace
         PipelineStateLibrary m_psoLib;
         DllWrapper m_dll;
         GenerateRasterDepth m_rasterDepth;
+
+        ID3D12PipelineState* m_psoCache[FFX_FSR2_PASS_COUNT] = { 0 };
     };
 
     FSR2_Data* g_fsr2Data = nullptr;
@@ -899,7 +905,7 @@ namespace
         }
 
         // check if PSO already exists in PSO lib
-        g_fsr2Data->m_passes[pass].PSO = g_fsr2Data->m_psoLib.GetComputePSO(pass,
+        g_fsr2Data->m_passes[pass].PSO = g_fsr2Data->m_psoLib.CompileComputePSO(pass,
             g_fsr2Data->m_passes[pass].RootSig.Get(),
             MutableSpan(shaderBlob.data, shaderBlob.size));
 
@@ -951,30 +957,30 @@ namespace
 
 #ifdef _DEBUG 
 #ifndef CheckFSR
-#define CheckFSR(x)                                                                                                                        \
-    {                                                                                                                                    \
-        FfxErrorCode err = (x);                                                                                                            \
-        if (err != FFX_OK)                                                                                                                \
-        {                                                                                                                                   \
-            char buff[256];                                                                                                                \
+#define CheckFSR(x)                                                                                                                     \
+    {                                                                                                                                   \
+        FfxErrorCode err = (x);                                                                                                         \
+        if (err != FFX_OK)                                                                                                              \
+        {                                                                                                                               \
+            char buff[256];                                                                                                             \
             stbsp_snprintf(buff, 256, "%s: %d\nFSR call %s\n failed with error:\n%s", __FILE__,  __LINE__, #x, GetFsrErrorMsg(err));    \
             MessageBoxA(nullptr, buff, "Fatal Error", MB_ICONERROR | MB_OK);                                                            \
-            __debugbreak();                                                                                                                \
-        }                                                                                                                                \
+            __debugbreak();                                                                                                             \
+        }                                                                                                                               \
     }
 #endif
 #else
 #ifndef CheckFSR
-#define CheckFSR(x)                                                                                                                        \
-    {                                                                                                                                    \
-        FfxErrorCode err = (x);                                                                                                            \
-        if (err != FFX_OK)                                                                                                                \
-        {                                                                                                                                \
-            char buff[256];                                                                                                                \
+#define CheckFSR(x)                                                                                                                     \
+    {                                                                                                                                   \
+        FfxErrorCode err = (x);                                                                                                         \
+        if (err != FFX_OK)                                                                                                              \
+        {                                                                                                                               \
+            char buff[256];                                                                                                             \
             stbsp_snprintf(buff, 256, "%s: %d\nFSR call %s\n failed with error:\n%s", __FILE__,  __LINE__, #x, GetFsrErrorMsg(err));    \
             MessageBoxA(nullptr, buff, "Fatal Error", MB_ICONERROR | MB_OK);                                                            \
-            exit(EXIT_FAILURE);                                                                                                            \
-        }                                                                                                                                \
+            exit(EXIT_FAILURE);                                                                                                         \
+        }                                                                                                                               \
     }
 #endif
 #endif
@@ -1129,7 +1135,6 @@ void FSR2Pass::Reset()
                 delete res;
             });
 
-        // submit
         App::SubmitBackground(ZetaMove(t));
 
         g_fsr2Data = nullptr;

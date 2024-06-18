@@ -2,7 +2,6 @@
 
 #include "../Utility/SmallVector.h"
 #include "Device.h"
-#include "../Support/MemoryPool.h"
 
 namespace ZetaRay::Core
 {
@@ -17,7 +16,6 @@ namespace ZetaRay::Core
         DescriptorHeap& operator=(const DescriptorHeap&) = delete;
 
         void Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible);
-        void Shutdown();
         DescriptorTable Allocate(uint32_t count);
         void Release(DescriptorTable&& descTable);
         void Recycle();
@@ -58,16 +56,12 @@ namespace ZetaRay::Core
 
         struct Block
         {
-            Block(Support::MemoryPool &mp)
-                : Head(UINT32_MAX),
-                Entries(mp)
-            {}
-
+            Block() = default;
             Block(Block&&) = delete;
             Block& operator=(Block&&) = delete;
 
             uint32_t Head;
-            Util::SmallVector<Entry, Support::PoolAllocator> Entries;
+            Util::SmallVector<Entry> Entries;
         };
 
         struct ReleasedLargeBlock
@@ -92,9 +86,6 @@ namespace ZetaRay::Core
 
         bool AllocateNewBlock(uint32_t listIdx);
 
-        // Make sure memory pool is declared first -- "members are guaranteed to be initialized 
-        // by order of declaration and destroyed in reverse order".
-        Support::MemoryPool m_memoryPool;
         SRWLOCK m_lock = SRWLOCK_INIT;
 
         ComPtr<ID3D12DescriptorHeap> m_heap;
@@ -107,19 +98,17 @@ namespace ZetaRay::Core
         uint32_t m_totalHeapSize = 0;
         uint32_t m_freeDescCount = 0;
 
-        Util::SmallVector<PendingDescTable, Support::PoolAllocator> m_pending;
+        Util::SmallVector<PendingDescTable> m_pending;
 
         // Segregated free lists
         const uint32_t m_blockSize;
+        Block m_heads[MAX_NUM_LISTS];
+#ifdef _DEBUG
         const uint32_t m_numLists;
-
-        // SmallVector with custom allocator can't be default initialized
-        static constexpr size_t HEADS_BUFFER_SIZE = sizeof(Block) * MAX_NUM_LISTS;
-        alignas(alignof(Block)) uint8_t m_headsBuffer[HEADS_BUFFER_SIZE];
-        Block* m_heads = nullptr;
+#endif
 
         uint32_t m_nextHeapIdx = 0;
-        Util::SmallVector<ReleasedLargeBlock, Support::PoolAllocator> m_releasedBlocks;
+        Util::SmallVector<ReleasedLargeBlock> m_releasedBlocks;
     };
 
     // A contiguous range of descriptors that are allocated from one DescriptorHeap

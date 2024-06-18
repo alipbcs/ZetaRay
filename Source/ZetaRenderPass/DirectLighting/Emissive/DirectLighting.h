@@ -18,7 +18,16 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct DirectLighting final : public RenderPassBase
+    enum class DIRECT_SHADER
+    {
+        SPATIO_TEMPORAL,
+        SPATIO_TEMPORAL_LIGHT_PRESAMPLING,
+        DNSR_TEMPORAL,
+        DNSR_SPATIAL,
+        COUNT
+    };
+
+    struct DirectLighting final : public RenderPassBase<(int)DIRECT_SHADER::COUNT>
     {
         enum class SHADER_OUT_RES
         {
@@ -27,11 +36,9 @@ namespace ZetaRay::RenderPass
         };
 
         DirectLighting();
-        ~DirectLighting();
+        ~DirectLighting() = default;
 
         void Init();
-        bool IsInitialized() const { return m_psos[0] != nullptr; };
-        void Reset();
         void OnWindowResized();
         void SetLightPresamplingParams(bool enabled, int numSampleSets, int sampleSetSize)
         {
@@ -55,6 +62,7 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_GLOBS = 6;
         static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cb_ReSTIR_DI_SpatioTemporal) / sizeof(DWORD),
             Math::Max(sizeof(cb_ReSTIR_DI_DNSR_Temporal) / sizeof(DWORD), sizeof(cb_ReSTIR_DI_DNSR_Spatial) / sizeof(DWORD)));
+        using SHADER = DIRECT_SHADER;
 
         struct ResourceFormats
         {
@@ -102,16 +110,7 @@ namespace ZetaRay::RenderPass
             static constexpr int DNSR_TSPP_SPECULAR = 16;
         };
 
-        enum class SHADERS
-        {
-            SPATIO_TEMPORAL,
-            SPATIO_TEMPORAL_LIGHT_PRESAMPLING,
-            DNSR_TEMPORAL,
-            DNSR_SPATIAL,
-            COUNT
-        };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
             "ReSTIR_DI_SpatioTemporal_cs.cso",
             "ReSTIR_DI_SpatioTemporal_WPS_cs.cso",
             "ReSTIR_DI_DNSR_Temporal_cs.cso",
@@ -132,9 +131,25 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::Texture Specular;
         };
 
-        Core::DescriptorTable m_descTable;
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
+        void CreateOutputs();
 
+        // param callbacks
+        void TemporalResamplingCallback(const Support::ParamVariant& p);
+        void SpatialResamplingCallback(const Support::ParamVariant& p);
+        void MaxTemporalMCallback(const Support::ParamVariant& p);
+        void MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p);
+        void DenoiseCallback(const Support::ParamVariant& p);
+        void TsppDiffuseCallback(const Support::ParamVariant& p);
+        void TsppSpecularCallback(const Support::ParamVariant& p);
+        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
+        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
+
+        // shader reload
+        void ReloadSpatioTemporal();
+        void ReloadDnsrTemporal();
+        void ReloadDnsrSpatial();
+
+        Core::DescriptorTable m_descTable;
         Reservoir m_temporalReservoir[2];
         Core::GpuMemory::Texture m_colorA;
         Core::GpuMemory::Texture m_colorB;
@@ -152,24 +167,5 @@ namespace ZetaRay::RenderPass
         cb_ReSTIR_DI_SpatioTemporal m_cbSpatioTemporal;
         cb_ReSTIR_DI_DNSR_Temporal m_cbDnsrTemporal;
         cb_ReSTIR_DI_DNSR_Spatial m_cbDnsrSpatial;
-
-        void CreateOutputs();
-
-        // param callbacks
-        void TemporalResamplingCallback(const Support::ParamVariant& p);
-        void SpatialResamplingCallback(const Support::ParamVariant& p);
-        void MaxTemporalMCallback(const Support::ParamVariant& p);
-        void MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p);
-        void DenoiseCallback(const Support::ParamVariant& p);
-        void TsppDiffuseCallback(const Support::ParamVariant& p);
-        void TsppSpecularCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
-        //void FireflyFilterCallback(const Support::ParamVariant& p);
-
-        // shader reload
-        void ReloadSpatioTemporal();
-        void ReloadDnsrTemporal();
-        void ReloadDnsrSpatial();
     };
 }

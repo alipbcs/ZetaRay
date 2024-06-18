@@ -123,19 +123,6 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
     }
 }
 
-void RayTracer::Shutdown(RayTracerData& data)
-{
-    data.ConstDescTable.Reset();
-    data.WndConstDescTable.Reset();
-    data.RtAS.Clear();
-    data.SkyDI_Pass.Reset();
-    data.SunShadowPass.Reset();
-    data.SkyPass.Reset();
-    data.DirecLightingPass.Reset();
-    data.PreLightingPass.Reset();
-    data.IndirecLightingPass.Reset();
-}
-
 void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data)
 {
     const auto numEmissives = App::GetScene().NumEmissiveInstances();

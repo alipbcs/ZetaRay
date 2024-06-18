@@ -50,7 +50,7 @@ namespace ZetaRay::Core
 
         D3D12_COMMAND_LIST_TYPE m_type;
         ComPtr<ID3D12GraphicsCommandList7> m_cmdList;
-        ID3D12CommandAllocator *m_cmdAllocator = nullptr;
+        ID3D12CommandAllocator* m_cmdAllocator = nullptr;
     };
 
     //--------------------------------------------------------------------------------------

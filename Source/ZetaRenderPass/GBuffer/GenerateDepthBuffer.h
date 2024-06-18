@@ -11,7 +11,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-    struct GenerateRasterDepth final : public RenderPassBase
+    struct GenerateRasterDepth final : public RenderPassBase<1>
     {
         static constexpr int NUM_CBV = 1;
         static constexpr int NUM_SRV = 0;
@@ -20,7 +20,7 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_CONSTS = 1;
 
         GenerateRasterDepth();
-        ~GenerateRasterDepth();
+        ~GenerateRasterDepth() = default;
 
         GenerateRasterDepth(GenerateRasterDepth&&) = delete;
         GenerateRasterDepth& operator=(GenerateRasterDepth&&) = delete;
@@ -30,7 +30,6 @@ namespace ZetaRay::RenderPass
 
         inline static constexpr const char* COMPILED_CS = "GenerateDepthBuffer_cs.cso";
 
-        ID3D12PipelineState* m_pso = nullptr;
         Core::GpuMemory::Texture m_depthBuffer;
         Core::DescriptorTable m_descTable;
     };

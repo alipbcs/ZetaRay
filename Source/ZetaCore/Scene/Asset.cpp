@@ -97,11 +97,11 @@ void TexSRVDescriptorTable::Recycle(uint64_t completedFenceVal)
 
 void TexSRVDescriptorTable::Clear()
 {
-    // Assumes GPU synchronization has been performed, so GPU is done with all the textures
-    m_pending.clear();
-    m_cache.clear();
-    memset(m_inUseBitset, 0, m_numMasks * sizeof(uint64_t));
-    m_descTable.Reset();
+    for (auto it = m_cache.begin_it(); it < m_cache.end_it(); it = m_cache.next_it(it))
+        it->Val.T.Reset(false);
+
+    for (auto& t : m_pending)
+        t.T.Reset(false);
 }
 
 //--------------------------------------------------------------------------------------
@@ -177,7 +177,6 @@ void MaterialBuffer::ResizeAdditionalMaterials(uint32_t num)
 void MaterialBuffer::Clear()
 {
     // Assumes CPU-GPU synchronization has been performed, so that GPU is done with the material buffer.
-    // DefaultHeapBuffer's destructor takes care of the rest.
     m_buffer.Reset();
 }
 
@@ -193,7 +192,8 @@ uint32_t MeshContainer::Add(SmallVector<Core::Vertex>&& vertices, SmallVector<ui
 
     const uint32_t meshIdx = (uint32_t)m_meshes.size();
     const uint64_t meshFromSceneID = SceneCore::MeshID(meshIdx, 0);
-    bool success = m_meshes.try_emplace(meshFromSceneID, vertices, vtxOffset, idxOffset, (uint32_t)indices.size(), matIdx);
+    bool success = m_meshes.try_emplace(meshFromSceneID, vertices, vtxOffset, idxOffset, 
+        (uint32_t)indices.size(), matIdx);
     Check(success, "mesh with given ID (from mesh index %u) already exists.", meshIdx);
 
     m_vertices.append_range(vertices.begin(), vertices.end());
@@ -266,19 +266,16 @@ void MeshContainer::RebuildBuffers()
 
 void MeshContainer::Clear()
 {
-    m_meshes.clear();
-    m_vertexBuffer.Reset();
-    m_indexBuffer.Reset();
-
-    m_vertices.free_memory();
-    m_indices.free_memory();
+    m_vertexBuffer.Reset(false);
+    m_indexBuffer.Reset(false);
 }
 
 //--------------------------------------------------------------------------------------
 // EmissiveBuffer
 //--------------------------------------------------------------------------------------
 
-void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, SmallVector<RT::EmissiveTriangle>&& emissiveTris)
+void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, 
+    SmallVector<RT::EmissiveTriangle>&& emissiveTris)
 {
     if (m_emissivesTrisCpu.empty())
     {
@@ -326,7 +323,8 @@ void EmissiveBuffer::UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx
     Assert(minTriIdx <= maxTriIdx, "invalid incices.");
 
     const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangle) * (maxTriIdx - minTriIdx);
-    const uintptr_t start = reinterpret_cast<uintptr_t>(m_emissivesTrisCpu.data()) + minTriIdx * sizeof(RT::EmissiveTriangle);
+    const uintptr_t start = reinterpret_cast<uintptr_t>(m_emissivesTrisCpu.data()) + 
+        minTriIdx * sizeof(RT::EmissiveTriangle);
 
     GpuMemory::UploadToDefaultHeapBuffer(m_emissiveTrisGpu,
         sizeInBytes,
@@ -336,13 +334,13 @@ void EmissiveBuffer::UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx
 
 void EmissiveBuffer::Clear()
 {
-    m_emissiveTrisGpu.Reset();
-    //m_emissivesTrisCpu.free_memory();
+    m_emissiveTrisGpu.Reset(false);
 }
 
 Optional<Asset::EmissiveInstance*> EmissiveBuffer::FindEmissive(uint64_t ID)
 {
-    auto idx = BinarySearch(Span(m_emissivesInstances), ID, [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
+    auto idx = BinarySearch(Span(m_emissivesInstances), ID, 
+        [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
     if (idx != -1)
         return &m_emissivesInstances[idx];
 

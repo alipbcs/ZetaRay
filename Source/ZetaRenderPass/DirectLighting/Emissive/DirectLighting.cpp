@@ -26,62 +26,43 @@ DirectLighting::DirectLighting()
     : RenderPassBase(NUM_CBV, NUM_SRV, NUM_UAV, NUM_GLOBS, NUM_CONSTS)
 {
     // frame constants
-    m_rootSig.InitAsCBV(0,
-        0,
-        0,
+    m_rootSig.InitAsCBV(0, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 
     // root constants
-    m_rootSig.InitAsConstants(1,
-        NUM_CONSTS,
-        1);
+    m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
 
     // BVH
-    m_rootSig.InitAsBufferSRV(2,
-        0,
-        0,
+    m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::RT_SCENE_BVH);
 
     // emissive triangles
-    m_rootSig.InitAsBufferSRV(3,
-        1,
-        0,
+    m_rootSig.InitAsBufferSRV(3, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::EMISSIVE_TRIANGLE_BUFFER);
 
     // alias table
-    m_rootSig.InitAsBufferSRV(4,
-        2,
-        0,
+    m_rootSig.InitAsBufferSRV(4, 2, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE);
 
     // sample set SRV
-    m_rootSig.InitAsBufferSRV(5,
-        3,
-        0,
+    m_rootSig.InitAsBufferSRV(5, 3, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::PRESAMPLED_EMISSIVE_SETS,
         true);
 
     // mesh buffer
-    m_rootSig.InitAsBufferSRV(6,
-        4,
-        0,
+    m_rootSig.InitAsBufferSRV(6, 4, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
         GlobalResource::RT_FRAME_MESH_INSTANCES);
 }
 
-DirectLighting::~DirectLighting()
-{
-    Reset();
-}
-
 void DirectLighting::Init()
 {
-    const D3D12_ROOT_SIGNATURE_FLAGS flags =
+    constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_VERTEX_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_AMPLIFICATION_SHADER_ROOT_ACCESS |
@@ -97,15 +78,14 @@ void DirectLighting::Init()
 
     TaskSet ts;
 
-    for (int i = 0; i < (int)SHADERS::COUNT; i++)
+    for (int i = 0; i < (int)SHADER::COUNT; i++)
     {
         StackStr(buff, n, "RDI_shader_%d", i);
 
         ts.EmplaceTask(buff, [i, this]()
             {
-                m_psos[i] = m_psoLib.GetComputePSO_MT(i,
-                m_rootSigObj.Get(),
-                COMPILED_CS[i]);
+                m_psoLib.CompileComputePSO_MT(i, m_rootSigObj.Get(),
+                    COMPILED_CS[i]);
             });
     }
 
@@ -182,19 +162,6 @@ void DirectLighting::Init()
     m_isTemporalReservoirValid = false;
 }
 
-void DirectLighting::Reset()
-{
-    if (IsInitialized())
-    {
-        for (int i = 0; i < ZetaArrayLen(m_psos); i++)
-            m_psos[i] = nullptr;
-
-        m_descTable.Reset();
-
-        RenderPassBase::ResetRenderPass();
-    }
-}
-
 void DirectLighting::OnWindowResized()
 {
     CreateOutputs();
@@ -220,17 +187,8 @@ void DirectLighting::Render(CommandList& cmdList)
         Assert(!m_preSampling || (m_cbSpatioTemporal.NumSampleSets && m_cbSpatioTemporal.SampleSetSize),
             "Light presampling is enabled, but the number and size of sets haven't been set.");
 
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_TEMPORAL_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_TEMPORAL_GROUP_DIM_Y);
-
-        // record the timestamp prior to execution
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI");
-
         computeCmdList.PIXBeginEvent("ReSTIR_DI");
-
-        computeCmdList.SetPipelineState(m_preSampling ?
-            m_psos[(int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING] :
-            m_psos[(int)SHADERS::SPATIO_TEMPORAL]);
+        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI");
 
         SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
 
@@ -290,6 +248,9 @@ void DirectLighting::Render(CommandList& cmdList)
 
         computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
 
+        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_TEMPORAL_GROUP_DIM_X);
+        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_TEMPORAL_GROUP_DIM_Y);
+
         m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
         m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
         m_cbSpatioTemporal.NumGroupsInTile = RESTIR_DI_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
@@ -313,14 +274,14 @@ void DirectLighting::Render(CommandList& cmdList)
         m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
-
         m_rootSig.End(computeCmdList);
 
+        auto sh = m_preSampling ? SHADER::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
+            SHADER::SPATIO_TEMPORAL;
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-        // record the timestamp after execution
         gpuTimer.EndQuery(computeCmdList, queryIdx);
-
         cmdList.PIXEndEvent();
     }
 
@@ -328,12 +289,8 @@ void DirectLighting::Render(CommandList& cmdList)
     {
         // denoiser - temporal
         {
-            computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_TEMPORAL]);
-
-            // record the timestamp prior to execution
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Temporal");
-
             computeCmdList.PIXBeginEvent("ReSTIR_DI_DNSR_Temporal");
+            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Temporal");
 
             D3D12_TEXTURE_BARRIER barriers[4];
 
@@ -392,25 +349,20 @@ void DirectLighting::Render(CommandList& cmdList)
 
             const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_DNSR_TEMPORAL_GROUP_DIM_X);
             const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL));
             computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-            // record the timestamp after execution
             gpuTimer.EndQuery(computeCmdList, queryIdx);
-
             cmdList.PIXEndEvent();
         }
 
         // denoiser - spatial
         {
-            computeCmdList.SetPipelineState(m_psos[(int)SHADERS::DNSR_SPATIAL]);
-
             const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_X);
             const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_Y);
 
-            // record the timestamp prior to execution
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Spatial");
-
             computeCmdList.PIXBeginEvent("ReSTIR_DI_DNSR_Spatial");
+            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Spatial");
 
             D3D12_TEXTURE_BARRIER barriers[2];
 
@@ -448,11 +400,10 @@ void DirectLighting::Render(CommandList& cmdList)
             m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
             m_rootSig.End(computeCmdList);
 
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL));
             computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
-            // record the timestamp after execution
             gpuTimer.EndQuery(computeCmdList, queryIdx);
-
             cmdList.PIXEndEvent();
         }
     }
@@ -571,28 +522,22 @@ void DirectLighting::DnsrSpatialFilterSpecularCallback(const Support::ParamVaria
 
 void DirectLighting::ReloadSpatioTemporal()
 {
-    const int i = m_preSampling ? (int)SHADERS::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
-        (int)SHADERS::SPATIO_TEMPORAL;
+    const int i = m_preSampling ? (int)SHADER::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
+        (int)SHADER::SPATIO_TEMPORAL;
 
-    m_psoLib.Reload(i, m_preSampling ?
+    m_psoLib.Reload(i, m_rootSigObj.Get(), m_preSampling ?
         "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_WPS.hlsl" :
-        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl",
-        true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl");
 }
 
 void DirectLighting::ReloadDnsrTemporal()
 {
-    const int i = (int)SHADERS::DNSR_TEMPORAL;
-
-    m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_TEMPORAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl");
 }
 
 void DirectLighting::ReloadDnsrSpatial()
 {
-    const int i = (int)SHADERS::DNSR_SPATIAL;
-
-    m_psoLib.Reload(i, "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl", true);
-    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+    const int i = (int)SHADER::DNSR_SPATIAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl");
 }

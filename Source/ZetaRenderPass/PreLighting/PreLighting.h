@@ -18,17 +18,24 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
+    enum class PRE_LIGHTING_SHADER
+    {
+        ESTIMATE_TRIANGLE_LUMEN,
+        PRESAMPLING,
+        ESTIMATE_CURVATURE,
+        BUILD_LIGHT_VOXEL_GRID,
+        COUNT
+    };
+
     // Prepares for lighting by
     //  - estimating lumen for each emissive triangle (needed for power sampling light sources)
     //  - estimating local curvature (needed for ray cones)
-    struct PreLighting final : public RenderPassBase
+    struct PreLighting final : public RenderPassBase<(int)PRE_LIGHTING_SHADER::COUNT>
     {
         PreLighting();
-        ~PreLighting();
+        ~PreLighting() = default;
 
         void Init();
-        bool IsInitialized() const { return m_psos[0] != nullptr; };
-        void Reset();
         void OnWindowResized();
         void SetLightPresamplingParams(uint32_t minToEnale, uint32_t numSampleSets, uint32_t sampleSetSize)
         { 
@@ -63,17 +70,9 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_GLOBS = 3;
         static constexpr int NUM_CONSTS = (int)Math::Max(sizeof(cbPresampling) / sizeof(DWORD), 
             Math::Max(sizeof(cbLVG) / sizeof(DWORD), sizeof(cbCurvature) / sizeof(DWORD)));
+        using SHADER = PRE_LIGHTING_SHADER;
 
-        enum class SHADERS
-        {
-            ESTIMATE_TRIANGLE_LUMEN,
-            PRESAMPLING,
-            ESTIMATE_CURVATURE,
-            BUILD_LIGHT_VOXEL_GRID,
-            COUNT
-        };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
             "EstimateTriLumen_cs.cso",
             "PresampleEmissives_cs.cso",
             "EstimateCurvature_cs.cso",
@@ -104,7 +103,6 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::DefaultHeapBuffer m_lvg;
         Core::GpuMemory::Texture m_curvature[2];
         Core::DescriptorTable m_descTable;
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
         uint32_t m_currNumTris = 0;
         uint32_t m_minNumLightsForPresampling = UINT32_MAX;
         uint32_t m_numSampleSets = 0;

@@ -17,7 +17,14 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct Compositing final : public RenderPassBase
+    enum class COMPOSITING_SHADER
+    {
+        COMPOSIT,
+        FIREFLY_FILTER,
+        COUNT
+    };
+
+    struct Compositing final : public RenderPassBase<(int)COMPOSITING_SHADER::COUNT>
     {
         enum class SHADER_IN_GPU_DESC
         {
@@ -36,11 +43,9 @@ namespace ZetaRay::RenderPass
         };
 
         Compositing();
-        ~Compositing();
+        ~Compositing() = default;
 
         void Init(bool skyIllum);
-        bool IsInitialized() { return m_psos[0] != nullptr; }
-        void Reset();
         void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
         void SetSkyIllumEnablement(bool enable);
         void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
@@ -86,7 +91,7 @@ namespace ZetaRay::RenderPass
         const Core::GpuMemory::Texture & GetOutput(SHADER_OUT_RES out) const
         {
             Assert((int)out < (int)SHADER_IN_GPU_DESC::COUNT, "out-of-bound access.");
-            return m_hdrLightAccum;
+            return m_compositTex;
         }
         void OnWindowResized();
         void Render(Core::CommandList& cmdList);
@@ -97,6 +102,7 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_UAV = 0;
         static constexpr int NUM_GLOBS = 1;
         static constexpr int NUM_CONSTS = sizeof(cbCompositing) / sizeof(DWORD);
+        using SHADER = RenderPass::COMPOSITING_SHADER;
 
         struct ResourceFormats
         {
@@ -109,33 +115,25 @@ namespace ZetaRay::RenderPass
             COUNT
         };
 
-        enum class SHADERS
-        {
-            COMPOSIT,
-            FIREFLY_FILTER,
-            COUNT
-        };
-
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
             "Compositing_cs.cso",
             "FireflyFilter_cs.cso"
         };
 
-        Core::GpuMemory::Texture m_hdrLightAccum;
-        Core::DescriptorTable m_descTable;
-        cbCompositing m_cbComposit;
-        bool m_filterFirefly = false;
+        void CreateCompositTexure();
 
-        void CreateLightAccumTexure();
-
+        // param callbacks
         void FireflyFilterCallback(const Support::ParamVariant& p);
         void DirectSunCallback(const Support::ParamVariant& p);
         void IndirectCallback(const Support::ParamVariant& p);
         void DirectEmissiveCallback(const Support::ParamVariant& p);
         void VisualizeLVGCallback(const Support::ParamVariant& p);
-
+        // shader reload
         void ReloadCompsiting();
+
+        Core::GpuMemory::Texture m_compositTex;
+        Core::DescriptorTable m_descTable;
+        cbCompositing m_cbComposit;
+        bool m_filterFirefly = false;
     };
 }

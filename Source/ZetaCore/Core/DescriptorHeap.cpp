@@ -79,25 +79,14 @@ void DescriptorTable::Reset()
 //--------------------------------------------------------------------------------------
 
 DescriptorHeap::DescriptorHeap(uint32_t blockSize)
-    : m_pending(m_memoryPool),
-    m_blockSize(blockSize),
-    m_numLists((uint32_t)log2f((float)blockSize) + 1),
-    m_releasedBlocks(m_memoryPool)
+#ifdef _DEBUG
+    : m_blockSize(blockSize),
+    m_numLists((uint32_t)log2f((float)blockSize) + 1)
+#else
+    : m_blockSize(blockSize)
+#endif
 {
     Assert(Math::IsPow2(blockSize), "block size must be a power of two.");
-
-    m_memoryPool.Init();
-    uintptr_t currBuffPointer = reinterpret_cast<uintptr_t>(m_headsBuffer);
-
-    for (uint32_t i = 0; i < m_numLists; i++)
-    {
-        void* ptr = reinterpret_cast<void*>(currBuffPointer);
-        new (ptr) Block(m_memoryPool);
-
-        currBuffPointer += sizeof(Block);
-    }
-
-    m_heads = reinterpret_cast<Block*>(m_headsBuffer);
 
     // Initialize blocks
     for (uint32_t i = 0; i < MAX_NUM_LISTS; i++)
@@ -134,11 +123,6 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
         m_baseGPUHandle = m_heap->GetGPUDescriptorHandleForHeapStart();
 
     CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
-}
-
-void DescriptorHeap::Shutdown()
-{
-    m_pending.free_memory();
 }
 
 bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)

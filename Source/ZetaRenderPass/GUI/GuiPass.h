@@ -14,7 +14,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-    struct GuiPass final : public RenderPassBase
+    struct GuiPass final : public RenderPassBase<1>
     {
         enum SHADER_IN_CPU_DESC
         {
@@ -23,11 +23,9 @@ namespace ZetaRay::RenderPass
         };
 
         GuiPass();
-        ~GuiPass();
+        ~GuiPass() = default;
 
         void Init();
-        bool IsInitialized() { return m_pso != nullptr; };
-        void Reset();
         void SetCPUDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
         {
             Assert(i < SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
@@ -55,8 +53,6 @@ namespace ZetaRay::RenderPass
 
         inline static constexpr const char* COMPILED_VS[] = { "ImGui_vs.cso" };
         inline static constexpr const char* COMPILED_PS[] = { "ImGui_ps.cso" };
-
-        ID3D12PipelineState* m_pso = nullptr;
 
         struct ImGuiFrameBufferData
         {

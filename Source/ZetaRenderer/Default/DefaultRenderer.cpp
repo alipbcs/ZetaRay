@@ -559,13 +559,9 @@ namespace ZetaRay::DefaultRenderer
 
     void Shutdown()
     {
-        GBuffer::Shutdown(g_data->m_gbuffData);
-        RayTracer::Shutdown(g_data->m_raytracerData);
-        PostProcessor::Shutdown(g_data->m_postProcessorData);
-
-        g_data->m_frameConstantsBuff.Reset();
         g_data->m_renderGraph.Shutdown();
 
+        // At this point, GPU has been flushed, so extra synchronization is not needed
         delete g_data;
     }
 

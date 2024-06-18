@@ -12,7 +12,14 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::RenderPass
 {
-    struct AutoExposure final : public RenderPassBase
+    enum class AUTO_EXPOSURE_SHADER
+    {
+        HISTOGRAM,
+        WEIGHTED_AVG,
+        COUNT
+    };
+
+    struct AutoExposure final : public RenderPassBase<(int)AUTO_EXPOSURE_SHADER::COUNT>
     {
         enum class SHADER_IN_DESC
         {
@@ -27,11 +34,9 @@ namespace ZetaRay::RenderPass
         };
 
         AutoExposure();
-        ~AutoExposure();
+        ~AutoExposure() = default;
 
         void Init();
-        bool IsInitialized() { return m_psos[0] != nullptr || m_psos[1] != nullptr; };
-        void Reset();
         void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
         {
             Assert((uint32_t)i < (uint32_t)SHADER_IN_DESC::COUNT, "out-of-bound access.");
@@ -50,14 +55,7 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_UAV = 1;
         static constexpr int NUM_GLOBS = 1;
         static constexpr int NUM_CONSTS = (int)sizeof(cbAutoExposureHist) / sizeof(DWORD);
-
-        void CreateResources();
-
-        Core::GpuMemory::Texture m_exposure;
-        Core::GpuMemory::DefaultHeapBuffer m_counter;
-        Core::GpuMemory::DefaultHeapBuffer m_hist;
-        Core::GpuMemory::DefaultHeapBuffer m_zeroBuffer;        // for resetting the histogram to zero each frame
-        uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT] = { 0 };
+        using SHADER = RenderPass::AUTO_EXPOSURE_SHADER;
 
         enum class DESC_TABLE
         {
@@ -66,17 +64,7 @@ namespace ZetaRay::RenderPass
             COUNT
         };
 
-        Core::DescriptorTable m_descTable;
-
-        enum class SHADERS
-        {
-            HISTOGRAM,
-            WEIGHTED_AVG,
-            COUNT
-        };
-
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { nullptr };
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] =
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] =
         {
             "AutoExposure_Histogram_cs.cso",
             "AutoExposure_WeightedAvg_cs.cso"
@@ -92,16 +80,22 @@ namespace ZetaRay::RenderPass
             static constexpr float UpperPercentile = 0.9f;
         };
 
-        float m_minLum;
-        float m_maxLum;
-        cbAutoExposureHist m_cbHist;
-
+        void CreateResources();
         void MinLumCallback(const Support::ParamVariant& p);
         void MaxLumCallback(const Support::ParamVariant& p);
         void LumMapExpCallback(const Support::ParamVariant& p);
         void LowerPercentileCallback(const Support::ParamVariant& p);
         void UpperPercentileCallback(const Support::ParamVariant& p);
-
         void Reload();
+
+        Core::GpuMemory::Texture m_exposure;
+        Core::GpuMemory::DefaultHeapBuffer m_counter;
+        Core::GpuMemory::DefaultHeapBuffer m_hist;
+        Core::GpuMemory::DefaultHeapBuffer m_zeroBuffer;        // for resetting the histogram to zero each frame
+        uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT] = { 0 };
+        Core::DescriptorTable m_descTable;
+        float m_minLum;
+        float m_maxLum;
+        cbAutoExposureHist m_cbHist;
     };
 }

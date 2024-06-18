@@ -40,10 +40,7 @@ void GpuTimer::Init()
 
 void GpuTimer::Shutdown()
 {
-    for (int i = 0; i < ZetaArrayLen(m_timings); i++)
-        m_timings[i].free_memory();
-
-    m_readbackBuff.Reset();
+    m_readbackBuff.Reset(false);
 }
 
 Span<GpuTimer::Timing> GpuTimer::GetFrameTimings()

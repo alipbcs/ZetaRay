@@ -36,8 +36,6 @@ namespace ZetaRay::Math
         BVH& operator=(BVH&&) = delete;
 
         bool IsBuilt() { return m_nodes.size() != 0; }
-        void Clear();
-
         void Build(Util::Span<BVHInput> instances);
         void Update(Util::Span<BVHUpdateInput> instances);
         void Remove(uint64_t ID, const Math::AABB& AABB);

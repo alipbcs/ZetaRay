@@ -17,7 +17,15 @@ namespace ZetaRay::Support
 
 namespace ZetaRay::RenderPass
 {
-    struct SkyDI final : public RenderPassBase
+    enum class SKY_DI_SHADER
+    {
+        TEMPORAL_RESAMPLE,
+        DNSR_TEMPORAL,
+        DNSR_SPATIAL,
+        COUNT
+    };
+
+    struct SkyDI final : public RenderPassBase<(int)SKY_DI_SHADER::COUNT>
     {
         enum class SHADER_OUT_RES
         {
@@ -26,19 +34,16 @@ namespace ZetaRay::RenderPass
         };
 
         SkyDI();
-        ~SkyDI();
+        ~SkyDI() = default;
 
         void Init();
-        bool IsInitialized() const { return m_psos[0] != nullptr; };
         void Reset();
         void OnWindowResized();
-
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
             Assert(i == SHADER_OUT_RES::DENOISED, "Invalid shader output.");
             return m_denoised;
         }
-
         void Render(Core::CommandList& cmdList);
 
     private:
@@ -47,8 +52,7 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_UAV = 0;
         static constexpr int NUM_GLOBS = 2;
         static constexpr int NUM_CONSTS = (int)(sizeof(cb_SkyDI_Temporal) / sizeof(DWORD));
-
-        void CreateOutputs();
+        using SHADER = SKY_DI_SHADER;
 
         struct ResourceFormats
         {
@@ -97,15 +101,7 @@ namespace ZetaRay::RenderPass
             static constexpr int DNSRTspp_Specular = 16;
         };
 
-        enum class SHADERS
-        {
-            TEMPORAL_RESAMPLE,
-            DNSR_TEMPORAL,
-            DNSR_SPATIAL,
-            COUNT
-        };
-
-        inline static constexpr const char* COMPILED_CS[(int)SHADERS::COUNT] = {
+        inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
             "SkyDI_SpatioTemporal_cs.cso",
             "SkyDI_DNSR_Temporal_cs.cso",
             "SkyDI_DNSR_Spatial_cs.cso"
@@ -125,6 +121,23 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::Texture Specular;
         };
 
+        void CreateOutputs();
+
+        void TemporalResamplingCallback(const Support::ParamVariant& p);
+        void SpatialResamplingCallback(const Support::ParamVariant& p);
+        void MaxTemporalMCallback(const Support::ParamVariant& p);
+        void MinRoughnessResampleCallback(const Support::ParamVariant& p);
+        void DenoisingCallback(const Support::ParamVariant& p);
+        void TsppDiffuseCallback(const Support::ParamVariant& p);
+        void TsppSpecularCallback(const Support::ParamVariant& p);
+        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
+        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
+
+        // shader reload
+        void ReloadTemporalPass();
+        void ReloadDNSRTemporal();
+        void ReloadDNSRSpatial();
+
         Reservoir m_temporalReservoir[2];
         Core::GpuMemory::Texture m_colorA;
         Core::GpuMemory::Texture m_colorB;
@@ -141,23 +154,5 @@ namespace ZetaRay::RenderPass
         cb_SkyDI_Temporal m_cbSpatioTemporal;
         cb_SkyDI_DNSR_Temporal m_cbDnsrTemporal;
         cb_SkyDI_DNSR_Spatial m_cbDnsrSpatial;
-
-        void TemporalResamplingCallback(const Support::ParamVariant& p);
-        void SpatialResamplingCallback(const Support::ParamVariant& p);
-        void MaxTemporalMCallback(const Support::ParamVariant& p);
-        void MinRoughnessResampleCallback(const Support::ParamVariant& p);
-        void DenoisingCallback(const Support::ParamVariant& p);
-        void TsppDiffuseCallback(const Support::ParamVariant& p);
-        void TsppSpecularCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
-        //void CheckerboardingCallback(const Support::ParamVariant& p);
-
-        ID3D12PipelineState* m_psos[(int)SHADERS::COUNT] = { 0 };
-
-        // shader reload
-        void ReloadTemporalPass();
-        void ReloadDNSRTemporal();
-        void ReloadDNSRSpatial();
     };
 }
