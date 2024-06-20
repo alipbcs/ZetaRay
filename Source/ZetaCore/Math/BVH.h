@@ -18,7 +18,7 @@ namespace ZetaRay::Math
     public:
         struct alignas(16) BVHInput
         {
-            Math::AABB AABB;
+            Math::AABB BoundingBox;
             uint64_t InstanceID;
         };
 
@@ -60,7 +60,7 @@ namespace ZetaRay::Math
         Math::AABB GetWorldAABB() 
         {
             Assert(m_nodes.size() > 0, "BVH hasn't been built yet.");
-            return m_nodes[0].AABB; 
+            return m_nodes[0].BoundingBox; 
         }
 
     private:
@@ -79,7 +79,7 @@ namespace ZetaRay::Math
 
             // Union AABB of all the child nodes for internal nodes
             // also used to distinguish between leaf & internal nodes
-            Math::AABB AABB;
+            Math::AABB BoundingBox;
 
             /*
             union

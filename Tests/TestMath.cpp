@@ -321,8 +321,7 @@ TEST_CASE("MergingAABBs")
     vBox1.vCenter = _mm_setr_ps(-100.0f, -50.0f, -85.0f, 0.0f);
     vBox1.vExtents = _mm_setr_ps(10.0f, 5.0f, 14.0f, 0.0f);
 
-    v_AABB vBox2;
-
+    v_AABB vBox2 = v_AABB::Init();
     v_AABB vMergedBox = compueUnionAABB(vBox1, vBox2);
     AABB box = store(vMergedBox);
     AABB box2 = store(vBox1);

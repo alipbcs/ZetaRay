@@ -11,7 +11,7 @@ namespace ZetaRay::Model
         // Slow build time but fastest possible trace time
         STATIC = 0,
 
-        // Dynamic mesh that only needs to update its transform and doesn't need rebuilds
+        // Dynamic mesh that only needs to update its world transform and doesn't need rebuilds
         DYNAMIC_NO_REBUILD,
 
         // Dynamic mesh that needs rebuild (due to e.g. change in number of vertices or topology)
@@ -27,26 +27,6 @@ namespace ZetaRay::Model
             uint32_t numIndices,
             uint32_t matIdx);
 
-        //inline D3D12_VERTEX_BUFFER_VIEW VertexBufferView() const
-        //{
-        //    D3D12_VERTEX_BUFFER_VIEW vbv;
-        //    vbv.BufferLocation = m_vertexBuffer.GetGpuVA();
-        //    vbv.SizeInBytes = static_cast<UINT>(m_vertexBuffer.GetDesc().Width);
-        //    vbv.StrideInBytes = sizeof(Core::VertexPosNormalTexTangent);
-
-        //    return vbv;
-        //}
-
-        //inline D3D12_INDEX_BUFFER_VIEW IndexBufferView() const
-        //{
-        //    D3D12_INDEX_BUFFER_VIEW ibv;
-        //    ibv.BufferLocation = m_indexBuffer.GetGpuVA();
-        //    ibv.Format = Core::MESH_INDEX_FORMAT;
-        //    ibv.SizeInBytes = static_cast<UINT>(m_indexBuffer.GetDesc().Width);
-
-        //    return ibv;
-        //}
-
         uint32_t m_vtxBuffStartOffset;
         uint32_t m_idxBuffStartOffset;
         uint32_t m_materialIdx;
@@ -55,24 +35,29 @@ namespace ZetaRay::Model
         Math::AABB m_AABB;
     };
 
+    static_assert(std::is_trivially_default_constructible_v<TriangleMesh>);
+
     // Ref: DirectXTK12 library (MIT License), available from:
     // https://github.com/microsoft/DirectXTK12
     namespace PrimitiveMesh
     {
-        //void ComputeBox(Vector<VertexPosNormalTexTangent>& vertices, Vector<uint16_t>& indices, 
-        //    Math::float3 size);
-
-        void ComputeSphere(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeSphere(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float diameter, size_t tessellation);
-        void ComputeCylinder(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeCylinder(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float bottomRadius, float topRadius, float height, uint32_t sliceCount, uint32_t stackCount);
-        void ComputeCone(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeCone(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float diameter, float height, size_t tessellation);
-        void ComputeTorus(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeTorus(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float diameter, float thickness, size_t tessellation);
-        void ComputeTeapot(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeTeapot(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float size, size_t tessellation);
-        void ComputeGrid(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, Util::Vector<uint32_t, Support::SystemAllocator>& indices,
+        void ComputeGrid(Util::Vector<Core::Vertex, Support::SystemAllocator>& vertices, 
+            Util::Vector<uint32_t, Support::SystemAllocator>& indices,
             float width, float depth, uint32_t m, uint32_t n);
     }
 }

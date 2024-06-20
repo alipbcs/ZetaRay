@@ -38,9 +38,8 @@ namespace ZetaRay::Math
             dataPtr += vtxStride;
         }
 
-        v_AABB vBox;
-
         const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
+        v_AABB vBox;
         vBox.vCenter = _mm_mul_ps(_mm_add_ps(vMax, vMin), vOneDivTwo);
         vBox.vExtents = _mm_mul_ps(_mm_sub_ps(vMax, vMin), vOneDivTwo);
 
@@ -59,8 +58,8 @@ namespace ZetaRay::Math
         __m128 vUnionMin = _mm_min_ps(vMin1, vMin2);
         __m128 vUnionMax = _mm_max_ps(vMax1, vMax2);
 
-        v_AABB vRet;
         const __m128 vOneDiv2 = _mm_set1_ps(0.5f);
+        v_AABB vRet;
         vRet.vCenter = _mm_mul_ps(_mm_add_ps(vUnionMin, vUnionMax), vOneDiv2);
         vRet.vExtents = _mm_mul_ps(_mm_sub_ps(vUnionMax, vUnionMin), vOneDiv2);
 
@@ -110,8 +109,6 @@ namespace ZetaRay::Math
     // Returns the AABB that results from the intersection of two AABBs
     ZetaInline v_AABB __vectorcall computeOverlapAABB(const v_AABB vBox1, const v_AABB vBox2)
     {
-        v_AABB vO;
-
         __m128 vMin1 = _mm_sub_ps(vBox1.vCenter, vBox1.vExtents);
         __m128 vMax1 = _mm_add_ps(vBox1.vCenter, vBox1.vExtents);
 
@@ -122,6 +119,7 @@ namespace ZetaRay::Math
         __m128 vOverlapMax = _mm_max_ps(vMin1, vMin2);
 
         const __m128 vOneDiv2 = _mm_set1_ps(0.5f);
+        v_AABB vO;
         vO.vCenter = _mm_mul_ps(_mm_add_ps(vOverlapMin, vOverlapMax), vOneDiv2);
         vO.vExtents = _mm_mul_ps(_mm_sub_ps(vOverlapMax, vOverlapMin), vOneDiv2);
 

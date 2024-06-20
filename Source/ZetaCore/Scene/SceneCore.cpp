@@ -590,7 +590,7 @@ void SceneCore::RebuildBVH()
             vBox = transform(vM, vBox);
             const uint64_t insID = m_sceneGraph[level].m_IDs[i];
 
-            allInstances.emplace_back(BVH::BVHInput{ .AABB = store(vBox), .InstanceID = insID });
+            allInstances.emplace_back(BVH::BVHInput{ .BoundingBox = store(vBox), .InstanceID = insID });
         }
     }
 

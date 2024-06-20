@@ -1,6 +1,9 @@
 #pragma once
 
 #include "Vector.h"
+#ifdef _DEBUG
+#include <type_traits>
+#endif
 
 namespace ZetaRay::Math
 {
@@ -22,30 +25,30 @@ namespace ZetaRay::Math
             : Center(c),
             Extents(e)
         {}
+        static AABB Init()
+        {
+            return AABB(float3(0), float3(-FLT_MAX));
+        }
 
-        float3 Center = float3(0.0f, 0.0f, 0.0f);
-        float3 Extents = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
+        float3 Center;
+        float3 Extents;
     };
 
     struct v_AABB
     {
-        v_AABB()
-        {
-            auto c = float3(0.0f, 0.0f, 0.0f);
-            auto e = float3(-FLT_MAX, -FLT_MAX, -FLT_MAX);
-            Reset(c, e);
-        }
-
+        v_AABB() = default;
         explicit v_AABB(const AABB& aabb)
         {
             Reset(aabb);
         }
-
-        v_AABB(float3& c, float3& e)
+        v_AABB(const float3& c, const float3& e)
         {
             Reset(c, e);
         }
-
+        static v_AABB Init()
+        {
+            return v_AABB(float3(0), float3(-FLT_MAX));
+        }
         void __vectorcall Reset(const AABB& aabb)
         {
             vCenter = _mm_loadu_ps(reinterpret_cast<const float*>(&aabb));
@@ -55,9 +58,10 @@ namespace ZetaRay::Math
             // Make sure the 4th element is 1.0f so that tranlation transforms apply
             vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
         }
-
-        void __vectorcall Reset(float3& c, float3& e)
+        void __vectorcall Reset(const float3& center, const float3& extents)
         {
+            float3& c = const_cast<float3&>(center);
+            float3& e = const_cast<float3&>(extents);
             vCenter = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&c)));
             vCenter = _mm_blend_ps(vCenter, _mm_set1_ps(1.0f), 0x8);
             vCenter = _mm_insert_ps(vCenter, _mm_load_ss(&c.z), 0x20);
@@ -65,7 +69,6 @@ namespace ZetaRay::Math
             vExtents = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&e)));
             vExtents = _mm_insert_ps(vExtents, _mm_load_ss(&e.z), 0x20);
         }
-
         ZetaInline void __vectorcall Reset(__m128 vMinPoint, __m128 vMaxPoint)
         {
             const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
@@ -87,20 +90,19 @@ namespace ZetaRay::Math
 
     struct Plane
     {
-        Plane()
-            : Normal(0.0f, 0.0f, 0.0f),
-            d(0.0f)
-        {}
-
+        Plane() = default;
         Plane(const float3& n, float d)
             : Normal(n),
             d(d)
         {}
-
         Plane(const float3& n, const float3& p0)
             : Normal(n),
             d(-(n.x * p0.x + n.y * p0.y + n.z * p0.z))
         {}
+        static Plane Init()
+        {
+            return Plane(float3(0.0f), 0.0f);
+        }
 
         float3 Normal;
         float d;
@@ -114,7 +116,6 @@ namespace ZetaRay::Math
     struct alignas(16) ViewFrustum
     {
         ViewFrustum() = default;
-
         ViewFrustum(float vFOV, float aspectRatio, float nearZ, float farZ)
         {
             Assert(vFOV > 0.0f, "invalid vertical FOV");
@@ -149,7 +150,7 @@ namespace ZetaRay::Math
                 n.y *= l2Norm;
                 n.z *= l2Norm;
                 d = 0.0f;
-                Assert(fabsf(1.0f - (n.y * n.y + n.z * n.z)) < 1e-5f, "normal vector is not normalized");
+                Assert(fabsf(1.0f - (n.y * n.y + n.z * n.z)) < 1e-6f, "normal vector is not normalized");
                 Top = Plane(n, d);
             }
 
@@ -159,7 +160,7 @@ namespace ZetaRay::Math
                 n.y *= l2Norm;
                 n.z *= l2Norm;
                 d = 0.0f;
-                Assert(fabsf(1.0f - (n.y * n.y + n.z * n.z)) < 1e-5f, "normal vector is not normalized");
+                Assert(fabsf(1.0f - (n.y * n.y + n.z * n.z)) < 1e-6f, "normal vector is not normalized");
                 Bottom = Plane(n, d);
             }
 
@@ -171,7 +172,7 @@ namespace ZetaRay::Math
                 n.x *= l2Norm;
                 n.z *= l2Norm;
                 d = 0.0f;
-                Assert(fabsf(1.0f - (n.x * n.x + n.z * n.z)) < 1e-5f, "normal vector is not normalized");
+                Assert(fabsf(1.0f - (n.x * n.x + n.z * n.z)) < 1e-6f, "normal vector is not normalized");
                 Left = Plane(n, d);
             }
 
@@ -181,9 +182,21 @@ namespace ZetaRay::Math
                 n.x *= l2Norm;
                 n.z *= l2Norm;
                 d = 0.0f;
-                Assert(fabsf(1.0f - (n.x * n.x + n.z * n.z)) < 1e-5f, "normal vector is not normalized");
+                Assert(fabsf(1.0f - (n.x * n.x + n.z * n.z)) < 1e-6f, "normal vector is not normalized");
                 Right = Plane(n, d);
             }
+        }
+        static ViewFrustum Init()
+        {
+            ViewFrustum ret;
+            ret.Left = Plane(float3(0.0f), 0.0f);
+            ret.Right = Plane(float3(0.0f), 0.0f);
+            ret.Top = Plane(float3(0.0f), 0.0f);
+            ret.Bottom = Plane(float3(0.0f), 0.0f);
+            ret.Near = Plane(float3(0.0f), 0.0f);
+            ret.Far = Plane(float3(0.0f), 0.0f);
+
+            return ret;
         }
 
         Plane Left;
@@ -196,9 +209,7 @@ namespace ZetaRay::Math
 
     struct v_ViewFrustum
     {
-        v_ViewFrustum()
-        {}
-
+        v_ViewFrustum() = default;
         explicit v_ViewFrustum(ViewFrustum& f)
         {
             alignas(32) float N_x[8];
@@ -254,9 +265,7 @@ namespace ZetaRay::Math
 
     struct Ray
     {
-        constexpr Ray()
-        {}
-
+        constexpr Ray() = default;
         constexpr Ray(const float3& o, const float3& d)
             : Origin(o),
             Dir(d)
@@ -292,4 +301,12 @@ namespace ZetaRay::Math
         __m128 vOrigin;
         __m128 vDir;
     };
+
+#ifdef _DEBUG
+    static_assert(std::is_trivially_default_constructible_v<AABB>);
+    static_assert(std::is_trivially_default_constructible_v<v_AABB>);
+    static_assert(std::is_trivially_default_constructible_v<Plane>);
+    static_assert(std::is_trivially_default_constructible_v<ViewFrustum>);
+    static_assert(std::is_trivially_default_constructible_v<v_ViewFrustum>); 
+#endif
 }
