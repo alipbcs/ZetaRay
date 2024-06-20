@@ -81,10 +81,9 @@ void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f)
 #endif
 
     m_indegree = 0;
+    m_dlg = ZetaMove(f);
     //m_blockFlag.store(true, std::memory_order_relaxed);
     //m_indegreeAtomic.store(0, std::memory_order_relaxed);
-
-    m_dlg = ZetaMove(f);
 
     if(p == TASK_PRIORITY::NORMAL)
         m_signalHandle = App::RegisterTask();
@@ -97,22 +96,21 @@ void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f)
 void TaskSet::AddOutgoingEdge(TaskHandle a, TaskHandle b)
 {
     Assert(a < m_currSize && b < m_currSize, "Invalid task handles.");
-
     TaskMetadata& ta = m_taskMetadata[a];
     TaskMetadata& tb = m_taskMetadata[b];
 
     bool prev1 = _bittestandset((long*)&ta.SuccessorMask, b);
-    Assert(!prev1, "Reduntant call, edge already exists.");
+    Assert(!prev1, "Redundant call, edge already exists.");
 
     bool prev2 = _bittestandset((long*)&tb.PredecessorMask, a);
-    Assert(!prev2, "Reduntant call, edge already exists.");
+    Assert(!prev2, "Redundant call, edge already exists.");
 
     m_tasks[a].m_adjacentTailNodes.push_back(m_tasks[b].m_signalHandle);
 }
 
 void TaskSet::AddOutgoingEdgeToAll(TaskHandle a)
 {
-    Assert(a < m_currSize, "Invalid task handle");
+    Assert(a < m_currSize, "Invalid task handle.");
     TaskMetadata& ta = m_taskMetadata[a];
 
     for (int b = 0; b < m_currSize; b++)
@@ -121,7 +119,6 @@ void TaskSet::AddOutgoingEdgeToAll(TaskHandle a)
             continue;
 
         TaskMetadata& tb = m_taskMetadata[b];
-
         ta.SuccessorMask |= (1 << b);
         tb.PredecessorMask |= (1 << a);
 
@@ -131,7 +128,7 @@ void TaskSet::AddOutgoingEdgeToAll(TaskHandle a)
 
 void TaskSet::AddIncomingEdgeFromAll(TaskHandle a)
 {
-    Assert(a < m_currSize, "Invalid task handle");
+    Assert(a < m_currSize, "Invalid task handle.");
     TaskMetadata& ta = m_taskMetadata[a];
 
     for (int b = 0; b < m_currSize; b++)
@@ -140,7 +137,6 @@ void TaskSet::AddIncomingEdgeFromAll(TaskHandle a)
             continue;
 
         TaskMetadata& tb = m_taskMetadata[b];
-
         ta.PredecessorMask |= (1 << b);
         tb.SuccessorMask |= (1 << a);
 
@@ -150,8 +146,7 @@ void TaskSet::AddIncomingEdgeFromAll(TaskHandle a)
 
 void TaskSet::Sort()
 {
-    Assert(!m_isSorted, "Invalid call.");
-
+    Assert(!m_isSorted, "TaskSet is already sorted.");
     TopologicalSort();
     ComputeInOutMask();
 
@@ -160,13 +155,14 @@ void TaskSet::Sort()
 
 void TaskSet::Finalize(WaitObject* waitObj)
 {
-    Assert(!m_isFinalized && m_isSorted, "Invalid call.");
+    Assert(!m_isFinalized && m_isSorted, "Finalize() shouldn't be called when TaskSet hasn't been sorted.");
 
     for (int i = 0; i < m_currSize; i++)
     {
-        int indegree = m_taskMetadata[i].Indegree();
-        // Dependencies between TaskSets can't be detected by indegree as those solely
-        // correspond to Dependencies inside the TaskSet
+        const int indegree = m_taskMetadata[i].Indegree();
+
+        // Dependencies between TaskSets can't be detected by indegree as those only
+        // for dependencies inside the TaskSet
         if (indegree > 0 || m_tasks[i].m_indegree > 0)
         {
             m_tasks[i].m_indegree = Math::Max(indegree, m_tasks[i].m_indegree);
@@ -227,25 +223,25 @@ void TaskSet::TopologicalSort()
     }
 
     // In each itertation, points to remaining elements that have an indegree of zero
-    uint64_t currMask = rootMask;
+    uint32_t currMask = rootMask;
     size_t currIdx = 0;
     int sorted[MAX_NUM_TASKS];
 
-    // Make a temporary copy of indegrees for topological sorting
+    // Make a temporary copy for the duration of topological sorting
     int tempIndegree[MAX_NUM_TASKS];
     for (int i = 0; i < m_currSize; i++)
         tempIndegree[i] = m_taskMetadata[i].Indegree();
 
-    // Find all the nodes with zero indegree
+    // Find all nodes with zero indegree
     unsigned long zeroIndegreeIdx;
     while (_BitScanForward64(&zeroIndegreeIdx, currMask))
     {
         Assert(zeroIndegreeIdx < m_currSize, "Invalid index.");
         TaskMetadata& t = m_taskMetadata[zeroIndegreeIdx];
-        uint64_t tails = t.SuccessorMask;
+        uint32_t tails = t.SuccessorMask;
         unsigned long tailIdx;
 
-        // for every tail-adjacent node
+        // For every tail-adjacent node
         while (_BitScanForward64(&tailIdx, tails))
         {
             Assert(tailIdx < m_currSize, "Invalid index.");
@@ -255,19 +251,19 @@ void TaskSet::TopologicalSort()
 
             // If tail node's indegree has become 0, add it to mask
             if (tempIndegree[tailIdx] == 0)
-                currMask |= (1llu << tailIdx);
+                currMask |= (1 << tailIdx);
 
-            tails &= ~(1llu << tailIdx);
+            tails &= ~(1 << tailIdx);
         }
 
-        // Save the new position for the current node
+        // Save new position for current node
         sorted[currIdx++] = zeroIndegreeIdx;
 
         // Remove current node
-        currMask &= ~(1llu << zeroIndegreeIdx);
+        currMask &= ~(1 << zeroIndegreeIdx);
     }
 
-    Assert(currIdx == m_currSize, "bug");
+    Assert(currIdx == m_currSize, "Graph has a cycle.");
 
     for (int i = 0; i < m_currSize; i++)
         Assert(tempIndegree[i] == 0, "Graph has a cycle.");

@@ -182,7 +182,7 @@ namespace ZetaRay::Scene
         // Emissive
         //
         void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
-            Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
+            Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris, bool lock);
         size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
         size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
         bool AreEmissivesStale() const { return m_staleEmissives; }

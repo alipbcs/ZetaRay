@@ -333,7 +333,8 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         mat.SetTransmission(matDesc.Transmission);
     }
 
-    auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, MutableSpan<DDSImage> ddsImages)
+    auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
+        MutableSpan<DDSImage> ddsImages)
         {
             auto idx = BinarySearch(Span(ddsImages), ID, [](const DDSImage& obj) {return obj.ID; });
             Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
@@ -364,7 +365,10 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     {
         uint32_t tableOffset = Material::INVALID_ID;
         if (matDesc.MetallicRoughnessTexPath != MaterialDesc::INVALID_PATH)
-            addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", m_metallicRoughnessDescTable, tableOffset, ddsImages);
+        {
+            addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", 
+                m_metallicRoughnessDescTable, tableOffset, ddsImages);
+        }
 
         mat.SetMetallicRoughnessTex(tableOffset);
     }
@@ -514,7 +518,8 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     return insertIdx;
 }
 
-void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float t_start, bool loop, bool isSorted)
+void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float t_start, 
+    bool loop, bool isSorted)
 {
 #ifdef _DEBUG
     TreePos& p = FindTreePosFromID(id).value();
@@ -555,14 +560,18 @@ void SceneCore::ReserveInstances(int height, int num)
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissiveInstances,
-    SmallVector<RT::EmissiveTriangle>&& emissiveTris)
+    SmallVector<RT::EmissiveTriangle>&& emissiveTris, bool lock)
 {
     if (emissiveTris.empty())
         return;
 
-    AcquireSRWLockExclusive(&m_emissiveLock);
+    if(lock)
+        AcquireSRWLockExclusive(&m_emissiveLock);
+    
     m_emissives.AddBatch(ZetaMove(emissiveInstances), ZetaMove(emissiveTris));
-    ReleaseSRWLockExclusive(&m_emissiveLock);
+
+    if(lock)
+        ReleaseSRWLockExclusive(&m_emissiveLock);
 }
 
 void SceneCore::RebuildBVH()

@@ -44,7 +44,7 @@ namespace ZetaRay::Support
 
         ZetaInline void DoTask()
         {
-            Assert(m_dlg.IsSet(), "attempting to run an empty Function");
+            Assert(m_dlg.IsSet(), "Attempting to run an empty Function.");
             m_dlg.Run();
         }
 
@@ -66,8 +66,6 @@ namespace ZetaRay::Support
 
     struct WaitObject
     {
-        WaitObject() = default;
-
         void Notify()
         {
             m_completionFlag.store(true, std::memory_order_release);
@@ -130,7 +128,6 @@ namespace ZetaRay::Support
         ZetaInline bool IsFinalized() { return m_isFinalized; }
         void Sort();
         void Finalize(WaitObject* waitObj = nullptr);
-
         ZetaInline int GetSize() { return m_currSize; }
         ZetaInline Util::MutableSpan<Task> GetTasks() { return Util::MutableSpan(m_tasks, m_currSize); }
 
@@ -140,10 +137,10 @@ namespace ZetaRay::Support
             ZetaInline int Indegree() const { return __popcnt16(PredecessorMask); }
             ZetaInline int Outdegree() const { return __popcnt16(SuccessorMask); }
 
-            // Index of adjacent tasks (this task has an edge to them)
+            // Index of adjacent tasks (i.e. this task has an edge to them)
             uint16_t SuccessorMask = 0;
 
-            // Index of predecessor tasks (which have an edge to this task)
+            // Index of predecessor tasks (i.e. have an edge to this task)
             uint16_t PredecessorMask = 0;
         };
 
@@ -155,7 +152,6 @@ namespace ZetaRay::Support
 
         uint16_t m_rootMask = 0;
         uint16_t m_leafMask = 0;
-
         uint8_t m_currSize = 0;
         bool m_isSorted = false;
         bool m_isFinalized = false;

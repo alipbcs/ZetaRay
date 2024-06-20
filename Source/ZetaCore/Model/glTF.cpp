@@ -94,18 +94,18 @@ namespace
         size_t* MeshThreadSizes;
         size_t* ImgThreadOffsets;
         size_t* ImgThreadSizes;
-        MutableSpan<Vertex> Vertices;
+        SmallVector<Vertex> Vertices;
         std::atomic_uint32_t& CurrVtxOffset;
-        MutableSpan<uint32_t> Indices;
+        SmallVector<uint32_t> Indices;
         std::atomic_uint32_t& CurrIdxOffset;
-        MutableSpan<Mesh> Meshes;
+        SmallVector<Mesh> Meshes;
         std::atomic_uint32_t& CurrMeshPrimOffset;
         MutableSpan<EmissiveMeshPrim> EmissiveMeshPrims;
-        uint32_t* EmissiveMeshPrimCounterPerWorker;
-        Vector<RT::EmissiveTriangle>& RTEmissives;
-        Vector<EmissiveInstance>& EmissiveInstances;
+        uint32_t* EmissiveMeshPrimCountPerWorker;
+        SmallVector<RT::EmissiveTriangle>& RTEmissives;
+        SmallVector<EmissiveInstance>& EmissiveInstances;
         int NumEmissiveMeshPrims;
-        int NumEmissiveInstaces;
+        int NumEmissiveInstances;
         uint32_t NumEmissiveTris;
     };
 
@@ -260,13 +260,12 @@ namespace
         MutableSpan<EmissiveMeshPrim> emissivesPrims, uint32_t& emissivePrimCount)
     {
         SceneCore& scene = App::GetScene();
-
-        uint32_t totalMeshPrims = 0;
+        uint32_t totalPrims = 0;
         uint32_t totalVertices = 0;
         uint32_t totalIndices = 0;
-        int numEmissives = 0;
+        int numEmissiveMeshPrims = 0;
 
-        // Figure out total number of mesh primitivess, vertices, and indices.
+        // Count total number of primitivess, vertices, and indices.
         for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
         {
             Assert(meshIdx < model.meshes_count, "Out-of-bound access");
@@ -300,18 +299,18 @@ namespace
                 totalIndices += numIndices;
             }
 
-            totalMeshPrims += (uint32_t)mesh.primitives_count;
+            totalPrims += (uint32_t)mesh.primitives_count;
         }
 
         // (sub)allocate
         const uint32_t workerBaseVtxOffset = vertexCounter.fetch_add(totalVertices, std::memory_order_relaxed);
         const uint32_t workerBaseIdxOffset = idxCounter.fetch_add(totalIndices, std::memory_order_relaxed);
-        const uint32_t workerMeshPrimBaseOffset = meshCounter.fetch_add(totalMeshPrims, std::memory_order_relaxed);
-        const uint32_t workerBaseEmissiveOffset = workerMeshPrimBaseOffset;
+        const uint32_t workerPrimBaseOffset = meshCounter.fetch_add(totalPrims, std::memory_order_relaxed);
+        const uint32_t workerBaseEmissiveOffset = workerPrimBaseOffset;
 
         uint32_t currVtxOffset = workerBaseVtxOffset;
         uint32_t currIdxOffset = workerBaseIdxOffset;
-        uint32_t currMeshPrimOffset = workerMeshPrimBaseOffset;
+        uint32_t currMeshPrimOffset = workerPrimBaseOffset;
 
         // Now iterate again and populate the buffers
         for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
@@ -341,7 +340,7 @@ namespace
 
                 Check(normalIt != -1, "NORMAL was not found in the vertex attributes.");
 
-                // Populate the vertex attributes.
+                // Populate the vertex attributes
                 const cgltf_accessor& accessor = *prim.attributes[posIt].data;
                 const uint32_t numVertices = (uint32_t)accessor.count;
 
@@ -362,8 +361,8 @@ namespace
                 {
                     ProcessTexCoords(model, *prim.attributes[texIt].data, vertices, currVtxOffset);
 
-                    // If vertex tangents aren't present, compute them. Make sure the computation happens after 
-                    // vertex & index processing.
+                    // If vertex tangents aren't present, compute them. Make sure the computation 
+                    // happens after vertex and index processing.
                     if (tangentIt != -1)
                         ProcessTangents(model, *prim.attributes[tangentIt].data, vertices, currVtxOffset);
                     else
@@ -375,33 +374,36 @@ namespace
                 }
 
                 meshes[currMeshPrimOffset++] = Mesh
-                {
-                    .MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
-                    .MeshIdx = (int)meshIdx,
-                    .MeshPrimIdx = primIdx,
-                    .BaseVtxOffset = currVtxOffset,
-                    .BaseIdxOffset = currIdxOffset,
-                    .NumVertices = numVertices,
-                    .NumIndices = numIndices
-                };
+                    {
+                        .MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
+                        .MeshIdx = (int)meshIdx,
+                        .MeshPrimIdx = primIdx,
+                        .BaseVtxOffset = currVtxOffset,
+                        .BaseIdxOffset = currIdxOffset,
+                        .NumVertices = numVertices,
+                        .NumIndices = numIndices
+                    };
 
                 // Remember every mesh with an emissive material assigned to it.
                 if (prim.material)
                 {
-                    float emissiveFactDot1 = prim.material->emissive_factor[0] + prim.material->emissive_factor[1] + prim.material->emissive_factor[2];
+                    float emissiveFactDot1 = prim.material->emissive_factor[0] + 
+                        prim.material->emissive_factor[1] + 
+                        prim.material->emissive_factor[2];
 
-                    if ((emissiveFactDot1 > 1e-3 || prim.material->has_emissive_strength || prim.material->emissive_texture.texture))
+                    if ((emissiveFactDot1 > 1e-3 || prim.material->has_emissive_strength || 
+                        prim.material->emissive_texture.texture))
                     {
                         const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
 
-                        emissivesPrims[workerBaseEmissiveOffset + numEmissives++] = EmissiveMeshPrim
-                        {
-                            .MeshID = meshID,
-                            .BaseVtxOffset = currVtxOffset,
-                            .BaseIdxOffset = currIdxOffset,
-                            .NumIndices = numIndices,
-                            .MaterialIdx = (int)(prim.material - model.materials)
-                        };
+                        emissivesPrims[workerBaseEmissiveOffset + numEmissiveMeshPrims++] = EmissiveMeshPrim
+                            {
+                                .MeshID = meshID,
+                                .BaseVtxOffset = currVtxOffset,
+                                .BaseIdxOffset = currIdxOffset,
+                                .NumIndices = numIndices,
+                                .MaterialIdx = (int)(prim.material - model.materials)
+                            };
                     }
                 }
 
@@ -410,7 +412,7 @@ namespace
             }
         }
 
-        emissivePrimCount = numEmissives;
+        emissivePrimCount = numEmissiveMeshPrims;
     }
 
     void LoadDDSImages(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
@@ -578,16 +580,18 @@ namespace
                 if (meshPrim.material)
                 {
                     const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
-                    const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
+                    const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, 
+                        [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
-                    // Does this node have an emissive material assigned to it?
+                    // Does this mesh prim have an emissive material assigned to it?
                     if (idx != -1)
                     {
                         const auto& meshPrimInfo = context.EmissiveMeshPrims[idx];
-                        Assert(meshPrimInfo.MaterialIdx == (int)(meshPrim.material - context.Model->materials), "these must match.");
+                        Assert(meshPrimInfo.MaterialIdx == (int)(meshPrim.material - context.Model->materials), 
+                            "Material index mismatch.");
 
                         context.NumEmissiveTris += meshPrimInfo.NumIndices / 3;
-                        context.NumEmissiveInstaces++;
+                        context.NumEmissiveInstances++;
                     }
                 }
             }
@@ -627,7 +631,8 @@ namespace
                 if (meshPrim.material)
                 {
                     const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
-                    const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, [](const EmissiveMeshPrim& p) {return p.MeshID; });
+                    const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, 
+                        [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
                     if (idx != -1)
                     {
@@ -645,11 +650,11 @@ namespace
 
                         // Add the emissive instance
                         context.EmissiveInstances[emissiveMeshIdx++] = EmissiveInstance
-                        {
-                            .InstanceID = currInstanceID,
-                            .BaseTriOffset = currGlobalTriIdx,
-                            .NumTriangles = meshPrimInfo.NumIndices / 3
-                        };
+                            {
+                                .InstanceID = currInstanceID,
+                                .BaseTriOffset = currGlobalTriIdx,
+                                .NumTriangles = meshPrimInfo.NumIndices / 3
+                            };
 
                         uint32_t currMeshTriIdx = 0;
 
@@ -693,7 +698,7 @@ namespace
             ProcessEmissiveSubtree(node, context, emissiveMeshIdx, rtEmissiveTriIdx);
         }
 
-        Assert(emissiveMeshIdx == context.NumEmissiveInstaces, "these must match.");
+        Assert(emissiveMeshIdx == context.NumEmissiveInstances, "these must match.");
         Assert(rtEmissiveTriIdx == context.NumEmissiveTris, "these must match.");
     }
 
@@ -983,26 +988,26 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     // How many meshes are processed by each worker
     constexpr size_t MAX_NUM_MESH_WORKERS = 4;
     constexpr size_t MIN_MESHES_PER_WORKER = 20;
-    size_t meshThreadOffsets[MAX_NUM_MESH_WORKERS];
-    size_t meshThreadSizes[MAX_NUM_MESH_WORKERS];
+    size_t meshWorkerOffset[MAX_NUM_MESH_WORKERS];
+    size_t meshWorkerCount[MAX_NUM_MESH_WORKERS];
     uint32_t workerEmissiveCount[MAX_NUM_MESH_WORKERS];
 
     const int numMeshWorkers = (int)SubdivideRangeWithMin(model->meshes_count,
         MAX_NUM_MESH_WORKERS,
-        meshThreadOffsets,
-        meshThreadSizes,
+        meshWorkerOffset,
+        meshWorkerCount,
         MIN_MESHES_PER_WORKER);
 
     // How many images are processed by each worker
     constexpr size_t MAX_NUM_IMAGE_WORKERS = 5;
     constexpr size_t MIN_IMAGES_PER_WORKER = 15;
-    size_t imgThreadOffsets[MAX_NUM_IMAGE_WORKERS];
-    size_t imgThreadSizes[MAX_NUM_IMAGE_WORKERS];
+    size_t imgWorkerOffset[MAX_NUM_IMAGE_WORKERS];
+    size_t imgWorkerCount[MAX_NUM_IMAGE_WORKERS];
 
     const int numImgWorkers = (int)SubdivideRangeWithMin(model->images_count,
         MAX_NUM_IMAGE_WORKERS,
-        imgThreadOffsets,
-        imgThreadSizes,
+        imgWorkerOffset,
+        imgWorkerCount,
         MIN_IMAGES_PER_WORKER);
 
     std::atomic_uint32_t currVtxOffset = 0;
@@ -1015,8 +1020,8 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         .Model = model,
         .NumMeshWorkers = numMeshWorkers,
         .NumImgWorkers = numImgWorkers,
-        .MeshThreadOffsets = meshThreadOffsets, .MeshThreadSizes = meshThreadSizes,
-        .ImgThreadOffsets = imgThreadOffsets, .ImgThreadSizes = imgThreadSizes,
+        .MeshThreadOffsets = meshWorkerOffset, .MeshThreadSizes = meshWorkerCount,
+        .ImgThreadOffsets = imgWorkerOffset, .ImgThreadSizes = imgWorkerCount,
         .Vertices = vertices,
         .CurrVtxOffset = currVtxOffset,
         .Indices = indices,
@@ -1024,59 +1029,59 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         .Meshes = meshes,
         .CurrMeshPrimOffset = currMeshPrimOffset,
         .EmissiveMeshPrims = emissivePrims,
-        .EmissiveMeshPrimCounterPerWorker = workerEmissiveCount,
+        .EmissiveMeshPrimCountPerWorker = workerEmissiveCount,
         .RTEmissives = rtEmissives,
         .EmissiveInstances = emissiveInstances,
         .NumEmissiveMeshPrims = 0,
-        .NumEmissiveInstaces = 0,
+        .NumEmissiveInstances = 0,
         .NumEmissiveTris = 0
     };
 
     TaskSet ts;
 
-    auto procEmissiveMeshPrims = ts.EmplaceTask("gltf::ProcessEmissivePrims", [&tc]()
+    auto procEmissiveMeshPrims = ts.EmplaceTask("gltf::EmissivePrims", [&tc]()
         {
-            int numEmissives = 0;
-
+            // EmissiveMeshPrimCountPerWorker is filled in by mesh workers
             for (int i = 0; i < tc.NumMeshWorkers; i++)
-                numEmissives += tc.EmissiveMeshPrimCounterPerWorker[i];
+                tc.NumEmissiveMeshPrims += tc.EmissiveMeshPrimCountPerWorker[i];
 
-            tc.NumEmissiveMeshPrims = numEmissives;
-
-            // To perform binary search
-            std::sort(tc.EmissiveMeshPrims.begin(), tc.EmissiveMeshPrims.end(), [](const EmissiveMeshPrim& lhs, const EmissiveMeshPrim& rhs)
+            // For binary search
+            std::sort(tc.EmissiveMeshPrims.begin(), tc.EmissiveMeshPrims.end(), 
+                [](const EmissiveMeshPrim& lhs, const EmissiveMeshPrim& rhs)
                 {
                     return lhs.MeshID < rhs.MeshID;
                 });
 
             // In order to do only one allocation, number of emissive mesh primitives was assumed
-            // to be the worst case -- total number of mesh primitives. As such there may be a number 
+            // to be the worst case -- total number of mesh primitives. As such, there may be a number 
             // of "null" entries in the EmissiveMeshPrims. Now that the actual size is known, adjust 
             // the Span range accordingly.
-            tc.EmissiveMeshPrims = MutableSpan(tc.EmissiveMeshPrims.data(), numEmissives);
+            tc.EmissiveMeshPrims = MutableSpan(tc.EmissiveMeshPrims.data(), tc.NumEmissiveMeshPrims);
             NumEmissiveInstancesAndTriangles(tc);
         });
 
-    for (size_t i = 0; i < tc.NumMeshWorkers; i++)
+    for (int i = 0; i < tc.NumMeshWorkers; i++)
     {
-        StackStr(tname, n, "gltf::ProcessMesh_%d", i);
+        StackStr(tname, n, "gltf::Mesh_%d", i);
 
-        auto procMesh = ts.EmplaceTask(tname, [&tc, rangeIdx = i]()
+        auto procMesh = ts.EmplaceTask(tname, [&tc, workerIdx = i]()
             {
-                ProcessMeshes(*tc.Model, tc.SceneID, tc.MeshThreadOffsets[rangeIdx], tc.MeshThreadSizes[rangeIdx],
-                tc.Vertices, tc.CurrVtxOffset,
-                tc.Indices, tc.CurrIdxOffset,
-                tc.Meshes, tc.CurrMeshPrimOffset,
-                tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCounterPerWorker[rangeIdx]);
+                ProcessMeshes(*tc.Model, tc.SceneID, tc.MeshThreadOffsets[workerIdx],
+                    tc.MeshThreadSizes[workerIdx],
+                    tc.Vertices, tc.CurrVtxOffset,
+                    tc.Indices, tc.CurrIdxOffset,
+                    tc.Meshes, tc.CurrMeshPrimOffset,
+                    tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCountPerWorker[workerIdx]);
             });
 
         ts.AddOutgoingEdge(procMesh, procEmissiveMeshPrims);
     }
 
-    auto procMats = ts.EmplaceTask("gltf::ProcessMats", [&tc, &ddsImages]()
+    auto procMats = ts.EmplaceTask("gltf::Materials", [&tc, &ddsImages]()
         {
-            // To perform binary search
-            std::sort(ddsImages.begin(), ddsImages.end(), [](const DDSImage& lhs, const DDSImage& rhs)
+            // For binary search
+            std::sort(ddsImages.begin(), ddsImages.end(), 
+                [](const DDSImage& lhs, const DDSImage& rhs)
                 {
                     return lhs.ID < rhs.ID;
                 });
@@ -1084,59 +1089,78 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
             Filesystem::Path parent(tc.Path.GetView());
             parent.ToParent();
 
-            ProcessMaterials(tc.SceneID, parent, *tc.Model, 0, (int)tc.Model->materials_count, ddsImages);
+            ProcessMaterials(tc.SceneID, parent, *tc.Model, 0, (int)tc.Model->materials_count, 
+                ddsImages);
         });
 
-    for (size_t i = 0; i < numImgWorkers; i++)
+    for (int i = 0; i < numImgWorkers; i++)
     {
-        StackStr(tname, n, "gltf::ProcessImg_%d", i);
-        Assert(i < MAX_NUM_IMAGE_WORKERS, "invalid index.");
+        StackStr(tname, n, "gltf::Img_%d", i);
 
-        // Loads dds textures from disk and uploads them to GPU.
-        auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, rangeIdx = i]()
+        // Loads dds textures from disk and upload them to GPU
+        auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, workerIdx = i]()
             {
                 Filesystem::Path parent(pathToglTF.GetView());
                 parent.ToParent();
 
-                LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[rangeIdx], tc.ImgThreadSizes[rangeIdx], ddsImages);
+                LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[workerIdx], 
+                    tc.ImgThreadSizes[workerIdx], ddsImages);
             });
 
-        // Material processing should start after textures are loaded.
+        // Material processing should start after textures are loaded
         ts.AddOutgoingEdge(h, procMats);
     }
 
-    // For each node with an emissive mesh primitive, add all of its triangles to the emissive buffer.
-    auto procEmissives = ts.EmplaceTask("gltf::ProcessEmissives", [&tc]()
+    // For each node with an emissive mesh primitive, add all of its triangles to 
+    // the emissive buffer
+    auto procEmissives = ts.EmplaceTask("gltf::Emissives", [&tc]()
         {
-            tc.EmissiveInstances.resize(tc.NumEmissiveInstaces);
+            tc.EmissiveInstances.resize(tc.NumEmissiveInstances);
             tc.RTEmissives.resize(tc.NumEmissiveTris);
 
             ProcessEmissives(tc);
+
+            // Transfer ownership of emissives
+            SceneCore& scene = App::GetScene();
+            scene.AddEmissives(ZetaMove(tc.EmissiveInstances), ZetaMove(tc.RTEmissives), false);
         });
 
-    // Processing emissives starts after materials are loaded and emissive primitives have been processed.
+    // Processing emissives starts after materials are loaded and emissive primitives 
+    // have been processed
     ts.AddOutgoingEdge(procEmissiveMeshPrims, procEmissives);
     ts.AddOutgoingEdge(procMats, procEmissives);
 
-    auto procNodes = ts.EmplaceTask("gltf::ProcessNodes", [&tc]()
+    auto procNodes = ts.EmplaceTask("gltf::Nodes", [&tc]()
         {
             ProcessNodes(*tc.Model, tc.SceneID);
         });
+
+    auto last = ts.EmplaceTask("gltf::Final", [&tc]()
+        {
+            // Transfer ownership of mesh buffers
+            SceneCore& scene = App::GetScene();
+            scene.AddMeshes(ZetaMove(tc.Meshes), ZetaMove(tc.Vertices), ZetaMove(tc.Indices), false);
+
+            cgltf_free(tc.Model);
+        });
+
+    // Final task has to run after all the other tasks
+    ts.AddIncomingEdgeFromAll(last);
 
     WaitObject waitObj;
     ts.Sort();
     ts.Finalize(&waitObj);
     App::Submit(ZetaMove(ts));
 
-    // Help out with ufinished tasks from previous frame. Note: This thread might help
+    // Help out with unfinished tasks. Note: This thread might help
     // with tasks that are not related to loading glTF.
     App::FlushWorkerThreadPool();
     waitObj.Wait();
 
-    // Transfer ownership of mesh buffers.
-    scene.AddMeshes(ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
-    // Transfer ownership of emissives.
-    scene.AddEmissives(ZetaMove(emissiveInstances), ZetaMove(rtEmissives));
+    //// Transfer ownership of mesh buffers.
+    //scene.AddMeshes(ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
+    //// Transfer ownership of emissives.
+    //scene.AddEmissives(ZetaMove(emissiveInstances), ZetaMove(rtEmissives));
 
-    cgltf_free(model);
+    //cgltf_free(model);
 }
