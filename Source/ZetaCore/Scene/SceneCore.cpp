@@ -551,7 +551,7 @@ void SceneCore::ReserveInstances(int height, int num)
     // +1 for root
     m_sceneGraph.reserve(height + 1);
     m_prevToWorlds.reserve(num);
-    m_IDtoTreePos.resize(num);
+    m_IDtoTreePos.resize(num, true);
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissiveInstances,

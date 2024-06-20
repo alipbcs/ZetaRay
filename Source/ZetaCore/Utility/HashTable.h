@@ -46,12 +46,18 @@ namespace ZetaRay::Util
         HashTable(const HashTable&) = delete;
         HashTable& operator=(const HashTable&) = delete;
 
-        void resize(size_t n)
+        // "accoutForMaxLoad": A common use case is when the maximum number of 
+        // elements is known, so resize is used to allocate all the necessary storage 
+        // once. But this doesn't account for load factor, as when size approaches 
+        // "n", another allocation takes place so that load factor stays below maximum.
+        // When accounting for this, table should be resized to ceil(n / max_load_factor).
+        void resize(size_t n, bool accoutForMaxLoad = false)
         {
             if (n <= bucket_count()) // also covers when n == 0
                 return;
 
             n = Math::Max(n, MIN_NUM_BUCKETS);
+            n = accoutForMaxLoad ? Math::Ceil(n / MAX_LOAD) : n;
             n = Math::NextPow2(n);  // n > #buckets, so the next power of two will also respect the max load factor
             relocate(n);
         }

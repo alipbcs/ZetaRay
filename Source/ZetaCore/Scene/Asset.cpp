@@ -207,6 +207,7 @@ void MeshContainer::AddBatch(SmallVector<Model::glTF::Asset::Mesh>&& meshes,
 {
     const uint32_t vtxOffset = (uint32_t)m_vertices.size();
     const uint32_t idxOffset = (uint32_t)m_indices.size();
+    m_meshes.resize(meshes.size(), true);
 
     // Each mesh primitive + material index combo must be unique
     for (auto& mesh : meshes)

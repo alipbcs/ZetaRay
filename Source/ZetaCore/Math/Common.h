@@ -124,6 +124,14 @@ namespace ZetaRay::Math
         return 1 + ((x - 1) / y);
     }
 
+    // For x \in [0, 2^24] (there may be round-off errors for larger integers)
+    ZetaInline constexpr uint32_t Ceil(float x)
+    {
+        return (static_cast<float>(static_cast<uint32_t>(x)) == x)
+            ? static_cast<uint32_t>(x)
+            : static_cast<uint32_t>(x) + 1;
+    }
+
     // Subdivides range [0, n) into at most maxNumGroups subsets where each subset has
     // at least minNumElems elements
     size_t SubdivideRangeWithMin(size_t n,
