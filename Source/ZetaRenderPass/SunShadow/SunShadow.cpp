@@ -6,6 +6,7 @@
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
+using namespace ZetaRay::Core::Direct3DUtil;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -103,20 +104,14 @@ void SunShadow::Render(CommandList& cmdList)
 
         computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
-        auto barrier = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
-            D3D12_BARRIER_SYNC_NONE,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_NO_ACCESS,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+        auto barrier = TextureBarrier_SrvToUavNoSync(m_shadowMask.Resource());
         computeCmdList.ResourceBarrier(barrier);
 
         cbSunShadow localCB;
         localCB.OutShadowMaskDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::SHADOW_MASK_UAV);
         localCB.SoftShadows = m_doSoftShadows;
-        m_rootSig.SetRootConstants(0, sizeof(cbSunShadow) / sizeof(DWORD), &localCB);
 
+        m_rootSig.SetRootConstants(0, sizeof(cbSunShadow) / sizeof(DWORD), &localCB);
         m_rootSig.End(computeCmdList);
 
         const uint32_t numGroupsX = CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
@@ -129,26 +124,14 @@ void SunShadow::Render(CommandList& cmdList)
         computeCmdList.PIXEndEvent();
     }
 
+    computeCmdList.PIXBeginEvent("ShadowDnsr");
+    const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr");
+    
     // temporal pass
     {
-        computeCmdList.PIXBeginEvent("ShadowDnsr_Temporal");
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Temporal");
-
         D3D12_TEXTURE_BARRIER barriers[2];
-        barriers[0] = Direct3DUtil::TextureBarrier(m_shadowMask.Resource(),
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-        barriers[1] = Direct3DUtil::TextureBarrier(m_metadata.Resource(),
-            D3D12_BARRIER_SYNC_NONE,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_NO_ACCESS,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+        barriers[0] = TextureBarrier_UavToSrvWithSync(m_shadowMask.Resource());
+        barriers[1] = TextureBarrier_SrvToUavNoSync(m_metadata.Resource());
 
         computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
@@ -162,8 +145,8 @@ void SunShadow::Render(CommandList& cmdList)
         m_temporalCB.MetadataUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_UAV);
         m_temporalCB.PrevTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheSRV);
         m_temporalCB.CurrTemporalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex(temporalCacheUAV);
-        m_temporalCB.NumShadowMaskThreadGroupsX = (uint16_t)CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
-        m_temporalCB.NumShadowMaskThreadGroupsY = (uint16_t)CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
+        m_temporalCB.NumShadowMaskThreadGroupsX = (uint16_t)CeilUnsignedIntDiv(w, 8u);
+        m_temporalCB.NumShadowMaskThreadGroupsY = (uint16_t)CeilUnsignedIntDiv(h, 4u);
         m_temporalCB.DenoisedDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DENOISED_UAV);
         m_temporalCB.Denoise = m_denoise;
 
@@ -175,56 +158,20 @@ void SunShadow::Render(CommandList& cmdList)
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL_PASS));
         computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
-
-        gpuTimer.EndQuery(computeCmdList, queryIdx);
-        computeCmdList.PIXEndEvent();
     }
 
     // spatial filter
     {
-        computeCmdList.PIXBeginEvent("ShadowDnsr_Spatial");
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ShadowDnsr_Spatial");
-
         const int numGroupsX = CeilUnsignedIntDiv(w, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_X);
         const int numGroupsY = CeilUnsignedIntDiv(h, DNSR_SPATIAL_FILTER_THREAD_GROUP_SIZE_Y);
         m_spatialCB.MetadataSRVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::METADATA_SRV);
 
         D3D12_TEXTURE_BARRIER barriers[3];
-        barriers[0] = Direct3DUtil::TextureBarrier(m_metadata.Resource(),
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-        barriers[1] = Direct3DUtil::TextureBarrier(m_temporalCache[m_currTemporalIdx].Resource(),
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-
-        if (m_temporalCB.IsTemporalValid)
-        {
-            barriers[2] = Direct3DUtil::TextureBarrier(m_temporalCache[1 - m_currTemporalIdx].Resource(),
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
-        }
-        else
-        {
-            barriers[2] = Direct3DUtil::TextureBarrier(m_temporalCache[1 - m_currTemporalIdx].Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
-        }
+        barriers[0] = TextureBarrier_UavToSrvWithSync(m_metadata.Resource());
+        barriers[1] = TextureBarrier_UavToSrvWithSync(m_temporalCache[m_currTemporalIdx].Resource());
+        barriers[2] = m_temporalCB.IsTemporalValid ?
+            TextureBarrier_SrvToUavWithSync(m_temporalCache[1 - m_currTemporalIdx].Resource()) :
+            TextureBarrier_SrvToUavNoSync(m_temporalCache[1 - m_currTemporalIdx].Resource());
 
         computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
             
@@ -246,10 +193,10 @@ void SunShadow::Render(CommandList& cmdList)
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL_FILTER));
         computeCmdList.Dispatch(numGroupsX, numGroupsY, 1);
-
-        gpuTimer.EndQuery(computeCmdList, queryIdx);
-        computeCmdList.PIXEndEvent();
     }
+    
+    gpuTimer.EndQuery(computeCmdList, queryIdx);
+    computeCmdList.PIXEndEvent();
 
     m_currTemporalIdx = 1 - m_currTemporalIdx;
     m_temporalCB.IsTemporalValid = true;
@@ -262,8 +209,8 @@ void SunShadow::CreateResources()
 
     // shadow mask
     {
-        const uint32_t texWidth = CeilUnsignedIntDiv(w, SUN_SHADOW_THREAD_GROUP_SIZE_X);
-        const uint32_t texHeight = CeilUnsignedIntDiv(h, SUN_SHADOW_THREAD_GROUP_SIZE_Y);
+        const uint32_t texWidth = CeilUnsignedIntDiv(w, 8u);
+        const uint32_t texHeight = CeilUnsignedIntDiv(h, 4u);
 
         m_shadowMask = GpuMemory::GetTexture2D("SunShadowMask",
             texWidth, texHeight,

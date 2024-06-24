@@ -52,12 +52,13 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
 
 [WaveSize(32)]
 [numthreads(SUN_SHADOW_THREAD_GROUP_SIZE_X, SUN_SHADOW_THREAD_GROUP_SIZE_Y, 1)]
-void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
+void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex)
 {
     if (DTid.x >= g_frame.RenderWidth || DTid.y >= g_frame.RenderHeight)
         return;
 
-    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
+    GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::DEPTH];
     const float z_view = g_depth[DTid.xy];
     if(z_view == FLT_MAX)
         return;
@@ -77,12 +78,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
         g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
         g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
 
-    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
+    GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+        GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
-    GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+    GBUFFER_METALLIC_ROUGHNESS g_mr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-    const float2 mr = g_metallicRoughness[DTid.xy];
+    const float2 mr = g_mr[DTid.xy];
     bool isMetallic;
     bool isEmissive;
     bool isTransmissive;
@@ -94,17 +96,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
 
     if(isTransmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::TRANSMISSION];
 
-        float2 tr_ior = g_transmission[DTid.xy];
+        float2 tr_ior = g_tr[DTid.xy];
         tr = tr_ior.x;
         eta_i = GBuffer::DecodeIOR(tr_ior.y);
     }
 
     float3 baseColor = 0;
-
-    [branch]
     if(BSDF::ShadingData::IsSpecular(mr.y) && g_local.SoftShadows)
     {
         GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
@@ -123,17 +123,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
     if (g_local.SoftShadows)
     {
         float3 unused;
-        wi = Light::SampleSunDirection(DTid.xy, g_frame.FrameNum, -g_frame.SunDir, g_frame.SunCosAngularRadius, 
-            normal, surface, unused, pdf);
+        wi = Light::SampleSunDirection(DTid.xy, g_frame.FrameNum, -g_frame.SunDir, 
+            g_frame.SunCosAngularRadius, normal, surface, unused, pdf);
     }
 
     const bool trace = 
         // Sun below the horizon
-        wi.y > 0 &&
+        (wi.y > 0) &&
         // Sun hits the backside of non-transmissive surface
-        (dot(wi, normal) > 0 || surface.HasSpecularTransmission()) &&
+        ((dot(wi, normal) > 0) || surface.HasSpecularTransmission()) &&
         // Make sure BSDF samples are within the valid range
-        dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
+        (dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius);
     const bool isUnoccluded = trace ? EvaluateVisibility(pos, wi, normal) : false;
     const uint laneMask = ((uint)isUnoccluded << WaveGetLaneIndex());
     const uint ret = WaveActiveBitOr(laneMask);
@@ -141,6 +141,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID)
     if (WaveIsFirstLane())
     {
         RWTexture2D<uint> g_shadowMask = ResourceDescriptorHeap[g_local.OutShadowMaskDescHeapIdx];
-        g_shadowMask[Gid.xy] = ret;
+        uint waveIdx = Gidx / WaveGetLaneCount();
+        uint2 outIdx = uint2(Gid.x, Gid.y * 2 + waveIdx);
+        g_shadowMask[outIdx] = ret;
     }
 }
