@@ -33,8 +33,7 @@ set(SOURCES
 
 # BCnCompressglTF executable
 add_executable(BCnCompressglTF ${SOURCES})
-add_dependencies(BCnCompressglTF ZetaCore)
-target_include_directories(BCnCompressglTF BEFORE PRIVATE ${ZETA_CORE_DIR} ${COMPILED_SHADER_DIR} ${EXTERNAL_DIR} )
+target_include_directories(BCnCompressglTF BEFORE PRIVATE "${ZETA_CORE_DIR}" "${COMPILED_SHADER_DIR}" "${EXTERNAL_DIR}")
 target_link_libraries(BCnCompressglTF ZetaCore ole32.lib shell32.lib version.lib d3d11.lib dxgi.lib)
 set_target_properties(BCnCompressglTF PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 

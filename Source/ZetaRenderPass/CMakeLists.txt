@@ -46,8 +46,8 @@ endif()
 
 # build ZetaRenderPass as a static library
 add_library(ZetaRenderPass STATIC ${RENDERPASS_SRC})
-add_dependencies(ZetaRenderPass ZetaCore CompileShaders)
-target_include_directories(ZetaRenderPass AFTER PUBLIC ${EXTERNAL_DIR} ${ZETA_CORE_DIR} ${ZETA_RENDER_PASS_DIR} ${EXTERNAL_DIR}/ImGui)
+target_include_directories(ZetaRenderPass PUBLIC "${ZETA_CORE_DIR}" 
+    PRIVATE "${EXTERNAL_DIR}" "${ZETA_RENDER_PASS_DIR}" "${EXTERNAL_DIR}/ImGui" AFTER)
 set_target_properties(ZetaRenderPass PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
 source_group(TREE "${ZETA_RENDER_PASS_DIR}" FILES ${RENDERPASS_SRC})
@@ -60,13 +60,13 @@ set(FSR2_SDK_BIN
     "${EXTERNAL_DIR}/FSR2/Lib/ffx_fsr2_api_x64.dll"
     "${EXTERNAL_DIR}/FSR2/Lib/ffx_fsr2_api_dx12_x64.dll")
 
-# custom command that copies the dlls into the runtime directory
+# custom command that copies dlls into runtime directory
 Copy("${FSR2_SDK_BIN}" "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/" CopyFsr2SDKBins)
 add_dependencies(FSR2 CopyFsr2SDKBins)
 
 # 
 # link against all the external libraries
 # 
-set(LIBS FSR2)
-target_link_libraries(ZetaRenderPass debug ${LIBS})
-target_link_libraries(ZetaRenderPass optimized ${LIBS})
+set(PUBLIC_LIBS ZetaCore)
+set(PRIVATE_LIBS FSR2)
+target_link_libraries(ZetaRenderPass PUBLIC ${PUBLIC_LIBS} PRIVATE ${PRIVATE_LIBS})
