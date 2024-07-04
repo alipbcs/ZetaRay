@@ -170,6 +170,49 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }    
     }
 
+    // Triangle differential geometry
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            StackStr(nameA, nA, "TriDiffGeoA_%d", i);
+
+            data.TriDiffGeo_A[i] = ZetaMove(GpuMemory::GetTexture2D(nameA,
+                width, height,
+                GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_A],
+                D3D12_RESOURCE_STATE_COMMON,
+                texFlags,
+                1,
+                clearValuePtr));
+
+            // UAV
+            Direct3DUtil::CreateTexture2DUAV(data.TriDiffGeo_A[i],
+                data.UavDescTable[i].CPUHandle(GBufferData::GBUFFER::TRI_DIFF_GEO_A));
+            // SRV
+            Direct3DUtil::CreateTexture2DSRV(data.TriDiffGeo_A[i],
+                data.SrvDescTable[i].CPUHandle(GBufferData::GBUFFER::TRI_DIFF_GEO_A));
+        }
+
+        for (int i = 0; i < 2; i++)
+        {
+            StackStr(nameA, nA, "TriDiffGeoB_%d", i);
+
+            data.TriDiffGeo_B[i] = ZetaMove(GpuMemory::GetTexture2D(nameA,
+                width, height,
+                GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_B],
+                D3D12_RESOURCE_STATE_COMMON,
+                texFlags,
+                1,
+                clearValuePtr));
+
+            // UAV
+            Direct3DUtil::CreateTexture2DUAV(data.TriDiffGeo_B[i],
+                data.UavDescTable[i].CPUHandle(GBufferData::GBUFFER::TRI_DIFF_GEO_B));
+            // SRV
+            Direct3DUtil::CreateTexture2DSRV(data.TriDiffGeo_B[i],
+                data.SrvDescTable[i].CPUHandle(GBufferData::GBUFFER::TRI_DIFF_GEO_B));
+        }
+    }
+
     // Depth
     {
         for (int i = 0; i < 2; i++)
@@ -216,6 +259,10 @@ void GBuffer::Update(GBufferData& gbufferData)
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRANSMISSION));
     gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::DEPTH_UAV,
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::DEPTH));
+    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::TRI_DIFF_GEO_A_UAV,
+        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRI_DIFF_GEO_A));
+    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::TRI_DIFF_GEO_B_UAV,
+        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRI_DIFF_GEO_B));
 }
 
 void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
@@ -238,6 +285,8 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
         renderGraph.RegisterResource(data.MetallicRoughness[i].Resource(), data.MetallicRoughness[i].ID());
         renderGraph.RegisterResource(data.BaseColor[i].Resource(), data.BaseColor[i].ID());
         renderGraph.RegisterResource(data.Transmission[i].Resource(), data.Transmission[i].ID());
+        renderGraph.RegisterResource(data.TriDiffGeo_A[i].Resource(), data.TriDiffGeo_A[i].ID());
+        renderGraph.RegisterResource(data.TriDiffGeo_B[i].Resource(), data.TriDiffGeo_B[i].ID());
     }
 
     renderGraph.RegisterResource(data.MotionVec.Resource(), data.MotionVec.ID());

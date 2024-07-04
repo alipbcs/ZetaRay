@@ -28,6 +28,8 @@ struct RayPayload
     float2 prevPosNDC;
     float3 dpdu;
     float3 dpdv;
+    float3 dndu;
+    float3 dndv;
 };
 
 bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
@@ -131,7 +133,8 @@ RayPayload TracePrimaryHit(float3 origin, float3 dir)
         //          = (S^-1 R^-1)^T
         //          = (R^T)^T (S^-1)^T
         //          = R S^-1
-        normal *= 1.0f / meshData.Scale;
+        const float3 scaleInv = 1.0f / meshData.Scale;
+        normal *= scaleInv;
         normal = Math::RotateVector(normal, q);
         normal = normalize(normal);
         payload.normal = normal;
@@ -146,21 +149,41 @@ RayPayload TracePrimaryHit(float3 origin, float3 dir)
         tangent = normalize(tangent);
         payload.tangent = tangent;
 
-        // dpdu & dpdv are needed for ray differentials
-        float3 v0W = GBufferRT::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
-        float3 v1W = GBufferRT::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
-        float3 v2W = GBufferRT::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
+        // triangle geometry differentials are needed for ray differentials
+        float3 v0W = Math::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
+        float3 v1W = Math::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
+        float3 v2W = Math::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
 
-        GBufferRT::Triangle_dpdu_dpdv(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, payload.dpdu, payload.dpdv);
+        float3 n0W = v0_n * scaleInv;
+        n0W = Math::RotateVector(n0W, q);
+        n0W = normalize(n0W);
+
+        float3 n1W = v1_n * scaleInv;
+        n1W = Math::RotateVector(n1W, q);
+        n1W = normalize(n1W);
+
+        float3 n2W = v2_n * scaleInv;
+        n2W = Math::RotateVector(n2W, q);
+        n2W = normalize(n2W);
+
+        Math::TriDifferentials triDiffs = Math::TriDifferentials::Compute(v0W, v1W, v2W, 
+            n0W, n1W, n2W,
+            V0.TexUV, V1.TexUV, V2.TexUV);
+
+        payload.dpdu = triDiffs.dpdu;
+        payload.dpdv = triDiffs.dpdv;
+        payload.dndu = triDiffs.dndu;
+        payload.dndv = triDiffs.dndv;
         
         // motion vector
-        float3 hitPos = rayQuery.WorldRayOrigin() + rayQuery.WorldRayDirection() * rayQuery.CommittedRayT();
-        float3 posL = GBufferRT::InverseTransformTRS(hitPos, meshData.Translation, q, meshData.Scale);
+        float3 hitPos = mad(rayQuery.WorldRayDirection(), rayQuery.CommittedRayT(), 
+            rayQuery.WorldRayOrigin());
+        float3 posL = Math::InverseTransformTRS(hitPos, meshData.Translation, q, meshData.Scale);
         float3 prevTranslation = meshData.Translation - meshData.dTranslation;
         float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
         // due to quantization, it's necessary to renormalize
         q_prev = normalize(q_prev);
-        float3 pos_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
+        float3 pos_prev = Math::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
         float3 posV_prev = mul(g_frame.PrevView, float4(pos_prev, 1.0f));
         float2 posNDC_prev = posV_prev.xy / (posV_prev.z * g_frame.TanHalfFOV);
         posNDC_prev.x /= g_frame.AspectRatio;
@@ -242,10 +265,13 @@ void main(uint3 DTid : SV_DispatchThreadID)
         rayPayload.dpdv, g_frame);
 
     // Instead of hit distance, save view z for slighly faster position reconstruction
-    float3 pos = g_frame.CameraPos + rayPayload.t * rayDir;
+    float3 pos = mad(rayPayload.t, rayDir, rayOrigin);
     float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
     float z = g_frame.DoF ? rayPayload.t : posV.z;
+    float3 wo = rayOrigin - pos;
 
-    GBufferRT::ApplyTextureMaps(DTid.xy, z, rayPayload.uv, rayPayload.matIdx, rayPayload.normal, 
-        rayPayload.tangent, motionVec, grads, pos, g_frame, g_local, g_materials);
+    GBufferRT::ApplyTextureMaps(DTid.xy, z, wo, rayPayload.uv, rayPayload.matIdx, 
+        rayPayload.normal, rayPayload.tangent, motionVec, grads, rayPayload.dpdu, 
+        rayPayload.dpdv, rayPayload.dndu, rayPayload.dndv, g_frame, 
+        g_local, g_materials);
 }

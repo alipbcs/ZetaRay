@@ -91,6 +91,8 @@ namespace ZetaRay::DefaultRenderer
             EMISSIVE_COLOR,
             TRANSMISSION,
             DEPTH,
+            TRI_DIFF_GEO_A,
+            TRI_DIFF_GEO_B,
             COUNT
         };
 
@@ -102,7 +104,9 @@ namespace ZetaRay::DefaultRenderer
             DXGI_FORMAT_R16G16_FLOAT,
             DXGI_FORMAT_UNKNOWN,
             DXGI_FORMAT_R8G8_UNORM,
-            DXGI_FORMAT_R32_FLOAT
+            DXGI_FORMAT_R32_FLOAT,
+            DXGI_FORMAT_R32G32B32A32_UINT,
+            DXGI_FORMAT_R32G32_UINT
         };
 
         // Previous frame's g-buffers are required for denoising and ReSTIR
@@ -113,6 +117,8 @@ namespace ZetaRay::DefaultRenderer
         Core::GpuMemory::Texture EmissiveColor;
         Core::GpuMemory::Texture Transmission[2];
         Core::GpuMemory::Texture DepthBuffer[2];
+        Core::GpuMemory::Texture TriDiffGeo_A[2];
+        Core::GpuMemory::Texture TriDiffGeo_B[2];
 
         Core::DescriptorTable SrvDescTable[2];
         Core::DescriptorTable UavDescTable[2];
@@ -188,8 +194,6 @@ namespace ZetaRay::DefaultRenderer
         // Descrtiptors
         enum class DESC_TABLE_WND_SIZE_CONST
         {
-            CURVATURE_0,
-            CURVATURE_1,
             SKY_DI_DENOISED,
             DIRECT_LIGHITNG_DENOISED,
             SUN_SHADOW_DENOISED,

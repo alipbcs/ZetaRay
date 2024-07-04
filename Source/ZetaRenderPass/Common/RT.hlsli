@@ -3,6 +3,7 @@
 
 #include "../../ZetaCore/RayTracing/RtCommon.h"
 #include "Math.hlsli"
+#include "Sampling.hlsli"
 
 namespace RT
 {
@@ -14,7 +15,6 @@ namespace RT
         static RayCone InitFromPrimaryHit(float pixelSpreadAngle, float t)
         {
             RayCone r;
-
             r.Width = (half)(pixelSpreadAngle * t);
             r.SpreadAngle = (half)(pixelSpreadAngle);
 
@@ -261,7 +261,8 @@ namespace RT
         return adjusted;
     }
 
-    float3 OffsetRay2(float3 origin, float3 dir, float3 normal, float minNormalBias = 5e-6f, float maxNormalBias = 1e-4)
+    float3 OffsetRay2(float3 origin, float3 dir, float3 normal, float minNormalBias = 5e-6f, 
+        float maxNormalBias = 1e-4)
     {
         const float maxBias = max(minNormalBias, maxNormalBias);
         const float normalBias = lerp(maxBias, minNormalBias, saturate(dot(normal, dir)));
@@ -292,6 +293,164 @@ namespace RT
 
         return ((n_1 * n_1 * p_1) / denom) * f;
     }
+
+    struct RayDifferentials
+    {
+        static RayDifferentials Init(int2 DTid, float2 renderDim, float tanHalfFOV, 
+            float aspectRatio, float2 jitter, float3 viewBasis_x, float3 viewBasis_y, 
+            float3 viewBasis_z, bool thinLens, float focusDepth, float2 lensSample, 
+            float3 origin)
+        {
+            RayDifferentials ret;
+
+            float3 dir_cs_x = RT::GeneratePinholeCameraRay_CS(int2(DTid.x + 1, DTid.y), 
+                renderDim, aspectRatio, tanHalfFOV, jitter);
+            float3 dir_cs_y = RT::GeneratePinholeCameraRay_CS(int2(DTid.x, DTid.y - 1), 
+                renderDim, aspectRatio, tanHalfFOV, jitter);
+
+            if(thinLens)
+            {
+                float3 focalPoint_x = focusDepth * dir_cs_x;
+                dir_cs_x = focalPoint_x - float3(lensSample, 0);
+
+                float3 focalPoint_y = focusDepth * dir_cs_y;
+                dir_cs_y = focalPoint_y - float3(lensSample, 0);
+            }
+
+            ret.dir_x = normalize(mad(dir_cs_x.x, viewBasis_x, 
+                mad(dir_cs_x.y, viewBasis_y, dir_cs_x.z * viewBasis_z)));
+            ret.dir_y = normalize(mad(dir_cs_y.x, viewBasis_x, 
+                mad(dir_cs_y.y, viewBasis_y, dir_cs_y.z * viewBasis_z)));
+
+            ret.origin_x = origin;
+            ret.origin_y = origin;
+
+            return ret;
+        }
+
+        // At each hit point, provides an estimate of how position changes w.r.t. one pixel
+        // screen movement:
+        //      (p_x - p) = dpdx.(dx dy)
+        //                = dpdx.(1, 0)
+        //                = dpdx
+        // where p_x is offset ray's origin. To update the origins after each hit,
+        // compute "virtual" intersections with tangent plane at actual hit point.
+        void dpdx_dpdy(float3 hitPoint, float3 normal, out float3 dpdx, out float3 dpdy)
+        {
+            float d = dot(normal, hitPoint);
+
+            // Intersection with tangent plan
+            float numerator_x = d - dot(normal, this.origin_x);
+            float denom_x = dot(normal, this.dir_x);
+            float t_x = numerator_x / denom_x;
+            float3 hitPoint_x = mad(t_x, dir_x, this.origin_x);
+
+            float numerator_y = d - dot(normal, this.origin_y);
+            float denom_y = dot(normal, this.dir_y);
+            float t_y = numerator_y / denom_y;
+            float3 hitPoint_y = mad(t_y, dir_y, this.origin_y);
+
+            // If ray is parallel to tangent plane, set differential to a large value,
+            // so that the highest mip would be used. From this point on, this
+            // differential is undefined.
+            // dpdx = denom_x != 0 ? hitPoint_x - hitPoint : FLT_MAX;
+            // dpdy = denom_y != 0 ? hitPoint_y - hitPoint : FLT_MAX;
+            dpdx = denom_x != 0 ? hitPoint_x - hitPoint : 0;
+            dpdy = denom_y != 0 ? hitPoint_y - hitPoint : 0;
+        }
+
+        // Note: Assumes normal and wo are in the hemisphere
+        void UpdateRays(float3 p, float3 normal, float3 wi, float3 wo, 
+            Math::TriDifferentials triDiffs, float3 dpdx, float3 dpdy, 
+            bool transmitted, float eta)
+        {
+            // First-order approximation of position
+            this.origin_x = p + dpdx;
+            this.origin_y = p + dpdy;
+
+            float3 dwodx = -this.dir_x - wo;
+            float3 dwody = -this.dir_y - wo;
+            // Chain rule: 
+            //      dndx = dndu * dudx + dndv * dvdx
+            //      dndy = dndu * dudy + dndv * dvdy
+            float3 dndx = triDiffs.dndu * uv_grads.x + triDiffs.dndv * uv_grads.y;
+            float3 dndy = triDiffs.dndu * uv_grads.z + triDiffs.dndv * uv_grads.w;
+            // For vector-valued expressions a and b: (a.b)' = a'.b + a.b'.
+            // Then, d(n.wo)dx = (dndx).wo + n.(dwodx)
+            float dndotWodx = dot(dndx, wo) + dot(normal, dwodx);
+            float dndotWody = dot(dndy, wo) + dot(normal, dwody);
+            float ndotwo = dot(normal, wo);
+
+            if(!transmitted)
+            {
+                // Law of specular reflection: wi = -wo + 2(n.wo)n
+                // dwidx = -dwodx + 2[d(n.wo)dx n + (n.wo) dndx]
+                this.dir_x = wi + mad(2.0f, mad(dndotWodx, normal, ndotwo * dndx), -dwodx);
+                this.dir_y = wi + mad(2.0f, mad(dndotWody, normal, ndotwo * dndy), -dwody);
+            }
+            else
+            {
+                // Let eta = eta_t / eta_i, then
+                //      wi = -eta wo + qn 
+                // where q = eta (n.wo) - cos(theta_i).
+                //
+                // Taking the partial derivative w.r.t. x,
+                //      dwidx = -eta dwodx + dqdx n + q dndx
+                // and
+                //      dqdx = eta d(n.wo)dx - d(cos theta_i)dx
+                //      d(cos theta_i)dx = (n.wo) d(n.wo)dx / eta^2 cos(theta_i)
+                // After simplifying 
+                //      dqdx = eta d(n.wo)dx - (n.wo) d(n.wo)dx / eta^2 cos(theta_i)
+                //           = d(n.wo)dx (eta - (n.wo) / eta^2 cos(theta_i))
+                float oneOverEta = 1.0f / eta;
+                float ndotwi = abs(dot(normal, wi));
+
+                float q = mad(oneOverEta, ndotwo, -ndotwi);
+                float common = mad(oneOverEta, -ndotwo / ndotwi, 1.0f);
+                float dqdx = oneOverEta * dndotWodx * common;
+                float dqdy = oneOverEta * dndotWody * common;
+
+                this.dir_x = wi - oneOverEta * dwodx + q * dndx + dqdx * normal;
+                this.dir_y = wi - oneOverEta * dwody + q * dndy + dqdy * normal;
+            }
+        }
+
+        void ComputeUVDifferentials(float3 dpdx, float3 dpdy, float3 dpdu, float3 dpdv)
+        {
+            // determinat of square matrix A^T A
+            float dpduDotdpdu = dot(dpdu, dpdu);
+            float dpdvDotdpdv = dot(dpdv, dpdv);
+            float dpduDotdpdv = dot(dpdu, dpdv);
+            float det = dpduDotdpdu * dpdvDotdpdv - dpduDotdpdv * dpduDotdpdv;
+            // A^T A is not invertible
+            if (abs(det) < 1e-7f)
+            {
+                this.uv_grads = 0;
+                return;
+            }
+
+            // division by determinant happens below
+            float2x2 A_T_A_Inv = float2x2(dpdvDotdpdv, -dpduDotdpdv,
+                                         -dpduDotdpdv, dpduDotdpdu);
+            float2 b_x = float2(dot(dpdu, dpdx), dot(dpdv, dpdx));
+            float2 grads_x = mul(A_T_A_Inv, b_x) / det;
+
+            float2 b_y = float2(dot(dpdu, dpdy), dot(dpdv, dpdy));
+            float2 grads_y = mul(A_T_A_Inv, b_y) / det;
+
+            bool invalid_x = (this.uv_grads.x == FLT_MAX) || (dpdx.x == FLT_MAX);
+            bool invalid_y = (this.uv_grads.z == FLT_MAX) || (dpdy.x == FLT_MAX);
+            this.uv_grads.xy = invalid_x ? FLT_MAX : grads_x;
+            this.uv_grads.zw = invalid_y ? FLT_MAX : grads_y;
+        }
+
+        float3 origin_x;
+        float3 dir_x;
+        float3 origin_y;
+        float3 dir_y;
+        // (ddx(uv), ddy(uv))
+        float4 uv_grads;
+    };
 }
 
 #endif

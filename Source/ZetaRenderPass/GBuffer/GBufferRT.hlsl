@@ -28,6 +28,8 @@ struct [raypayload] RayPayload
     float2 prevPosNDC : read(caller) : write(closesthit);
     float3 dpdu : read(caller) : write(closesthit);
     float3 dpdv : read(caller) : write(closesthit);
+    float3 dndu : read(caller) : write(closesthit);
+    float3 dndv : read(caller) : write(closesthit);
 };
 
 TriangleHitGroup MyHitGroup =
@@ -128,10 +130,15 @@ void Raygen()
         g_frame.CurrCameraJitter, g_frame.DoF, lensSample, g_frame.FocusDepth, rayPayload.t, 
         rayPayload.dpdu, rayPayload.dpdv, g_frame);
 
-    float3 pos = g_frame.CameraPos + rayPayload.t * rayDir;
+    float3 pos = mad(rayPayload.t, rayDir, rayOrigin);
     float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
-    GBufferRT::ApplyTextureMaps(DispatchRaysIndex().xy, posV.z, rayPayload.uv, matIdx, normal, tangent, motionVec, 
-        grads, pos, g_frame, g_local, g_materials);
+    float z = g_frame.DoF ? rayPayload.t : posV.z;
+    float3 wo = rayOrigin - pos;
+
+    GBufferRT::ApplyTextureMaps(DispatchRaysIndex().xy, z, wo, rayPayload.uv, matIdx, 
+        normal, tangent, motionVec, grads, rayPayload.dpdu, 
+        rayPayload.dpdv, rayPayload.dndu, rayPayload.dndv, g_frame, 
+        g_local, g_materials);
 }
 
 [shader("anyhit")]
@@ -203,7 +210,8 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     //          = (S^-1 R^-1)^T
     //          = (R^T)^T (S^-1)^T
     //          = R S^-1
-    normal *= 1.0f / meshData.Scale;
+    const float3 scaleInv = 1.0f / meshData.Scale;
+    normal *= scaleInv;
     normal = Math::RotateVector(normal, q);
     normal = normalize(normal);
     payload.normal = normal;
@@ -218,9 +226,9 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     tangent = normalize(tangent);
     payload.tangent = tangent;
 
-    float3 v0W = GBufferRT::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
-    float3 v1W = GBufferRT::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
-    float3 v2W = GBufferRT::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
+    float3 v0W = Math::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
+    float3 v1W = Math::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
+    float3 v2W = Math::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
 
     // motion vector
     float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
@@ -228,18 +236,34 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     q_prev = normalize(q_prev);
 
     float3 pos = WorldRayOrigin() + WorldRayDirection() * RayTCurrent();
-    float3 posL = GBufferRT::InverseTransformTRS(pos, meshData.Translation, q, meshData.Scale);
+    float3 posL = Math::InverseTransformTRS(pos, meshData.Translation, q, meshData.Scale);
     float3 prevTranslation = meshData.Translation - meshData.dTranslation;
-    float3 pos_prev = GBufferRT::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
+    float3 pos_prev = Math::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);
     float3 posV_prev = mul(g_frame.PrevView, float4(pos_prev, 1.0f));
     float2 posNDC_prev = posV_prev.xy / (posV_prev.z * g_frame.TanHalfFOV);
     posNDC_prev.x /= g_frame.AspectRatio;
     payload.prevPosNDC = posNDC_prev;
 
-    float3 dpdu, dpdv;
-    GBufferRT::Triangle_dpdu_dpdv(v0W, v1W, v2W, V0.TexUV, V1.TexUV, V2.TexUV, dpdu, dpdv);
-    payload.dpdu = dpdu;
-    payload.dpdv = dpdv;
+    float3 n0W = v0_n * scaleInv;
+    n0W = Math::RotateVector(n0W, q);
+    n0W = normalize(n0W);
+
+    float3 n1W = v1_n * scaleInv;
+    n1W = Math::RotateVector(n1W, q);
+    n1W = normalize(n1W);
+
+    float3 n2W = v2_n * scaleInv;
+    n2W = Math::RotateVector(n2W, q);
+    n2W = normalize(n2W);
+
+    Math::TriDifferentials triDiffs = Math::TriDifferentials::Compute(v0W, v1W, v2W, 
+        n0W, n1W, n2W,
+        V0.TexUV, V1.TexUV, V2.TexUV);
+
+    payload.dpdu = triDiffs.dpdu;
+    payload.dpdv = triDiffs.dpdv;
+    payload.dndu = triDiffs.dndu;
+    payload.dndv = triDiffs.dndv;
 }
 
 [shader("miss")]

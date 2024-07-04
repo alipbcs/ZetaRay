@@ -19,15 +19,15 @@ using namespace ZetaRay::Support;
 RendererCore::RendererCore()
     : m_cbvSrvUavDescHeapGpu(32),
     m_cbvSrvUavDescHeapCpu(32),
-    m_rtvDescHeap(8),
-    m_dsvDescHeap(8)
+    m_rtvDescHeap(8)
 {}
 
 RendererCore::~RendererCore()
 {
 }
 
-void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight)
+void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
+    uint16_t displayWidth, uint16_t displayHeight)
 {
     m_hwnd = hwnd;
 
@@ -35,7 +35,8 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     m_deviceObjs.CreateDevice();
     InitStaticSamplers();
 
-    CheckHR(m_deviceObjs.m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
+    CheckHR(m_deviceObjs.m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, 
+        IID_PPV_ARGS(m_fence.GetAddressOf())));
     m_event = CreateEventA(nullptr, false, false, "CommandQueue");
     CheckWin32(m_event);
 
@@ -50,18 +51,15 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     m_cbvSrvUavDescHeapGpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         Constants::NUM_CBV_SRV_UAV_DESC_HEAP_GPU_DESCRIPTORS,
         true);
-
     m_cbvSrvUavDescHeapCpu.Init(D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         Constants::NUM_CBV_SRV_UAV_DESC_HEAP_CPU_DESCRIPTORS,
         false);
-
     m_rtvDescHeap.Init(D3D12_DESCRIPTOR_HEAP_TYPE_RTV,
         Constants::NUM_RTV_DESC_HEAP_DESCRIPTORS,
         false);
-
-    m_dsvDescHeap.Init(D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
-        Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
-        false);
+    //m_dsvDescHeap.Init(D3D12_DESCRIPTOR_HEAP_TYPE_DSV,
+    //    Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
+    //    false);
 
     m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT));
     m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
@@ -70,7 +68,7 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);
 
     m_backbuffDescTable = m_rtvDescHeap.Allocate(Constants::NUM_BACK_BUFFERS);
-    m_depthBuffDescTable = m_dsvDescHeap.Allocate(1);
+    //m_depthBuffDescTable = m_dsvDescHeap.Allocate(1);
 
     ResizeBackBuffers(hwnd);
 
@@ -95,8 +93,8 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     m_gpuTimer.Init();
 
     ParamVariant p0;
-    p0.InitBool("Renderer", "Display", "VSync", fastdelegate::MakeDelegate(this, &RendererCore::SetVSync),
-        m_vsyncInterval > 0);
+    p0.InitBool("Renderer", "Display", "VSync", 
+        fastdelegate::MakeDelegate(this, &RendererCore::SetVSync), m_vsyncInterval > 0);
     App::AddParam(p0);
 }
 
@@ -182,7 +180,8 @@ void RendererCore::Shutdown()
     GpuMemory::Shutdown();
 }
 
-void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight)
+void RendererCore::OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
+    uint16_t displayWidth, uint16_t displayHeight)
 {
     FlushAllCommandQueues();
 
@@ -236,9 +235,11 @@ void RendererCore::SubmitResourceCopies()
 {
     GpuMemory::SubmitResourceCopies();
 
-    App::AddFrameStat("Renderer", "RTV Desc. Heap", m_rtvDescHeap.GetHeapSize() - m_rtvDescHeap.GetNumFreeDescriptors(), 
+    App::AddFrameStat("Renderer", "RTV Desc. Heap", 
+        m_rtvDescHeap.GetHeapSize() - m_rtvDescHeap.GetNumFreeDescriptors(), 
         m_rtvDescHeap.GetHeapSize());
-    App::AddFrameStat("Renderer", "Gpu Desc. Heap", m_cbvSrvUavDescHeapGpu.GetHeapSize() - m_cbvSrvUavDescHeapGpu.GetNumFreeDescriptors(), 
+    App::AddFrameStat("Renderer", "Gpu Desc. Heap", 
+        m_cbvSrvUavDescHeapGpu.GetHeapSize() - m_cbvSrvUavDescHeapGpu.GetNumFreeDescriptors(), 
         m_cbvSrvUavDescHeapGpu.GetHeapSize());
 }
 
@@ -294,7 +295,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS)
             m_cbvSrvUavDescHeapGpu.Recycle();
             m_cbvSrvUavDescHeapCpu.Recycle();
             m_rtvDescHeap.Recycle();
-            m_dsvDescHeap.Recycle();
+            //m_dsvDescHeap.Recycle();
         });
 }
 
@@ -417,6 +418,21 @@ void RendererCore::FlushAllCommandQueues()
 
 void RendererCore::InitStaticSamplers()
 {
+    D3D12_STATIC_SAMPLER_DESC mip0;
+    mip0.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    mip0.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    mip0.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    mip0.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    mip0.MipLODBias = 0;
+    mip0.MaxAnisotropy = 0;
+    mip0.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
+    mip0.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    mip0.MinLOD = 0.0f;
+    mip0.MaxLOD = 0.0f;
+    mip0.ShaderRegister = 0;
+    mip0.RegisterSpace = 0;
+    mip0.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+
     D3D12_STATIC_SAMPLER_DESC pointWrap;
     pointWrap.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
     pointWrap.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
@@ -424,11 +440,11 @@ void RendererCore::InitStaticSamplers()
     pointWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     pointWrap.MipLODBias = 0;
     pointWrap.MaxAnisotropy = 0;
-    pointWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    pointWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     pointWrap.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     pointWrap.MinLOD = 0.0f;
     pointWrap.MaxLOD = D3D12_FLOAT32_MAX;
-    pointWrap.ShaderRegister = 0;
+    pointWrap.ShaderRegister = 1;
     pointWrap.RegisterSpace = 0;
     pointWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -439,11 +455,11 @@ void RendererCore::InitStaticSamplers()
     pointClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     pointClamp.MipLODBias = 0;
     pointClamp.MaxAnisotropy = 0;
-    pointClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    pointClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     pointClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     pointClamp.MinLOD = 0.0f;
     pointClamp.MaxLOD = D3D12_FLOAT32_MAX;
-    pointClamp.ShaderRegister = 1;
+    pointClamp.ShaderRegister = 2;
     pointClamp.RegisterSpace = 0;
     pointClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -454,11 +470,11 @@ void RendererCore::InitStaticSamplers()
     linearWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     linearWrap.MipLODBias = 0;
     linearWrap.MaxAnisotropy = 0;
-    linearWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    linearWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     linearWrap.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     linearWrap.MinLOD = 0.0f;
     linearWrap.MaxLOD = D3D12_FLOAT32_MAX;
-    linearWrap.ShaderRegister = 2;
+    linearWrap.ShaderRegister = 3;
     linearWrap.RegisterSpace = 0;
     linearWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -469,11 +485,11 @@ void RendererCore::InitStaticSamplers()
     linearClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     linearClamp.MipLODBias = 0;
     linearClamp.MaxAnisotropy = 0;
-    linearClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    linearClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     linearClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     linearClamp.MinLOD = 0.0f;
     linearClamp.MaxLOD = D3D12_FLOAT32_MAX;
-    linearClamp.ShaderRegister = 3;
+    linearClamp.ShaderRegister = 4;
     linearClamp.RegisterSpace = 0;
     linearClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
@@ -484,28 +500,28 @@ void RendererCore::InitStaticSamplers()
     anisotropicWrap.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     anisotropicWrap.MipLODBias = 0;
     anisotropicWrap.MaxAnisotropy = 16;
-    anisotropicWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
+    anisotropicWrap.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     anisotropicWrap.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
     anisotropicWrap.MinLOD = 0.0f;
     anisotropicWrap.MaxLOD = D3D12_FLOAT32_MAX;
-    anisotropicWrap.ShaderRegister = 4;
+    anisotropicWrap.ShaderRegister = 5;
     anisotropicWrap.RegisterSpace = 0;
     anisotropicWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    D3D12_STATIC_SAMPLER_DESC anisotropicClamp;
-    anisotropicClamp.Filter = D3D12_FILTER_ANISOTROPIC;
-    anisotropicClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    anisotropicClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    anisotropicClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    anisotropicClamp.MipLODBias = 0;
-    anisotropicClamp.MaxAnisotropy = 16;
-    anisotropicClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_LESS_EQUAL;
-    anisotropicClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-    anisotropicClamp.MinLOD = 0.0f;
-    anisotropicClamp.MaxLOD = D3D12_FLOAT32_MAX;
-    anisotropicClamp.ShaderRegister = 5;
-    anisotropicClamp.RegisterSpace = 0;
-    anisotropicClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    D3D12_STATIC_SAMPLER_DESC anisotropicWrap4x;
+    anisotropicWrap4x.Filter = D3D12_FILTER_ANISOTROPIC;
+    anisotropicWrap4x.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    anisotropicWrap4x.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    anisotropicWrap4x.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+    anisotropicWrap4x.MipLODBias = 0;
+    anisotropicWrap4x.MaxAnisotropy = 4;
+    anisotropicWrap4x.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
+    anisotropicWrap4x.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
+    anisotropicWrap4x.MinLOD = 0.0f;
+    anisotropicWrap4x.MaxLOD = D3D12_FLOAT32_MAX;
+    anisotropicWrap4x.ShaderRegister = 6;
+    anisotropicWrap4x.RegisterSpace = 0;
+    anisotropicWrap4x.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC imguiSampler;
     imguiSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -514,21 +530,58 @@ void RendererCore::InitStaticSamplers()
     imguiSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
     imguiSampler.MipLODBias = 0.0f;
     imguiSampler.MaxAnisotropy = 0;
-    imguiSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_ALWAYS;
+    imguiSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
     imguiSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
     imguiSampler.MinLOD = 0.0f;
     imguiSampler.MaxLOD = 0.0f;
-    imguiSampler.ShaderRegister = 6;
+    imguiSampler.ShaderRegister = 7;
     imguiSampler.RegisterSpace = 0;
-    imguiSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    imguiSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
-    m_staticSamplers[0] = pointWrap;
-    m_staticSamplers[1] = pointClamp;
-    m_staticSamplers[2] = linearWrap;
-    m_staticSamplers[3] = linearClamp;
-    m_staticSamplers[4] = anisotropicWrap;
-    m_staticSamplers[5] = anisotropicClamp;
-    m_staticSamplers[6] = imguiSampler;
+    m_staticSamplers[0] = mip0;
+    m_staticSamplers[1] = pointWrap;
+    m_staticSamplers[2] = pointClamp;
+    m_staticSamplers[3] = linearWrap;
+    m_staticSamplers[4] = linearClamp;
+    m_staticSamplers[5] = anisotropicWrap;
+    m_staticSamplers[6] = anisotropicWrap4x;
+    m_staticSamplers[7] = imguiSampler;
+
+    D3D12_DESCRIPTOR_HEAP_DESC desc;
+    desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
+    desc.NumDescriptors = ZetaArrayLen(m_staticSamplers);
+    desc.Flags = D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE;
+    desc.NodeMask = 0;
+
+    auto* device = App::GetRenderer().GetDevice();
+    CheckHR(device->CreateDescriptorHeap(&desc, IID_PPV_ARGS(m_samplerDescHeap.GetAddressOf())));
+
+    const auto descSize = device->GetDescriptorHandleIncrementSize(D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+    const auto baseCpuHandle = m_samplerDescHeap->GetCPUDescriptorHandleForHeapStart();
+
+    D3D12_SAMPLER_DESC samplerDescs[ZetaArrayLen(m_staticSamplers)];
+    for (int i = 0; i < ZetaArrayLen(m_staticSamplers); i++)
+    {
+        samplerDescs[i].Filter = m_staticSamplers[i].Filter;
+        samplerDescs[i].AddressU = m_staticSamplers[i].AddressU;
+        samplerDescs[i].AddressV = m_staticSamplers[i].AddressV;
+        samplerDescs[i].AddressW = m_staticSamplers[i].AddressW;
+        samplerDescs[i].MipLODBias = m_staticSamplers[i].MipLODBias;
+        samplerDescs[i].MaxAnisotropy = m_staticSamplers[i].MaxAnisotropy;
+        samplerDescs[i].MaxAnisotropy = m_staticSamplers[i].MaxAnisotropy;
+        samplerDescs[i].ComparisonFunc = m_staticSamplers[i].ComparisonFunc;
+        samplerDescs[i].MinLOD = m_staticSamplers[i].MinLOD;
+        samplerDescs[i].MaxLOD = m_staticSamplers[i].MaxLOD;
+        samplerDescs[i].BorderColor[0] = 0;
+        samplerDescs[i].BorderColor[1] = 0;
+        samplerDescs[i].BorderColor[2] = 0;
+        samplerDescs[i].BorderColor[3] = 0;
+        
+        D3D12_CPU_DESCRIPTOR_HANDLE handle{
+            .ptr = baseCpuHandle.ptr + i * descSize
+        };
+        device->CreateSampler(&samplerDescs[i], handle);
+    }
 }
 
 void RendererCore::SetVSync(const ParamVariant& p)

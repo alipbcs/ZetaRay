@@ -214,6 +214,7 @@ namespace Math
 
             dir_w = mad(dir_v.x, viewBasisX, mad(dir_v.y, viewBasisY, dir_v.z * viewBasisZ));
             dir_w = normalize(dir_w);
+            // For thin lens, z_view = t_hit
             dir_w *= z_view;
 
             origin += mad(lensSample.x, viewBasisX, lensSample.y * viewBasisY);
@@ -258,7 +259,7 @@ namespace Math
         return mul(scaledBumpNormal, TangentSpaceToWorld);
     }
 
-    // Builds an orthonormal TBN coordinate system.
+    // Builds an orthonormal coordinate system.
     // Ref: T. Duff, J. Burgess, P. Christensen, C. Hery, A. Kensler, M. Liani, 
     // R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
     void revisedONB(float3 n, out float3 b1, out float3 b2)
@@ -269,6 +270,71 @@ namespace Math
         b1 = float3(mad(n.x * a, n.x * s, 1.0f), s * b, -s * n.x);
         b2 = float3(b, mad(n.y * a, n.y, s), -n.y);
     }
+
+    // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
+    struct TriDifferentials
+    {
+        static TriDifferentials Unpack(uint4 packed_a, uint2 packed_b)
+        {
+            TriDifferentials ret;
+
+            ret.dpdu = asfloat16(uint16_t3(packed_a.x & 0xffff, packed_a.x >> 16, packed_a.y & 0xffff));
+            ret.dpdv = asfloat16(uint16_t3(packed_a.y >> 16, packed_a.z & 0xffff, packed_a.z >> 16));
+            ret.dndu = asfloat16(uint16_t3(packed_a.w & 0xffff, packed_a.w >> 16, packed_b.x & 0xffff));
+            ret.dndv = asfloat16(uint16_t3(packed_b.x >> 16, packed_b.y & 0xffff, packed_b.y >> 16));
+
+            return ret;
+        }
+
+        static TriDifferentials Compute(float3 p0, float3 p1, float3 p2, 
+            float3 n0, float3 n1, float3 n2,
+            float2 uv0, float2 uv1, float2 uv2)
+        {
+            TriDifferentials ret;
+
+            // For triangle with vertices (p0, p1, p2) and UV coords
+            // (uv0, uv1, uv2) (CW), we have the following first-order
+            // representation:
+            //          A             =       X                     B
+            // |                 |      |           |    |                     |
+            // | p1 - p0 p2 - p0 |    = | dpdu dpdv |    | uv1 - uv0 uv2 - uv0 |
+            // |                 |3x3   |           |3x2 |                     |2x3
+            // 
+            // We know A and B and can solve for X.
+            float2 duv10 = uv1 - uv0;
+            float2 duv20 = uv2 - uv0;
+            float det = duv10.x * duv20.y - duv10.y * duv20.x;
+            float invdet = 1.0 / det;
+
+            if (abs(det) < 1e-7f)
+            {
+                float3 normal = normalize(cross(p1 - p0, p2 - p0));
+                Math::revisedONB(normal, ret.dpdu, ret.dpdv);
+                ret.dndu = 0;
+                ret.dndv = 0;
+
+                return ret;
+            }
+
+            // dpdu
+            float3 dp10 = p1 - p0;
+            float3 dp20 = p2 - p0;
+            ret.dpdu = (duv20.y * dp10 - duv10.y * dp20) * invdet;
+            ret.dpdv = (-duv20.x * dp10 + duv10.x * dp20) * invdet;
+            // dndu
+            float3 dn10 = n1 - n0;
+            float3 dn20 = n2 - n0;
+            ret.dndu = (duv20.y * dn10 - duv10.y * dn20) * invdet;
+            ret.dndv = (-duv20.x * dn10 + duv10.x * dn20) * invdet;
+
+            return ret;
+        }
+
+        float3 dpdu;
+        float3 dpdv;
+        float3 dndu;
+        float3 dndv;
+    };
 
     float4 RotationQuaternion(float3 axis, float theta)
     {
@@ -444,6 +510,25 @@ namespace Math
         float3 rotated = v + real * t + cross(imaginary, t);
         
         return rotated;
+    }
+
+    float3 TransformTRS(float3 pos, float3 translation, float4 rotation, float3 scale)
+    {
+        float3 transformed = pos * scale;
+        transformed = Math::RotateVector(transformed, rotation);
+        transformed += translation;
+
+        return transformed;
+    }
+
+    float3 InverseTransformTRS(float3 pos, float3 translation, float4 rotation, float3 scale)
+    {
+        float3 transformed = pos - translation;
+        float4 q_conjugate = float4(-rotation.xyz, rotation.w);
+        transformed = Math::RotateVector(transformed, q_conjugate);
+        transformed *= 1.0f / scale;
+
+        return transformed;
     }
 
     uint EncodeAsUNorm8(float u)

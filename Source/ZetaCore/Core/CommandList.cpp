@@ -1,5 +1,4 @@
 #include "CommandList.h"
-#include "../App/App.h"
 #include "RendererCore.h"
 
 using namespace ZetaRay::Core;
@@ -26,6 +25,15 @@ void CommandList::Reset(ID3D12CommandAllocator* cmdAlloc)
     m_cmdAllocator = cmdAlloc;
     CheckHR(m_cmdList->Reset(m_cmdAllocator, nullptr));
 
-    ID3D12DescriptorHeap* gpuDescHeap = App::GetRenderer().GetGpuDescriptorHeap().GetHeap();
-    m_cmdList->SetDescriptorHeaps(1, &gpuDescHeap);
+    // D3D specs: "There is a new ordering constraint between SetDescriptorHeaps and 
+    // SetGraphicsRootSignature or SetComputeRootSignature. SetDescriptorHeaps must be 
+    // called, passing the corresponding heaps, before a call to SetGraphicsRootSignature 
+    // or SetComputeRootSignature that uses either CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED or 
+    // SAMPLER_HEAP_DIRECTLY_INDEXED flags."
+    auto& renderer = App::GetRenderer();
+    ID3D12DescriptorHeap* heaps[] = {
+        renderer.GetGpuDescriptorHeap().GetHeap(),
+        renderer.GetSamplerDescriptorHeap()
+    };
+    m_cmdList->SetDescriptorHeaps(ZetaArrayLen(heaps), heaps);
 }

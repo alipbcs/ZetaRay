@@ -22,7 +22,6 @@ namespace ZetaRay::RenderPass
     {
         ESTIMATE_TRIANGLE_LUMEN,
         PRESAMPLING,
-        ESTIMATE_CURVATURE,
         BUILD_LIGHT_VOXEL_GRID,
         COUNT
     };
@@ -36,7 +35,7 @@ namespace ZetaRay::RenderPass
         ~PreLighting() = default;
 
         void Init();
-        void OnWindowResized();
+        void OnWindowResized() {};
         void SetLightPresamplingParams(uint32_t minToEnale, uint32_t numSampleSets, uint32_t sampleSetSize)
         { 
             m_minNumLightsForPresampling = minToEnale;
@@ -54,8 +53,6 @@ namespace ZetaRay::RenderPass
         const Core::GpuMemory::DefaultHeapBuffer& GePresampledSets() { return m_sampleSets; }
         const Core::GpuMemory::DefaultHeapBuffer& GetLightVoxelGrid() { return m_lvg; }
         Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
-        const Core::GpuMemory::Texture& GetCurvature0() { return m_curvature[0]; }
-        const Core::GpuMemory::Texture& GetCurvature1() { return m_curvature[1]; }
         // Releasing the lumen buffer and its readback buffer should happen after the alias table 
         // has been calculated. Delegate that to code that does that calculation.
         auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseLumenBufferAndReadback); };
@@ -75,24 +72,10 @@ namespace ZetaRay::RenderPass
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
             "EstimateTriLumen_cs.cso",
             "PresampleEmissives_cs.cso",
-            "EstimateCurvature_cs.cso",
             "BuildLightVoxelGrid_cs.cso"
         };
 
-        enum class DESC_TABLE
-        {
-            CURVATURE_0_UAV,
-            CURVATURE_1_UAV,
-            COUNT
-        };
-
-        struct ResourceFormats
-        {
-            static constexpr DXGI_FORMAT CURVATURE = DXGI_FORMAT_R16_FLOAT;
-        };
-
         void ToggleLVG();
-        void CreateOutputs();
         void ReleaseLumenBufferAndReadback();
         void ReloadBuildLVG();
 
@@ -101,8 +84,6 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::ReadbackHeapBuffer m_readback;
         Core::GpuMemory::DefaultHeapBuffer m_sampleSets;
         Core::GpuMemory::DefaultHeapBuffer m_lvg;
-        Core::GpuMemory::Texture m_curvature[2];
-        Core::DescriptorTable m_descTable;
         uint32_t m_currNumTris = 0;
         uint32_t m_minNumLightsForPresampling = UINT32_MAX;
         uint32_t m_numSampleSets = 0;

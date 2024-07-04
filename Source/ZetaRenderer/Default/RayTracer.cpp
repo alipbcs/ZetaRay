@@ -44,14 +44,6 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
 
     {
         data.PreLightingPass.Init();
-
-        const Texture& curvature0 = data.PreLightingPass.GetCurvature0();
-        const Texture& curvature1 = data.PreLightingPass.GetCurvature1();
-
-        Direct3DUtil::CreateTexture2DSRV(curvature0, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0));
-        Direct3DUtil::CreateTexture2DSRV(curvature1, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1));
     }
 
     if (settings.SkyIllumination)
@@ -86,14 +78,6 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 
     {
         data.PreLightingPass.OnWindowResized();
-
-        const Texture& curvature0 = data.PreLightingPass.GetCurvature0();
-        const Texture& curvature1 = data.PreLightingPass.GetCurvature1();
-
-        Direct3DUtil::CreateTexture2DSRV(curvature0, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0));
-        Direct3DUtil::CreateTexture2DSRV(curvature1, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1));
     }
 
     if (App::GetScene().NumEmissiveInstances())
@@ -180,16 +164,6 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
             data.EmissiveAliasTable.SetRelaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
         }
     }
-
-    auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
-    auto prevCurvatureSrv = idx == 0 ? RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1 : 
-        RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0;
-    auto currCurvatureSrv = idx == 0 ? RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_0 :
-        RayTracerData::DESC_TABLE_WND_SIZE_CONST::CURVATURE_1;
-
-    data.IndirecLightingPass.SetCurvatureDescHeapOffset(
-        data.WndConstDescTable.GPUDesciptorHeapIndex((int)prevCurvatureSrv),
-        data.WndConstDescTable.GPUDesciptorHeapIndex((int)currCurvatureSrv));
 }
 
 void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, RenderGraph& renderGraph)
@@ -242,15 +216,6 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, Re
     fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.PreLightingPass,
         &PreLighting::Render);
     data.PreLightingPassHandle = renderGraph.RegisterRenderPass("PreLighting", RENDER_NODE_TYPE::COMPUTE, dlg1);
-
-    auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
-    const Texture& prevCurvature = idx == 1 ? data.PreLightingPass.GetCurvature0() : data.PreLightingPass.GetCurvature1();
-    const Texture& currCurvature = idx == 1 ? data.PreLightingPass.GetCurvature1() : data.PreLightingPass.GetCurvature0();
-
-    renderGraph.RegisterResource(const_cast<Texture&>(prevCurvature).Resource(), prevCurvature.ID(),
-        D3D12_RESOURCE_STATE_COMMON);
-    renderGraph.RegisterResource(const_cast<Texture&>(currCurvature).Resource(), currCurvature.ID(),
-        D3D12_RESOURCE_STATE_COMMON);
 
     if (hasEmissives)
     {
@@ -372,10 +337,6 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         }
     }
 
-    const Texture& currCurvature = outIdx == 1 ? data.PreLightingPass.GetCurvature1() : 
-        data.PreLightingPass.GetCurvature0();
-    renderGraph.AddOutput(data.PreLightingPassHandle, currCurvature.ID(), D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-
     SmallVector<RenderNodeHandle, Support::SystemAllocator, 3> handles;
     handles.reserve(3);
 
@@ -484,6 +445,18 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 gbuffData.MetallicRoughness[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+            renderGraph.AddInput(handles[i],
+                gbuffData.Transmission[1 - outIdx].ID(),
+                D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.TriDiffGeo_A[1 - outIdx].ID(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.TriDiffGeo_B[1 - outIdx].ID(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
             // Current g-buffers
             renderGraph.AddInput(handles[i],
                 gbuffData.Normal[outIdx].ID(),
@@ -504,15 +477,19 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
             renderGraph.AddInput(handles[i],
                 gbuffData.BaseColor[outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.Transmission[outIdx].ID(),
+                D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.TriDiffGeo_A[outIdx].ID(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.TriDiffGeo_B[outIdx].ID(),
+                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
         }
-
-        renderGraph.AddInput(data.IndirecLightingHandle,
-            data.PreLightingPass.GetCurvature0().ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-        renderGraph.AddInput(data.IndirecLightingHandle,
-            data.PreLightingPass.GetCurvature1().ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
         // Outputs
         renderGraph.AddOutput(data.IndirecLightingHandle,

@@ -33,6 +33,8 @@ namespace ZetaRay::RenderPass
             EMISSIVE_COLOR_UAV,
             TRANSMISSION_UAV,
             DEPTH_UAV,
+            TRI_DIFF_GEO_A_UAV,
+            TRI_DIFF_GEO_B_UAV,
             COUNT
         };
 
@@ -69,6 +71,12 @@ namespace ZetaRay::RenderPass
                 return;
             case SHADER_IN_GPU_DESC::DEPTH_UAV:
                 m_cbLocal.DepthUavDescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::TRI_DIFF_GEO_A_UAV:
+                m_cbLocal.TriGeoADescHeapIdx = descHeapIdx;
+                return;
+            case SHADER_IN_GPU_DESC::TRI_DIFF_GEO_B_UAV:
+                m_cbLocal.TriGeoBDescHeapIdx = descHeapIdx;
                 return;
             default:
                 Assert(false, "unreachable case.");

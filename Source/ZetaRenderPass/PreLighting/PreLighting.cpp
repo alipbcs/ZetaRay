@@ -210,14 +210,6 @@ void PreLighting::Init()
         ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI * sizeof(float2),
         false,
         samples);
-
-    m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
-    CreateOutputs();
-}
-
-void PreLighting::OnWindowResized()
-{
-    CreateOutputs();
 }
 
 void PreLighting::Update()
@@ -367,30 +359,6 @@ void PreLighting::Render(CommandList& cmdList)
         cmdList.PIXEndEvent();
     }
 
-    // Estimate curvature
-    {
-        const uint32_t dispatchDimX = (uint32_t)CeilUnsignedIntDiv(w, ESTIMATE_CURVATURE_GROUP_DIM_X);
-        const uint32_t dispatchDimY = (uint32_t)CeilUnsignedIntDiv(h, ESTIMATE_CURVATURE_GROUP_DIM_Y);
-
-        computeCmdList.PIXBeginEvent("EstimateCurvature");
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateCurvature");
-
-        auto idx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
-        auto uav = idx == 1 ? DESC_TABLE::CURVATURE_1_UAV : DESC_TABLE::CURVATURE_0_UAV;
-
-        cbCurvature cb;
-        cb.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uav);
-
-        m_rootSig.SetRootConstants(0, sizeof(cbCurvature) / sizeof(DWORD), &cb);
-        m_rootSig.End(computeCmdList);
-
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ESTIMATE_CURVATURE));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-        gpuTimer.EndQuery(computeCmdList, queryIdx);
-        cmdList.PIXEndEvent();
-    }
-
     if (m_buildLVGThisFrame && m_lvg.IsInitialized())
     {
         computeCmdList.PIXBeginEvent("LightVoxelGrid");
@@ -450,24 +418,6 @@ void PreLighting::ToggleLVG()
         App::RemoveShaderReloadHandler("BuildLightVoxelGrid");
         m_lvg.Reset();
     }
-}
-
-void PreLighting::CreateOutputs()
-{
-    auto& renderer = App::GetRenderer();
-
-    for (int i = 0; i < 2; i++)
-    {
-        StackStr(buff, n, "Curvature_%d", i);
-        m_curvature[i] = GpuMemory::GetTexture2D(buff,
-            renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-            ResourceFormats::CURVATURE,
-            D3D12_RESOURCE_STATE_COMMON,
-            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    }
-
-    Direct3DUtil::CreateTexture2DUAV(m_curvature[0], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_0_UAV));
-    Direct3DUtil::CreateTexture2DUAV(m_curvature[1], m_descTable.CPUHandle((int)DESC_TABLE::CURVATURE_1_UAV));
 }
 
 void PreLighting::ReleaseLumenBufferAndReadback()

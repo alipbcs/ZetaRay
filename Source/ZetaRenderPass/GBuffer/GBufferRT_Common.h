@@ -18,6 +18,8 @@ struct cbGBufferRt
     uint32_t MotionVectorUavDescHeapIdx;
     uint32_t TransmissionUavDescHeapIdx;
     uint32_t DepthUavDescHeapIdx;
+    uint32_t TriGeoADescHeapIdx;
+    uint32_t TriGeoBDescHeapIdx;
 
     uint16_t DispatchDimX;
     uint16_t DispatchDimY;

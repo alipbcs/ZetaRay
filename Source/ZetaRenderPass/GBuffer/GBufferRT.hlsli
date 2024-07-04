@@ -18,47 +18,6 @@ namespace GBufferRT
         return Math::DecodeSNorm2(encoded);
     }
 
-    float3 TransformTRS(float3 pos, float3 translation, float4 rotation, float3 scale)
-    {
-        float3 transformed = pos * scale;
-        transformed = Math::RotateVector(transformed, rotation);
-        transformed += translation;
-
-        return transformed;
-    }
-
-    float3 InverseTransformTRS(float3 pos, float3 translation, float4 rotation, float3 scale)
-    {
-        float3 transformed = pos - translation;
-        float4 q_conjugate = float4(-rotation.xyz, rotation.w);
-        transformed = Math::RotateVector(transformed, q_conjugate);
-        transformed *= 1.0f / scale;
-
-        return transformed;
-    }
-
-    // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
-    void Triangle_dpdu_dpdv(float3 p0, float3 p1, float3 p2, float2 uv0, float2 uv1, float2 uv2, 
-        out float3 dpdu, out float3 dpdv)
-    {
-        float2 duv10 = uv1 - uv0;
-        float2 duv20 = uv2 - uv0;
-        float3 dp10 = p1 - p0;
-        float3 dp20 = p2 - p0;
-        
-        float det = duv10.x * duv20.y - duv10.y * duv20.x;
-        if (abs(det) < 1e-7f)
-        {
-            float3 normal = normalize(cross(p1 - p0, p2 - p0));
-            Math::revisedONB(normal, dpdu, dpdv);
-            return;
-        }
-
-        float invdet = 1.0 / det;
-        dpdu = (duv20.y * dp10 - duv10.y * dp20) * invdet;
-        dpdv = (-duv20.x * dp10 + duv10.x * dp20) * invdet;
-    }
-
     // Rate of change of texture uv coordinates w.r.t. screen space
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
     float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, 
@@ -140,20 +99,21 @@ namespace GBufferRT
         // division by determinant happens below
         float2x2 A_T_A_Inv = float2x2(dpdvDotdpdv, -dpduDotdpdv,
                                      -dpduDotdpdv, dpduDotdpdu);
-        float3 delta_p_x = p_x - p;
-        float2 b_x = float2(dot(dpdu, delta_p_x), dot(dpdv, delta_p_x));
-        float2 grads_x = mul(A_T_A_Inv, b_x) / det;
+        float3 dpdx = p_x - p;
+        float2 A_Txb_x = float2(dot(dpdu, dpdx), dot(dpdv, dpdx));
+        float2 grads_x = mul(A_T_A_Inv, A_Txb_x) / det;
 
-        float3 delta_p_y = p_y - p;
-        float2 b_y = float2(dot(dpdu, delta_p_y), dot(dpdv, delta_p_y));
-        float2 grads_y = mul(A_T_A_Inv, b_y) / det;
+        float3 dpdy = p_y - p;
+        float2 A_Txb_y = float2(dot(dpdu, dpdy), dot(dpdv, dpdy));
+        float2 grads_y = mul(A_T_A_Inv, A_Txb_y) / det;
 
         // return clamp(float4(grads_x, grads_y), 1e-7, 1e7);
         return float4(grads_x, grads_y);
     }
 
-    void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, float roughness,
-        float3 emissive, float2 motionVec, float transmission, float ior, ConstantBuffer<cbGBufferRt> g_local)
+    void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, 
+        float roughness,float3 emissive, float2 motionVec, float transmission, float ior, 
+        float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, ConstantBuffer<cbGBufferRt> g_local)
     {
         RWTexture2D<float> g_outDepth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
         g_outDepth[DTid] = t;
@@ -183,6 +143,19 @@ namespace GBufferRT
 
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         g_outMotion[DTid] = motionVec;
+
+        RWTexture2D<uint4> g_outTriGeo_A = ResourceDescriptorHeap[g_local.TriGeoADescHeapIdx];
+        RWTexture2D<uint2> g_outTriGeo_B = ResourceDescriptorHeap[g_local.TriGeoBDescHeapIdx];
+        uint3 dpdu_h = asuint16(half3(dpdu));
+        uint3 dpdv_h = asuint16(half3(dpdv));
+        uint3 dndu_h = asuint16(half3(dndu));
+        uint3 dndv_h = asuint16(half3(dndv));
+
+        g_outTriGeo_A[DTid] = uint4(dpdu_h.x | (dpdu_h.y << 16),
+            dpdu_h.z | (dpdv_h.x << 16),
+            dpdv_h.y | (dpdv_h.z << 16),
+            dndu_h.x | (dndu_h.y << 16));
+        g_outTriGeo_B[DTid] = uint2(dndu_h.z | (dndv_h.x << 16), dndv_h.y | (dndv_h.z << 16));
     }
 
     float2 IntegrateBump(float2 x)
@@ -205,8 +178,9 @@ namespace GBufferRT
         return (1 - area2) * float3(0.85f, 0.6f, 0.7f) + area2 * float3(0.034f, 0.015f, 0.048f);
     }
 
-    void ApplyTextureMaps(uint2 DTid, float z_view, float2 uv, uint matIdx, float3 geoNormal, 
-        float3 tangent, float2 motionVec, float4 grads, float3 pos, ConstantBuffer<cbFrameConstants> g_frame, 
+    void ApplyTextureMaps(uint2 DTid, float z_view, float3 wo, float2 uv, uint matIdx, 
+        float3 geoNormal, float3 tangent, float2 motionVec, float4 grads, float3 dpdu, 
+        float3 dpdv, float3 dndu, float3 dndv, ConstantBuffer<cbFrameConstants> g_frame, 
         ConstantBuffer<cbGBufferRt> g_local, StructuredBuffer<Material> g_materials)
     {
         const Material mat = g_materials[NonUniformResourceIndex(matIdx)];
@@ -243,11 +217,13 @@ namespace GBufferRT
                 emissiveColorNormalScale.w);
         }
 
-        float3 wo = g_frame.CameraPos - pos;
-
         // reverse normal for double-sided meshes if facing away from camera
         if (mat.IsDoubleSided() && dot(wo, geoNormal) < 0)
+        {
             shadingNormal *= -1;
+            dndu *= -1;
+            dndv *= -1;
+        }
 
         // Neighborhood around surface point (approximated by tangent plane from geometry normal) is visible, 
         // yet camera would be behind the tangent plane formed by bumped normal -- this can cause black spots 
@@ -297,7 +273,8 @@ namespace GBufferRT
         metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, tr > 0, 
             emissiveColorNormalScale.rgb);
 
-        WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, roughness, 
-            emissiveColorNormalScale.rgb, motionVec, tr, ior, g_local);
+        WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, 
+            roughness, emissiveColorNormalScale.rgb, motionVec, tr, ior, dpdu, dpdv, dndu,
+            dndv, g_local);
     }
 }

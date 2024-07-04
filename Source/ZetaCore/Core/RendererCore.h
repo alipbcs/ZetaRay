@@ -53,9 +53,10 @@ namespace ZetaRay::Core
 
         ZetaInline SharedShaderResources& GetSharedShaderResources() { return *m_sharedShaderRes; }
         ZetaInline DescriptorHeap& GetGpuDescriptorHeap() { return m_cbvSrvUavDescHeapGpu; };
+        ZetaInline ID3D12DescriptorHeap* GetSamplerDescriptorHeap() { return m_samplerDescHeap.Get(); };
         ZetaInline DescriptorHeap& GetCbvSrvUavDescriptorHeapCpu() { return m_cbvSrvUavDescHeapCpu; };
         ZetaInline DescriptorHeap& GetRtvDescriptorHeap() { return m_rtvDescHeap; };
-        ZetaInline DescriptorHeap& GetDsvDescriptorHeap() { return m_dsvDescHeap; };
+        //ZetaInline DescriptorHeap& GetDsvDescriptorHeap() { return m_dsvDescHeap; };
         ZetaInline GpuTimer& GetGpuTimer() { return m_gpuTimer; }
 
         GraphicsCmdList* GetGraphicsCmdList();
@@ -113,7 +114,8 @@ namespace ZetaRay::Core
         DescriptorHeap m_cbvSrvUavDescHeapGpu;
         DescriptorHeap m_cbvSrvUavDescHeapCpu;
         DescriptorHeap m_rtvDescHeap;
-        DescriptorHeap m_dsvDescHeap;
+        ComPtr<ID3D12DescriptorHeap> m_samplerDescHeap;
+        //DescriptorHeap m_dsvDescHeap;
         std::unique_ptr<CommandQueue> m_directQueue;
         std::unique_ptr<CommandQueue> m_computeQueue;
         //std::unique_ptr<CommandQueue> m_copyQueue;
@@ -137,7 +139,7 @@ namespace ZetaRay::Core
         D3D12_VIEWPORT m_renderViewport;
         D3D12_RECT m_renderScissor;
 
-        D3D12_STATIC_SAMPLER_DESC m_staticSamplers[7];
+        D3D12_STATIC_SAMPLER_DESC m_staticSamplers[8];
 
         ComPtr<ID3D12Fence> m_fence;
         uint64_t m_fenceVals[Constants::NUM_BACK_BUFFERS] = { 0 };
