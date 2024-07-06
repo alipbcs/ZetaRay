@@ -171,8 +171,8 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
     return r;
 }
 
-RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float t_primary, 
-    float roughness, float3 baseColor, uint sampleSetIdx, BSDF::ShadingData surface, float2 prevUV, 
+RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_view, 
+    float roughness, float3 baseColor, uint sampleSetIdx, BSDF::ShadingData surface, 
     inout RDI_Util::Target target, inout RNG rng)
 {
     // Light sampling is less effective for glossy surfaces or when light source is close to surface
@@ -184,15 +184,28 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
 
     if (g_local.TemporalResampling)
     {
+        float2 prevUV;
+
+        if(!surface.specular || target.Empty())
+        {
+            GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+                GBUFFER_OFFSET::MOTION_VECTOR];
+            const float2 motionVec = g_motionVector[DTid];
+            const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+            prevUV = currUV - motionVec;
+        }
+        else
+            prevUV = RDI_Util::VirtualMotionReproject(pos, surface.wo, target.rayT, g_frame.PrevViewProj);
+
         RDI_Util::TemporalCandidate temporalCandidate = RDI_Util::FindTemporalCandidates(DTid, pos, normal, 
-            t_primary, roughness, prevUV, g_frame, rng);
+            z_view, roughness, prevUV, g_frame, rng);
 
         if (temporalCandidate.valid)
         {
             temporalCandidate.lightIdx = RDI_Util::PartialReadReservoir_ReuseLightIdx(temporalCandidate.posSS, 
                 g_local.PrevReservoir_B_DescHeapIdx);
 
-            RDI_Util::TemporalResample1(pos, normal, roughness, t_primary, surface,
+            RDI_Util::TemporalResample1(pos, normal, roughness, z_view, surface,
                 g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
                 temporalCandidate, g_frame, g_emissives, g_bvh, r, rng, target);
         }
@@ -211,7 +224,7 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
 
         int numSamples = MIN_NUM_SPATIAL_SAMPLES + extraSample;
         
-        RDI_Util::SpatialResample(DTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, normal, t_primary, 
+        RDI_Util::SpatialResample(DTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, normal, z_view, 
             roughness, surface, g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
             g_frame, g_emissives, g_bvh, r, target, rng);
     }
@@ -224,13 +237,11 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
 //--------------------------------------------------------------------------------------
 
 [numthreads(RESTIR_DI_TEMPORAL_GROUP_DIM_X, RESTIR_DI_TEMPORAL_GROUP_DIM_Y, 1)]
-void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : SV_GroupIndex, uint3 GTid : SV_GroupThreadID)
+void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
     uint16_t2 swizzledGid;
 
-    // swizzle thread groups for better L2-cache behavior
-    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
     const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
         uint16_t2(RESTIR_DI_TEMPORAL_GROUP_DIM_X, RESTIR_DI_TEMPORAL_GROUP_DIM_Y),
         g_local.DispatchDimX, 
@@ -285,7 +296,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         GBUFFER_OFFSET::DEPTH];
     const float z_view = g_depth[swizzledDTid];
     
-    // Reconstruct primary position from depth buffer
     float2 lensSample = 0;
     float3 origin = g_frame.CameraPos;
     if(g_frame.DoF)
@@ -327,18 +337,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     RNG rng = RNG::Init(Gid.xy, g_frame.FrameNum);
     const uint sampleSetIdx = rng.UniformUintBounded_Faster(g_local.NumSampleSets);
 
-    // Reverse reproject current pixel
-    GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
-        GBUFFER_OFFSET::MOTION_VECTOR];
-    const float2 motionVec = g_motionVector[swizzledDTid];
-    const float2 currUV = (swizzledDTid + 0.5f) / renderDim;
-    const float2 prevUV = currUV - motionVec;
-
     rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
     RDI_Util::Target target = RDI_Util::Target::Init();
 
     RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, mr.y, baseColor, 
-        sampleSetIdx, surface, prevUV, target, rng);
+        sampleSetIdx, surface, target, rng);
 
     if(g_local.Denoise)
     {

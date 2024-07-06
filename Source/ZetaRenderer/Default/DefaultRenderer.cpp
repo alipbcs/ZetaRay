@@ -75,6 +75,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.CurrViewInv = float3x4(cam.GetViewInv());
     frameConsts.PrevCameraJitter = frameConsts.CurrCameraJitter;
     frameConsts.CurrCameraJitter = cam.GetCurrJitter();
+    frameConsts.PrevViewProj = frameConsts.CurrViewProj;
+    frameConsts.CurrViewProj = store(vVP);
 
     // Frame g-buffer SRV descriptor table
     frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDesciptorHeapIndex();
@@ -88,9 +90,10 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
         frameConsts.PrevViewInv.m[2].z);
     float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, 
         frameConsts.CurrViewInv.m[2].z);
-    float3 one(1.0f);
-    const bool cameraStatic = (one.dot(prevCameraPos - frameConsts.CameraPos) == 0) && 
-        (one.dot(prevViewDir - currViewDir) == 0);
+    float3 delta_pos = prevCameraPos - frameConsts.CameraPos;
+    float3 delta_dir = prevViewDir - currViewDir;
+    const bool cameraStatic = (delta_pos.dot(delta_pos) < FLT_EPSILON) &&
+        (delta_dir.dot(delta_dir) < FLT_EPSILON);
     frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
         frameConsts.NumFramesCameraStatic + 1 : 0;
     frameConsts.CameraStatic = cameraStatic;
@@ -98,11 +101,11 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
     frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
     frameConsts.OneDivNumEmissiveTriangles = 1.0f / frameConsts.NumEmissiveTriangles;
 
-    constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), 
-        (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
-
     if (!frameConstsBuff.IsInitialized())
     {
+        constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), 
+            (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+
         frameConstsBuff = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER,
             sizeInBytes,
             false,
@@ -112,7 +115,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuff
             frameConstsBuff);
     }
     else
-        GpuMemory::UploadToDefaultHeapBuffer(frameConstsBuff, sizeInBytes, &frameConsts);
+        GpuMemory::UploadToDefaultHeapBuffer(frameConstsBuff, (uint32_t)sizeof(cbFrameConstants), &frameConsts);
 }
 
 //--------------------------------------------------------------------------------------
@@ -312,6 +315,7 @@ namespace ZetaRay::DefaultRenderer
     void Init()
     {
         Assert(g_data->PendingAA == g_data->m_settings.AntiAliasing, "These must match.");
+        memset(&g_data->m_frameConstants, 0, sizeof(cbFrameConstants));
 
         g_data->m_renderGraph.Reset();
 
@@ -319,8 +323,11 @@ namespace ZetaRay::DefaultRenderer
         v_float4x4 vCurrV = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
 
         // For 1st frame
+        v_float4x4 vP = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
+        v_float4x4 vVP = mul(vCurrV, vP);
         g_data->m_frameConstants.PrevViewInv = float3x4(cam.GetViewInv());
         g_data->m_frameConstants.PrevView = float3x4(cam.GetCurrView());
+        g_data->m_frameConstants.CurrViewProj = store(vVP);
 
         //g_data->m_frameConstants.SunDir = float3(0.223f, -0.96f, -0.167f);
         g_data->m_frameConstants.SunDir = float3(0.6565358f, -0.0560669f, 0.752208233f);
@@ -521,7 +528,7 @@ namespace ZetaRay::DefaultRenderer
             SetLVGEnablement(g_data->m_settings.UseLVG);
         }
 
-        auto h0 = ts.EmplaceTask("SceneRenderer::GBuffer_RT", []()
+        auto h0 = ts.EmplaceTask("SceneRenderer::UpdatePasses", []()
             {
                 GBuffer::Update(g_data->m_gbuffData);
                 RayTracer::Update(g_data->m_settings, g_data->m_renderGraph, g_data->m_raytracerData);

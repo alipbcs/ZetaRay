@@ -121,12 +121,11 @@ namespace Light
             ret.normal = cross(vtx1 - tri.Vtx0, vtx2 - tri.Vtx0);
             bool normalIs0 = dot(ret.normal, ret.normal) == 0;
             float twoArea = length(ret.normal);
-            twoArea = max(twoArea, 1e-6);
-            ret.pdf = normalIs0 ? 1.0f : 1.0f / (0.5f * twoArea);
+            ret.pdf = normalIs0 ? 0.0f : 2.0f / twoArea;
 
             ret.normal = normalIs0 ? ret.normal : ret.normal / twoArea;
             ret.normal = reverseNormalIfTwoSided && tri.IsDoubleSided() && dot(pos - ret.pos, ret.normal) < 0 ? 
-                ret.normal * -1.0f : 
+                -ret.normal : 
                 ret.normal;
 
             return ret;

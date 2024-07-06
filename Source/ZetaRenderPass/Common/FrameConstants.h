@@ -13,6 +13,8 @@ namespace ZetaRay
         row_major float3x4_ PrevView;
         row_major float3x4_ CurrViewInv;
         row_major float3x4_ PrevViewInv;
+        float4x4_ CurrViewProj;
+        float4x4_ PrevViewProj;
 
         float3_ CameraPos;
         float CameraNear;

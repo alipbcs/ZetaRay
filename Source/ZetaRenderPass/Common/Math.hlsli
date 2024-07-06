@@ -25,11 +25,26 @@ namespace Math
         return all(pos >= 0) && all(pos < dim);
     }
 
-    // Returns smallest floating point f' such that f' > f.
-    float NextFloat32Up(float f)
+    // Returns smallest float value f' such that f' > f.
+    float NextFloat32(float f)
     {
+        if(f == -0.0f)
+            f = 0.0f;
+
         uint u = asuint(f);
         u = f >= 0 ? u + 1 : u - 1;
+    
+        return asfloat(u);
+    }
+
+    // Returns largest float value f' such that f' < f.
+    float PrevFloat32(float f)
+    {
+        if(f == 0.0f)
+            f = -0.0f;
+
+        uint u = asuint(f);
+        u = f > 0 ? u - 1 : u + 1;
     
         return asfloat(u);
     }

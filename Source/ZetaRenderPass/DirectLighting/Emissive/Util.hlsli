@@ -21,6 +21,11 @@ namespace RDI_Util
             return ret;
         }
 
+        bool Empty()
+        {
+            return this.lightID == UINT32_MAX;
+        }
+
         float3 p_hat;
         float rayT;
         uint lightID;
@@ -108,47 +113,26 @@ namespace RDI_Util
         bool doubleSided;
     };
 
-    // TODO doesn't handle transmission
-    bool Visibility(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
-        float3 normal, uint triID)
+    float2 VirtualMotionReproject(float3 pos, float3 wo, float t, float4x4 prevViewProj)
     {
-        const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
+        float3 virtualPos = pos - wo * t;
+        float4 virtualPosNDC = mul(prevViewProj, float4(virtualPos, 1.0f));
+        float2 prevUV = Math::UVFromNDC(virtualPosNDC.xy / virtualPosNDC.w);
 
-        RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES | RAY_FLAG_FORCE_OPAQUE> rayQuery;
-
-        RayDesc ray;
-        ray.Origin = adjustedOrigin;
-        ray.TMin = 0;
-        ray.TMax = rayT;
-        ray.Direction = wi;
-
-        // Initialize
-        rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
-
-        // Traversal
-        rayQuery.Proceed();
-
-        // triangle intersection only when hit_t < t_max
-        if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
-        {
-            uint3 key = uint3(rayQuery.CommittedGeometryIndex(), rayQuery.CommittedInstanceID(), rayQuery.CommittedPrimitiveIndex());
-            uint hash = RNG::PCG3d(key).x;
-
-            return triID == hash;
-        }
-
-        return true;
+        return prevUV;
     }
 
     bool VisibilityApproximate(RaytracingAccelerationStructure g_bvh, float3 pos, float3 wi, float rayT,
         float3 normal, uint triID, bool transmissive)
     {
+        if(triID == UINT32_MAX)
+            return false;
+
         float ndotwi = dot(normal, wi);
         if(ndotwi == 0)
             return false;
 
         bool wiBackface = ndotwi < 0;
-
         if(wiBackface)
         {
             if(transmissive)
@@ -159,28 +143,38 @@ namespace RDI_Util
 
         const float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
 
-        // To test for occlusion against some light source at distance t_l we need to check if 
-        // the ray hits any geometry for which t_hit < t_l. According to dxr specs, for any committed triangle 
-        // hit, t_hit < t_max. So we set t_max = t_l and trace a ray. As any such hit indicates occlusion,
-        // the RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH flag can be specified for improved 
-        // perfromance. Now due to floating-point precision issues, it's possible that the first hit 
-        // could be the light source itself -- t_hit ~= t_ray. In this scenario, occlusion is inconclusive 
-        // as there may or may not be other occluders along the ray with t < t_hit. As an approximation, 
-        // the following decreases t_l by a small amount to avoid the situation described above.
-        RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH| 
-            RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+#if APPROXIMATE_EMISSIVE_SHADOW_RAY == 1
+        // To test for occlusion against some light source at distance t_l, we need to 
+        // see if there are any occluders with t_hit < t_l. According to dxr specs, for 
+        // any committed triangle hit, t_hit < t_max. So we set t_max = t_l and trace a 
+        // shadow ray. As any such hit indicates occlusion, the 
+        // RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH flag can be specified for improved 
+        // performance. Now due to floating-point precision issues, it's possible that the 
+        // first hit could turn out to be the light source itself -- t_hit ~= t_l. In this 
+        // scenario, occlusion is inconclusive as there may or may not be other occluders 
+        // along the ray with t < t_hit. As an approximation, the following uses a smaller
+        // t_l to avoid the situation described above.
+        RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+            RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
             RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
         ray.TMin = wiBackface ? 3e-4 : 0;
-        ray.TMax = 0.995f * rayT;
+        ray.TMax = Math::PrevFloat32(rayT * 0.999 - Math::NextFloat32(ray.TMin));
         ray.Direction = wi;
+#else
+        RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
+            RAY_FLAG_FORCE_OPAQUE> rayQuery;
 
-        // Initialize
+        RayDesc ray;
+        ray.Origin = adjustedOrigin;
+        ray.TMin = wiBackface ? 3e-4f : 0;
+        ray.TMax = rayT;
+        ray.Direction = wi;
+#endif
+
         rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::NON_EMISSIVE, ray);
-
-        // Traversal
         rayQuery.Proceed();
 
         // triangle intersection only when hit_t < t_max
