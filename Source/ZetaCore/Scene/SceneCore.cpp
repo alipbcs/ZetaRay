@@ -131,6 +131,42 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                 m_bvh.Update(toUpdateInstances);
         });
 
+    TaskSet::TaskHandle setRtAsInfo = TaskSet::INVALID_TASK_HANDLE;
+
+    if (m_rtAsInfoStale)
+    {
+        setRtAsInfo = sceneTS.EmplaceTask("Scene::UpdateRtAsInfo", [this]()
+            {
+                // Following must exactly match the iteration order of StaticBLAS::Rebuild().
+                int currInstance = 0;
+
+                for (int treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
+                {
+                    auto& currTreeLevel = m_sceneGraph[treeLevelIdx];
+
+                    for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
+                    {
+                        const Scene::RT_Flags flags = Scene::GetRtFlags(currTreeLevel.m_rtFlags[i]);
+
+                        if (flags.MeshMode == RT_MESH_MODE::STATIC)
+                        {
+                            const uint64_t meshID = currTreeLevel.m_meshIDs[i];
+                            if (meshID == Scene::INVALID_MESH)
+                                continue;
+
+                            currTreeLevel.m_rtASInfo[i] = RT_AS_Info{
+                                .GeometryIndex = uint32_t(currInstance),
+                                .InstanceID = 0 };
+
+                            currInstance++;
+                        }
+                    }
+                }
+            });
+
+        m_rtAsInfoStale = false;
+    }
+
 #if 0
     auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
         {
@@ -219,7 +255,8 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                             // TODO ID initially contains triangle index within each mesh, after
                             // hashing it below, it's lost and subsequent runs will give wrong results as it
                             // won't match the computation in rt shaders
-                            const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID, tris[t].ID)).x;
+                            const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID, 
+                                tris[t].ID)).x;
 
                             Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle ID after the first assignment is invalid.");
                             tris[t].ResetID(hash);
@@ -228,6 +265,10 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                 });
 
             sceneTS.AddOutgoingEdge(updateWorldTransforms, h);
+
+            if(setRtAsInfo != TaskSet::INVALID_TASK_HANDLE)
+                sceneTS.AddOutgoingEdge(setRtAsInfo, h);
+
             sceneTS.AddOutgoingEdge(h, finishEmissive);
         }
     }

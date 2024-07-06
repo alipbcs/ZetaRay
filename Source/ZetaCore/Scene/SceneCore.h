@@ -42,6 +42,8 @@ namespace ZetaRay::Scene
     struct RT_Flags
     {
         Model::RT_MESH_MODE MeshMode;
+        // Note: Instance masks are specified per instance here, but in DXR can 
+        // only be applied per TLAS instance.
         uint8_t InstanceMask;
         bool IsOpaque;
         bool RebuildFlag;
@@ -297,6 +299,7 @@ namespace ZetaRay::Scene
         bool m_hasNewDynamicInstances = false;
         bool m_meshBufferStale = false;
         bool m_dynamicInstanceNeedUpdate = false;
+        bool m_rtAsInfoStale = true;
 
         //
         // BVH

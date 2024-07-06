@@ -70,7 +70,8 @@ namespace ZetaRay
             EmissiveTriangle() = default;
             EmissiveTriangle(const Math::float3& vtx0, const Math::float3& vtx1, const Math::float3& vtx2,
                 const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
-                uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, bool doubleSided = true)
+                uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, 
+                bool doubleSided = true)
                 : ID(triIdx),
                 EmissiveFactor(emissiveFactor & 0xffffff),
                 EmissiveTex_Strength(emissiveTex_Strength),
@@ -98,9 +99,9 @@ namespace ZetaRay
             float3_ Vtx2;
 #endif
 
+            // At first triangle index within the mesh, then changed to tri ID
             uint32_t ID;
             uint32_t EmissiveFactor;
-
             uint32_t EmissiveTex_Strength;
 
             EMISSIVE_UV_TYPE UV0;

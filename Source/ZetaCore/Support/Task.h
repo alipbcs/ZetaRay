@@ -98,6 +98,7 @@ namespace ZetaRay::Support
     {
         static constexpr int MAX_NUM_TASKS = 16;
         using TaskHandle = int;
+        static constexpr TaskHandle INVALID_TASK_HANDLE = -1;
 
         TaskSet() = default;
         ~TaskSet() = default;

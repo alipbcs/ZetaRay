@@ -391,7 +391,7 @@ namespace
                         prim.material->emissive_factor[1] + 
                         prim.material->emissive_factor[2];
 
-                    if ((emissiveFactDot1 > 1e-3 || prim.material->has_emissive_strength || 
+                    if ((emissiveFactDot1 > 0 || prim.material->has_emissive_strength || 
                         prim.material->emissive_texture.texture))
                     {
                         const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
@@ -671,7 +671,8 @@ namespace
 
                             context.RTEmissives[currGlobalTriIdx++] = RT::EmissiveTriangle(v0.Position, v1.Position, v2.Position,
                                 v0.TexUV, v1.TexUV, v2.TexUV,
-                                emissiveFactorRGB, mat->EmissiveTexture_Strength, currMeshTriIdx++, mat->IsDoubleSided());
+                                emissiveFactorRGB, mat->EmissiveTexture_Strength, 
+                                currMeshTriIdx++, mat->IsDoubleSided());
                         }
                     }
                 }
@@ -805,18 +806,17 @@ namespace
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
             {
                 const cgltf_primitive& meshPrim = node.mesh->primitives[primIdx];
-
-                float oneDotEmissvieFactor = 0;
+                float emissiveFactDot1 = 0;
 
                 if (meshPrim.material)
                 {
-                    oneDotEmissvieFactor = meshPrim.material->emissive_factor[0];
-                    oneDotEmissvieFactor += meshPrim.material->emissive_factor[1];
-                    oneDotEmissvieFactor += meshPrim.material->emissive_factor[2];
+                    emissiveFactDot1 = meshPrim.material->emissive_factor[0] +
+                        meshPrim.material->emissive_factor[1] +
+                        meshPrim.material->emissive_factor[2];
                 }
 
                 const uint8_t rtInsMask = meshPrim.material &&
-                    (meshPrim.material->emissive_texture.texture || oneDotEmissvieFactor > 1e-4f) ?
+                    (meshPrim.material->emissive_texture.texture || (emissiveFactDot1 > 0)) ?
                     RT_AS_SUBGROUP::EMISSIVE :
                     RT_AS_SUBGROUP::NON_EMISSIVE;
 
@@ -1045,8 +1045,10 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
             for (int i = 0; i < tc.NumMeshWorkers; i++)
                 tc.NumEmissiveMeshPrims += tc.EmissiveMeshPrimCountPerWorker[i];
 
-            // For binary search
-            std::sort(tc.EmissiveMeshPrims.begin(), tc.EmissiveMeshPrims.end(), 
+            // For binary search. Also, since non-emissive meshes were assigned the INVALID
+            // ID (= UINT64_MAX), this also partitions the non-null entries before the null
+            // entries.
+            std::sort(tc.EmissiveMeshPrims.begin(), tc.EmissiveMeshPrims.end(),
                 [](const EmissiveMeshPrim& lhs, const EmissiveMeshPrim& rhs)
                 {
                     return lhs.MeshID < rhs.MeshID;

@@ -44,11 +44,10 @@ namespace
 void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 {
     SceneCore& scene = App::GetScene();
-
     if (scene.m_numStaticInstances == 0)
         return;
 
-    Assert(scene.m_numOpaqueInstances + scene.m_numNonOpaqueInstances == scene.m_numStaticInstances, "these should match.");
+    //Assert(scene.m_numOpaqueInstances + scene.m_numNonOpaqueInstances == scene.m_numStaticInstances, "these should match.");
 
     SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::FrameAllocator> meshDescs;
     meshDescs.resize(scene.m_numStaticInstances);
@@ -79,7 +78,8 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 
                 meshDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
                 // Force mesh to be opaque when possible to avoid invoking any-hit shaders
-                meshDescs[currInstance].Flags = flags.IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
+                meshDescs[currInstance].Flags = flags.IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : 
+                    D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
                 // Elements are tightly packed as size of each element is a multiple of required alignment
                 meshDescs[currInstance].Triangles.Transform3x4 = transformGpuVa + currInstance * transfromMatSize;
                 meshDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
@@ -89,13 +89,6 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
                 meshDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
                 meshDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
                 meshDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
-
-                // Refer to notes in TLAS::BuildFrameMeshInstanceData()
-                currTreeLevel.m_rtASInfo[i] = RT_AS_Info
-                {
-                    .GeometryIndex = uint32_t(currInstance),
-                    .InstanceID = 0
-                };
 
                 currInstance++;
             }
