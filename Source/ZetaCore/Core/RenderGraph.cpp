@@ -72,20 +72,23 @@ namespace
 // AggregateRenderNode
 //--------------------------------------------------------------------------------------
 
-void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeparate)
+void RenderGraph::AggregateRenderNode::Append(const RenderNode& node, int mappedGpeDepIdx, 
+    bool forceSeparate)
 {
-    Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), "All the nodes in an AggregateRenderNode must have the same type.");
-    Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, "All the nodes in an AggregateRenderNode must have the same batch index.");
-    Assert(!forceSeparate || Dlgs.empty(), "Aggregate nodes with forceSeparate flag can't have more than one task.");
+    Assert(IsAsyncCompute == (node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE), 
+        "All the nodes in an AggregateRenderNode must have the same type.");
+    Assert(Dlgs.empty() || node.NodeBatchIdx == BatchIdx, 
+        "All the nodes in an AggregateRenderNode must have the same batch index.");
+    Assert(!forceSeparate || Dlgs.empty(), 
+        "Aggregate nodes with forceSeparate flag can't have more than one task.");
+    Assert(!node.HasUnsupportedBarrier || node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE, 
+        "Invalid condition.");
 
     Barriers.append_range(node.Barriers.begin(), node.Barriers.end());
     Dlgs.push_back(node.Dlg);
     BatchIdx = node.NodeBatchIdx;
     ForceSeparate = forceSeparate;
-
     GpuDepIdx.Val = Math::Max(GpuDepIdx.Val, mappedGpeDepIdx);
-
-    Assert(!node.HasUnsupportedBarrier || node.Type == RENDER_NODE_TYPE::ASYNC_COMPUTE, "Invalid condition.");
     HasUnsupportedBarrier = !HasUnsupportedBarrier ? node.HasUnsupportedBarrier : true;
 
     int base = Dlgs.size() > 1 ? (int)strlen(Name) : 0;
@@ -216,10 +219,7 @@ void RenderGraph::BeginFrame()
 
     // Reset the render nodes
     for (int currNode = 0; currNode < MAX_NUM_RENDER_PASSES; currNode++)
-    {
         m_renderNodes[currNode].Reset();
-        m_aggregateFenceVals[currNode] = UINT64_MAX;
-    }
 
     m_aggregateNodes.free_memory();
     m_inBeginEndBlock = true;
@@ -232,7 +232,8 @@ int RenderGraph::FindFrameResource(uint64_t key, int beg, int end)
         return -1;
 
     end = (end == -1) ? m_lastResIdx.load(std::memory_order_relaxed) - 1 : end;
-    auto idx = BinarySearch(Span(m_frameResources), key, [](const ResourceMetadata& r) {return r.ID; }, beg, end);
+    auto idx = BinarySearch(Span(m_frameResources), key, 
+        [](const ResourceMetadata& r) {return r.ID; }, beg, end);
     return (int)idx;
 }
 
@@ -248,10 +249,12 @@ RenderNodeHandle RenderGraph::RegisterRenderPass(const char* name, RENDER_NODE_T
     return RenderNodeHandle(h);
 }
 
-void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent)
+void RenderGraph::RegisterResource(ID3D12Resource* res, uint64_t path, 
+    D3D12_RESOURCE_STATES initState, bool isWindowSizeDependent)
 {
     Assert(m_inBeginEndBlock && m_inPreRegister, "Invalid call.");
-    Assert(res == nullptr || path > DUMMY_RES::COUNT, "resource path ID can't take special value %llu", path);
+    Assert(res == nullptr || path > DUMMY_RES::COUNT, 
+        "resource path ID can't take special value %llu", path);
 
     const int prevPos = FindFrameResource(path, 0, m_prevFramesNumResources - 1);
 
@@ -300,7 +303,8 @@ void RenderGraph::MoveToPostRegister()
     m_inPreRegister = false;
 }
 
-void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState)
+void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, 
+    D3D12_RESOURCE_STATES expectedState)
 {
     Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
     Assert(h.IsValid(), "Invalid handle");
@@ -311,14 +315,17 @@ void RenderGraph::AddInput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_S
     m_renderNodes[h.Val].Inputs.emplace_back(pathID, expectedState);
 }
 
-void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_STATES expectedState)
+void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, 
+    D3D12_RESOURCE_STATES expectedState)
 {
     Assert(m_inBeginEndBlock && !m_inPreRegister, "Invalid call.");
     Assert(h.IsValid(), "Invalid handle");
     Assert(h.Val < m_currRenderPassIdx.load(std::memory_order_relaxed), "Invalid handle");
     Assert(expectedState & Constants::WRITE_STATES, "Invalid write state.");
-    Assert(m_renderNodes[h.Val].Type != RENDER_NODE_TYPE::ASYNC_COMPUTE || !(expectedState & Constants::INVALID_COMPUTE_STATES),
-        "state transition to %u is not supported on an async-compute command list.", expectedState);
+    Assert(m_renderNodes[h.Val].Type != RENDER_NODE_TYPE::ASYNC_COMPUTE || 
+        !(expectedState & Constants::INVALID_COMPUTE_STATES),
+        "state transition to %u is not supported on an async-compute command list.", 
+        expectedState);
 
     m_renderNodes[h.Val].Outputs.emplace_back(pathID, expectedState);
 
@@ -326,7 +333,8 @@ void RenderGraph::AddOutput(RenderNodeHandle h, uint64_t pathID, D3D12_RESOURCE_
     Assert(idx != size_t(-1), "Invalid resource path %llu.", pathID);
 
     const int prodIdx = m_frameResources[idx].CurrProdIdx.fetch_add(1, std::memory_order_relaxed);
-    Assert(prodIdx < MAX_NUM_PRODUCERS, "Number of producers for each resource can't exceed MAX_NUM_PRODUCERS");
+    Assert(prodIdx < MAX_NUM_PRODUCERS, 
+        "Number of producers for each resource can't exceed MAX_NUM_PRODUCERS");
 //    Assert(prodIdx == 0 || m_renderNodes[m_frameResources[idx].Producers[prodIdx - 1].Val].Type == m_renderNodes[h.Val].Type,
 //        "All the producers need to have the same type.");
 
@@ -342,7 +350,7 @@ void RenderGraph::Build(TaskSet& ts)
     Assert(numNodes > 0, "no render nodes");
 
     for (int i = 0; i < numNodes; i++)
-        m_renderNodes[i].Indegree = (int)m_renderNodes[i].Inputs.size();
+        m_renderNodes[i].Indegree = (int16)m_renderNodes[i].Inputs.size();
 
     SmallVector<RenderNodeHandle, App::FrameAllocator> adjacentTailNodes[MAX_NUM_RENDER_PASSES];
 
@@ -357,7 +365,7 @@ void RenderGraph::Build(TaskSet& ts)
             const size_t idx = FindFrameResource(input.ResID);
             Assert(idx != size_t(-1), "Resource ID %u was not found.", input.ResID);
 
-            const int numProducers = m_frameResources[idx].CurrProdIdx.load(std::memory_order_relaxed);
+            const int16 numProducers = m_frameResources[idx].CurrProdIdx.load(std::memory_order_relaxed);
 
             // Null resources or resources that were produced in prior frames
             if (numProducers == 0)
@@ -404,9 +412,11 @@ void RenderGraph::Build(TaskSet& ts)
 
     Sort(adjacentTailNodes);
 
-    // At this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" was sorted. "mapping" must be used instead
+    // At this point "m_frameResources[_].Producers" is invalid since "m_renderNodes" 
+    // was sorted. "mapping" must be used instead.
     InsertResourceBarriers();
     JoinRenderNodes();
+    MergeSmallNodes();
     BuildTaskGraph(ts);
 
 #ifdef _DEBUG
@@ -436,10 +446,26 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                 ComputeCmdList* cmdList = nullptr;
                 AggregateRenderNode& aggregateNode = m_aggregateNodes[i];
 
-                if (!aggregateNode.IsAsyncCompute)
-                    cmdList = static_cast<ComputeCmdList*>(renderer.GetGraphicsCmdList());
+                if (aggregateNode.MergeStart)
+                {
+                    Assert(m_mergedCmdLists[aggregateNode.MergedCmdListIdx] == nullptr, 
+                        "Merged command list should be initially NULL.");
+                    m_mergedCmdLists[aggregateNode.MergedCmdListIdx] = 
+                        static_cast<ComputeCmdList*>(renderer.GetGraphicsCmdList());;
+                    cmdList = m_mergedCmdLists[aggregateNode.MergedCmdListIdx];
+                }
+                else if (aggregateNode.MergedCmdListIdx != -1)
+                {
+                    cmdList = m_mergedCmdLists[aggregateNode.MergedCmdListIdx];
+                    Assert(cmdList, "Merged command list should've been initializeda at this point.");
+                }
                 else
-                    cmdList = renderer.GetComputeCmdList();
+                {
+                    if (!aggregateNode.IsAsyncCompute)
+                        cmdList = static_cast<ComputeCmdList*>(renderer.GetGraphicsCmdList());
+                    else
+                        cmdList = renderer.GetComputeCmdList();
+                }
 
 #ifdef _DEBUG
                 cmdList->SetName(aggregateNode.Name);
@@ -452,14 +478,17 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
 #ifdef _DEBUG
                     directCmdList.SetName("Barrier");
 #endif
-
-                    directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), (UINT)aggregateNode.Barriers.size());
+                    directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), 
+                        (UINT)aggregateNode.Barriers.size());
                     uint64_t f = renderer.ExecuteCmdList(barrierCmdList);
 
                     renderer.WaitForDirectQueueOnComputeQueue(f);
                 }
                 else if (!aggregateNode.Barriers.empty())
-                    cmdList->ResourceBarrier(aggregateNode.Barriers.begin(), (UINT)aggregateNode.Barriers.size());
+                {
+                    cmdList->ResourceBarrier(aggregateNode.Barriers.begin(), 
+                        (UINT)aggregateNode.Barriers.size());
+                }
 
                 // Record
                 for(auto dlg : aggregateNode.Dlgs)
@@ -484,8 +513,22 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                 }
 
                 // submit
-                aggregateNode.CompletionFence = renderer.ExecuteCmdList(cmdList);
-                m_aggregateFenceVals[i] = aggregateNode.CompletionFence;
+                if (aggregateNode.MergedCmdListIdx == -1 || aggregateNode.MergeEnd)
+                {
+                    aggregateNode.CompletionFence = renderer.ExecuteCmdList(cmdList);
+
+                    if (aggregateNode.MergeEnd)
+                    {
+                        m_mergedCmdLists[aggregateNode.MergedCmdListIdx] = nullptr;
+
+                        int curr = i - 1;
+                        while (m_aggregateNodes[curr].MergedCmdListIdx == aggregateNode.MergedCmdListIdx)
+                        {
+                            m_aggregateNodes[curr].CompletionFence = aggregateNode.CompletionFence;
+                            curr--;
+                        }
+                    }
+                }
             });
     }
 
@@ -558,7 +601,8 @@ void RenderGraph::Sort(Span<SmallVector<RenderNodeHandle, App::FrameAllocator>> 
         }
     }
 
-    std::sort(sorted, sorted + numNodes, [this](const RenderNodeHandle& lhs, const RenderNodeHandle& rhs)
+    std::sort(sorted, sorted + numNodes, 
+        [this](const RenderNodeHandle& lhs, const RenderNodeHandle& rhs)
         {
             return m_renderNodes[lhs.Val].NodeBatchIdx < m_renderNodes[rhs.Val].NodeBatchIdx;
         });
@@ -604,7 +648,8 @@ void RenderGraph::InsertResourceBarriers()
     // Helper to return last*Idx based on the node type
     auto getLastSyncedIdx = [&lastDirQueueHandle, &lastComputeQueueHandle](RENDER_NODE_TYPE t)
     {
-        return t == RENDER_NODE_TYPE::ASYNC_COMPUTE ? &lastDirQueueHandle : &lastComputeQueueHandle;
+        return t == RENDER_NODE_TYPE::ASYNC_COMPUTE ? &lastDirQueueHandle : 
+            &lastComputeQueueHandle;
     };
 
     // Workflow:
@@ -764,19 +809,20 @@ void RenderGraph::JoinRenderNodes()
             {
                 const int gpuDep = m_renderNodes[n].GpuDepSourceIdx.Val;
 
-                hasGpuFence = hasGpuFence || gpuDep != -1;
+                hasGpuFence = hasGpuFence || (gpuDep != -1);
                 hasUnsupportedBarrier = hasUnsupportedBarrier || m_renderNodes[n].HasUnsupportedBarrier;
 
                 const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
-                Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
+                Assert(gpuDep == -1 || mappedGpuDepIdx != -1, 
+                    "Aggregate node of GPU dependency should come before the dependent node.");
 
                 m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
-                m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
+                m_renderNodes[n].AggNodeIdx = (int16)m_aggregateNodes.size() - 1;
             }
 
             // If there's an async. compute task in this batch that has unsupported barriers,
             // then that task's going to sync with the direct queue immediately before execution,
-            // which supersedes any other gpu fence in this joined node
+            // which supersedes any other GPU fence in this joined node.
             m_aggregateNodes.back().GpuDepIdx = hasGpuFence && hasUnsupportedBarrier ?
                 RenderNodeHandle(-1) :
                 m_aggregateNodes.back().GpuDepIdx;
@@ -791,10 +837,11 @@ void RenderGraph::JoinRenderNodes()
                 const int gpuDep = m_renderNodes[n].GpuDepSourceIdx.Val;
                 // Map from node index to aggregate node index
                 const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
-                Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
+                Assert(gpuDep == -1 || mappedGpuDepIdx != -1, 
+                    "Aggregate node of GPU dependency should come before the dependent node.");
 
                 m_aggregateNodes.back().Append(m_renderNodes[n], mappedGpuDepIdx);
-                m_renderNodes[n].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
+                m_renderNodes[n].AggNodeIdx = (int16)m_aggregateNodes.size() - 1;
             }
         }
     };
@@ -816,10 +863,15 @@ void RenderGraph::JoinRenderNodes()
 
             const int gpuDep = m_renderNodes[currNode].GpuDepSourceIdx.Val;
             const int mappedGpuDepIdx = gpuDep == -1 ? -1 : m_renderNodes[gpuDep].AggNodeIdx;
-            Assert(gpuDep == -1 || mappedGpuDepIdx != -1, "gpu dependency aggregate node should come before the dependent node.");
+            Assert(gpuDep == -1 || mappedGpuDepIdx != -1, 
+                "GPU dependency aggregate node should come before the dependent node.");
 
             m_aggregateNodes.back().Append(m_renderNodes[currNode], mappedGpuDepIdx, true);
-            m_renderNodes[currNode].AggNodeIdx = (int)m_aggregateNodes.size() - 1;
+            m_renderNodes[currNode].AggNodeIdx = (int16)m_aggregateNodes.size() - 1;
+
+            // Update batch index for next iteration
+            currBatchIdx = currNode < numNodes - 1 ? m_renderNodes[currNode + 1].NodeBatchIdx : 
+                currBatchIdx;
 
             continue;
         }
@@ -835,6 +887,116 @@ void RenderGraph::JoinRenderNodes()
     m_aggregateNodes.back().IsLast = true;
 }
 
+void RenderGraph::MergeSmallNodes()
+{
+    int currOffset = -1;
+    int cmdListIdx = 0;
+    int currCount = 0;
+
+    for (int nodeIdx = 0; nodeIdx < (int)m_aggregateNodes.size(); nodeIdx++)
+    {
+        auto& node = m_aggregateNodes[nodeIdx];
+
+        if (!node.IsAsyncCompute && !node.ForceSeparate && (node.Dlgs.size() == 1))
+        {
+            node.MergeStart = (currOffset == -1) ? true : false;
+            node.MergedCmdListIdx = cmdListIdx;
+            currOffset = (currOffset == -1) ? nodeIdx : currOffset;
+            currCount++;
+        }
+        else
+        {
+            if (currCount)
+            {
+                auto& prev = m_aggregateNodes[nodeIdx - 1];
+                
+                if (currCount == 1)
+                {
+                    Assert(prev.MergeStart && prev.MergedCmdListIdx != -1, "bug");
+
+                    prev.MergeStart = false;
+                    prev.MergedCmdListIdx--;
+                }
+                else
+                {
+                    prev.MergeEnd = true;
+                    cmdListIdx++;
+                }
+            }
+
+            currCount = 0;
+            currOffset = -1;
+        }
+    }
+
+    if (currCount)
+    {
+        auto& prev = m_aggregateNodes.back();
+
+        if (currCount == 1)
+        {
+            Assert(prev.MergeStart && prev.MergedCmdListIdx != -1, "bug");
+
+            prev.MergeStart = false;
+            prev.MergedCmdListIdx--;
+        }
+        else
+        {
+            prev.MergeEnd = true;
+            cmdListIdx++;
+        }
+    }
+
+    if (cmdListIdx)
+        m_mergedCmdLists.resize(cmdListIdx, nullptr);
+
+    //for (int i = 0; i < (int)m_aggregateNodes.size(); i++)
+    //{
+    //    const auto& node = m_aggregateNodes[i];
+    //    if (node.MergeStart)
+    //    {
+    //        printf("Merge:\n\t");
+    //        while (i < (int)m_aggregateNodes.size())
+    //        {
+    //            if (m_aggregateNodes[i].MergeEnd)
+    //                break;
+    //            printf("%s (%d), ", m_aggregateNodes[i].Name, m_aggregateNodes[i].MergeCmdListIdx);
+    //            i++;
+    //        }
+    //    }
+    //}
+
+#ifdef _DEBUG
+    bool inMerged = false;
+    currCount = 0;
+
+    for (int i = 0; i < (int)m_aggregateNodes.size(); i++)
+    {
+        if(inMerged)
+            Assert(!m_aggregateNodes[i].MergeStart, "RenderGraph: merge validation failed.");
+
+        if(!inMerged)
+            Assert(!m_aggregateNodes[i].MergeEnd, "RenderGraph: merge validation failed.");
+
+        if (m_aggregateNodes[i].MergeStart)
+            inMerged = true;
+
+        if (inMerged)
+            currCount++;
+
+        if (m_aggregateNodes[i].MergeEnd)
+        {
+            Assert(!m_aggregateNodes[i].MergeStart, "RenderGraph: merge validation failed.");
+            Assert(inMerged, "RenderGraph: merge validation failed.");
+            Assert(currCount > 1, "RenderGraph: merge validation failed.");
+
+            inMerged = false;
+            currCount = 0;
+        }
+    }
+#endif
+}
+
 uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h)
 {
     Assert(h.IsValid(), "invalid handle.");
@@ -846,7 +1008,10 @@ uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h)
 
     auto aggNodeIdx = m_renderNodes[mappedIdx.Val].AggNodeIdx;
     Assert(aggNodeIdx != -1, "render graph hasn't been built yet.");
-    auto fence = m_aggregateFenceVals[aggNodeIdx];
+    // TODO fix
+    Assert(m_aggregateNodes[aggNodeIdx].MergedCmdListIdx == -1, 
+        "Completion fence for merged command lists is currently unsupported.");
+    auto fence = m_aggregateNodes[aggNodeIdx].CompletionFence;
     //Assert(fence != -1, "render node hasn't been submitted yet.");
 
     return fence;
@@ -916,6 +1081,8 @@ void RenderGraph::DebugDrawGraph()
 
         if (m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE)
             ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(21, 133, 41, 255));
+        else if(m_aggregateNodes[m_renderNodes[currNode].AggNodeIdx].MergedCmdListIdx != -1)
+            ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(15, 51, 109, 255));
         else
             ImNodes::PushColorStyle(ImNodesCol_TitleBar, IM_COL32(155, 21, 41, 255));
 
@@ -1040,8 +1207,8 @@ void RenderGraph::Log()
     formattedRenderGraph.reserve(2048);
 
     char temp[256];
-    stbsp_snprintf(temp, sizeof(temp), "\nRenderGraph for frame %llu, #batches = %d\n", App::GetTimer().GetTotalFrameCount(),
-        m_aggregateNodes.size());
+    stbsp_snprintf(temp, sizeof(temp), "\nRenderGraph for frame %llu, #batches = %d\n", 
+        App::GetTimer().GetTotalFrameCount(), m_aggregateNodes.size());
     formattedRenderGraph += temp;
 
     int currBatch = 0;

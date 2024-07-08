@@ -12,6 +12,7 @@ namespace ZetaRay::Support
 namespace ZetaRay::Core
 {
     class CommandList;
+    class ComputeCmdList;
 
     enum class RENDER_NODE_TYPE : uint8_t
     {
@@ -38,20 +39,19 @@ namespace ZetaRay::Core
 
     // Workflow:
     // 
-    // 0. BeginFrame()
-    // 1. All the render passes for next frame need to register their resources (RenderGraph::RegisterResource())
-    // and themselves (RenderGraph::RegisterRenderPass())
-    // 2. MoveToPostRegister()
-    // 3. Each render pass calls RenderNode::AddInput() and RenderNode::AddOutput() for 
-    // every resource R that it needs with the expected state. 
-    // 4. Barrier
-    // 5. Create the DAG based on the resource dependencies
-    // 6. BuildAndSubmit
+    // 1. BeginFrame()
+    // 2. All render passes for next frame need to register their resources 
+    //    (RenderGraph::RegisterResource()) and themselves (RenderGraph::RegisterRenderPass())
+    // 3. MoveToPostRegister()
+    // 4. Each render pass calls RenderNode::AddInput() and RenderNode::AddOutput() for 
+    //    every resource that it needs along with the expected state. 
+    // 5. Barrier
+    // 6. Build a DAG based on the resource dependencies
+    // 7. Submit command lists to GPU
 
     class RenderGraph
     {
     public:
-
         enum DUMMY_RES : uint64_t
         {
             RES_0 = 0,
@@ -74,11 +74,14 @@ namespace ZetaRay::Core
         void BeginFrame();
 
         // Adds a node to the graph
-        RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&> dlg,
+        RenderNodeHandle RegisterRenderPass(const char* name, RENDER_NODE_TYPE t, 
+            fastdelegate::FastDelegate1<CommandList&> dlg,
             bool forceSeparateCmdList = false);
 
-        // Registers a new resource. This must be called prior to declaring resource dependencies in each frame
-        void RegisterResource(ID3D12Resource* res, uint64_t path, D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
+        // Registers a new resource. This must be called prior to declaring resource 
+        // dependencies in each frame.
+        void RegisterResource(ID3D12Resource* res, uint64_t path, 
+            D3D12_RESOURCE_STATES initState = D3D12_RESOURCE_STATE_COMMON, 
             bool isWindowSizeDependent = true);
 
         // Removes given resource (useful for when resources are recreated)
@@ -86,14 +89,16 @@ namespace ZetaRay::Core
         void RemoveResource(uint64_t path);
         void RemoveResources(Util::Span<uint64_t> paths);
 
-        // Transitions into post-registration. At this point there can be no more Register*() calls
+        // Transitions into post-registration. At this point there can be no more Register*() calls.
         void MoveToPostRegister();
 
         // Adds an input resource to the RenderNodeHandle
-        void AddInput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState);
+        void AddInput(RenderNodeHandle h, uint64_t path, 
+            D3D12_RESOURCE_STATES expectedState);
 
         // Adds an output resource to the RenderNodeHandle
-        void AddOutput(RenderNodeHandle h, uint64_t path, D3D12_RESOURCE_STATES expectedState);
+        void AddOutput(RenderNodeHandle h, uint64_t path, 
+            D3D12_RESOURCE_STATES expectedState);
 
         // Builds the graph and submits the rendering tasks with appropriate order
         void Build(Support::TaskSet& ts);
@@ -101,11 +106,11 @@ namespace ZetaRay::Core
         // Draws the render graph
         void DebugDrawGraph();
 
-        // GPU completion fence for given render node. It must've already been submitted
+        // GPU completion fence for given render node. It must've already been submitted.
         uint64_t GetCompletionFence(RenderNodeHandle h);
 
     private:
-        static constexpr uint16_t INVALID_NODE_HANDLE = uint16_t(-1);
+        static constexpr uint16_t INVALID_NODE_HANDLE = UINT16_MAX;
         static constexpr int MAX_NUM_RENDER_PASSES = 32;
         static constexpr int MAX_NUM_RESOURCES = 64;
         static constexpr int MAX_NUM_PRODUCERS = 5;
@@ -115,7 +120,7 @@ namespace ZetaRay::Core
         void Sort(Util::Span<Util::SmallVector<RenderNodeHandle, App::FrameAllocator>> adjacentTailNodes);
         void InsertResourceBarriers();
         void JoinRenderNodes();
-
+        void MergeSmallNodes();
 #ifdef _DEBUG
         void Log();
 #endif
@@ -123,18 +128,17 @@ namespace ZetaRay::Core
         //
         // Frame Resources
         //
-
         struct ResourceMetadata
         {
             ResourceMetadata() = default;
             ResourceMetadata(const ResourceMetadata& other)
+                : ID(other.ID),
+                Res(other.Res),
+                State(other.State),
+                IsWindowSizeDependent(other.IsWindowSizeDependent)
             {
-                ID = other.ID;
-                Res = other.Res;
-                State = other.State;
                 memcpy(Producers, other.Producers, MAX_NUM_PRODUCERS * sizeof(RenderNodeHandle));
                 CurrProdIdx = other.CurrProdIdx.load(std::memory_order_relaxed);
-                IsWindowSizeDependent = other.IsWindowSizeDependent;
             }
             ResourceMetadata& operator=(const ResourceMetadata& rhs)
             {
@@ -150,8 +154,8 @@ namespace ZetaRay::Core
 
                 return *this;
             }
-
-            void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, bool isWindowSizeDependent)
+            void Reset(uint64_t id, ID3D12Resource* r, D3D12_RESOURCE_STATES s, 
+                bool isWindowSizeDependent)
             {
                 Res = r;
                 ID = id;
@@ -160,7 +164,6 @@ namespace ZetaRay::Core
                 if(State == D3D12_RESOURCE_STATES(-1))
                     State = s;
             }
-
             void Reset()
             {
                 ID = INVALID_ID;
@@ -186,7 +189,6 @@ namespace ZetaRay::Core
         // next frame. Producers should be reset though.
         Util::SmallVector<ResourceMetadata> m_frameResources;
         int m_prevFramesNumResources = 0;
-
         std::atomic_int32_t m_lastResIdx = 0;
         std::atomic_int32_t m_currRenderPassIdx = 0;
         bool m_inBeginEndBlock = false;
@@ -195,16 +197,14 @@ namespace ZetaRay::Core
         //
         // Nodes
         //
-
         struct Dependency
         {
-            static constexpr uint64_t INVALID_RES_ID = UINT64_MAX;
-
             Dependency() = default;
             Dependency(uint64_t id, D3D12_RESOURCE_STATES s)
                 : ResID(id), ExpectedState(s)
             {}
 
+            static constexpr uint64_t INVALID_RES_ID = UINT64_MAX;
             uint64_t ResID = INVALID_RES_ID;
             D3D12_RESOURCE_STATES ExpectedState;
         };
@@ -228,7 +228,8 @@ namespace ZetaRay::Core
 #endif
             }
 
-            void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, bool forceSeparateCmdList)
+            void Reset(const char* name, RENDER_NODE_TYPE t, fastdelegate::FastDelegate1<CommandList&>& dlg, 
+                bool forceSeparateCmdList)
             {
                 Type = t;
                 Dlg = dlg;
@@ -243,48 +244,44 @@ namespace ZetaRay::Core
                 AggNodeIdx = -1;
                 ForceSeparateCmdList = forceSeparateCmdList;
 
-                int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
+                const int n = Math::Min((int)strlen(name), MAX_NAME_LENGTH - 1);
                 memcpy(Name, name, n);
                 Name[n] = '\0';
             }
 
+            static constexpr int MAX_NAME_LENGTH = 16;
+
             fastdelegate::FastDelegate1<CommandList&> Dlg;
             int NodeBatchIdx = -1;
-
             RENDER_NODE_TYPE Type;
             bool HasUnsupportedBarrier = false;
-
-            static constexpr int MAX_NAME_LENGTH = 16;
             char Name[MAX_NAME_LENGTH];
+            // At most one GPU dependency
+            RenderNodeHandle GpuDepSourceIdx = RenderNodeHandle(-1);
+            uint32_t OutputMask = 0;
+            int16 Indegree = 0;
+            int16 AggNodeIdx = -1;
+            bool ForceSeparateCmdList = false;
 
             // Due to usage of FrameAllocator, capacity must be set to zero manually
             // in each frame, otherwise it might reuse previous frame's temp memory.
             Util::SmallVector<Dependency, App::FrameAllocator, 2> Inputs;
             Util::SmallVector<Dependency, App::FrameAllocator, 1> Outputs;
             Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator> Barriers;
-
-            // At most one GPU dependency
-            RenderNodeHandle GpuDepSourceIdx = RenderNodeHandle(-1);
-
-            uint32_t OutputMask = 0;
-            int Indegree = 0;
-            int AggNodeIdx = -1;
-            bool ForceSeparateCmdList = false;
         };
 
         struct AggregateRenderNode
         {
             AggregateRenderNode() = default;
-            AggregateRenderNode(bool isAsyncCompute)
+            explicit AggregateRenderNode(bool isAsyncCompute)
                 : IsAsyncCompute(isAsyncCompute)
             {}
 
+#if 0
             void Reset()
             {
                 Barriers.free_memory();
                 Dlgs.free_memory();
-
-#if 0
                 HasUnsupportedBarrier = false;
                 CompletionFence = UINT64_MAX;
                 GpuDepIdx = RenderNodeHandle(-1);
@@ -293,24 +290,24 @@ namespace ZetaRay::Core
                 IsLast = false;
                 ForceSeparate = false;
                 memset(Name, 0, MAX_NAME_LENGTH);
-#endif
             }
+#endif
 
             void Append(const RenderNode& node, int mappedGpeDepIdx, bool forceSeparate = false);
 
+            static constexpr int MAX_NAME_LENGTH = 64;
+
             Util::SmallVector<D3D12_RESOURCE_BARRIER, App::FrameAllocator, 8> Barriers;
             Util::SmallVector<fastdelegate::FastDelegate1<CommandList&>, App::FrameAllocator, 8> Dlgs;
-
             uint64_t CompletionFence = UINT64_MAX;
             uint32_t TaskH;
             int BatchIdx = -1;
-
+            int MergedCmdListIdx = -1;
+            bool MergeStart = false;
+            bool MergeEnd = false;
             // At most one GPU dependency
             RenderNodeHandle GpuDepIdx = RenderNodeHandle(-1);
-
-            static constexpr int MAX_NAME_LENGTH = 64;
             char Name[MAX_NAME_LENGTH];
-
             bool IsAsyncCompute;
             bool HasUnsupportedBarrier = false;
             bool IsLast = false;
@@ -323,9 +320,7 @@ namespace ZetaRay::Core
         RenderNode m_renderNodes[MAX_NUM_RENDER_PASSES];
         RenderNodeHandle m_mapping[MAX_NUM_RENDER_PASSES];
         Util::SmallVector<AggregateRenderNode, App::FrameAllocator> m_aggregateNodes;
-        uint64_t m_aggregateFenceVals[MAX_NUM_RENDER_PASSES];
-
-        //int m_numPassesPrevFrame;
+        Util::SmallVector<ComputeCmdList*, Support::SystemAllocator, 4> m_mergedCmdLists;
         int m_numPassesLastTimeDrawn = -1;
     };
 }
