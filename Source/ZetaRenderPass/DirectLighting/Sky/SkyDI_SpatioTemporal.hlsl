@@ -14,7 +14,7 @@
 #define MIN_NORMAL_SIMILARITY_REUSE 0.906307787    // within 25 degrees
 #define MAX_ROUGHNESS_DIFF_REUSE 0.1f
 #define NUM_SPATIAL_SAMPLES 2
-#define SPATIAL_SEARCH_RADIUS 32
+#define SPATIAL_SEARCH_RADIUS 16
 
 struct TemporalCandidate
 {
@@ -74,17 +74,13 @@ bool Visibility(float3 pos, float3 wi, float3 normal, bool transmissive)
 
     RayDesc ray;
     ray.Origin = adjustedOrigin;
-    ray.TMin = wiBackface ? 3e-4 : 0;
+    ray.TMin = wiBackface ? 1e-6 : 0;
     ray.TMax = FLT_MAX;
     ray.Direction = wi;
 
-    // Initialize
     rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
-
-    // Traversal
     rayQuery.Proceed();
 
-    // Light source is occluded
     if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         return false;
 
@@ -129,15 +125,8 @@ struct PairwiseMIS
     float Compute_m_i(SkyDI_Util::Reservoir r_c, float targetLum, SkyDI_Util::Reservoir r_i, 
         float w_sum_i)
     {
-        // TODO following seems to be the correct term to use, but for some reason gives terrible results
-#if 0
         const float p_i_y_i = r_i.W > 0 ? w_sum_i / r_i.W : 0;
-#else
-        const float p_i_y_i = r_i.W > 0 ? ((float)r_i.M * w_sum_i) / r_i.W : 0;
-#endif
-
-        const float p_c_y_i = targetLum * (float)r_c.M;
-        // Jacobian term in the numerator cancels out with the same term in the resampling weight
+        const float p_c_y_i = targetLum;
         float numerator = (float)r_i.M * p_i_y_i;
         float denom = numerator + ((float)r_c.M / this.k) * p_c_y_i;
         float m_i = denom > 0 ? numerator / denom : 0;
@@ -147,28 +136,23 @@ struct PairwiseMIS
 
     void Update_m_c(SkyDI_Util::Reservoir r_c, SkyDI_Util::Reservoir r_i, float3 brdfCosTheta_i)
     {
-        if(!r_i.IsValid())
-        {
-            this.m_c += 1;
-            return;
-        }
-
         const float target_i = Math::Luminance(r_c.Le * brdfCosTheta_i);
         const float p_i_y_c = target_i;
-
         const float p_c_y_c = Math::Luminance(r_c.Target);
 
         const float numerator = (float)r_i.M * p_i_y_c;
-        const bool denomGt0 = (p_c_y_c + numerator) > 0; 
-        this.m_c += denomGt0 ? 1 - numerator / (numerator + ((float)r_c.M / this.k) * p_c_y_c) : 1;
+        const float denom = numerator + ((float)r_c.M / this.k) * p_c_y_c;
+        // Note: denom can never be zero, otherwise r_c didn't have a valid sample
+        // and this function shouldn't have been called
+        this.m_c += 1 - (numerator / denom);
     }
 
-    void Stream(SkyDI_Util::Reservoir r_c, float3 pos_c, float3 normal_c, float linearDepth_c, 
-        BSDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 pos_i, float3 normal_i, 
-        float w_sum_i, BSDF::ShadingData surface_i, inout RNG rng)
+    void Stream(SkyDI_Util::Reservoir r_c, float3 pos_c, float3 normal_c, 
+        BSDF::ShadingData surface_c, SkyDI_Util::Reservoir r_i, float3 pos_i, 
+        float3 normal_i, float w_sum_i, BSDF::ShadingData surface_i, inout RNG rng)
     {
-        float3 currTarget;
-        float m_i;
+        float3 currTarget = 0;
+        float m_i = 0;
 
         // m_i
         if(r_i.IsValid())
@@ -177,7 +161,7 @@ struct PairwiseMIS
             const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
             currTarget = r_i.Le * brdfCosTheta_c;
 
-            if(Math::Luminance(currTarget) > 1e-5)
+            if(dot(currTarget, currTarget) > 0)
             {
                 currTarget *= Visibility(pos_c, r_i.wi, normal_c, 
                     surface_c.HasSpecularTransmission());
@@ -187,7 +171,7 @@ struct PairwiseMIS
             m_i = Compute_m_i(r_c, targetLum, r_i, w_sum_i);
         }
 
-        float3 brdfCosTheta_i;
+        float3 brdfCosTheta_i = 0;
 
         // m_c
         if(r_c.IsValid())
@@ -195,18 +179,17 @@ struct PairwiseMIS
             surface_i.SetWi(r_c.wi, normal_i);
             brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
 
-            if(Math::Luminance(brdfCosTheta_i) > 1e-5)
+            if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
             {
                 brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, 
                     surface_i.HasSpecularTransmission());
             }
-        }    
 
-        Update_m_c(r_c, r_i, brdfCosTheta_i);
+            Update_m_c(r_c, r_i, brdfCosTheta_i);
+        }    
 
         if(r_i.IsValid())
         {
-            // Jacobian term cancels out with the same term in m_i's numerator
             const float w_i = m_i * Math::Luminance(currTarget) * r_i.W;
             this.r_s.Update(w_i, r_i.Le, r_i.wi, currTarget, rng);
         }
@@ -216,10 +199,11 @@ struct PairwiseMIS
 
     void End(SkyDI_Util::Reservoir r_c, inout RNG rng)
     {
-        const float w_c = Math::Luminance(r_c.Target) * r_c.W * this.m_c;
+        // r_c.w_sum = Luminance(r_c.Target) * r_c.W
+        const float w_c = r_c.w_sum * this.m_c;
         this.r_s.Update(w_c, r_c.Le, r_c.wi, r_c.Target, rng);
-
         this.r_s.M = this.M_s;
+
         const float targetLum = Math::Luminance(r_s.Target);
         this.r_s.W = targetLum > 0 ? this.r_s.w_sum / (targetLum * (1 + this.k)) : 0;
     }
@@ -237,7 +221,8 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
 
     // MIS -- take a light sample and a BSDF sample
 
-    // Sky is low frequency, so instead sample Lambertian as a proxy for light sampling
+    // Sky is low frequency, so instead use cosine-weighted hemisphere sampling as 
+    // a proxy for light sampling
     {
         const float2 u = rng.Uniform2D();
         float p_e;
@@ -249,7 +234,9 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
 
         // Balance heuristic
         // p_e in m_e's numerator and w_e's denominator cancel out
-        const float m_e = 1.0f / max(p_e + BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_e), 1e-6);
+        const float numerator = 1.0f;
+        const float denom = p_e + BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_e);
+        const float m_e = denom > 0 ? numerator / denom : 0;
         const float w_e = m_e * Math::Luminance(target);
 
         r.Update(w_e, le, wi_e, target, rng);
@@ -262,13 +249,15 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
         float3 f = bsdfSample.f;
         float p_s = bsdfSample.pdf;
 
-        surface.ndotwi = abs(dot(wi_s, normal));
-        const float p_e = surface.ndotwi * ONE_OVER_PI;
+        float ndotwi = saturate(dot(wi_s, normal));
+        const float p_e = ndotwi * ONE_OVER_PI;
         const float3 le = Le(pos, normal, wi_s, surface);
         const float3 target = le * f;
 
         // p_s in m_s's numerator and w_s's denominator cancel out
-        const float m_s = 1.0f / max(p_s + p_e, 1e-6f);
+        const float numerator = 1.0f;
+        const float denom = p_s + p_e;
+        const float m_s = denom > 0 ? numerator / denom : 0;
         const float w_s = m_s * Math::Luminance(target);
 
         r.Update(w_s, le, wi_s, target, rng);
@@ -410,7 +399,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
 
         float targetLumAtPrev = 0.0f;
 
-        if(Math::Luminance(r.Le) > 1e-6)
+        if(dot(r.Le, r.Le) > 0)
         {
             const float3 prevBaseColor = g_prevBaseColor[candidate.posSS].rgb;
             float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
@@ -435,7 +424,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
             const float3 targetAtPrev = r.Le * BSDF::UnifiedBSDF(prevSurface);
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
-            if(targetLumAtPrev > 1e-6)
+            if(targetLumAtPrev > 0)
             {
                 targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, 
                     prevSurface.HasSpecularTransmission());
@@ -443,7 +432,9 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
         }
 
         const float p_curr = (float)r.M * Math::Luminance(r.Target);
-        const float m_curr = p_curr / max(p_curr + (float)prev.M * targetLumAtPrev, 1e-6);
+        float numerator = p_curr;
+        float denom = numerator + (float)prev.M * targetLumAtPrev;
+        const float m_curr = denom > 0 ? numerator / denom : 0;
         r.w_sum *= m_curr;
     }
 
@@ -454,18 +445,18 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
         const float3 currTarget = prev.Le * BSDF::UnifiedBSDF(surface);
         float targetLumAtCurr = Math::Luminance(currTarget);
         
-        if(targetLumAtCurr > 1e-6)
+        if(targetLumAtCurr > 0)
             targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.HasSpecularTransmission());
         
         // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
-        if(targetLumAtCurr != 0)
+        if(targetLumAtCurr > 0)
         {
             const float w_sum_prev = SkyDI_Util::PartialReadReservoir_WSum(candidate.posSS, g_local.PrevReservoir_B_DescHeapIdx);
             const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
             const float numerator = (float)prev.M * targetLumAtPrev;
             const float denom = numerator + (float)r.M * targetLumAtCurr;
             // balance heuristic
-            const float m_prev = numerator / max(denom, 1e-6);
+            const float m_prev = denom > 0 ? numerator / denom : 0;
             const float w_prev = m_prev * targetLumAtCurr * prev.W;
 
             r.Update(w_prev, prev.Le, prev.wi, currTarget, rng);
@@ -481,16 +472,16 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
     float linearDepth, float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
     uint prevReservoir_B_DescHeapIdx, inout SkyDI_Util::Reservoir r, inout RNG rng)
 {
-    static const float2 k_hammersley[8] =
+    static const half2 k_hammersley[8] =
     {
-        float2(0.0, -0.7777777777777778),
-        float2(-0.5, -0.5555555555555556),
-        float2(0.5, -0.33333333333333337),
-        float2(-0.75, -0.11111111111111116),
-        float2(0.25, 0.11111111111111116),
-        float2(-0.25, 0.33333333333333326),
-        float2(0.75, 0.5555555555555556),
-        float2(-0.875, 0.7777777777777777)
+        half2(0.0, -0.7777777777777778),
+        half2(-0.5, -0.5555555555555556),
+        half2(0.5, -0.33333333333333337),
+        half2(-0.75, -0.11111111111111116),
+        half2(0.25, 0.11111111111111116),
+        half2(-0.25, 0.33333333333333326),
+        half2(0.75, 0.5555555555555556),
+        half2(-0.875, 0.7777777777777777)
     };
 
     GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -604,7 +595,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         const float neighborWSum = SkyDI_Util::PartialReadReservoir_WSum(samplePosSS[i], 
             prevReservoir_B_DescHeapIdx);
 
-        pairwiseMIS.Stream(r, pos, normal, linearDepth, surface, neighbor, samplePos[i], 
+        pairwiseMIS.Stream(r, pos, normal, surface, neighbor, samplePos[i], 
             sampleNormal, neighborWSum, surface_i, rng);
     }
 
@@ -618,9 +609,8 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 norm
     SkyDI_Util::Reservoir r = RIS_InitialCandidates(DTid, pos, normal, metallic, roughness,
         surface, rng);
 
-    // skip resampling for mirror-like metals & dark-colored glossy dielectrics
-    const bool resample = (roughness > g_local.MinRoughnessResample || 
-        (!metallic && Math::Luminance(baseColor) > 1e-2));
+    // TODO use virtual motion vector for specular surfaces
+    const bool resample = roughness > g_local.MinRoughnessResample;
     
     if (IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE) && resample) 
     {
@@ -638,8 +628,9 @@ SkyDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 norm
 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE) && resample)
     {
-        SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, pos, normal, linearDepth, roughness, surface, 
-            g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, r, rng);
+        SpatialResample(DTid, NUM_SPATIAL_SAMPLES, SPATIAL_SEARCH_RADIUS, pos, normal, 
+            linearDepth, roughness, surface, g_local.PrevReservoir_A_DescHeapIdx, 
+            g_local.PrevReservoir_B_DescHeapIdx, r, rng);
     }
 
     return r;
@@ -655,8 +646,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 #if THREAD_GROUP_SWIZZLING
     uint16_t2 swizzledGid;
 
-    // swizzle thread groups for better L2-cache behavior
-    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
         uint16_t2(SKY_DI_TEMPORAL_GROUP_DIM_X, SKY_DI_TEMPORAL_GROUP_DIM_Y),
         g_local.DispatchDimX, 

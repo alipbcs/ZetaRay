@@ -10,6 +10,7 @@
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
+using namespace ZetaRay::Core::Direct3DUtil;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -193,57 +194,25 @@ void DirectLighting::Render(CommandList& cmdList)
         SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 6> textureBarriers;
 
         // transition current temporal reservoir into write state
-        textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[m_currTemporalIdx].ReservoirA.Resource(),
-            D3D12_BARRIER_SYNC_NONE,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_NO_ACCESS,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
-        textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[m_currTemporalIdx].ReservoirB.Resource(),
-            D3D12_BARRIER_SYNC_NONE,
-            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-            D3D12_BARRIER_ACCESS_NO_ACCESS,
-            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
+        textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(
+            m_temporalReservoir[m_currTemporalIdx].ReservoirA.Resource()));
+        textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(
+            m_temporalReservoir[m_currTemporalIdx].ReservoirB.Resource()));
 
         // transition color outputs into write state
         if (m_cbSpatioTemporal.Denoise)
         {
-            textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_colorA.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
-            textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_colorB.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS));
+            textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorA.Resource()));
+            textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorB.Resource()));
         }
 
         // transition previous reservoirs into read state
         if (m_isTemporalReservoirValid)
         {
-            textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[1 - m_currTemporalIdx].ReservoirA.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE));
-            textureBarriers.emplace_back(Direct3DUtil::TextureBarrier(m_temporalReservoir[1 - m_currTemporalIdx].ReservoirB.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE));
+            textureBarriers.push_back(TextureBarrier_UavToSrvNoSync(
+                m_temporalReservoir[1 - m_currTemporalIdx].ReservoirA.Resource()));
+            textureBarriers.push_back(TextureBarrier_UavToSrvNoSync(
+                m_temporalReservoir[1 - m_currTemporalIdx].ReservoirB.Resource()));
         }
 
         computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
@@ -295,35 +264,11 @@ void DirectLighting::Render(CommandList& cmdList)
             D3D12_TEXTURE_BARRIER barriers[4];
 
             // transition color into read state
-            barriers[0] = Direct3DUtil::TextureBarrier(m_colorA.Resource(),
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-            barriers[1] = Direct3DUtil::TextureBarrier(m_colorB.Resource(),
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+            barriers[0] = TextureBarrier_UavToSrvWithSync(m_colorA.Resource());
+            barriers[1] = TextureBarrier_UavToSrvWithSync(m_colorB.Resource());
             // transition current denoiser caches into write
-            barriers[2] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
-            barriers[3] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
-                D3D12_BARRIER_SYNC_NONE,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_NO_ACCESS,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+            barriers[2] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
+            barriers[3] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
 
             computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
@@ -367,20 +312,8 @@ void DirectLighting::Render(CommandList& cmdList)
             D3D12_TEXTURE_BARRIER barriers[2];
 
             // transition color into read state
-            barriers[0] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource(),
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-            barriers[1] = Direct3DUtil::TextureBarrier(m_dnsrCache[m_currTemporalIdx].Specular.Resource(),
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_SYNC_COMPUTE_SHADING,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-                D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
-                D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+            barriers[0] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
+            barriers[1] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
 
             computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 

@@ -33,6 +33,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
     [loop]
     for (int s_b = 0; s_b < numBsdfCandidates; s_b++)
     {
+        // TODO sample full BSDF
         BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
         float3 wi = bsdfSample.wi;
         float3 f = bsdfSample.f;
@@ -59,7 +60,6 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
             const float3 vtx2 = Light::DecodeEmissiveTriV2(emissive);
             lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
             float twoArea = length(lightNormal);
-            // twoArea = max(twoArea, 1e-6);
             lightNormal = dot(lightNormal, lightNormal) == 0 ? 1.0 : lightNormal / twoArea;
             lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? -lightNormal : lightNormal;
 

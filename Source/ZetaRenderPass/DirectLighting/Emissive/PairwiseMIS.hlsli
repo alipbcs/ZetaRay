@@ -24,17 +24,11 @@ namespace RDI_Util
 
         float Compute_m_i(Reservoir r_c, Reservoir r_i, float targetLum, float w_sum_i)
         {
-            // TODO following seems to be the correct term to use, but for some reason gives terrible results
-#if 0
             const float p_i_y_i = r_i.W > 0 ? w_sum_i / r_i.W : 0;
-#else
-            const float p_i_y_i = r_i.W > 0 ? ((float)r_i.M * w_sum_i) / r_i.W : 0;
-#endif
-
-            const float p_c_y_i = targetLum * (float)r_c.M;
-            float m_i = (float)r_i.M * p_i_y_i;
-            float denom = m_i + ((float)r_c.M / this.k) * p_c_y_i;
-            m_i = denom > 0 ? m_i / denom : 0;
+            const float p_c_y_i = targetLum;
+            float numerator = (float)r_i.M * p_i_y_i;
+            float denom = numerator + ((float)r_c.M / this.k) * p_c_y_i;
+            float m_i = denom > 0 ? numerator / denom : 0;
 
             return m_i;
         }
@@ -42,20 +36,16 @@ namespace RDI_Util
         void Update_m_c(Reservoir r_c, Reservoir r_i, Target target_c, float3 brdfCosTheta_i, 
             float3 wi_i, float t_i)
         {
-            if(!r_c.IsValid())
-            {
-                this.m_c += 1;
-                return;
-            }
-
             const float cosThetaPrime = saturate(dot(target_c.lightNormal, -wi_i));
             const float dwdA = cosThetaPrime / max(t_i * t_i, 1e-6);
             const float p_i_y_c = Math::Luminance(r_c.Le * brdfCosTheta_i * dwdA);
             const float p_c_y_c = Math::Luminance(target_c.p_hat);
 
             const float numerator = (float)r_i.M * p_i_y_c;
-            const bool denomGt0 = (p_c_y_c + numerator) > 0;    // both are positive
-            this.m_c += denomGt0 ? 1 - numerator / (numerator + ((float)r_c.M / this.k) * p_c_y_c) : 1;
+            const float denom = numerator + ((float)r_c.M / this.k) * p_c_y_c;
+            // Note: denom can never be zero, otherwise r_c didn't have a valid sample
+            // and this function shouldn't have been called
+            this.m_c += 1 - (numerator / denom);
         }
 
         void Stream(Reservoir r_c, float3 pos_c, float3 normal_c, BSDF::ShadingData surface_c, 
@@ -63,8 +53,8 @@ namespace RDI_Util
             BSDF::ShadingData surface_i, StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
             RaytracingAccelerationStructure g_bvh, Target target_c, inout RNG rng)
         {
-            float3 currTarget;
-            float m_i;
+            float3 currTarget = 0;
+            float m_i = 0;
             EmissiveData emissive_i;
             float dwdA;
 
@@ -79,7 +69,7 @@ namespace RDI_Util
                 const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
                 currTarget = r_i.Le * brdfCosTheta_c * dwdA;
 
-                if(Math::Luminance(currTarget) > 1e-5)
+                if(dot(currTarget, currTarget) > 0)
                 {
                     currTarget *= VisibilityApproximate(g_bvh, pos_c, emissive_i.wi, emissive_i.t, normal_c, 
                         emissive_i.ID, surface_c.HasSpecularTransmission());
@@ -90,8 +80,8 @@ namespace RDI_Util
             }
 
             // m_c
-            float3 brdfCosTheta_i = 0.0.xxx;
-            float3 wi_i = 0.0.xxx;
+            float3 brdfCosTheta_i = 0.0;
+            float3 wi_i = 0.0;
             float t_i = 0;
 
             if(r_c.IsValid())
@@ -101,14 +91,14 @@ namespace RDI_Util
                 surface_i.SetWi(wi_i, normal_i);
                 brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
 
-                if(Math::Luminance(brdfCosTheta_i) > 1e-5)
+                if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
                 {
                     brdfCosTheta_i *= VisibilityApproximate(g_bvh, pos_i, wi_i, t_i, normal_i, 
                         target_c.lightID, surface_i.HasSpecularTransmission());
                 }
+                
+                Update_m_c(r_c, r_i, target_c, brdfCosTheta_i, wi_i, t_i);
             }
-
-            Update_m_c(r_c, r_i, target_c, brdfCosTheta_i, wi_i, t_i);
 
             if(r_i.IsValid())
             {
@@ -130,7 +120,6 @@ namespace RDI_Util
         void End(Reservoir r_c, inout Target target_c, inout RNG rng)
         {
             const float w_c = Math::Luminance(target_c.p_hat) * r_c.W * this.m_c;
-
             if(!this.r_s.Update(w_c, r_c.Le, r_c.LightIdx, r_c.Bary, rng))
                 target_c = this.target_s;
 
