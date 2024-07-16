@@ -256,7 +256,6 @@ namespace RPT_Util
             g_rbA[DTid].xyz = this.throughput;
             g_rbB[DTid] = uint4(asuint(this.pos), normal);
 
-            // TODO
             if(!isCase3)
             {
                 uint16_t2 grads_h = asuint16(half2(ddx_uv, ddy_uv));
@@ -292,11 +291,8 @@ namespace RPT_Util
             return alpha_lobe_k_min_1 > 0.15f;
         }
 
-        // TODO maybe disable reconnection on transmissive surfaces altogheter?
-
         // float3 delta = x_k - x_k_min_1;
         // float distSq = dot(delta, delta);
-
         // if(distSq < d_min)
         //     return false;
 

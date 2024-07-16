@@ -1416,54 +1416,54 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
         ParamVariant stochasticMultibounce;
         stochasticMultibounce.InitBool("Renderer", "Indirect Lighting", "Stochastic Multi-bounce",
             fastdelegate::MakeDelegate(this, &IndirectLighting::StochasticMultibounceCallback),
-            DefaultParamVals::STOCHASTIC_MULTI_BOUNCE);
+            DefaultParamVals::STOCHASTIC_MULTI_BOUNCE, "Path Sampling");
         App::AddParam(stochasticMultibounce);
 
         ParamVariant denoise;
         denoise.InitBool("Renderer", "Indirect Lighting", "Denoise",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::DenoiseCallback), true);
+            fastdelegate::MakeDelegate(this, &IndirectLighting::DenoiseCallback), true, "Denoiser");
         App::AddParam(denoise);
 
         ParamVariant tsppDiffuse;
         tsppDiffuse.InitInt("Renderer", "Indirect Lighting", "TSPP (Diffuse)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::TsppDiffuseCallback),
-            m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1);
+            m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1, "Denoiser");
         App::AddParam(tsppDiffuse);
 
         ParamVariant tsppSpecular;
         tsppSpecular.InitInt("Renderer", "Indirect Lighting", "TSPP (Specular)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::TsppSpecularCallback),
-            m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1);
+            m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1, "Denoiser");
         App::AddParam(tsppSpecular);
 
         ParamVariant dnsrSpatialFilterDiffuse;
         dnsrSpatialFilterDiffuse.InitBool("Renderer", "Indirect Lighting", "Spatial Filter (Diffuse)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterDiffuseCallback), 
-            m_cbDnsrSpatial.FilterDiffuse);
+            m_cbDnsrSpatial.FilterDiffuse, "Denoiser");
         App::AddParam(dnsrSpatialFilterDiffuse);
 
         ParamVariant dnsrSpatialFilterSpecular;
         dnsrSpatialFilterSpecular.InitBool("Renderer", "Indirect Lighting", "Spatial Filter (Specular)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterSpecularCallback), 
-            m_cbDnsrSpatial.FilterSpecular);
+            m_cbDnsrSpatial.FilterSpecular, "Denoiser");
         App::AddParam(dnsrSpatialFilterSpecular);
 
         ParamVariant doTemporal;
         doTemporal.InitBool("Renderer", "Indirect Lighting", "Temporal Resample",
             fastdelegate::MakeDelegate(this, &IndirectLighting::TemporalResamplingCallback),
-            m_doTemporalResampling);
+            m_doTemporalResampling, "Reuse");
         App::AddParam(doTemporal);
 
         ParamVariant maxM;
         maxM.InitInt("Renderer", "Indirect Lighting", "M_max (Temporal)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::M_maxTCallback),
-            DefaultParamVals::M_MAX, 1, 15, 1);
+            DefaultParamVals::M_MAX, 1, 15, 1, "Reuse");
         App::AddParam(maxM);
 
         ParamVariant suppressOutliers;
         suppressOutliers.InitBool("Renderer", "Indirect Lighting", "Boiling Suppression",
             fastdelegate::MakeDelegate(this, &IndirectLighting::BoilingSuppressionCallback),
-            DefaultParamVals::BOILING_SUPPRESSION);
+            DefaultParamVals::BOILING_SUPPRESSION, "Reuse");
         App::AddParam(suppressOutliers);
 
         App::AddShaderReloadHandler("ReSTIR_GI", fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRGI));
@@ -1760,17 +1760,17 @@ void IndirectLighting::ReloadRPT_Temporal()
 
 void IndirectLighting::ReloadRPT_Spatial()
 {
-    //{
-    //    auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
-    //    const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
-    //    if (App::GetScene().NumEmissiveInstances() > 0)
-    //    {
-    //        sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
-    //        p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
-    //    }
-    //    const int i = (int)sh;
-    //    m_psoLib.Reload(i, m_rootSigObj.Get(), p);
-    //}
+    {
+       auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
+       const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
+       if (App::GetScene().NumEmissiveInstances() > 0)
+       {
+           sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
+           p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
+       }
+       const int i = (int)sh;
+       m_psoLib.Reload(i, m_rootSigObj.Get(), p);
+    }
 
     {
         auto sh = SHADER::ReSTIR_PT_RECONNECT_StC;

@@ -359,20 +359,4 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         RPT_Util::DebugColor(r_curr.rc, g_local.Packed, li);
         RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final, g_frame, false);
     }
-    // else
-    // {
-    //     RWTexture2D<float4> g_dbg = ResourceDescriptorHeap[g_local.Dbg1];
-    //     float prevChanged = g_dbg[swizzledDTid].x;
-    //     float prevm = g_dbg[swizzledDTid].y;
-    //     float prevRatioT = g_dbg[swizzledDTid].z;
-    //     float prevRatioM = g_dbg[swizzledDTid].w;
-
-    //     float ratio_m = (float)r_prev.M / r_curr.M;
-
-    //     float4 newVal = float4(prevChanged * g_local.Counter + changed,
-    //         prevm * g_local.Counter + m_prev,
-    //         prevRatioT * g_local.Counter + ratio_t,
-    //         prevRatioM * g_local.Counter + ratio_m);
-    //     g_dbg[swizzledDTid] = newVal / (g_local.Counter + 1);
-    // }
 }

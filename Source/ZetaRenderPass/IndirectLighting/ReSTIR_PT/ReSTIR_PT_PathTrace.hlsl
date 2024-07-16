@@ -187,7 +187,6 @@ void EstimateDirectLighting(int16 pathVertex, float3 pos, Hit hitInfo,
 
         // Case 1: For path x_0, ..., x_k, x_{k + 1}, ..., L is the radiance reflected from 
         // x_{k + 1} towards x_k. If connection becomes case 2 or case 3, it is overwritten.
-        // TODO 100 was chosesn arbitrarily
         rc.L = half3(ls.ld * throughput_k);
 
         MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 

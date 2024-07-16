@@ -30,10 +30,10 @@ namespace RPT_Util
     {
         float p_sun = rng.Uniform();
 
-        // Sun and sky can be skipped if sun is below the horizon.
+        // Sun and sky can be skipped if sun is below the horizon
         if(-g_frame.SunDir.y > 0)
         {
-            // Skip the sun if the opaque surface is oriented away.
+            // Skip sun the opaque surface is oriented away
             float q = (surface.HasSpecularTransmission() ? 1 : 
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 

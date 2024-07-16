@@ -194,8 +194,6 @@ namespace RPT_Util
         static Reservoir Load(uint2 DTid, uint inputAIdx, uint inputBIdx, uint inputCIdx, 
             uint inputDIdx, uint inputEIdx, uint inputFIdx, uint inputGIdx)
         {
-            // Can skip loading target as only current frame's target is needed
-
             TexA g_inA = ResourceDescriptorHeap[inputAIdx];
             TexB g_inB = ResourceDescriptorHeap[inputBIdx];
             TexC g_inC = ResourceDescriptorHeap[inputCIdx];
@@ -347,8 +345,6 @@ namespace RPT_Util
             uint outputDIdx, uint outputEIdx, uint outputFIdx, uint outputGIdx, 
             uint M_max = 0)
         {
-            // 2 + 8 + 16 + 16 + 2 + 8 = 52 bytes
-
             // (metadata)
             RWTexture2D<uint2> g_outA = ResourceDescriptorHeap[outputAIdx];
             // (w_sum, W)
