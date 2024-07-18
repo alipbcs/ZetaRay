@@ -100,8 +100,11 @@ void Sky::SetInscatteringEnablement(bool b)
 
         //App::AddShaderReloadHandler("Inscattering", fastdelegate::MakeDelegate(this, &Sky::ReloadInscatteringShader));
 
-        m_psoLib.CompileComputePSO((int)SHADER::INSCATTERING, m_rootSigObj.Get(),
-            COMPILED_CS[(int)SHADER::INSCATTERING]);
+        if (!m_psoLib.GetPSO((int)SHADER::INSCATTERING))
+        {
+            m_psoLib.CompileComputePSO((int)SHADER::INSCATTERING, m_rootSigObj.Get(),
+                COMPILED_CS[(int)SHADER::INSCATTERING]);
+        }
     }
     else
     {
