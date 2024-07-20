@@ -297,31 +297,34 @@ namespace
 
         size_t fnLen;
 
-        for (auto& img : data["images"])
+        if (data.contains("images"))
         {
-            s = img["uri"];
+            for (auto& img : data["images"])
+            {
+                s = img["uri"];
 
-            // extract the image file name
-            Filesystem::Path p((StrView(s.data(), s.size())));
-            DecodeURI_Inplace(p);
-            p.Stem(filename, &fnLen);
+                // extract the image file name
+                Filesystem::Path p((StrView(s.data(), s.size())));
+                DecodeURI_Inplace(p);
+                p.Stem(filename, &fnLen);
 
-            // change the extension to dds
-            Check(fnLen + 5 < ZetaArrayLen(filename), "buffer is too small.");
-            filename[fnLen] = '.';
-            filename[fnLen + 1] = 'd';
-            filename[fnLen + 2] = 'd';
-            filename[fnLen + 3] = 's';
-            filename[fnLen + 4] = '\0';
+                // change the extension to dds
+                Check(fnLen + 5 < ZetaArrayLen(filename), "buffer is too small.");
+                filename[fnLen] = '.';
+                filename[fnLen + 1] = 'd';
+                filename[fnLen + 2] = 'd';
+                filename[fnLen + 3] = 's';
+                filename[fnLen + 4] = '\0';
 
-            // URI paths are relative to gltf scene file
-            Filesystem::Path newPath(compressedDirName);
-            newPath.Append(filename);
-            newPath.ConvertToForwardSlashes();
+                // URI paths are relative to gltf scene file
+                Filesystem::Path newPath(compressedDirName);
+                newPath.Append(filename);
+                newPath.ConvertToForwardSlashes();
 
-            img["uri"] = newPath.Get();
+                img["uri"] = newPath.Get();
+            }
         }
-        
+
         gltfPath.Stem(filename, &fnLen);
 
         Check(fnLen + 10 < ZetaArrayLen(filename), "buffer is too small.");
@@ -395,6 +398,12 @@ int main(int argc, char* argv[])
     Filesystem::LoadFromFile(gltfPath.Get(), file);
 
     json data = json::parse(file.data(), file.data() + file.size(), nullptr, false);
+
+    if (!data.contains("images"))
+    {
+        ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
+        return 0;
+    }
 
     SmallVector<Filesystem::Path, Support::ArenaAllocator> imagePaths(arena);
     imagePaths.resize(data["images"].size());
