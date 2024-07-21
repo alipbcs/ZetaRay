@@ -26,7 +26,6 @@ struct cb_ReSTIR_DI_SpatioTemporal
     uint32_t ColorBUavDescHeapIdx;
     uint32_t FinalDescHeapIdx;
 
-    float MaxRoughnessExtraBrdfSampling;
     uint16_t DispatchDimX;
     uint16_t DispatchDimY;
     uint16_t NumGroupsInTile;
@@ -36,6 +35,9 @@ struct cb_ReSTIR_DI_SpatioTemporal
     uint16_t SampleSetSize;
     uint16_t SpatialResampling;
     uint16_t Denoise;
+    uint16_t ExtraSamplesDisocclusion;
+    uint16_t StochasticSpatial;
+    uint16_t pad;
 };
 
 struct cb_ReSTIR_DI_DNSR_Temporal

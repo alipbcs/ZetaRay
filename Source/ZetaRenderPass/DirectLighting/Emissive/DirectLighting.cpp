@@ -4,7 +4,6 @@
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <Scene/SceneCore.h>
-#include <Core/SharedShaderResources.h>
 #include <Support/Task.h>
 
 using namespace ZetaRay;
@@ -101,7 +100,8 @@ void DirectLighting::Init()
     memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
     memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
-    m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling = 0.3;
+    m_cbSpatioTemporal.StochasticSpatial = true;
+    m_cbSpatioTemporal.ExtraSamplesDisocclusion = true;
     m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
     m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
     m_cbSpatioTemporal.Denoise = m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
@@ -126,35 +126,45 @@ void DirectLighting::Init()
 
     ParamVariant denoise;
     denoise.InitBool("Renderer", "Direct Lighting", "Denoise",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DenoiseCallback), m_cbDnsrTemporal.Denoise);
+        fastdelegate::MakeDelegate(this, &DirectLighting::DenoiseCallback), 
+        m_cbDnsrTemporal.Denoise, "Denoise");
     App::AddParam(denoise);
+
+    ParamVariant extraDissocclusion;
+    extraDissocclusion.InitBool("Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
+        fastdelegate::MakeDelegate(this, &DirectLighting::ExtraSamplesDisocclusionCallback), 
+        m_cbSpatioTemporal.ExtraSamplesDisocclusion);
+    App::AddParam(extraDissocclusion);
+
+    ParamVariant stochasticSpatial;
+    stochasticSpatial.InitBool("Renderer", "Direct Lighting", "Stochastic Spatial",
+        fastdelegate::MakeDelegate(this, &DirectLighting::StochasticSpatialCallback), 
+        m_cbSpatioTemporal.StochasticSpatial);
+    App::AddParam(stochasticSpatial);
 
     ParamVariant tsppDiffuse;
     tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
         fastdelegate::MakeDelegate(this, &DirectLighting::TsppDiffuseCallback),
-        m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1);
+        m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1, "Denoise");
     App::AddParam(tsppDiffuse);
 
     ParamVariant tsppSpecular;
     tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
         fastdelegate::MakeDelegate(this, &DirectLighting::TsppSpecularCallback),
-        m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1);
+        m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1, "Denoise");
     App::AddParam(tsppSpecular);
 
     ParamVariant dnsrSpatialFilterDiffuse;
     dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), m_cbDnsrSpatial.FilterDiffuse);
+        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), 
+        m_cbDnsrSpatial.FilterDiffuse, "Denoise");
     App::AddParam(dnsrSpatialFilterDiffuse);
 
     ParamVariant dnsrSpatialFilterSpecular;
     dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Specular)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterSpecularCallback), m_cbDnsrSpatial.FilterSpecular);
+        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterSpecularCallback), 
+        m_cbDnsrSpatial.FilterSpecular, "Denoise");
     App::AddParam(dnsrSpatialFilterSpecular);
-
-    //ParamVariant fireflyFilter;
-    //fireflyFilter.InitBool("Renderer", "Direct Lighting", "Firefly Filter",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::FireflyFilterCallback), m_cbDnsrTemporal.FilterFirefly);
-    //App::AddParam(fireflyFilter);
 
     App::AddShaderReloadHandler("ReSTIR_DI", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
     //App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
@@ -416,10 +426,14 @@ void DirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
     m_cbSpatioTemporal.M_max = (uint16_t) p.GetInt().m_value;
 }
 
-void DirectLighting::MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p)
+void DirectLighting::ExtraSamplesDisocclusionCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling = Math::Max(p.GetFloat().m_value, 
-        m_cbSpatioTemporal.MaxRoughnessExtraBrdfSampling);
+    m_cbSpatioTemporal.ExtraSamplesDisocclusion = p.GetBool();
+}
+
+void DirectLighting::StochasticSpatialCallback(const Support::ParamVariant& p)
+{
+    m_cbSpatioTemporal.StochasticSpatial = p.GetBool();
 }
 
 void DirectLighting::DenoiseCallback(const Support::ParamVariant& p)

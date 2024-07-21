@@ -251,16 +251,16 @@ namespace RDI_Util
         StructuredBuffer<RT::EmissiveTriangle> g_emissives, RaytracingAccelerationStructure g_bvh, 
         inout Reservoir r, inout Target target, inout RNG rng)
     {
-        static const float2 k_hammersley[8] =
+        static const half2 k_hammersley[8] =
         {
-            float2(0.0, -0.7777777777777778),
-            float2(-0.5, -0.5555555555555556),
-            float2(0.5, -0.33333333333333337),
-            float2(-0.75, -0.11111111111111116),
-            float2(0.25, 0.11111111111111116),
-            float2(-0.25, 0.33333333333333326),
-            float2(0.75, 0.5555555555555556),
-            float2(-0.875, 0.7777777777777777)
+            half2(0.0, -0.7777777777777778),
+            half2(-0.5, -0.5555555555555556),
+            half2(0.5, -0.33333333333333337),
+            half2(-0.75, -0.11111111111111116),
+            half2(0.25, 0.11111111111111116),
+            half2(-0.25, 0.33333333333333326),
+            half2(0.75, 0.5555555555555556),
+            half2(-0.875, 0.7777777777777777)
         };
 
         GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -284,14 +284,14 @@ namespace RDI_Util
         const uint2 renderDim = uint2(g_frame.RenderWidth, g_frame.RenderHeight);
         PairwiseMIS pairwiseMIS = PairwiseMIS::Init((uint16_t)numSamples, r);
 
-        float3 samplePos[4];
-        float3 sampleOrigin[4];
-        int16_t2 samplePosSS[4];
-        uint sampleLightIdx[4];
-        float sampleRoughness[4];
-        bool sampleMetallic[4];
-        float sampleTr[4];
-        float sampleEta_i[4];
+        float3 samplePos[MAX_NUM_SPATIAL_SAMPLES];
+        float3 sampleOrigin[MAX_NUM_SPATIAL_SAMPLES];
+        int16_t2 samplePosSS[MAX_NUM_SPATIAL_SAMPLES];
+        uint sampleLightIdx[MAX_NUM_SPATIAL_SAMPLES];
+        float sampleRoughness[MAX_NUM_SPATIAL_SAMPLES];
+        bool sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
+        float sampleTr[MAX_NUM_SPATIAL_SAMPLES];
+        float sampleEta_i[MAX_NUM_SPATIAL_SAMPLES];
         uint16_t k = 0;
         const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
             g_frame.PrevViewInv._m23);

@@ -105,7 +105,7 @@ namespace ZetaRay::RenderPass
 
         struct DefaultParamVals
         {
-            static constexpr int M_MAX = 25;
+            static constexpr int M_MAX = 20;
             static constexpr int DNSR_TSPP_DIFFUSE = 16;
             static constexpr int DNSR_TSPP_SPECULAR = 16;
         };
@@ -137,7 +137,8 @@ namespace ZetaRay::RenderPass
         void TemporalResamplingCallback(const Support::ParamVariant& p);
         void SpatialResamplingCallback(const Support::ParamVariant& p);
         void MaxTemporalMCallback(const Support::ParamVariant& p);
-        void MaxRoughessExtraBrdfSamplingCallback(const Support::ParamVariant& p);
+        void ExtraSamplesDisocclusionCallback(const Support::ParamVariant& p);
+        void StochasticSpatialCallback(const Support::ParamVariant& p);
         void DenoiseCallback(const Support::ParamVariant& p);
         void TsppDiffuseCallback(const Support::ParamVariant& p);
         void TsppSpecularCallback(const Support::ParamVariant& p);
@@ -156,7 +157,6 @@ namespace ZetaRay::RenderPass
         DenoiserCache m_dnsrCache[2];
         Core::GpuMemory::Texture m_denoised;
 
-        uint32_t m_currNumTris = 0;
         int m_currTemporalIdx = 0;
         bool m_isTemporalReservoirValid = false;
         bool m_isDnsrTemporalCacheValid = false;

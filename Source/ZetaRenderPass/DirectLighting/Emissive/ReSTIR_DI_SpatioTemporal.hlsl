@@ -173,14 +173,19 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
 
 RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_view, 
     float roughness, float3 baseColor, uint sampleSetIdx, BSDF::ShadingData surface, 
-    inout RDI_Util::Target target, inout RNG rng)
+    inout RDI_Util::Target target, RNG rng_group, RNG rng_thread)
 {
     // Light sampling is less effective for glossy surfaces or when light source is close to surface
-    const int numBsdfCandidates = roughness > 0.06 && roughness < g_local.MaxRoughnessExtraBrdfSampling ? 
-        MAX_NUM_BRDF_SAMPLES : 1;
+    const int numBsdfCandidates = EXTRA_BSDF_SAMPLE_HIGHLY_GLOSSY && (roughness > 0.06 && roughness < 0.3) ? 
+        2 : 
+        1;
 
     RDI_Util::Reservoir r = RIS_InitialCandidates(DTid, pos, normal, roughness, surface, sampleSetIdx,
-        numBsdfCandidates, rng, target);
+        numBsdfCandidates, rng_thread, target);
+
+    float2 mv = 0;
+    bool temporalValid = false;
+    RDI_Util::TemporalCandidate temporalCandidate;
 
     if (g_local.TemporalResampling)
     {
@@ -193,12 +198,14 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
             const float2 motionVec = g_motionVector[DTid];
             const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
             prevUV = currUV - motionVec;
+            mv = motionVec;
         }
         else
             prevUV = RDI_Util::VirtualMotionReproject(pos, surface.wo, target.rayT, g_frame.PrevViewProj);
 
         RDI_Util::TemporalCandidate temporalCandidate = RDI_Util::FindTemporalCandidates(DTid, pos, normal, 
-            z_view, roughness, prevUV, g_frame, rng);
+            z_view, roughness, prevUV, g_frame, rng_thread);
+        temporalValid = temporalCandidate.valid;
 
         if (temporalCandidate.valid)
         {
@@ -207,26 +214,35 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
 
             RDI_Util::TemporalResample1(pos, normal, roughness, z_view, surface,
                 g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
-                temporalCandidate, g_frame, g_emissives, g_bvh, r, rng, target);
+                temporalCandidate, g_frame, g_emissives, g_bvh, r, rng_thread, target);
         }
     }
 
+    // Note: Results are improved and more spatial when spatial doesn't feed into next frame's 
+    // temporal reservoirs. May need to revisit in the future.
     RDI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
         g_local.CurrReservoir_B_DescHeapIdx, g_local.M_max);
 
     if(g_local.SpatialResampling)
     {
-        // spatial resampling is really expensive -- use a heuristic to decide when extra samples 
-        // have a noticeable impact
-        bool extraSample = normal.y < -0.1 && 
-            roughness > 0.075 && 
-            Math::Luminance(baseColor) > 0.5f;
+        bool disoccluded = false;
+        if(g_local.ExtraSamplesDisocclusion)
+        {
+            disoccluded = !temporalValid && (dot(mv, mv) > 0);
+            // Skip thin geometry such as grass or fences
+            disoccluded = disoccluded && (WaveActiveSum(disoccluded) > 3);
+        }
 
-        int numSamples = MIN_NUM_SPATIAL_SAMPLES + extraSample;
-        
+        // Since spatial samples are expensive, take extra samples stochastically
+        // per thread group for better coherency
+        int numSamples = !g_local.StochasticSpatial || (rng_group.Uniform() < PROB_EXTRA_SPATIAL_SAMPLES) ? 
+            MIN_NUM_SPATIAL_SAMPLES + NUM_EXTRA_SPATIAL_SAMPLES : 
+            MIN_NUM_SPATIAL_SAMPLES;
+        numSamples = !disoccluded ? numSamples : MAX_NUM_SPATIAL_SAMPLES;
+
         RDI_Util::SpatialResample(DTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, normal, z_view, 
             roughness, surface, g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
-            g_frame, g_emissives, g_bvh, r, target, rng);
+            g_frame, g_emissives, g_bvh, r, target, rng_thread);
     }
 
     return r;
@@ -334,14 +350,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         eta_i, eta_t, tr);
 
     // Group-uniform index so that every thread in this group uses the same set
-    RNG rng = RNG::Init(Gid.xy, g_frame.FrameNum);
-    const uint sampleSetIdx = rng.UniformUintBounded_Faster(g_local.NumSampleSets);
+    RNG rng_group = RNG::Init(Gid.xy, g_frame.FrameNum);
+    const uint sampleSetIdx = rng_group.UniformUintBounded_Faster(g_local.NumSampleSets);
 
-    rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
+    RNG rng_thread = RNG::Init(swizzledDTid, g_frame.FrameNum);
     RDI_Util::Target target = RDI_Util::Target::Init();
 
     RDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, mr.y, baseColor, 
-        sampleSetIdx, surface, target, rng);
+        sampleSetIdx, surface, target, rng_group, rng_thread);
 
     if(g_local.Denoise)
     {
