@@ -95,6 +95,7 @@ void PipelineStateLibrary::Init(const char* name)
 void PipelineStateLibrary::Reset()
 {
     ClearAndFlushToDisk();
+    m_psoWasReset = false;
 
     m_cachedBlob.free_memory();
     memset(m_compiledPSOs.data(), 0, m_compiledPSOs.size() * sizeof(ID3D12PipelineState*));
