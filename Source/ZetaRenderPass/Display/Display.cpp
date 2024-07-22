@@ -47,6 +47,7 @@ void DisplayPass::Init()
     m_cbLocal.DisplayOption = (uint16_t)DisplayOption::DEFAULT;
     m_cbLocal.Tonemapper = (uint16_t)Tonemapper::NEUTRAL;
     m_cbLocal.Saturation = 1.0f;
+    m_cbLocal.AgXExp = 1.0f;
     m_cbLocal.RoughnessTh = 1.0f;
     m_cbLocal.AutoExposure = true;
 
@@ -160,11 +161,27 @@ void DisplayPass::DisplayOptionCallback(const ParamVariant& p)
 void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
 {
     m_cbLocal.Tonemapper = (uint16_t)p.GetEnum().m_curr;
+
+    if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_CUSTOM)
+    {
+        ParamVariant p1;
+        p1.InitFloat("Renderer", "Display", "Exponent",
+            fastdelegate::MakeDelegate(this, &DisplayPass::AgxExpCallback),
+            1, 0.0, 5.0f, 1e-2f);
+        App::AddParam(p1);
+    }
+    else
+        App::RemoveParam("Renderer", "Display", "Exponent");
 }
 
 void DisplayPass::SaturationCallback(const Support::ParamVariant& p)
 {
     m_cbLocal.Saturation = p.GetFloat().m_value;
+}
+
+void DisplayPass::AgxExpCallback(const Support::ParamVariant& p)
+{
+    m_cbLocal.AgXExp = p.GetFloat().m_value;
 }
 
 void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p)

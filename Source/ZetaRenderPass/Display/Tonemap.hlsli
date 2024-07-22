@@ -83,14 +83,14 @@ namespace Tonemap
         return val;
     }
 
-    float3 agxLook(float3 val, float offset, float3 slope, float power, float saturation)
+    float3 agxLook(float3 val, float offset, float3 slope, float exp, float saturation)
     {
         const float3 lw = float3(0.2126, 0.7152, 0.0722);
         float luma = dot(val, lw);
         // ASC CDL
-        val = pow(val * slope + offset, power);
+        val = pow(val * slope + offset, exp);
 
-        return luma + saturation * (val - luma);       
+        return luma + saturation * (val - luma);
     }
 
     float3 AgX_Default(float3 value)
@@ -101,25 +101,38 @@ namespace Tonemap
         return tonemapped;
     }
 
-    float3 AgX_Golden(float3 value, float saturation = 0.8f)
+    float3 AgX_Golden(float3 value)
     {
         float3 tonemapped = agxInset(value);
-        float offset = 0.0;
-        float3 slope = float3(1.0, 0.9, 0.5);
-        float power = 0.8;
-        tonemapped = agxLook(tonemapped, offset, slope, power, saturation);
+        const float offset = 0.0;
+        const float3 slope = float3(1.0, 0.9, 0.5);
+        const float saturation = 0.8f;
+        const float exp = 0.8;
+        tonemapped = agxLook(tonemapped, offset, slope, exp, saturation);
         tonemapped = agxEotf(tonemapped);
 
         return tonemapped;
     }
 
-    float3 AgX_Punchy(float3 value, float saturation = 1.4f)
+    float3 AgX_Punchy(float3 value)
     {
         float3 tonemapped = agxInset(value);
-        float offset = 0.0;
-        float slope = 1.0;
-        float power = 1.35;
-        tonemapped = agxLook(tonemapped, offset, slope, power, saturation);
+        const float offset = 0.0;
+        const float slope = 1.0;
+        const float saturation = 1.4f;
+        const float exp = 1.35;
+        tonemapped = agxLook(tonemapped, offset, slope, exp, saturation);
+        tonemapped = agxEotf(tonemapped);
+
+        return tonemapped;
+    }
+
+    float3 AgX_Custom(float3 value, float saturation, float exp)
+    {
+        float3 tonemapped = agxInset(value);
+        const float offset = 0.0;
+        const float slope = 1.0;
+        tonemapped = agxLook(tonemapped, offset, slope, exp, saturation);
         tonemapped = agxEotf(tonemapped);
 
         return tonemapped;

@@ -70,9 +70,11 @@ float4 mainPS(VSOut psin) : SV_Target
     else if (g_local.Tonemapper == (int) Tonemapper::AgX_DEFAULT)
         display = Tonemap::AgX_Default(display);
     else if (g_local.Tonemapper == (int) Tonemapper::AgX_GOLDEN)
-        display = Tonemap::AgX_Golden(display, g_local.Saturation);
+        display = Tonemap::AgX_Golden(display);
     else if (g_local.Tonemapper == (int) Tonemapper::AgX_PUNCHY)
-        display = Tonemap::AgX_Punchy(display, g_local.Saturation);
+        display = Tonemap::AgX_Punchy(display);
+    else if (g_local.Tonemapper == (int) Tonemapper::AgX_CUSTOM)
+        display = Tonemap::AgX_Custom(display, g_local.Saturation, g_local.AgXExp);
 
     if (g_local.DisplayOption == (int) DisplayOption::DEPTH)
     {

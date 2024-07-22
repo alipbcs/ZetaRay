@@ -83,7 +83,8 @@ namespace ZetaRay::RenderPass
                 "Metalness-Roughness", "Roughness (Threshold)", "Emission", "Transmission", "Depth" };
             static_assert((int)DisplayOption::COUNT == ZetaArrayLen(DisplayOptions), "enum <-> strings mismatch.");
 
-            inline static const char* Tonemappers[] = { "None", "Neutral", "AgX (Default)", "AgX (Golden)", "AgX (Punchy)" };
+            inline static const char* Tonemappers[] = { "None", "Neutral", "AgX (Default)", "AgX (Golden)", 
+                "AgX (Punchy)", "AgX (Custom)" };
             static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
         };
 
@@ -96,6 +97,7 @@ namespace ZetaRay::RenderPass
         void DisplayOptionCallback(const Support::ParamVariant& p);
         void TonemapperCallback(const Support::ParamVariant& p);
         void SaturationCallback(const Support::ParamVariant& p);
+        void AgxExpCallback(const Support::ParamVariant& p);
         void AutoExposureCallback(const Support::ParamVariant& p);
         void RoughnessThCallback(const Support::ParamVariant& p);
 

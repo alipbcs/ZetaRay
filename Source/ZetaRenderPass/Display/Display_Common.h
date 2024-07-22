@@ -23,6 +23,7 @@ enum class Tonemapper
     AgX_DEFAULT,
     AgX_GOLDEN,
     AgX_PUNCHY,
+    AgX_CUSTOM,
     COUNT
 };
 
@@ -35,14 +36,10 @@ struct cbDisplayPass
 
     uint32_t InputDescHeapIdx;
     uint32_t ExposureDescHeapIdx;
-    uint32_t DiffuseDNSRTemporalCacheDescHeapIdx;
-    uint32_t DiffuseTemporalReservoir_A_DescHeapIdx;
-    uint32_t DiffuseTemporalReservoir_B_DescHeapIdx;
-    uint32_t DiffuseSpatialReservoir_A_DescHeapIdx;
-    uint32_t DiffuseSpatialReservoir_B_DescHeapIdx;
     uint32_t LUTDescHeapIdx;
 
     float Saturation;
+    float AgXExp;
     float RoughnessTh;
 };
 
