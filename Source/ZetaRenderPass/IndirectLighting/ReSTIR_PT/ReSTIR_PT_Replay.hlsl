@@ -48,18 +48,16 @@ RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 orig
     float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
     bool prevTransmissive, RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
 {
-    float transmission = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
     if(prevTransmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_transmission[prevPosSS];
-        transmission = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[prevPosSS];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -72,7 +70,7 @@ RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 orig
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor, eta_i, eta_t, transmission);
+        baseColor, eta_i, eta_t, prevTransmissive);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -140,21 +138,19 @@ RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
     float3 baseColor_n = g_baseColor[samplePosSS].rgb;
     float eta_i = DEFAULT_ETA_I;
-    float specTr_n = DEFAULT_SPECULAR_TRANSMISSION;
 
     if(transmissive_n)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_transmission[samplePosSS];
-        specTr_n = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[samplePosSS];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, metallic_n, 
-        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, specTr_n);
+        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, transmissive_n);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -186,23 +182,21 @@ RPT_Util::PathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSamp
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[DTid].rgb;
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
     if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_transmission[DTid];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[DTid];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor, eta_i, eta_t, tr);
+        baseColor, eta_i, eta_t, transmissive);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];

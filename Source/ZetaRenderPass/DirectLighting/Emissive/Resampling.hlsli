@@ -32,8 +32,8 @@ namespace RDI_Util
             GBUFFER_OFFSET::NORMAL];
         GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-        GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
         const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
         const int2 prevPixel = prevUV * renderDim;
@@ -92,14 +92,12 @@ namespace RDI_Util
 
             if(candidate.valid)
             {
-                float prevTransmission = DEFAULT_SPECULAR_TRANSMISSION;
                 float prevEta_i = DEFAULT_ETA_I;
 
                 if(prevTransmissive)
                 {
-                    float2 tr_ior = g_prevTr[samplePosSS];
-                    prevTransmission = tr_ior.x;
-                    prevEta_i = GBuffer::DecodeIOR(tr_ior.y);
+                    float ior = g_prevIOR[samplePosSS];
+                    prevEta_i = GBuffer::DecodeIOR(ior);
                 }
 
                 candidate.posSS = (int16_t2)samplePosSS;
@@ -107,7 +105,7 @@ namespace RDI_Util
                 candidate.normal = prevNormal;
                 candidate.metallic = prevMetallic;
                 candidate.roughness = prevMR.y;
-                candidate.transmission = prevTransmission;
+                candidate.transmissive = prevTransmissive;
                 candidate.eta_i = prevEta_i;
 
                 break;
@@ -119,7 +117,7 @@ namespace RDI_Util
 
     float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, 
         uint2 posSS, float3 prevPos, float3 prevNormal, bool prevMetallic, float prevRoughness, 
-        float prevTr, float prevEta_i, ConstantBuffer<cbFrameConstants> g_frame,
+        bool prevTransmissive, float prevEta_i, ConstantBuffer<cbFrameConstants> g_frame,
         RaytracingAccelerationStructure g_bvh, out BSDF::ShadingData prevSurface)
     {
         GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
@@ -141,7 +139,7 @@ namespace RDI_Util
         const float3 prevWo = normalize(prevCameraPos - prevPos);
 
         prevSurface = BSDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness,
-            prevBaseColor, prevEta_i, DEFAULT_ETA_T, prevTr);
+            prevBaseColor, prevEta_i, DEFAULT_ETA_T, prevTransmissive);
 
         const float t = length(lightPos - prevPos);
         const float3 wi = (lightPos - prevPos) / t;
@@ -156,7 +154,7 @@ namespace RDI_Util
 
         // should use previous frame's bvh
         targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPos, wi, t, prevNormal, lightID, 
-            prevSurface.HasSpecularTransmission());
+            prevSurface.transmissive);
 
         return targetLumAtPrev;
     }
@@ -170,7 +168,7 @@ namespace RDI_Util
         surface.SetWi(prevEmissive.wi, normal);
         float3 target = le * BSDF::UnifiedBSDF(surface) * dwdA;
         target *= VisibilityApproximate(g_bvh, pos, prevEmissive.wi, prevEmissive.t, normal, 
-            prevEmissive.ID, surface.HasSpecularTransmission());
+            prevEmissive.ID, surface.transmissive);
 
         return target;
     }
@@ -195,7 +193,7 @@ namespace RDI_Util
                 targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, 
                     target.lightNormal, target.lightID, candidate.posSS, candidate.pos, 
                     candidate.normal, candidate.metallic, candidate.roughness, 
-                    candidate.transmission, candidate.eta_i, g_frame, 
+                    candidate.transmissive, candidate.eta_i, g_frame, 
                     g_bvh, prevSurface);
             }
 
@@ -271,8 +269,8 @@ namespace RDI_Util
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
         GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::BASE_COLOR];
-        GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
         // rotate sample sequence per pixel
         const float u0 = rng.Uniform();
@@ -289,8 +287,8 @@ namespace RDI_Util
         int16_t2 samplePosSS[MAX_NUM_SPATIAL_SAMPLES];
         uint sampleLightIdx[MAX_NUM_SPATIAL_SAMPLES];
         float sampleRoughness[MAX_NUM_SPATIAL_SAMPLES];
-        bool sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
-        float sampleTr[MAX_NUM_SPATIAL_SAMPLES];
+        uint16 sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
+        uint16 sampleTr[MAX_NUM_SPATIAL_SAMPLES];
         float sampleEta_i[MAX_NUM_SPATIAL_SAMPLES];
         uint16_t k = 0;
         const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
@@ -347,14 +345,13 @@ namespace RDI_Util
                 sampleLightIdx[k] = lightIdx_i;
                 sampleMetallic[k] = metallic_i;
                 sampleRoughness[k] = mr_i.y;
-                sampleTr[k] = DEFAULT_SPECULAR_TRANSMISSION;
+                sampleTr[k] = transmissive_i;
                 sampleEta_i[k] = DEFAULT_ETA_I;
 
                 if(transmissive_i)
                 {
-                    float2 tr_ior = g_prevTr[posSS_i];
-                    sampleTr[k] = tr_ior.x;
-                    sampleEta_i[k] = GBuffer::DecodeIOR(tr_ior.y);
+                    float ior = g_prevIOR[posSS_i];
+                    sampleEta_i[k] = GBuffer::DecodeIOR(ior);
                 }
 
                 k++;

@@ -45,7 +45,7 @@ namespace RPT_Util
         float waveSum = WaveActiveSum(r.w_sum);
         float waveNonZeroCount = WaveActiveSum(r.w_sum != 0.0);
         float waveAvgExclusive = (waveSum - r.w_sum) / max(waveNonZeroCount - 1, 1);
-        if(r.w_sum > 20 * waveAvgExclusive)
+        if(r.w_sum > 25 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;
@@ -56,7 +56,7 @@ namespace RPT_Util
 
     void SuppressOutlierReservoirs(float waveAvgExclusive, inout RPT_Util::Reservoir r)
     {
-        if(r.w_sum > 20 * waveAvgExclusive)
+        if(r.w_sum > 25 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;

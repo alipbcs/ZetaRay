@@ -7,6 +7,9 @@
 #include "../Common/StaticTextureSamplers.hlsli"
 #include "../Common/BSDF.hlsli"
 
+#define T_MIN_REFL_RAY 1e-6
+#define T_MIN_TR_RAY 5e-5
+
 namespace ReSTIR_RT
 {
     struct Hit
@@ -40,7 +43,7 @@ namespace ReSTIR_RT
 
             RayDesc ray;
             ray.Origin = adjustedOrigin;
-            ray.TMin = 1e-6;
+            ray.TMin = wiBackface ? T_MIN_TR_RAY : T_MIN_REFL_RAY;
             ray.TMax = FLT_MAX;
             ray.Direction = wi;
 
@@ -159,7 +162,7 @@ namespace ReSTIR_RT
 
             RayDesc ray;
             ray.Origin = adjustedOrigin;
-            ray.TMin = wiBackface ? 1e-6 : 0;
+            ray.TMin = wiBackface ? T_MIN_TR_RAY : T_MIN_REFL_RAY;
             ray.TMax = FLT_MAX;
             ray.Direction = wi;
 
@@ -488,7 +491,7 @@ namespace ReSTIR_RT
         float eta_i = eta_curr == ETA_AIR ? eta : ETA_AIR;
 
         surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metalness >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_i, eta_t, tr);
+            roughness, baseColor, eta_i, eta_t, tr >= MIN_SPEC_TR_TRANSMISSIVE);
 
         return true;
     }

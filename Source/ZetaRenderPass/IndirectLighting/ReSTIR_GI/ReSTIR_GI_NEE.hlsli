@@ -29,7 +29,7 @@ namespace RGI_Util
 
             // Check if closest hit is a light source
             ReSTIR_RT::Hit_Emissive hitInfo = ReSTIR_RT::Hit_Emissive::FindClosest(pos, normal, 
-                wi, globals.bvh, globals.frameMeshData, surface.HasSpecularTransmission());
+                wi, globals.bvh, globals.frameMeshData, surface.transmissive);
 
             if (hitInfo.HitWasEmissive())
             {
@@ -102,7 +102,7 @@ namespace RGI_Util
                 le *= BSDF::UnifiedBSDF(surface) * dwdA;
                 
                 if (dot(le, le) > 0)
-                    le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, surface.HasSpecularTransmission());
+                    le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, surface.transmissive);
 
                 float bsdfPdf = skipDiffuse ? 
                     BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) :
@@ -173,7 +173,7 @@ namespace RGI_Util
                 if (Math::Luminance(le) > 1e-6)
                 {
                     le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, 
-                        surface.HasSpecularTransmission());
+                        surface.transmissive);
                 }
 
                 ret.ld += le / max(lightPdf, 1e-6);
@@ -196,7 +196,7 @@ namespace RGI_Util
         if(-g_frame.SunDir.y > 0)
         {
             // Consider the sun only if the surface is not oriented away.
-            float q = (surface.HasSpecularTransmission() ? 1 : 
+            float q = (surface.transmissive ? 1 : 
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 
             if(p_sun < q)

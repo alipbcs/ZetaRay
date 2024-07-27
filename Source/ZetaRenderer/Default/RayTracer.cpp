@@ -430,7 +430,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
 
             // Previous g-buffers
             renderGraph.AddInput(handles[i],
-                gbuffData.DepthBuffer[1 - outIdx].ID(),
+                gbuffData.Depth[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
@@ -446,7 +446,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
-                gbuffData.Transmission[1 - outIdx].ID(),
+                gbuffData.IORBuffer[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
@@ -467,7 +467,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
-                gbuffData.DepthBuffer[outIdx].ID(),
+                gbuffData.Depth[outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
@@ -479,7 +479,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
-                gbuffData.Transmission[outIdx].ID(),
+                gbuffData.IORBuffer[outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
@@ -507,11 +507,11 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
 
         // Make sure it runs post gbuffer
         renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.DepthBuffer[outIdx].ID(),
+            gbuffData.Depth[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
         renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.DepthBuffer[1 - outIdx].ID(),
+            gbuffData.Depth[1 - outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
         renderGraph.AddInput(data.SunShadowHandle,

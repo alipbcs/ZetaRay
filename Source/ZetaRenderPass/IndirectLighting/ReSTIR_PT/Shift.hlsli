@@ -208,17 +208,17 @@ namespace RPT_Util
 
             float3 wo = Math::DecodeOct32(Math::UnpackUintToInt16(inC.x));
             float roughness = Math::DecodeUNorm8(inC.z & 0xff);
-            float specTr =  Math::DecodeUNorm8((inC.z >> 24) & 0xff);
             float3 baseColor = Math::UnpackRGB(inC.y & 0xffffff);
             uint flags = inC.y >> 24;
             bool metallic = flags & 0x1;
             ctx.anyGlossyBounces = flags & 0x2;
+            bool transmissive = flags & 0x4;
 
             float eta_t = ctx.eta_curr == ETA_AIR ? ETA_AIR : ctx.eta_mat;
             float eta_i = ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR;
 
             ctx.surface = BSDF::ShadingData::Init(ctx.normal, wo, metallic, roughness, 
-                baseColor, eta_i, eta_t, specTr);
+                baseColor, eta_i, eta_t, transmissive);
 
             if(!isCase3)
                 ctx.rd.uv_grads.xy = asfloat16(uint16_t2(inC.w & 0xffff, inC.w >> 16));
@@ -234,14 +234,14 @@ namespace RPT_Util
             // ShadingData
             int16_t2 e2 = Math::EncodeOct32(this.surface.wo);
             uint wo = asuint16(e2.x) | (uint(asuint16(e2.y)) << 16);
-            uint flags = (uint)surface.metallic | ((uint)this.anyGlossyBounces << 1);
-            uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_Metal);
+            uint flags = (uint)surface.metallic | ((uint)this.anyGlossyBounces << 1) | 
+                ((uint)surface.transmissive << 2);
+            uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
             baseColor_Flags = baseColor_Flags | (flags << 24);
             uint roughness = Math::EncodeAsUNorm8(sqrt(surface.alpha));
             uint eta_curr = Math::EncodeAsUNorm8((this.eta_curr - 1.0f) / 1.5f);
             uint eta_mat = Math::EncodeAsUNorm8((this.eta_mat - 1.0f) / 1.5f);
-            uint specTr = Math::EncodeAsUNorm8(surface.transmission);
-            uint packed = roughness | (eta_curr << 8) | (eta_mat << 16) | (specTr << 24);
+            uint packed = roughness | (eta_curr << 8) | (eta_mat << 16);
 
             // R16G16B16A16_FLOAT
             RWTexture2D<float4> g_rbA = ResourceDescriptorHeap[uavAIdx];
@@ -278,18 +278,13 @@ namespace RPT_Util
     };
 
     bool CanReconnect(float alpha_lobe_k_min_1, float alpha_lobe_k, float3 x_k_min_1, float3 x_k, 
-        float st_k_min_1, float st_k, BSDF::LOBE lobe_k_min_1, BSDF::LOBE lobe_k, float alpha_min)
+        BSDF::LOBE lobe_k_min_1, BSDF::LOBE lobe_k, float alpha_min)
     {
         if((alpha_lobe_k_min_1 < alpha_min) || (alpha_lobe_k < alpha_min))
             return false;
 
         if((lobe_k_min_1 == BSDF::LOBE::GLOSSY_T) && (lobe_k == BSDF::LOBE::GLOSSY_T))
-        {
-            if(st_k_min_1 == 1)
-                return false;
-
-            return alpha_lobe_k_min_1 > 0.15f;
-        }
+            return false;
 
         // float3 delta = x_k - x_k_min_1;
         // float distSq = dot(delta, delta);
@@ -311,7 +306,7 @@ namespace RPT_Util
         ctx.anyGlossyBounces = false;
 
         float alpha_lobe_prev = BSDF::LobeAlpha(ctx.surface.alpha, bsdfSample.lobe);
-        float specTr_prev = ctx.surface.transmission;
+        bool tr_prev = ctx.surface.transmissive;
         BSDF::LOBE lobe_prev = bsdfSample.lobe;
         float3 pos_prev = ctx.pos;
 
@@ -319,7 +314,7 @@ namespace RPT_Util
         {
             ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<false>(ctx.pos, ctx.normal, 
                 bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
-                globals.indices, ctx.surface.HasSpecularTransmission());
+                globals.indices, ctx.surface.transmissive);
 
             // Not invertible -- base path would've stopped here
             if(!hitInfo.hit)
@@ -360,7 +355,7 @@ namespace RPT_Util
             // Sample BSDF to generate new direction
             bsdfSample = BSDF::BSDFSample::Init();
             bool sampleNonDiffuseBSDF = (bounce < globals.maxGlossyBounces_NonTr) ||
-                (ctx.surface.HasSpecularTransmission() && (bounce < globals.maxGlossyBounces_Tr));
+                (ctx.surface.transmissive && (bounce < globals.maxGlossyBounces_Tr));
 
             if(bounce < globals.maxDiffuseBounces)
                 bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, ctx.rngReplay);
@@ -377,8 +372,8 @@ namespace RPT_Util
             const float alpha_lobe = BSDF::LobeAlpha(ctx.surface.alpha, bsdfSample.lobe);
 
             // Not invertible -- reconnection vertex must match
-            if(RPT_Util::CanReconnect(alpha_lobe_prev, alpha_lobe, pos_prev, ctx.pos, specTr_prev, 
-                ctx.surface.transmission, lobe_prev, bsdfSample.lobe, alpha_min))
+            if(RPT_Util::CanReconnect(alpha_lobe_prev, alpha_lobe, pos_prev, ctx.pos, lobe_prev, 
+                bsdfSample.lobe, alpha_min))
             {
                 ctx.throughput = 0;
                 return;
@@ -391,7 +386,7 @@ namespace RPT_Util
 
             pos_prev = ctx.pos;
             alpha_lobe_prev = alpha_lobe;
-            specTr_prev = ctx.surface.transmission;
+            tr_prev = ctx.surface.transmissive;
             lobe_prev = bsdfSample.lobe;
 
             ctx.rd.UpdateRays(ctx.pos, ctx.normal, bsdfSample.wi, ctx.surface.wo, 
@@ -419,7 +414,7 @@ namespace RPT_Util
         float alpha_lobe_k_min_1 = BSDF::LobeAlpha(surface.alpha, rc.lobe_k_min_1);
 
         // Not invertible
-        if(!RPT_Util::CanReconnect(alpha_lobe_k_min_1, 1, y_k_min_1, rc.x_k, surface.transmission, 1,
+        if(!RPT_Util::CanReconnect(alpha_lobe_k_min_1, 1, y_k_min_1, rc.x_k,
             rc.lobe_k_min_1, rc.lobe_k, alpha_min))
             return ret;
 
@@ -445,7 +440,7 @@ namespace RPT_Util
 
         ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(y_k_min_1, normal_k_min_1, 
             w_k_min_1, globals.bvh, globals.frameMeshData, globals.vertices, globals.indices, 
-            surface.HasSpecularTransmission());
+            surface.transmissive);
 
         // Not invertible
         if(!hitInfo.hit || (hitInfo.ID != rc.ID))

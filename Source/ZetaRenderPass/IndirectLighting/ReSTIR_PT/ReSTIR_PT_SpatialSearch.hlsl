@@ -86,19 +86,19 @@ int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, f
 
         const float3 sampleNormal = Math::DecodeUnitVector(g_normal[samplePosSS]);
 
-        if (!RPT_Util::PlaneHeuristic(samplePos, normal, pos, viewDepth, 0.1))
+        if (!RPT_Util::PlaneHeuristic(samplePos, normal, pos, viewDepth))
             continue;
 
         if(sampleEmissive)
             continue;
 
-        if(abs(sampleMR.y - roughness) > 0.15)
+        if(abs(sampleMR.y - roughness) > MAX_ROUGHNESS_DIFF_SPATIAL_REUSE)
             continue;
 
         if(transmissive != sampleTransmissive)
             continue;
 
-        if(dot(sampleNormal, normal) < 0.5)
+        if(dot(sampleNormal, normal) < MIN_NORMAL_SIMILARITY_SPATIAL_REUSE)
             continue;
 
         if(IS_CB_FLAG_SET(CB_IND_FLAGS::REJECT_OUTLIERS))
@@ -143,13 +143,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
+    bool metallic;
+    bool transmissive;
+    bool emissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
-    if (invalid || isEmissive)
+    if (invalid || emissive)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -165,12 +165,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
-    RNG rng = RNG::Init(swizzledDTid.yx, g_frame.FrameNum + 61);
+    RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum)).xy, g_frame.FrameNum);
     const uint16_t passIdx = (uint16_t)((g_local.Packed >> 12) & 0x3);
     const uint16_t scale = passIdx + (uint16_t)1;
 
-    int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, isMetallic, mr.y, 
-        isTransmissive, viewDepth, SPATIAL_SEARCH_RADIUS * scale, rng);
+    int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, metallic, mr.y, 
+        transmissive, viewDepth, SPATIAL_SEARCH_RADIUS * scale, rng);
 
     RWTexture2D<uint2> g_out = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];
     // [-R_max, +R_max]

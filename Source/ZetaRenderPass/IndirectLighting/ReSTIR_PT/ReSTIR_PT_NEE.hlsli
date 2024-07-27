@@ -34,7 +34,7 @@ namespace RPT_Util
         if(-g_frame.SunDir.y > 0)
         {
             // Skip sun the opaque surface is oriented away
-            float q = (surface.HasSpecularTransmission() ? 1 : 
+            float q = (surface.transmissive ? 1 : 
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 
             if(p_sun < q)
@@ -82,7 +82,7 @@ namespace RPT_Util
 
         // Check if closest hit is a light source
         hitInfo = ReSTIR_RT::Hit_Emissive::FindClosest(pos, normal, wi, globals.bvh, 
-            globals.frameMeshData, surface.HasSpecularTransmission());
+            globals.frameMeshData, surface.transmissive);
 
         if (hitInfo.HitWasEmissive())
         {
@@ -125,7 +125,7 @@ namespace RPT_Util
 
         // Last iteration -- set bsdfSample = null so that we early exit from path tracing loop
         const bool sampleNonDiffuse = (nextBounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.HasSpecularTransmission() && (nextBounce < globals.maxGlossyBounces_Tr));
+            (surface.transmissive && (nextBounce < globals.maxGlossyBounces_Tr));
 
         if((nextBounce >= globals.maxDiffuseBounces) && !sampleNonDiffuse)
             bsdfSample.bsdfOverPdf = 0;
@@ -185,7 +185,7 @@ namespace RPT_Util
             if (dot(ld, ld) > 0)
             {
                 ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
-                    globals.bvh, surface.HasSpecularTransmission());
+                    globals.bvh, surface.transmissive);
             }
 
             float bsdfPdf = 0;
@@ -223,7 +223,8 @@ namespace RPT_Util
         float u_wrs_d = rng.Uniform();
 
         SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(skyViewDescHeapOffset);
-        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, u_wh, u_d, leFunc);
+        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, u_wh, u_d, 
+            u_wrs_r, leFunc);
 
         ReSTIR_Util::DirectLightingEstimate ret;
         // = Le(wi) * BSDF(wi) / pdf
@@ -231,7 +232,7 @@ namespace RPT_Util
         ret.pdf_solidAngle = eval.pdf;
 
         if(TestVisibility && (dot(ret.ld, ret.ld) > 0))
-            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission());
+            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.transmissive);
 
         return ret;
     }
@@ -296,7 +297,7 @@ namespace RPT_Util
         if(dot(ld, ld) > 0)
         {
             ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
-                surface.HasSpecularTransmission());
+                surface.transmissive);
         }
 
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();

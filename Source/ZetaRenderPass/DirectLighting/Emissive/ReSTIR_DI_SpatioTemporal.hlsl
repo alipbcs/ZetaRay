@@ -42,7 +42,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
         // check if closest hit is a light source
         RDI_Util::BrdfHitInfo hitInfo;
         bool hitEmissive = RDI_Util::FindClosestHit(pos, normal, wi, g_bvh, g_frameMeshData, 
-            hitInfo, surface.HasSpecularTransmission());
+            hitInfo, surface.transmissive);
 
         RT::EmissiveTriangle emissive;
         float3 le = 0.0;
@@ -144,7 +144,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
             if (Math::Luminance(currTarget) > 1e-6)
             {
                 currTarget *= RDI_Util::VisibilityApproximate(g_bvh, pos, wi, t, normal, lightID, 
-                    surface.HasSpecularTransmission());
+                    surface.transmissive);
             }
         }
 
@@ -276,16 +276,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
+    bool metallic;
+    bool transmissive;
+    bool emissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
     if (invalid)
         return;
 
-    if(isEmissive)
+    if(emissive)
     {
         GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::EMISSIVE_COLOR];
@@ -331,23 +331,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(isTransmissive)
+    if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_transmission[swizzledDTid];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[swizzledDTid];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
-        eta_i, eta_t, tr);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor,
+        eta_i, eta_t, transmissive);
 
     // Group-uniform index so that every thread in this group uses the same set
     RNG rng_group = RNG::Init(Gid.xy, g_frame.FrameNum);
@@ -366,12 +364,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         float3 fr = surface.Fresnel();
 
         // demodulate base color
-        float3 f_d = (1.0f - fr) * (1.0f - isMetallic) * surface.ndotwi * ONE_OVER_PI;
+        float3 f_d = (1.0f - fr) * (1.0f - metallic) * surface.ndotwi * ONE_OVER_PI;
         float3 f_s = 0;
 
         // demodulate Fresnel for metallic surfaces to preserve texture detail
         float alphaSq = surface.alpha * surface.alpha;
-        if(isMetallic)
+        if(metallic)
         {
             if(surface.specular)
             {

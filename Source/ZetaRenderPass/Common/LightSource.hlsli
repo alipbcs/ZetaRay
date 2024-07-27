@@ -146,7 +146,8 @@ namespace Light
         float3 temp = pos;
         temp.y += g_frame.PlanetRadius;
     
-        const float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, -g_frame.SunDir);
+        const float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, 
+            temp, -g_frame.SunDir);
         const float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, temp, -g_frame.SunDir, t,
             sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 
@@ -199,28 +200,26 @@ namespace Light
         pdf = 1.0f;
 
         // Essentially a mirror, no point in light sampling
-        if(surface.specular && surface.IsMetallic())
+        if(surface.specular && surface.metallic)
         {
             float3 wi = reflect(-surface.wo, normal);
             surface.SetWi_Refl(wi, normal);
-            f = BSDF::UnifiedBRDF(surface);
+            f = BSDF::MetalBase(surface);
 
             return f;
         }
 
         // Light sampling
         float pdf_light = 1;
-        float3 wi_light;
 
         // Sample the cone subtended by sun
-        {
-            float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), sunCosAngularRadius, pdf_light);
-            
-            float3 T;
-            float3 B;
-            Math::revisedONB(sunDir, T, B);
-            wi_light = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * sunDir;
-        }
+        float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), 
+            sunCosAngularRadius, pdf_light);
+        
+        float3 T;
+        float3 B;
+        Math::revisedONB(sunDir, T, B);
+        float3 wi_light = sampleLocal.x * T + sampleLocal.y * B + sampleLocal.z * sunDir;
 
         // Since sun is a very small area light, area sampling should be fine unless the surface is specular
         if(!surface.specular)
@@ -237,12 +236,11 @@ namespace Light
         // is transmissive
         if(dot(sunDir, normal) < 0)
         {
-            if(surface.HasSpecularTransmission())
+            if(surface.transmissive)
             {
                 float3 wi = refract(-surface.wo, normal, 1 / surface.eta);
                 surface.SetWi_Tr(wi, normal);
-                float fr = surface.Fresnel_Dielectric();
-                f = surface.transmission * (1 - fr) * surface.diffuseReflectance_Fr0_Metal;
+                f = BSDF::DielectricBTDF(surface);
 
                 return wi;
             }
@@ -250,9 +248,11 @@ namespace Light
             // Sun hit the backside and surface isn't transmissive
             f = 0;
 
-            // Doesn't matter as f is 0
+            // Doesn't matter as f = 0
             return sunDir;
         }
+
+        // Specular dielectric and sun hits the front side
 
         float3 wi_refl = reflect(-surface.wo, normal);
         bool insideCone = dot(wi_refl, sunDir) >= sunCosAngularRadius;
@@ -260,29 +260,28 @@ namespace Light
         if(!insideCone)
         {
             surface.SetWi_Refl(wi_light, normal);
-            f = BSDF::UnifiedBRDF(surface);
+            f = BSDF::UnifiedBSDF(surface);
 
             return wi_light;
         }
 
         // Streaming RIS with MIS -- light sample and mirror reflection both result in
-        // a nonzero BSDF, e.g. dielectric with 0 roughness
-        float3 wi;
+        // a nonzero BSDF
 
         // Feed light sample
         surface.SetWi_Refl(wi_light, normal);
-        float3 target = BSDF::DielectricBRDF(surface);
+        float3 target = BSDF::UnifiedBSDF(surface);
         float targetLum = Math::Luminance(target);
         // rate of change of reflection is twice the rate of change of half vector
         // 0.99996 = 1.0f - (1.0f - MIN_N_DOT_H_SPECULAR) * 2
         float w_sum = RT::BalanceHeuristic(pdf_light, dot(wi_light, wi_refl) >= 0.99996, targetLum);
-        wi = wi_light;
+        float3 wi = wi_light;
         f = target;
 
         // Feed BSDF sample
         surface.SetWi_Refl(wi_refl, normal);
         float mis_pdf_light = insideCone * pdf_light;
-        float3 target_bsdf = BSDF::DielectricBRDF(surface) * insideCone;
+        float3 target_bsdf = BSDF::UnifiedBSDF(surface) * insideCone;
         float targetLum_bsdf = Math::Luminance(target_bsdf);
         float w = RT::BalanceHeuristic(1, mis_pdf_light, targetLum_bsdf);
         w_sum += w;

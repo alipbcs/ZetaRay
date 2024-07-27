@@ -59,7 +59,7 @@ namespace RDI_Util
         float3 normal;
         float roughness;
         int16_t2 posSS;
-        float transmission;
+        bool transmissive;
         float eta_i;
         bool valid;
         bool metallic;

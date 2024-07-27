@@ -85,23 +85,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     GBUFFER_METALLIC_ROUGHNESS g_mr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_mr[DTid.xy];
-    bool isMetallic;
-    bool isEmissive;
-    bool isTransmissive;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive);
+    bool metallic;
+    bool emissive;
+    bool transmissive;
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive);
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(isTransmissive)
+    if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_tr[DTid.xy];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[DTid.xy];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     float3 baseColor = 0;
@@ -113,8 +111,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
-        eta_i, eta_t, tr);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor,
+        eta_i, eta_t, transmissive);
 
     float3 wi = -g_frame.SunDir;
     float pdf = 1;
@@ -131,7 +129,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
         // Sun below the horizon
         (wi.y > 0) &&
         // Sun hits the backside of non-transmissive surface
-        ((dot(wi, normal) > 0) || surface.HasSpecularTransmission()) &&
+        ((dot(wi, normal) > 0) || surface.transmissive) &&
         // Make sure BSDF samples are within the valid range
         (dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius);
     const bool isUnoccluded = trace ? EvaluateVisibility(pos, wi, normal) : false;

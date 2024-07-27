@@ -64,11 +64,13 @@ namespace BSDF
         if(!surface.specular)
             ret.pdf = wh_pdf / 4.0f;
 
-        ret.f = BSDF::UnifiedBRDF(surface) * func(wi_r);
+        ret.f = BSDF::UnifiedBSDF(surface) * func(wi_r);
         ret.bsdfOverPdf = ret.f / ret.pdf;
 
-        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
+        if(surface.metallic || !surface.transmissive)
             return ret;
+
+        // Transmissive dielectric surface
 
         float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
         float fr0 = BSDF::DielectricF0(surface.eta);
@@ -105,6 +107,7 @@ namespace BSDF
         return ret;
     }
 
+    // Either surface is transmissive or diffuse lobe is intentionally ignored
     BSDFSample SampleBSDF_NoDiffuse(float3 normal, ShadingData surface, inout RNG rng)
     {
         float2 u_wh = rng.Uniform2D();
@@ -123,7 +126,7 @@ namespace BSDF
 
         // Streaming RIS using weighted reservoir sampling to sample aggregate BRDF
         float w_sum;
-        float3 target = BSDF::UnifiedBRDF(surface);
+        float3 target = BSDF::BaseBRDF(surface);
         target *= func(wi_r);
 
         BSDFSample ret;
@@ -132,7 +135,7 @@ namespace BSDF
         ret.f = target;
 
         // Metals don't have transmission or diffuse lobes.
-        if(surface.IsMetallic())
+        if(surface.metallic)
         {
             ret.pdf = BSDF::VNDFReflectionPdf(surface);
             ret.bsdfOverPdf = target / ret.pdf;
@@ -145,7 +148,7 @@ namespace BSDF
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = !surface.invalid * BSDF::LambertianBRDFPdf(surface);
+            float pdf_d = (dot(wi_r, normal) >= 0) * BSDF::LambertianBRDFPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
@@ -155,7 +158,7 @@ namespace BSDF
             float3 wi_d = BSDF::SampleLambertianBRDF(normal, u_d, pdf_d);
             surface.SetWi_Refl(wi_d, normal);
 
-            float3 target_d = BSDF::DielectricBRDF(surface);
+            float3 target_d = BSDF::OpaqueBase(surface);
             target_d *= func(wi_d);
             float targetLum_d = Math::Luminance(target_d);
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
@@ -180,116 +183,13 @@ namespace BSDF
     }
 
     template<typename Func>
-    BSDFSample SampleBSDF(float3 normal, ShadingData surface, float2 u_wh, float u_wrs_r,     
-        float2 u_d, float u_wrs_d, Func func)
-    {
-        // Streaming RIS using weighted reservoir sampling to sample aggregtate BSDF
-        BSDFSample ret;
-        float3 target = 0;
-        float w_sum = 0;
-
-        float3 wh = surface.specular ? normal : BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, u_wh);
-        // Evaluate VNDF
-        float pdf_wh = BSDF::MicrofacetPdf(normal, wh, surface);
-
-        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
-        bool tir = dot(wi_t, wi_t) == 0;
-
-        // Specular/glossy transmission
-        if(!tir)
-        {
-            surface.SetWi_Tr(wi_t, normal, wh);
-            float pdf_t = 1;
-
-            if(!surface.specular)
-            {
-                pdf_t = pdf_wh * surface.whdotwo;
-
-                // Account for change of density from half vector to incident vector
-                float dwh_dwi = BSDF::JacobianHalfVecToIncident_Tr(surface);
-                pdf_t *= dwh_dwi;
-            }
-
-            target = BSDF::DielectricBTDF(surface) * func(wi_t);
-            float targetLum_t = Math::Luminance(target);
-            w_sum = pdf_t > 0 ? targetLum_t / pdf_t : 0;
-
-            ret.wi = wi_t;
-            ret.lobe = BSDF::LOBE::GLOSSY_T;
-            ret.f = target;
-        }
-
-        // Specular/glossy reflection
-        {
-            float3 wi_r = reflect(-surface.wo, wh);
-            surface.SetWi_Refl(wi_r, normal, wh);
-
-            float3 target_r = BSDF::DielectricBRDF(surface) * func(wi_r);
-            float targetLum_r = Math::Luminance(target_r);
-
-            float pdf_r = 1;
-
-            // Account for change of density from half vector to incident vector
-            if(!surface.specular)
-                pdf_r = pdf_wh / 4.0f;
-
-            // After using the law of reflection, VNDF samples might end up below the surface
-            float pdf_d = !surface.invalid * (surface.transmission != 1) * BSDF::LambertianBRDFPdf(surface);
-            float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
-            w_sum += w;
-
-            if ((w_sum > 0) && (u_wrs_r < (w / w_sum)))
-            {
-                target = target_r;
-
-                ret.wi = wi_r;
-                ret.lobe = BSDF::LOBE::GLOSSY_R;
-                ret.f = target_r;
-            }
-        }
-
-        // Lambertian
-        if(surface.transmission < 1)
-        {
-            float pdf_d;
-            float3 wi_d = BSDF::SampleLambertianBRDF(normal, u_d, pdf_d);
-            surface.SetWi_Refl(wi_d, normal);
-
-            float3 target_d = BSDF::DielectricBRDF(surface) * func(wi_d);
-            float targetLum_d = Math::Luminance(target_d);
-
-            float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float w = RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_d);
-            w_sum += w;
-
-            if ((w_sum > 0) && u_wrs_d < (w / w_sum))
-            {
-                target = target_d;
-
-                ret.wi = wi_d;
-                ret.lobe = BSDF::LOBE::DIFFUSE_R;
-                ret.f = target_d;
-            }
-        }
-
-        float targetLum = Math::Luminance(target);
-        ret.bsdfOverPdf = targetLum > 0 ? target * (w_sum / targetLum) : 0;
-        ret.pdf = w_sum > 0 ? targetLum / w_sum : 0;
-
-        return ret;
-    }
-
-    template<typename Func>
     BSDFSample SampleBSDF(float3 normal, ShadingData surface, float2 u_wh, float2 u_d,
         float u_wrs_r, float u_wrs_d, Func func)
     {
-        if(!surface.HasSpecularTransmission())
+        if(!surface.transmissive)
             return SampleBRDF(normal, surface, u_wh, u_d, u_wrs_d, func);
 
-        if(surface.transmission == 1)
-            return BSDF::SampleBSDF_NoDiffuse(normal, surface, u_wh, u_wrs_r, func);
-
-        return SampleBSDF(normal, surface, u_wh, u_wrs_r, u_d, u_wrs_d, func);
+        return BSDF::SampleBSDF_NoDiffuse(normal, surface, u_wh, u_wrs_r, func);
     }
 
     BSDFSample SampleBSDF(float3 normal, ShadingData surface, inout RNG rng)
@@ -302,13 +202,10 @@ namespace BSDF
         float u_wrs_d = rng.Uniform();
         NoOp noop;
 
-        if(!surface.HasSpecularTransmission())
+        if(!surface.transmissive)
             return SampleBRDF(normal, surface, u_wh, u_d, u_wrs_d, noop);
 
-        if(surface.transmission == 1)
-            return BSDF::SampleBSDF_NoDiffuse(normal, surface, u_wh, u_wrs_r, noop);
-
-        return SampleBSDF(normal, surface, u_wh, u_wrs_r, u_d, u_wrs_d, noop);
+        return BSDF::SampleBSDF_NoDiffuse(normal, surface, u_wh, u_wrs_r, noop);
     }
 
     template<typename Func>
@@ -318,11 +215,11 @@ namespace BSDF
         BSDFSamplerEval ret;
         float3 targetScale = func(wi);
 
-        if(surface.IsMetallic())
+        if(surface.metallic)
         {
             surface.SetWi_Refl(wi, normal);
             ret.pdf = BSDF::VNDFReflectionPdf(surface);
-            ret.bsdfOverPdf = !surface.invalid * surface.reflection * BSDF::MicrofacetBRDFOverPdf(surface);
+            ret.bsdfOverPdf = !surface.invalid * BSDF::MicrofacetBRDFOverPdf(surface);
             ret.bsdfOverPdf *= targetScale;
 
             return ret;
@@ -337,11 +234,11 @@ namespace BSDF
             float3 wi_r = isZ_r ? wi : BSDF::SampleMicrofacetBRDF(surface, normal, u_r);
             surface.SetWi_Refl(wi_r, normal);
 
-            target = BSDF::DielectricBRDF(surface) * targetScale;
+            target = BSDF::OpaqueBase(surface) * targetScale;
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = !surface.invalid * BSDF::LambertianBRDFPdf(surface);
+            float pdf_d = (dot(normal, wi_r) >= 0) * BSDF::LambertianBRDFPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
@@ -351,7 +248,7 @@ namespace BSDF
             float3 wi_d = isZ_d ? wi : BSDF::SampleLambertianBRDF(normal, u_d);
             surface.SetWi_Refl(wi_d, normal);
 
-            float3 target_d = BSDF::DielectricBRDF(surface) * func(wi_d);
+            float3 target_d = BSDF::OpaqueBase(surface) * func(wi_d);
             float targetLum_d = Math::Luminance(target_d);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
@@ -380,7 +277,7 @@ namespace BSDF
         ret.bsdfOverPdf *= targetScale;
         ret.pdf = !surface.specular ? wh_pdf / 4.0f : surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
 
-        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
+        if(surface.metallic || !surface.transmissive)
             return ret;
 
         float fr = surface.Fresnel_Dielectric();
@@ -428,80 +325,12 @@ namespace BSDF
 
     template<typename Func>
     BSDFSamplerEval EvalBSDFSampler(float3 normal, BSDF::ShadingData surface, float3 wi, 
-        BSDF::LOBE lobe, float2 u_wh, float2 u_d, Func func)
+        BSDF::LOBE lobe, float2 u_wh, float2 u_d, float u_wrs_r, Func func)
     {
-        float3 wh = surface.specular ? normal : BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, u_wh);
-        // Evaluate VNDF
-        float wh_pdf = BSDF::MicrofacetPdf(normal, wh, surface);
+        if(!surface.transmissive)
+            return EvalBRDFSampler(normal, surface, wi, lobe, u_wh, u_d, func);
 
-        float3 wi_t = lobe == BSDF::LOBE::GLOSSY_T ? wi : refract(-surface.wo, wh, 1 / surface.eta);
-        bool tir = dot(wi_t, wi_t) == 0;
-
-        float w_sum = 0;
-        float3 target = 0;
-
-        // Specular/glossy transmission
-        if(!tir)
-        {
-            surface.SetWi_Tr(wi_t, normal, wh);
-            float pdf_t = 1;
-
-            if(!surface.specular)
-            {
-                pdf_t = wh_pdf * surface.whdotwo;
-
-                // Account for change of density from half vector to incident vector
-                float dwh_dwi = BSDF::JacobianHalfVecToIncident_Tr(surface);
-                pdf_t *= dwh_dwi;
-            }
-
-            target = BSDF::DielectricBTDF(surface) * func(wi_t);
-            float targetLum = Math::Luminance(target);
-            w_sum = pdf_t > 0 ? targetLum / pdf_t : 0;
-        }
-
-        // Specular/glossy reflection
-        {
-            bool isZ_r = lobe == BSDF::LOBE::GLOSSY_R;
-            float3 wi_r = isZ_r ? wi : reflect(-surface.wo, wh);
-            surface.SetWi_Refl(wi_r, normal, wh);
-
-            float3 target_r = BSDF::DielectricBRDF(surface) * func(wi_r);
-            float targetLum_r = Math::Luminance(target_r);
-
-            float pdf_r = 1;
-
-            // Account for change of density from half vector to incident vector
-            if(!surface.specular)
-                pdf_r = wh_pdf / 4.0f;
-
-            // After using the law of reflection, VNDF samples might end up below the surface
-            float pdf_d = !surface.invalid * (surface.transmission != 1) * BSDF::LambertianBRDFPdf(surface);
-            w_sum += RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
-            target = isZ_r ? target_r : target;
-        }
-
-        // Lambertian
-        if(surface.transmission < 1)
-        {
-            bool isZ_d = lobe == BSDF::LOBE::DIFFUSE_R;
-            float3 wi_d = isZ_d ? wi : BSDF::SampleLambertianBRDF(normal, u_d);
-            surface.SetWi_Refl(wi_d, normal);
-
-            float3 target_d = BSDF::DielectricBRDF(surface) * func(wi_d);
-            float targetLum_d = Math::Luminance(target_d);
-            float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianBRDFPdf(surface);
-            w_sum += RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_d);
-            target = isZ_d ? target_d : target;
-        }
-
-        BSDFSamplerEval ret;
-        float targetLum = Math::Luminance(target);
-        ret.bsdfOverPdf = targetLum > 0 ? target * w_sum / targetLum : 0;
-        ret.pdf = w_sum > 0 ? targetLum / w_sum : 0;
-
-        return ret;
+        return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_r, func);
     }
 
     // Mirrors the computation in SampleBSDF() to return joint probability of sampling lobe l_z 
@@ -515,13 +344,10 @@ namespace BSDF
         float u_wrs_r = rng.Uniform();
         float u_wrs_d = rng.Uniform();
 
-        if(!surface.HasSpecularTransmission())
+        if(!surface.transmissive)
             return EvalBRDFSampler(normal, surface, wi, lobe, u_wh, u_d, func);
 
-        if(surface.transmission == 1)
-            return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_r, func);
-
-        return EvalBSDFSampler(normal, surface, wi, lobe, u_wh, u_d, func);
+        return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_r, func);
     }    
     
     BSDFSamplerEval EvalBSDFSampler(float3 normal, BSDF::ShadingData surface, float3 wi, 
@@ -533,13 +359,10 @@ namespace BSDF
         float u_wrs_d = rng.Uniform();
         NoOp noop;
 
-        if(!surface.HasSpecularTransmission())
+        if(!surface.transmissive)
             return EvalBRDFSampler(normal, surface, wi, lobe, u_wh, u_d, noop);
 
-        if(surface.transmission == 1)
-            return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_r, noop);
-
-        return EvalBSDFSampler(normal, surface, wi, lobe, u_wh, u_d, noop);
+        return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_r, noop);
     }
 
     float BSDFSamplerPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
@@ -547,11 +370,12 @@ namespace BSDF
         surface.SetWi(wi, normal);
         float wh_pdf = BSDF::MicrofacetPdf(surface);
 
-        if(surface.IsMetallic() || !surface.HasSpecularTransmission())
+        if(surface.metallic || !surface.transmissive)
         {
-            return surface.specular ? 
+            float pdf = surface.specular ? 
                 surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 
                 wh_pdf / 4.0f;
+            return pdf * surface.reflection;
         }
 
         float fr = surface.Fresnel_Dielectric();
@@ -574,67 +398,50 @@ namespace BSDF
 
     float BSDFSamplerPdf(float3 normal, BSDF::ShadingData surface, float3 wi_z, inout RNG rng)
     {
+        if(surface.transmissive)
+            return BSDFSamplerPdf_NoDiffuse(normal, surface, wi_z);
+
         surface.SetWi(wi_z, normal);
+        if(!surface.reflection)
+            return 0;
 
         // Microfacet reflection is the only lobe
-        if(surface.IsMetallic())
-            return BSDF::VNDFReflectionPdf(surface) * surface.reflection;
+        if(surface.metallic)
+            return BSDF::VNDFReflectionPdf(surface);
+
+        // Surface is opaque dielectric
 
         // Using the law of total probability:
         //      p(wi_z) = p(wi_z, lobe = lobe_0) + ... + p(wi_z, lobe = lobe_k)
         float w_sum_r;
         float w_sum_d;
-        float w_sum_t;
         float targetLum;
 
         // wi_z
         {
-            float3 target = BSDF::UnifiedBSDF(surface);
+            float3 target = BSDF::OpaqueBase(surface);
             targetLum = Math::Luminance(target);
 
             float wh_z_pdf = BSDF::MicrofacetPdf(surface);
-            float pdf_r = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : wh_z_pdf / 4.0f;
-            pdf_r *= surface.reflection;
-            float fr = surface.Fresnel_Dielectric();
-
-            if(surface.transmission == 1 && surface.reflection)
-                return fr * pdf_r;
-
-            float pdf_d = !surface.invalid * surface.reflection * BSDF::LambertianBRDFPdf(surface);
+            float pdf_r = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 
+                wh_z_pdf / 4.0f;
+            float pdf_d = !surface.invalid * BSDF::LambertianBRDFPdf(surface);
             float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum);
             w_sum_r = w;
             w_sum_d = w;
-
-            float pdf_t = 1;
-
-            if(surface.HasSpecularTransmission() && !surface.specular)
-            {
-                pdf_t = wh_z_pdf * surface.whdotwo;
-
-                // Account for change of density from half vector to incident vector
-                float dwh_dwi = BSDF::JacobianHalfVecToIncident_Tr(surface);
-                pdf_t *= dwh_dwi;
-            }
-
-            if(surface.transmission == 1 && !surface.reflection)
-                return (1 - fr) * pdf_t;
-
-            w_sum_t = pdf_t > 0 ? (targetLum / pdf_t) * !surface.reflection : 0;
         }
 
         // wi_d
-        // if(surface.transmission < 1)
         {
             float pdf_d;
             float3 wi_d = BSDF::SampleLambertianBRDF(normal, rng.Uniform2D(), pdf_d);
             surface.SetWi_Refl(wi_d, normal);
-            float3 target_d = BSDF::DielectricBRDF(surface);
+            float3 target_d = BSDF::OpaqueBase(surface);
             float targetLum_d = Math::Luminance(target_d);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
             float w = RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_d);
             w_sum_r += w;
-            w_sum_t += w;
         }
 
         float3 wh = surface.specular ? normal : 
@@ -645,58 +452,20 @@ namespace BSDF
         {
             float3 wi_r = reflect(-surface.wo, wh);
             surface.SetWi_Refl(wi_r, normal, wh);
-            float3 target_r = BSDF::DielectricBRDF(surface);
+            float3 target_r = BSDF::OpaqueBase(surface);
             float targetLum_r = Math::Luminance(target_r);
 
             // Account for change of density from half vector to incident vector
             float pdf_r = surface.specular ? 1 : wh_pdf / 4.0f;
-            float pdf_d = (surface.transmission != 1) * BSDF::LambertianBRDFPdf(surface);
+            float pdf_d = BSDF::LambertianBRDFPdf(surface);
             float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
-            w_sum_t += w;
             w_sum_d += w;
         }
 
-        if(!surface.HasSpecularTransmission())
-        {
-            // p(wi_z, lobe = microfacet)
-            float pdf = w_sum_r > 0 ? targetLum / w_sum_r : 0;
-            // p(wi_z, lobe = lambertian)
-            pdf += w_sum_d > 0 ? targetLum / w_sum_d : 0;
-
-            return pdf;
-        }
-
-        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
-        bool tir = dot(wi_t, wi_t) == 0;
-
-        // wi_t
-        if(!tir)
-        {
-            surface.SetWi_Tr(wi_t, normal, wh);
-            float pdf_t = 1;
-
-            if(!surface.specular)
-            {
-                pdf_t = wh_pdf * surface.whdotwo;
-
-                // Account for change of density from half vector to incident vector
-                float dwh_dwi = BSDF::JacobianHalfVecToIncident_Tr(surface);
-                pdf_t *= dwh_dwi;
-            }
-
-            float3 target = BSDF::DielectricBTDF(surface);
-            float targetLum_t = Math::Luminance(target);
-            float w = pdf_t > 0 ? targetLum_t / pdf_t : 0;
-            w_sum_r += w;
-            w_sum_d += w;
-        }
-
-        // p(wi_z, lobe = microfacet_r)
+        // p(wi_z, lobe = microfacet)
         float pdf = w_sum_r > 0 ? targetLum / w_sum_r : 0;
         // p(wi_z, lobe = lambertian)
         pdf += w_sum_d > 0 ? targetLum / w_sum_d : 0;
-        // p(wi_z, lobe = microfacet_t)
-        pdf += w_sum_t > 0 ? targetLum / w_sum_t : 0;
 
         return pdf;
     }

@@ -104,11 +104,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[DTid.xy];
 
-    bool isMetallic;
-    bool isEmissive;
-    bool isTransmissive;
+    bool metallic;
+    bool emissive;
+    bool transmissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
     RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
     
@@ -149,23 +149,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
             GBUFFER_OFFSET::NORMAL];
         const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
-        float tr = DEFAULT_SPECULAR_TRANSMISSION;
         float eta_t = DEFAULT_ETA_T;
         float eta_i = DEFAULT_ETA_I;
 
-        if(isTransmissive)
+        if(transmissive)
         {
-            GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-                GBUFFER_OFFSET::TRANSMISSION];
+            GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+                GBUFFER_OFFSET::IOR];
 
-            float2 tr_ior = g_transmission[DTid.xy];
-            tr = tr_ior.x;
-            eta_i = GBuffer::DecodeIOR(tr_ior.y);
+            float ior = g_ior[DTid.xy];
+            eta_i = GBuffer::DecodeIOR(ior);
         }
 
         const float3 wo = normalize(origin - pos);
-        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor,
-            eta_i, eta_t, tr);
+        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor,
+            eta_i, eta_t, transmissive);
 
         color += SunDirectLighting(DTid.xy, pos, normal, surface);
     }
@@ -184,7 +182,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         color += le / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
     }
 
-    if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !isEmissive && g_local.IndirectDescHeapIdx != 0)
+    if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !emissive && g_local.IndirectDescHeapIdx != 0)
     {
         Texture2D<float4> g_indirect = ResourceDescriptorHeap[g_local.IndirectDescHeapIdx];
         float3 li = g_indirect[DTid.xy].rgb;

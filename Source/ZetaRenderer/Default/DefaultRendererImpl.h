@@ -89,7 +89,7 @@ namespace ZetaRay::DefaultRenderer
             METALLIC_ROUGHNESS,
             MOTION_VECTOR,
             EMISSIVE_COLOR,
-            TRANSMISSION,
+            IOR,
             DEPTH,
             TRI_DIFF_GEO_A,
             TRI_DIFF_GEO_B,
@@ -103,7 +103,7 @@ namespace ZetaRay::DefaultRenderer
             DXGI_FORMAT_R8G8_UNORM,
             DXGI_FORMAT_R16G16_SNORM,
             DXGI_FORMAT_UNKNOWN,
-            DXGI_FORMAT_R8G8_UNORM,
+            DXGI_FORMAT_R8_UNORM,
             DXGI_FORMAT_R32_FLOAT,
             DXGI_FORMAT_R32G32B32A32_UINT,
             DXGI_FORMAT_R32G32_UINT
@@ -115,8 +115,8 @@ namespace ZetaRay::DefaultRenderer
         Core::GpuMemory::Texture MetallicRoughness[2];
         Core::GpuMemory::Texture MotionVec;
         Core::GpuMemory::Texture EmissiveColor;
-        Core::GpuMemory::Texture Transmission[2];
-        Core::GpuMemory::Texture DepthBuffer[2];
+        Core::GpuMemory::Texture IORBuffer[2];
+        Core::GpuMemory::Texture Depth[2];
         Core::GpuMemory::Texture TriDiffGeo_A[2];
         Core::GpuMemory::Texture TriDiffGeo_B[2];
 

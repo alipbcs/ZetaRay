@@ -124,25 +124,15 @@ float4 mainPS(VSOut psin) : SV_Target
     }
     else if (g_local.DisplayOption == (int) DisplayOption::TRANSMISSION)
     {
-        float tr = 0;
-
         GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
         float m = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0).x;
-        bool isMetallic;
-        bool isEmissive;
-        bool isTransmissive;
-        GBuffer::DecodeMetallic(m, isMetallic, isTransmissive, isEmissive);
+        bool metallic;
+        bool emissive;
+        bool transmissive;
+        GBuffer::DecodeMetallic(m, metallic, transmissive, emissive);
 
-        if(isTransmissive)
-        {
-            GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-                GBUFFER_OFFSET::TRANSMISSION];
-
-            tr = g_transmission.SampleLevel(g_samPointClamp, uv, 0).x;
-        }
-
-        display = tr * float3(1, 0, 0) + (1 - tr) * float3(0, 1, 0);
+        display = float3(transmissive, !transmissive, 0);
     }
 
     return float4(display, 1.0f);

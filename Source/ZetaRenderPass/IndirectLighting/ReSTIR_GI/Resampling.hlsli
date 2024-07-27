@@ -13,8 +13,8 @@ namespace RGI_Util
         float3 normal;
         float roughness;
         int16_t2 posSS;
-        uint16_t metallic;
-        float transmission;
+        uint16 metallic;
+        uint16 transmissive;
         float eta_i;
     };
 
@@ -73,7 +73,7 @@ namespace RGI_Util
 
         ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(primaryPos, primaryNormal, 
             bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
-            globals.indices, primarySurface.HasSpecularTransmission());
+            globals.indices, primarySurface.transmissive);
 
         if(!hitInfo.hit)
             return r;
@@ -117,7 +117,7 @@ namespace RGI_Util
 
     template<int N>
     TemporalSamples<N> FindTemporalCandidate(uint2 DTid, float3 posW, float3 normal, float viewZ, 
-        float roughness, float transmission, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, 
+        float roughness, bool transmissive, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, 
         inout RNG rng)
     {
         TemporalSamples<N> candidate = RGI_Util::TemporalSamples<N>::Init();
@@ -131,8 +131,8 @@ namespace RGI_Util
             GBUFFER_OFFSET::NORMAL];
         GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
         const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
         int2 prevPixel = prevUV * renderDim;
@@ -193,17 +193,15 @@ namespace RGI_Util
                 candidate.valid[curr] = candidate.valid[curr] && (roughnessDiff < 0.15);
             }
 
-            float prevTr = DEFAULT_SPECULAR_TRANSMISSION;
             float prevEta_i = DEFAULT_ETA_I;
 
             if(prevTransmissive)
             {
-                float2 tr_ior = g_tr[samplePosSS];
-                prevTr = tr_ior.x;
-                prevEta_i = GBuffer::DecodeIOR(tr_ior.y);
+                float ior = g_ior[samplePosSS];
+                prevEta_i = GBuffer::DecodeIOR(ior);
             }
 
-            candidate.valid[curr] = candidate.valid[curr] && (abs(transmission - prevTr) < 0.1f);
+            candidate.valid[curr] = candidate.valid[curr] && (prevTransmissive != transmissive);
             candidate.valid[curr] = g_frame.DoF ? true : candidate.valid[curr];
 
             if(candidate.valid[curr])
@@ -213,7 +211,7 @@ namespace RGI_Util
                 candidate.data[curr].normal = prevNormal;
                 candidate.data[curr].metallic = prevMetallic;
                 candidate.data[curr].roughness = prevMR.y;
-                candidate.data[curr].transmission = prevTr;
+                candidate.data[curr].transmissive = prevTransmissive;
                 candidate.data[curr].eta_i = prevEta_i;
 
                 curr++;
@@ -254,8 +252,9 @@ namespace RGI_Util
         }
         const float3 wo_prev = normalize(camPos_prev - candidate.posW);
 
-        BSDF::ShadingData surface_prev = BSDF::ShadingData::Init(candidate.normal, wo_prev, candidate.metallic, 
-            candidate.roughness, baseColor_prev, candidate.eta_i, 1.0f, candidate.transmission);
+        BSDF::ShadingData surface_prev = BSDF::ShadingData::Init(candidate.normal, wo_prev, 
+            candidate.metallic, candidate.roughness, baseColor_prev, candidate.eta_i, 
+            DEFAULT_ETA_T, candidate.transmissive);
 
         surface_prev.SetWi(wi, candidate.normal);
         const float3 target_prev = r_curr.Lo * BSDF::UnifiedBSDF(surface_prev);
@@ -266,7 +265,7 @@ namespace RGI_Util
         if(testVisibility && targetLum_prev > 1e-5)
         {
             if(!ReSTIR_RT::Visibility_Segment(candidate.posW, wi, t, candidate.normal, 
-                r_curr.ID, g_bvh, surface_prev.HasSpecularTransmission()))
+                r_curr.ID, g_bvh, surface_prev.transmissive))
             {
                 return 0;
             }
@@ -350,7 +349,7 @@ namespace RGI_Util
         // Target at current pixel with temporal reservoir's sample
         if(targetLum_curr > 1e-6)
         {
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.HasSpecularTransmission()))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.transmissive))
             {
                 PartialReadReservoir_ReuseRest(candidate.posSS, prevReservoir_C_DescHeapIdx, r_prev);
 
@@ -426,7 +425,7 @@ namespace RGI_Util
             if(targetLum_curr < 1e-5f)
                 continue;
 
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.HasSpecularTransmission()))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.transmissive))
             {
                 PartialReadReservoir_ReuseRest(candidate[i].posSS, prevReservoir_C_DescHeapIdx, r_prev[i]);
 
@@ -574,7 +573,7 @@ namespace RGI_Util
             float3 relfectedPos = r.pos;
 
             TemporalSamples<2> candidate = RGI_Util::FindTemporalCandidate<2>(DTid, pos, normal, 
-                z_view, roughness, surface.transmission, prevUV, g_frame, rngThread);
+                z_view, roughness, surface.transmissive, prevUV, g_frame, rngThread);
 
             // candidate.valid[0] = candidate.valid[0] && !r.IsValid();
 

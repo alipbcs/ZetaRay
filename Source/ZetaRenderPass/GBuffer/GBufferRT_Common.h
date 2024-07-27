@@ -16,7 +16,7 @@ struct cbGBufferRt
     uint32_t MetallicRoughnessUavDescHeapIdx;
     uint32_t EmissiveColorUavDescHeapIdx;
     uint32_t MotionVectorUavDescHeapIdx;
-    uint32_t TransmissionUavDescHeapIdx;
+    uint32_t IORUavDescHeapIdx;
     uint32_t DepthUavDescHeapIdx;
     uint32_t TriGeoADescHeapIdx;
     uint32_t TriGeoBDescHeapIdx;

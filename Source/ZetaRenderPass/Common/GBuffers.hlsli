@@ -10,7 +10,7 @@ enum GBUFFER_OFFSET
     METALLIC_ROUGHNESS,
     MOTION_VECTOR,
     EMISSIVE_COLOR,
-    TRANSMISSION,
+    IOR,
     DEPTH,
     TRI_DIFF_GEO_A,
     TRI_DIFF_GEO_B
@@ -21,7 +21,7 @@ enum GBUFFER_OFFSET
 #define GBUFFER_METALLIC_ROUGHNESS Texture2D<float2>
 #define GBUFFER_MOTION_VECTOR Texture2D<float2> 
 #define GBUFFER_EMISSIVE_COLOR Texture2D<float3>
-#define GBUFFER_TRANSMISSION Texture2D<float2>
+#define GBUFFER_IOR Texture2D<float>
 #define GBUFFER_DEPTH Texture2D<float> 
 #define GBUFFER_TRI_DIFF_GEO_A Texture2D<uint4> 
 #define GBUFFER_TRI_DIFF_GEO_B Texture2D<uint2> 

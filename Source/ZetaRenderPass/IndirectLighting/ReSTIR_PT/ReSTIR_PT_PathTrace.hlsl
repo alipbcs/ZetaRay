@@ -34,14 +34,13 @@ StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t7);
 // Data needed from previous hit to decide if reconnection is possible
 struct PrevHit
 {
-    static PrevHit Init(float3 pos_prev, float alpha, BSDF::LOBE lobe_prev, float tr, 
+    static PrevHit Init(float3 pos_prev, float alpha, BSDF::LOBE lobe_prev, 
         float3 wi, float pdf)
     {
         PrevHit ret;
         ret.pos = pos_prev;
         ret.alpha_lobe = alpha;
         ret.lobe = lobe_prev;
-        ret.specTr = tr;
         ret.wi = wi;
         ret.pdf = pdf;
 
@@ -50,7 +49,6 @@ struct PrevHit
 
     float3 pos;
     float alpha_lobe;
-    float specTr;
     float3 wi;
     float pdf;
     BSDF::LOBE lobe;
@@ -88,8 +86,7 @@ void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t,
     const float alpha_lobe_direct = BSDF::LobeAlpha(surface.alpha, ls.lobe);
 
     if(rc.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe_direct, 
-        prevHit.pos, pos, prevHit.specTr, surface.transmission, prevHit.lobe, 
-        ls.lobe, g_local.Alpha_min))
+        prevHit.pos, pos, prevHit.lobe, ls.lobe, g_local.Alpha_min))
     {
         rc.SetCase2(pathVertex, pos, t, normal, ID, 
             prevHit.wi, prevHit.lobe, prevHit.pdf, 
@@ -208,7 +205,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     int16_t bounce = 0;
     float3 throughput = bsdfSample.bsdfOverPdf;
     PrevHit prevHit = PrevHit::Init(pos, BSDF::LobeAlpha(surface.alpha, bsdfSample.lobe), 
-        bsdfSample.lobe, surface.transmission, bsdfSample.wi, bsdfSample.pdf);
+        bsdfSample.lobe, bsdfSample.wi, bsdfSample.pdf);
 
     // If ray was refracted, current IOR changes to that of hit material, otherwise
     // current medium continues to be air
@@ -226,7 +223,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 #else
     // Use the same BSDF ray used for direct lighting at previous path vertex
     Hit_Emissive nextHit = Hit_Emissive::FindClosest(pos, normal, bsdfSample.wi, 
-        globals.bvh, g_frameMeshData, surface.HasSpecularTransmission());
+        globals.bvh, g_frameMeshData, surface.transmissive);
 #endif
 
     while(true)
@@ -236,7 +233,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
 #if NEE_EMISSIVE == 0
         Hit hitInfo = Hit::FindClosest<true>(pos, normal, bsdfSample.wi, g_bvh, g_frameMeshData, 
-            g_vertices, g_indices, surface.HasSpecularTransmission());
+            g_vertices, g_indices, surface.transmissive);
 #else
         // Use the same BSDF ray used for direct lighting at previous path vertex
         ReSTIR_RT::Hit hitInfo = nextHit.ToHitInfo(bsdfSample.wi, g_frameMeshData, 
@@ -307,7 +304,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         // Sample BSDF to generate new direction
         bsdfSample = BSDF::BSDFSample::Init();
         bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.HasSpecularTransmission() && (bounce < globals.maxGlossyBounces_Tr));
+            (surface.transmissive && (bounce < globals.maxGlossyBounces_Tr));
 
         if(bounce < globals.maxDiffuseBounces)
             bsdfSample = BSDF::SampleBSDF(normal, surface, rngReplay);
@@ -324,8 +321,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         // Possibly update reconnection vertex (x_{k + 1} on a non-light vertex)
         if(reconnection.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe, 
-            prevHit.pos, pos, prevHit.specTr, surface.transmission, prevHit.lobe, 
-            bsdfSample.lobe, g_local.Alpha_min))
+            prevHit.pos, pos, prevHit.lobe, bsdfSample.lobe, g_local.Alpha_min))
         {
             reconnection.SetCase1(pathVertex, pos, hitInfo.t, hitInfo.normal, hitInfo.ID,
                 -surface.wo, prevBsdfSampleLobe, prevBsdfSamplePdf,
@@ -345,7 +341,6 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
         prevHit.pos = pos;
         prevHit.alpha_lobe = alpha_lobe;
-        prevHit.specTr = surface.transmission;
         prevHit.lobe = bsdfSample.lobe;
         prevHit.wi = bsdfSample.wi;
         prevHit.pdf = bsdfSample.pdf;
@@ -445,13 +440,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
+    bool metallic;
+    bool transmissive;
+    bool emissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
-    if (invalid || isEmissive)
+    if (invalid || emissive)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -482,23 +477,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(isTransmissive)
+    if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_tr[swizzledDTid];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[swizzledDTid];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, isMetallic, mr.y, baseColor, 
-        eta_i, eta_t, tr);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
+        eta_i, eta_t, transmissive);
 
     float3 li;
     RPT_Util::Reservoir r = RIS_InitialCandidates(swizzledDTid, swizzledGid, origin, lensSample,

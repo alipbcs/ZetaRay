@@ -49,23 +49,21 @@ RPT_Util::OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 le
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[DTid].rgb;
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
     if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_tr[DTid];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[DTid];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor, eta_i, eta_t, tr);
+        baseColor, eta_i, eta_t, transmissive);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -136,13 +134,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
+    bool metallic;
+    bool transmissive;
+    bool emissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
-    if (invalid || isEmissive)
+    if (invalid || emissive)
         return;
 
     RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<
@@ -303,7 +301,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Shift temporal path to current pixel and resample
     RPT_Util::OffsetPath shift = ShiftTemporalToCurrent(swizzledDTid, origin, lensSample,
-        pos, normal, isMetallic, mr.y, isTransmissive, r_prev.rc, globals);
+        pos, normal, metallic, mr.y, transmissive, r_prev.rc, globals);
 
     bool changed = false;
 

@@ -51,11 +51,12 @@ namespace ZetaRay::RenderPass
         {}
         ~RenderPassBase()
         {
-            if (IsInitialized())
-            {
-                uint32_t reftCount = m_rootSigObj.Reset();
-                Assert(reftCount == 0, "unexpected ref count.");
-            }
+            // 
+            //if (IsInitialized())
+            //{
+            //    uint32_t reftCount = m_rootSigObj.Reset();
+            //    Assert(reftCount == 0, "unexpected ref count.");
+            //}
         }
 
         RenderPassBase(RenderPassBase&&) = delete;

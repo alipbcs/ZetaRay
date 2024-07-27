@@ -3,15 +3,18 @@
 
 #include "HLSLCompat.h"
 
-// Metallic factor shoud be binary, treat everything with a lower "metalness" value as dielectric.
-#define MIN_METALNESS_METAL 0.92
+// Metallic is treated as a binary parameter - everything with a lower "metalness" 
+// value is considered dielectric.
+#define MIN_METALNESS_METAL 0.9
+// Transmission weight is also treated as binary - everything with a lower
+// weight is considered opaque.
+#define MIN_SPEC_TR_TRANSMISSIVE 0.9
 
 #define MIN_IOR 1.0f
 #define MAX_IOR 2.5f
 #define DEFAULT_ETA_I 1.5f
 #define DEFAULT_ETA_T 1.0f
 #define ETA_AIR 1.0f
-#define DEFAULT_SPECULAR_TRANSMISSION 0.0f
 
 #ifdef __cplusplus
 #include "../Math/Color.h"

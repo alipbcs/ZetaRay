@@ -112,7 +112,7 @@ namespace GBufferRT
     }
 
     void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, 
-        float roughness,float3 emissive, float2 motionVec, float transmission, float ior, 
+        float roughness,float3 emissive, float2 motionVec, bool transmissive, float ior, 
         float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, ConstantBuffer<cbGBufferRt> g_local)
     {
         RWTexture2D<float> g_outDepth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
@@ -134,11 +134,11 @@ namespace GBufferRT
             g_outEmissive[DTid] = max(0, emissive);
         }
 
-        if(transmission > 0)
+        if(transmissive)
         {
-            RWTexture2D<float2> g_outTransmission = ResourceDescriptorHeap[g_local.TransmissionUavDescHeapIdx];
+            RWTexture2D<float> g_outIOR = ResourceDescriptorHeap[g_local.IORUavDescHeapIdx];
             float ior_unorm = GBuffer::EncodeIOR(ior);
-            g_outTransmission[DTid] = float2(transmission, ior_unorm);
+            g_outIOR[DTid] = ior_unorm;
         }
 
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
@@ -270,11 +270,12 @@ namespace GBufferRT
         // encode metalness along with some other stuff
         float tr = mat.GetTransmission();
         float ior = mat.GetIOR();
-        metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, tr > 0, 
+        bool transmissive = tr >= MIN_SPEC_TR_TRANSMISSIVE;
+        metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, transmissive, 
             emissiveColorNormalScale.rgb);
 
         WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, 
-            roughness, emissiveColorNormalScale.rgb, motionVec, tr, ior, dpdu, dpdv, dndu,
+            roughness, emissiveColorNormalScale.rgb, motionVec, transmissive, ior, dpdu, dpdv, dndu,
             dndv, g_local);
     }
 }

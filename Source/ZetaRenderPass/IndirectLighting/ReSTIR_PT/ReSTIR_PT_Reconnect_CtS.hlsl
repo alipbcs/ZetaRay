@@ -52,8 +52,8 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    GBUFFER_TRANSMISSION g_tr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-        GBUFFER_OFFSET::TRANSMISSION];
+    GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+        GBUFFER_OFFSET::IOR];
 
     const float depth_n = g_depth[samplePosSS];
 
@@ -81,18 +81,16 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
     float3 baseColor_n = g_baseColor[samplePosSS].rgb;
     float eta_i = DEFAULT_ETA_I;
-    float specTr_n = DEFAULT_SPECULAR_TRANSMISSION;
 
     if(transmissive_n)
     {
-        float2 tr_ior = g_tr[samplePosSS];
-        specTr_n = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[samplePosSS];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, metallic_n, 
-        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, specTr_n);
+        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, transmissive_n);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -169,13 +167,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
+    bool metallic;
+    bool transmissive;
+    bool emissive;
     bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
 
-    if (invalid || isEmissive)
+    if (invalid || emissive)
         return;
 
     samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;

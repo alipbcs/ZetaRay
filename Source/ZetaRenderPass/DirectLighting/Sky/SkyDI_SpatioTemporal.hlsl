@@ -31,7 +31,7 @@ struct TemporalCandidate
     float3 normal;
     int16_t2 posSS;
     float eta_i;
-    float transmission;
+    bool transmissive;
     bool valid;
 };
 
@@ -89,7 +89,7 @@ bool Visibility(float3 pos, float3 wi, float3 normal, bool transmissive)
 
 float3 Le(float3 pos, float3 normal, float3 wi, BSDF::ShadingData surface)
 {
-    const bool vis = Visibility(pos, wi, normal, surface.HasSpecularTransmission());
+    const bool vis = Visibility(pos, wi, normal, surface.transmissive);
     if (!vis)
         return 0.0;
 
@@ -164,7 +164,7 @@ struct PairwiseMIS
             if(dot(currTarget, currTarget) > 0)
             {
                 currTarget *= Visibility(pos_c, r_i.wi, normal_c, 
-                    surface_c.HasSpecularTransmission());
+                    surface_c.transmissive);
             }
 
             const float targetLum = Math::Luminance(currTarget);
@@ -182,7 +182,7 @@ struct PairwiseMIS
             if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
             {
                 brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, 
-                    surface_i.HasSpecularTransmission());
+                    surface_i.transmissive);
             }
 
             Update_m_c(r_c, r_i, brdfCosTheta_i);
@@ -301,8 +301,8 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
         GBUFFER_OFFSET::NORMAL];
     GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-    GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-        GBUFFER_OFFSET::TRANSMISSION];
+    GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_OFFSET::IOR];
 
     const int2 prevPixel = prevUV * renderDim;
     const float3 prevCamPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
@@ -361,21 +361,19 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
 
         if(candidate.valid)
         {
-            float prevTransmission = DEFAULT_SPECULAR_TRANSMISSION;
             float prevEta_i = DEFAULT_ETA_I;
 
             if(prevTransmissive)
             {
-                float2 tr_ior = g_prevTr[samplePosSS];
-                prevTransmission = tr_ior.x;
-                prevEta_i = GBuffer::DecodeIOR(tr_ior.y);
+                float ior = g_prevIOR[samplePosSS];
+                prevEta_i = GBuffer::DecodeIOR(ior);
             }
 
             candidate.posSS = (int16_t2)samplePosSS;
             candidate.pos = prevPos;
             candidate.normal = prevNormal;
             candidate.roughness = prevMR.y;
-            candidate.transmission = prevTransmission;
+            candidate.transmissive = prevTransmissive;
             candidate.eta_i = prevEta_i;
 
             break;
@@ -417,7 +415,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
 
             BSDF::ShadingData prevSurface = BSDF::ShadingData::Init(candidate.normal, prevWo,
                 metallic, candidate.roughness, prevBaseColor, candidate.eta_i, DEFAULT_ETA_T, 
-                candidate.transmission);
+                candidate.transmissive);
 
             prevSurface.SetWi(r.wi, candidate.normal);
 
@@ -427,7 +425,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
             if(targetLumAtPrev > 0)
             {
                 targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, 
-                    prevSurface.HasSpecularTransmission());
+                    prevSurface.transmissive);
             }
         }
 
@@ -446,7 +444,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 0)
-            targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.HasSpecularTransmission());
+            targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.transmissive);
         
         // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
         if(targetLumAtCurr > 0)
@@ -492,8 +490,8 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    GBUFFER_TRANSMISSION g_prevTr = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-        GBUFFER_OFFSET::TRANSMISSION];
+    GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_OFFSET::IOR];
 
     // rotate sample sequence per pixel
     const float u0 = rng.Uniform();
@@ -510,7 +508,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
     int16_t2 samplePosSS[3];
     float sampleRoughness[3];
     bool sampleMetallic[3];
-    float sampleTr[3];
+    bool sampleTransmissive[3];
     float sampleEta_i[3];
     uint16_t k = 0;
     const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
@@ -564,14 +562,13 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
             samplePosSS[k] = (int16_t2)posSS_i;
             sampleMetallic[k] = metallic_i;
             sampleRoughness[k] = mr_i.y;
-            sampleTr[k] = DEFAULT_SPECULAR_TRANSMISSION;
+            sampleTransmissive[k] = transmissive_i;
             sampleEta_i[k] = DEFAULT_ETA_I;
 
             if(transmissive_i)
             {
-                float2 tr_ior = g_prevTr[posSS_i];
-                sampleTr[k] = tr_ior.x;
-                sampleEta_i[k] = GBuffer::DecodeIOR(tr_ior.y);
+                float ior = g_prevIOR[posSS_i];
+                sampleEta_i[k] = GBuffer::DecodeIOR(ior);
             }
 
             k++;
@@ -588,7 +585,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         const float3 wo_i = normalize(sampleOrigin[i] - samplePos[i]);
         BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
             sampleMetallic[i], sampleRoughness[i], sampleBaseColor, sampleEta_i[i],
-            DEFAULT_ETA_T, sampleTr[i]);
+            DEFAULT_ETA_T, sampleTransmissive[i]);
 
         SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], 
             g_local.PrevReservoir_A_DescHeapIdx);
@@ -700,23 +697,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float tr = DEFAULT_SPECULAR_TRANSMISSION;
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
     if(transmissive)
     {
-        GBUFFER_TRANSMISSION g_transmission = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::TRANSMISSION];
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
 
-        float2 tr_ior = g_transmission[swizzledDTid];
-        tr = tr_ior.x;
-        eta_i = GBuffer::DecodeIOR(tr_ior.y);
+        float ior = g_ior[swizzledDTid];
+        eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
-        eta_i, eta_t, tr);
+        eta_i, eta_t, transmissive);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 

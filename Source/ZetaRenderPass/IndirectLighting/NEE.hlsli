@@ -112,7 +112,7 @@ namespace ReSTIR_Util
 
         if(TestVisibility)
         {
-            if (!ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.HasSpecularTransmission()))
+            if (!ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.transmissive))
                 return ret;
         }
 
@@ -135,9 +135,10 @@ namespace ReSTIR_Util
         float u_wrs_r = rng.Uniform();
         float u_wrs_d = rng.Uniform();
 
-        // Weighted reservoir sampling to sample Le x BRDF, with BRDF lobes as source distributions
+        // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
         SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(skyViewDescHeapOffset);
-        BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, u_wh, u_d, u_wrs_r, u_wrs_d, leFunc);
+        BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, u_wh, u_d, u_wrs_r, 
+            u_wrs_d, leFunc);
 
         DirectLightingEstimate ret = DirectLightingEstimate::Init();
         ret.dwdA = 1;
@@ -150,7 +151,7 @@ namespace ReSTIR_Util
         // ret.le = Light::Le_Sky(ret.wi, skyViewDescHeapOffset);
 
         if(dot(ret.ld, ret.ld) > 0)
-            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.HasSpecularTransmission());
+            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.transmissive);
 
         return ret;
     }
@@ -204,7 +205,7 @@ namespace ReSTIR_Util
                 if (Math::Luminance(ld) > 1e-6)
                 {
                     ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
-                        globals.bvh, surface.HasSpecularTransmission());
+                        globals.bvh, surface.transmissive);
                 }
 
                 ret.ld += ld / lightPdf;

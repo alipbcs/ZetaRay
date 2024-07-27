@@ -1293,6 +1293,7 @@ void IndirectLighting::ReleaseReSTIR_PT()
     // Remove parameters and shader reload handlers
     App::RemoveShaderReloadHandler("ReSTIR_PT_PathTrace");
     App::RemoveShaderReloadHandler("ReSTIR_PT_Temporal");
+    App::RemoveShaderReloadHandler("ReSTIR_PT_Spatial");
 
     App::RemoveParam("Renderer", "Indirect Lighting", "Alpha_min");
     App::RemoveParam("Renderer", "Indirect Lighting", "Debug View");
