@@ -101,7 +101,7 @@ namespace ZetaRay::DefaultRenderer
             DXGI_FORMAT_R8G8B8A8_UNORM,
             DXGI_FORMAT_R16G16_SNORM,
             DXGI_FORMAT_R8G8_UNORM,
-            DXGI_FORMAT_R16G16_FLOAT,
+            DXGI_FORMAT_R16G16_SNORM,
             DXGI_FORMAT_UNKNOWN,
             DXGI_FORMAT_R8G8_UNORM,
             DXGI_FORMAT_R32_FLOAT,

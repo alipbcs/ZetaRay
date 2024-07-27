@@ -111,7 +111,7 @@ void Raygen()
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         float3 motion = g_frame.CameraPos - prevCameraPos;
-        float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
+        float2 motionNDC = motion.z > 0 ? motion.xy / (motion.z * g_frame.TanHalfFOV) : 0;
         motionNDC.x /= g_frame.AspectRatio;
         float2 motionUV = Math::UVFromNDC(motionNDC);
         g_outMotion[DispatchRaysIndex().xy] = motionUV;
@@ -122,8 +122,8 @@ void Raygen()
     uint matIdx = rayPayload.matIdx;
     float3 normal = rayPayload.normal;
     float3 tangent = rayPayload.tangent;
-    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC);
-    float2 currUV = (DispatchRaysIndex().xy + 0.5 + g_frame.CurrCameraJitter) / DispatchRaysDimensions().xy;
+    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC) - (g_frame.CurrCameraJitter / DispatchRaysDimensions().xy);
+    float2 currUV = (DispatchRaysIndex().xy + 0.5) / DispatchRaysDimensions().xy;
     float2 motionVec = currUV - prevUV;
 
     float4 grads = GBufferRT::UVDifferentials(DispatchRaysIndex().xy, rayOrigin, rayDir, 

@@ -247,7 +247,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
         RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
         float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
         float3 motion = g_frame.CameraPos - prevCameraPos;
-        float2 motionNDC = motion.xy / (motion.z * g_frame.TanHalfFOV);
+        float2 motionNDC = motion.z > 0 ? motion.xy / (motion.z * g_frame.TanHalfFOV) : 0;
         motionNDC.x /= g_frame.AspectRatio;
         float2 motionUV = Math::UVFromNDC(motionNDC);
         g_outMotion[DTid.xy] = motionUV;
@@ -255,8 +255,8 @@ void main(uint3 DTid : SV_DispatchThreadID)
         return;
     }
 
-    float2 currUV = (DTid.xy + 0.5 + g_frame.CurrCameraJitter) / renderDim;
-    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC);
+    float2 currUV = (DTid.xy + 0.5) / renderDim;
+    float2 prevUV = Math::UVFromNDC(rayPayload.prevPosNDC) - (g_frame.CurrCameraJitter / renderDim);
     float2 motionVec = currUV - prevUV;
 
     // Rate of change of texture uv coords w.r.t. screen space. Needed for texture filtering.
