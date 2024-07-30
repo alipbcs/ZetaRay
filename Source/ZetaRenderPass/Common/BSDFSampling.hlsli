@@ -46,10 +46,11 @@ namespace BSDF
     };
 
     template<typename Func>
-    BSDFSample SampleBSDF_NoDiffuse(float3 normal, ShadingData surface, float2 u_wh, float u_lobe, 
-        Func func)
+    BSDFSample SampleBSDF_NoDiffuse(float3 normal, ShadingData surface, float2 u_wh, 
+        float u_lobe, Func func)
     {
-        float3 wh = surface.specular ? normal : BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, u_wh);
+        float3 wh = surface.specular ? normal : BSDF::SampleMicrofacet(surface.wo, 
+            surface.alpha, normal, u_wh);
         float wh_pdf = BSDF::MicrofacetPdf(normal, wh, surface);
 
         float3 wi_r = reflect(-surface.wo, wh);
@@ -64,19 +65,14 @@ namespace BSDF
         if(!surface.specular)
             ret.pdf = wh_pdf / 4.0f;
 
-        ret.f = BSDF::UnifiedBSDF(surface) * func(wi_r);
+        float fr;
+        ret.f = BSDF::UnifiedBSDF(surface, fr) * func(wi_r);
         ret.bsdfOverPdf = ret.f / ret.pdf;
 
         if(surface.metallic || !surface.transmissive)
             return ret;
 
         // Transmissive dielectric surface
-
-        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
-        float fr0 = BSDF::DielectricF0(surface.eta);
-        float whdotwx = surface.eta < 1 ? abs(dot(wh, wi_t)) : saturate(dot(wh, surface.wo));
-        // For total internal reflection, all the incident light is reflected
-        float fr = dot(wi_t, wi_t) == 0 ? 1 : BSDF::FresnelSchlick_Dielectric(fr0, whdotwx);
 
         // Use Fresnel to decide between reflection and transmission
         if (u_lobe < fr)
@@ -86,8 +82,9 @@ namespace BSDF
         }
         else
         {
-            ret.pdf = 1 - fr;
+            float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
             surface.SetWi_Tr(wi_t, normal, wh);
+            ret.pdf = 1 - fr;
 
             if(!surface.specular)
             {
@@ -98,7 +95,11 @@ namespace BSDF
                 ret.pdf *= dwh_dwi;
             }
 
-            ret.f = BSDF::DielectricBTDF(surface) * func(wi_t);
+            // Corner case: Fresnel returned no TIR, so sampling transmission is possible,
+            // yet refract() detected TIR and returned 0 (possibly due to floating-point 
+            // errors). In that case, surface.invalid becomes true, causing bsdf to evaluate 
+            // to 0 and the path-tracing loop is terminated.
+            ret.f = !surface.invalid * BSDF::DielectricBTDF(surface, fr) * func(wi_t);
             ret.bsdfOverPdf = ret.f / ret.pdf;
             ret.wi = wi_t;
             ret.lobe = BSDF::LOBE::GLOSSY_T;
@@ -117,9 +118,10 @@ namespace BSDF
         return SampleBSDF_NoDiffuse<NoOp>(normal, surface, u_wh, u_lobe, noop);
     }
 
+    // Surface is metal or non-transmissive dielectric
     template<typename Func>
-    BSDFSample SampleBRDF(float3 normal, ShadingData surface, float2 u_r, float2 u_d, float u_wrs_d, 
-        Func func)
+    BSDFSample SampleBRDF(float3 normal, ShadingData surface, float2 u_r, float2 u_d, 
+        float u_wrs_d, Func func)
     {
         float3 wi_r = BSDF::SampleMicrofacetBRDF(surface, normal, u_r);
         surface.SetWi_Refl(wi_r, normal);
@@ -218,8 +220,10 @@ namespace BSDF
         if(surface.metallic)
         {
             surface.SetWi_Refl(wi, normal);
+            float3 fr = FresnelSchlick(surface.diffuseReflectance_Fr0_TrCol, surface.whdotwo);
+            
             ret.pdf = BSDF::VNDFReflectionPdf(surface);
-            ret.bsdfOverPdf = !surface.invalid * BSDF::MicrofacetBRDFOverPdf(surface);
+            ret.bsdfOverPdf = !surface.invalid * BSDF::MicrofacetBRDFOverPdf(surface, fr);
             ret.bsdfOverPdf *= targetScale;
 
             return ret;
@@ -270,28 +274,33 @@ namespace BSDF
     {
         surface.SetWi(wi, normal);
         float wh_pdf = BSDF::MicrofacetPdf(surface);
+        float3 fr = surface.Fresnel();
         float3 targetScale = func(wi);
 
         BSDFSamplerEval ret;
-        ret.bsdfOverPdf = !surface.invalid * surface.reflection * BSDF::MicrofacetBRDFOverPdf(surface);
+        ret.bsdfOverPdf = !surface.invalid * surface.reflection * BSDF::MicrofacetBRDFOverPdf(surface, fr);
         ret.bsdfOverPdf *= targetScale;
         ret.pdf = !surface.specular ? wh_pdf / 4.0f : surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
 
         if(surface.metallic || !surface.transmissive)
             return ret;
 
-        float fr = surface.Fresnel_Dielectric();
-
         if(lobe == BSDF::LOBE::GLOSSY_R)
         {
             ret.bsdfOverPdf /= fr;
-            ret.pdf *= fr;
+            ret.pdf *= fr.x;
             return ret;
         }
 
-        ret.bsdfOverPdf = !surface.invalid * !surface.reflection * BSDF::MicrofacetBTDFOverPdf(surface) / (1 - fr);
+#if 0
+        ret.bsdfOverPdf = !surface.invalid * !surface.reflection * BSDF::MicrofacetBTDFOverPdf(surface, fr.x) / 
+            (1 - fr.x);
+#else
+        // Since we're dividing by 1 - fr, passing 0 for fr causes 1 - fr to cancel out
+        ret.bsdfOverPdf = !surface.invalid * !surface.reflection * BSDF::MicrofacetBTDFOverPdf(surface, 0);
+#endif
         ret.bsdfOverPdf *= targetScale;
-        ret.pdf = 1 - fr;
+        ret.pdf = 1 - fr.x;
         ret.pdf *= surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : wh_pdf * surface.whdotwo;
 
         if(!surface.specular)
@@ -378,13 +387,13 @@ namespace BSDF
             return pdf * surface.reflection;
         }
 
-        float fr = surface.Fresnel_Dielectric();
+        float3 fr = surface.Fresnel();
         float pdf = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 1;
 
         if(surface.reflection)
-            return fr * pdf * (surface.specular ? 1 : (wh_pdf / 4.0f));
+            return fr.x * pdf * (surface.specular ? 1 : (wh_pdf / 4.0f));
 
-        pdf *= 1 - fr;
+        pdf *= 1 - fr.x;
 
         if(!surface.specular)
         {

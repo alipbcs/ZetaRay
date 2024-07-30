@@ -136,6 +136,25 @@ namespace BSDF
         return mad(tmpSq * tmpSq * tmp, 1 - F0, F0);
     }
 
+    // ndotwi: Cosine of angle between incident vector and normal
+    // eta = eta_i / eta_t (eta_i is IOR of incident medium and eta_t IOR of trasnmitted medium)
+    float Fresnel_Dielectric(float ndotwi, float eta)
+    {
+        float sinTheta_iSq = saturate(mad(-ndotwi, ndotwi, 1.0f));
+        float sinTheta_tSq = mad(-eta * eta, sinTheta_iSq, 1.0f);
+
+        // TIR
+        if(sinTheta_tSq < 0)
+            return 1;
+
+        float cosTheta_t = sqrt(sinTheta_tSq);
+        float r_parallel = mad(-eta, cosTheta_t, ndotwi) / mad(eta, cosTheta_t, ndotwi);
+        float r_perp = mad(eta, ndotwi, -cosTheta_t) / mad(eta, ndotwi, cosTheta_t);
+        float2 r = float2(r_parallel, r_perp);
+
+        return 0.5 * dot(r, r);
+    }
+
     //--------------------------------------------------------------------------------------
     // Normal Distribution Function
     //--------------------------------------------------------------------------------------
@@ -459,30 +478,24 @@ namespace BSDF
 
         float3 Fresnel()
         {
-            // When eta > 1 (e.g. water to air), the Schlick approximation has to be used with
-            // the transmission angle.
-            float whdotwx = this.reflection || this.eta < 1 ? this.whdotwi : this.whdotwo;
-            float3 fr0 = this.metallic ? this.diffuseReflectance_Fr0_TrCol : DielectricF0(this.eta);
-            return FresnelSchlick(fr0, whdotwx);
+            // Use Schlick's approximation for metals and non-transmissive dielectrics
+            if(this.metallic || !this.transmissive)
+            {
+                float3 fr0 = this.metallic ? this.diffuseReflectance_Fr0_TrCol : 
+                    DielectricF0(this.eta);
+
+                return FresnelSchlick(fr0, this.whdotwo);
+            }
+
+            return Fresnel_Dielectric(this.whdotwo, 1 / this.eta);
         }
 
         float3 Fresnel(float3 fr0)
         {
-            float whdotwx = this.reflection || this.eta < 1 ? this.whdotwi : this.whdotwo;
-            return FresnelSchlick(fr0, whdotwx);
-        }
+            if(this.metallic || !this.transmissive)
+                return FresnelSchlick(fr0, this.whdotwo);
 
-        float Fresnel_Dielectric()
-        {
-            float whdotwx = this.reflection || this.eta < 1 ? this.whdotwi : this.whdotwo;
-            float fr0 = DielectricF0(this.eta);
-            return FresnelSchlick_Dielectric(fr0, whdotwx);
-        }
-
-        float Fresnel_Dielectric(float fr0)
-        {
-            float whdotwx = this.reflection || this.eta < 1 ? this.whdotwi : this.whdotwo;
-            return FresnelSchlick_Dielectric(fr0, whdotwx);
+            return Fresnel_Dielectric(this.whdotwo, 1 / this.eta);
         }
 
         void Regularize()
@@ -758,9 +771,8 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBRDFOverPdf(ShadingData surface)
+    float3 MicrofacetBRDFOverPdf(ShadingData surface, float3 fr)
     {
-        float3 fr = surface.Fresnel();
         if(surface.specular)
         {
             // Note that ndotwi cancels out.
@@ -775,9 +787,8 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBTDFOverPdf(ShadingData surface)
+    float3 MicrofacetBTDFOverPdf(ShadingData surface, float fr)
     {
-        float fr = surface.Fresnel_Dielectric();
         if(surface.specular)
         {
             // Note that ndotwi cancels out.
@@ -808,11 +819,11 @@ namespace BSDF
 
     float3 OpaqueBase(ShadingData surface)
     {
-        if(surface.invalid || surface.transmissive)
+        if(surface.invalid)
             return 0;
 
         float fr0 = DielectricF0(surface.eta);
-        float fr = surface.Fresnel_Dielectric(fr0);
+        float fr = FresnelSchlick_Dielectric(fr0, surface.whdotwo);
         float reflectance = surface.specular ? fr : 
             GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
 
@@ -824,9 +835,8 @@ namespace BSDF
         if(surface.invalid)
             return 0;
 
-        float3 fr0 = surface.diffuseReflectance_Fr0_TrCol;
-        float3 fr = surface.Fresnel(fr0);
-
+        float3 fr = FresnelSchlick(surface.diffuseReflectance_Fr0_TrCol, 
+            surface.whdotwo);
         return MicrofacetBRDFGGXSmith(surface, fr);
     }
 
@@ -836,13 +846,25 @@ namespace BSDF
         return (1 - reflectance) * gloss * (1 - fr) * surface.diffuseReflectance_Fr0_TrCol;
     }
 
-    float3 DielectricBTDF(ShadingData surface)
+    float3 DielectricBTDF(ShadingData surface, float fr)
     {
         if(surface.invalid || !surface.transmissive)
             return 0;
 
         float fr0 = DielectricF0(surface.eta);
-        float fr = surface.Fresnel_Dielectric(fr0);
+        float reflectance = surface.specular ? 0 : 
+            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+
+        return DielectricBTDF(surface, fr, reflectance);
+    }
+
+    float3 DielectricBTDF(ShadingData surface)
+    {
+        if(surface.invalid || !surface.transmissive)
+            return 0;
+
+        float fr = Fresnel_Dielectric(surface.whdotwo, 1 / surface.eta);
+        float fr0 = DielectricF0(surface.eta);
         float reflectance = surface.specular ? 0 : 
             GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
 
@@ -857,7 +879,7 @@ namespace BSDF
 
         float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
             DielectricF0(surface.eta);
-        float3 fr = surface.Fresnel(fr0);
+        float3 fr = FresnelSchlick(fr0, surface.whdotwo);
 
         if(surface.metallic)
             return MicrofacetBRDFGGXSmith(surface, fr);
@@ -868,14 +890,11 @@ namespace BSDF
         return OpaqueBase(surface, fr.x, reflectance);
     }
 
-    float3 UnifiedBSDF(ShadingData surface)
+    float3 UnifiedBSDF(ShadingData surface, float3 fr, float fr0_d)
     {
         if(surface.invalid)
             return 0;
 
-        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
-            DielectricF0(surface.eta);
-        float3 fr = surface.Fresnel(fr0);
         float3 glossOrMetal = MicrofacetBRDFGGXSmith(surface, fr);
 
         // Metal
@@ -883,7 +902,7 @@ namespace BSDF
             return glossOrMetal;
 
         float reflectance = surface.specular ? fr.x : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+            GGXReflectanceApprox(fr0_d, surface.alpha, surface.ndotwo).x;
 
         // Opaque Base
         if(!surface.transmissive)
@@ -900,6 +919,25 @@ namespace BSDF
         reflectance = surface.specular ? 0 : reflectance;
 
         return DielectricBTDF(surface, fr.x, reflectance);
+    }
+
+    float3 UnifiedBSDF(ShadingData surface, out float fr_d)
+    {
+        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
+            DielectricF0(surface.eta);
+        float3 fr = surface.Fresnel(fr0);
+        fr_d = fr.x;
+
+        return UnifiedBSDF(surface, fr, fr0.x);
+    }
+
+    float3 UnifiedBSDF(ShadingData surface)
+    {
+        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
+            DielectricF0(surface.eta);
+        float3 fr = surface.Fresnel(fr0);
+
+        return UnifiedBSDF(surface, fr, fr0.x);
     }
 }
 
