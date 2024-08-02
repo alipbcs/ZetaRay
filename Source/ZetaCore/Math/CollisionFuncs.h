@@ -195,21 +195,22 @@ namespace ZetaRay::Math
         return intersects ? COLLISION_TYPE::INTERSECTS : COLLISION_TYPE::DISJOINT;
     }
 
-    ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const v_AABB& vBox, float& t)
+    // Returns whether given ray and AABB intersect
+    // When a given Ray is tested against multiple AABBs, a few values that only depend 
+    // on that ray can be precomputed to avoid unneccesary recomputations
+    ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const __m128 vDirRcp,
+        const __m128 vDirIsPos, const __m128 vParallelToAxes, const v_AABB& vBox, float& t)
     {
         // An AABB can be described as the intersection of three "slabs", where a slab
         // is the (infinite) region of space between two parallel planes.
         // 
-        // A given ray intersects an AABB if and only if some segment of the ray intersects the three
-        // slabs of the AABB at the same time.
+        // A given ray intersects an AABB if and only if some segment of the ray intersects 
+        // the three slabs of the AABB at the same time.
         //
-        // To figure out whether that's the case, the ray is intersected with two planes conistuting each
-        // slab and two intersections are used to update "farthest entry" (t0) and "nearest exit" (t1) of all 
-        // the resulting ray/slab intersection segments. If at some point t0 becomes greater t1, then there's
-        // no intersection.
-
-        const __m128 vDirRcp = _mm_div_ps(_mm_set1_ps(1.0f), vRay.vDir);
-        const __m128 vDirIsPos = _mm_cmpge_ps(vRay.vDir, _mm_setzero_ps());
+        // To figure out whether that's the case, the ray is intersected with two planes 
+        // conistuting each slab and two intersections are used to update "farthest entry" (t0) 
+        // and "nearest exit" (t1) of all the resulting ray/slab intersection segments. If at 
+        // some point t0 becomes greater than t1, then there's no intersection.
 
         // For better numerical robustness, translate the ray center to origin and do
         // the same for AABB
@@ -222,83 +223,59 @@ namespace ZetaRay::Math
 
         // If ray and AABB are parallel, then the ray origin must be inside the AABB
         const __m128 vZero = _mm_setzero_ps();
-        const __m128 vIsParallel = _mm_cmpge_ps(_mm_set1_ps(FLT_EPSILON), abs(vRay.vDir));
-        const __m128 vResParallel = _mm_and_ps(vIsParallel, _mm_or_ps(_mm_cmpge_ps(vZero, vMax), _mm_cmpge_ps(vMin, vZero)));
+        const __m128 vOriginOutsideAABB = _mm_or_ps(_mm_cmpge_ps(vZero, vMax), _mm_cmpge_ps(vMin, vZero));
+        const __m128 vResParallel = _mm_and_ps(vParallelToAxes, vOriginOutsideAABB);
 
         // t = x_min - (o_x, o_y, o_z) / d
         // t = x_min - (0, 0, 0) / d
-        __m128 vTmin = _mm_mul_ps(vMin, vDirRcp);
-        __m128 vTmax = _mm_mul_ps(vMax, vDirRcp);
+        __m128 vTminTemp = _mm_mul_ps(vMin, vDirRcp);
+        __m128 vTmaxTemp = _mm_mul_ps(vMax, vDirRcp);
 
-        // If x/y/z component of the ray direction is negative then, then the nearest hit
-        // with corresponding slab is with the x_max/y_max/z_max and vice versa for the
-        // positive case
-        vTmin = _mm_blendv_ps(vTmax, vTmin, vDirIsPos);
-        vTmax = _mm_blendv_ps(vTmin, vTmax, vDirIsPos);
+        // If x component of ray direction is negative, then the nearest hit with 
+        // the (x_min-x_max) slab is with the x = x_max plane and vice versa for the
+        // positive case (y and z cases are similar)
+        __m128 vTmin = _mm_blendv_ps(vTmaxTemp, vTminTemp, vDirIsPos);
+        __m128 vTmax = _mm_blendv_ps(vTminTemp, vTmaxTemp, vDirIsPos);
+        // For parallel planes, the result is NaN - make sure those elements don't impact
+        // the following comparisons
+        vTmax = _mm_blendv_ps(vTmax, _mm_set1_ps(FLT_MAX), vParallelToAxes);
+        vTmin = _mm_blendv_ps(vTmin, _mm_set1_ps(-FLT_MAX), vParallelToAxes);
 
-        __m128 vT0 = _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(0, 0, 0, 0));
-        __m128 vT1 = _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(0, 0, 0, 0));
+        __m128 vTFarthestEntry = _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(0, 0, 0, 0));
+        __m128 vTNearestExit = _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(0, 0, 0, 0));
 
-        vTmax = _mm_blendv_ps(vTmax, _mm_set1_ps(FLT_MAX), vIsParallel);
-        vTmin = _mm_blendv_ps(vTmin, _mm_set1_ps(-FLT_MAX), vIsParallel);
-
-        // Find maximum of vTmin
-        vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(1, 1, 1, 1)));
-        vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(2, 2, 2, 2)));
+        // Find nearest exit among three ray-slab intersections
+        vTNearestExit = _mm_min_ps(vTNearestExit, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(1, 1, 1, 1)));
+        vTNearestExit = _mm_min_ps(vTNearestExit, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(2, 2, 2, 2)));
         // If t1 is less than zero, then there's no intersection
-        const __m128 vT1IsNegative = _mm_cmpgt_ps(vZero, vT1);
+        const __m128 vT1IsNegative = _mm_cmpgt_ps(vZero, vTNearestExit);
 
-        // Find minimum of vTmin
-        vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(1, 1, 1, 1)));
-        vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(2, 2, 2, 2)));
+        // Find farthest entry among three ray-slab intersections
+        vTFarthestEntry = _mm_max_ps(vTFarthestEntry, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(1, 1, 1, 1)));
+        vTFarthestEntry = _mm_max_ps(vTFarthestEntry, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(2, 2, 2, 2)));
 
-        const __m128 vResNotParallel = _mm_or_ps(_mm_cmpgt_ps(vT0, vT1), vT1IsNegative);
+        const __m128 vResNotParallel = _mm_or_ps(_mm_cmpgt_ps(vTFarthestEntry, vTNearestExit), vT1IsNegative);
         __m128 vRes = _mm_or_ps(vResNotParallel, vResParallel);
 
         // https://stackoverflow.com/questions/5526658/intel-sse-why-does-mm-extract-ps-return-int-instead-of-float
-        t = _mm_cvtss_f32(vT0);
+        float t_entry = _mm_cvtss_f32(vTFarthestEntry);
+        float t_exit = _mm_cvtss_f32(vTNearestExit);
+        // When ray is inside the AABB, entry hit is behind the origin, return exit hit instead
+        int rayInsideAABB = (_mm_movemask_ps(vOriginOutsideAABB) & 0x7) == 0;
+        t = !rayInsideAABB ? t_entry : t_exit;
         int res = _mm_movemask_ps(vRes);
 
         return (res & 0x7) == 0;
     }
 
-    // Returns whether given ray and AABB intersect
-    // When a given Ray is tested against multiple AABBs, a few values that only depend 
-    // on that ray can be precomputed to avoid unneccesary recomputations
-    ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const __m128 vDirRcp,
-        const __m128 vDirIsPos, const __m128 vIsParallel, const v_AABB& vBox, float& t)
+    ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const v_AABB& vBox, float& t)
     {
-        const __m128 vCenterTranslatedToOrigin = _mm_sub_ps(vBox.vCenter, vRay.vOrigin);
+        const __m128 vDirRcp = _mm_div_ps(_mm_set1_ps(1.0f), vRay.vDir);
+        const __m128 vDirIsPos = _mm_cmpge_ps(vRay.vDir, _mm_setzero_ps());
+        const __m128 vEps = _mm_set1_ps(FLT_EPSILON);
+        const __m128 vParallelToAxes = _mm_cmpge_ps(vEps, abs(vRay.vDir));
 
-        const __m128 vMin = _mm_sub_ps(vCenterTranslatedToOrigin, vBox.vExtents);
-        const __m128 vMax = _mm_add_ps(vCenterTranslatedToOrigin, vBox.vExtents);
-
-        const __m128 vZero = _mm_setzero_ps();
-        const __m128 vResParallel = _mm_and_ps(vIsParallel, _mm_or_ps(_mm_cmpge_ps(vZero, vMax), _mm_cmpge_ps(vMin, vZero)));
-
-        __m128 vTmin = _mm_mul_ps(vMin, vDirRcp);
-        __m128 vTmax = _mm_mul_ps(vMax, vDirRcp);
-        vTmin = _mm_blendv_ps(vTmax, vTmin, vDirIsPos);
-        vTmax = _mm_blendv_ps(vTmin, vTmax, vDirIsPos);
-
-        __m128 vT0 = _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(0, 0, 0, 0));
-        __m128 vT1 = _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(0, 0, 0, 0));
-
-        vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(1, 1, 1, 1)));
-        vT1 = _mm_min_ps(vT1, _mm_shuffle_ps(vTmax, vTmax, V_SHUFFLE_XYZW(2, 2, 2, 2)));
-        const __m128 vT1IsNegative = _mm_cmpgt_ps(vZero, vT1);
-
-        vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(1, 1, 1, 1)));
-        vT0 = _mm_max_ps(vT0, _mm_shuffle_ps(vTmin, vTmin, V_SHUFFLE_XYZW(2, 2, 2, 2)));
-
-        const __m128 vResNotParallel = _mm_or_ps(_mm_cmpgt_ps(vT0, vT1), vT1IsNegative);
-        __m128 vRes = _mm_or_ps(vResNotParallel, vResParallel);
-
-        // https://stackoverflow.com/questions/5526658/intel-sse-why-does-mm-extract-ps-return-int-instead-of-float
-        t = _mm_cvtss_f32(vT0);
-        int res = _mm_movemask_ps(vRes);
-
-        return (res & 0x7) == 0;
+        return intersectRayVsAABB(vRay, vDirRcp, vDirIsPos, vParallelToAxes, vBox, t);
     }
 
     // Returns whether given ray and triangle formed by vertices v0v1v2 (clockwise order) intersect
