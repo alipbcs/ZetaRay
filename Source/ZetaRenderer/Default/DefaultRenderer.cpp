@@ -544,7 +544,8 @@ namespace ZetaRay::DefaultRenderer
 
                 GBuffer::Register(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
                 RayTracer::Register(g_data->m_settings, g_data->m_raytracerData, g_data->m_renderGraph);
-                PostProcessor::Register(g_data->m_settings, g_data->m_postProcessorData, g_data->m_renderGraph);
+                PostProcessor::Register(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
+                    g_data->m_renderGraph);
 
                 g_data->m_renderGraph.MoveToPostRegister();
 
@@ -596,6 +597,16 @@ namespace ZetaRay::DefaultRenderer
     {
         return g_data->m_raytracerData.RtAS.GetTLAS().IsInitialized();
     }
+
+    void Pick(uint16 screenPosX, uint16 screenPosY)
+    {
+        g_data->m_gbuffData.GBufferPass.PickPixel(screenPosX, screenPosY);
+    }
+
+    void ClearPick()
+    {
+        g_data->m_postProcessorData.DisplayPass.ClearPick();
+    }
 }
 
 //--------------------------------------------------------------------------------------
@@ -617,6 +628,8 @@ Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface()
     rndIntrf.GetRenderGraph = &DefaultRenderer::GetRenderGraph;
     rndIntrf.DebugDrawRenderGraph = &DefaultRenderer::DebugDrawRenderGraph;
     rndIntrf.IsRTASBuilt = &DefaultRenderer::IsRTASBuilt;
+    rndIntrf.Pick = &DefaultRenderer::Pick;
+    rndIntrf.ClearPick = &DefaultRenderer::ClearPick;
 
     return rndIntrf;
 }

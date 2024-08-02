@@ -178,6 +178,10 @@ namespace ZetaRay::Scene
             const TreePos& p = FindTreePosFromID(id).value();
             return Scene::GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
         }
+        ZetaInline uint64_t GetIDFromRtMeshIdx(uint32 idx) const
+        {
+            return m_rtMeshInstanceIdxToID[idx];
+        }
         void ReserveInstances(int height, int num);
 
         //
@@ -206,6 +210,17 @@ namespace ZetaRay::Scene
         ZetaInline Util::Span<uint64_t> GetViewFrustumInstances() { return m_viewFrustumInstances; }
         ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
         ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
+        ZetaInline void Pick(uint16 screenPosX, uint16 screenPosY) { m_rendererInterface.Pick(screenPosX, screenPosY); }
+        ZetaInline void ClearPick() 
+        { 
+            m_rendererInterface.ClearPick(); 
+            m_pickedInstance.store(Scene::INVALID_INSTANCE, std::memory_order_relaxed);
+        }
+        ZetaInline void SetPickedInstance(uint64 instanceID) 
+        { 
+            m_pickedInstance.store(instanceID, std::memory_order_relaxed);
+        }
+        ZetaInline uint64 GetPickedInstance() { return m_pickedInstance.load(std::memory_order_relaxed); }
 
     private:
         static constexpr uint32_t BASE_COLOR_DESC_TABLE_SIZE = 256;
@@ -283,9 +298,12 @@ namespace ZetaRay::Scene
 
         // Maps instance ID to tree position
         Util::HashTable<TreePos> m_IDtoTreePos;
+        // Maps RT mesh index to instance ID -- filled in by TLAS::BuildFrameMeshInstanceData()
+        Util::SmallVector<uint64> m_rtMeshInstanceIdxToID;
         Util::SmallVector<TreeLevel, Support::SystemAllocator, 3> m_sceneGraph;
         // Previous frame's world transformation
         Util::SmallVector<PrevToWorld> m_prevToWorlds;
+        std::atomic_uint64_t m_pickedInstance = Scene::INVALID_INSTANCE;
         bool m_isPaused = false;
 
         //

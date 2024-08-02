@@ -37,7 +37,7 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
 
     CheckHR(m_deviceObjs.m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, 
         IID_PPV_ARGS(m_fence.GetAddressOf())));
-    m_event = CreateEventA(nullptr, false, false, "CommandQueue");
+    m_event = CreateEventA(nullptr, false, false, nullptr);
     CheckWin32(m_event);
 
     m_renderWidth = renderWidth;
@@ -387,6 +387,15 @@ void RendererCore::SignalComputeQueue(ID3D12Fence* f, uint64_t v)
 void RendererCore::WaitForDirectQueueFenceCPU(uint64_t fenceValue)
 {
     m_directQueue->WaitForFenceCPU(fenceValue);
+}
+
+void RendererCore::WaitForDirectQueueFenceCPU2(uint64_t fenceValue, HANDLE e)
+{
+    if (m_directQueue->IsFenceComplete(fenceValue))
+        return;
+
+    CheckHR(m_directQueue->m_fence->SetEventOnCompletion(fenceValue, e));
+    WaitForSingleObject(e, INFINITE);
 }
 
 void RendererCore::WaitForComputeQueueFenceCPU(uint64_t fenceValue)

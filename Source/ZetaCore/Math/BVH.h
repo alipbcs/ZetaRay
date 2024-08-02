@@ -55,6 +55,7 @@ namespace ZetaRay::Math
         // Casts a ray into the BVH and returns the closest intersection. Ray is assumed to 
         // be in world space.
         uint64_t CastRay(Math::Ray& r);
+        uint64_t CastRay(Math::v_Ray& r);
 
         // Returns AABB that contains the scene
         Math::AABB GetWorldAABB() 

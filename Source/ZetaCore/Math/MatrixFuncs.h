@@ -89,6 +89,7 @@ namespace ZetaRay::Math
         return ret;
     }
 
+    // TODO: Order of arguments may imply computation of M * v, whereas it's v * M.
     ZetaInline __m128 __vectorcall mul(const v_float4x4 M, const __m128& v)
     {
         // (v.x, v.x, v.x, v.x)

@@ -13,6 +13,7 @@ StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t1);
 StructuredBuffer<Vertex> g_sceneVertices : register(t2);
 StructuredBuffer<uint> g_sceneIndices : register(t3);
 StructuredBuffer<Material> g_materials : register(t4);
+RWStructuredBuffer<uint> g_pick : register(u0);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -30,6 +31,7 @@ struct RayPayload
     float3 dpdv;
     float3 dndu;
     float3 dndv;
+    uint hitMeshIdx;
 };
 
 bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
@@ -104,6 +106,7 @@ RayPayload TracePrimaryHit(float3 origin, float3 dir)
 
         payload.t = rayQuery.CommittedRayT();
         payload.matIdx = meshData.MatIdx;
+        payload.hitMeshIdx = meshIdx;
 
         uint tri = primIdx * 3;
         tri += meshData.BaseIdxOffset;
@@ -233,6 +236,9 @@ void main(uint3 DTid : SV_DispatchThreadID)
     rayDir = normalize(rayDir);
 
     RayPayload rayPayload = TracePrimaryHit(rayOrigin, rayDir);
+
+    if(g_local.PickedPixelX == DTid.x && g_local.PickedPixelY == DTid.y)
+        g_pick[0] = rayPayload.t != FLT_MAX ? rayPayload.hitMeshIdx : UINT32_MAX;
 
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)

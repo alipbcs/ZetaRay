@@ -3,11 +3,19 @@
 #include "../RenderPass.h"
 #include <Core/GpuMemory.h>
 #include <Core/DescriptorHeap.h>
+#include <Scene/SceneCommon.h>
 #include "Display_Common.h"
 
 namespace ZetaRay::Core
 {
     class CommandList;
+    class GraphicsCmdList;
+    struct RenderNodeHandle;
+}
+
+namespace ZetaRay::Core::GpuMemory
+{
+    struct ReadbackHeapBuffer;
 }
 
 namespace ZetaRay::Support
@@ -20,6 +28,8 @@ namespace ZetaRay::RenderPass
     enum class DISPLAY_SHADER
     {
         DISPLAY,
+        DRAW_PICKED,
+        SOBEL,
         COUNT
     };
 
@@ -62,6 +72,10 @@ namespace ZetaRay::RenderPass
                 break;
             }
         }
+        void SetPickData(const Core::RenderNodeHandle& producerHandle, 
+            Core::GpuMemory::ReadbackHeapBuffer* readback,
+            fastdelegate::FastDelegate0<> dlg);
+        void ClearPick();
         void Render(Core::CommandList& cmdList);
 
     private:
@@ -69,11 +83,13 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_SRV = 0;
         static constexpr int NUM_UAV = 0;
         static constexpr int NUM_GLOBS = 1;
-        static constexpr int NUM_CONSTS = (int)(sizeof(cbDisplayPass) / sizeof(DWORD));
+        static constexpr int NUM_CONSTS = (int)Math::Max((sizeof(cbDisplayPass) / sizeof(DWORD)),
+            sizeof(cbDrawPicked) / sizeof(DWORD));
 
         enum DESC_TABLE
         {
             TONEMAPPER_LUT_SRV,
+            PICK_MASK_SRV,
             COUNT
         };
 
@@ -88,10 +104,20 @@ namespace ZetaRay::RenderPass
             static_assert((int)Tonemapper::COUNT == ZetaArrayLen(Tonemappers), "enum <-> strings mismatch.");
         };
 
-        inline static constexpr const char* COMPILED_VS[(int)DISPLAY_SHADER::COUNT] = { "Display_vs.cso" };
-        inline static constexpr const char* COMPILED_PS[(int)DISPLAY_SHADER::COUNT] = { "Display_ps.cso" };
+        inline static constexpr const char* COMPILED_VS[(int)DISPLAY_SHADER::COUNT] = { 
+            "Display_vs.cso",
+            "DrawPicked_vs.cso",
+            "Sobel_vs.cso"
+        };
+        inline static constexpr const char* COMPILED_PS[(int)DISPLAY_SHADER::COUNT] = { 
+            "Display_ps.cso" ,
+            "DrawPicked_ps.cso", 
+            "Sobel_ps.cso" 
+        };
 
+        void DrawPicked(Core::GraphicsCmdList& cmdList);
         void CreatePSOs();
+        void ReadbackPickIdx();
 
         // parameter callbacks
         void DisplayOptionCallback(const Support::ParamVariant& p);
@@ -106,5 +132,12 @@ namespace ZetaRay::RenderPass
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
         cbDisplayPass m_cbLocal;
         uint32_t m_compositedSrvDescHeapIdx = UINT32_MAX;
+        // Picking data
+        int m_producerHandle = -1;
+        Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
+        std::atomic_uint64_t m_pickID = Scene::INVALID_INSTANCE;
+        fastdelegate::FastDelegate0<> m_pickDlg;
+        Core::GpuMemory::Texture m_pickMask;
+        Core::DescriptorTable m_rtvDescTable;
     };
 }

@@ -23,14 +23,16 @@ namespace ZetaRay::Core
 
     struct RenderNodeHandle
     {
+        static constexpr int INVALID_HANDLE = -1;
+
         RenderNodeHandle() = default;
         explicit RenderNodeHandle(int u)
             : Val(u)
         {}
 
-        ZetaInline bool IsValid() { return Val != -1; }
+        ZetaInline bool IsValid() const { return Val != INVALID_HANDLE; }
 
-        int Val = -1;
+        int Val = INVALID_HANDLE;
     };
 
     //--------------------------------------------------------------------------------------

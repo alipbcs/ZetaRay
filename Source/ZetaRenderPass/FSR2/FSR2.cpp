@@ -1114,9 +1114,9 @@ void FSR2Pass::Reset()
                 App::GetRenderer().SignalComputeQueue(fenceCompute.Get(), 1);
                 App::GetRenderer().SignalDirectQueue(fenceDirect.Get(), 1);
 
-                HANDLE handleCompute = CreateEventA(nullptr, false, false, "");
+                HANDLE handleCompute = CreateEventA(nullptr, false, false, nullptr);
                 CheckWin32(handleCompute);
-                HANDLE handleDirect = CreateEventA(nullptr, false, false, "");
+                HANDLE handleDirect = CreateEventA(nullptr, false, false, nullptr);
                 CheckWin32(handleDirect);
 
                 CheckHR(fenceCompute->SetEventOnCompletion(1, handleCompute));

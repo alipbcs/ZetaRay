@@ -530,10 +530,9 @@ void BVH::DoFrustumCulling(const Math::ViewFrustum& viewFrustum,
     }
 }
 
-uint64_t BVH::CastRay(Math::Ray& r)
+uint64_t BVH::CastRay(v_Ray& vRay)
 {
     v_AABB vBox(m_nodes[0].BoundingBox);
-    v_Ray vRay(r);
     float t;
 
     const __m128 vIsParallel = _mm_cmpge_ps(_mm_set1_ps(FLT_EPSILON), abs(vRay.vDir));
@@ -605,4 +604,10 @@ uint64_t BVH::CastRay(Math::Ray& r)
     }
 
     return closestID;
+}
+
+uint64_t BVH::CastRay(Math::Ray& r)
+{
+    v_Ray vRay(r);
+    return CastRay(vRay);
 }

@@ -83,12 +83,23 @@ namespace ZetaRay::RenderPass
                 return;
             }
         }
+        ZetaInline void PickPixel(uint16 pixelX, uint16 pixelY)
+        {
+            m_cbLocal.PickedPixelX = pixelX;
+            m_cbLocal.PickedPixelY = pixelY;
+        }
+        ZetaInline bool HasPendingPick() const { return m_cbLocal.PickedPixelX != UINT16_MAX; }
+        ZetaInline void ClearPick()
+        {
+            m_cbLocal.PickedPixelX = UINT16_MAX;
+        }
+        Core::GpuMemory::ReadbackHeapBuffer& GetPickReadbackBuffer() { return m_readbackBuffer; }
         void Render(Core::CommandList& cmdList);
 
     private:
         static constexpr int NUM_CBV = 1;
         static constexpr int NUM_SRV = 5;
-        static constexpr int NUM_UAV = 0;
+        static constexpr int NUM_UAV = 1;
         static constexpr int NUM_GLOBS = 6;
         static constexpr int NUM_CONSTS = (int)(sizeof(cbGBufferRt) / sizeof(DWORD));
 
@@ -124,6 +135,8 @@ namespace ZetaRay::RenderPass
         void ReloadGBufferInline();
 
         ComPtr<ID3D12StateObject> m_rtPSO;
+        Core::GpuMemory::DefaultHeapBuffer m_pickedInstance;
+        Core::GpuMemory::ReadbackHeapBuffer m_readbackBuffer;
         ShaderTable m_shaderTable;
         cbGBufferRt m_cbLocal;
     };

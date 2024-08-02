@@ -187,7 +187,8 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
     }
 }
 
-void PostProcessor::Register(const RenderSettings& settings, PostProcessData& data, RenderGraph& renderGraph)
+void PostProcessor::Register(const RenderSettings& settings, PostProcessData& data, 
+    GBufferData& gbufferData, RenderGraph& renderGraph)
 {
     // Compositing
     {
@@ -240,6 +241,16 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
     {
         fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(&data.DisplayPass, &DisplayPass::Render);
         data.DisplayHandle = renderGraph.RegisterRenderPass("DisplayPass", RENDER_NODE_TYPE::RENDER, dlg);
+
+        // When there's a pending pick in this frame, DiplayPass::Render() will call the delegate
+        // below to clear it later in the same frame
+        if (gbufferData.GBufferPass.HasPendingPick())
+        {
+            auto pickDlg = fastdelegate::MakeDelegate(&gbufferData.GBufferPass, &GBufferRT::ClearPick);
+            auto& readback = gbufferData.GBufferPass.GetPickReadbackBuffer();
+
+            data.DisplayPass.SetPickData(gbufferData.GBufferPassHandle, &readback, pickDlg);
+        }
     }
 
     // ImGui

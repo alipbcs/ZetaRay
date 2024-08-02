@@ -41,12 +41,10 @@ namespace ZetaRay::Core
 
         D3D12_COMMAND_LIST_TYPE m_type;
         ComPtr<ID3D12CommandQueue> m_cmdQueue;
-
         ComPtr<ID3D12Fence> m_fence;
         uint64_t m_lastCompletedFenceVal = 0;
         uint64_t m_nextFenceValue = 1;
         HANDLE m_event;
-
         std::shared_mutex m_poolMtx;
         std::shared_mutex m_fenceMtx;
 

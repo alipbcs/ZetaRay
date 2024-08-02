@@ -644,6 +644,9 @@ void TLAS::BuildFrameMeshInstanceData()
     uint32_t currInstance = 0;
     const bool sceneHasEmissives = scene.NumEmissiveInstances() > 0;
 
+    // Resize to avoid repeatedly growing it
+    scene.m_rtMeshInstanceIdxToID.resize(scene.m_IDtoTreePos.size());
+
     auto addTLASInstance = [&scene, this, &currInstance, sceneHasEmissives](const SceneCore::TreeLevel& currTreeLevel,
         int levelIdx, bool staticMesh)
     {
@@ -705,6 +708,8 @@ void TLAS::BuildFrameMeshInstanceData()
         m_frameInstanceData[currInstance].PrevScale = half3(s_prev);
         m_frameInstanceData[currInstance].dTranslation = half3(float3(t.x - t_prev.x, t.y - t_prev.y, t.z - t_prev.z));
 
+        scene.m_rtMeshInstanceIdxToID[currInstance] = currTreeLevel.m_IDs[levelIdx];
+
         currInstance++;
     };
 
@@ -722,7 +727,7 @@ void TLAS::BuildFrameMeshInstanceData()
 
     const bool rebuildStatic = App::GetScene().m_hasNewStaticInstances;
 
-    // static meshes
+    // Static meshes
     if (rebuildStatic)
     {
         for (int treeLevelIdx = 1; treeLevelIdx < scene.m_sceneGraph.size(); treeLevelIdx++)

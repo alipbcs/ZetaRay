@@ -29,7 +29,7 @@ namespace ZetaRay::RenderPass
 
                 if (m_fence->GetCompletedValue() < 1)
                 {
-                    HANDLE handle = CreateEventA(nullptr, false, false, "");
+                    HANDLE handle = CreateEventA(nullptr, false, false, nullptr);
                     CheckWin32(handle);
                     CheckHR(m_fence->SetEventOnCompletion(1, handle));
 

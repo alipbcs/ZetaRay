@@ -21,6 +21,8 @@ struct cbGBufferRt
     uint32_t TriGeoADescHeapIdx;
     uint32_t TriGeoBDescHeapIdx;
 
+    uint16_t PickedPixelX;
+    uint16_t PickedPixelY;
     uint16_t DispatchDimX;
     uint16_t DispatchDimY;
     uint16_t NumGroupsInTile;

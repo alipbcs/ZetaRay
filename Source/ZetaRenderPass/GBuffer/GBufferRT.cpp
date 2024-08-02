@@ -8,6 +8,7 @@
 #include <Scene/SceneCore.h>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::Direct3DUtil;
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Scene;
@@ -57,6 +58,10 @@ GBufferRT::GBufferRT()
     m_rootSig.InitAsBufferSRV(6, 4, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::MATERIAL_BUFFER);
+
+    // pick buffer
+    m_rootSig.InitAsBufferUAV(7, 0, 0,
+        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE, nullptr, true);
 }
 
 void GBufferRT::Init()
@@ -83,6 +88,7 @@ void GBufferRT::Init()
 #endif
 
     memset(&m_cbLocal, 0, sizeof(m_cbLocal));
+    m_cbLocal.PickedPixelX = UINT16_MAX;
 
     //ParamVariant p1;
     //p1.InitEnum("Renderer", "G-Buffer", "Mipmap Selection", fastdelegate::MakeDelegate(this, &GBufferRT::MipmapSelectionCallback),
@@ -93,6 +99,9 @@ void GBufferRT::Init()
     //traceInline.InitBool("Renderer", "G-Buffer", "Trace Inline",
     //    fastdelegate::MakeDelegate(this, &GBufferRT::InlineTracingCallback), m_inline);
     //App::AddParam(traceInline);
+
+    m_pickedInstance = GpuMemory::GetDefaultHeapBuffer("PickIdx", sizeof(uint32), false, true);
+    m_readbackBuffer = GpuMemory::GetReadbackHeapBuffer(sizeof(uint32));
 
 #if TRACE_INLINE == 1
     App::AddShaderReloadHandler("GBuffer", fastdelegate::MakeDelegate(this, &GBufferRT::ReloadGBufferInline));
@@ -122,6 +131,20 @@ void GBufferRT::Render(CommandList& cmdList)
     m_cbLocal.DispatchDimY = (uint16_t)dispatchDimY;
     m_cbLocal.NumGroupsInTile = GBUFFER_RT_TILE_WIDTH * m_cbLocal.DispatchDimY;
 
+    const bool hasPick = m_cbLocal.PickedPixelX != UINT16_MAX;
+
+    if (hasPick)
+    {
+        auto barrier = BufferBarrier(m_pickedInstance.Resource(),
+            D3D12_BARRIER_SYNC_NONE,
+            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+            D3D12_BARRIER_ACCESS_NO_ACCESS,
+            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS);
+        computeCmdList.ResourceBarrier(barrier);
+
+        m_rootSig.SetRootUAV(7, m_pickedInstance.GpuVA());
+    }
+
     m_rootSig.SetRootConstants(0, sizeof(m_cbLocal) / sizeof(DWORD), &m_cbLocal);
     m_rootSig.End(computeCmdList);
 
@@ -144,6 +167,22 @@ void GBufferRT::Render(CommandList& cmdList)
     computeCmdList.SetPipelineState(m_psoLib.GetPSO(0));
     computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 #endif
+
+    if (hasPick)
+    {
+        auto syncWrite = BufferBarrier(m_pickedInstance.Resource(),
+            D3D12_BARRIER_SYNC_COMPUTE_SHADING,
+            D3D12_BARRIER_SYNC_COPY,
+            D3D12_BARRIER_ACCESS_UNORDERED_ACCESS,
+            D3D12_BARRIER_ACCESS_COPY_SOURCE);
+        computeCmdList.ResourceBarrier(syncWrite);
+
+        computeCmdList.CopyBufferRegion(m_readbackBuffer.Resource(),
+            0,
+            m_pickedInstance.Resource(),
+            0,
+            sizeof(uint32));
+    }
 
     gpuTimer.EndQuery(computeCmdList, queryIdx);
     cmdList.PIXEndEvent();

@@ -170,8 +170,11 @@ namespace
         uint16_t m_displayHeight;
         bool m_isActive = true;
         bool m_manuallyPaused = false;
-        int m_lastMousePosX = 0;
-        int m_lastMousePosY = 0;
+        int16 m_lastMousePosX = 0;
+        int16 m_lastMousePosY = 0;
+        int16 m_lastLMBClickPosX = 0;
+        int16 m_lastLMBClickPosY = 0;
+        bool m_picked = false;
         int m_inMouseWheelMove = 0;
         bool m_inSizeMove = false;
         bool m_minimized = false;
@@ -480,9 +483,6 @@ namespace ZetaRay::AppImpl
     {
         UpdateStats(tempMemoryUsage);
 
-        if (g_app->m_timer.GetTotalFrameCount() > 1)
-            g_app->m_frameLogs.free_memory();
-
         ImGuiUpdateMouse();
         ImGui::NewFrame();
 
@@ -500,11 +500,19 @@ namespace ZetaRay::AppImpl
             g_app->m_frameMotion.Acceleration.z = -1;
         if (GetAsyncKeyState('D') & (1 << 16))
             g_app->m_frameMotion.Acceleration.x = 1;
+        if (GetAsyncKeyState(VK_ESCAPE) & (1 << 16))
+            g_app->m_scene.ClearPick();
 
         g_app->m_frameMotion.Acceleration.normalize();
         g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
         g_app->m_inMouseWheelMove = 0;
         g_app->m_camera.Update(g_app->m_frameMotion);
+
+        if (g_app->m_picked)
+        {
+            g_app->m_scene.Pick(g_app->m_lastLMBClickPosX, g_app->m_lastLMBClickPosY);
+            g_app->m_picked = false;
+        }
 
         g_app->m_scene.Update(g_app->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
     }
@@ -700,14 +708,16 @@ namespace ZetaRay::AppImpl
 
         if (!io.WantCaptureMouse)
         {
-            int x = GET_X_LPARAM(lParam);
-            int y = GET_Y_LPARAM(lParam);
+            int16 x = GET_X_LPARAM(lParam);
+            int16 y = GET_Y_LPARAM(lParam);
 
             if (btnState == MK_LBUTTON)
             {
                 SetCapture(g_app->m_hwnd);
                 g_app->m_lastMousePosX = x;
                 g_app->m_lastMousePosY = y;
+                g_app->m_lastLMBClickPosX = x;
+                g_app->m_lastLMBClickPosY = y;
             }
         }
     }
@@ -736,6 +746,12 @@ namespace ZetaRay::AppImpl
         {
             if (message == WM_LBUTTONUP)
                 ReleaseCapture();
+
+            if (g_app->m_lastLMBClickPosX == GET_X_LPARAM(lParam) &&
+                g_app->m_lastLMBClickPosY == GET_Y_LPARAM(lParam))
+            {
+                g_app->m_picked = true;
+            }
         }
     }
 
@@ -775,8 +791,8 @@ namespace ZetaRay::AppImpl
         {
             if (btnState == MK_LBUTTON)
             {
-                int x = GET_X_LPARAM(lParam);
-                int y = GET_Y_LPARAM(lParam);
+                int16 x = GET_X_LPARAM(lParam);
+                int16 y = GET_Y_LPARAM(lParam);
 
                 g_app->m_frameMotion.dMouse_x = int16_t(x - g_app->m_lastMousePosX);
                 g_app->m_frameMotion.dMouse_y = int16_t(y - g_app->m_lastMousePosY);
@@ -1380,16 +1396,11 @@ namespace ZetaRay
             if (!success)
                 continue;
 
-            // game loop
-            g_app->m_renderer.BeginFrame();
-            g_app->m_timer.Tick();
-            AppImpl::ResizeIfQueued();
-
             // at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
             g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
             const size_t tempMemoryUsed = g_app->m_smallFrameMemory.TotalSize();
 
-            if (g_app->m_timer.GetTotalFrameCount() > 1)
+            if (g_app->m_timer.GetTotalFrameCount() > 0)
             {
                 g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
                 for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
@@ -1400,7 +1411,13 @@ namespace ZetaRay
                 for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
                     g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices[i] = -1;
                 g_app->m_largeFrameMemory.Reset();        // set the offset to 0, essentially releasing the memory
+
+                g_app->m_frameLogs.free_memory();
             }
+
+            g_app->m_renderer.BeginFrame();
+            g_app->m_timer.Tick();
+            AppImpl::ResizeIfQueued();
 
             // update app
             {
@@ -1459,11 +1476,8 @@ namespace ZetaRay
                 g_app->m_scene.Render(renderTS);
                 renderTS.Sort();
 
-                // end frame
-                {
-                    g_app->m_renderer.EndFrame(endFrameTS);
-                    endFrameTS.Sort();
-                }
+                g_app->m_renderer.EndFrame(endFrameTS);
+                endFrameTS.Sort();
 
                 renderTS.ConnectTo(endFrameTS);
 

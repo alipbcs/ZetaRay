@@ -11,6 +11,7 @@ namespace ZetaRay::Math
     struct half3;
     struct half4;
     struct snorm3;
+    struct alignas(16) float4a;
 
     struct float2
     {
@@ -199,6 +200,7 @@ namespace ZetaRay::Math
             w(zw.y)
         {}
         float4(const half4& h);
+        float4(const float4a& f);
 
         constexpr float4& operator+=(const float4& other)
         {
@@ -722,18 +724,30 @@ namespace ZetaRay::Math
         w(HalfToFloat(h.w))
     {}
 
+    inline float4::float4(const float4a& f)
+        : x(f.x),
+        y(f.y),
+        z(f.z),
+        w(f.w)
+    {}
+
     //--------------------------------------------------------------------------------------
     // Operator Overloading
     //--------------------------------------------------------------------------------------
 
-    ZetaInline constexpr float2 operator-(const float2& v1, const float2& v0)
-    {
-        return float2(v1.x - v0.x, v1.y - v0.y);
-    }
-
     ZetaInline constexpr float2 operator+(const float2& v1, const float2& v0)
     {
         return float2(v1.x + v0.x, v1.y + v0.y);
+    }
+
+    ZetaInline constexpr float2 operator+(const float2& v0, float f)
+    {
+        return float2(v0.x + f, v0.y + f);
+    }
+    
+    ZetaInline constexpr float2 operator+(float f, const float2& v0)
+    {
+        return float2(v0.x + f, v0.y + f);
     }
 
     ZetaInline constexpr float2 operator*(const float2& v0, const float2& v1)
@@ -766,6 +780,21 @@ namespace ZetaRay::Math
         return float2(f / v0.x, f / v0.y);
     }
 
+    ZetaInline constexpr float2 operator-(const float2& v1, const float2& v0)
+    {
+        return float2(v1.x - v0.x, v1.y - v0.y);
+    }
+
+    ZetaInline constexpr float2 operator-(const float2& v0, float f)
+    {
+        return float2(v0.x - f, v0.y - f);
+    }
+
+    ZetaInline constexpr float2 operator-(float f, const float2& v0)
+    {
+        return float2(f - v0.x, f - v0.y);
+    }
+
     ZetaInline constexpr float2 operator-(const float2& v0)
     {
         return float2(-v0.x, -v0.y);
@@ -776,9 +805,34 @@ namespace ZetaRay::Math
         return float3(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z);
     }
 
+    ZetaInline constexpr float3 operator+(const float3& v0, float f)
+    {
+        return float3(v0.x + f, v0.y + f, v0.z + f);
+    }
+
+    ZetaInline constexpr float3 operator+(float f, const float3& v0)
+    {
+        return float3(v0.x + f, v0.y + f, v0.z + f);
+    }
+
     ZetaInline constexpr float3 operator-(const float3& v1, const float3& v0)
     {
         return float3(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z);
+    }
+
+    ZetaInline constexpr float3 operator-(const float3& v0, float f)
+    {
+        return float3(v0.x - f, v0.y - f, v0.z - f);
+    }
+
+    ZetaInline constexpr float3 operator-(float f, const float3& v0)
+    {
+        return float3(f - v0.x, f - v0.y, f - v0.z);
+    }
+
+    ZetaInline constexpr float3 operator-(const float3& v0)
+    {
+        return float3(-v0.x, -v0.y, -v0.z);
     }
 
     ZetaInline constexpr float3 operator*(const float3& v0, const float3& v1)
@@ -811,19 +865,39 @@ namespace ZetaRay::Math
         return float3(f / v0.x, f / v0.y, f / v0.z);
     }
 
-    ZetaInline constexpr float3 operator-(const float3& v0)
-    {
-        return float3(-v0.x, -v0.y, -v0.z);
-    }
-
     ZetaInline constexpr float4 operator+(const float4& v0, const float4& v1)
     {
         return float4(v0.x + v1.x, v0.y + v1.y, v0.z + v1.z, v0.w + v1.w);
     }
 
+    ZetaInline constexpr float4 operator+(const float4& v0, float f)
+    {
+        return float4(v0.x + f, v0.y + f, v0.z + f, v0.w + f);
+    }
+
+    ZetaInline constexpr float4 operator+(float f, const float4& v0)
+    {
+        return float4(v0.x + f, v0.y + f, v0.z + f, v0.w + f);
+    }
+
     ZetaInline constexpr float4 operator-(const float4& v1, const float4& v0)
     {
         return float4(v1.x - v0.x, v1.y - v0.y, v1.z - v0.z, v1.w - v0.w);
+    }
+
+    ZetaInline constexpr float4 operator-(const float4& v0, float f)
+    {
+        return float4(v0.x - f, v0.y - f, v0.z - f, v0.w - f);
+    }
+
+    ZetaInline constexpr float4 operator-(float f, const float4& v0)
+    {
+        return float4(f - v0.x, f - v0.y, f - v0.z, f - v0.w);
+    }
+
+    ZetaInline constexpr float4 operator-(const float4& v0)
+    {
+        return float4(-v0.x, -v0.y, -v0.z, -v0.w);
     }
 
     ZetaInline constexpr float4 operator*(const float4& v0, const float4& v1)
@@ -854,11 +928,6 @@ namespace ZetaRay::Math
     ZetaInline constexpr float4 operator/(float f, const float4& v0)
     {
         return float4(f / v0.x, f / v0.y, f / v0.z, f / v0.w);
-    }
-
-    ZetaInline constexpr float4 operator-(const float4& v0)
-    {
-        return float4(-v0.x, -v0.y, -v0.z, -v0.w);
     }
 
     ZetaInline constexpr uint3 operator+(uint3 v, uint32_t m)

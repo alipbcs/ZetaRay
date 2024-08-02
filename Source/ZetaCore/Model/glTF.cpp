@@ -265,7 +265,7 @@ namespace
         uint32_t totalIndices = 0;
         int numEmissiveMeshPrims = 0;
 
-        // Count total number of primitivess, vertices, and indices.
+        // Count total number of primitives, vertices, and indices.
         for (size_t meshIdx = offset; meshIdx != offset + size; meshIdx++)
         {
             Assert(meshIdx < model.meshes_count, "Out-of-bound access");

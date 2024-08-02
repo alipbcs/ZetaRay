@@ -20,7 +20,7 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type)
     CheckHR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_cmdQueue.GetAddressOf())));
     CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 
-    m_event = CreateEventA(nullptr, false, false, "CommandQueue");
+    m_event = CreateEventA(nullptr, false, false, nullptr);
     CheckWin32(m_event);
 
     m_cmdAllocPool.reserve(32);
@@ -138,11 +138,12 @@ void CommandQueue::WaitForFenceCPU(uint64_t fenceValue)
 {
     if (m_fence->GetCompletedValue() < fenceValue)
     {
-        std::unique_lock lock(m_fenceMtx);
-        CheckHR(m_fence->SetEventOnCompletion(fenceValue, m_event));    
+        // Reminder: SetEventOnCompletion() is thread safe
+        CheckHR(m_fence->SetEventOnCompletion(fenceValue, m_event));
         WaitForSingleObject(m_event, INFINITE);
 
-        m_lastCompletedFenceVal = fenceValue;
+        //std::unique_lock lock(m_fenceMtx);
+        //m_lastCompletedFenceVal = Math::Max(m_lastCompletedFenceVal, fenceValue);
     }
 }
 

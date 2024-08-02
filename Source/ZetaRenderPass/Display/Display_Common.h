@@ -43,4 +43,17 @@ struct cbDisplayPass
     float RoughnessTh;
 };
 
+struct cbDrawPicked
+{
+    float4_ row0;
+    float4_ row1;
+    float4_ row2;
+    float4_ row3;
+};
+
+struct cbSobel
+{
+    uint32_t MaskDescHeapIdx;
+};
+
 #endif

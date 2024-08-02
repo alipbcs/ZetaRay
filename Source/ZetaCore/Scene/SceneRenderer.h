@@ -40,6 +40,8 @@ namespace ZetaRay::Scene::Renderer
     using fp_GetRenderGraph = Core::RenderGraph*(*)();
     using fp_DebugDrawRenderGraph = void(*)();
     using fp_IsRTASBuilt = bool(*)();
+    using fp_Pick = void(*)(uint16 screenPosX, uint16 screenPosY);
+    using fp_ClearPick = void(*)();
 
     struct Interface
     {
@@ -51,5 +53,7 @@ namespace ZetaRay::Scene::Renderer
         fp_GetRenderGraph GetRenderGraph;
         fp_DebugDrawRenderGraph DebugDrawRenderGraph;
         fp_IsRTASBuilt IsRTASBuilt;
+        fp_Pick Pick;
+        fp_ClearPick ClearPick;
     };
 }

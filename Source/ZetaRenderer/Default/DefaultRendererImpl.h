@@ -284,9 +284,11 @@ namespace ZetaRay::DefaultRenderer::PostProcessor
     void UpdateWndDependentDescriptors(const RenderSettings& settings, PostProcessData& data);
     void UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data);
     void UpdatePasses(const RenderSettings& settings, PostProcessData& data);
-    void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
+    void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbufferData,
         const RayTracerData& rayTracerData);
-    void Register(const RenderSettings& settings, PostProcessData& data, Core::RenderGraph& renderGraph);
-    void AddAdjacencies(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbuffData,
-        const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
+    void Register(const RenderSettings& settings, PostProcessData& data, GBufferData& gbufferData,
+        Core::RenderGraph& renderGraph);
+    void AddAdjacencies(const RenderSettings& settings, PostProcessData& data, 
+        const GBufferData& gbufferData,const RayTracerData& rayTracerData, 
+        Core::RenderGraph& renderGraph);
 }

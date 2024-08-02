@@ -116,6 +116,8 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                 UpdateWorldTransformations(toUpdateInstances);
             }
 
+            // TODO BVH is wrong
+#if 0
             if (m_rebuildBVHFlag)
             {
                 App::DeltaTimer timer;
@@ -129,6 +131,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
             }
             else if (!toUpdateInstances.empty())
                 m_bvh.Update(toUpdateInstances);
+#endif
         });
 
     TaskSet::TaskHandle setRtAsInfo = TaskSet::INVALID_TASK_HANDLE;

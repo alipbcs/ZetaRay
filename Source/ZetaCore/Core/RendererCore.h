@@ -71,6 +71,7 @@ namespace ZetaRay::Core
 
         // Waits (CPU side) for the fence on Direct Queue to reach the specified value (blocking)
         void WaitForDirectQueueFenceCPU(uint64_t fenceValue);
+        void WaitForDirectQueueFenceCPU2(uint64_t fenceValue, HANDLE e);
 
         // Waits (CPU side) for the fence on Direct Queue to reach the specified value (blocking)
         void WaitForComputeQueueFenceCPU(uint64_t fenceValue);
