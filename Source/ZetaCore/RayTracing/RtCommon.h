@@ -70,10 +70,10 @@ namespace ZetaRay
             EmissiveTriangle() = default;
             EmissiveTriangle(const Math::float3& vtx0, const Math::float3& vtx1, const Math::float3& vtx2,
                 const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
-                uint32_t emissiveFactor, uint32_t emissiveTex_Strength, uint32_t triIdx, 
+                uint32_t emissiveFactorRGB8, uint32_t emissiveTex_Strength, uint32_t triIdx, 
                 bool doubleSided = true)
                 : ID(triIdx),
-                EmissiveFactor(emissiveFactor & 0xffffff),
+                EmissiveFactor(emissiveFactorRGB8 & 0xffffff),
                 EmissiveTex_Strength(emissiveTex_Strength),
                 UV0(uv0),
                 UV1(uv1),
@@ -107,6 +107,11 @@ namespace ZetaRay
             EMISSIVE_UV_TYPE UV0;
             EMISSIVE_UV_TYPE UV1;
             EMISSIVE_UV_TYPE UV2;
+
+            bool IsDoubleSided() CONST
+            {
+                return EmissiveFactor & (1u << DoubleSidedBit);
+            }
 
 #ifdef __cplusplus
             ZetaInline void __vectorcall StoreVertices(__m128 v0, __m128 v1, __m128 v2)
@@ -224,6 +229,24 @@ namespace ZetaRay
                 e.x = static_cast<int16_t>(a[0]);
                 e.y = static_cast<int16_t>(a[1]);
             }
+
+            ZetaInline void SetStrength(float newStrength)
+            {
+                Math::half h(newStrength);
+                EmissiveTex_Strength = (uint32_t(h.x) << 16) | (EmissiveTex_Strength & 0xffff);
+            }
+
+            ZetaInline void SetStrength(Math::half newStrength)
+            {
+                EmissiveTex_Strength = (uint32_t(newStrength.x) << 16) | (EmissiveTex_Strength & 0xffff);
+            }
+
+            ZetaInline void SetEmissiveFactor(uint32_t newFactorRGB8)
+            {
+                uint32_t doubleSided = IsDoubleSided();
+                EmissiveFactor = newFactorRGB8 & 0xffffff;
+                EmissiveFactor |= (doubleSided << DoubleSidedBit);
+            }
 #endif
 
 #ifndef __cplusplus
@@ -235,11 +258,6 @@ namespace ZetaRay
             half GetEmissiveStrength()
             {
                 return asfloat16(uint16_t(EmissiveTex_Strength >> 16));
-            }
-
-            bool IsDoubleSided()
-            {
-                return EmissiveFactor & (1u << DoubleSidedBit);
             }
 #endif
         };

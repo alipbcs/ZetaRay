@@ -4,6 +4,8 @@
 #include "SceneRenderer.h"
 #include "SceneCore.h"
 #include "../Utility/Utility.h"
+#include "../App/Log.h"
+#include "../App/Timer.h"
 #include <algorithm>
 
 using namespace ZetaRay::Core;
@@ -136,37 +138,39 @@ void MaterialBuffer::Add(Material& mat, uint32_t idx)
     // Set offset in input material
     mat.SetGpuBufferIndex(freeIdx);
     m_materials[idx] = mat;
-
-    m_stale = true;
 }
 
-void MaterialBuffer::UpdateGPUBufferIfStale()
+void MaterialBuffer::UploadToGPU()
 {
-    if (!m_stale)
-        return;
-
-    Assert(!m_materials.empty(), "Stale flag is set, yet there aren't any materials.");
-
-    SmallVector<Material, FrameAllocator> buffer;
-    buffer.resize(m_materials.size());
-
-    for(auto& mat : m_materials)
+    // First time
+    if (!m_buffer.IsInitialized())
     {
-        const uint32_t indexInBuffer = mat.GpuBufferIndex();
-        buffer[indexInBuffer] = mat;
+        SmallVector<Material, FrameAllocator> buffer;
+        buffer.resize(m_materials.size());
+
+        for(auto& mat : m_materials)
+        {
+            const uint32_t indexInBuffer = mat.GpuBufferIndex();
+            buffer[indexInBuffer] = mat;
+        }
+
+        auto& renderer = App::GetRenderer();
+        m_buffer = GpuMemory::GetDefaultHeapBufferAndInit("MaterialBuffer",
+            (uint32_t)(buffer.size() * sizeof(Material)),
+            false,
+            buffer.data());
+
+        auto& r = renderer.GetSharedShaderResources();
+        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::MATERIAL_BUFFER, m_buffer);
     }
+    // Update a single material
+    else if (m_staleIdx != -1)
+    {
+        GpuMemory::UploadToDefaultHeapBuffer(m_buffer, sizeof(Material),
+            &m_materials[m_staleIdx], sizeof(Material) * m_staleIdx);
 
-    auto& renderer = App::GetRenderer();
-
-    m_buffer = GpuMemory::GetDefaultHeapBufferAndInit("MaterialBuffer",
-        (uint32_t)(buffer.size() * sizeof(Material)),
-        false,
-        buffer.data());
-
-    auto& r = renderer.GetSharedShaderResources();
-    r.InsertOrAssignDefaultHeapBuffer(GlobalResource::MATERIAL_BUFFER, m_buffer);
-
-    m_stale = false;
+        m_staleIdx = -1;
+    }
 }
 
 void MaterialBuffer::ResizeAdditionalMaterials(uint32_t num)
@@ -213,9 +217,9 @@ void MeshContainer::AddBatch(SmallVector<Model::glTF::Asset::Mesh>&& meshes,
     for (auto& mesh : meshes)
     {
         const uint64_t meshFromSceneID = SceneCore::MeshID(mesh.MeshIdx, mesh.MeshPrimIdx);
-        const uint32_t matFromSceneID = mesh.MaterialIdx != -1 ? 
+        const uint32_t matFromSceneID = mesh.glTFMaterialIdx != -1 ?
             // Offset by one to account for default material at slot 0.
-            mesh.MaterialIdx + 1 : 
+            mesh.glTFMaterialIdx + 1 :
             SceneCore::DEFAULT_MATERIAL_IDX;
 
         bool success = m_meshes.try_emplace(meshFromSceneID, Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices),
@@ -275,75 +279,118 @@ void MeshContainer::Clear()
 // EmissiveBuffer
 //--------------------------------------------------------------------------------------
 
-void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& emissiveInstances, 
-    SmallVector<RT::EmissiveTriangle>&& emissiveTris)
+void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& instances, 
+    SmallVector<RT::EmissiveTriangle>&& tris)
 {
-    if (m_emissivesTrisCpu.empty())
-    {
-        m_emissivesInstances = ZetaMove(emissiveInstances);
-        m_emissivesTrisCpu = ZetaMove(emissiveTris);
-    }
-    else
-    {
-        // TODO implement
-        Check(false, "Not implemented.");
-    }
+    App::DeltaTimer timer;
+    timer.Start();
 
-    std::sort(m_emissivesInstances.begin(), m_emissivesInstances.end(),
+    // TODO implement
+    Check(m_trisCpu.empty(), "Not implemented.");
+    m_instances = instances;
+
+    // Map instance ID to index in instances
+    HashTable<uint32, uint64, App::FrameAllocator> idToIdxMap;
+    idToIdxMap.resize(instances.size(), true);
+
+    for (int i = 0; i < (int)instances.size(); i++)
+        idToIdxMap[instances[i].InstanceID] = i;
+
+    // Sort by material - this makes updates simpler and faster
+    std::sort(m_instances.begin(), m_instances.end(),
         [](const Asset::EmissiveInstance& a1, const Asset::EmissiveInstance& a2)
         {
-            return a1.InstanceID < a2.InstanceID;
+            return a1.MaterialIdx < a2.MaterialIdx;
         });
 
-#if 0
-    m_initialPos.resize(m_emissivesTrisCpu.size());
-#endif
+    m_trisCpu.resize(tris.size());
+    uint32_t currNumTris = 0;
+
+    // Shuffle triangles according to new sorted order
+    for (int i = 0; i < (int)m_instances.size(); i++)
+    {
+        const uint64_t currID = m_instances[i].InstanceID;
+        const uint32_t idx = *idToIdxMap.find2(currID).value();
+
+        memcpy(&m_trisCpu[currNumTris], 
+            &tris[instances[idx].BaseTriOffset],
+            instances[idx].NumTriangles * sizeof(RT::EmissiveTriangle));
+
+        m_instances[i].BaseTriOffset = currNumTris;
+        currNumTris += instances[idx].NumTriangles;
+    }
+
+    for (int i = 0; i < (int)m_instances.size(); i++)
+        m_idToIdxMap[m_instances[i].InstanceID] = i;
+
+    timer.End();
+    LOG_UI_INFO("Emissive buffers processed in %u [us].", (uint32_t)timer.DeltaMicro());
 }
 
-void EmissiveBuffer::AllocateAndCopyEmissiveBuffer()
+void EmissiveBuffer::UploadToGPU()
 {
-    if (m_emissivesTrisCpu.empty())
+    if (m_trisCpu.empty())
         return;
 
-    const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangle) * (uint32_t)m_emissivesTrisCpu.size();
-    m_emissiveTrisGpu = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER,
-        sizeInBytes,
-        false, 
-        m_emissivesTrisCpu.data());
+    if (!m_trisGpu.IsInitialized())
+    {
+        const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_trisCpu.size();
+        m_trisGpu = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER,
+            (uint32)sizeInBytes,
+            false, 
+            m_trisCpu.data());
 
-    auto& r = App::GetRenderer().GetSharedShaderResources();
-    r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_emissiveTrisGpu);
+        auto& r = App::GetRenderer().GetSharedShaderResources();
+        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_trisGpu);
+    }
+    else if(m_staleNumTris > 0)
+    {
+        Assert(m_staleBaseOffset != UINT32_MAX, "Invalid base offset.");
+        LOG_UI_INFO("Frame %llu: Uploading %d emissive triangles (%d MB)...", 
+            App::GetTimer().GetTotalFrameCount(),
+            m_staleNumTris, sizeof(RT::EmissiveTriangle) * m_staleNumTris / (1024 * 1024));
 
-    m_firstTime = false;
-}
 
-void EmissiveBuffer::UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx)
-{
-    Assert(minTriIdx < m_emissivesTrisCpu.size(), "invalid index.");
-    Assert(maxTriIdx < m_emissivesTrisCpu.size(), "invalid index.");
-    Assert(minTriIdx <= maxTriIdx, "invalid incices.");
+        GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, sizeof(RT::EmissiveTriangle) * m_staleNumTris,
+            &m_trisCpu[m_staleBaseOffset], m_staleBaseOffset * sizeof(RT::EmissiveTriangle));
 
-    const uint32_t sizeInBytes = sizeof(RT::EmissiveTriangle) * (maxTriIdx - minTriIdx);
-    const uintptr_t start = reinterpret_cast<uintptr_t>(m_emissivesTrisCpu.data()) + 
-        minTriIdx * sizeof(RT::EmissiveTriangle);
-
-    GpuMemory::UploadToDefaultHeapBuffer(m_emissiveTrisGpu,
-        sizeInBytes,
-        reinterpret_cast<void*>(start),
-        minTriIdx * sizeof(RT::EmissiveTriangle));
+        m_staleNumTris = 0;
+        m_staleBaseOffset = UINT32_MAX;
+    }
 }
 
 void EmissiveBuffer::Clear()
 {
-    m_emissiveTrisGpu.Reset(false);
+    m_trisGpu.Reset(false);
 }
 
-Optional<Asset::EmissiveInstance*> EmissiveBuffer::FindEmissive(uint64_t ID)
+void EmissiveBuffer::Update(uint64_t instanceID, const float3& emissiveFactor, float strength)
 {
-    auto idx = BinarySearch(Span(m_emissivesInstances), ID, 
-        [](const Asset::EmissiveInstance& e) {return e.InstanceID; });
-    if (idx != -1)
-        return &m_emissivesInstances[idx];
+    auto& instance = *FindInstance(instanceID).value();
+    const int modifiedMatIdx = instance.MaterialIdx;
 
-    return {};
+    // BinarySearch() must return the leftmost index when keys aren't unique
+    auto idx = BinarySearch(Span(m_instances), modifiedMatIdx,
+        [](const Asset::EmissiveInstance& e) { return e.MaterialIdx; });
+    Assert(idx != -1, "Material was not found.");
+
+    const uint32 newEmissiveFactor = Float3ToRGB8(emissiveFactor);
+    const half newStrength(strength);
+
+    m_staleBaseOffset = m_instances[idx].BaseTriOffset;
+
+    // Find every instance that uses this material
+    while (idx < (int64)m_instances.size() && m_instances[idx].MaterialIdx == modifiedMatIdx)
+    {
+        // Update all triangles for this instance
+        for (int64 i = m_instances[idx].BaseTriOffset; 
+            i < m_instances[idx].BaseTriOffset + m_instances[idx].NumTriangles; i++)
+        {
+            m_trisCpu[i].SetEmissiveFactor(newEmissiveFactor);
+            m_trisCpu[i].SetStrength(newStrength);
+        }
+
+        m_staleNumTris += m_instances[idx].NumTriangles;
+        idx++;
+    } 
 }

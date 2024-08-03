@@ -6,7 +6,6 @@
 #include "../Support/Task.h"
 #include "Camera.h"
 #include <App/Timer.h>
-#include <App/Log.h>
 #include <Support/Param.h>
 #include <algorithm>
 
@@ -186,93 +185,93 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
     sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
 #endif
 
-    const uint32_t numInstances = m_emissives.NumEmissiveInstances();
+    const uint32_t numInstances = m_emissives.NumInstances();
     m_staleEmissives = false;
 
-    // Full rebuild of the emissive buffers for the first time
-    if (numInstances && m_emissives.IsFirstTime())
+    if (numInstances && (!m_emissives.TransformedToWorldSpace() || m_emissives.IsStale()))
     {
-        const uint32_t numTris = m_emissives.NumEmissiveTriangles();
-        m_staleEmissives = true;
-
-        constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 5;
-        constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
-        size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
-        size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
-        uint32_t workerEmissiveCount[MAX_NUM_EMISSIVE_WORKERS];
-
-        const int numEmissiveWorkers = (int)SubdivideRangeWithMin(numInstances,
-            MAX_NUM_EMISSIVE_WORKERS,
-            threadOffsets,
-            threadSizes,
-            MIN_EMISSIVE_INSTANCES_PER_WORKER);
-
-        auto finishEmissive = sceneTS.EmplaceTask("BuildEmissiveBuffer", [this]()
+        auto upload = sceneTS.EmplaceTask("UploadEmissiveBuffer", [this]()
             {
-                m_emissives.AllocateAndCopyEmissiveBuffer();
+                m_emissives.UploadToGPU();
             });
 
-        for (int i = 0; i < numEmissiveWorkers; i++)
+        // Full rebuild of emissive buffer for first time
+        if (!m_emissives.TransformedToWorldSpace())
         {
-            StackStr(tname, n, "Scene::Emissive_%d", i);
+            m_staleEmissives = true;
 
-            auto h = sceneTS.EmplaceTask(tname, [this, offset = threadOffsets[i], size = threadSizes[i]]()
-                {
-                    auto emissvies = m_emissives.EmissiveInstances();
-                    auto tris = m_emissives.EmissiveTriagnles();
-                    auto triPos = m_emissives.InitialTriVtxPos();
-                    v_float4x4 I = identity();
+            constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 5;
+            constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
+            size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
+            size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
+            uint32_t workerEmissiveCount[MAX_NUM_EMISSIVE_WORKERS];
 
-                    // For every emissive instance, apply world transformation to all of its triangles
-                    for (int instance = (int)offset; instance < (int)offset + (int)size; instance++)
+            const int numEmissiveWorkers = (int)SubdivideRangeWithMin(numInstances,
+                MAX_NUM_EMISSIVE_WORKERS,
+                threadOffsets,
+                threadSizes,
+                MIN_EMISSIVE_INSTANCES_PER_WORKER);
+
+            for (int i = 0; i < numEmissiveWorkers; i++)
+            {
+                StackStr(tname, n, "Scene::Emissive_%d", i);
+
+                auto h = sceneTS.EmplaceTask(tname, [this, offset = threadOffsets[i], size = threadSizes[i]]()
                     {
-                        auto& e = emissvies[instance];
-                        const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
+                        auto emissvies = m_emissives.Instances();
+                        auto tris = m_emissives.Triagnles();
+                        v_float4x4 I = identity();
 
-                        if (equal(vW, I))
-                            continue;
-
-                        const auto rtASInfo = GetInstanceRtASInfo(e.InstanceID);
-
-                        for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
+                        // For every emissive instance, apply world transformation to all of its triangles
+                        for (int instance = (int)offset; instance < (int)offset + (int)size; instance++)
                         {
-                            __m128 vV0;
-                            __m128 vV1;
-                            __m128 vV2;
-                            tris[t].LoadVertices(vV0, vV1, vV2);
+                            auto& e = emissvies[instance];
+                            const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
 
-                            vV0 = mul(vW, vV0);
-                            vV1 = mul(vW, vV1);
-                            vV2 = mul(vW, vV2);
+                            if (equal(vW, I))
+                                continue;
 
-                            tris[t].StoreVertices(vV0, vV1, vV2);
+                            const auto rtASInfo = GetInstanceRtASInfo(e.InstanceID);
 
+                            for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
+                            {
+                                __m128 vV0;
+                                __m128 vV1;
+                                __m128 vV2;
+                                tris[t].LoadVertices(vV0, vV1, vV2);
+
+                                vV0 = mul(vW, vV0);
+                                vV1 = mul(vW, vV1);
+                                vV2 = mul(vW, vV2);
+
+                                tris[t].StoreVertices(vV0, vV1, vV2);
 #if 0
-                            triPos[t] = EmissiveBuffer::InitialPos{
-                                .Vtx0 = storeFloat3(vV0),
-                                .Vtx1 = storeFloat3(vV1),
-                                .Vtx2 = storeFloat3(vV2)
-                            };
+                                triPos[t] = EmissiveBuffer::InitialPos{
+                                    .Vtx0 = storeFloat3(vV0),
+                                    .Vtx1 = storeFloat3(vV1),
+                                    .Vtx2 = storeFloat3(vV2)
+                                };
 #endif
 
-                            // TODO ID initially contains triangle index within each mesh, after
-                            // hashing it below, it's lost and subsequent runs will give wrong results as it
-                            // won't match the computation in rt shaders
-                            const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID, 
-                                tris[t].ID)).x;
+                                // TODO ID initially contains triangle index within each mesh, after
+                                // hashing it below, it's lost and subsequent runs will give wrong results as it
+                                // won't match the computation in rt shaders
+                                const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID,
+                                    tris[t].ID)).x;
 
-                            Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle ID after the first assignment is invalid.");
-                            tris[t].ResetID(hash);
+                                Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle ID after the first assignment is invalid.");
+                                tris[t].ResetID(hash);
+                            }
                         }
-                    }
-                });
+                    });
 
-            sceneTS.AddOutgoingEdge(updateWorldTransforms, h);
+                sceneTS.AddOutgoingEdge(updateWorldTransforms, h);
 
-            if(setRtAsInfo != TaskSet::INVALID_TASK_HANDLE)
-                sceneTS.AddOutgoingEdge(setRtAsInfo, h);
+                if (setRtAsInfo != TaskSet::INVALID_TASK_HANDLE)
+                    sceneTS.AddOutgoingEdge(setRtAsInfo, h);
 
-            sceneTS.AddOutgoingEdge(h, finishEmissive);
+                sceneTS.AddOutgoingEdge(h, upload);
+            }
         }
     }
 
@@ -286,8 +285,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
         m_meshBufferStale = false;
     }
 
-    m_matBuffer.UpdateGPUBufferIfStale();
-
+    m_matBuffer.UploadToGPU();
     m_rendererInterface.Update(sceneRendererTS);
 }
 
@@ -426,12 +424,17 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         mat.SetEmissiveStrength(matDesc.EmissiveStrength);
     }
 
-    // Adds material GPU material buffer, which offsets into descriptor tables above.
+    // Add this material to GPU material buffer, which offsets into descriptor tables above.
     // Offset by one to account for default material at slot 0.
     m_matBuffer.Add(mat, matDesc.Index + 1);
 
     if (lock)
         ReleaseSRWLockExclusive(&m_matLock);
+}
+
+void SceneCore::UpdateMaterial(const Material& newMat, int matIdx)
+{
+    m_matBuffer.Update(newMat, matIdx);
 }
 
 void SceneCore::ResizeAdditionalMaterials(uint32_t num)
@@ -618,6 +621,11 @@ void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissi
         ReleaseSRWLockExclusive(&m_emissiveLock);
 }
 
+void SceneCore::UpdateEmissive(uint64_t instanceID, const float3& emissiveFactor, float strength)
+{
+    m_emissives.Update(instanceID, emissiveFactor, strength);
+}
+
 void SceneCore::RebuildBVH()
 {
     SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
@@ -694,9 +702,9 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
 
                     m_sceneGraph[level + 1].m_rtFlags[j] = SetRtFlags(f.MeshMode, f.InstanceMask, 0, 1, f.IsOpaque);
 
-                    auto emissive = m_emissives.FindEmissive(ID);
-                    if (emissive)
-                        modifiedEmissives.push_back(*emissive.value());
+                    //auto emissive = m_emissives.FindEmissive(ID);
+                    //if (emissive)
+                    //    modifiedEmissives.push_back(*emissive.value());
                 }
 
                 m_sceneGraph[level + 1].m_toWorlds[j] = float4x3(store(newW));
@@ -802,9 +810,10 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdate> animVec)
 }
 
 // TODO following is untested
+/*
 void SceneCore::UpdateEmissives(MutableSpan<EmissiveInstance> instances)
 {
-    auto emissvies = m_emissives.EmissiveInstances();
+    auto emissvies = m_emissives.Instances();
     auto tris = m_emissives.EmissiveTriagnles();
     auto initPos = m_emissives.InitialTriVtxPos();
     uint32_t minTriIdx = UINT32_MAX;
@@ -834,6 +843,7 @@ void SceneCore::UpdateEmissives(MutableSpan<EmissiveInstance> instances)
 
     m_emissives.UpdateEmissiveBuffer(minTriIdx, maxTriIdx);
 }
+*/
 
 void SceneCore::AnimateCallback(const ParamVariant& p)
 {

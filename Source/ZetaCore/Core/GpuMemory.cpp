@@ -1081,10 +1081,10 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint3
 }
 
 void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, 
-    void* data, uint32_t destOffset)
+    void* data, uint32_t destOffsetInBytes)
 {
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffset);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffsetInBytes);
 }
 
 ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt)

@@ -67,13 +67,84 @@ namespace ZetaRay
 
         void SetDoubleSided(bool b)
         {
-            Packed |= (uint32_t)(b) << 30;
+            if(b)
+                Packed |= (1 << 30);
+            else
+                Packed ^= (1 << 30);
         }
 
         uint32_t GpuBufferIndex() const
         {
             return Packed & 0x0fffffff;
         }
+
+        void SetBaseColorFactor(Math::float3 color)
+        {
+            BaseColorFactor = Float3ToRGB8(color) | (BaseColorFactor & 0xff000000);
+        }
+
+        void SetNormalTex(uint32_t idx)
+        {
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
+            NormalTexture_IOR = (idx & 0xffff) | (NormalTexture_IOR & 0xffff0000);
+        }
+
+        void SetMetallicRoughnessTex(uint32_t idx)
+        {
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
+            MetallicRoughnessTexture_Transmission = (idx & 0xffff) | (MetallicRoughnessTexture_Transmission & 0xff0000);
+        }
+
+        void SetEmissiveTex(uint32_t idx)
+        {
+            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
+            EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
+        }
+
+        void SetEmissiveFactor(Math::float3 color)
+        {
+            EmissiveFactorNormalScale = Math::Float3ToRGB8(color) | (EmissiveFactorNormalScale & 0xff000000);
+        }
+
+        void SetEmissiveStrength(float s)
+        {
+            Math::half h(s);
+            EmissiveTexture_Strength = (uint32_t(h.x) << 16) | (EmissiveTexture_Strength & 0xffff);
+        }
+
+        void SetIOR(float ior)
+        {
+            Assert(ior >= MIN_IOR && ior < MAX_IOR, "IOR is assumed to be in the range [1, 2.5)");
+            float normalized = (ior - 1.0f) / 1.5f;
+            normalized = roundf(normalized * ((1 << 16) - 1));
+            NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
+        }
+
+        void SetTransmission(float t)
+        {
+            uint32_t encoded = uint32_t(roundf(t * float((1 << 8) - 1)));
+            MetallicRoughnessTexture_Transmission = (encoded << 16) | (MetallicRoughnessTexture_Transmission & 0xffff);
+        }
+
+        void SetMetallicFactor(float f)
+        {
+            MetallicFactorAlphaCuttoff = Math::FloatToUNorm8(f) | (MetallicFactorAlphaCuttoff & 0xff00);
+        }
+
+        void SetRoughnessFactor(float r)
+        {
+            RoughnessFactor = Math::FloatToUnorm16(r);
+        }
+
+        bool IsEmissive() CONST
+        {
+            if (GetEmissiveTex() != UINT16_MAX)
+                return true;
+
+            Math::float3 f = Math::RGBToFloat3(EmissiveFactorNormalScale);
+            return f.dot(f) > 0;
+        }
+
 #endif
         bool IsDoubleSided() CONST
         {
@@ -115,64 +186,31 @@ namespace ZetaRay
             return RoughnessFactor / float((1 << 16) - 1);
         }
 
-#ifdef __cplusplus
-        void SetNormalTex(uint32_t idx)
-        {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            NormalTexture_IOR = (idx & 0xffff) | (NormalTexture_IOR & 0xffff0000);
-        }
-
-        void SetMetallicRoughnessTex(uint32_t idx)
-        {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            MetallicRoughnessTexture_Transmission = (idx & 0xffff) | (MetallicRoughnessTexture_Transmission & 0xff0000);
-        }
-
-        void SetEmissiveTex(uint32_t idx)
-        {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
-        }
-
-        void SetEmissiveStrength(float s)
-        {
-            Math::half h(s);
-            EmissiveTexture_Strength = (uint32_t(h.x) << 16) | (EmissiveTexture_Strength & 0xffff);
-        }
-
-        void SetIOR(float ior)
-        {
-            Assert(ior >= MIN_IOR && ior < MAX_IOR, "IOR is assumed to be in the range [1, 2.5)");
-            float normalized = (ior - 1.0f) / 1.5f;
-            normalized = roundf(normalized * ((1 << 16) - 1));
-            NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
-        }
-
-        void SetTransmission(float t)
-        {
-            uint32_t encoded = uint32_t(roundf(t * float((1 << 8) - 1)));
-            MetallicRoughnessTexture_Transmission = (encoded << 16) | (MetallicRoughnessTexture_Transmission & 0xffff);
-        }
-
-#else
-        half GetEmissiveStrength()
-        {
-            return asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
-        }
-
-        float GetIOR()
+        float GetIOR() CONST
         {
             uint16_t encoded = uint16_t(NormalTexture_IOR >> 16);
+
+#ifdef __cplusplus
+            return (1.5f / float(((1 << 16) - 1)) * encoded + 1.0f);
+#else
             return mad(1.5f / float(((1 << 16) - 1)), encoded, 1.0f);
+#endif
         }
 
-        float GetTransmission()
+        float GetTransmission() CONST
         {
             float t = float((MetallicRoughnessTexture_Transmission >> 16) & 0xff);
             return t / 255.0f;
         }
 
-#endif // __cplusplus
+        half_ GetEmissiveStrength() CONST
+        {
+#ifdef __cplusplus
+            return Math::half::asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
+#else
+            return asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
+#endif
+        }
 
         uint32_t BaseColorFactor;
         uint32_t EmissiveFactorNormalScale;

@@ -139,6 +139,7 @@ namespace ZetaRay::Scene
         {
             return m_matBuffer.Get(idx);
         }
+        void UpdateMaterial(const Material& newMat, int matIdx);
         void ResizeAdditionalMaterials(uint32_t num);
 
         ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.GPUDesciptorHeapIndex(); }
@@ -189,9 +190,10 @@ namespace ZetaRay::Scene
         //
         void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
             Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris, bool lock);
-        size_t NumEmissiveInstances() const { return m_emissives.NumEmissiveInstances(); }
-        size_t NumEmissiveTriangles() const { return m_emissives.NumEmissiveTriangles(); }
+        size_t NumEmissiveInstances() const { return m_emissives.NumInstances(); }
+        size_t NumEmissiveTriangles() const { return m_emissives.NumTriangles(); }
         bool AreEmissivesStale() const { return m_staleEmissives; }
+        void UpdateEmissive(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
 
         //
         // Animation
@@ -294,7 +296,6 @@ namespace ZetaRay::Scene
         void RebuildBVH();
         void UpdateAnimations(float t, Util::Vector<AnimationUpdate, App::FrameAllocator>& animVec);
         void UpdateLocalTransforms(Util::Span<AnimationUpdate> animVec);
-        void UpdateEmissives(Util::MutableSpan<Model::glTF::Asset::EmissiveInstance> instances);
 
         // Maps instance ID to tree position
         Util::HashTable<TreePos> m_IDtoTreePos;

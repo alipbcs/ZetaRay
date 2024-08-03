@@ -665,7 +665,7 @@ void TLAS::BuildFrameMeshInstanceData()
         const Material* mat = scene.GetMaterial(mesh->m_materialIdx).value();
 
         const EmissiveInstance* emissiveInstance = sceneHasEmissives && (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE) ?
-            scene.m_emissives.FindEmissive(currTreeLevel.m_IDs[levelIdx]).value() :
+            scene.m_emissives.FindInstance(currTreeLevel.m_IDs[levelIdx]).value() :
             nullptr;
 
         auto& M = currTreeLevel.m_toWorlds[levelIdx];

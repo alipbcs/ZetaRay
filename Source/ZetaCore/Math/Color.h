@@ -1,9 +1,15 @@
 #pragma once
 
 #include "VectorFuncs.h"
+#include <cmath>
 
 namespace ZetaRay::Math
 {
+    ZetaInline uint8_t FloatToUNorm8(float v)
+    {
+        return (uint8_t)std::fmaf(v, 255.0f, 0.5f);
+    }
+
     ZetaInline uint16_t __vectorcall Float2ToRG8(Math::float2 v)
     {
         // Last two elements are set to zero

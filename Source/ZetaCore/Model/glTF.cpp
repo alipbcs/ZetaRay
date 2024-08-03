@@ -375,7 +375,7 @@ namespace
 
                 meshes[currMeshPrimOffset++] = Mesh
                     {
-                        .MaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
+                        .glTFMaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
                         .MeshIdx = (int)meshIdx,
                         .MeshPrimIdx = primIdx,
                         .BaseVtxOffset = currVtxOffset,
@@ -648,17 +648,18 @@ namespace
                         const int nodeIdx = (int)(&node - context.Model->nodes);
                         const uint64_t currInstanceID = SceneCore::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
 
-                        // Add the emissive instance
+                        // Add emissive instance
                         context.EmissiveInstances[emissiveMeshIdx++] = EmissiveInstance
                             {
                                 .InstanceID = currInstanceID,
                                 .BaseTriOffset = currGlobalTriIdx,
-                                .NumTriangles = meshPrimInfo.NumIndices / 3
+                                .NumTriangles = meshPrimInfo.NumIndices / 3,
+                                .MaterialIdx = meshPrimInfo.MaterialIdx + 1
                             };
 
                         uint32_t currMeshTriIdx = 0;
 
-                        // Add all the mesh triangles for this instance
+                        // Add all triangles for this instance
                         for (int i = meshPrimInfo.BaseIdxOffset; i < (int)(meshPrimInfo.BaseIdxOffset + meshPrimInfo.NumIndices); i += 3)
                         {
                             uint32_t i0 = context.Indices[i];
@@ -669,7 +670,8 @@ namespace
                             const Vertex& v1 = context.Vertices[meshPrimInfo.BaseVtxOffset + i1];
                             const Vertex& v2 = context.Vertices[meshPrimInfo.BaseVtxOffset + i2];
 
-                            context.RTEmissives[currGlobalTriIdx++] = RT::EmissiveTriangle(v0.Position, v1.Position, v2.Position,
+                            context.RTEmissives[currGlobalTriIdx++] = RT::EmissiveTriangle(
+                                v0.Position, v1.Position, v2.Position,
                                 v0.TexUV, v1.TexUV, v2.TexUV,
                                 emissiveFactorRGB, mat->EmissiveTexture_Strength, 
                                 currMeshTriIdx++, mat->IsDoubleSided());

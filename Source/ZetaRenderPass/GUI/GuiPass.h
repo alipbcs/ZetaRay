@@ -44,6 +44,7 @@ namespace ZetaRay::RenderPass
         void ParameterTab();
         void GpuTimingsTab();
         void ShaderReloadTab();
+        void MaterialTab(uint64 pickedID);
 
         static constexpr int NUM_CBV = 0;
         static constexpr int NUM_SRV = 0;

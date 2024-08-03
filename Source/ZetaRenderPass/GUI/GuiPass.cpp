@@ -1,5 +1,6 @@
 #include "GuiPass.h"
 #include <Math/Vector.h>
+#include <Math/Color.h>
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Support/Param.h>
@@ -534,6 +535,16 @@ void GuiPass::RenderSettings()
     {
         ParameterTab();
         ImGui::Text("");
+    }
+
+    const uint64 pickedID = App::GetScene().GetPickedInstance();
+    if (pickedID != Scene::INVALID_INSTANCE)
+    {
+        if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            MaterialTab(pickedID);
+            ImGui::Text("");
+        }
     }
 
     //if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
@@ -1079,3 +1090,162 @@ void GuiPass::ShaderReloadTab()
         ImGui::EndDisabled();
 }
 
+void GuiPass::MaterialTab(uint64 pickedID)
+{
+    auto& scene = App::GetScene();
+    const auto meshID = scene.GetInstanceMeshID(pickedID);
+    const auto& mesh = *scene.GetMesh(meshID).value();
+    Material mat = *scene.GetMaterial(mesh.m_materialIdx).value();
+    bool modified = false;
+    bool emissiveModfied = false;
+    constexpr ImVec4 texturedCol = ImVec4(0.9587256, 0.76055556, 0.704035435, 1);
+
+    if (ImGui::TreeNode("Base"))
+    {
+        float3 color = Math::RGBToFloat3(mat.BaseColorFactor);
+        const bool baseColorTextured = mat.BaseColorTexture != UINT32_MAX;
+        const bool mrTextured = mat.GetMetallicRoughnessTex() != UINT32_MAX;
+        bool metallic = mat.GetMetallic() >= MIN_METALNESS_METAL;
+
+        if (baseColorTextured)
+            ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
+
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_Float))
+        {
+            mat.SetBaseColorFactor(color);
+            modified = true;
+        }
+
+        if (baseColorTextured)
+            ImGui::PopStyleColor();
+
+        if (mrTextured)
+            ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
+
+        if (ImGui::Checkbox("Metallic", &metallic))
+        {
+            mat.SetMetallicFactor(metallic ? 1.0f : 0.0f);
+            modified = true;
+        }
+
+        if (mrTextured)
+            ImGui::PopStyleColor();
+
+        ImGui::TreePop();
+    }
+    if (ImGui::TreeNode("Specular"))
+    {
+        float roughness = mat.GetRoughnessFactor();
+        float ior = mat.GetIOR();
+        const bool mrTextured = mat.GetMetallicRoughnessTex() != UINT16_MAX;
+
+        if (mrTextured)
+            ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
+
+        if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f, "%.2f"))
+        {
+            mat.SetRoughnessFactor(roughness);
+            modified = true;
+        }
+
+        if (mrTextured)
+            ImGui::PopStyleColor();
+
+        if (ImGui::SliderFloat("IOR", &ior, MIN_IOR, MAX_IOR, "%.2f"))
+        {
+            mat.SetIOR(ior);
+            modified = true;
+        }
+
+        ImGui::TreePop();
+    }
+    if (ImGui::TreeNode("Transmission"))
+    {
+        bool transmissive = mat.GetTransmission() >= MIN_SPEC_TR_TRANSMISSIVE;
+        const bool baseColorTextured = mat.BaseColorTexture != UINT32_MAX;
+        float3 color = Math::RGBToFloat3(mat.BaseColorFactor);
+
+        if (ImGui::Checkbox("Transmissive", &transmissive))
+        {
+            mat.SetTransmission(transmissive ? 1.0f : 0.0f);
+            modified = true;
+        }
+
+        if (baseColorTextured)
+            ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
+
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_Float))
+        {
+            mat.SetBaseColorFactor(color);
+            modified = true;
+        }
+
+        if (baseColorTextured)
+            ImGui::PopStyleColor();
+
+        ImGui::TreePop();
+    }
+    
+    float3 emissiveFactor = Math::RGBToFloat3(mat.EmissiveFactorNormalScale);
+    float emissiveStrength = Math::HalfToFloat(mat.GetEmissiveStrength().x);
+    
+    if (ImGui::TreeNode("Emission"))
+    {
+        const bool textured = mat.GetEmissiveTex() != UINT16_MAX;
+
+        if (!mat.IsEmissive())
+            ImGui::BeginDisabled();
+
+        const float3 oldColor = emissiveFactor;
+
+        if (textured)
+            ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
+
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&emissiveFactor), ImGuiColorEditFlags_Float))
+        {
+            float3 diff = oldColor - emissiveFactor;
+            
+            // Avoid spamming update when difference is close to zero
+            if (diff.dot(diff) > 1e-5)
+            {
+                mat.SetEmissiveFactor(emissiveFactor);
+                modified = true;
+                emissiveModfied = true;
+            }
+        }
+
+        if (textured)
+            ImGui::PopStyleColor();
+
+        if (ImGui::SliderFloat("Strength", &emissiveStrength, 0, 50, "%.3f"))
+        {
+            mat.SetEmissiveStrength(emissiveStrength);
+            modified = true;
+            emissiveModfied = true;
+        }
+
+        if (!mat.IsEmissive())
+            ImGui::EndDisabled();
+
+        ImGui::TreePop();
+    }
+
+    if (ImGui::TreeNode("Geometry"))
+    {
+        bool doubleSided = mat.IsDoubleSided();
+        
+        if (ImGui::Checkbox("Double Sided", &doubleSided))
+        {
+            mat.SetDoubleSided(doubleSided);
+            modified = true;
+        }
+
+        ImGui::TreePop();
+    }
+
+    if (modified)
+        scene.UpdateMaterial(mat, mesh.m_materialIdx);
+
+    if (emissiveModfied)
+        scene.UpdateEmissive(pickedID, emissiveFactor, emissiveStrength);
+}

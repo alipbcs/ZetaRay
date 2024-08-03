@@ -14,8 +14,8 @@ namespace ZetaRay::App::Filesystem
 namespace ZetaRay::Scene::Internal
 {
     //--------------------------------------------------------------------------------------
-    // TextureDescriptorTable: a descriptor table containing a contiguous set of textures, which
-    // are to be bound as unbounded descriptor tables in the shaders. Each texture index in
+    // TextureDescriptorTable: A descriptor table containing a contiguous set of textures, 
+    // which are to be bound as unbounded descriptor tables in shaders. Each texture index in
     // a given Material refers to an offset in one such descriptor table
     //--------------------------------------------------------------------------------------
 
@@ -64,8 +64,7 @@ namespace ZetaRay::Scene::Internal
     };
 
     //--------------------------------------------------------------------------------------
-    // MaterialBuffer: wrapper over a GPU buffer containing all the materials required
-    // for rendering.
+    // MaterialBuffer: Wrapper over a GPU buffer containing all the materials
     //--------------------------------------------------------------------------------------
 
     struct MaterialBuffer
@@ -79,7 +78,13 @@ namespace ZetaRay::Scene::Internal
         void Clear();
         uint32_t Add(Material& mat);
         void Add(Material& mat, uint32_t idx);
-        void UpdateGPUBufferIfStale();
+        void Update(const Material& mat, int idx)
+        {
+            Assert(idx < m_materials.size(), "Invalid material index.");
+            m_materials[idx] = mat;
+            m_staleIdx = idx;
+        }
+        void UploadToGPU();
         void ResizeAdditionalMaterials(uint32_t num);
 
         ZetaInline Util::Optional<const Material*> Get(uint32_t idx) const
@@ -98,8 +103,7 @@ namespace ZetaRay::Scene::Internal
 
         Core::GpuMemory::DefaultHeapBuffer m_buffer;
         Util::SmallVector<Material> m_materials;
-
-        bool m_stale = false;
+        int m_staleIdx = -1;
     };
 
     //--------------------------------------------------------------------------------------
@@ -144,39 +148,43 @@ namespace ZetaRay::Scene::Internal
 
     struct EmissiveBuffer
     {
-        struct InitialPos
-        {
-            Math::float3 Vtx0;
-            Math::float3 Vtx1;
-            Math::float3 Vtx2;
-        };
+        using Instance = Model::glTF::Asset::EmissiveInstance;
 
         EmissiveBuffer() = default;
         ~EmissiveBuffer() = default;
 
         EmissiveBuffer(const EmissiveBuffer&) = delete;
-        MaterialBuffer& operator=(const EmissiveBuffer&) = delete;
+        EmissiveBuffer& operator=(const EmissiveBuffer&) = delete;
 
-        bool IsFirstTime() const { return m_firstTime; }
+        ZetaInline uint32_t NumInstances() const { return (uint32_t)m_instances.size(); }
+        ZetaInline uint32_t NumTriangles() const { return (uint32_t)m_trisCpu.size(); }
+        ZetaInline Util::Span<Instance> Instances() { return m_instances; }
+        ZetaInline Util::MutableSpan<RT::EmissiveTriangle> Triagnles() { return m_trisCpu; }
+        ZetaInline bool IsStale() const { return m_staleNumTris > 0; }
+        ZetaInline bool TransformedToWorldSpace() const { return m_trisGpu.IsInitialized(); }
+        ZetaInline Util::Optional<Instance*> FindInstance(uint64_t ID)
+        {
+            auto* it = m_idToIdxMap.find(ID);
+            if (it)
+                return &m_instances[*it];
+
+            return {};
+        }
+
         // Assumes proper GPU synchronization has been performed
         void Clear();
-        Util::Optional<Model::glTF::Asset::EmissiveInstance*> FindEmissive(uint64_t ID);
-        void AddBatch(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstance, 
-            Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris);
-        void AllocateAndCopyEmissiveBuffer();
-        void UpdateEmissiveBuffer(uint32_t minTriIdx, uint32_t maxTriIdx);
-        ZetaInline uint32_t NumEmissiveInstances() const { return (uint32_t)m_emissivesInstances.size(); }
-        ZetaInline uint32_t NumEmissiveTriangles() const { return (uint32_t)m_emissivesTrisCpu.size(); }
-
-        Util::Span<Model::glTF::Asset::EmissiveInstance> EmissiveInstances() { return m_emissivesInstances; }
-        Util::MutableSpan<InitialPos> InitialTriVtxPos() { return m_initialPos; }
-        Util::MutableSpan<RT::EmissiveTriangle> EmissiveTriagnles() { return m_emissivesTrisCpu; }
+        void Update(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
+        void AddBatch(Util::SmallVector<Instance>&& instances,
+            Util::SmallVector<RT::EmissiveTriangle>&& tris);
+        void UploadToGPU();
 
     private:
-        Util::SmallVector<Model::glTF::Asset::EmissiveInstance> m_emissivesInstances;
-        Util::SmallVector<RT::EmissiveTriangle> m_emissivesTrisCpu;
-        Util::SmallVector<InitialPos> m_initialPos;
-        Core::GpuMemory::DefaultHeapBuffer m_emissiveTrisGpu;
-        bool m_firstTime = true;
+        Util::SmallVector<Instance> m_instances;
+        Util::SmallVector<RT::EmissiveTriangle> m_trisCpu;
+        // Maps instance ID to index in m_instances
+        Util::HashTable<uint32_t> m_idToIdxMap;
+        Core::GpuMemory::DefaultHeapBuffer m_trisGpu;
+        uint32_t m_staleBaseOffset = UINT32_MAX;
+        uint32_t m_staleNumTris = 0;
     };
 }

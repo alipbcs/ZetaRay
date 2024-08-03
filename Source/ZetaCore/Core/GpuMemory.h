@@ -293,7 +293,8 @@ namespace ZetaRay::Core::GpuMemory
         bool allowUAV, 
         void* data,
         bool forceSeparateUploadBuffer = false);
-    void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, uint32_t destOffset = 0);
+    void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, 
+        uint32_t destOffsetInBytes = 0);
     ResourceHeap GetResourceHeap(uint64_t size, uint64_t alignemnt = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
     void ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer);
     void ReleaseTexture(Texture& textue);
