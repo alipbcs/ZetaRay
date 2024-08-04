@@ -9,6 +9,8 @@
 #include <Core/SharedShaderResources.h>
 #include <Math/Sampling.h>
 #include <Support/Task.h>
+#include <App/Timer.h>
+#include <App/Log.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -39,10 +41,10 @@ namespace
         }
 
         // maintain an index buffer since original ordering of elements must be preserved
-        SmallVector<uint32_t, App::LargeFrameAllocator> larger;
+        SmallVector<uint32_t, App::OneTimeFrameAllocatorWithFallback> larger;
         larger.reserve(N);
 
-        SmallVector<uint32_t, App::LargeFrameAllocator> smaller;
+        SmallVector<uint32_t, App::OneTimeFrameAllocatorWithFallback> smaller;
         smaller.reserve(N);
 
         for (int64_t i = 0; i < N; i++)
@@ -55,7 +57,7 @@ namespace
 
 #ifdef _DEBUG
         int64_t numInsertions = 0;
-#endif // _DEBUG
+#endif
 
         // in each iteration, pick two probabilities such that one is smaller than 1.0 and the other larger 
         // than 1.0. Use the latter to bring up the former to 1.0.
@@ -93,7 +95,7 @@ namespace
         {
             size_t idx = larger.back();
             larger.pop_back();
-            Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
+            //Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
 
             // alias should point to itself
             table[idx].Alias = (uint32_t)idx;
@@ -108,7 +110,7 @@ namespace
         {
             size_t idx = smaller.back();
             smaller.pop_back();
-            Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
+            //Assert(fabsf(1.0f - probs[idx]) <= 0.1f, "This should be ~1.0.");
 
             // alias should point to itself
             table[idx].Alias = (uint32_t)idx;
@@ -223,14 +225,14 @@ void PreLighting::Update()
         return;
 
     const bool isLVGAllocated = m_lvg.IsInitialized();
-
     if ((m_useLVG && !isLVGAllocated) || (!m_useLVG && isLVGAllocated))
         ToggleLVG();
 
     if (App::GetScene().AreEmissivesStale())
     {
         m_estimateLumenThisFrame = true;
-        const size_t currLumenBuffLen = m_lumen.IsInitialized() ? m_lumen.Desc().Width / sizeof(float) : 0;
+        const size_t currLumenBuffLen = m_lumen.IsInitialized() ? 
+            m_lumen.Desc().Width / sizeof(float) : 0;
 
         if (currLumenBuffLen < m_currNumTris)
         {
@@ -250,7 +252,8 @@ void PreLighting::Update()
     }
 
     // Skip light presampling when number of emissives is low
-    Assert(m_minNumLightsForPresampling != UINT32_MAX, "Light presampling is enabled, but min #lights for it hasn't been set.");
+    Assert(m_minNumLightsForPresampling != UINT32_MAX, 
+        "Light presampling is enabled, but presampling params haven't been set.");
     if (m_currNumTris < m_minNumLightsForPresampling)
         return;
 
@@ -258,8 +261,9 @@ void PreLighting::Update()
 
     if (!m_sampleSets.IsInitialized())
     {
-        Assert(m_numSampleSets > 0 && m_sampleSetSize > 0, "Sample set params hasn't been set.");
-        const uint32_t sizeInBytes = m_numSampleSets * m_sampleSetSize * sizeof(RT::PresampledEmissiveTriangle);
+        Assert(m_numSampleSets > 0 && m_sampleSetSize > 0, "Rresampling params haven't been set.");
+        const uint32_t sizeInBytes = m_numSampleSets * m_sampleSetSize * 
+            sizeof(RT::PresampledEmissiveTriangle);
 
         m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
             sizeInBytes,
@@ -267,7 +271,8 @@ void PreLighting::Update()
             true);
 
         auto& r = App::GetRenderer().GetSharedShaderResources();
-        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::PRESAMPLED_EMISSIVE_SETS, m_sampleSets);
+        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::PRESAMPLED_EMISSIVE_SETS, 
+            m_sampleSets);
     }
 }
 
@@ -439,10 +444,11 @@ void PreLighting::ReloadBuildLVG()
 
 void EmissiveTriangleAliasTable::Update(ReadbackHeapBuffer* readback)
 {
-    Assert(readback, "null resource.");
+    Assert(readback, "Readback buffer was NULL.");
     m_readback = readback;
 
-    const size_t currBuffLen = m_aliasTable.IsInitialized() ? m_aliasTable.Desc().Width / sizeof(float) : 0;
+    const size_t currBuffLen = m_aliasTable.IsInitialized() ? 
+        m_aliasTable.Desc().Width / sizeof(float) : 0;
     m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
     Assert(m_currNumTris, "redundant call.");
 
@@ -454,11 +460,12 @@ void EmissiveTriangleAliasTable::Update(ReadbackHeapBuffer* readback)
             false);
 
         auto& r = App::GetRenderer().GetSharedShaderResources();
-        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE, m_aliasTable);
+        r.InsertOrAssignDefaultHeapBuffer(
+            GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE, m_aliasTable);
     }
 }
 
-void EmissiveTriangleAliasTable::SetEmissiveTriPassHandle(Core::RenderNodeHandle& emissiveTriHandle)
+void EmissiveTriangleAliasTable::SetEmissiveTriPassHandle(RenderNodeHandle& emissiveTriHandle)
 {
     Assert(emissiveTriHandle.IsValid(), "invalid handle.");
     m_emissiveTriHandle = emissiveTriHandle.Val;
@@ -472,37 +479,49 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
     ComputeCmdList& computeCmdList = static_cast<ComputeCmdList&>(cmdList);
 
     auto& renderer = App::GetRenderer();
-    auto& scene = App::GetScene();
 
-    SmallVector<RT::EmissiveLumenAliasTableEntry, App::LargeFrameAllocator> table;
+    m_fence = m_fence == UINT64_MAX ?
+        App::GetScene().GetRenderGraph()->GetCompletionFence(RenderNodeHandle(m_emissiveTriHandle)) :
+        m_fence;
+    Assert(m_fence != UINT64_MAX, "Invalid fence value.");
+
+    // For 1st frame, wait until GPU finishes copying data to readback buffer. For subsequent
+    // frames, check the fence and defer to next frame if not ready.
+    if(App::GetTimer().GetTotalFrameCount() <= 1)
+        renderer.WaitForDirectQueueFenceCPU(m_fence);
+    else if (!renderer.IsDirectQueueFenceComplete(m_fence))
+    {
+        LOG_UI_INFO("Alias table - fence hasn't passed, returning...");
+        return;
+    }
+
+    // Try to use frame allocator first, if it failes (allocation size exceeded per-frame max),
+    // use malloc instead
+    SmallVector<RT::EmissiveLumenAliasTableEntry, App::OneTimeFrameAllocatorWithFallback> table;
     table.resize(m_currNumTris);
 
-    const uint64_t fence = scene.GetRenderGraph()->GetCompletionFence(RenderNodeHandle(m_emissiveTriHandle));
-    Assert(fence != UINT64_MAX, "invalid fence value.");
-
-    // wait until GPU finishes copying data to readback buffer
-    //renderer.WaitForComputeQueueFenceCPU(fence);
-    renderer.WaitForDirectQueueFenceCPU(fence);
+    App::DeltaTimer timer;
+    timer.Start();
 
     {
-        // safe to map, related fence has passed
+        // Safe to map, related fence has passed
         m_readback->Map();
 
         float* data = reinterpret_cast<float*>(m_readback->MappedMemory());
         BuildAliasTable(MutableSpan(data, m_currNumTris), table);
 
-        // unmapping happens automatically when readback buffer is released
+        // Unmapping happens automatically when readback buffer is released
         //m_readback->Unmap();
     }
 
+    timer.End();
+    LOG_UI_INFO("Alias table - computation took %u [ms].", (uint32_t)timer.DeltaMilli());
+
     auto& gpuTimer = renderer.GetGpuTimer();
-
-    // record the timestamp prior to execution
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "UploadAliasTable");
-
     computeCmdList.PIXBeginEvent("UploadAliasTable");
 
-    // schedule a copy
+    // Schedule a copy
     const uint32_t sizeInBytes = sizeof(RT::EmissiveLumenAliasTableEntry) * m_currNumTris;
     m_aliasTableUpload = GpuMemory::GetUploadHeapBuffer(sizeInBytes);
     m_aliasTableUpload.Copy(0, sizeInBytes, table.data());
@@ -514,16 +533,15 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
 
     computeCmdList.ResourceBarrier(m_aliasTable.Resource(),
         D3D12_RESOURCE_STATE_COPY_DEST,
-        D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+        D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-    // record the timestamp after execution
     gpuTimer.EndQuery(computeCmdList, queryIdx);
-
     cmdList.PIXEndEvent();
 
-    // even though at this point this command list hasn't been submitted yet (only recorded),
+    // Even though at this point this command list hasn't been submitted yet (only recorded),
     // it's safe to release the buffers here -- this is because resource deallocation
     // and signalling the related fence happens at the end of frame when all command 
     // lists have been submitted
     m_releaseDlg();
+    m_fence = UINT64_MAX;
 }

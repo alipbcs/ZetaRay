@@ -67,7 +67,6 @@ namespace ZetaRay::App
         double m_delta;
     };
 
-
     struct DeltaTimer
     {
         DeltaTimer();
@@ -91,7 +90,7 @@ namespace ZetaRay::App
         }
 
     private:
-        // frequency of the counter. Units are counts/sec
+        // Counter frequency. Units are counts/sec.
         int64_t m_counterFreqSec;
         int64_t m_start = 0;
         int64_t m_end = 0;

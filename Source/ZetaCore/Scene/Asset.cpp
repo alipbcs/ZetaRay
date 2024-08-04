@@ -346,10 +346,8 @@ void EmissiveBuffer::UploadToGPU()
     else if(m_staleNumTris > 0)
     {
         Assert(m_staleBaseOffset != UINT32_MAX, "Invalid base offset.");
-        LOG_UI_INFO("Frame %llu: Uploading %d emissive triangles (%d MB)...", 
-            App::GetTimer().GetTotalFrameCount(),
-            m_staleNumTris, sizeof(RT::EmissiveTriangle) * m_staleNumTris / (1024 * 1024));
-
+        const size_t numMbytes = sizeof(RT::EmissiveTriangle) * m_staleNumTris / (1024 * 1024);
+        LOG_UI_INFO("Uploading %d emissive triangles (%d MB)...", m_staleNumTris, numMbytes);
 
         GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, sizeof(RT::EmissiveTriangle) * m_staleNumTris,
             &m_trisCpu[m_staleBaseOffset], m_staleBaseOffset * sizeof(RT::EmissiveTriangle));

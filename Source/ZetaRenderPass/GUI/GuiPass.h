@@ -76,6 +76,7 @@ namespace ZetaRay::RenderPass
         bool m_firstTime = true;
         bool m_closeLogsTab = false;
         int m_prevNumLogs = 0;
+        bool m_pendingEmissiveUpdate = false;
 
         Util::SmallVector<App::LogMessage> m_logs;
     };

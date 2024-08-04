@@ -1,6 +1,9 @@
 #pragma once
 
 #include "../Support/Memory.h"
+#ifdef _DEBUG
+#include "../Utility/Error.h"
+#endif
 #include "FastDelegate/FastDelegate.h"
 
 namespace ZetaRay::Support
@@ -96,12 +99,14 @@ namespace ZetaRay::App
         MsgType Type;
     };
 
-    void Init(Scene::Renderer::Interface& rendererInterface, const char* name = nullptr);
+    void Init(Scene::Renderer::Interface& rendererInterface, 
+        const char* name = nullptr);
     int Run();
     void Abort();
 
-    void* AllocateSmallFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t));
-    void* AllocateLargeFrameAllocator(size_t size, size_t alignment = alignof(std::max_align_t));
+    void* AllocateFrameAllocator(size_t size, 
+        size_t alignment = alignof(std::max_align_t));
+    size_t MaxFrameAllocationSize();
 
     int RegisterTask();
     void TaskFinalizedCallback(int handle, int indegree);
@@ -138,14 +143,16 @@ namespace ZetaRay::App
     void RemoveShaderReloadHandler(const char* name);
     Util::RSynchronizedVariable<Util::MutableSpan<ShaderReloadHandler>> GetShaderReloadHandlers();
 
-    // these could be implemented as template functions, but then the implementation has to be in the header,
-    // which means including some heavy-to-compile headers here. Considering App.h is included in most of the 
-    // codebase, this would have a measurable impact on the compile time.
+    // These could be implemented as template functions, but that would require the 
+    // implementation to be in the header and exposing some expensive-to-compile 
+    // headers here. Since App.h is included in most of the codebase, this would 
+    // have a measurable impact on the compile time.
     void AddFrameStat(const char* group, const char* name, int i);
     void AddFrameStat(const char* group, const char* name, uint32_t u);
     void AddFrameStat(const char* group, const char* name, float f);
     void AddFrameStat(const char* group, const char* name, uint64_t f);
-    void AddFrameStat(const char* group, const char* name, uint32_t num, uint32_t total);
+    void AddFrameStat(const char* group, const char* name, uint32_t num, 
+        uint32_t total);
     Util::RWSynchronizedVariable<Util::Span<Support::Stat>> GetStats();
     Util::Span<float> GetFrameTimeHistory();
 
@@ -168,19 +175,37 @@ namespace ZetaRay::App
     {
         ZetaInline void* AllocateAligned(size_t size, size_t alignment)
         {
-            return App::AllocateSmallFrameAllocator(size, alignment);
+            return App::AllocateFrameAllocator(size, alignment);
         }
 
-        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) {}
+        ZetaInline void FreeAligned(void* mem, size_t size, 
+            size_t alignment) {}
     };
 
-    struct LargeFrameAllocator
+    struct OneTimeFrameAllocatorWithFallback
     {
         ZetaInline void* AllocateAligned(size_t size, size_t alignment)
         {
-            return App::AllocateLargeFrameAllocator(size, alignment);
+#ifdef _DEBUG
+            Assert(m_numAllocs++ == 0, "This allocator can't be used more than once.");
+#endif
+            if (size + alignment - 1 < App::MaxFrameAllocationSize())
+                return App::AllocateFrameAllocator(size, alignment);
+
+            m_usedFallback = true;
+            return _aligned_malloc(size, alignment);
         }
 
-        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment) {}
+        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment)
+        {
+            if(m_usedFallback)
+                _aligned_free(mem);
+        }
+
+    private:
+#ifdef _DEBUG
+        int m_numAllocs = 0;
+#endif
+        bool m_usedFallback = false;
     };
 }

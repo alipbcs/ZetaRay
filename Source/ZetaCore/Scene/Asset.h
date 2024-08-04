@@ -160,7 +160,7 @@ namespace ZetaRay::Scene::Internal
         ZetaInline uint32_t NumTriangles() const { return (uint32_t)m_trisCpu.size(); }
         ZetaInline Util::Span<Instance> Instances() { return m_instances; }
         ZetaInline Util::MutableSpan<RT::EmissiveTriangle> Triagnles() { return m_trisCpu; }
-        ZetaInline bool IsStale() const { return m_staleNumTris > 0; }
+        ZetaInline bool HasStaleMaterials() const { return m_staleNumTris > 0; }
         ZetaInline bool TransformedToWorldSpace() const { return m_trisGpu.IsInitialized(); }
         ZetaInline Util::Optional<Instance*> FindInstance(uint64_t ID)
         {

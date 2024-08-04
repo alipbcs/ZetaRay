@@ -188,8 +188,10 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
     const uint32_t numInstances = m_emissives.NumInstances();
     m_staleEmissives = false;
 
-    if (numInstances && (!m_emissives.TransformedToWorldSpace() || m_emissives.IsStale()))
+    if (numInstances && (!m_emissives.TransformedToWorldSpace() || m_emissives.HasStaleMaterials()))
     {
+        m_staleEmissives = true;
+
         auto upload = sceneTS.EmplaceTask("UploadEmissiveBuffer", [this]()
             {
                 m_emissives.UploadToGPU();
@@ -198,8 +200,6 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
         // Full rebuild of emissive buffer for first time
         if (!m_emissives.TransformedToWorldSpace())
         {
-            m_staleEmissives = true;
-
             constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 5;
             constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
             size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];

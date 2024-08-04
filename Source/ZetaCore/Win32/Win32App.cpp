@@ -144,6 +144,7 @@ namespace
         static constexpr int NUM_BACKGROUND_THREADS = 2;
         static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
         static constexpr int CLIPBOARD_LEN = 128;
+        static constexpr int FRAME_ALLOCATOR_BLOCK_SIZE = 512 * 1024;
 
         struct alignas(64) TaskSignal
         {
@@ -158,10 +159,8 @@ namespace
         SceneCore m_scene;
         Camera m_camera;
 
-        FrameMemory<512 * 1024> m_smallFrameMemory;
-        FrameMemory<5 * 1024 * 1024> m_largeFrameMemory;
-        FrameMemoryContext m_smallFrameMemoryContext;
-        FrameMemoryContext m_largeFrameMemoryContext;
+        FrameMemory<FRAME_ALLOCATOR_BLOCK_SIZE> m_frameMemory;
+        FrameMemoryContext m_frameMemoryContext;
 
         uint16_t m_processorCoreCount = 0;
         HWND m_hwnd;
@@ -1087,7 +1086,7 @@ namespace ZetaRay::AppImpl
 
             FreeLibrary(uxthemeLib);
         }
-            return 0;
+        return 0;
 
         case WM_ACTIVATEAPP:
             if (wParam && !g_app->m_manuallyPaused)
@@ -1139,12 +1138,12 @@ namespace ZetaRay::AppImpl
             return 0;
 
         case WM_CHAR:
-            {
-                wchar_t wch = 0;
-                MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, (char*)&wParam, 1, &wch, 1);
-                ImGui::GetIO().AddInputCharacter(wch);
-            }
-            return 0;
+        {
+            wchar_t wch = 0;
+            MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, (char*)&wParam, 1, &wch, 1);
+            ImGui::GetIO().AddInputCharacter(wch);
+        }
+        return 0;
 
         case WM_MOUSELEAVE:
         case WM_NCMOUSELEAVE:
@@ -1444,10 +1443,8 @@ namespace ZetaRay
             THREAD_PRIORITY::BACKGROUND);
 
         // initialize frame allocators
-        memset(g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
-        g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-        memset(g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
-        g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
+        memset(g_app->m_frameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
+        g_app->m_frameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
         memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
 
@@ -1540,24 +1537,21 @@ namespace ZetaRay
 
             // at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
             g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
-            const size_t tempMemoryUsed = g_app->m_smallFrameMemory.TotalSize();
+            const size_t tempMemoryUsed = g_app->m_frameMemory.TotalSize();
 
+            // Skip first frame
             if (g_app->m_timer.GetTotalFrameCount() > 0)
             {
-                g_app->m_smallFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
+                g_app->m_frameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
                 for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
-                    g_app->m_smallFrameMemoryContext.m_threadFrameAllocIndices[i] = -1;
-                g_app->m_smallFrameMemory.Reset();        // set the offset to 0, essentially releasing the memory
-
-                g_app->m_largeFrameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-                for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
-                    g_app->m_largeFrameMemoryContext.m_threadFrameAllocIndices[i] = -1;
-                g_app->m_largeFrameMemory.Reset();        // set the offset to 0, essentially releasing the memory
+                    g_app->m_frameMemoryContext.m_threadFrameAllocIndices[i] = -1;
+                g_app->m_frameMemory.Reset();        // set the offset to 0, essentially releasing the memory
 
                 g_app->m_frameLogs.free_memory();
             }
 
             g_app->m_renderer.BeginFrame();
+            // Startup is counted as "frame" 0, so program loop starts from frame 1
             g_app->m_timer.Tick();
             AppImpl::ResizeIfQueued();
 
@@ -1642,14 +1636,15 @@ namespace ZetaRay
         PostQuitMessage(0);
     }
 
-    void* App::AllocateSmallFrameAllocator(size_t size, size_t alignment)
+    void* App::AllocateFrameAllocator(size_t size, size_t alignment)
     {
-        return AppImpl::AllocateFrameAllocator<>(g_app->m_smallFrameMemory, g_app->m_smallFrameMemoryContext, size, alignment);
+        return AppImpl::AllocateFrameAllocator<>(g_app->m_frameMemory,
+            g_app->m_frameMemoryContext, size, alignment);
     }
 
-    void* App::AllocateLargeFrameAllocator(size_t size, size_t alignment)
+    size_t App::MaxFrameAllocationSize()
     {
-        return AppImpl::AllocateFrameAllocator<>(g_app->m_largeFrameMemory, g_app->m_largeFrameMemoryContext, size, alignment);
+        return AppData::FRAME_ALLOCATOR_BLOCK_SIZE;
     }
 
     int App::RegisterTask()

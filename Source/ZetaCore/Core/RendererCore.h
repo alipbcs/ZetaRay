@@ -67,7 +67,10 @@ namespace ZetaRay::Core
 
         void SignalDirectQueue(ID3D12Fence* f, uint64_t v);
         void SignalComputeQueue(ID3D12Fence* f, uint64_t v);
-//        void SignalCopyQueue(ID3D12Fence* f, uint64_t v);
+        // void SignalCopyQueue(ID3D12Fence* f, uint64_t v);
+
+        bool IsDirectQueueFenceComplete(uint64_t fenceValue);
+        bool IsComputeQueueFenceComplete(uint64_t fenceValue);
 
         // Waits (CPU side) for the fence on Direct Queue to reach the specified value (blocking)
         void WaitForDirectQueueFenceCPU(uint64_t fenceValue);

@@ -495,8 +495,9 @@ namespace ZetaRay::DefaultRenderer
     void Update(TaskSet& ts)
     {
         g_data->m_settings.AntiAliasing = g_data->PendingAA;
+        const auto frame = App::GetTimer().GetTotalFrameCount();
 
-        if (App::GetScene().AreEmissivesStale())
+        if (frame <= 1)
         {
             g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
             g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;

@@ -384,6 +384,16 @@ void RendererCore::SignalComputeQueue(ID3D12Fence* f, uint64_t v)
     m_computeQueue->GetCommandQueue()->Signal(f, v);
 }
 
+bool RendererCore::IsDirectQueueFenceComplete(uint64_t fenceValue)
+{
+    return m_directQueue->IsFenceComplete(fenceValue);
+}
+
+bool RendererCore::IsComputeQueueFenceComplete(uint64_t fenceValue)
+{
+    return m_computeQueue->IsFenceComplete(fenceValue);
+}
+
 void RendererCore::WaitForDirectQueueFenceCPU(uint64_t fenceValue)
 {
     m_directQueue->WaitForFenceCPU(fenceValue);

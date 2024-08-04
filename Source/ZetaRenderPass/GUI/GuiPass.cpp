@@ -1097,7 +1097,6 @@ void GuiPass::MaterialTab(uint64 pickedID)
     const auto& mesh = *scene.GetMesh(meshID).value();
     Material mat = *scene.GetMaterial(mesh.m_materialIdx).value();
     bool modified = false;
-    bool emissiveModfied = false;
     constexpr ImVec4 texturedCol = ImVec4(0.9587256, 0.76055556, 0.704035435, 1);
 
     if (ImGui::TreeNode("Base"))
@@ -1188,7 +1187,9 @@ void GuiPass::MaterialTab(uint64 pickedID)
     
     float3 emissiveFactor = Math::RGBToFloat3(mat.EmissiveFactorNormalScale);
     float emissiveStrength = Math::HalfToFloat(mat.GetEmissiveStrength().x);
-    
+    bool colorEditFinished = false;
+    bool strEditFinished = false;
+
     if (ImGui::TreeNode("Emission"))
     {
         const bool textured = mat.GetEmissiveTex() != UINT16_MAX;
@@ -1197,6 +1198,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
             ImGui::BeginDisabled();
 
         const float3 oldColor = emissiveFactor;
+        const float oldStr = emissiveStrength;
 
         if (textured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
@@ -1210,19 +1212,26 @@ void GuiPass::MaterialTab(uint64 pickedID)
             {
                 mat.SetEmissiveFactor(emissiveFactor);
                 modified = true;
-                emissiveModfied = true;
+                m_pendingEmissiveUpdate = true;
             }
         }
+
+        colorEditFinished = ImGui::IsItemDeactivatedAfterEdit();
 
         if (textured)
             ImGui::PopStyleColor();
 
         if (ImGui::SliderFloat("Strength", &emissiveStrength, 0, 50, "%.3f"))
         {
-            mat.SetEmissiveStrength(emissiveStrength);
-            modified = true;
-            emissiveModfied = true;
+            if (fabsf(oldStr - emissiveStrength) > 1e-2)
+            {
+                mat.SetEmissiveStrength(emissiveStrength);
+                modified = true;
+                m_pendingEmissiveUpdate = true;
+            }
         }
+
+        strEditFinished = ImGui::IsItemDeactivatedAfterEdit();
 
         if (!mat.IsEmissive())
             ImGui::EndDisabled();
@@ -1246,6 +1255,10 @@ void GuiPass::MaterialTab(uint64 pickedID)
     if (modified)
         scene.UpdateMaterial(mat, mesh.m_materialIdx);
 
-    if (emissiveModfied)
+    // Defer update to when user has stopped editing
+    if (m_pendingEmissiveUpdate && (colorEditFinished || strEditFinished))
+    {
         scene.UpdateEmissive(pickedID, emissiveFactor, emissiveStrength);
+        m_pendingEmissiveUpdate = false;
+    }
 }

@@ -108,15 +108,16 @@ namespace ZetaRay::RenderPass
         EmissiveTriangleAliasTable() = default;
         ~EmissiveTriangleAliasTable() = default;
 
-        Core::GpuMemory::DefaultHeapBuffer& GetOutput(SHADER_OUT_RES i)
+        ZetaInline Core::GpuMemory::DefaultHeapBuffer& GetOutput(SHADER_OUT_RES i)
         {
             Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
             return m_aliasTable;
         }
+        ZetaInline void SetRelaseBuffersDlg(fastdelegate::FastDelegate0<> dlg) { m_releaseDlg = dlg; }
+        ZetaInline bool HasPendingRender() { return m_fence != UINT64_MAX; }
 
         void Update(Core::GpuMemory::ReadbackHeapBuffer* readback);
         void SetEmissiveTriPassHandle(Core::RenderNodeHandle& emissiveTriHandle);
-        void SetRelaseBuffersDlg(fastdelegate::FastDelegate0<> dlg) { m_releaseDlg = dlg; }
         void Render(Core::CommandList& cmdList);
 
     private:
@@ -126,5 +127,6 @@ namespace ZetaRay::RenderPass
         fastdelegate::FastDelegate0<> m_releaseDlg;
         uint32_t m_currNumTris = 0;
         int m_emissiveTriHandle = -1;
+        uint64_t m_fence = UINT64_MAX;
     };
 }
