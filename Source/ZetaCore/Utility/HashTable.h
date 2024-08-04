@@ -2,6 +2,7 @@
 
 #include "../Math/Common.h"
 #include "../Support/Memory.h"
+#include "../Utility/Optional.h"
 
 namespace ZetaRay::Util
 {
@@ -13,16 +14,18 @@ namespace ZetaRay::Util
     //  - Iterators (pointers) are NOT stable; pointer to an entry found earlier might not be valid
     //    anymore due to subsequent insertions and possible resize.
     //  - Not thread-safe
-    template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator>
+    template<typename ValueType, typename KeyType = uint64_t, Support::AllocatorType Allocator = Support::SystemAllocator>
+    requires std::is_integral_v<KeyType>
     class HashTable
     {
-        static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+        static_assert(std::is_copy_constructible_v<ValueType> || std::is_move_constructible_v<ValueType>, 
+            "ValueType is not move or copy-constructible.");
 
     public:
         struct Entry
         {
-            uint64_t Key;
-            T Val;
+            KeyType Key;
+            ValueType Val;
         };
 
         explicit HashTable(const Allocator& a = Allocator())
@@ -31,7 +34,7 @@ namespace ZetaRay::Util
         explicit HashTable(size_t initialSize, const Allocator& a = Allocator())
             : m_allocator(a)
         {
-            static_assert(std::is_default_constructible_v<T>);
+            static_assert(std::is_default_constructible_v<ValueType>);
             relocate(Math::NextPow2(initialSize));
         }
         ~HashTable()
@@ -64,7 +67,7 @@ namespace ZetaRay::Util
 
         // Returns NULL if an element with the given key is not found.
         // Note: in contrast to find(), find_entry() returns NULL only when the table is empty.
-        T* find(uint64_t key) const
+        ValueType* find(KeyType key) const
         {
             Entry* e = find_entry(key);
             if (e && e->Key == key)
@@ -73,9 +76,18 @@ namespace ZetaRay::Util
             return nullptr;
         }
 
+        Util::Optional<ValueType*> find2(KeyType key) const
+        {
+            Entry* e = find_entry(key);
+            if (e && e->Key == key)
+                return &e->Val;
+
+            return {};
+        }
+
         // Inserts a new entry only if it doesn't already exist
         template<typename... Args>
-        bool try_emplace(uint64_t key, Args&&... args)
+        bool try_emplace(KeyType key, Args&&... args)
         {
             Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
@@ -85,7 +97,7 @@ namespace ZetaRay::Util
                 if (elem && (elem->Key == TOMBSTONE_KEY))
                 {
                     elem->Key = key;
-                    new (&elem->Val) T(ZetaForward(args)...);
+                    new (&elem->Val) ValueType(ZetaForward(args)...);
 
                     return true;
                 }
@@ -98,7 +110,7 @@ namespace ZetaRay::Util
                 }
 
                 elem->Key = key;
-                new (&elem->Val) T(ZetaForward(args)...);
+                new (&elem->Val) ValueType(ZetaForward(args)...);
                 m_numEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
 
@@ -109,9 +121,10 @@ namespace ZetaRay::Util
         }
 
         // Assign to the entry if already exists, otherwise inserts a new entry
-        Entry& insert_or_assign(uint64_t key, const T& val)
+        Entry& insert_or_assign(KeyType key, const ValueType& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
+            static_assert(std::is_copy_constructible_v<ValueType> || std::is_move_constructible_v<ValueType>,
+                "ValueType must be move-or-copy constructible.");
             Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
@@ -120,7 +133,7 @@ namespace ZetaRay::Util
                 if (elem && elem->Key == TOMBSTONE_KEY)
                 {
                     elem->Key = key;
-                    new (&elem->Val) T(val);
+                    new (&elem->Val) ValueType(val);
 
                     return *elem;
                 }
@@ -136,14 +149,15 @@ namespace ZetaRay::Util
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
-            new (&elem->Val) T(val);
+            new (&elem->Val) ValueType(val);
 
             return *elem;
         }
 
-        Entry& insert_or_assign(uint64_t key, T&& val)
+        Entry& insert_or_assign(KeyType key, ValueType&& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T must be move-or-copy constructible.");
+            static_assert(std::is_copy_constructible_v<ValueType> || std::is_move_constructible_v<ValueType>,
+                "ValueType must be move-or-copy constructible.");
             Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
@@ -152,7 +166,7 @@ namespace ZetaRay::Util
                 if (elem && elem->Key == TOMBSTONE_KEY)
                 {
                     elem->Key = key;
-                    new (&elem->Val) T(ZetaForward(val));
+                    new (&elem->Val) ValueType(ZetaForward(val));
 
                     return *elem;
                 }
@@ -168,19 +182,19 @@ namespace ZetaRay::Util
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
-            new (&elem->Val) T(ZetaForward(val));
+            new (&elem->Val) ValueType(ZetaForward(val));
 
             return *elem;
         }
 
-        ZetaInline size_t erase(uint64_t key)
+        ZetaInline size_t erase(KeyType key)
         {
             Entry* elem = find_entry(key);
             if (elem->Key != key)
                 return 0;
 
             elem->Key = TOMBSTONE_KEY;
-            if constexpr (!std::is_trivially_destructible_v<T>)
+            if constexpr (!std::is_trivially_destructible_v<ValueType>)
                 elem->~Entry();
 
             return 1;
@@ -209,7 +223,7 @@ namespace ZetaRay::Util
 
         void clear()
         {
-            if constexpr (!std::is_trivially_destructible_v<T>)
+            if constexpr (!std::is_trivially_destructible_v<ValueType>)
             {
                 size_t i = 0;
                 
@@ -231,7 +245,7 @@ namespace ZetaRay::Util
 
         void free_memory()
         {
-            if constexpr (!std::is_trivially_destructible_v<T>)
+            if constexpr (!std::is_trivially_destructible_v<ValueType>)
             {
                 size_t i = 0;
 
@@ -261,9 +275,9 @@ namespace ZetaRay::Util
             std::swap(m_allocator, other.m_allocator);
         }
 
-        ZetaInline T& operator[](uint64_t key)
+        ZetaInline ValueType& operator[](KeyType key)
         {
-            static_assert(std::is_default_constructible_v<T>, "T must be default-constructible");
+            static_assert(std::is_default_constructible_v<ValueType>, "ValueType must be default-constructible");
             Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
 
             Entry* elem = find_entry(key);
@@ -272,7 +286,7 @@ namespace ZetaRay::Util
                 if (elem && elem->Key == TOMBSTONE_KEY)
                 {
                     elem->Key = key;
-                    new (&elem->Val) T();
+                    new (&elem->Val) ValueType();
 
                     return elem->Val;
                 }
@@ -284,7 +298,7 @@ namespace ZetaRay::Util
                 }
 
                 elem->Key = key;
-                new (&elem->Val) T();
+                new (&elem->Val) ValueType();
                 m_numEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
@@ -321,7 +335,7 @@ namespace ZetaRay::Util
         }
 
     private:
-        Entry* find_entry(uint64_t key) const
+        Entry* find_entry(KeyType key) const
         {
             const size_t n = bucket_count();
             if (n == 0)
@@ -398,8 +412,8 @@ namespace ZetaRay::Util
 
         static constexpr size_t MIN_NUM_BUCKETS = 4;
         static constexpr float MAX_LOAD = 0.8f;
-        static constexpr uint64_t NULL_KEY = uint64_t(-1);
-        static constexpr uint64_t TOMBSTONE_KEY = uint64_t(-2);
+        static constexpr KeyType NULL_KEY = KeyType(-1);
+        static constexpr KeyType TOMBSTONE_KEY = KeyType(-2);
 
         Entry* m_beg = nullptr;        // Pointer to the begining of memory block
         Entry* m_end = nullptr;        // Pointer to the end of memory block
