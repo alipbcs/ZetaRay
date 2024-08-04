@@ -218,6 +218,243 @@ namespace
     AppData* g_app = nullptr;
 }
 
+// Copied from imgui_impl_win32
+namespace
+{
+    // See https://learn.microsoft.com/en-us/windows/win32/tablet/system-events-and-mouse-messages
+    // Prefer to call this at the top of the message handler to avoid the possibility of 
+    // other Win32 calls interfering with this.
+    ImGuiMouseSource GetMouseSourceFromMessageExtraInfo()
+    {
+        LPARAM extra_info = GetMessageExtraInfo();
+        if ((extra_info & 0xFFFFFF80) == 0xFF515700)
+            return ImGuiMouseSource_Pen;
+        if ((extra_info & 0xFFFFFF80) == 0xFF515780)
+            return ImGuiMouseSource_TouchScreen;
+        return ImGuiMouseSource_Mouse;
+    }
+
+    bool ImGui_UpdateMouseCursor()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
+            return false;
+
+        ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
+        if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
+        {
+            // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
+            SetCursor(nullptr);
+        }
+        else
+        {
+            // Show OS mouse cursor
+            LPTSTR win32_cursor = IDC_ARROW;
+            switch (imgui_cursor)
+            {
+            case ImGuiMouseCursor_Arrow:        win32_cursor = IDC_ARROW; break;
+            case ImGuiMouseCursor_TextInput:    win32_cursor = IDC_IBEAM; break;
+            case ImGuiMouseCursor_ResizeAll:    win32_cursor = IDC_SIZEALL; break;
+            case ImGuiMouseCursor_ResizeEW:     win32_cursor = IDC_SIZEWE; break;
+            case ImGuiMouseCursor_ResizeNS:     win32_cursor = IDC_SIZENS; break;
+            case ImGuiMouseCursor_ResizeNESW:   win32_cursor = IDC_SIZENESW; break;
+            case ImGuiMouseCursor_ResizeNWSE:   win32_cursor = IDC_SIZENWSE; break;
+            case ImGuiMouseCursor_Hand:         win32_cursor = IDC_HAND; break;
+            case ImGuiMouseCursor_NotAllowed:   win32_cursor = IDC_NO; break;
+            }
+
+            SetCursor(LoadCursor(nullptr, win32_cursor));
+        }
+
+        return true;
+    }
+
+    void ImGui_UpdateMouse()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+
+        HWND focused_window = ::GetForegroundWindow();
+        const bool is_app_focused = (focused_window == g_app->m_hwnd);
+        if (is_app_focused)
+        {
+            // (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when 
+            // ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
+            if (io.WantSetMousePos)
+            {
+                POINT pos = { (int)io.MousePos.x, (int)io.MousePos.y };
+                if (ClientToScreen(g_app->m_hwnd, &pos))
+                    SetCursorPos(pos.x, pos.y);
+            }
+
+            // (Optional) Fallback to provide mouse position when focused (WM_MOUSEMOVE already provides this when hovered or captured)
+            // This also fills a short gap when clicking non-client area: WM_NCMOUSELEAVE -> modal OS move -> gap -> WM_NCMOUSEMOVE
+            if (!io.WantSetMousePos && g_app->m_imguiMouseTrackedArea == 0)
+            {
+                POINT pos;
+                if (GetCursorPos(&pos) && ::ScreenToClient(g_app->m_hwnd, &pos))
+                    io.AddMousePosEvent((float)pos.x, (float)pos.y);
+            }
+        }
+
+        // Update OS mouse cursor with the cursor requested by imgui
+        ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
+        if (g_app->m_imguiCursor != mouse_cursor)
+        {
+            g_app->m_imguiCursor = mouse_cursor;
+            ImGui_UpdateMouseCursor();
+        }
+    }
+
+    ImGuiKey ImGui_VirtualKeyToImGuiKey(WPARAM wParam)
+    {
+        switch (wParam)
+        {
+        case VK_TAB: return ImGuiKey_Tab;
+        case VK_LEFT: return ImGuiKey_LeftArrow;
+        case VK_RIGHT: return ImGuiKey_RightArrow;
+        case VK_UP: return ImGuiKey_UpArrow;
+        case VK_DOWN: return ImGuiKey_DownArrow;
+        case VK_PRIOR: return ImGuiKey_PageUp;
+        case VK_NEXT: return ImGuiKey_PageDown;
+        case VK_HOME: return ImGuiKey_Home;
+        case VK_END: return ImGuiKey_End;
+        case VK_INSERT: return ImGuiKey_Insert;
+        case VK_DELETE: return ImGuiKey_Delete;
+        case VK_BACK: return ImGuiKey_Backspace;
+        case VK_SPACE: return ImGuiKey_Space;
+        case VK_RETURN: return ImGuiKey_Enter;
+        case VK_ESCAPE: return ImGuiKey_Escape;
+        case VK_OEM_7: return ImGuiKey_Apostrophe;
+        case VK_OEM_COMMA: return ImGuiKey_Comma;
+        case VK_OEM_MINUS: return ImGuiKey_Minus;
+        case VK_OEM_PERIOD: return ImGuiKey_Period;
+        case VK_OEM_2: return ImGuiKey_Slash;
+        case VK_OEM_1: return ImGuiKey_Semicolon;
+        case VK_OEM_PLUS: return ImGuiKey_Equal;
+        case VK_OEM_4: return ImGuiKey_LeftBracket;
+        case VK_OEM_5: return ImGuiKey_Backslash;
+        case VK_OEM_6: return ImGuiKey_RightBracket;
+        case VK_OEM_3: return ImGuiKey_GraveAccent;
+        case VK_CAPITAL: return ImGuiKey_CapsLock;
+        case VK_SCROLL: return ImGuiKey_ScrollLock;
+        case VK_NUMLOCK: return ImGuiKey_NumLock;
+        case VK_SNAPSHOT: return ImGuiKey_PrintScreen;
+        case VK_PAUSE: return ImGuiKey_Pause;
+        case VK_NUMPAD0: return ImGuiKey_Keypad0;
+        case VK_NUMPAD1: return ImGuiKey_Keypad1;
+        case VK_NUMPAD2: return ImGuiKey_Keypad2;
+        case VK_NUMPAD3: return ImGuiKey_Keypad3;
+        case VK_NUMPAD4: return ImGuiKey_Keypad4;
+        case VK_NUMPAD5: return ImGuiKey_Keypad5;
+        case VK_NUMPAD6: return ImGuiKey_Keypad6;
+        case VK_NUMPAD7: return ImGuiKey_Keypad7;
+        case VK_NUMPAD8: return ImGuiKey_Keypad8;
+        case VK_NUMPAD9: return ImGuiKey_Keypad9;
+        case VK_DECIMAL: return ImGuiKey_KeypadDecimal;
+        case VK_DIVIDE: return ImGuiKey_KeypadDivide;
+        case VK_MULTIPLY: return ImGuiKey_KeypadMultiply;
+        case VK_SUBTRACT: return ImGuiKey_KeypadSubtract;
+        case VK_ADD: return ImGuiKey_KeypadAdd;
+            //case IM_VK_KEYPAD_ENTER: return ImGuiKey_KeypadEnter;
+        case VK_LSHIFT: return ImGuiKey_LeftShift;
+        case VK_LCONTROL: return ImGuiKey_LeftCtrl;
+        case VK_LMENU: return ImGuiKey_LeftAlt;
+        case VK_LWIN: return ImGuiKey_LeftSuper;
+        case VK_RSHIFT: return ImGuiKey_RightShift;
+        case VK_RCONTROL: return ImGuiKey_RightCtrl;
+        case VK_RMENU: return ImGuiKey_RightAlt;
+        case VK_RWIN: return ImGuiKey_RightSuper;
+        case VK_APPS: return ImGuiKey_Menu;
+        case '0': return ImGuiKey_0;
+        case '1': return ImGuiKey_1;
+        case '2': return ImGuiKey_2;
+        case '3': return ImGuiKey_3;
+        case '4': return ImGuiKey_4;
+        case '5': return ImGuiKey_5;
+        case '6': return ImGuiKey_6;
+        case '7': return ImGuiKey_7;
+        case '8': return ImGuiKey_8;
+        case '9': return ImGuiKey_9;
+        case 'A': return ImGuiKey_A;
+        case 'B': return ImGuiKey_B;
+        case 'C': return ImGuiKey_C;
+        case 'D': return ImGuiKey_D;
+        case 'E': return ImGuiKey_E;
+        case 'F': return ImGuiKey_F;
+        case 'G': return ImGuiKey_G;
+        case 'H': return ImGuiKey_H;
+        case 'I': return ImGuiKey_I;
+        case 'J': return ImGuiKey_J;
+        case 'K': return ImGuiKey_K;
+        case 'L': return ImGuiKey_L;
+        case 'M': return ImGuiKey_M;
+        case 'N': return ImGuiKey_N;
+        case 'O': return ImGuiKey_O;
+        case 'P': return ImGuiKey_P;
+        case 'Q': return ImGuiKey_Q;
+        case 'R': return ImGuiKey_R;
+        case 'S': return ImGuiKey_S;
+        case 'T': return ImGuiKey_T;
+        case 'U': return ImGuiKey_U;
+        case 'V': return ImGuiKey_V;
+        case 'W': return ImGuiKey_W;
+        case 'X': return ImGuiKey_X;
+        case 'Y': return ImGuiKey_Y;
+        case 'Z': return ImGuiKey_Z;
+        case VK_F1: return ImGuiKey_F1;
+        case VK_F2: return ImGuiKey_F2;
+        case VK_F3: return ImGuiKey_F3;
+        case VK_F4: return ImGuiKey_F4;
+        case VK_F5: return ImGuiKey_F5;
+        case VK_F6: return ImGuiKey_F6;
+        case VK_F7: return ImGuiKey_F7;
+        case VK_F8: return ImGuiKey_F8;
+        case VK_F9: return ImGuiKey_F9;
+        case VK_F10: return ImGuiKey_F10;
+        case VK_F11: return ImGuiKey_F11;
+        case VK_F12: return ImGuiKey_F12;
+        case VK_F13: return ImGuiKey_F13;
+        case VK_F14: return ImGuiKey_F14;
+        case VK_F15: return ImGuiKey_F15;
+        case VK_F16: return ImGuiKey_F16;
+        case VK_F17: return ImGuiKey_F17;
+        case VK_F18: return ImGuiKey_F18;
+        case VK_F19: return ImGuiKey_F19;
+        case VK_F20: return ImGuiKey_F20;
+        case VK_F21: return ImGuiKey_F21;
+        case VK_F22: return ImGuiKey_F22;
+        case VK_F23: return ImGuiKey_F23;
+        case VK_F24: return ImGuiKey_F24;
+        case VK_BROWSER_BACK: return ImGuiKey_AppBack;
+        case VK_BROWSER_FORWARD: return ImGuiKey_AppForward;
+        default: return ImGuiKey_None;
+        }
+    }
+
+    bool ImGui_IsVkDown(int vk)
+    {
+        return (GetKeyState(vk) & 0x8000) != 0;
+    }
+
+    void ImGui_AddKeyEvent(ImGuiKey key, bool down, int native_keycode, int native_scancode = -1)
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddKeyEvent(key, down);
+        // To support legacy indexing (<1.87 user code)
+        io.SetKeyEventNativeData(key, native_keycode, native_scancode);
+        IM_UNUSED(native_scancode);
+    }
+
+    void ImGui_UpdateKeyModifiers()
+    {
+        ImGuiIO& io = ImGui::GetIO();
+        io.AddKeyEvent(ImGuiMod_Ctrl, ImGui_IsVkDown(VK_CONTROL));
+        io.AddKeyEvent(ImGuiMod_Shift, ImGui_IsVkDown(VK_SHIFT));
+        io.AddKeyEvent(ImGuiMod_Alt, ImGui_IsVkDown(VK_MENU));
+        io.AddKeyEvent(ImGuiMod_Super, ImGui_IsVkDown(VK_LWIN) || ImGui_IsVkDown(VK_RWIN));
+    }
+}
+
 namespace ZetaRay::AppImpl
 {
     void LoadFont()
@@ -304,89 +541,6 @@ namespace ZetaRay::AppImpl
 
         ImGuiStyle& style = ImGui::GetStyle();
         style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
-    }
-
-    // See https://learn.microsoft.com/en-us/windows/win32/tablet/system-events-and-mouse-messages
-    // Prefer to call this at the top of the message handler to avoid the possibility of other Win32 calls interfering with this.
-    ImGuiMouseSource GetMouseSourceFromMessageExtraInfo()
-    {
-        LPARAM extra_info = GetMessageExtraInfo();
-        if ((extra_info & 0xFFFFFF80) == 0xFF515700)
-            return ImGuiMouseSource_Pen;
-        if ((extra_info & 0xFFFFFF80) == 0xFF515780)
-            return ImGuiMouseSource_TouchScreen;
-        return ImGuiMouseSource_Mouse;
-    }
-
-    bool ImGuiUpdateMouseCursor()
-    {
-        ImGuiIO& io = ImGui::GetIO();
-        if (io.ConfigFlags & ImGuiConfigFlags_NoMouseCursorChange)
-            return false;
-
-        ImGuiMouseCursor imgui_cursor = ImGui::GetMouseCursor();
-        if (imgui_cursor == ImGuiMouseCursor_None || io.MouseDrawCursor)
-        {
-            // Hide OS mouse cursor if imgui is drawing it or if it wants no cursor
-            SetCursor(nullptr);
-        }
-        else
-        {
-            // Show OS mouse cursor
-            LPTSTR win32_cursor = IDC_ARROW;
-            switch (imgui_cursor)
-            {
-            case ImGuiMouseCursor_Arrow:        win32_cursor = IDC_ARROW; break;
-            case ImGuiMouseCursor_TextInput:    win32_cursor = IDC_IBEAM; break;
-            case ImGuiMouseCursor_ResizeAll:    win32_cursor = IDC_SIZEALL; break;
-            case ImGuiMouseCursor_ResizeEW:     win32_cursor = IDC_SIZEWE; break;
-            case ImGuiMouseCursor_ResizeNS:     win32_cursor = IDC_SIZENS; break;
-            case ImGuiMouseCursor_ResizeNESW:   win32_cursor = IDC_SIZENESW; break;
-            case ImGuiMouseCursor_ResizeNWSE:   win32_cursor = IDC_SIZENWSE; break;
-            case ImGuiMouseCursor_Hand:         win32_cursor = IDC_HAND; break;
-            case ImGuiMouseCursor_NotAllowed:   win32_cursor = IDC_NO; break;
-            }
-
-            SetCursor(LoadCursor(nullptr, win32_cursor));
-        }
-
-        return true;
-    }
-
-    void ImGuiUpdateMouse()
-    {
-        ImGuiIO& io = ImGui::GetIO();
-
-        HWND focused_window = ::GetForegroundWindow();
-        const bool is_app_focused = (focused_window == g_app->m_hwnd);
-        if (is_app_focused)
-        {
-            // (Optional) Set OS mouse position from Dear ImGui if requested (rarely used, only when 
-            // ImGuiConfigFlags_NavEnableSetMousePos is enabled by user)
-            if (io.WantSetMousePos)
-            {
-                POINT pos = { (int)io.MousePos.x, (int)io.MousePos.y };
-                if (ClientToScreen(g_app->m_hwnd, &pos))
-                    SetCursorPos(pos.x, pos.y);
-            }
-
-            // (Optional) Fallback to provide mouse position when focused (WM_MOUSEMOVE already provides this when hovered or captured)
-            // This also fills a short gap when clicking non-client area: WM_NCMOUSELEAVE -> modal OS move -> gap -> WM_NCMOUSEMOVE
-            if (!io.WantSetMousePos && g_app->m_imguiMouseTrackedArea == 0)
-            {
-                POINT pos;
-                if (GetCursorPos(&pos) && ::ScreenToClient(g_app->m_hwnd, &pos))
-                    io.AddMousePosEvent((float)pos.x, (float)pos.y);
-            }
-        }
-
-        // Update OS mouse cursor with the cursor requested by imgui
-        ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-        if (g_app->m_imguiCursor != mouse_cursor)
-        {
-            g_app->m_imguiCursor = mouse_cursor;
-            ImGuiUpdateMouseCursor();
-        }
     }
 
     void InitImGui()
@@ -483,7 +637,7 @@ namespace ZetaRay::AppImpl
     {
         UpdateStats(tempMemoryUsage);
 
-        ImGuiUpdateMouse();
+        ImGui_UpdateMouse();
         ImGui::NewFrame();
 
         g_app->m_frameMotion.dt = (float)g_app->m_timer.GetElapsedTime();
@@ -500,8 +654,6 @@ namespace ZetaRay::AppImpl
             g_app->m_frameMotion.Acceleration.z = -1;
         if (GetAsyncKeyState('D') & (1 << 16))
             g_app->m_frameMotion.Acceleration.x = 1;
-        if (GetAsyncKeyState(VK_ESCAPE) & (1 << 16))
-            g_app->m_scene.ClearPick();
 
         g_app->m_frameMotion.Acceleration.normalize();
         g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
@@ -595,40 +747,61 @@ namespace ZetaRay::AppImpl
         g_app->m_isFullScreen = !g_app->m_isFullScreen;
     }
 
-    void OnKeyboard(UINT message, WPARAM vkKey, LPARAM lParam)
+    void OnKeyboard(UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (ImGui::GetCurrentContext() == nullptr)
             return;
 
         ImGuiIO& io = ImGui::GetIO();
 
-        const bool down = (message == WM_KEYDOWN || message == WM_SYSKEYDOWN);
-
-        if (vkKey < 256)
-            io.KeysDown[vkKey] = down;
-
-        if (vkKey == VK_CONTROL)
+        const bool is_key_down = (message == WM_KEYDOWN || message == WM_SYSKEYDOWN);
+        if (wParam < 256)
         {
-            io.KeysDown[VK_LCONTROL] = ((GetKeyState(VK_LCONTROL) & 0x8000) != 0);
-            io.KeysDown[VK_RCONTROL] = ((GetKeyState(VK_RCONTROL) & 0x8000) != 0);
-            io.KeyCtrl = io.KeysDown[VK_LCONTROL] || io.KeysDown[VK_RCONTROL];
-        }
-        if (vkKey == VK_SHIFT)
-        {
-            io.KeysDown[VK_LSHIFT] = ((GetKeyState(VK_LSHIFT) & 0x8000) != 0);
-            io.KeysDown[VK_RSHIFT] = ((GetKeyState(VK_RSHIFT) & 0x8000) != 0);
-            io.KeyShift = io.KeysDown[VK_LSHIFT] || io.KeysDown[VK_RSHIFT];
-        }
+            // Submit modifiers
+            ImGui_UpdateKeyModifiers();
 
-        // following triggers an assertion in imgui.cpp when alt+enter is pressed
-        //if (vkKey == VK_MENU)
-        //{
-        //    io.KeysDown[VK_LMENU] = ((GetKeyState(VK_LMENU) & 0x8000) != 0);
-        //    io.KeysDown[VK_RMENU] = ((GetKeyState(VK_RMENU) & 0x8000) != 0);
-        //    io.KeyAlt = io.KeysDown[VK_LMENU] || io.KeysDown[VK_RMENU];
-        //}
+            // Obtain virtual key code
+            // (keypad enter doesn't have its own... VK_RETURN with KF_EXTENDED flag means 
+            // keypad enter, see IM_VK_KEYPAD_ENTER definition for details, it is mapped to ImGuiKey_KeyPadEnter.)
+            int vk = (int)wParam;
+            //if ((wParam == VK_RETURN) && (HIWORD(lParam) & KF_EXTENDED))
+            //    vk = IM_VK_KEYPAD_ENTER;
+            const ImGuiKey key = ImGui_VirtualKeyToImGuiKey(vk);
+            const int scancode = (int)LOBYTE(HIWORD(lParam));
 
-        //io.AddInputCharacterUTF16((unsigned short)vkKey);
+            // Special behavior for VK_SNAPSHOT / ImGuiKey_PrintScreen as Windows doesn't emit the key down event.
+            if (key == ImGuiKey_PrintScreen && !is_key_down)
+                ImGui_AddKeyEvent(key, true, vk, scancode);
+
+            // Submit key event
+            if (key != ImGuiKey_None)
+                ImGui_AddKeyEvent(key, is_key_down, vk, scancode);
+
+            // Submit individual left/right modifier events
+            if (vk == VK_SHIFT)
+            {
+                // Important: Shift keys tend to get stuck when pressed together, missing key-up 
+                // events are corrected in ImGui_ImplWin32_ProcessKeyEventsWorkarounds()
+                if (ImGui_IsVkDown(VK_LSHIFT) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_LeftShift, is_key_down, VK_LSHIFT, scancode);
+                if (ImGui_IsVkDown(VK_RSHIFT) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_RightShift, is_key_down, VK_RSHIFT, scancode);
+            }
+            else if (vk == VK_CONTROL)
+            {
+                if (ImGui_IsVkDown(VK_LCONTROL) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_LeftCtrl, is_key_down, VK_LCONTROL, scancode);
+                if (ImGui_IsVkDown(VK_RCONTROL) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_RightCtrl, is_key_down, VK_RCONTROL, scancode);
+            }
+            else if (vk == VK_MENU)
+            {
+                if (ImGui_IsVkDown(VK_LMENU) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_LeftAlt, is_key_down, VK_LMENU, scancode);
+                if (ImGui_IsVkDown(VK_RMENU) == is_key_down)
+                    ImGui_AddKeyEvent(ImGuiKey_RightAlt, is_key_down, VK_RMENU, scancode);
+            }
+        }
 
         if (!io.WantCaptureKeyboard)
         {
@@ -646,44 +819,8 @@ namespace ZetaRay::AppImpl
                 }
             }
 
-            /*
-            switch (vkKey)
-            {
-                //A
-            case 0x41:
-                //g_app->m_frameMotion.Acceleration.x = -g_app->m_cameraAcceleration;
-                return;
-
-                //D
-            case 0x44:
-                //g_app->m_frameMotion.Acceleration.x = g_app->m_cameraAcceleration;
-                return;
-
-                //W
-            case 0x57:
-                //printf("%llu, OnKeyboard(), repeat count: %lld\n", g_app->m_timer.GetTotalFrameCount(), lParam & 0xffff);
-                //g_app->m_frameMotion.Acceleration.z = g_app->m_cameraAcceleration;
-                return;
-
-                //S
-            case 0x53:
-                //g_app->m_frameMotion.Acceleration.z = -g_app->m_cameraAcceleration;
-                return;
-            }
-            */
-
-            // ALT+ENTER:
-            /*
-            auto& renderer = g_app->m_renderer;
-            bool listenToAltEnter = renderer.IsTearingSupported() && renderer.GetVSyncInterval() == 0;
-
-            if (listenToAltEnter && (vkKey == VK_RETURN) && (lParam & (1 << 29)))
-            {
-                printf("lparam: %lld\n", lParam & 0xffff);
-                //OnToggleFullscreenWindow();
-                return;
-            }
-            */
+            if (GetAsyncKeyState(VK_ESCAPE) & (1 << 16))
+                g_app->m_scene.ClearPick();
         }
     }
 
@@ -950,8 +1087,7 @@ namespace ZetaRay::AppImpl
 
             FreeLibrary(uxthemeLib);
         }
-
-        return 0;
+            return 0;
 
         case WM_ACTIVATEAPP:
             if (wParam && !g_app->m_manuallyPaused)
@@ -964,7 +1100,6 @@ namespace ZetaRay::AppImpl
         case WM_ENTERSIZEMOVE:
             g_app->m_inSizeMove = true;
             AppImpl::OnDeactivated();
-
             return 0;
 
         case WM_EXITSIZEMOVE:
@@ -994,12 +1129,21 @@ namespace ZetaRay::AppImpl
                 else if (wParam == SIZE_MAXIMIZED)
                     AppImpl::OnWindowSizeChanged();
             }
-
             return 0;
 
         case WM_KEYDOWN:
+        case WM_KEYUP:
         case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP:
             AppImpl::OnKeyboard(message, wParam, lParam);
+            return 0;
+
+        case WM_CHAR:
+            {
+                wchar_t wch = 0;
+                MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, (char*)&wParam, 1, &wch, 1);
+                ImGui::GetIO().AddInputCharacter(wch);
+            }
             return 0;
 
         case WM_MOUSELEAVE:
@@ -1014,7 +1158,7 @@ namespace ZetaRay::AppImpl
                 g_app->m_imguiMouseTrackedArea = 0;
                 ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
             }
-            break;
+            return 0;
         }
 
         case WM_LBUTTONDOWN:
@@ -1039,14 +1183,12 @@ namespace ZetaRay::AppImpl
             return 0;
 
         case WM_DPICHANGED:
-        {
             OnDPIChanged(HIWORD(wParam), reinterpret_cast<RECT*>(lParam));
             return 0;
-        }
 
         case WM_SETCURSOR:
             // This is required to restore cursor when transitioning from e.g resize borders to client area.
-            if (LOWORD(lParam) == HTCLIENT && AppImpl::ImGuiUpdateMouseCursor())
+            if (LOWORD(lParam) == HTCLIENT && ImGui_UpdateMouseCursor())
                 return 1;
             return 0;
 
