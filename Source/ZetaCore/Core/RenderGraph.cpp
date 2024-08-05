@@ -850,10 +850,17 @@ void RenderGraph::JoinRenderNodes()
     {
         if (m_renderNodes[currNode].NodeBatchIdx != currBatchIdx)
         {
-            insertAggRndrNode();
+            // When the previous batch contained a single pass that forced a separate 
+            // command list, the corresponding aggregate node for that batch has a single
+            // pass and was added in the previous iteration. Since there weren't any
+            // other passes in that batch, the nodes array are empty.
+            if (!nonAsyncComputeNodes.empty() || !asyncComputeNodes.empty())
+            {
+                insertAggRndrNode();
+                nonAsyncComputeNodes.clear();
+                asyncComputeNodes.clear();
+            }
 
-            nonAsyncComputeNodes.clear();
-            asyncComputeNodes.clear();
             currBatchIdx = m_renderNodes[currNode].NodeBatchIdx;
         }
 
@@ -868,10 +875,6 @@ void RenderGraph::JoinRenderNodes()
 
             m_aggregateNodes.back().Append(m_renderNodes[currNode], mappedGpuDepIdx, true);
             m_renderNodes[currNode].AggNodeIdx = (int16)m_aggregateNodes.size() - 1;
-
-            // Update batch index for next iteration
-            currBatchIdx = currNode < numNodes - 1 ? m_renderNodes[currNode + 1].NodeBatchIdx : 
-                currBatchIdx;
 
             continue;
         }
