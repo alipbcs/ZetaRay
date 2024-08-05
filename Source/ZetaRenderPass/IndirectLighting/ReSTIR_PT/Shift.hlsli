@@ -203,12 +203,12 @@ namespace RPT_Util
 
             ctx.pos = asfloat(inB.xyz);
             ctx.normal = Math::DecodeOct32(Math::UnpackUintToInt16(inB.w));
-            ctx.eta_curr = mad(Math::DecodeUNorm8((inC.z >> 8) & 0xff), 1.5f, 1.0f);
-            ctx.eta_mat = mad(Math::DecodeUNorm8((inC.z >> 16) & 0xff), 1.5f, 1.0f);
+            ctx.eta_curr = mad(Math::UNorm8ToFloat((inC.z >> 8) & 0xff), 1.5f, 1.0f);
+            ctx.eta_mat = mad(Math::UNorm8ToFloat((inC.z >> 16) & 0xff), 1.5f, 1.0f);
 
             float3 wo = Math::DecodeOct32(Math::UnpackUintToInt16(inC.x));
-            float roughness = Math::DecodeUNorm8(inC.z & 0xff);
-            float3 baseColor = Math::UnpackRGB(inC.y & 0xffffff);
+            float roughness = Math::UNorm8ToFloat(inC.z & 0xff);
+            float3 baseColor = Math::UnpackRGB8(inC.y & 0xffffff);
             uint flags = inC.y >> 24;
             bool metallic = flags & 0x1;
             ctx.anyGlossyBounces = flags & 0x2;
@@ -238,9 +238,9 @@ namespace RPT_Util
                 ((uint)surface.transmissive << 2);
             uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
             baseColor_Flags = baseColor_Flags | (flags << 24);
-            uint roughness = Math::EncodeAsUNorm8(sqrt(surface.alpha));
-            uint eta_curr = Math::EncodeAsUNorm8((this.eta_curr - 1.0f) / 1.5f);
-            uint eta_mat = Math::EncodeAsUNorm8((this.eta_mat - 1.0f) / 1.5f);
+            uint roughness = Math::FloatToUNorm8(sqrt(surface.alpha));
+            uint eta_curr = Math::FloatToUNorm8((this.eta_curr - 1.0f) / 1.5f);
+            uint eta_mat = Math::FloatToUNorm8((this.eta_mat - 1.0f) / 1.5f);
             uint packed = roughness | (eta_curr << 8) | (eta_mat << 16);
 
             // R16G16B16A16_FLOAT

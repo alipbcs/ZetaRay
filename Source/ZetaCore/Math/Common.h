@@ -1,10 +1,10 @@
 #pragma once
 
 #include "../Utility/Error.h"
-#include <math.h>
 #include <float.h>
 #include <string.h>
 #include <immintrin.h>    // AVX intrinsics
+#include <cmath>
 
 namespace ZetaRay::Util
 {
@@ -155,16 +155,24 @@ namespace ZetaRay::Math
         return static_cast<uint16_t>(_mm_cvtsi128_si32(V2));
     }
 
-    ZetaInline uint16_t FloatToUnorm16(float value)
+    ZetaInline uint8_t FloatToUNorm8(float value)
     {
-        __m128 V1 = _mm_set_ss(value);
-        constexpr float m = float((1 << 16) - 1);
-        V1 = _mm_mul_ps(V1, _mm_set1_ps(m));
-        V1 = _mm_round_ps(V1, 0);
-        __m128i V2 = _mm_cvtps_epi32(V1);
-        int ret = _mm_cvtsi128_si32(V2);
+        return (uint8_t)std::fmaf(value, 255.0f, 0.5f);
+    }
 
-        return static_cast<uint16_t>(ret);
+    ZetaInline uint16_t FloatToUNorm16(float value)
+    {
+        return (uint16_t)std::fmaf(value, float((1 << 16) - 1), 0.5f);
+    }
+
+    ZetaInline float UNorm8ToFloat(uint8_t value)
+    {
+        return value / 255.0f;
+    }
+
+    ZetaInline float UNorm16ToFloat(uint8_t value)
+    {
+        return value / float((1 << 16) - 1);
     }
 
     // A summation algorithm that guards against the worst-case loss of precision when summing

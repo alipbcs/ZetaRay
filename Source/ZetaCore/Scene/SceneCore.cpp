@@ -334,18 +334,16 @@ void SceneCore::AddMeshes(SmallVector<Asset::Mesh>&& meshes, SmallVector<Vertex>
 uint32_t SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
 {
     Material mat;
-    mat.BaseColorFactor = Float4ToRGBA8(matDesc.BaseColorFactor);
-    mat.EmissiveFactorNormalScale = Float4ToRGBA8(float4(matDesc.EmissiveFactor, matDesc.NormalScale));
-    mat.MetallicFactorAlphaCuttoff = Float2ToRG8(float2(matDesc.MetallicFactor, matDesc.AlphaCuttoff));
-    mat.RoughnessFactor = FloatToUnorm16(matDesc.RoughnessFactor);
+    mat.SetBaseColorFactor(matDesc.BaseColorFactor);
+    mat.SetEmissiveFactor(matDesc.EmissiveFactor);
+    mat.SetNormalScale(matDesc.NormalScale);
+    mat.SetMetallic(matDesc.MetallicFactor);
+    mat.SetRoughnessFactor(matDesc.RoughnessFactor);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
-
-    if (matDesc.Transmission > 0)
-    {
-        mat.SetIOR(matDesc.IOR);
-        mat.SetTransmission(matDesc.Transmission);
-    }
+    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
+    mat.SetTransmission(matDesc.Transmission);
+    mat.SetIOR(matDesc.IOR);
 
     if (lock)
         AcquireSRWLockExclusive(&m_matLock);
@@ -362,18 +360,17 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     bool lock)
 {
     Material mat;
-    mat.BaseColorFactor = Float4ToRGBA8(matDesc.BaseColorFactor);
-    mat.EmissiveFactorNormalScale = Float4ToRGBA8(float4(matDesc.EmissiveFactor, matDesc.NormalScale));
-    mat.MetallicFactorAlphaCuttoff = Float2ToRG8(float2(matDesc.MetallicFactor, matDesc.AlphaCuttoff));
-    mat.RoughnessFactor = FloatToUnorm16(matDesc.RoughnessFactor);
+    mat.SetBaseColorFactor(matDesc.BaseColorFactor);
+    mat.SetEmissiveFactor(matDesc.EmissiveFactor);
+    mat.SetEmissiveStrength(matDesc.EmissiveStrength);
+    mat.SetNormalScale(matDesc.NormalScale);
+    mat.SetMetallic(matDesc.MetallicFactor);
+    mat.SetRoughnessFactor(matDesc.RoughnessFactor);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
-
-    if (matDesc.Transmission > 0)
-    {
-        mat.SetIOR(matDesc.IOR);
-        mat.SetTransmission(matDesc.Transmission);
-    }
+    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
+    mat.SetTransmission(matDesc.Transmission);
+    mat.SetIOR(matDesc.IOR);
 
     auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
         MutableSpan<DDSImage> ddsImages)
@@ -391,17 +388,19 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         uint32_t tableOffset = Material::INVALID_ID;    // i.e. index in GPU descriptor table
 
         if (matDesc.BaseColorTexPath != MaterialDesc::INVALID_PATH)
+        {
             addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
-
-        mat.BaseColorTexture = tableOffset;
+            mat.BaseColorTexture = tableOffset;
+        }
     }
 
     {
         uint32_t tableOffset = Material::INVALID_ID;
         if (matDesc.NormalTexPath != MaterialDesc::INVALID_PATH)
+        {
             addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
-
-        mat.SetNormalTex(tableOffset);
+            mat.SetNormalTex(tableOffset);
+        }
     }
 
     {
@@ -410,18 +409,18 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         {
             addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", 
                 m_metallicRoughnessDescTable, tableOffset, ddsImages);
+            
+            mat.SetMetallicRoughnessTex(tableOffset);
         }
-
-        mat.SetMetallicRoughnessTex(tableOffset);
     }
 
     {
         uint32_t tableOffset = Material::INVALID_ID;
         if (matDesc.EmissiveTexPath != MaterialDesc::INVALID_PATH)
+        {
             addTex(matDesc.EmissiveTexPath, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
-
-        mat.SetEmissiveTex(tableOffset);
-        mat.SetEmissiveStrength(matDesc.EmissiveStrength);
+            mat.SetEmissiveTex(tableOffset);
+        }
     }
 
     // Add this material to GPU material buffer, which offsets into descriptor tables above.

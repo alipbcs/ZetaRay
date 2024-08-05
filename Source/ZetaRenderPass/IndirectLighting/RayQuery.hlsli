@@ -461,37 +461,37 @@ namespace ReSTIR_RT
             hitInfo.triDiffs.dndv *= -1;
         }
 
-        float3 baseColor = Math::UnpackRGB(mat.BaseColorFactor);
-        float metalness = mat.GetMetallic();
+        float3 baseColor = mat.GetBaseColorFactor();
+        float metallic = mat.IsMetallic() ? 1.0f : 0.0f;
         float roughness = mat.GetRoughnessFactor();
 
-        if (mat.BaseColorTexture != UINT32_MAX)
+        if (mat.BaseColorTexture != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
                 mat.BaseColorTexture);
             baseColor *= ts.BaseColor(offset, samp, hitInfo.uv, uv_grads.xy, uv_grads.zw);
         }
 
-        const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
 
-        if (metallicRoughnessTex != UINT16_MAX)
+        if (metallicRoughnessTex != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + 
                 metallicRoughnessTex);
             float2 mr = ts.MR(offset, samp, hitInfo.uv, uv_grads.xy, uv_grads.zw);
-            metalness *= mr.x;
+            metallic *= mr.x;
             roughness *= mr.y;
         }
 
-        float tr = mat.GetTransmission();
+        bool tr = mat.IsTransmissive();
         eta = mat.GetIOR();
 
         // TODO surrounding medium is assumed to be always air
         float eta_t = eta_curr == ETA_AIR ? ETA_AIR : eta;
         float eta_i = eta_curr == ETA_AIR ? eta : ETA_AIR;
 
-        surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metalness >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_i, eta_t, tr >= MIN_SPEC_TR_TRANSMISSIVE);
+        surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metallic >= MIN_METALNESS_METAL, 
+            roughness, baseColor, eta_i, eta_t, tr);
 
         return true;
     }

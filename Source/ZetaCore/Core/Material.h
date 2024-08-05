@@ -18,15 +18,41 @@
 
 #ifdef __cplusplus
 #include "../Math/Color.h"
+#else
+#include "../../ZetaRenderPass/Common/Math.hlsli"
+#endif
 
+#ifdef __cplusplus
 namespace ZetaRay
 {
 #endif
     struct Material
     {
-#ifdef __cplusplus
+        enum FLAG_BITS
+        {
+            METALLIC = 20,
+            DOUBLE_SIDED = 21,
+            TRANSMISSIVE = 22,
+            ALPHA_1 = 23,
+            ALPHA_2 = 24
+        };
 
-        static constexpr uint32_t INVALID_ID = UINT32_MAX;
+        static const uint32_t NUM_MATERIAL_BITS = 20;
+        static const uint32_t NUM_TEXTURE_BITS = NUM_MATERIAL_BITS;
+        // Reserve largest value for invalid materials
+        static const uint32_t INVALID_ID = (1 << NUM_MATERIAL_BITS) - 1;
+        static const uint32_t MAX_NUM_MATERIALS = (1 << NUM_MATERIAL_BITS) - 1;
+        static const uint32_t MAX_NUM_TEXTURES = MAX_NUM_MATERIALS;
+        static const uint32_t MATERIAL_MASK = (1 << NUM_MATERIAL_BITS) - 1;
+        static const uint32_t TEXTURE_MASK = (1 << NUM_MATERIAL_BITS) - 1;
+        static const uint32_t LOWER_16_BITS_MASK = 0xffff;
+        static const uint32_t LOWER_24_BITS_MASK = 0xffffff;
+        static const uint32_t LOWER_28_BITS_MASK = 0xfffffff;
+        static const uint32_t UPPER_8_BITS_MASK = 0xff000000;
+        static const uint32_t UPPER_12_BITS_MASK = 0xfff00000;
+        static const uint32_t UPPER_16_BITS_MASK = 0xffff0000;
+
+#ifdef __cplusplus
 
         enum class ALPHA_MODE : uint8_t
         {
@@ -34,197 +60,255 @@ namespace ZetaRay
             OPAQUE_ = 0,
             // Output is either fully opaque or fully transparent depending on the alpha value
             MASK,
-            // The alpha value is used to composite the source and destination areas
+            // [Not supported] Alpha value is used to composite source and destination areas
             BLEND,
             COUNT
         };
 
         Material()
-            : MetallicFactorAlphaCuttoff(Math::Float2ToRG8(Math::float2(1.0f, 0.5f))),
-            RoughnessFactor((1 << 16) - 1),
-            BaseColorTexture(INVALID_ID),
-            MetallicRoughnessTexture_Transmission(0xffff),
-            NormalTexture_IOR(INVALID_ID),
-            EmissiveTexture_Strength(INVALID_ID),
-            Packed(0),
-            BaseColorFactor(Math::Float4ToRGBA8(Math::float4(1.0f, 1.0f, 1.0f, 1.0f))),
-            EmissiveFactorNormalScale(Math::Float4ToRGBA8(Math::float4(0.0f, 0.0f, 0.0f, 1.0f)))
         {
-            SetEmissiveStrength(1.0f);
+            memset(this, 0, sizeof(Material));
+
+            SetBaseColorFactor(Math::float4(1.0f, 1.0f, 1.0f, 1.0f));
+            SetRoughnessFactor(1.0f);
+            SetMetallic(1.0f);
+            SetTransmission(0.0f);
             SetIOR(1.5f);
+            SetEmissiveFactor(Math::float3(0));
+            SetEmissiveStrength(1.0f);
+            SetDoubleSided(false);
+            SetAlphaMode(ALPHA_MODE::OPAQUE_);
+            SetAlphaCutoff(0.5f);
+            SetNormalScale(1.0f);
+            SetBaseColorTex(INVALID_ID);
+            SetNormalTex(INVALID_ID);
+            SetMetallicRoughnessTex(INVALID_ID);
+            SetEmissiveTex(INVALID_ID);
+            // Should match SceneCore::DEFAULT_MATERIAL_IDX
+            SetGpuBufferIndex(0);
         }
 
-        void SetGpuBufferIndex(uint32_t idx)
+        // Passing INVALID_ID is invalid
+        ZetaInline void SetGpuBufferIndex(uint32_t idx)
         {
-            Assert(idx < 1'000'000, "At most 1'000'000 different materials are supported.");
-            Packed |= idx;
+            Assert(idx < MAX_NUM_MATERIALS, "At most MAX_NUM_MATERIALS different materials are supported.");
+            Packed = (Packed & UPPER_12_BITS_MASK) | idx;
         }
 
-        void SetAlphaMode(ALPHA_MODE mode)
+        // For Set*Tex() calls, passing INVALID_ID (= MAX_NUM_TEXTURES) is valid
+        ZetaInline void SetBaseColorTex(uint32_t idx)
         {
-            Packed |= (uint32_t)(mode) << 28;
+            Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
+            BaseColorTexture = idx;
         }
 
-        void SetDoubleSided(bool b)
+        ZetaInline void SetNormalTex(uint32_t idx)
         {
-            if(b)
-                Packed |= (1 << 30);
-            else
-                Packed ^= (1 << 30);
+            Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
+            NormalTexture = idx;
         }
 
-        uint32_t GpuBufferIndex() const
+        ZetaInline void SetMetallicRoughnessTex(uint32_t idx)
         {
-            return Packed & 0x0fffffff;
+            Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
+            MRTexture_RoughnessFactor = idx | 
+                (MRTexture_RoughnessFactor & UPPER_12_BITS_MASK);
         }
 
-        void SetBaseColorFactor(Math::float3 color)
+        ZetaInline void SetEmissiveTex(uint32_t idx)
         {
-            BaseColorFactor = Float3ToRGB8(color) | (BaseColorFactor & 0xff000000);
+            Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
+            EmissiveTexture_AlphaCutoff = idx | 
+                (EmissiveTexture_AlphaCutoff & UPPER_12_BITS_MASK);
         }
 
-        void SetNormalTex(uint32_t idx)
+        ZetaInline void SetBaseColorFactor(Math::float3 color)
         {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            NormalTexture_IOR = (idx & 0xffff) | (NormalTexture_IOR & 0xffff0000);
+            BaseColorFactor = Float3ToRGB8(color) | (BaseColorFactor & UPPER_8_BITS_MASK);
         }
 
-        void SetMetallicRoughnessTex(uint32_t idx)
+        ZetaInline void SetBaseColorFactor(Math::float4 color)
         {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            MetallicRoughnessTexture_Transmission = (idx & 0xffff) | (MetallicRoughnessTexture_Transmission & 0xff0000);
+            BaseColorFactor = Float4ToRGBA8(color);
         }
 
-        void SetEmissiveTex(uint32_t idx)
+        ZetaInline void SetRoughnessFactor(float r)
         {
-            Assert(idx == INVALID_ID || idx < UINT16_MAX, "Invalid texture index.");
-            EmissiveTexture_Strength = (idx & 0xffff) | (EmissiveTexture_Strength & 0xffff0000);
+            MRTexture_RoughnessFactor = (MRTexture_RoughnessFactor & TEXTURE_MASK) |
+                (Math::FloatToUNorm8(r) << NUM_MATERIAL_BITS);
         }
 
-        void SetEmissiveFactor(Math::float3 color)
+        ZetaInline void SetAlphaCutoff(float c)
         {
-            EmissiveFactorNormalScale = Math::Float3ToRGB8(color) | (EmissiveFactorNormalScale & 0xff000000);
+            EmissiveTexture_AlphaCutoff = (EmissiveTexture_AlphaCutoff & TEXTURE_MASK) |
+                (Math::FloatToUNorm8(c) << NUM_TEXTURE_BITS);
         }
 
-        void SetEmissiveStrength(float s)
+        ZetaInline void SetNormalScale(float s)
+        {
+            EmissiveFactor_NormalScale = (EmissiveFactor_NormalScale & LOWER_24_BITS_MASK) |
+                (Math::FloatToUNorm8(s) << 24);
+        }
+
+        ZetaInline void SetEmissiveFactor(Math::float3 color)
+        {
+            EmissiveFactor_NormalScale = Math::Float3ToRGB8(color) | 
+                (EmissiveFactor_NormalScale & UPPER_8_BITS_MASK);
+        }
+
+        ZetaInline void SetEmissiveStrength(float s)
         {
             Math::half h(s);
-            EmissiveTexture_Strength = (uint32_t(h.x) << 16) | (EmissiveTexture_Strength & 0xffff);
+            EmissiveStrength_IOR = uint32_t(h.x) | (EmissiveStrength_IOR & UPPER_16_BITS_MASK);
         }
 
-        void SetIOR(float ior)
+        ZetaInline void SetIOR(float ior)
         {
             Assert(ior >= MIN_IOR && ior < MAX_IOR, "IOR is assumed to be in the range [1, 2.5)");
-            float normalized = (ior - 1.0f) / 1.5f;
-            normalized = roundf(normalized * ((1 << 16) - 1));
-            NormalTexture_IOR = (uint32_t(normalized) << 16) | (NormalTexture_IOR & 0xffff);
+
+            float normalized = (ior - MIN_IOR) / (MAX_IOR - MIN_IOR);
+            normalized = std::fmaf(normalized, (1 << 16) - 1, 0.5f);
+            EmissiveStrength_IOR = (EmissiveStrength_IOR & LOWER_16_BITS_MASK) | 
+                (uint32_t(normalized) << 16);
         }
 
-        void SetTransmission(float t)
+        ZetaInline void SetAlphaMode(ALPHA_MODE mode)
         {
-            uint32_t encoded = uint32_t(roundf(t * float((1 << 8) - 1)));
-            MetallicRoughnessTexture_Transmission = (encoded << 16) | (MetallicRoughnessTexture_Transmission & 0xffff);
+            // Clear two alpha bits
+            Packed &= ~(0x3 << FLAG_BITS::ALPHA_1);
+            Packed |= (uint32_t)(mode) << FLAG_BITS::ALPHA_1;
         }
 
-        void SetMetallicFactor(float f)
+        ZetaInline void SetDoubleSided(bool b)
         {
-            MetallicFactorAlphaCuttoff = Math::FloatToUNorm8(f) | (MetallicFactorAlphaCuttoff & 0xff00);
+            if (b)
+                Packed |= (1 << FLAG_BITS::DOUBLE_SIDED);
+            else
+                Packed &= ~(1 << FLAG_BITS::DOUBLE_SIDED);
         }
 
-        void SetRoughnessFactor(float r)
+        ZetaInline void SetTransmission(float t)
         {
-            RoughnessFactor = Math::FloatToUnorm16(r);
+            bool transmissive = t >= MIN_SPEC_TR_TRANSMISSIVE;
+            if (transmissive)
+                Packed |= (1 << FLAG_BITS::TRANSMISSIVE);
+            else
+                Packed &= ~(1 << FLAG_BITS::TRANSMISSIVE);
         }
 
-        bool IsEmissive() CONST
+        ZetaInline void SetMetallic(float m)
         {
-            if (GetEmissiveTex() != UINT16_MAX)
+            bool metallic = m >= MIN_METALNESS_METAL;
+            if (metallic)
+                Packed |= (1 << FLAG_BITS::METALLIC);
+            else
+                Packed &= ~(1 << FLAG_BITS::METALLIC);
+        }
+
+        ZetaInline uint32_t GpuBufferIndex() const
+        {
+            return Packed & MATERIAL_MASK;
+        }
+
+        bool IsEmissive() const
+        {
+            if (GetEmissiveTex() != INVALID_ID)
                 return true;
 
-            Math::float3 f = Math::RGBToFloat3(EmissiveFactorNormalScale);
+            Math::float3 f = GetEmissiveFactor();
             return f.dot(f) > 0;
         }
-
 #endif
         bool IsDoubleSided() CONST
         {
-            return Packed & (1 << 30);
+            return Packed & (1 << FLAG_BITS::DOUBLE_SIDED);
         }
 
-        float GetAlphaCuttoff() CONST
+        bool IsMetallic() CONST
         {
-            return ((MetallicFactorAlphaCuttoff >> 8) & 0xff) / 255.0f;
+            return Packed & (1 << FLAG_BITS::METALLIC);
+        }
+
+        bool IsTransmissive() CONST
+        {
+            return Packed & (1 << FLAG_BITS::TRANSMISSIVE);
+        }
+
+        float3_ GetBaseColorFactor() CONST
+        {
+            return Math::UnpackRGB8(BaseColorFactor);
+        }
+
+        float3_ GetEmissiveFactor() CONST
+        {
+            return Math::UnpackRGB8(EmissiveFactor_NormalScale);
         }
 
         float GetNormalScale() CONST
         {
-            return ((EmissiveFactorNormalScale >> 24) & 0xff) / 255.0f;
+            return Math::UNorm8ToFloat(EmissiveFactor_NormalScale >> 24);
         }
 
-        float GetMetallic() CONST
+        uint32_t GetEmissiveTex() CONST
         {
-            return (MetallicFactorAlphaCuttoff & 0xff) / 255.0f;
+            return EmissiveTexture_AlphaCutoff & TEXTURE_MASK;
         }
 
-        uint16_t GetEmissiveTex() CONST
+        float GetAlphaCutoff() CONST
         {
-            return uint16_t(EmissiveTexture_Strength & 0xffff);
+#ifdef __cplusplus
+            return Math::UNorm8ToFloat((uint8_t)(EmissiveTexture_AlphaCutoff >> NUM_MATERIAL_BITS));
+#else
+            return Math::UNorm8ToFloat(EmissiveTexture_AlphaCutoff >> NUM_MATERIAL_BITS);
+#endif
         }
 
-        uint16_t GetNormalTex() CONST
+        uint32_t GetMetallicRoughnessTex() CONST
         {
-            return uint16_t(NormalTexture_IOR & 0xffff);
-        }
-
-        uint16_t GetMetallicRoughnessTex() CONST
-        {
-            return uint16_t(MetallicRoughnessTexture_Transmission & 0xffff);
+            return MRTexture_RoughnessFactor & TEXTURE_MASK;
         }
 
         float GetRoughnessFactor() CONST
         {
-            return RoughnessFactor / float((1 << 16) - 1);
-        }
-
-        float GetIOR() CONST
-        {
-            uint16_t encoded = uint16_t(NormalTexture_IOR >> 16);
-
 #ifdef __cplusplus
-            return (1.5f / float(((1 << 16) - 1)) * encoded + 1.0f);
+            return Math::UNorm8ToFloat((uint8_t)(MRTexture_RoughnessFactor >> NUM_TEXTURE_BITS));
 #else
-            return mad(1.5f / float(((1 << 16) - 1)), encoded, 1.0f);
+            return Math::UNorm8ToFloat(MRTexture_RoughnessFactor >> NUM_TEXTURE_BITS);
 #endif
-        }
-
-        float GetTransmission() CONST
-        {
-            float t = float((MetallicRoughnessTexture_Transmission >> 16) & 0xff);
-            return t / 255.0f;
         }
 
         half_ GetEmissiveStrength() CONST
         {
 #ifdef __cplusplus
-            return Math::half::asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
+            return Math::half::asfloat16(uint16_t(EmissiveStrength_IOR & LOWER_16_BITS_MASK));
 #else
-            return asfloat16(uint16_t(EmissiveTexture_Strength >> 16));
+            return asfloat16(uint16_t(EmissiveStrength_IOR & LOWER_16_BITS_MASK));
+#endif
+        }
+
+        float GetIOR() CONST
+        {
+            uint16_t encoded = uint16_t(EmissiveStrength_IOR >> 16);
+
+#ifdef __cplusplus
+            return std::fmaf(1.5f / float(((1 << 16) - 1)), encoded, MIN_IOR);
+#else
+            return mad(1.5f / float(((1 << 16) - 1)), encoded, MIN_IOR);
 #endif
         }
 
         uint32_t BaseColorFactor;
-        uint32_t EmissiveFactorNormalScale;
         uint32_t BaseColorTexture;
-        uint32_t NormalTexture_IOR;
-        uint32_t MetallicRoughnessTexture_Transmission;
-        uint32_t EmissiveTexture_Strength;
+        uint32_t NormalTexture;
+        // MR stands for metallic roughness
+        uint32_t MRTexture_RoughnessFactor;
+        uint32_t EmissiveFactor_NormalScale;
+        uint32_t EmissiveStrength_IOR;
+        uint32_t EmissiveTexture_AlphaCutoff;
 
-        // Last 4 bits encode alpha and double sided, first 20 bits encode 
+        // Last 12 bits encode various flags, first 20 bits encode 
         // material buffer index.
         uint32_t Packed;
-
-        uint16_t MetallicFactorAlphaCuttoff;
-        uint16_t RoughnessFactor;
     };
 #ifdef __cplusplus
 }
@@ -237,4 +321,4 @@ namespace ZetaRay
 #define EMISSIVE_MAP Texture2D<float3>
 #endif
 
-#endif // MATERIAL_H
+#endif

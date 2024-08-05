@@ -145,14 +145,14 @@ void Raygen()
 void TestOpacity(inout RayPayload payload, in BuiltInTriangleIntersectionAttributes attr)
 {
     const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(GeometryIndex() + InstanceID())];
-    float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
+    float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cutoff);
 
     if(alphaFactor_cutoff.y == 1.0)
         IgnoreHit();
 
     float alpha = alphaFactor_cutoff.x;
 
-    if(meshData.BaseColorTex != UINT16_MAX)
+    if(meshData.BaseColorTex != Material::INVALID_ID)
     {
         uint tri = PrimitiveIndex() * 3;
         tri += meshData.BaseIdxOffset;
@@ -166,7 +166,8 @@ void TestOpacity(inout RayPayload payload, in BuiltInTriangleIntersectionAttribu
 
         float2 uv = V0.TexUV + attr.barycentrics.x * (V1.TexUV - V0.TexUV) + attr.barycentrics.y * (V2.TexUV - V0.TexUV);
 
-        BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex)];
+        uint descHeadpIdx = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex);
+        BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[descHeadpIdx];
         alpha *= g_baseCol.SampleLevel(g_samLinearWrap, uv, 0).a;
     }
 

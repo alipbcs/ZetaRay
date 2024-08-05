@@ -31,7 +31,7 @@ namespace GBuffer
     float EncodeMetallic(float metalness, bool isTransmissive, float3 emissive)
     {
         bool isMetal = metalness >= MIN_METALNESS_METAL;
-        bool isEmissive = dot(1, emissive) != 0;
+        bool isEmissive = dot(emissive, emissive) > 0;
 
         uint ret = isTransmissive;
         ret |= uint(isEmissive) << 1;

@@ -546,14 +546,14 @@ namespace Math
         return transformed;
     }
 
-    uint EncodeAsUNorm8(float u)
+    uint FloatToUNorm8(float f)
     {
-        return (uint)(round(u * 255.0f));
+        return (uint)mad(f, 255.0f, 0.5f);
     }
 
-    float DecodeUNorm8(uint i)
+    float UNorm8ToFloat(uint u)
     {
-        return i / 255.0f;
+        return u / 255.0f;
     }
 
     int16_t2 UnpackUintToInt16(uint x)
@@ -564,7 +564,7 @@ namespace Math
 
     uint16_t2 EncodeAsUNorm2(float2 u)
     {
-        return uint16_t2(round(saturate(u) * float((1 << 16) - 1)));
+        return uint16_t2(mad(saturate(u), float((1 << 16) - 1), 0.5));
     }
 
     float2 DecodeUNorm2(uint16_t2 i)
@@ -689,7 +689,7 @@ namespace Math
         return ret;
     }
 
-    float3 UnpackRGB(uint rgb)
+    float3 UnpackRGB8(uint rgb)
     {
         float3 ret;
         ret.x = float(rgb & 0xff) / 255.0f;
@@ -699,7 +699,7 @@ namespace Math
         return ret;
     }
 
-    float4 UnpackRGBA(uint rgba)
+    float4 UnpackRGBA8(uint rgba)
     {
         float4 ret;
         ret.x = float(rgba & 0xff) / 255.0f;
@@ -712,8 +712,7 @@ namespace Math
 
     uint Float3ToRGB8(float3 v)
     {
-        v = round(v * 255.0f);
-        uint3 u = uint3(v);
+        uint3 u = (uint3)mad(v, 255.0f, 0.5f);
         uint packed = u.x | (u.y << 8) | (u.z << 16);
 
         return packed;

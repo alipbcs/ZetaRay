@@ -187,13 +187,15 @@ namespace GBufferRT
         // Apply negative mip bias when upscaling
         grads *= g_frame.CameraRayUVGradsScale;
 
-        float3 baseColor = Math::UnpackRGBA(mat.BaseColorFactor).rgb;
-        float4 emissiveColorNormalScale = Math::UnpackRGBA(mat.EmissiveFactorNormalScale);
-        float2 metalnessAlphaCuttoff = Math::UnpackRG(mat.MetallicFactorAlphaCuttoff);
+        float3 baseColor = mat.GetBaseColorFactor();
+        float3 emissiveColor = mat.GetEmissiveFactor();
+        float normalScale = mat.GetNormalScale();
+        float metallic = mat.IsMetallic() ? 1.0f : 0.0f;
+        float alphaCutoff = mat.GetAlphaCutoff();
         float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
-        if (mat.BaseColorTexture != UINT32_MAX)
+        if (mat.BaseColorTexture != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
                 mat.BaseColorTexture);
@@ -205,16 +207,16 @@ namespace GBufferRT
              baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
         }
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-        const uint16_t normalTex = mat.GetNormalTex();
+        const uint32_t normalTex = mat.NormalTexture;
 
-        if (normalTex != UINT16_MAX && abs(dot(tangent, tangent)) > 1e-6)
+        if (normalTex != Material::INVALID_ID && abs(dot(tangent, tangent)) > 1e-6)
         {
             uint offset = NonUniformResourceIndex(g_frame.NormalMapsDescHeapOffset + normalTex);
             NORMAL_MAP g_normalMap = ResourceDescriptorHeap[offset];
             float2 bump2 = g_normalMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
             shadingNormal = Math::TangentSpaceToWorldSpace(bump2, tangent, geoNormal, 
-                emissiveColorNormalScale.w);
+                normalScale);
         }
 
         // reverse normal for double-sided meshes if facing away from camera
@@ -242,40 +244,38 @@ namespace GBufferRT
         }
 #endif
 
-        const uint16_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
 
-        if (metallicRoughnessTex != UINT16_MAX)
+        if (metallicRoughnessTex != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.MetallicRoughnessMapsDescHeapOffset + 
                 metallicRoughnessTex);
             METALLIC_ROUGHNESS_MAP g_metallicRoughnessMap = ResourceDescriptorHeap[offset];
             float2 mr = g_metallicRoughnessMap.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw);
 
-            metalnessAlphaCuttoff.x *= mr.x;
+            metallic *= mr.x;
             roughness *= mr.y;
         }
 
-        uint16_t emissiveTex = mat.GetEmissiveTex();
+        uint32_t emissiveTex = mat.GetEmissiveTex();
         float emissiveStrength = (float)mat.GetEmissiveStrength();
 
-        if (emissiveTex != UINT16_MAX)
+        if (emissiveTex != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.EmissiveMapsDescHeapOffset + emissiveTex);
             EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
-            emissiveColorNormalScale.rgb *= g_emissiveMap.SampleLevel(g_samLinearWrap, uv, 0).xyz;
+            emissiveColor *= g_emissiveMap.SampleLevel(g_samLinearWrap, uv, 0).xyz;
         }
         
-        emissiveColorNormalScale.rgb *= emissiveStrength;
+        emissiveColor *= emissiveStrength;
 
         // encode metalness along with some other stuff
-        float tr = mat.GetTransmission();
+        bool transmissive = mat.IsTransmissive();
         float ior = mat.GetIOR();
-        bool transmissive = tr >= MIN_SPEC_TR_TRANSMISSIVE;
-        metalnessAlphaCuttoff.x = GBuffer::EncodeMetallic(metalnessAlphaCuttoff.x, transmissive, 
-            emissiveColorNormalScale.rgb);
+        float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor);
 
-        WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, metalnessAlphaCuttoff.x, 
-            roughness, emissiveColorNormalScale.rgb, motionVec, transmissive, ior, dpdu, dpdv, dndu,
+        WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, encoded, 
+            roughness, emissiveColor, motionVec, transmissive, ior, dpdu, dpdv, dndu,
             dndv, g_local);
     }
 }

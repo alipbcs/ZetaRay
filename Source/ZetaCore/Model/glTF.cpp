@@ -483,7 +483,7 @@ namespace
             glTF::Asset::MaterialDesc desc;
             desc.Index = m;
             desc.AlphaMode = getAlphaMode(mat.alpha_mode);
-            desc.AlphaCuttoff = (float)mat.alpha_cutoff;
+            desc.AlphaCutoff = (float)mat.alpha_cutoff;
             desc.DoubleSided = mat.double_sided;
 
             // Base Color map
@@ -673,7 +673,7 @@ namespace
                             context.RTEmissives[currGlobalTriIdx++] = RT::EmissiveTriangle(
                                 v0.Position, v1.Position, v2.Position,
                                 v0.TexUV, v1.TexUV, v2.TexUV,
-                                emissiveFactorRGB, mat->EmissiveTexture_Strength, 
+                                emissiveFactorRGB, mat->GetEmissiveTex(), mat->GetEmissiveStrength(),
                                 currMeshTriIdx++, mat->IsDoubleSided());
                         }
                     }

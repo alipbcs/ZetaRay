@@ -1,10 +1,12 @@
 #ifndef RTCOMMON_H
 #define RTCOMMON_H
 
-#include "../Core/HLSLCompat.h"
+#include "../Core/Material.h"
 
 #ifdef __cplusplus
 #include "../Math/VectorFuncs.h"
+#else
+#include "../../ZetaRenderPass/Common/Math.hlsli"
 #endif
 
 // When enabled, instead of storing vertex positions directly, store normalized 
@@ -58,23 +60,21 @@ namespace ZetaRay
 
             // inline alpha stuff to avoid loading material data in anyhit shaders
             uint16_t BaseColorTex;
-            uint16_t AlphaFactor_Cuttoff;
+            uint16_t AlphaFactor_Cutoff;
         };
 
         struct EmissiveTriangle
         {
-            static const uint32_t TriIDPatchedBit = 26;
-            static const uint32_t DoubleSidedBit = 27;
+            static const uint32_t TriIDPatchedBit = 24;
+            static const uint32_t DoubleSidedBit = 25;
 
 #ifdef __cplusplus
             EmissiveTriangle() = default;
             EmissiveTriangle(const Math::float3& vtx0, const Math::float3& vtx1, const Math::float3& vtx2,
                 const Math::float2& uv0, const Math::float2& uv1, const Math::float2& uv2,
-                uint32_t emissiveFactorRGB8, uint32_t emissiveTex_Strength, uint32_t triIdx, 
-                bool doubleSided = true)
+                uint32_t emissiveFactorRGB8, uint32_t emissiveTex, Math::half emissiveStr, 
+                uint32_t triIdx, bool doubleSided = true)
                 : ID(triIdx),
-                EmissiveFactor(emissiveFactorRGB8 & 0xffffff),
-                EmissiveTex_Strength(emissiveTex_Strength),
                 UV0(uv0),
                 UV1(uv1),
                 UV2(uv2)
@@ -84,7 +84,10 @@ namespace ZetaRay
                 __m128 v2 = Math::loadFloat3(const_cast<Math::float3&>(vtx2));
                 StoreVertices(v0, v1, v2);
 
-                EmissiveFactor |= (doubleSided << DoubleSidedBit);
+                PackedA = emissiveFactorRGB8 & 0xffffff;
+                PackedA |= (doubleSided << DoubleSidedBit);
+                PackedA |= ((emissiveStr.x & 0xf) << 28);
+                PackedB = emissiveTex | ((emissiveStr.x >> 4) << Material::NUM_TEXTURE_BITS);
             }
 #endif
 
@@ -99,10 +102,12 @@ namespace ZetaRay
             float3_ Vtx2;
 #endif
 
-            // At first triangle index within the mesh, then changed to tri ID
+            // Initially, triangle index within the mesh, then changed to tri ID
             uint32_t ID;
-            uint32_t EmissiveFactor;
-            uint32_t EmissiveTex_Strength;
+            // [0 - 23]: Emissive factor, [24 - 27]: flags, [28-31]: 1st 4 bits of strength
+            uint32_t PackedA;
+            // [0 - 19]: Texture, [20 - 31]: Last 8 bits of strength
+            uint32_t PackedB;
 
             EMISSIVE_UV_TYPE UV0;
             EMISSIVE_UV_TYPE UV1;
@@ -110,7 +115,28 @@ namespace ZetaRay
 
             bool IsDoubleSided() CONST
             {
-                return EmissiveFactor & (1u << DoubleSidedBit);
+                return PackedA & (1u << DoubleSidedBit);
+            }
+
+            half_ GetStrength() CONST
+            {
+                uint32_t str = PackedA >> 28;
+                str = str | ((PackedB >> Material::NUM_TEXTURE_BITS) << 4);
+#ifdef __cplusplus
+                return Math::half::asfloat16((uint16_t)str);
+#else
+                return asfloat16((uint16_t)str);
+#endif
+            }
+
+            float3_ GetFactor() CONST
+            {
+                return Math::UnpackRGB8(PackedA);
+            }
+
+            uint32_t GetTex() CONST
+            {
+                return PackedB & Material::TEXTURE_MASK;
             }
 
 #ifdef __cplusplus
@@ -210,12 +236,12 @@ namespace ZetaRay
 
             ZetaInline bool IsIDPatched()
             {
-                return EmissiveFactor & (1u << TriIDPatchedBit);
+                return PackedA & (1u << TriIDPatchedBit);
             }
 
             ZetaInline void ResetID(uint32_t id)
             {
-                EmissiveFactor |= (1u << TriIDPatchedBit);
+                PackedA |= (1u << TriIDPatchedBit);
                 ID = id;
             }
 
@@ -233,31 +259,20 @@ namespace ZetaRay
             ZetaInline void SetStrength(float newStrength)
             {
                 Math::half h(newStrength);
-                EmissiveTex_Strength = (uint32_t(h.x) << 16) | (EmissiveTex_Strength & 0xffff);
+                SetStrength(h);
             }
 
             ZetaInline void SetStrength(Math::half newStrength)
             {
-                EmissiveTex_Strength = (uint32_t(newStrength.x) << 16) | (EmissiveTex_Strength & 0xffff);
+                PackedA = PackedA & (Material::LOWER_28_BITS_MASK);
+                PackedA |= ((newStrength.x & 0xf) << 28);
+                PackedB = PackedB & Material::TEXTURE_MASK;
+                PackedB |= (newStrength.x >> 4) << Material::NUM_TEXTURE_BITS;
             }
 
             ZetaInline void SetEmissiveFactor(uint32_t newFactorRGB8)
             {
-                uint32_t doubleSided = IsDoubleSided();
-                EmissiveFactor = newFactorRGB8 & 0xffffff;
-                EmissiveFactor |= (doubleSided << DoubleSidedBit);
-            }
-#endif
-
-#ifndef __cplusplus
-            uint16_t GetEmissiveTex()
-            {
-                return uint16_t(EmissiveTex_Strength & 0xffff);
-            }
-
-            half GetEmissiveStrength()
-            {
-                return asfloat16(uint16_t(EmissiveTex_Strength >> 16));
+                PackedA = newFactorRGB8 | (PackedA & Material::UPPER_8_BITS_MASK);
             }
 #endif
         };

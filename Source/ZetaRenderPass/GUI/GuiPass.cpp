@@ -1101,10 +1101,10 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
     if (ImGui::TreeNode("Base"))
     {
-        float3 color = Math::RGBToFloat3(mat.BaseColorFactor);
-        const bool baseColorTextured = mat.BaseColorTexture != UINT32_MAX;
-        const bool mrTextured = mat.GetMetallicRoughnessTex() != UINT32_MAX;
-        bool metallic = mat.GetMetallic() >= MIN_METALNESS_METAL;
+        float3 color = mat.GetBaseColorFactor();
+        const bool baseColorTextured = mat.BaseColorTexture != Material::INVALID_ID;
+        const bool mrTextured = mat.GetMetallicRoughnessTex() != Material::INVALID_ID;
+        bool metallic = mat.IsMetallic();
 
         if (baseColorTextured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
@@ -1123,7 +1123,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         if (ImGui::Checkbox("Metallic", &metallic))
         {
-            mat.SetMetallicFactor(metallic ? 1.0f : 0.0f);
+            mat.SetMetallic(metallic);
             modified = true;
         }
 
@@ -1136,7 +1136,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
     {
         float roughness = mat.GetRoughnessFactor();
         float ior = mat.GetIOR();
-        const bool mrTextured = mat.GetMetallicRoughnessTex() != UINT16_MAX;
+        const bool mrTextured = mat.GetMetallicRoughnessTex() != Material::INVALID_ID;
 
         if (mrTextured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
@@ -1160,9 +1160,9 @@ void GuiPass::MaterialTab(uint64 pickedID)
     }
     if (ImGui::TreeNode("Transmission"))
     {
-        bool transmissive = mat.GetTransmission() >= MIN_SPEC_TR_TRANSMISSIVE;
-        const bool baseColorTextured = mat.BaseColorTexture != UINT32_MAX;
-        float3 color = Math::RGBToFloat3(mat.BaseColorFactor);
+        bool transmissive = mat.IsTransmissive();
+        const bool baseColorTextured = mat.BaseColorTexture != Material::INVALID_ID;
+        float3 color = mat.GetBaseColorFactor();
 
         if (ImGui::Checkbox("Transmissive", &transmissive))
         {
@@ -1185,14 +1185,14 @@ void GuiPass::MaterialTab(uint64 pickedID)
         ImGui::TreePop();
     }
     
-    float3 emissiveFactor = Math::RGBToFloat3(mat.EmissiveFactorNormalScale);
-    float emissiveStrength = Math::HalfToFloat(mat.GetEmissiveStrength().x);
+    float3 emissiveFactor = mat.GetEmissiveFactor();
+    float emissiveStrength = HalfToFloat(mat.GetEmissiveStrength().x);
     bool colorEditFinished = false;
     bool strEditFinished = false;
 
     if (ImGui::TreeNode("Emission"))
     {
-        const bool textured = mat.GetEmissiveTex() != UINT16_MAX;
+        const bool textured = mat.GetEmissiveTex() != Material::INVALID_ID;
 
         if (!mat.IsEmissive())
             ImGui::BeginDisabled();

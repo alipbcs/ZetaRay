@@ -38,11 +38,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     const uint laneIdx = WaveGetLaneIndex();
     const RT::EmissiveTriangle tri = g_emissvies[triIdx];
-
-    uint16_t emissiveTex = tri.GetEmissiveTex();
+    uint32_t emissiveTex = tri.GetTex();
 
     float3 lumen = 0.0f;
-    const bool hasTexture = emissiveTex != UINT16_MAX;
+    const bool hasTexture = emissiveTex != Material::INVALID_ID;
 
     if (hasTexture)
     {
@@ -65,8 +64,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     lumen = hasTexture ? WaveActiveSum(lumen) : ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI;
 
-    const float3 emissiveFactor = Math::UnpackRGB(tri.EmissiveFactor);
-    const float emissiveStrength = (float)tri.GetEmissiveStrength();
+    const float3 emissiveFactor = tri.GetFactor();
+    const float emissiveStrength = (float)tri.GetStrength();
     lumen = lumen * emissiveFactor * emissiveStrength;
 
     const float3 vtx1 = Light::DecodeEmissiveTriV1(tri);

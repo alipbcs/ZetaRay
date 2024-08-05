@@ -695,7 +695,7 @@ void TLAS::BuildFrameMeshInstanceData()
             (uint16_t)mat->BaseColorTexture;
 
         float alpha = float((mat->BaseColorFactor >> 24) & 0xff) / 255.0f;
-        m_frameInstanceData[currInstance].AlphaFactor_Cuttoff = Float2ToRG8(float2(alpha, mat->GetAlphaCuttoff()));
+        m_frameInstanceData[currInstance].AlphaFactor_Cutoff = Float2ToRG8(float2(alpha, mat->GetAlphaCutoff()));
 
         const float4x3& M_prev = *scene.GetPrevToWorld(currTreeLevel.m_IDs[levelIdx]).value();
         v_float4x4 vM_prev = load4x3(M_prev);

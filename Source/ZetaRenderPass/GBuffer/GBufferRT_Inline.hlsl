@@ -38,13 +38,13 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 {
     const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(geoIdx + instanceID)];
 
-    float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cuttoff);
+    float2 alphaFactor_cutoff = Math::UnpackRG(meshData.AlphaFactor_Cutoff);
     if(alphaFactor_cutoff.y == 1.0)
         return false;
 
     float alpha = alphaFactor_cutoff.x;
 
-    if(meshData.BaseColorTex != UINT16_MAX)
+    if(meshData.BaseColorTex != Material::INVALID_ID)
     {
         uint tri = primIdx * 3;
         tri += meshData.BaseIdxOffset;
@@ -58,8 +58,9 @@ bool TestOpacity(uint geoIdx, uint instanceID, uint primIdx, float2 bary)
 
         float2 uv = V0.TexUV + bary.x * (V1.TexUV - V0.TexUV) + bary.y * (V2.TexUV - V0.TexUV);
 
-        BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex)];
-        alpha = g_baseCol.SampleLevel(g_samLinearWrap, uv, 0).a;
+        uint descHeadpIdx = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + meshData.BaseColorTex);
+        BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[descHeadpIdx];
+        alpha *= g_baseCol.SampleLevel(g_samLinearWrap, uv, 0).a;
     }
 
     if (alpha < alphaFactor_cutoff.y) 

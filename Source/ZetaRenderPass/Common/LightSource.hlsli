@@ -174,15 +174,15 @@ namespace Light
     float3 Le_EmissiveTriangle(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset, 
         SamplerState s = g_samPointWrap)
     {
-        const float3 emissiveFactor = Math::UnpackRGB(tri.EmissiveFactor);
-        const float emissiveStrength = (float)tri.GetEmissiveStrength();
+        const float3 emissiveFactor = tri.GetFactor();
+        const float emissiveStrength = (float)tri.GetStrength();
         float3 le = emissiveFactor * emissiveStrength;
 
         if (Math::Luminance(le) < 1e-5)
             return 0.0;
 
-        uint16_t emissiveTex = tri.GetEmissiveTex();
-        if (emissiveTex != UINT16_MAX)
+        uint32_t emissiveTex = tri.GetTex();
+        if (emissiveTex != Material::INVALID_ID)
         {
             const uint offset = NonUniformResourceIndex(emissiveMapsDescHeapOffset + emissiveTex);
             EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
