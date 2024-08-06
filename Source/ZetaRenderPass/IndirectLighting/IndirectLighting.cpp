@@ -1262,7 +1262,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         ParamVariant rejectOutliers;
         rejectOutliers.InitBool("Renderer", "Indirect Lighting", "Reject Outlier Samples",
             fastdelegate::MakeDelegate(this, &IndirectLighting::RejectOutliersCallback),
-            false, "Reuse");
+            true, "Reuse");
         App::AddParam(rejectOutliers);
     }
 }

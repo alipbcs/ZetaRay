@@ -60,10 +60,7 @@ namespace ZetaRay::Util
         // Generates a uniformly distributed float in [0, 1)
         float Uniform()
         {
-            constexpr float oneSubEps = 0x1.fffffep-1;
-            const float uniformFloat01Inclusive = UniformUint() * 0x1p-32f;
-            
-            return uniformFloat01Inclusive < oneSubEps ? uniformFloat01Inclusive : oneSubEps;
+            return float(UniformUint() >> 8) * 0x1p-24f;
         }
 
         Math::float2 Uniform2D()

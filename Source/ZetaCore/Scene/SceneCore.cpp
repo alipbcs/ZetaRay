@@ -625,6 +625,8 @@ void SceneCore::UpdateEmissive(uint64_t instanceID, const float3& emissiveFactor
     m_emissives.Update(instanceID, emissiveFactor, strength);
 }
 
+// Currently, not needed
+#if 0
 void SceneCore::RebuildBVH()
 {
     SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
@@ -656,6 +658,7 @@ void SceneCore::RebuildBVH()
 
     m_bvh.Build(allInstances);
 }
+#endif
 
 void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances)
 {

@@ -99,6 +99,8 @@ namespace ZetaRay::App
         MsgType Type;
     };
 
+    static constexpr int FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE = 512 * 1024;
+
     void Init(Scene::Renderer::Interface& rendererInterface, 
         const char* name = nullptr);
     int Run();
@@ -106,7 +108,6 @@ namespace ZetaRay::App
 
     void* AllocateFrameAllocator(size_t size, 
         size_t alignment = alignof(std::max_align_t));
-    size_t MaxFrameAllocationSize();
 
     int RegisterTask();
     void TaskFinalizedCallback(int handle, int indegree);
@@ -189,7 +190,7 @@ namespace ZetaRay::App
 #ifdef _DEBUG
             Assert(m_numAllocs++ == 0, "This allocator can't be used more than once.");
 #endif
-            if (size + alignment - 1 < App::MaxFrameAllocationSize())
+            if (size + alignment - 1 < App::FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE)
                 return App::AllocateFrameAllocator(size, alignment);
 
             m_usedFallback = true;

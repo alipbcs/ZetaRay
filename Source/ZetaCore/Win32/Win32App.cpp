@@ -144,7 +144,7 @@ namespace
         static constexpr int NUM_BACKGROUND_THREADS = 2;
         static constexpr int MAX_NUM_TASKS_PER_FRAME = 256;
         static constexpr int CLIPBOARD_LEN = 128;
-        static constexpr int FRAME_ALLOCATOR_BLOCK_SIZE = 512 * 1024;
+        static constexpr int FRAME_ALLOCATOR_BLOCK_SIZE = FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE;
 
         struct alignas(64) TaskSignal
         {
@@ -473,15 +473,18 @@ namespace ZetaRay::AppImpl
         Check(f.Data, "font was not found.");
 
         constexpr float fontSizePixels96 = 12.0f;
-        const float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
+        float fontSizePixelsDPI = ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI) * fontSizePixels96;
+        fontSizePixelsDPI = roundf(fontSizePixelsDPI);
 
         ImFontConfig font_cfg;
         font_cfg.FontDataOwnedByAtlas = false;
-        io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data), fontSizePixelsDPI, &font_cfg);
+        io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data), 
+            fontSizePixelsDPI, &font_cfg);
 
         float baseFontSize = 16;
         baseFontSize *= ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
-        float iconFontSize = baseFontSize * 2.0f / 3.0f; // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
+        // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
+        float iconFontSize = baseFontSize * 2.0f / 3.0f;
 
         static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
         ImFontConfig icons_config;
@@ -491,7 +494,8 @@ namespace ZetaRay::AppImpl
         icons_config.FontDataOwnedByAtlas = false;
 
         auto iconFont = fpGetFont(FONT_TYPE::FONT_AWESOME_6);
-        io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(iconFont.Data), (int)iconFont.N, iconFontSize, &icons_config, icons_ranges);
+        io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(iconFont.Data), (int)iconFont.N, 
+            iconFontSize, &icons_config, icons_ranges);
 
         unsigned char* pixels;
         int width;
@@ -505,7 +509,7 @@ namespace ZetaRay::AppImpl
         Direct3DUtil::CreateTexture2DSRV(g_app->m_imguiFontTex, g_app->m_fontTexSRV.CPUHandle(0));
 
         const uint32_t gpuDescHeapIdx = g_app->m_fontTexSRV.GPUDesciptorHeapIndex(0);
-        Assert(sizeof(gpuDescHeapIdx) <= sizeof(io.UserData), "overflow");
+        static_assert(sizeof(gpuDescHeapIdx) <= sizeof(io.UserData), "overflow");
         memcpy(&io.UserData, &gpuDescHeapIdx, sizeof(gpuDescHeapIdx));
 
         FreeLibrary(fontLib);
@@ -591,8 +595,10 @@ namespace ZetaRay::AppImpl
         ImGuiIO& io = ImGui::GetIO();
         io.DisplaySize = ImVec2((float)g_app->m_displayWidth, (float)g_app->m_displayHeight);
         io.IniFilename = nullptr;
-        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;         // We can honor GetMouseCursor() values (optional)
-        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;          // We can honor io.WantSetMousePos requests (optional, rarely used)
+        // We can honor GetMouseCursor() values (optional)
+        io.BackendFlags |= ImGuiBackendFlags_HasMouseCursors;
+        // We can honor io.WantSetMousePos requests (optional, rarely used)
+        io.BackendFlags |= ImGuiBackendFlags_HasSetMousePos;
 
         LoadFont();
 
@@ -639,24 +645,33 @@ namespace ZetaRay::AppImpl
         ImGui_UpdateMouse();
         ImGui::NewFrame();
 
+        if (!(GetAsyncKeyState(VK_LSHIFT) & (1 << 16)))
+        {
+            float scale = g_app->m_inMouseWheelMove ? g_app->m_inMouseWheelMove * 20 : 1.0f;
+            scale = g_app->m_frameMotion.Acceleration.z != 0 || g_app->m_frameMotion.Acceleration.x != 0 ?
+                fabsf(scale) : scale;
+
+            if (g_app->m_inMouseWheelMove || (GetAsyncKeyState('W') & (1 << 16)))
+                g_app->m_frameMotion.Acceleration.z = 1;
+            if (GetAsyncKeyState('A') & (1 << 16))
+                g_app->m_frameMotion.Acceleration.x = -1;
+            if (!g_app->m_inMouseWheelMove && (GetAsyncKeyState('S') & (1 << 16)))
+                g_app->m_frameMotion.Acceleration.z = -1;
+            if (GetAsyncKeyState('D') & (1 << 16))
+                g_app->m_frameMotion.Acceleration.x = 1;
+
+            g_app->m_frameMotion.Acceleration.normalize();
+            g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
+        }
+        else
+        {
+            if(g_app->m_inMouseWheelMove)
+                g_app->m_cameraAcceleration *= (1 + g_app->m_inMouseWheelMove * 0.1f);
+        }
+
+        g_app->m_inMouseWheelMove = 0;
         g_app->m_frameMotion.dt = (float)g_app->m_timer.GetElapsedTime();
 
-        float scale = g_app->m_inMouseWheelMove ? g_app->m_inMouseWheelMove * 20 : 1.0f;
-        scale = g_app->m_frameMotion.Acceleration.z != 0 || g_app->m_frameMotion.Acceleration.x != 0 ?
-            fabsf(scale) : scale;
-
-        if (g_app->m_inMouseWheelMove || (GetAsyncKeyState('W') & (1 << 16)))
-            g_app->m_frameMotion.Acceleration.z = 1;
-        if (GetAsyncKeyState('A') & (1 << 16))
-            g_app->m_frameMotion.Acceleration.x = -1;
-        if (!g_app->m_inMouseWheelMove && (GetAsyncKeyState('S') & (1 << 16)))
-            g_app->m_frameMotion.Acceleration.z = -1;
-        if (GetAsyncKeyState('D') & (1 << 16))
-            g_app->m_frameMotion.Acceleration.x = 1;
-
-        g_app->m_frameMotion.Acceleration.normalize();
-        g_app->m_frameMotion.Acceleration *= g_app->m_cameraAcceleration * scale;
-        g_app->m_inMouseWheelMove = 0;
         g_app->m_camera.Update(g_app->m_frameMotion);
 
         if (g_app->m_picked)
@@ -691,7 +706,6 @@ namespace ZetaRay::AppImpl
             g_app->m_renderer.OnWindowSizeChanged(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight,
                 g_app->m_displayWidth, g_app->m_displayHeight);
             g_app->m_scene.OnWindowSizeChanged();
-
             g_app->m_camera.OnWindowSizeChanged();
 
             ImGuiIO& io = ImGui::GetIO();
@@ -742,7 +756,6 @@ namespace ZetaRay::AppImpl
             ShowWindow(g_app->m_hwnd, SW_NORMAL);
         }
 
-        printf("g_app->m_isFullScreen was: %d\n", g_app->m_isFullScreen);
         g_app->m_isFullScreen = !g_app->m_isFullScreen;
     }
 
@@ -905,7 +918,8 @@ namespace ZetaRay::AppImpl
         if (g_app->m_imguiMouseTrackedArea != area)
         {
             TRACKMOUSEEVENT tme_cancel = { sizeof(tme_cancel), TME_CANCEL, hwnd, 0 };
-            TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
+            TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? 
+                (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
             if (g_app->m_imguiMouseTrackedArea != 0)
                 TrackMouseEvent(&tme_cancel);
 
@@ -914,7 +928,8 @@ namespace ZetaRay::AppImpl
         }
 
         POINT mouse_pos = { (LONG)GET_X_LPARAM(lParam), (LONG)GET_Y_LPARAM(lParam) };
-        if (message == WM_NCMOUSEMOVE && ScreenToClient(hwnd, &mouse_pos) == FALSE) // WM_NCMOUSEMOVE are provided in absolute coordinates.
+        // WM_NCMOUSEMOVE are provided in absolute coordinates.
+        if (message == WM_NCMOUSEMOVE && ScreenToClient(hwnd, &mouse_pos) == FALSE)
             return;
 
         io.AddMouseSourceEvent(mouse_source);
@@ -945,8 +960,6 @@ namespace ZetaRay::AppImpl
             return;
 
         ImGuiIO& io = ImGui::GetIO();
-
-        //io.MouseWheel += (float)GET_WHEEL_DELTA_WPARAM(btnState) / (float)WHEEL_DELTA;
         io.AddMouseWheelEvent(0.0f, (float)GET_WHEEL_DELTA_WPARAM(btnState) / (float)WHEEL_DELTA);
 
         if (!io.WantCaptureMouse)
@@ -1027,8 +1040,10 @@ namespace ZetaRay::AppImpl
         *uxthemeLib = LoadLibraryExA("uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (*uxthemeLib)
         {
-            fnOpenNcThemeData openNcThemeData = reinterpret_cast<fnOpenNcThemeData>(GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(49)));
-            fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState = reinterpret_cast<fnRefreshImmersiveColorPolicyState>(
+            fnOpenNcThemeData openNcThemeData = reinterpret_cast<fnOpenNcThemeData>(
+                GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(49)));
+            fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState = 
+                reinterpret_cast<fnRefreshImmersiveColorPolicyState>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(104)));
             fnShouldAppsUseDarkMode shouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(132)));
@@ -1038,8 +1053,9 @@ namespace ZetaRay::AppImpl
             auto ord135 = GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(135));
             fnSetPreferredAppMode setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(ord135);
 
-            fnIsDarkModeAllowedForWindow isDarkModeAllowedForWindow = reinterpret_cast<fnIsDarkModeAllowedForWindow>(
-                GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(137)));
+            fnIsDarkModeAllowedForWindow isDarkModeAllowedForWindow = 
+                reinterpret_cast<fnIsDarkModeAllowedForWindow>(GetProcAddress(*uxthemeLib, 
+                    MAKEINTRESOURCEA(137)));
 
             if (openNcThemeData &&
                 refreshImmersiveColorPolicyState &&
@@ -1076,7 +1092,8 @@ namespace ZetaRay::AppImpl
             HMODULE uxthemeLib = nullptr;
             BOOL dark = TryInitDarkMode(&uxthemeLib);
 
-            fnSetWindowCompositionAttribute setWindowCompositionAttribute = reinterpret_cast<fnSetWindowCompositionAttribute>(
+            fnSetWindowCompositionAttribute setWindowCompositionAttribute = 
+                reinterpret_cast<fnSetWindowCompositionAttribute>(
                 GetProcAddress(GetModuleHandleA("user32.dll"), "SetWindowCompositionAttribute"));
             if (setWindowCompositionAttribute)
             {
@@ -1140,7 +1157,7 @@ namespace ZetaRay::AppImpl
         case WM_CHAR:
         {
             wchar_t wch = 0;
-            MultiByteToWideChar(CP_UTF8, MB_PRECOMPOSED, (char*)&wParam, 1, &wch, 1);
+            MultiByteToWideChar(CP_ACP, MB_PRECOMPOSED, (char*)&wParam, 1, &wch, 1);
             ImGui::GetIO().AddInputCharacter(wch);
         }
         return 0;
@@ -1250,7 +1267,6 @@ namespace ZetaRay::AppImpl
 
         Assert(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "GetLogicalProcessorInformation() failed.");
         buffer = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION*>(malloc(buffSize));
-        Assert(buffer, "malloc() failed.");
 
         bool rc = GetLogicalProcessorInformation(buffer, &buffSize);
         Assert(rc, "GetLogicalProcessorInformation() failed.");
@@ -1396,7 +1412,7 @@ namespace ZetaRay
     LogMessage::LogMessage(const char* msg, LogMessage::MsgType t)
     {
         const int n = Math::Min((int)strlen(msg), LogMessage::MAX_LEN - 1);
-        Assert(n > 0, "invalid log message.");
+        Assert(n > 0, "Invalid log message.");
 
         const char* logType = t == MsgType::INFO ? "INFO" : "WARNING";
         Type = t;
@@ -1642,24 +1658,20 @@ namespace ZetaRay
             g_app->m_frameMemoryContext, size, alignment);
     }
 
-    size_t App::MaxFrameAllocationSize()
-    {
-        return AppData::FRAME_ALLOCATOR_BLOCK_SIZE;
-    }
-
     int App::RegisterTask()
     {
         int idx = g_app->m_currTaskSignalIdx.fetch_add(1, std::memory_order_relaxed);
-        Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME, "number of task signals exceeded MAX_NUM_TASKS_PER_FRAME");
+        Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME, 
+            "Number of task signals exceeded MAX_NUM_TASKS_PER_FRAME.");
 
         return idx;
     }
 
     void App::TaskFinalizedCallback(int handle, int indegree)
     {
-        Assert(indegree > 0, "unnecessary call.");
+        Assert(indegree > 0, "Redundant call.");
         const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
-        Assert(handle < c, "received handle %d while #handles for current frame is %d", c);
+        Assert(handle < c, "Received handle %d while #handles for current frame is %d.", c);
 
         g_app->m_registeredTasks[handle].Indegree.store(indegree, std::memory_order_release);
         g_app->m_registeredTasks[handle].BlockFlag.store(true, std::memory_order_release);
@@ -1668,11 +1680,11 @@ namespace ZetaRay
     void App::WaitForAdjacentHeadNodes(int handle)
     {
         const int c = g_app->m_currTaskSignalIdx.load(std::memory_order_relaxed);
-        Assert(handle >= 0 && handle < c, "received handle %d while #handles for current frame is %d", c);
+        Assert(handle >= 0 && handle < c, "Received handle %d while #handles for current frame is %d.", c);
 
         auto& taskSignal = g_app->m_registeredTasks[handle];
         const int indegree = taskSignal.Indegree.load(std::memory_order_acquire);
-        Assert(indegree >= 0, "invalid task indegree");
+        Assert(indegree >= 0, "Invalid task indegree.");
 
         if (indegree != 0)
         {
@@ -1699,7 +1711,8 @@ namespace ZetaRay
 
     void App::Submit(Task&& t)
     {
-        Assert(t.GetPriority() == TASK_PRIORITY::NORMAL, "Background task is not allowed to be executed in main thread-pool");
+        Assert(t.GetPriority() == TASK_PRIORITY::NORMAL, 
+            "Background task is not allowed to be executed on the main thread pool.");
         g_app->m_workerThreadPool.Enqueue(ZetaMove(t));
     }
 
@@ -1710,7 +1723,8 @@ namespace ZetaRay
 
     void App::SubmitBackground(Task&& t)
     {
-        Assert(t.GetPriority() == TASK_PRIORITY::BACKGRUND, "Normal task is not allowed to be executed in background thread-pool");
+        Assert(t.GetPriority() == TASK_PRIORITY::BACKGRUND, 
+            "Normal-priority task is not allowed to be executed on the background thread pool.");
         g_app->m_backgroundThreadPool.Enqueue(ZetaMove(t));
     }
 
@@ -1750,7 +1764,7 @@ namespace ZetaRay
 
     void App::SetUpscaleFactor(float f)
     {
-        Assert(f >= 1.0f, "invalid upscale factor.");
+        Assert(f >= 1.0f, "Invalid upscale factor.");
         const float oldScaleFactor = g_app->m_upscaleFactor;
 
         if (f != oldScaleFactor)

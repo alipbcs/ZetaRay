@@ -43,8 +43,8 @@ float4 mainPS(VSOut psin) : SV_Target
 {
     const float2 uv = psin.PosSS.xy / float2(g_frame.DisplayWidth, g_frame.DisplayHeight);
 
-    Texture2D<half4> g_composited = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
-    //float4 composited = g_composited[psin.PosSS.xy].rgba;
+    Texture2D<float4> g_composited = ResourceDescriptorHeap[g_local.InputDescHeapIdx];
+    // float3 composited = g_composited[psin.PosSS.xy].rgb;
     float3 composited = g_composited.SampleLevel(g_samPointClamp, uv, 0).rgb;
     float3 display = composited;
 

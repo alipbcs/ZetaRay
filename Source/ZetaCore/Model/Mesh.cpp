@@ -1,36 +1,12 @@
 #include "Mesh.h"
-#include "../Math/Common.h"
-#include "../Math/CollisionFuncs.h"
 #include "../Math/Surface.h"
 #include "../Math/MatrixFuncs.h"
-#include <limits.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Model;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Math;
-
-//--------------------------------------------------------------------------------------
-// TriangleMesh
-//--------------------------------------------------------------------------------------
-
-TriangleMesh::TriangleMesh(Util::Span<Core::Vertex> vertices, 
-    uint32_t vtxBuffStartOffset,
-    uint32_t idxBuffStartOffset,
-    uint32_t numIndices, 
-    uint32_t matIdx)
-    : m_numIndices(numIndices),
-    m_materialIdx(matIdx),
-    m_vtxBuffStartOffset(vtxBuffStartOffset),
-    m_idxBuffStartOffset(idxBuffStartOffset) 
-{
-    Assert(vertices.size() < UINT_MAX, "Number of vertices exceeded maximum allowed.");
-    m_numVertices = (uint32_t)vertices.size();
-
-    v_AABB vBox = compueMeshAABB(vertices.data(), offsetof(Vertex, Position), sizeof(Vertex), m_numVertices);
-    m_AABB = store(vBox);
-}
 
 //--------------------------------------------------------------------------------------
 // PrimitiveMesh
