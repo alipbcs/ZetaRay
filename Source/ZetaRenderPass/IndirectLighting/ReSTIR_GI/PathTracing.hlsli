@@ -16,6 +16,7 @@ namespace ReSTIR_RT
         float3 throughput = 1.0f;
         float eta_curr = dot(normal, bsdfSample.wi) < 0 ? ior : ETA_AIR;
         int bounce = 0;
+        bool inTranslucentMedium = dot(normal, bsdfSample.wi) < 0;
 
         while(true)
         {
@@ -36,6 +37,15 @@ namespace ReSTIR_RT
             // Next event estimation
             li += throughput * RGI_Util::NEE(hitPos, hitInfo.normal, surface, sampleSetIdx, bounce, 
                 g_frame, globals, rngThread).ld;
+
+#if ACCOUNT_FOR_TRANSMITTANCE == 1
+            // Beer's law
+            if(inTranslucentMedium && (surface.trDepth > 0))
+            {
+                float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+                throughput *= exp(-hitInfo.t * extCoeff);
+            }
+#endif
 
             // Skip the remaining code as it won't affect li
             if(bounce >= (globals.maxNumBounces - 1))
@@ -84,6 +94,7 @@ namespace ReSTIR_RT
             throughput *= bsdfSample.bsdfOverPdf;
             bool transmitted = dot(normal, bsdfSample.wi) < 0;
             eta_curr = transmitted ? (eta_curr == 1.0f ? eta_mat : 1.0f) : eta_curr;
+            inTranslucentMedium = transmitted ? !inTranslucentMedium : inTranslucentMedium;
 
             rd.UpdateRays(pos, normal, bsdfSample.wi, surface.wo, hitInfo.triDiffs, 
                 dpdx, dpdy, transmitted, surface.eta);

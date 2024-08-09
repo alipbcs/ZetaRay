@@ -33,6 +33,10 @@
 // When true, uses less precise but faster-to-trace shadow rays
 #define APPROXIMATE_EMISSIVE_SHADOW_RAY 1
 
+// When true, account for transmittance of rays travelling in homogeneous mediums
+// (Currently limited to interior of translucent objects)
+#define ACCOUNT_FOR_TRANSMITTANCE 0
+
 // Maximum roughness to use virtual motion instead of surface motion for temporal resampling
 #define MAX_ROUGHNESS_VIRTUAL_MOTION 0.075
 

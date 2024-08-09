@@ -356,7 +356,7 @@ namespace BSDF
     {
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
             float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, 
-            bool transmissive = false)
+            bool transmissive = false, half transmissionDepth = 0)
         {
             ShadingData si;
 
@@ -371,6 +371,7 @@ namespace BSDF
             si.diffuseReflectance_Fr0_TrCol = baseColor;
             si.eta = eta_i / eta_t;
             si.transmissive = transmissive;
+            si.trDepth = transmissionDepth;
 
             // Specular reflection and microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
@@ -505,6 +506,11 @@ namespace BSDF
             this.specular = false;
         }
 
+        float3 TransmissionTint()
+        {
+            return trDepth > 0 ? 1 : diffuseReflectance_Fr0_TrCol;
+        }
+
         // Roughness textures actually contain an "interface" value of roughness that is perceptively 
         // linear. That value needs to be remapped to the alpha value that's used in BSDF equations. 
         // Literature suggests alpha = roughness^2.
@@ -522,12 +528,13 @@ namespace BSDF
         //  - Transmission color for transmissive dielectrics
         float3 diffuseReflectance_Fr0_TrCol;
         float eta;      // eta_i / eta_t
-        bool transmissive;
-        bool metallic;
-        bool specular;  // delta BSDF
-        bool backfacing_wo;
-        bool invalid;
-        bool reflection;
+        uint16 transmissive;
+        uint16 metallic;
+        uint16 specular;  // delta BSDF
+        uint16 backfacing_wo;
+        uint16 invalid;
+        uint16 reflection;
+        half trDepth;
     };
 
     bool IsLobeValid(ShadingData surface, LOBE lt)
@@ -792,7 +799,7 @@ namespace BSDF
         if(surface.specular)
         {
             // Note that ndotwi cancels out.
-            return (1 - fr) * surface.diffuseReflectance_Fr0_TrCol;
+            return (1 - fr) * surface.TransmissionTint();
         }
 
         // When VNDF is used for sampling the incident direction (wi), the expression 
@@ -800,7 +807,7 @@ namespace BSDF
         // is simplified to (1 - Fr) * G2 / G1.
         float alphaSq = surface.alpha * surface.alpha;
         return SmithHeightCorrelatedG2OverG1_GGX(alphaSq, surface.ndotwi, surface.ndotwo) * 
-            (1 - fr) * surface.diffuseReflectance_Fr0_TrCol;
+            (1 - fr) * surface.TransmissionTint();
     }
 
     //--------------------------------------------------------------------------------------
@@ -843,7 +850,7 @@ namespace BSDF
     float3 DielectricBTDF(ShadingData surface, float fr, float reflectance)
     {
         float gloss = MicrofacetBTDFGGXSmith(surface);
-        return (1 - reflectance) * gloss * (1 - fr) * surface.diffuseReflectance_Fr0_TrCol;
+        return (1 - reflectance) * gloss * (1 - fr) * surface.TransmissionTint();
     }
 
     float3 DielectricBTDF(ShadingData surface, float fr)

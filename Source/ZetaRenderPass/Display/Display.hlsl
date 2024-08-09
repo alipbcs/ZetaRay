@@ -99,9 +99,8 @@ float4 mainPS(VSOut psin) : SV_Target
         GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
         float2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
-
-        bool isMetallic = GBuffer::DecodeMetallic(mr.x);
-        mr.x = isMetallic;
+        GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
+        mr.x = flags.metallic;
 
         display = float3(mr, 0.0f);
     }
@@ -123,12 +122,9 @@ float4 mainPS(VSOut psin) : SV_Target
         GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
         float m = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0).x;
-        bool metallic;
-        bool emissive;
-        bool transmissive;
-        GBuffer::DecodeMetallic(m, metallic, transmissive, emissive);
+        GBuffer::Flags flags = GBuffer::DecodeMetallic(m);
 
-        display = emissive ? g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb :
+        display = flags.emissive ? g_emissiveColor.SampleLevel(g_samPointClamp, uv, 0).rgb :
             g_baseColor.SampleLevel(g_samPointClamp, uv, 0).xyz * 0.005;
     }
     else if (g_local.DisplayOption == (int) DisplayOption::TRANSMISSION)
@@ -136,12 +132,9 @@ float4 mainPS(VSOut psin) : SV_Target
         GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
         float m = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0).x;
-        bool metallic;
-        bool emissive;
-        bool transmissive;
-        GBuffer::DecodeMetallic(m, metallic, transmissive, emissive);
+        GBuffer::Flags flags = GBuffer::DecodeMetallic(m);
 
-        display = float3(transmissive, !transmissive, 0);
+        display = float3(flags.transmissive, !flags.transmissive, 0);
     }
 
     return float4(display, 1.0f);

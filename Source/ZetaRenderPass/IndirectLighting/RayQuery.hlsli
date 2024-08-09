@@ -464,8 +464,11 @@ namespace ReSTIR_RT
         float3 baseColor = mat.GetBaseColorFactor();
         float metallic = mat.IsMetallic() ? 1.0f : 0.0f;
         float roughness = mat.GetRoughnessFactor();
+        bool tr = mat.IsTransmissive();
+        eta = mat.GetIOR();
+        half trDepth = tr ? mat.GetTransmissionDepth() : 0;
 
-        if (mat.BaseColorTexture != Material::INVALID_ID)
+        if ((trDepth == 0) && (mat.BaseColorTexture != Material::INVALID_ID))
         {
             uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
                 mat.BaseColorTexture);
@@ -483,15 +486,12 @@ namespace ReSTIR_RT
             roughness *= mr.y;
         }
 
-        bool tr = mat.IsTransmissive();
-        eta = mat.GetIOR();
-
         // TODO surrounding medium is assumed to be always air
         float eta_t = eta_curr == ETA_AIR ? ETA_AIR : eta;
         float eta_i = eta_curr == ETA_AIR ? eta : ETA_AIR;
 
         surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metallic >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_i, eta_t, tr);
+            roughness, baseColor, eta_i, eta_t, tr, trDepth);
 
         return true;
     }

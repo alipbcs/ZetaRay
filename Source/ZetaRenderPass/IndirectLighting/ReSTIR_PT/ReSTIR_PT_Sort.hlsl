@@ -28,11 +28,9 @@ RPT_Util::SHIFT_ERROR FindNeighbor(uint2 DTid, out int2 neighborPixel)
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float m = g_metallicRoughness[DTid].x;
-    bool emissive;
-    bool invalid;
-    GBuffer::DecodeEmissiveInvalid(m, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(m);
 
-    if (invalid || emissive)
+    if (flags.invalid || flags.emissive)
         return RPT_Util::SHIFT_ERROR::INVALID_PIXEL;
 
 #if defined (TEMPORAL_TO_CURRENT)

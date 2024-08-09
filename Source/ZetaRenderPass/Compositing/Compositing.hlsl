@@ -22,8 +22,8 @@ float3 SunDirectLighting(uint2 DTid, float3 pos, float3 normal, BSDF::ShadingDat
     // Must match the direction traced in SunShadow pass (RNG seeds must be the same).
     float pdf;
     float3 f;
-    float3 wi = Light::SampleSunDirection(DTid, g_frame.FrameNum, -g_frame.SunDir, g_frame.SunCosAngularRadius, 
-        normal, surface, f, pdf);
+    float3 wi = Light::SampleSunDirection(DTid, g_frame.FrameNum, -g_frame.SunDir, 
+        g_frame.SunCosAngularRadius, normal, surface, f, pdf);
 
     // After denoising, specular and non-specular values are averaged together
     // so following needs to be applied again
@@ -35,8 +35,9 @@ float3 SunDirectLighting(uint2 DTid, float3 pos, float3 normal, BSDF::ShadingDat
 
     pos.y += g_frame.PlanetRadius;
 
-    float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
-    float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, t,
+    float t = Volume::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, 
+        pos, -g_frame.SunDir);
+    float3 tr = Volume::EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, t,
         sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
     float3 li = g_frame.SunIlluminance * shadowVal * tr * f;
 
@@ -54,10 +55,12 @@ float3 SkyColor(uint2 DTid)
 
     float3 wTemp = wc;
     // cos(a - b) = cos a cos b + sin a sin b
-    wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - wc.y * wc.y) * g_frame.SunSinAngularRadius;
+    wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - wc.y * wc.y) * 
+        g_frame.SunSinAngularRadius;
 
     float t;
-    bool intersectedPlanet = Volumetric::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, wTemp, t);
+    bool intersectedPlanet = Volume::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, 
+        wTemp, t);
 
     // a disk that's supposed to be the sun
     if (dot(-wc, g_frame.SunDir) >= g_frame.SunCosAngularRadius && !intersectedPlanet)
@@ -103,16 +106,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[DTid.xy];
-
-    bool metallic;
-    bool emissive;
-    bool transmissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
     RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
     
-    if (invalid)
+    if (flags.invalid)
     {
         g_composited[DTid.xy].rgb = SkyColor(DTid.xy);
         return;
@@ -152,7 +150,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         float eta_t = DEFAULT_ETA_T;
         float eta_i = DEFAULT_ETA_I;
 
-        if(transmissive)
+        if(flags.transmissive)
         {
             GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
                 GBUFFER_OFFSET::IOR];
@@ -162,8 +160,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         }
 
         const float3 wo = normalize(origin - pos);
-        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor,
-            eta_i, eta_t, transmissive);
+        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor,
+            eta_i, eta_t, flags.transmissive);
 
         color += SunDirectLighting(DTid.xy, pos, normal, surface);
     }
@@ -182,7 +180,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         color += le / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
     }
 
-    if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !emissive && g_local.IndirectDescHeapIdx != 0)
+    if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !flags.emissive && g_local.IndirectDescHeapIdx != 0)
     {
         Texture2D<float4> g_indirect = ResourceDescriptorHeap[g_local.IndirectDescHeapIdx];
         float3 li = g_indirect[DTid.xy].rgb;

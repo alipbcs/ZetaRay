@@ -43,7 +43,8 @@ ReSTIR_Util::Globals InitGlobals()
 // Shift base path in current pixel's domain to offset path in temporal domain
 RPT_Util::OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
     float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
-    bool prevTransmissive, RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
+    bool prevTransmissive, bool prevTrDepthGt0, RPT_Util::Reconnection rc_curr, 
+    ReSTIR_Util::Globals globals)
 {
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
@@ -67,7 +68,7 @@ RPT_Util::OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor, eta_i, eta_t, prevTransmissive);
+        baseColor, eta_i, eta_t, prevTransmissive, prevTrDepthGt0);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -138,13 +139,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool metallic;
-    bool transmissive;
-    bool emissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (invalid || emissive)
+    if (flags.invalid || flags.emissive)
         return;
 
     GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -212,14 +209,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 prevMR = g_prevMR[prevPixel];
-
-    bool prevMetallic;
-    bool prevTransmissive;
-    bool prevEmissive;
-    GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive);
+    GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
     // No temporal history
-    if(prevEmissive || (abs(prevMR.y - mr.y) > 0.3))
+    if(prevFlags.emissive || (abs(prevMR.y - mr.y) > 0.3))
         return;
 
     RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<RWTexture2D<uint2>, 
@@ -241,7 +234,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
         ReSTIR_Util::Globals globals = InitGlobals();
         RPT_Util::OffsetPath shift = ShiftCurrentToTemporal(swizzledDTid, prevPixel, origin_t, 
-            lensSample_t, prevPos, prevMetallic, prevMR.y, prevTransmissive, r_curr.rc, globals);
+            lensSample_t, prevPos, prevFlags.metallic, prevMR.y, prevFlags.transmissive, 
+            prevFlags.trDepthGt0, r_curr.rc, globals);
         float target_prev = Math::Luminance(shift.target);
 
         if(target_prev > 0)

@@ -102,7 +102,7 @@ namespace RPT_Util
             else
                 c = float3(0.234, 0.12, 0.2134);
         }
-        else if (option == (int) RPT_DEBUG_VIEW::RECONNECTION_LOBE)
+        else if (option == (int) RPT_DEBUG_VIEW::RECONNECTION_LOBE_K_MIN_1)
         {
             if(rc.Empty())
                 c = float3(0, 0, 0);
@@ -113,6 +113,22 @@ namespace RPT_Util
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_R)
                     c = float3(0.12, 0.284, 0.2134);
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_T)
+                    c = float3(0.1134, 0.12, 0.634);
+                else
+                    c = float3(0.25f, 0.25f, 0);
+            }
+        }
+        else if (option == (int) RPT_DEBUG_VIEW::RECONNECTION_LOBE_K)
+        {
+            if(rc.Empty() || rc.IsCase3())
+                c = float3(0, 0, 0);
+            else
+            {
+                if(rc.lobe_k == BSDF::LOBE::DIFFUSE_R)
+                    c = float3(0.384, 0.12, 0.2134);
+                else if(rc.lobe_k == BSDF::LOBE::GLOSSY_R)
+                    c = float3(0.12, 0.284, 0.2134);
+                else if(rc.lobe_k == BSDF::LOBE::GLOSSY_T)
                     c = float3(0.1134, 0.12, 0.634);
                 else
                     c = float3(0.25f, 0.25f, 0);

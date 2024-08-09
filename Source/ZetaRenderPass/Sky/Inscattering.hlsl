@@ -29,18 +29,19 @@ static const float Halton[8] = { 0.5f, 0.25f, 0.75f, 0.125f, 0.625f, 0.375f, 0.8
 // Helper Functions
 //--------------------------------------------------------------------------------------
 
-float GetVoxelLinearDepth(uint voxelZ)
+float VoxelLinearDepth(uint voxelZ)
 {
 //    float z = g_local.VoxelGridNearZ + ((float) voxelZ / NUM_SLICES) * (g_local.VoxelGridDepth - 0.03f);
 //    z *= exp(-(NUM_SLICES - voxelZ - 1) / NUM_SLICES);
 
-    float z = g_local.VoxelGridNearZ + pow((float) voxelZ / float(INSCATTERING_THREAD_GROUP_SIZE_X), g_local.DepthMappingExp) *
+    float z = g_local.VoxelGridNearZ + pow((float)voxelZ / float(INSCATTERING_THREAD_GROUP_SIZE_X), 
+        g_local.DepthMappingExp) *
         (g_local.VoxelGridFarZ - g_local.VoxelGridNearZ);
-    
+
     return z;
 }
 
-float EvaluateVisibility(float3 pos, float3 wi)
+float Visibility(float3 pos, float3 wi)
 {
     RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH |
         RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
@@ -53,13 +54,9 @@ float EvaluateVisibility(float3 pos, float3 wi)
     ray.TMax = FLT_MAX;
     ray.Direction = wi;
     
-    // initialize
     rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
-    
-    // traversal
     rayQuery.Proceed();
 
-    // light source is occluded
     if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         return 0.0f;
     
@@ -70,25 +67,28 @@ void ComputeVoxelData(in float3 pos, in float3 sigma_t_rayleigh, in float sigma_
     in float3 sigma_t_ozone, out float3 LoTranmittance, out float3 density)
 {
     pos.y += g_frame.PlanetRadius;
-    const float altitude = Volumetric::ComputeAltitude(pos, g_frame.PlanetRadius);
-    density = Volumetric::ComputeDensity(altitude);
+    const float altitude = Volume::Altitude(pos, g_frame.PlanetRadius);
+    density = Volume::AtmosphereDensity(altitude);
         
-    const float posToAtmosphereDist = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
-    LoTranmittance = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, posToAtmosphereDist,
-        sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
+    const float posToAtmosphereDist = Volume::IntersectRayAtmosphere(
+        g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
+    LoTranmittance = Volume::EstimateTransmittance(g_frame.PlanetRadius, pos, 
+        -g_frame.SunDir, posToAtmosphereDist, sigma_t_rayleigh, sigma_t_mie, 
+        sigma_t_ozone, 8);
         
     pos.y -= g_frame.PlanetRadius;
-    const float isSunVisibleFromPos = EvaluateVisibility(pos, -g_frame.SunDir);
+    const float isSunVisibleFromPos = Visibility(pos, -g_frame.SunDir);
     LoTranmittance *= isSunVisibleFromPos;
 }
 
-void Integrate(in float3 rayDir, in float ds, in float3 sigma_s_rayleigh, in float sigma_s_mie, in float sigma_t_mie,
-    in float3 sigma_t_ozone, in float3 LoTranmittance, in float3 density, inout float3 waveStartToPosTr, out float3 Ls)
+void Integrate(float3 rayDir, float ds, float3 sigma_s_rayleigh, float sigma_s_mie, 
+    float sigma_t_mie, float3 sigma_t_ozone, float3 LoTranmittance, float3 density, 
+    inout float3 waveStartToPosTr, out float3 Ls)
 {
     const float3 sliceDensity = density * ds;
     const float3 opticalThickness = WavePrefixSum(sliceDensity) + sliceDensity;
     
-    // transmittance from the beginning of this wave to position in this lane
+    // transmittance from beginning of this wave to position of this lane
     waveStartToPosTr = exp(-(sigma_s_rayleigh * opticalThickness.x +
             sigma_t_mie * opticalThickness.y +
             sigma_t_ozone * opticalThickness.z));
@@ -100,10 +100,10 @@ void Integrate(in float3 rayDir, in float ds, in float3 sigma_s_rayleigh, in flo
     const float3 LsRayleigh = WavePrefixSum(sliceLsRayleigh) + sliceLsRayleigh;
     const float3 LsMie = WavePrefixSum(sliceLsMie) + sliceLsMie;
 
-    // following are constant due to the nature of directional light sources
+    // following are constant when sun is the light source
     const float cosTheta = dot(g_frame.SunDir, -rayDir);
-    const float phaseRayleigh = Volumetric::RayleighPhaseFunction(cosTheta);
-    const float phaseMie = Volumetric::SchlickPhaseFunction(cosTheta, g_frame.g);
+    const float phaseRayleigh = Volume::RayleighPhaseFunction(cosTheta);
+    const float phaseMie = Volume::SchlickPhaseFunction(cosTheta, g_frame.g);
     
     Ls = LsRayleigh * sigma_s_rayleigh * phaseRayleigh + LsMie * sigma_s_mie * phaseMie;
 }
@@ -117,19 +117,19 @@ void Integrate(in float3 rayDir, in float ds, in float3 sigma_s_rayleigh, in flo
 void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
 {
     const uint3 voxelID = uint3(Gid.xy, Gidx);
-    const float2 posTS = (Gid.xy + 0.5f) / float2(g_local.NumVoxelsX, g_local.NumVoxelsY);
-    
+    const float2 posUV = (Gid.xy + 0.5f) / float2(g_local.NumVoxelsX, g_local.NumVoxelsY);
+
     const float3 viewBasisX = g_frame.CurrView[0].xyz;
     const float3 viewBasisY = g_frame.CurrView[1].xyz;
     const float3 viewBasisZ = g_frame.CurrView[2].xyz;
-    
-    float2 posNDC = posTS * 2.0 - 1.0f;
+
+    float2 posNDC = mad(posUV, 2.0, -1.0f);
     posNDC.y = -posNDC.y;
     posNDC.x *= g_frame.AspectRatio;
     posNDC *= g_frame.TanHalfFOV;
     const float3 dirV = float3(posNDC, 1.0f);
-    const float3 dirW = dirV.x * viewBasisX + dirV.y * viewBasisY + dirV.z * viewBasisZ;
-    
+    const float3 dirW = mad(dirV.x, viewBasisX, mad(dirV.y, viewBasisY, dirV.z * viewBasisZ));
+
     const float3 rayDirVS = normalize(dirV);
     const float3 rayDirWS = normalize(dirW);
     
@@ -140,17 +140,17 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
     //    
     // ----> z
     //
-    
+
     // slice-depth for this voxel
-    const float currSliceStartLinearDepth = GetVoxelLinearDepth(voxelID.z);
-    const float nextSliceStarLineartDepth = GetVoxelLinearDepth(voxelID.z + 1);    
+    const float currSliceStartLinearDepth = VoxelLinearDepth(voxelID.z);
+    const float nextSliceStarLineartDepth = VoxelLinearDepth(voxelID.z + 1);    
     const float ds = ((nextSliceStarLineartDepth - currSliceStartLinearDepth) / rayDirVS.z);
-    
+
     // sample position
     const float sliceStartT = currSliceStartLinearDepth / rayDirVS.z;
     const float offset = Halton[g_frame.FrameNum & 7];
     float3 voxelPos = g_frame.CameraPos + rayDirWS * (sliceStartT + offset * ds);
-    
+
     const float3 sigma_s_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
     const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
     const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
@@ -158,47 +158,48 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
     //
     // compute voxel data
     //
-    
+
     float3 density;
     float3 LoTransmittance;
-    ComputeVoxelData(voxelPos, sigma_s_rayleigh, sigma_t_mie, sigma_t_ozone, LoTransmittance, density);
-    
+    ComputeVoxelData(voxelPos, sigma_s_rayleigh, sigma_t_mie, sigma_t_ozone, 
+        LoTransmittance, density);
+
     //
     // integrate across wave
     //
-    
+
     float3 tr;
     float3 Ls;
-    Integrate(rayDirWS, ds, sigma_s_rayleigh, g_frame.MieSigmaS, sigma_t_mie, sigma_t_ozone, LoTransmittance, density, 
-        tr, Ls);
-    
+    Integrate(rayDirWS, ds, sigma_s_rayleigh, g_frame.MieSigmaS, sigma_t_mie, 
+        sigma_t_ozone, LoTransmittance, density, tr, Ls);
+
     // wave size is always a power of 2
     const uint waveIdx = voxelID.z >> LOG_WAVE_SIZE;
-    
+
     if ((Gidx & (WAVE_SIZE - 1)) == WAVE_SIZE - 1)
     {
         g_waveTr[waveIdx] = WaveReadLaneAt(tr, WaveGetLaneCount() - 1);
         g_waveLs[waveIdx] = WaveReadLaneAt(Ls, WaveGetLaneCount() - 1);
     }
-    
+
     GroupMemoryBarrierWithGroupSync();
-    
-    float3 totalTr = 1.0f.xxx;
-    float3 prevLs = 0.0f.xxx;
-    
-    // account for inscattering and transmittance from eariler waves.
-    // transmittance from wave start to each voxel is already accounted for
+
+    float3 totalTr = 1.0f;
+    float3 prevLs = 0.0f;
+
+    // Account for inscattering and transmittance from eariler waves.
+    // Transmittance from wave start to each voxel is already accounted for.
     for (uint wave = 0; wave < waveIdx; wave++)
     {
-        prevLs += g_waveLs[wave] * totalTr;        
+        prevLs += g_waveLs[wave] * totalTr;
         totalTr *= g_waveTr[wave];        // transmittance is multiplicative along a given ray
     }
-    
+
     Ls = Ls * totalTr + prevLs;
     
     RWTexture3D<half4> g_voxelGrid = ResourceDescriptorHeap[g_local.VoxelGridDescHeapIdx];    
 
     // R11G11B10 doesn't have a sign bit
-    Ls = max(Ls, 0.0f.xxx);
+    Ls = max(Ls, 0.0f);
     g_voxelGrid[voxelID].xyz = half3(Ls * g_frame.SunIlluminance);
 }

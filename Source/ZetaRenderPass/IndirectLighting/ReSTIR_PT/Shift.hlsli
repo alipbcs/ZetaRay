@@ -191,7 +191,7 @@ namespace RPT_Util
             Texture2D<uint4> g_cbB = ResourceDescriptorHeap[srvBIdx];
             Texture2D<uint4> g_cbC = ResourceDescriptorHeap[srvCIdx];
 
-            float4 inA = g_cbA[DTid];
+            float3 inA = g_cbA[DTid].xyz;
             uint4 inB = g_cbB[DTid];
             uint4 inC = g_cbC[DTid];
 
@@ -211,14 +211,16 @@ namespace RPT_Util
             float3 baseColor = Math::UnpackRGB8(inC.y & 0xffffff);
             uint flags = inC.y >> 24;
             bool metallic = flags & 0x1;
-            ctx.anyGlossyBounces = flags & 0x2;
+            ctx.anyGlossyBounces = uint16(flags & 0x2);
+            ctx.inTranslucentMedium = uint16(flags & 0x8);
             bool transmissive = flags & 0x4;
+            half trDepth = half(flags & 0x10);
 
             float eta_t = ctx.eta_curr == ETA_AIR ? ETA_AIR : ctx.eta_mat;
             float eta_i = ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR;
 
             ctx.surface = BSDF::ShadingData::Init(ctx.normal, wo, metallic, roughness, 
-                baseColor, eta_i, eta_t, transmissive);
+                baseColor, eta_i, eta_t, transmissive, trDepth);
 
             if(!isCase3)
                 ctx.rd.uv_grads.xy = asfloat16(uint16_t2(inC.w & 0xffff, inC.w >> 16));
@@ -234,8 +236,12 @@ namespace RPT_Util
             // ShadingData
             int16_t2 e2 = Math::EncodeOct32(this.surface.wo);
             uint wo = asuint16(e2.x) | (uint(asuint16(e2.y)) << 16);
-            uint flags = (uint)surface.metallic | ((uint)this.anyGlossyBounces << 1) | 
-                ((uint)surface.transmissive << 2);
+            uint hasVolumetricInterior = surface.trDepth > 0;
+            uint flags = (uint)surface.metallic | 
+                ((uint)this.anyGlossyBounces << 1) | 
+                ((uint)surface.transmissive << 2) |
+                ((uint)inTranslucentMedium << 3) |
+                ((uint)hasVolumetricInterior << 4);
             uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
             baseColor_Flags = baseColor_Flags | (flags << 24);
             uint roughness = Math::FloatToUNorm8(sqrt(surface.alpha));
@@ -250,14 +256,14 @@ namespace RPT_Util
             // R32G32B32A32_UINT
             RWTexture2D<uint4> g_rbC = ResourceDescriptorHeap[uavCIdx];
 
-            float ddx_uv = sqrt(dot(this.rd.uv_grads.xy, this.rd.uv_grads.xy));
-            float ddy_uv = sqrt(dot(this.rd.uv_grads.zw, this.rd.uv_grads.zw));
-
             g_rbA[DTid].xyz = this.throughput;
             g_rbB[DTid] = uint4(asuint(this.pos), normal);
 
             if(!isCase3)
             {
+                float ddx_uv = sqrt(dot(this.rd.uv_grads.xy, this.rd.uv_grads.xy));
+                float ddy_uv = sqrt(dot(this.rd.uv_grads.zw, this.rd.uv_grads.zw));
+
                 uint16_t2 grads_h = asuint16(half2(ddx_uv, ddy_uv));
                 g_rbC[DTid] = uint4(wo, baseColor_Flags, packed, grads_h.x | (uint(grads_h.y) << 16));
             }
@@ -273,8 +279,9 @@ namespace RPT_Util
         BSDF::ShadingData surface;
         float eta_curr;
         float eta_mat;
-        bool anyGlossyBounces;
         RNG rngReplay;
+        uint16 anyGlossyBounces;
+        uint16 inTranslucentMedium;
     };
 
     bool CanReconnect(float alpha_lobe_k_min_1, float alpha_lobe_k, float3 x_k_min_1, float3 x_k, 
@@ -323,9 +330,6 @@ namespace RPT_Util
                 return;
             }
 
-            if(!hitInfo.hit)
-                break;
-
             float3 newPos = mad(hitInfo.t, bsdfSample.wi, ctx.pos);
             float3 dpdx;
             float3 dpdy;
@@ -347,6 +351,12 @@ namespace RPT_Util
 
             if(regularization && ctx.anyGlossyBounces)
                 ctx.surface.Regularize();
+
+            if(ctx.inTranslucentMedium && (ctx.surface.trDepth > 0))
+            {
+                float3 extCoeff = -log(ctx.surface.diffuseReflectance_Fr0_TrCol) / ctx.surface.trDepth;
+                ctx.throughput *= exp(-hitInfo.t * extCoeff);
+            }
 
             // Remaining code can be skipped in last iteration
             if(bounce >= numBounces)
@@ -383,6 +393,7 @@ namespace RPT_Util
             ctx.eta_curr = transmitted ? (ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR) : ctx.eta_curr;
             ctx.throughput *= bsdfSample.bsdfOverPdf;
             ctx.anyGlossyBounces = ctx.anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
+            ctx.inTranslucentMedium = (uint16)(transmitted ? !ctx.inTranslucentMedium : ctx.inTranslucentMedium);
 
             pos_prev = ctx.pos;
             alpha_lobe_prev = alpha_lobe;
@@ -401,8 +412,8 @@ namespace RPT_Util
     template<bool Emissive>
     OffsetPath Reconnect_Case1Or2(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
         float eta_curr, float eta_mat, RT::RayDifferentials rd, BSDF::ShadingData surface, 
-        bool anyGlossyBounces, float alpha_min, bool regularization, Reconnection rc, 
-        ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp, 
+        bool anyGlossyBounces, bool inTranslucentMedium, float alpha_min, bool regularization, 
+        Reconnection rc, ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp, 
         ReSTIR_Util::Globals globals, RNG rngReplay, RNG rngNEE)
     {
         OffsetPath ret = OffsetPath::Init();
@@ -474,6 +485,12 @@ namespace RPT_Util
 
         if(regularization && anyGlossyBounces)
             surface.Regularize();
+
+        if(inTranslucentMedium && (surface.trDepth > 0))
+        {
+            float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+            beta *= exp(-hitInfo.t * extCoeff);
+        }
 
         beta *= eval.bsdfOverPdf;
         ret.partialJacobian = eval.pdf;
@@ -674,7 +691,8 @@ namespace RPT_Util
         {
             return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, ctx.normal, 
                 ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
-                alpha_min, regularization, rc, g_frame, samp, globals, ctx.rngReplay, rngNEE);
+                ctx.inTranslucentMedium, alpha_min, regularization, rc, g_frame, samp, 
+                globals, ctx.rngReplay, rngNEE);
         }
     }
 
@@ -710,6 +728,8 @@ namespace RPT_Util
         }
         else
             bsdfSample.wi = rc.x_k - ctx.pos;
+
+        ctx.inTranslucentMedium = dot(normal, bsdfSample.wi) < 0;
 
         // Initialize ray differentials given the primary hit triangle. This is only
         // needed when replay is not used - replayed paths load path context (including ray 
@@ -763,7 +783,8 @@ namespace RPT_Util
         {
             return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, 
                 ctx.normal, ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
-                alpha_min, regularization, rc, g_frame, samp, globals, ctx.rngReplay, rngNEE);
+                ctx.inTranslucentMedium, alpha_min, regularization, rc, g_frame, samp, globals, 
+                ctx.rngReplay, rngNEE);
         }
     }
 

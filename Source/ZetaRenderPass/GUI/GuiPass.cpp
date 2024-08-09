@@ -1163,6 +1163,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
         bool transmissive = mat.IsTransmissive();
         const bool baseColorTextured = mat.BaseColorTexture != Material::INVALID_ID;
         float3 color = mat.GetBaseColorFactor();
+        float depth = HalfToFloat(mat.GetTransmissionDepth().x);
 
         if (ImGui::Checkbox("Transmissive", &transmissive))
         {
@@ -1176,6 +1177,12 @@ void GuiPass::MaterialTab(uint64 pickedID)
         if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_Float))
         {
             mat.SetBaseColorFactor(color);
+            modified = true;
+        }
+
+        if (ImGui::SliderFloat("Depth", &depth, 0.0f, 10.0f, "%.3f", ImGuiSliderFlags_Logarithmic))
+        {
+            mat.SetTransmissionDepth(depth);
             modified = true;
         }
 

@@ -268,8 +268,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 #if THREAD_GROUP_SWIZZLING
     uint16_t2 swizzledGid;
 
-    // swizzle thread groups for better L2-cache behavior
-    // Ref: https://developer.nvidia.com/blog/optimizing-compute-shaders-for-l2-locality-using-thread-group-id-swizzling/
     const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
         uint16_t2(RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_X, RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_Y),
         g_local.DispatchDimX, 
@@ -288,7 +286,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     const float z_view = g_depth[swizzledDTid];
 
-    // skip sky pixels
     if (z_view == FLT_MAX)
         return;
 
@@ -300,12 +297,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     float2 mr = g_metallicRoughness[swizzledDTid];
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    bool isMetallic;
-    bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
-
-    if (isEmissive)
+    if (flags.emissive)
         return;
 
     GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::NORMAL];
@@ -323,9 +317,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum);
 
-    float3 filteredDiffuse = FilterDiffuse(swizzledDTid, normal, z_view, isMetallic, mr.y, pos, rng);
-    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, z_view, isMetallic, mr.y, pos, baseColor, rng);
+    float3 filteredDiffuse = FilterDiffuse(swizzledDTid, normal, z_view, flags.metallic, mr.y, pos, rng);
+    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, z_view, flags.metallic, mr.y, pos, baseColor, rng);
 
     RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
-    g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (isMetallic ? F : 1);
+    g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (flags.metallic ? F : 1);
 }

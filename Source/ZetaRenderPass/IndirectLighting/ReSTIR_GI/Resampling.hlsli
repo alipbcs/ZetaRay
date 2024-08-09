@@ -155,12 +155,9 @@ namespace RGI_Util
                 continue;
 
             const float2 prevMR = g_prevMR[samplePosSS];
-            bool prevMetallic;
-            bool prevTransmissive;
-            bool prevEmissive;
-            GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive);
+            GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
-            if(prevEmissive)
+            if(prevFlags.emissive)
                 continue;
 
             // plane-based heuristic
@@ -195,13 +192,13 @@ namespace RGI_Util
 
             float prevEta_i = DEFAULT_ETA_I;
 
-            if(prevTransmissive)
+            if(prevFlags.transmissive)
             {
                 float ior = g_ior[samplePosSS];
                 prevEta_i = GBuffer::DecodeIOR(ior);
             }
 
-            candidate.valid[curr] = candidate.valid[curr] && (prevTransmissive != transmissive);
+            candidate.valid[curr] = candidate.valid[curr] && (prevFlags.transmissive == transmissive);
             candidate.valid[curr] = g_frame.DoF ? true : candidate.valid[curr];
 
             if(candidate.valid[curr])
@@ -209,9 +206,9 @@ namespace RGI_Util
                 candidate.data[curr].posSS = (int16_t2)samplePosSS;
                 candidate.data[curr].posW = prevPos;
                 candidate.data[curr].normal = prevNormal;
-                candidate.data[curr].metallic = prevMetallic;
+                candidate.data[curr].metallic = prevFlags.metallic;
                 candidate.data[curr].roughness = prevMR.y;
-                candidate.data[curr].transmissive = prevTransmissive;
+                candidate.data[curr].transmissive = prevFlags.transmissive;
                 candidate.data[curr].eta_i = prevEta_i;
 
                 curr++;

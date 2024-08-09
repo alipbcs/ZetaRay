@@ -51,13 +51,9 @@ namespace RDI_Util
                 continue;
 
             const float2 prevMR = g_prevMR[samplePosSS];
-            bool prevMetallic;
-            bool prevTransmissive;
-            bool prevEmissive;
-            bool prevInvalid;
-            GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive, prevInvalid);
+            GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
-            if(prevInvalid || prevEmissive)
+            if(prevFlags.invalid || prevFlags.emissive)
                 continue;
 
             float prevDepth = g_prevDepth[samplePosSS];
@@ -94,7 +90,7 @@ namespace RDI_Util
             {
                 float prevEta_i = DEFAULT_ETA_I;
 
-                if(prevTransmissive)
+                if(prevFlags.transmissive)
                 {
                     float ior = g_prevIOR[samplePosSS];
                     prevEta_i = GBuffer::DecodeIOR(ior);
@@ -103,9 +99,9 @@ namespace RDI_Util
                 candidate.posSS = (int16_t2)samplePosSS;
                 candidate.pos = prevPos;
                 candidate.normal = prevNormal;
-                candidate.metallic = prevMetallic;
+                candidate.metallic = prevFlags.metallic;
                 candidate.roughness = prevMR.y;
-                candidate.transmissive = prevTransmissive;
+                candidate.transmissive = prevFlags.transmissive;
                 candidate.eta_i = prevEta_i;
 
                 break;
@@ -307,13 +303,9 @@ namespace RDI_Util
             if (Math::IsWithinBounds(posSS_i, renderDim))
             {
                 const float2 mr_i = g_prevMR[posSS_i];
-                bool metallic_i;
-                bool transmissive_i;
-                bool emissive_i;
-                bool invalid_i;
-                GBuffer::DecodeMetallic(mr_i.x, metallic_i, transmissive_i, emissive_i, invalid_i);
+                GBuffer::Flags flags_i = GBuffer::DecodeMetallic(mr_i.x);
 
-                if(invalid_i || emissive_i)
+                if(flags_i.invalid || flags_i.emissive)
                     continue;
 
                 const float depth_i = g_prevDepth[posSS_i];
@@ -343,12 +335,12 @@ namespace RDI_Util
                 sampleOrigin[k] = origin_i;
                 samplePosSS[k] = (int16_t2)posSS_i;
                 sampleLightIdx[k] = lightIdx_i;
-                sampleMetallic[k] = metallic_i;
+                sampleMetallic[k] = flags_i.metallic;
                 sampleRoughness[k] = mr_i.y;
-                sampleTr[k] = transmissive_i;
+                sampleTr[k] = flags_i.transmissive;
                 sampleEta_i[k] = DEFAULT_ETA_I;
 
-                if(transmissive_i)
+                if(flags_i.transmissive)
                 {
                     float ior = g_prevIOR[posSS_i];
                     sampleEta_i[k] = GBuffer::DecodeIOR(ior);

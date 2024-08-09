@@ -319,13 +319,9 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
             continue;
 
         const float2 prevMR = g_prevMR[samplePosSS];
-        bool prevMetallic;
-        bool prevEmissive;
-        bool prevTransmissive;
-        bool prevInvalid;
-        GBuffer::DecodeMetallic(prevMR.x, prevMetallic, prevTransmissive, prevEmissive, prevInvalid);
+        GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
-        if(prevInvalid || prevEmissive)
+        if(prevFlags.invalid || prevFlags.emissive)
             continue;
 
         // plane-based heuristic
@@ -357,13 +353,13 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
         const bool roughnessSimilarity = abs(prevMR.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE;
         candidate.valid = g_frame.DoF ? true : 
             normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && 
-            roughnessSimilarity && (metallic == prevMetallic);
+            roughnessSimilarity && (metallic == prevFlags.metallic);
 
         if(candidate.valid)
         {
             float prevEta_i = DEFAULT_ETA_I;
 
-            if(prevTransmissive)
+            if(prevFlags.transmissive)
             {
                 float ior = g_prevIOR[samplePosSS];
                 prevEta_i = GBuffer::DecodeIOR(ior);
@@ -373,7 +369,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
             candidate.pos = prevPos;
             candidate.normal = prevNormal;
             candidate.roughness = prevMR.y;
-            candidate.transmissive = prevTransmissive;
+            candidate.transmissive = prevFlags.transmissive;
             candidate.eta_i = prevEta_i;
 
             break;
@@ -526,13 +522,9 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
         if (Math::IsWithinBounds(posSS_i, (int2)renderDim))
         {
             const float2 mr_i = g_prevMR[posSS_i];
-            bool metallic_i;
-            bool transmissive_i;
-            bool emissive_i;
-            bool invalid_i;
-            GBuffer::DecodeMetallic(mr_i.x, metallic_i, emissive_i, invalid_i);
+            GBuffer::Flags flags_i = GBuffer::DecodeMetallic(mr_i.x);
 
-            if (invalid_i || emissive_i)
+            if (flags_i.invalid || flags_i.emissive)
                 continue;
 
             const float depth_i = g_prevDepth[posSS_i];
@@ -560,12 +552,12 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
             samplePos[k] = pos_i;
             sampleOrigin[k] = origin_i;
             samplePosSS[k] = (int16_t2)posSS_i;
-            sampleMetallic[k] = metallic_i;
+            sampleMetallic[k] = flags_i.metallic;
             sampleRoughness[k] = mr_i.y;
-            sampleTransmissive[k] = transmissive_i;
+            sampleTransmissive[k] = flags_i.transmissive;
             sampleEta_i[k] = DEFAULT_ETA_I;
 
-            if(transmissive_i)
+            if(flags_i.transmissive)
             {
                 float ior = g_prevIOR[posSS_i];
                 sampleEta_i[k] = GBuffer::DecodeIOR(ior);
@@ -661,13 +653,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool metallic;
-    bool transmissive;
-    bool emissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (invalid || emissive)
+    if (flags.invalid || flags.emissive)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -700,7 +688,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(transmissive)
+    if(flags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -710,13 +698,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
-        eta_i, eta_t, transmissive);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor, 
+        eta_i, eta_t, flags.transmissive);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 
-    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, metallic, 
-        mr.y, baseColor, surface, rng);
+    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, 
+        flags.metallic, mr.y, baseColor, surface, rng);
 
     if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))
     {
@@ -725,13 +713,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         float3 fr = surface.Fresnel();
 
         // demodulate base color
-        float3 f_d = (1.0f - fr) * (1.0f - metallic) * surface.ndotwi * ONE_OVER_PI;
+        float3 f_d = (1.0f - fr) * (1.0f - flags.metallic) * surface.ndotwi * ONE_OVER_PI;
         
         // demodulate Fresnel for metallic surfaces to preserve texture detail
         float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
         float3 f_s = 0;
 
-        if(metallic)
+        if(flags.metallic)
         {
             if(surface.specular)
             {

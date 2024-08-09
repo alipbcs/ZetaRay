@@ -304,11 +304,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     float2 mr = g_metallicRoughness[swizzledDTid];
 
-    bool isMetallic;
-    bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (isEmissive)
+    if (flags.emissive)
         return;
 
     GBUFFER_NORMAL g_currNormal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -327,10 +325,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     RNG rng = RNG::Init(swizzledDTid.xy, g_frame.FrameNum);
 
-    float3 filteredDiffuse = FilterDiffuse2(swizzledDTid, normal, z_view, isMetallic, posW, rng);
-    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, z_view, isMetallic, mr.y, 
+    float3 filteredDiffuse = FilterDiffuse2(swizzledDTid, normal, z_view, flags.metallic, posW, rng);
+    float3 filteredSpecular = FilterSpecular(swizzledDTid, normal, z_view, flags.metallic, mr.y, 
         posW, baseColor, rng);
 
     RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
-    g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (isMetallic ? F : 1);
+    g_final[swizzledDTid.xy].rgb = filteredDiffuse * baseColor + filteredSpecular * (flags.metallic ? F : 1);
 }

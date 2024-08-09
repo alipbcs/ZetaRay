@@ -51,6 +51,8 @@ namespace ZetaRay
         static const uint32_t UPPER_8_BITS_MASK = 0xff000000;
         static const uint32_t UPPER_12_BITS_MASK = 0xfff00000;
         static const uint32_t UPPER_16_BITS_MASK = 0xffff0000;
+        // Exlucdes bits [20-28)
+        static const uint32_t ONES_COMP_BITS_20_28_MASK = 0xf00fffff;
 
 #ifdef __cplusplus
 
@@ -105,7 +107,8 @@ namespace ZetaRay
         ZetaInline void SetNormalTex(uint32_t idx)
         {
             Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
-            NormalTexture = idx;
+            NormalTexture_TrDepthA = idx | 
+                (NormalTexture_TrDepthA & UPPER_12_BITS_MASK);
         }
 
         ZetaInline void SetMetallicRoughnessTex(uint32_t idx)
@@ -118,8 +121,8 @@ namespace ZetaRay
         ZetaInline void SetEmissiveTex(uint32_t idx)
         {
             Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
-            EmissiveTexture_AlphaCutoff = idx | 
-                (EmissiveTexture_AlphaCutoff & UPPER_12_BITS_MASK);
+            EmissiveTex_AlphaCutoff_TrDepthB = idx |
+                (EmissiveTex_AlphaCutoff_TrDepthB & UPPER_12_BITS_MASK);
         }
 
         ZetaInline void SetBaseColorFactor(Math::float3 color)
@@ -140,7 +143,8 @@ namespace ZetaRay
 
         ZetaInline void SetAlphaCutoff(float c)
         {
-            EmissiveTexture_AlphaCutoff = (EmissiveTexture_AlphaCutoff & TEXTURE_MASK) |
+            EmissiveTex_AlphaCutoff_TrDepthB = 
+                (EmissiveTex_AlphaCutoff_TrDepthB & ONES_COMP_BITS_20_28_MASK) |
                 (Math::FloatToUNorm8(c) << NUM_TEXTURE_BITS);
         }
 
@@ -170,6 +174,19 @@ namespace ZetaRay
             normalized = std::fmaf(normalized, (1 << 16) - 1, 0.5f);
             EmissiveStrength_IOR = (EmissiveStrength_IOR & LOWER_16_BITS_MASK) | 
                 (uint32_t(normalized) << 16);
+        }
+
+        ZetaInline void SetTransmissionDepth(float depth)
+        {
+            Math::half dh(depth);
+
+            uint32_t lower12Bits = dh.x & 0xfff;
+            uint32_t upper4Bits = dh.x >> 12;
+
+            NormalTexture_TrDepthA = (NormalTexture_TrDepthA & TEXTURE_MASK) |
+                (lower12Bits << NUM_TEXTURE_BITS);
+            EmissiveTex_AlphaCutoff_TrDepthB = (EmissiveTex_AlphaCutoff_TrDepthB & LOWER_28_BITS_MASK) |
+                (upper4Bits << (NUM_TEXTURE_BITS + 8));
         }
 
         ZetaInline void SetAlphaMode(ALPHA_MODE mode)
@@ -249,23 +266,29 @@ namespace ZetaRay
             return Math::UNorm8ToFloat(EmissiveFactor_NormalScale >> 24);
         }
 
-        uint32_t GetEmissiveTex() CONST
+        uint32_t GetNormalTex() CONST
         {
-            return EmissiveTexture_AlphaCutoff & TEXTURE_MASK;
-        }
-
-        float GetAlphaCutoff() CONST
-        {
-#ifdef __cplusplus
-            return Math::UNorm8ToFloat((uint8_t)(EmissiveTexture_AlphaCutoff >> NUM_MATERIAL_BITS));
-#else
-            return Math::UNorm8ToFloat(EmissiveTexture_AlphaCutoff >> NUM_MATERIAL_BITS);
-#endif
+            return NormalTexture_TrDepthA & TEXTURE_MASK;
         }
 
         uint32_t GetMetallicRoughnessTex() CONST
         {
             return MRTexture_RoughnessFactor & TEXTURE_MASK;
+        }
+
+        uint32_t GetEmissiveTex() CONST
+        {
+            return EmissiveTex_AlphaCutoff_TrDepthB & TEXTURE_MASK;
+        }
+
+        float GetAlphaCutoff() CONST
+        {
+            uint32_t bits20To28 = (EmissiveTex_AlphaCutoff_TrDepthB >> NUM_MATERIAL_BITS) & 0xff;
+#ifdef __cplusplus
+            return Math::UNorm8ToFloat((uint8_t)bits20To28);
+#else
+            return Math::UNorm8ToFloat(bits20To28);
+#endif
         }
 
         float GetRoughnessFactor() CONST
@@ -297,14 +320,27 @@ namespace ZetaRay
 #endif
         }
 
+        half_ GetTransmissionDepth()
+        {
+            uint32_t lower12Bits = NormalTexture_TrDepthA >> NUM_TEXTURE_BITS;
+            uint32_t upper4Bits = EmissiveTex_AlphaCutoff_TrDepthB >> (NUM_TEXTURE_BITS + 8);
+            uint16_t tr = (uint16_t)(lower12Bits | (upper4Bits << 12));
+
+#ifdef __cplusplus
+            return Math::half::asfloat16(tr);
+#else
+            return asfloat16(tr);
+#endif
+        }
+
         uint32_t BaseColorFactor;
         uint32_t BaseColorTexture;
-        uint32_t NormalTexture;
+        uint32_t NormalTexture_TrDepthA;
         // MR stands for metallic roughness
         uint32_t MRTexture_RoughnessFactor;
         uint32_t EmissiveFactor_NormalScale;
         uint32_t EmissiveStrength_IOR;
-        uint32_t EmissiveTexture_AlphaCutoff;
+        uint32_t EmissiveTex_AlphaCutoff_TrDepthB;
 
         // Last 12 bits encode various flags, first 20 bits encode 
         // material buffer index.

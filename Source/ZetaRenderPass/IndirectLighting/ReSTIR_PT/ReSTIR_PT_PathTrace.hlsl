@@ -215,6 +215,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     // Note: skip the first bounce for a milder impacet. May have to change in the future.
     // bool anyGlossyBounces = bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R;
     bool anyGlossyBounces = false;
+    bool inTranslucentMedium = dot(normal, bsdfSample.wi) < 0;
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
 #if NEE_EMISSIVE == 0
@@ -265,6 +266,15 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         normal = hitInfo.normal;
         const float prevBsdfSamplePdf = bsdfSample.pdf;
         const BSDF::LOBE prevBsdfSampleLobe = bsdfSample.lobe;
+        float3 tr = 1;
+
+        // Beer's law
+        if(inTranslucentMedium && (surface.trDepth > 0))
+        {
+            float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+            tr = exp(-hitInfo.t * extCoeff);
+            throughput *= tr;
+        }
 
         // Direct lighting
         EstimateDirectLighting<NEE_EMISSIVE>(pathVertex, pos, hitInfo, surface, prevHit, 
@@ -332,13 +342,14 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         // Update path throughput starting from vertex after reconnection 
         if(reconnection.k <= bounce)
-            throughput_k *= bsdfSample.bsdfOverPdf;
+            throughput_k *= bsdfSample.bsdfOverPdf * tr;
 
         bool transmitted = dot(normal, bsdfSample.wi) < 0;
         throughput *= bsdfSample.bsdfOverPdf;
         anyGlossyBounces = anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
 
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
+        inTranslucentMedium = transmitted ? !inTranslucentMedium : inTranslucentMedium;
         prevHit.pos = pos;
         prevHit.alpha_lobe = alpha_lobe;
         prevHit.lobe = bsdfSample.lobe;
@@ -440,13 +451,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool metallic;
-    bool transmissive;
-    bool emissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (invalid || emissive)
+    if (flags.invalid || flags.emissive)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -480,7 +487,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(transmissive)
+    if(flags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -490,8 +497,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor, 
-        eta_i, eta_t, transmissive);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor, 
+        eta_i, eta_t, flags.transmissive, flags.trDepthGt0);
 
     float3 li;
     RPT_Util::Reservoir r = RIS_InitialCandidates(swizzledDTid, swizzledGid, origin, lensSample,

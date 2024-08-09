@@ -85,15 +85,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     GBUFFER_METALLIC_ROUGHNESS g_mr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_mr[DTid.xy];
-    bool metallic;
-    bool emissive;
-    bool transmissive;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
 
-    if(transmissive)
+    if(flags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -111,8 +108,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, mr.y, baseColor,
-        eta_i, eta_t, transmissive);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor,
+        eta_i, eta_t, flags.transmissive);
 
     float3 wi = -g_frame.SunDir;
     float pdf = 1;

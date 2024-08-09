@@ -46,7 +46,8 @@ ReSTIR_Util::Globals InitGlobals()
 
 RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin, 
     float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
-    bool prevTransmissive, RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
+    bool prevTransmissive, bool prevTrDepthGt0, RPT_Util::Reconnection rc_curr, 
+    ReSTIR_Util::Globals globals)
 {
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
@@ -70,7 +71,7 @@ RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 orig
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor, eta_i, eta_t, prevTransmissive);
+        baseColor, eta_i, eta_t, prevTransmissive, prevTrDepthGt0);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -130,16 +131,13 @@ RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::
         g_frame.DoF, lensSample_n, g_frame.FocusDepth, origin_n);
 
     const float2 mr_n = g_mr[samplePosSS];
-        
-    bool metallic_n;
-    bool transmissive_n;
-    GBuffer::DecodeMetallicTr(mr_n.x, metallic_n, transmissive_n);
+    GBuffer::Flags flags_n = GBuffer::DecodeMetallic(mr_n.x);
 
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
     float3 baseColor_n = g_baseColor[samplePosSS].rgb;
     float eta_i = DEFAULT_ETA_I;
 
-    if(transmissive_n)
+    if(flags_n.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -149,8 +147,8 @@ RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::
     }
 
     const float3 wo_n = normalize(origin_n - pos_n);
-    BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, metallic_n, 
-        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, transmissive_n);
+    BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
+        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, flags_n.transmissive, flags_n.trDepthGt0);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -175,8 +173,8 @@ RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::
 }
 
 RPT_Util::PathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, float3 pos, 
-    float3 normal, bool metallic, float roughness, bool transmissive, RPT_Util::Reconnection rc, 
-    ReSTIR_Util::Globals globals)
+    float3 normal, bool metallic, float roughness, bool transmissive, bool trDepthGt0, 
+    RPT_Util::Reconnection rc, ReSTIR_Util::Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -196,7 +194,7 @@ RPT_Util::PathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSamp
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor, eta_i, eta_t, transmissive);
+        baseColor, eta_i, eta_t, transmissive, trDepthGt0);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -270,13 +268,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool isMetallic;
-    bool isTransmissive;
-    bool isEmissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, isMetallic, isTransmissive, isEmissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (invalid || isEmissive)
+    if (flags.invalid || flags.emissive)
         return;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -345,14 +339,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr_n = g_prevMR[prevPixel];
-
-    bool metallic_n;
-    bool transmissive_n;
-    bool emissive_n;
-    GBuffer::DecodeMetallic(mr_n.x, metallic_n, transmissive_n, emissive_n);
+    GBuffer::Flags flags_n = GBuffer::DecodeMetallic(mr_n.x);
 
     // No temporal history
-    if(emissive_n || abs(mr_n.y - mr.y) > 0.3)
+    if(flags_n.emissive || abs(mr_n.y - mr.y) > 0.3)
         return;
 #endif
 
@@ -374,9 +364,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.PrevReservoir_A_DescHeapIdx + 5,
             g_local.PrevReservoir_A_DescHeapIdx + 6);
 
-
         RPT_Util::PathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
-            pos, normal, isMetallic, mr.y, isTransmissive, r_prev.rc, globals);
+            pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
+            r_prev.rc, globals);
 
         ctx_ntc.Write(swizzledDTid, g_local.RBufferA_NtC_DescHeapIdx, 
             g_local.RBufferA_NtC_DescHeapIdx + 1,
@@ -409,7 +399,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 6);
 
         RPT_Util::PathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
-            pos, normal, isMetallic, mr.y, isTransmissive, r_spatial.rc, globals);
+            pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
+            r_spatial.rc, globals);
 
         ctx_ntc.Write(swizzledDTid, g_local.RBufferA_NtC_DescHeapIdx, 
             g_local.RBufferA_NtC_DescHeapIdx + 1,
@@ -432,8 +423,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        RPT_Util::PathContext ctx_ctn = ReplayCurrentInTemporalDomain(prevPixel, origin_n, lensSample_n,
-            pos_n, metallic_n, mr_n.y, transmissive_n, r_curr.rc, globals);
+        RPT_Util::PathContext ctx_ctn = ReplayCurrentInTemporalDomain(prevPixel, origin_n, 
+            lensSample_n, pos_n, flags_n.metallic, mr_n.y, flags_n.transmissive, flags_n.trDepthGt0, 
+            r_curr.rc, globals);
 
         ctx_ctn.Write(swizzledDTid, g_local.RBufferA_CtN_DescHeapIdx, 
             g_local.RBufferA_CtN_DescHeapIdx + 1,

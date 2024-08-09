@@ -146,9 +146,9 @@ namespace Light
         float3 temp = pos;
         temp.y += g_frame.PlanetRadius;
     
-        const float t = Volumetric::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, 
+        const float t = Volume::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, 
             temp, -g_frame.SunDir);
-        const float3 tr = Volumetric::EstimateTransmittance(g_frame.PlanetRadius, temp, -g_frame.SunDir, t,
+        const float3 tr = Volume::EstimateTransmittance(g_frame.PlanetRadius, temp, -g_frame.SunDir, t,
             sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 
         return tr * g_frame.SunIlluminance;

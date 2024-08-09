@@ -552,12 +552,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[DTid.xy];
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    bool isMetallic;
-    bool isEmissive;
-    GBuffer::DecodeMetallicEmissive(mr.x, isMetallic, isEmissive);
-
-    if (isEmissive)
+    if (flags.emissive)
         return;
 
     Texture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorASrvDescHeapIdx];
@@ -585,12 +582,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint3
     float z = g_prevDepth.SampleLevel(g_samLinearClamp, prevSurfaceUV, 0.0f);    
     const float prevSurfaceLinearDepth = motionVecValid ? z : FLT_MAX;
 
-    if(!isMetallic)
+    if(!flags.metallic)
     {
-        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_d,
+        TemporalAccumulation_Diffuse(DTid.xy, currUV, posW, normal, z_view, flags.metallic, mr.y, Li_d,
             prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);    
     }
 
-    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, z_view, isMetallic, mr.y, Li_s,
+    TemporalAccumulation_Specular(DTid.xy, currUV, posW, normal, z_view, flags.metallic, mr.y, Li_s,
         prevSurfaceLinearDepth, prevSurfaceUV, motionVecValid);
 }

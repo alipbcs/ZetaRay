@@ -73,24 +73,21 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
         g_frame.DoF, lensSample_n, g_frame.FocusDepth, origin_n);
 
     const float2 mr_n = g_mr[samplePosSS];
-        
-    bool metallic_n;
-    bool transmissive_n;
-    GBuffer::DecodeMetallicTr(mr_n.x, metallic_n, transmissive_n);
+    GBuffer::Flags flags_n = GBuffer::DecodeMetallic(mr_n.x);
 
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
     float3 baseColor_n = g_baseColor[samplePosSS].rgb;
     float eta_i = DEFAULT_ETA_I;
 
-    if(transmissive_n)
+    if(flags_n.transmissive)
     {
         float ior = g_ior[samplePosSS];
         eta_i = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo_n = normalize(origin_n - pos_n);
-    BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, metallic_n, 
-        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, transmissive_n);
+    BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
+        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, flags_n.transmissive, flags_n.trDepthGt0);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -167,13 +164,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
-    bool metallic;
-    bool transmissive;
-    bool emissive;
-    bool invalid;
-    GBuffer::DecodeMetallic(mr.x, metallic, transmissive, emissive, invalid);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (invalid || emissive)
+    if (flags.invalid || flags.emissive)
         return;
 
     samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;

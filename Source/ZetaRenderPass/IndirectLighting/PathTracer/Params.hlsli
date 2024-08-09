@@ -29,4 +29,8 @@
 // When true, uses less precise but faster-to-trace shadow rays
 #define APPROXIMATE_EMISSIVE_SHADOW_RAY 0
 
+// When true, account for transmittance of rays travelling in homogeneous mediums
+// (Currently limited to interior of translucent objects)
+#define ACCOUNT_FOR_TRANSMITTANCE 1
+
 #endif

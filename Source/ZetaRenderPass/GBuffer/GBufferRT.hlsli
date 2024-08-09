@@ -207,7 +207,7 @@ namespace GBufferRT
              baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
         }
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-        const uint32_t normalTex = mat.NormalTexture;
+        const uint32_t normalTex = mat.GetNormalTex();
 
         if (normalTex != Material::INVALID_ID && abs(dot(tangent, tangent)) > 1e-6)
         {
@@ -266,13 +266,14 @@ namespace GBufferRT
             EMISSIVE_MAP g_emissiveMap = ResourceDescriptorHeap[offset];
             emissiveColor *= g_emissiveMap.SampleLevel(g_samLinearWrap, uv, 0).xyz;
         }
-        
+
         emissiveColor *= emissiveStrength;
 
         // encode metalness along with some other stuff
         bool transmissive = mat.IsTransmissive();
         float ior = mat.GetIOR();
-        float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor);
+        float trDepth = transmissive ? (float)mat.GetTransmissionDepth() : 0;
+        float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor, trDepth);
 
         WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, encoded, 
             roughness, emissiveColor, motionVec, transmissive, ior, dpdu, dpdv, dndu,
