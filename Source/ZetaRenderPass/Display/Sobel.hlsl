@@ -91,14 +91,17 @@ float4 mainPS(VSOut psin) : SV_Target
 {
     int2 DTid = psin.PosSS.xy;
     Texture2D<float> g_mask = ResourceDescriptorHeap[g_local.MaskDescHeapIdx];
+    uint maskCenter = g_local.Wireframe ? g_mask[DTid] : 0;
+    uint mask = g_local.Wireframe ? maskCenter : CheckNeighborHood(DTid, g_mask);
 
     // Return if mask is zero - pixel is not part of the object
-    clip(CheckNeighborHood(DTid, g_mask) ? 1 : -1);
+    clip(mask == 1 ? 1 : -1);
 
-    float lum = Sobel(DTid, g_mask);
+    float lum = g_local.Wireframe ? 1 : Sobel(DTid, g_mask);
 
     // Return if pixel is not on the outline
-    clip(lum - 1e-7);
+    // clip(lum - 1e-7);
+    clip(lum > 0 ? 1 : -1);
 
     return float4(0.913098693, 0.332451582, 0.048171822, 1);
 }

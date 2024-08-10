@@ -88,11 +88,11 @@ void DisplayPass::Init()
 
     if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_CUSTOM)
     {
-        ParamVariant p1;
-        p1.InitFloat("Renderer", "Display", "Exponent",
+        ParamVariant p4;
+        p4.InitFloat("Renderer", "Display", "Exponent",
             fastdelegate::MakeDelegate(this, &DisplayPass::AgxExpCallback),
             1, 0.0, 5.0f, 1e-2f);
-        App::AddParam(p1);
+        App::AddParam(p4);
     }
 
     App::Filesystem::Path p(App::GetAssetDir());
@@ -132,6 +132,7 @@ void DisplayPass::SetPickData(const Core::RenderNodeHandle& producerHandle,
 void DisplayPass::ClearPick()
 {
     m_pickID.store(Scene::INVALID_INSTANCE, std::memory_order_relaxed);
+    App::RemoveParam("Renderer", "Display", "Wireframe");
 }
 
 void DisplayPass::Render(CommandList& cmdList)
@@ -244,7 +245,9 @@ void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
             D3D12_BARRIER_ACCESS_RENDER_TARGET);
         cmdList.ResourceBarrier(layoutToRT);
 
-        cmdList.SetPipelineState(m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED));
+        auto* pso = m_wireframe ? m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED_WIREFRAME) :
+            m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED);
+        cmdList.SetPipelineState(pso);
         cmdList.IASetVertexAndIndexBuffers(vbv, ibv);
         auto cpuHandle = m_rtvDescTable.CPUHandle(0);
         cmdList.OMSetRenderTargets(1, &cpuHandle, true, nullptr);
@@ -277,6 +280,7 @@ void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
 
         cbSobel cb;
         cb.MaskDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::PICK_MASK_SRV);
+        cb.Wireframe = m_wireframe;
 
         m_rootSig.SetRootConstants(0, sizeof(cbSobel) / sizeof(uint32), &cb);
         m_rootSig.End(cmdList);
@@ -344,6 +348,14 @@ void DisplayPass::CreatePSOs()
             m_rootSigObj.Get(),
             COMPILED_VS[(int)DISPLAY_SHADER::DRAW_PICKED],
             COMPILED_PS[(int)DISPLAY_SHADER::DRAW_PICKED]);
+
+        psoDesc.RasterizerState.FillMode = D3D12_FILL_MODE_WIREFRAME;
+
+        m_psoLib.CompileGraphicsPSO((int)DISPLAY_SHADER::DRAW_PICKED_WIREFRAME,
+            psoDesc,
+            m_rootSigObj.Get(),
+            COMPILED_VS[(int)DISPLAY_SHADER::DRAW_PICKED],
+            COMPILED_PS[(int)DISPLAY_SHADER::DRAW_PICKED]);
     }
 
     // Sobel
@@ -371,6 +383,7 @@ void DisplayPass::CreatePSOs()
 void DisplayPass::ReadbackPickIdx()
 {
     Assert(m_readback, "Readback buffer hasn't been set.");
+    auto pickWasDisabled = m_pickID == Scene::INVALID_INSTANCE;
     m_readback->Map();
 
     uint32* data = reinterpret_cast<uint32*>(m_readback->MappedMemory());
@@ -384,6 +397,15 @@ void DisplayPass::ReadbackPickIdx()
     m_pickID.store(id, std::memory_order_relaxed);
 
     App::GetScene().SetPickedInstance(id);
+
+    if (pickWasDisabled)
+    {
+        ParamVariant p;
+        p.InitBool("Renderer", "Display", "Wireframe",
+            fastdelegate::MakeDelegate(this, &DisplayPass::WireframeCallback),
+            m_wireframe);
+        App::AddParam(p);
+    }
 }
 
 void DisplayPass::DisplayOptionCallback(const ParamVariant& p)
@@ -441,4 +463,9 @@ void DisplayPass::AutoExposureCallback(const Support::ParamVariant& p)
 void DisplayPass::RoughnessThCallback(const Support::ParamVariant& p)
 {
     m_cbLocal.RoughnessTh = p.GetFloat().m_value;
+}
+
+void DisplayPass::WireframeCallback(const Support::ParamVariant& p)
+{
+    m_wireframe = p.GetBool();
 }

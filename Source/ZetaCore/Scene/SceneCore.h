@@ -212,6 +212,10 @@ namespace ZetaRay::Scene
         ZetaInline Util::Span<uint64_t> GetViewFrustumInstances() { return m_viewFrustumInstances; }
         ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
         ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
+
+        //
+        // Picking
+        //
         ZetaInline void Pick(uint16 screenPosX, uint16 screenPosY) { m_rendererInterface.Pick(screenPosX, screenPosY); }
         ZetaInline void ClearPick() 
         { 

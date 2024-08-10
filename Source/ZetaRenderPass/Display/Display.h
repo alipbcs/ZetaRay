@@ -29,6 +29,7 @@ namespace ZetaRay::RenderPass
     {
         DISPLAY,
         DRAW_PICKED,
+        DRAW_PICKED_WIREFRAME,
         SOBEL,
         COUNT
     };
@@ -107,10 +108,12 @@ namespace ZetaRay::RenderPass
         inline static constexpr const char* COMPILED_VS[(int)DISPLAY_SHADER::COUNT] = { 
             "Display_vs.cso",
             "DrawPicked_vs.cso",
+            "DrawPicked_vs.cso",
             "Sobel_vs.cso"
         };
         inline static constexpr const char* COMPILED_PS[(int)DISPLAY_SHADER::COUNT] = { 
             "Display_ps.cso" ,
+            "DrawPicked_ps.cso", 
             "DrawPicked_ps.cso", 
             "Sobel_ps.cso" 
         };
@@ -126,6 +129,7 @@ namespace ZetaRay::RenderPass
         void AgxExpCallback(const Support::ParamVariant& p);
         void AutoExposureCallback(const Support::ParamVariant& p);
         void RoughnessThCallback(const Support::ParamVariant& p);
+        void WireframeCallback(const Support::ParamVariant& p);
 
         Core::GpuMemory::Texture m_lut;
         Core::DescriptorTable m_descTable;
@@ -139,5 +143,6 @@ namespace ZetaRay::RenderPass
         fastdelegate::FastDelegate0<> m_pickDlg;
         Core::GpuMemory::Texture m_pickMask;
         Core::DescriptorTable m_rtvDescTable;
+        bool m_wireframe = false;
     };
 }

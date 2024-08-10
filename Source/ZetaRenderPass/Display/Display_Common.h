@@ -54,6 +54,7 @@ struct cbDrawPicked
 struct cbSobel
 {
     uint32_t MaskDescHeapIdx;
+    uint32_t Wireframe;
 };
 
 #endif
