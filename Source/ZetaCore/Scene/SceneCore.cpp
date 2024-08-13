@@ -390,7 +390,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         if (matDesc.BaseColorTexPath != MaterialDesc::INVALID_PATH)
         {
             addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
-            mat.BaseColorTexture = tableOffset;
+            mat.SetBaseColorTex(tableOffset);
         }
     }
 

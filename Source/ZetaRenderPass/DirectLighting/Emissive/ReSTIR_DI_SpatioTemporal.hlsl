@@ -42,7 +42,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
         // check if closest hit is a light source
         RDI_Util::BrdfHitInfo hitInfo;
         bool hitEmissive = RDI_Util::FindClosestHit(pos, normal, wi, g_bvh, g_frameMeshData, 
-            hitInfo, surface.transmissive);
+            hitInfo, surface.Transmissive());
 
         RT::EmissiveTriangle emissive;
         float3 le = 0.0;
@@ -141,10 +141,10 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
         {
             currTarget = le * BSDF::UnifiedBSDF(surface) * dwdA;
                 
-            if (Math::Luminance(currTarget) > 1e-6)
+            if (dot(currTarget, currTarget) > 0)
             {
                 currTarget *= RDI_Util::VisibilityApproximate(g_bvh, pos, wi, t, normal, lightID, 
-                    surface.transmissive);
+                    surface.Transmissive());
             }
         }
 

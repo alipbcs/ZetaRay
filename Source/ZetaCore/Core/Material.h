@@ -34,7 +34,8 @@ namespace ZetaRay
             DOUBLE_SIDED = 21,
             TRANSMISSIVE = 22,
             ALPHA_1 = 23,
-            ALPHA_2 = 24
+            ALPHA_2 = 24,
+            THIN_WALLED = 25
         };
 
         static const uint32_t NUM_MATERIAL_BITS = 20;
@@ -82,6 +83,7 @@ namespace ZetaRay
             SetAlphaMode(ALPHA_MODE::OPAQUE_);
             SetAlphaCutoff(0.5f);
             SetNormalScale(1.0f);
+            SetThinWalled(false);
             SetBaseColorTex(INVALID_ID);
             SetNormalTex(INVALID_ID);
             SetMetallicRoughnessTex(INVALID_ID);
@@ -101,7 +103,8 @@ namespace ZetaRay
         ZetaInline void SetBaseColorTex(uint32_t idx)
         {
             Assert(idx <= MAX_NUM_TEXTURES, "Invalid texture index.");
-            BaseColorTexture = idx;
+            BaseColorTexture_Subsurface = idx |
+                (BaseColorTexture_Subsurface & UPPER_12_BITS_MASK);
         }
 
         ZetaInline void SetNormalTex(uint32_t idx)
@@ -138,7 +141,7 @@ namespace ZetaRay
         ZetaInline void SetRoughnessFactor(float r)
         {
             MRTexture_RoughnessFactor = (MRTexture_RoughnessFactor & TEXTURE_MASK) |
-                (Math::FloatToUNorm8(r) << NUM_MATERIAL_BITS);
+                (Math::FloatToUNorm8(r) << NUM_TEXTURE_BITS);
         }
 
         ZetaInline void SetAlphaCutoff(float c)
@@ -174,6 +177,12 @@ namespace ZetaRay
             normalized = std::fmaf(normalized, (1 << 16) - 1, 0.5f);
             EmissiveStrength_IOR = (EmissiveStrength_IOR & LOWER_16_BITS_MASK) | 
                 (uint32_t(normalized) << 16);
+        }
+
+        ZetaInline void SetSubsurface(float s)
+        {
+            BaseColorTexture_Subsurface = (BaseColorTexture_Subsurface & TEXTURE_MASK) |
+                (Math::FloatToUNorm8(s) << NUM_TEXTURE_BITS);
         }
 
         ZetaInline void SetTransmissionDepth(float depth)
@@ -222,12 +231,20 @@ namespace ZetaRay
                 Packed &= ~(1 << FLAG_BITS::METALLIC);
         }
 
+        ZetaInline void SetThinWalled(bool b)
+        {
+            if (b)
+                Packed |= (1 << FLAG_BITS::THIN_WALLED);
+            else
+                Packed &= ~(1 << FLAG_BITS::THIN_WALLED);
+        }
+
         ZetaInline uint32_t GpuBufferIndex() const
         {
             return Packed & MATERIAL_MASK;
         }
 
-        bool IsEmissive() const
+        bool Emissive() const
         {
             if (GetEmissiveTex() != INVALID_ID)
                 return true;
@@ -236,19 +253,24 @@ namespace ZetaRay
             return f.dot(f) > 0;
         }
 #endif
-        bool IsDoubleSided() CONST
+        bool DoubleSided() CONST
         {
             return Packed & (1 << FLAG_BITS::DOUBLE_SIDED);
         }
 
-        bool IsMetallic() CONST
+        bool Metallic() CONST
         {
             return Packed & (1 << FLAG_BITS::METALLIC);
         }
 
-        bool IsTransmissive() CONST
+        bool Transmissive() CONST
         {
             return Packed & (1 << FLAG_BITS::TRANSMISSIVE);
+        }
+
+        bool ThinWalled() CONST
+        {
+            return Packed & (1 << FLAG_BITS::THIN_WALLED);
         }
 
         float3_ GetBaseColorFactor() CONST
@@ -264,6 +286,11 @@ namespace ZetaRay
         float GetNormalScale() CONST
         {
             return Math::UNorm8ToFloat(EmissiveFactor_NormalScale >> 24);
+        }
+
+        uint32_t GetBaseColorTex() CONST
+        {
+            return BaseColorTexture_Subsurface & TEXTURE_MASK;
         }
 
         uint32_t GetNormalTex() CONST
@@ -333,8 +360,17 @@ namespace ZetaRay
 #endif
         }
 
+        float GetSubsurface() CONST
+        {
+#ifdef __cplusplus
+            return Math::UNorm8ToFloat((uint8_t)(BaseColorTexture_Subsurface >> NUM_TEXTURE_BITS));
+#else
+            return Math::UNorm8ToFloat(BaseColorTexture_Subsurface >> NUM_TEXTURE_BITS);
+#endif
+        }
+
         uint32_t BaseColorFactor;
-        uint32_t BaseColorTexture;
+        uint32_t BaseColorTexture_Subsurface;
         uint32_t NormalTexture_TrDepthA;
         // MR stands for metallic roughness
         uint32_t MRTexture_RoughnessFactor;

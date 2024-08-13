@@ -24,6 +24,7 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
     
     // float maxNormalOffset = lerp(2e-5, 1e-4, 1 - wi.y);
     // float3 adjustedOrigin = g_local.test ? RT::OffsetRayRTG(pos, normal) : RT::OffsetRay2(pos, wi, normal, 3e-6, maxNormalOffset);
+    normal = dot(wi, normal) < 0 ? -normal : normal;
     float3 adjustedOrigin = RT::OffsetRayRTG(pos, normal);
     adjustedOrigin.y = max(adjustedOrigin.y, 5e-2);
 
@@ -33,13 +34,9 @@ bool EvaluateVisibility(float3 pos, float3 wi, float3 normal)
     ray.TMax = FLT_MAX;
     ray.Direction = wi;
     
-    // Initialize
     rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
-    
-    // Traversal
     rayQuery.Proceed();
 
-    // Light source is occluded
     if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
         return false;
 
@@ -108,25 +105,26 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor,
-        eta_i, eta_t, flags.transmissive);
+    // Actual subsurface weight isn't needed, just whether it's non-zero
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, 
+        baseColor, eta_i, eta_t, flags.transmissive, 0, flags.subsurface);
 
     float3 wi = -g_frame.SunDir;
     float pdf = 1;
 
-    // Sample the cone subtended by sun    
+    // Sample the cone subtended by sun
     if (g_local.SoftShadows)
     {
-        float3 unused;
-        wi = Light::SampleSunDirection(DTid.xy, g_frame.FrameNum, -g_frame.SunDir, 
-            g_frame.SunCosAngularRadius, normal, surface, unused, pdf);
+        Light::SunSample sunSample = Light::SampleSunDirection(DTid.xy, g_frame.FrameNum, 
+            -g_frame.SunDir, g_frame.SunCosAngularRadius, normal, surface);
+        wi = sunSample.wi;
     }
 
     const bool trace = 
         // Sun below the horizon
         (wi.y > 0) &&
         // Sun hits the backside of non-transmissive surface
-        ((dot(wi, normal) > 0) || surface.transmissive) &&
+        ((dot(wi, normal) > 0) || surface.Transmissive()) &&
         // Make sure BSDF samples are within the valid range
         (dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius);
     const bool isUnoccluded = trace ? EvaluateVisibility(pos, wi, normal) : false;

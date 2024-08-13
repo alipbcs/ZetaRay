@@ -111,9 +111,10 @@ namespace GBufferRT
         return float4(grads_x, grads_y);
     }
 
-    void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float metalness, 
+    void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float flags, 
         float roughness,float3 emissive, float2 motionVec, bool transmissive, float ior, 
-        float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, ConstantBuffer<cbGBufferRt> g_local)
+        float subsurface, float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, 
+        ConstantBuffer<cbGBufferRt> g_local)
     {
         RWTexture2D<float> g_outDepth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
         g_outDepth[DTid] = t;
@@ -121,11 +122,14 @@ namespace GBufferRT
         RWTexture2D<float2> g_outNormal = ResourceDescriptorHeap[g_local.NormalUavDescHeapIdx];
         g_outNormal[DTid] = Math::EncodeUnitVector(normal);
 
-        RWTexture2D<float3> g_outBaseColor = ResourceDescriptorHeap[g_local.BaseColorUavDescHeapIdx];
-        g_outBaseColor[DTid] = baseColor;
+        RWTexture2D<float4> g_outBaseColor = ResourceDescriptorHeap[g_local.BaseColorUavDescHeapIdx];
+        if(subsurface > 0)
+            g_outBaseColor[DTid] = float4(baseColor, subsurface);
+        else
+            g_outBaseColor[DTid].rgb = baseColor;
 
         RWTexture2D<float2> g_outMetallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
-        g_outMetallicRoughness[DTid] = float2(metalness, roughness);
+        g_outMetallicRoughness[DTid] = float2(flags, roughness);
 
         if(dot(emissive, emissive) > 0)
         {
@@ -190,15 +194,19 @@ namespace GBufferRT
         float3 baseColor = mat.GetBaseColorFactor();
         float3 emissiveColor = mat.GetEmissiveFactor();
         float normalScale = mat.GetNormalScale();
-        float metallic = mat.IsMetallic() ? 1.0f : 0.0f;
+        float metallic = mat.Metallic() ? 1.0f : 0.0f;
         float alphaCutoff = mat.GetAlphaCutoff();
         float roughness = mat.GetRoughnessFactor();
         float3 shadingNormal = geoNormal;
 
-        if (mat.BaseColorTexture != Material::INVALID_ID)
+        const uint32_t baseColorTex = mat.GetBaseColorTex();
+        const uint32_t normalTex = mat.GetNormalTex();
+        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+
+        if (baseColorTex != Material::INVALID_ID)
         {
             uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
-                mat.BaseColorTexture);
+                baseColorTex);
             BASE_COLOR_MAP g_baseCol = ResourceDescriptorHeap[offset];
             baseColor *= g_baseCol.SampleGrad(g_samAnisotropicWrap, uv, grads.xy, grads.zw).rgb;
         }
@@ -207,7 +215,6 @@ namespace GBufferRT
              baseColor.rgb = GetCheckerboardColor(uv * 300.0f, grads);
         }
         // avoid normal mapping if tangent = (0, 0, 0), which results in NaN
-        const uint32_t normalTex = mat.GetNormalTex();
 
         if (normalTex != Material::INVALID_ID && abs(dot(tangent, tangent)) > 1e-6)
         {
@@ -220,7 +227,7 @@ namespace GBufferRT
         }
 
         // reverse normal for double-sided meshes if facing away from camera
-        if (mat.IsDoubleSided() && dot(wo, geoNormal) < 0)
+        if (mat.DoubleSided() && dot(wo, geoNormal) < 0)
         {
             shadingNormal *= -1;
             dndu *= -1;
@@ -243,8 +250,6 @@ namespace GBufferRT
             shadingNormal = normalize(shadingNormal);
         }
 #endif
-
-        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
 
         if (metallicRoughnessTex != Material::INVALID_ID)
         {
@@ -270,13 +275,15 @@ namespace GBufferRT
         emissiveColor *= emissiveStrength;
 
         // encode metalness along with some other stuff
-        bool transmissive = mat.IsTransmissive();
+        bool transmissive = mat.Transmissive();
         float ior = mat.GetIOR();
         float trDepth = transmissive ? (float)mat.GetTransmissionDepth() : 0;
-        float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor, trDepth);
+        float subsurface = mat.ThinWalled() ? (float)mat.GetSubsurface() : 0;
+        float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor, 
+            trDepth, subsurface);
 
         WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, encoded, 
-            roughness, emissiveColor, motionVec, transmissive, ior, dpdu, dpdv, dndu,
-            dndv, g_local);
+            roughness, emissiveColor, motionVec, transmissive, ior, subsurface, 
+            dpdu, dpdv, dndu, dndv, g_local);
     }
 }

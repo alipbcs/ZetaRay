@@ -224,7 +224,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 #else
     // Use the same BSDF ray used for direct lighting at previous path vertex
     Hit_Emissive nextHit = Hit_Emissive::FindClosest(pos, normal, bsdfSample.wi, 
-        globals.bvh, g_frameMeshData, surface.transmissive);
+        globals.bvh, g_frameMeshData, surface.Transmissive());
 #endif
 
     while(true)
@@ -234,7 +234,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
 #if NEE_EMISSIVE == 0
         Hit hitInfo = Hit::FindClosest<true>(pos, normal, bsdfSample.wi, g_bvh, g_frameMeshData, 
-            g_vertices, g_indices, surface.transmissive);
+            g_vertices, g_indices, surface.Transmissive());
 #else
         // Use the same BSDF ray used for direct lighting at previous path vertex
         ReSTIR_RT::Hit hitInfo = nextHit.ToHitInfo(bsdfSample.wi, g_frameMeshData, 
@@ -314,7 +314,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         // Sample BSDF to generate new direction
         bsdfSample = BSDF::BSDFSample::Init();
         bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.transmissive && (bounce < globals.maxGlossyBounces_Tr));
+            (surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
 
         if(bounce < globals.maxDiffuseBounces)
             bsdfSample = BSDF::SampleBSDF(normal, surface, rngReplay);
@@ -482,7 +482,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float3 baseColor = g_baseColor[swizzledDTid].rgb;
+    const float4 baseColor = flags.subsurface ? g_baseColor[swizzledDTid] :
+        float4(g_baseColor[swizzledDTid].rgb, 0);
 
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
@@ -497,8 +498,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     }
 
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor, 
-        eta_i, eta_t, flags.transmissive, flags.trDepthGt0);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz, 
+        eta_i, eta_t, flags.transmissive, flags.trDepthGt0, (half)baseColor.w);
 
     float3 li;
     RPT_Util::Reservoir r = RIS_InitialCandidates(swizzledDTid, swizzledGid, origin, lensSample,

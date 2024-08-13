@@ -44,10 +44,11 @@ namespace BSDF
 {
     enum class LOBE : uint16_t
     {
-        DIFFUSE_R = 0,     // Lambertian reflection
-        GLOSSY_R = 1,      // Specular reflection or glossy GGX BRDF
-        GLOSSY_T = 2,      // Specular transmission or glossy GGX BTDF
-        ALL = 3
+        DIFFUSE_R = 0,     // Diffuse reflection
+        DIFFUSE_T = 1,     // Diffuse transmission
+        GLOSSY_R = 2,      // Specular reflection or glossy GGX BRDF
+        GLOSSY_T = 3,      // Specular transmission or glossy GGX BTDF
+        ALL = 4
     };
 
     uint16_t LobeToValue(LOBE t)
@@ -56,13 +57,15 @@ namespace BSDF
         {
             case LOBE::DIFFUSE_R:
                 return 0;
-            case LOBE::GLOSSY_R:
+            case LOBE::DIFFUSE_T:
                 return 1;
-            case LOBE::GLOSSY_T:
+            case LOBE::GLOSSY_R:
                 return 2;
+            case LOBE::GLOSSY_T:
+                return 3;
             case LOBE::ALL:
             default:
-                return 3;
+                return 4;
         }
     }
 
@@ -71,8 +74,10 @@ namespace BSDF
         if(x == 0)
             return LOBE::DIFFUSE_R;
         if(x == 1)
-            return LOBE::GLOSSY_R;
+            return LOBE::DIFFUSE_T;
         if(x == 2)
+            return LOBE::GLOSSY_R;
+        if(x == 3)
             return LOBE::GLOSSY_T;
 
         return LOBE::ALL;
@@ -80,10 +85,10 @@ namespace BSDF
 
     float LobeAlpha(float alpha, LOBE lt)
     {
-        if(lt == LOBE::DIFFUSE_R || lt == LOBE::ALL)
-            return 1.0f;
+        if(lt == LOBE::GLOSSY_R || lt == LOBE::GLOSSY_T)
+            return alpha;
 
-        return alpha;
+        return 1.0f;
     }
 
     //--------------------------------------------------------------------------------------
@@ -105,17 +110,6 @@ namespace BSDF
     {
         float f0 = (eta - 1) / (eta + 1);
         return f0 * f0;
-    }
-
-    // Follows the same input conventions as hlsl refract().
-    // eta = eta_i / eta_t
-    bool TotalInternalReflection(float3 w, float3 normal, float eta)
-    {
-        if(eta <= 1)
-            return false;
-
-        float cos_theta_i = dot(w, normal);
-        return (eta * eta * (1 - cos_theta_i * cos_theta_i)) >= 1;
     }
 
     // whdotwx: 
@@ -356,7 +350,7 @@ namespace BSDF
     {
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
             float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, 
-            bool transmissive = false, half transmissionDepth = 0)
+            bool specTr = false, half transmissionDepth = 0, half subsurface = 0)
         {
             ShadingData si;
 
@@ -370,8 +364,9 @@ namespace BSDF
             si.alpha = roughness * roughness;
             si.diffuseReflectance_Fr0_TrCol = baseColor;
             si.eta = eta_i / eta_t;
-            si.transmissive = transmissive;
+            si.specTr = specTr;
             si.trDepth = transmissionDepth;
+            si.subsurface = subsurface;
 
             // Specular reflection and microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
@@ -422,8 +417,8 @@ namespace BSDF
             this.whdotwo = saturate(dot(wh, wo));
             this.whdotwi = abs(dot(wh, wi));
 
-            bool isInvalid = this.backfacing_wo || this.ndotwh == 0 || this.whdotwo == 0;
-            this.invalid = isInvalid || ndotwi_n >= 0 || !this.transmissive || this.metallic;
+            bool isInvalid = this.backfacing_wo || (this.specTr && (this.ndotwh == 0 || this.whdotwo == 0));
+            this.invalid = isInvalid || ndotwi_n >= 0 || !Transmissive() || this.metallic;
 
             this.ndotwi = max(abs(ndotwi_n), 1e-5f);
         }
@@ -441,9 +436,9 @@ namespace BSDF
             bool backfacing_r = ndotwi_n <= 0;
             // transmission - wi and wo have to be on the opposite sides w.r.t. normal. Furthermore,
             // in case of TIR, wi = 0, from which n.wi = 0 and therefore also covered by condition below.
-            bool backfacing_t = ndotwi_n >= 0 || !this.transmissive || this.metallic;
+            bool backfacing_t = ndotwi_n >= 0 || !Transmissive() || this.metallic;
 
-            bool isInvalid = this.backfacing_wo || this.ndotwh == 0 || this.whdotwo == 0;
+            bool isInvalid = this.backfacing_wo || (this.specTr && (this.ndotwh == 0 || this.whdotwo == 0));
             this.invalid = isInvalid || (this.reflection && backfacing_r) || (!this.reflection && backfacing_t);
 
             // Clamp to a small value to avoid division by zero
@@ -479,24 +474,31 @@ namespace BSDF
 
         float3 Fresnel()
         {
+            // When specular, wh = n and wh.wo = n.wo. Besides, when there are
+            // other lobes besides microfacet (e.g. diffuse reflection) and
+            // surface is specular, Fresnel must be computed with n.wo.
+            float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
+
             // Use Schlick's approximation for metals and non-transmissive dielectrics
-            if(this.metallic || !this.transmissive)
+            if(this.metallic || (!this.specTr && (this.eta > 1)))
             {
                 float3 fr0 = this.metallic ? this.diffuseReflectance_Fr0_TrCol : 
                     DielectricF0(this.eta);
 
-                return FresnelSchlick(fr0, this.whdotwo);
+                return FresnelSchlick(fr0, cosIncident);
             }
 
-            return Fresnel_Dielectric(this.whdotwo, 1 / this.eta);
+            return Fresnel_Dielectric(cosIncident, 1 / this.eta);
         }
 
         float3 Fresnel(float3 fr0)
         {
-            if(this.metallic || !this.transmissive)
-                return FresnelSchlick(fr0, this.whdotwo);
+            float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
 
-            return Fresnel_Dielectric(this.whdotwo, 1 / this.eta);
+            if(this.metallic || (!this.specTr && (this.eta > 1)))
+                return FresnelSchlick(fr0, cosIncident);
+
+            return Fresnel_Dielectric(cosIncident, 1 / this.eta);
         }
 
         void Regularize()
@@ -509,6 +511,27 @@ namespace BSDF
         float3 TransmissionTint()
         {
             return trDepth > 0 ? 1 : diffuseReflectance_Fr0_TrCol;
+        }
+
+        bool ThinWalled()
+        {
+            return subsurface > 0;
+        }
+
+        bool Transmissive()
+        {
+            return specTr || ThinWalled();
+        }
+
+        float SpecularReflectance()
+        {
+            // Reflectance only depends on wo. When surface is specular, it's equal 
+            // to Fresnel, which requires the incident and half vectors. But in that 
+            // case, n = wh and Fresnel is computed by passing n.wo, which doesn't 
+            // depend on any SetWi*() calls.
+            float fr0 = DielectricF0(this.eta);
+            return this.specular ? this.Fresnel(fr0).x : 
+                GGXReflectanceApprox(fr0, this.alpha, this.ndotwo).x;
         }
 
         // Roughness textures actually contain an "interface" value of roughness that is perceptively 
@@ -525,16 +548,17 @@ namespace BSDF
         // Union of:
         //  - Diffuse reflectance for dielectrics
         //  - Fresnel at normal incidence for metals
-        //  - Transmission color for transmissive dielectrics
+        //  - Transmission color for dielectrics with specular transmission
         float3 diffuseReflectance_Fr0_TrCol;
         float eta;      // eta_i / eta_t
-        uint16 transmissive;
-        uint16 metallic;
-        uint16 specular;  // delta BSDF
-        uint16 backfacing_wo;
-        uint16 invalid;
-        uint16 reflection;
+        bool16 specTr;
+        bool16 metallic;
+        bool16 specular;  // delta BSDF
+        bool16 backfacing_wo;
+        bool16 invalid;
+        bool16 reflection;
         half trDepth;
+        half subsurface;
     };
 
     bool IsLobeValid(ShadingData surface, LOBE lt)
@@ -545,10 +569,10 @@ namespace BSDF
         if(surface.metallic && (lt != LOBE::GLOSSY_R))
             return false;
 
-        if(!surface.transmissive && (lt == LOBE::GLOSSY_T))
+        if(!surface.specTr && (lt == LOBE::GLOSSY_T))
             return false;
 
-        if(surface.transmissive && (lt == LOBE::DIFFUSE_R))
+        if(surface.specTr && (lt == LOBE::DIFFUSE_R))
             return false;
 
         return true;
@@ -559,24 +583,24 @@ namespace BSDF
     //--------------------------------------------------------------------------------------
 
     // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included for convenience.
-    float3 LambertianBRDF(ShadingData surface)
+    float3 LambertianBxDF(ShadingData surface)
     {
         return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
     }
 
     // Pdf of cosine-weighted hemisphere sampling
-    float LambertianBRDFPdf(ShadingData surface)
+    float LambertianBxDFPdf(ShadingData surface)
     {
         return surface.ndotwi * ONE_OVER_PI;
     }
 
     // Lambertain BRDF times n.wi divided by pdf of cosine-weighted hemisphere sampling
-    float3 LambertianBRDFDivPdf(ShadingData surface)
+    float3 LambertianBxDFDivPdf(ShadingData surface)
     {
         return surface.diffuseReflectance_Fr0_TrCol;
     }
 
-    float3 SampleLambertianBRDF(float3 normal, float2 u, out float pdf)
+    float3 SampleLambertian(float3 normal, float2 u, out float pdf)
     {
         float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
@@ -588,10 +612,10 @@ namespace BSDF
         return wiWorld;
     }
 
-    float3 SampleLambertianBRDF(float3 normal, float2 u)
+    float3 SampleLambertian(float3 normal, float2 u)
     {
         float unused;
-        return SampleLambertianBRDF(normal, u, unused);
+        return SampleLambertian(normal, u, unused);
     }
 
     //--------------------------------------------------------------------------------------
@@ -721,7 +745,7 @@ namespace BSDF
     //               = GGX(wh) * wh.wo * wh.wi * G1(n.wo) / (n.wo * (wh.wi + wh.wo * eta)^2)
     float VNDFTransmissionPdf(ShadingData surface)
     {
-        if(!surface.transmissive)
+        if(!surface.specTr)
             return 0;
 
         if(surface.specular)
@@ -818,8 +842,13 @@ namespace BSDF
 
     float3 OpaqueBase(ShadingData surface, float fr, float reflectance)
     {
-        float3 gloss = MicrofacetBRDFGGXSmith(surface, fr);
-        float3 diffuse = (1 - reflectance) * LambertianBRDF(surface);
+        if(surface.invalid)
+            return 0;
+
+        // mul. by reflection is to handle thin walled case
+        float3 gloss = MicrofacetBRDFGGXSmith(surface, fr) * surface.reflection;
+        float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
+        float3 diffuse = (1 - reflectance) * s * LambertianBxDF(surface);
 
         return diffuse + gloss;
     }
@@ -830,7 +859,7 @@ namespace BSDF
             return 0;
 
         float fr0 = DielectricF0(surface.eta);
-        float fr = FresnelSchlick_Dielectric(fr0, surface.whdotwo);
+        float fr = surface.Fresnel(fr0).x;
         float reflectance = surface.specular ? fr : 
             GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
 
@@ -847,46 +876,48 @@ namespace BSDF
         return MicrofacetBRDFGGXSmith(surface, fr);
     }
 
-    float3 DielectricBTDF(ShadingData surface, float fr, float reflectance)
+    float3 DielectricSpecularTr(ShadingData surface, float fr)
     {
+        if(surface.invalid || !surface.specTr)
+            return 0;
+
+        float fr0 = DielectricF0(surface.eta);
+        float reflectance = surface.specular ? 0 : 
+            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+
         float gloss = MicrofacetBTDFGGXSmith(surface);
         return (1 - reflectance) * gloss * (1 - fr) * surface.TransmissionTint();
     }
 
-    float3 DielectricBTDF(ShadingData surface, float fr)
+    float3 DielectricSpecularTr(ShadingData surface)
     {
-        if(surface.invalid || !surface.transmissive)
-            return 0;
-
-        float fr0 = DielectricF0(surface.eta);
-        float reflectance = surface.specular ? 0 : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
-
-        return DielectricBTDF(surface, fr, reflectance);
-    }
-
-    float3 DielectricBTDF(ShadingData surface)
-    {
-        if(surface.invalid || !surface.transmissive)
+        if(surface.invalid || !surface.specTr)
             return 0;
 
         float fr = Fresnel_Dielectric(surface.whdotwo, 1 / surface.eta);
-        float fr0 = DielectricF0(surface.eta);
-        float reflectance = surface.specular ? 0 : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
-
-        return DielectricBTDF(surface, fr, reflectance);
+        return DielectricSpecularTr(surface, fr);
     }
 
-    // Excludes translucent base. Useful when we know surface isn't transmissive.
-    float3 BaseBRDF(ShadingData surface)
+    // Excludes translucent base. Useful when we know surface doesn't have specular transmission.
+    float3 NonTranslucentBase(ShadingData surface, float3 fr, float reflectance)
+    {
+        if(surface.invalid)
+            return 0;
+
+        if(surface.metallic)
+            return MicrofacetBRDFGGXSmith(surface, fr);
+
+        return OpaqueBase(surface, fr.x, reflectance);
+    }
+
+    float3 NonTranslucentBase(ShadingData surface)
     {
         if(surface.invalid)
             return 0;
 
         float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
             DielectricF0(surface.eta);
-        float3 fr = FresnelSchlick(fr0, surface.whdotwo);
+        float3 fr = surface.Fresnel(fr0);
 
         if(surface.metallic)
             return MicrofacetBRDFGGXSmith(surface, fr);
@@ -902,30 +933,33 @@ namespace BSDF
         if(surface.invalid)
             return 0;
 
-        float3 glossOrMetal = MicrofacetBRDFGGXSmith(surface, fr);
+        float3 glossyRefl = MicrofacetBRDFGGXSmith(surface, fr);
 
         // Metal
         if(surface.metallic)
-            return glossOrMetal;
+            return glossyRefl;
 
         float reflectance = surface.specular ? fr.x : 
             GGXReflectanceApprox(fr0_d, surface.alpha, surface.ndotwo).x;
 
         // Opaque Base
-        if(!surface.transmissive)
+        if(!surface.specTr)
         {
-            float3 diffuse = (1 - reflectance) * LambertianBRDF(surface);
-            return diffuse + glossOrMetal;
+            float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
+            float3 diffuse = (1 - reflectance) * LambertianBxDF(surface);
+
+            return diffuse * s + glossyRefl * surface.reflection;
         }
 
         // Translucent Base
         if(surface.reflection)
-            return glossOrMetal;
+            return glossyRefl;
 
-        // For specular, 1 - Fresnel factor is already accounted for
+        // For specular, (1 - Fresnel) factor is already accounted for
         reflectance = surface.specular ? 0 : reflectance;
+        float gloss = MicrofacetBTDFGGXSmith(surface);
 
-        return DielectricBTDF(surface, fr.x, reflectance);
+        return (1 - reflectance) * gloss * (1 - fr.x) * surface.TransmissionTint();
     }
 
     float3 UnifiedBSDF(ShadingData surface, out float fr_d)

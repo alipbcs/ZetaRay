@@ -674,7 +674,7 @@ namespace
                                 v0.Position, v1.Position, v2.Position,
                                 v0.TexUV, v1.TexUV, v2.TexUV,
                                 emissiveFactorRGB, mat->GetEmissiveTex(), mat->GetEmissiveStrength(),
-                                currMeshTriIdx++, mat->IsDoubleSided());
+                                currMeshTriIdx++, mat->DoubleSided());
                         }
                     }
                 }

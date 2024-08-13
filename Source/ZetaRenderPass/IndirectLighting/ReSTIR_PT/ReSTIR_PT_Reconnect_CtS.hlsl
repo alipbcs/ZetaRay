@@ -76,7 +76,8 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
     GBuffer::Flags flags_n = GBuffer::DecodeMetallic(mr_n.x);
 
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
-    float3 baseColor_n = g_baseColor[samplePosSS].rgb;
+    float4 baseColor_n = flags_n.subsurface ? g_baseColor[samplePosSS] : 
+        float4(g_baseColor[samplePosSS].rgb, 0);
     float eta_i = DEFAULT_ETA_I;
 
     if(flags_n.transmissive)
@@ -87,7 +88,8 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
 
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
-        mr_n.y, baseColor_n, eta_i, DEFAULT_ETA_T, flags_n.transmissive, flags_n.trDepthGt0);
+        mr_n.y, baseColor_n.rgb, eta_i, DEFAULT_ETA_T, flags_n.transmissive, flags_n.trDepthGt0,
+        (half)baseColor_n.a);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -172,10 +174,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
     samplePos += swizzledDTid;
 
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<Texture2D<uint2>, 
+    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<Texture2D<uint4>, 
         Texture2D<float2> >(swizzledDTid, g_local.Reservoir_A_DescHeapIdx, 
         g_local.Reservoir_A_DescHeapIdx + 1);
-    RPT_Util::Reservoir r_spatial = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint2> >(
+    RPT_Util::Reservoir r_spatial = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
         samplePos, g_local.Reservoir_A_DescHeapIdx);
 
     // Shift current reservoir's path to spatial pixel and resample

@@ -133,14 +133,14 @@ namespace RPT_Util
             }
         }
 
-        void UnpackMetadata(uint2 metadata)
+        void UnpackMetadata(uint3 metadata)
         {
             uint16_t k = uint16_t(metadata.x & 0xf);
             this.rc.k = k == Reconnection::EMPTY ? k : k + (uint16_t)2;
-            this.rc.lobe_k_min_1 = BSDF::LobeFromValue(metadata.y & 0x3);
-            this.rc.lobe_k = BSDF::LobeFromValue((metadata.y >> 2) & 0x3);
-            this.rc.lt_k = Light::TypeFromValue((metadata.y >> 4) & 0x3);
-            this.rc.lt_k_plus_1 = Light::TypeFromValue(metadata.y >> 6);
+            this.rc.lobe_k_min_1 = BSDF::LobeFromValue(metadata.y & 0x7);
+            this.rc.lobe_k = BSDF::LobeFromValue((metadata.y >> 3) & 0x7);
+            this.rc.lt_k = Light::TypeFromValue((metadata.y >> 6) & 0x3);
+            this.rc.lt_k_plus_1 = Light::TypeFromValue(metadata.z);
             this.M = (uint16_t)(metadata.x >> 4);
         }
 
@@ -150,7 +150,7 @@ namespace RPT_Util
             TexA g_inA = ResourceDescriptorHeap[inputAIdx];
 
             Reservoir ret;
-            ret.UnpackMetadata(g_inA[DTid]);
+            ret.UnpackMetadata(g_inA[DTid].xyz);
 
             return ret;
         }
@@ -162,7 +162,7 @@ namespace RPT_Util
             TexB g_inB = ResourceDescriptorHeap[inputBIdx];
 
             Reservoir ret;
-            ret.UnpackMetadata(g_inA[DTid]);
+            ret.UnpackMetadata(g_inA[DTid].xyz);
 
             float2 inB = g_inB[DTid];
             ret.w_sum = inB.x;
@@ -203,7 +203,7 @@ namespace RPT_Util
             TexG g_inG = ResourceDescriptorHeap[inputGIdx];
 
             Reservoir ret;
-            ret.UnpackMetadata(g_inA[DTid]);
+            ret.UnpackMetadata(g_inA[DTid].xyz);
 
             float2 inB = g_inB[DTid];
             ret.w_sum = inB.x;
@@ -317,7 +317,7 @@ namespace RPT_Util
 
         void WriteReservoirData(uint2 DTid, uint outputAIdx, uint outputBIdx, uint M_max)
         {
-            RWTexture2D<uint2> g_outA = ResourceDescriptorHeap[outputAIdx];
+            RWTexture2D<uint4> g_outA = ResourceDescriptorHeap[outputAIdx];
             RWTexture2D<float2> g_outB = ResourceDescriptorHeap[outputBIdx];
 
             uint k = this.rc.Empty() ? this.rc.k : max(this.rc.k, 2) - 2;
@@ -346,7 +346,7 @@ namespace RPT_Util
             uint M_max = 0)
         {
             // (metadata)
-            RWTexture2D<uint2> g_outA = ResourceDescriptorHeap[outputAIdx];
+            RWTexture2D<uint4> g_outA = ResourceDescriptorHeap[outputAIdx];
             // (w_sum, W)
             RWTexture2D<float2> g_outB = ResourceDescriptorHeap[outputBIdx];
             // (jacobian, seed_replay, ID, x_k.x)
@@ -364,13 +364,13 @@ namespace RPT_Util
             uint m = M_max == 0 ? this.M : min(this.M, M_max);
             uint k = this.rc.Empty() ? this.rc.k : max(this.rc.k, 2) - 2;
 
-            uint2 metadata;
+            uint3 metadata;
             metadata.x = k | (m << 4);
             metadata.y = BSDF::LobeToValue(this.rc.lobe_k_min_1) |
-                (BSDF::LobeToValue(this.rc.lobe_k) << 2) |
-                (Light::TypeToValue(this.rc.lt_k) << 4) |
-                (Light::TypeToValue(this.rc.lt_k_plus_1) << 6);
-            g_outA[DTid] = metadata;
+                (BSDF::LobeToValue(this.rc.lobe_k) << 3) |
+                (Light::TypeToValue(this.rc.lt_k) << 6);
+            metadata.z = Light::TypeToValue(this.rc.lt_k_plus_1);
+            g_outA[DTid].xyz = metadata;
 
             // B
             this.w_sum = Math::Sanitize(this.w_sum);

@@ -73,7 +73,7 @@ namespace RGI_Util
 
         ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(primaryPos, primaryNormal, 
             bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
-            globals.indices, primarySurface.transmissive);
+            globals.indices, primarySurface.Transmissive());
 
         if(!hitInfo.hit)
             return r;
@@ -262,7 +262,7 @@ namespace RGI_Util
         if(testVisibility && targetLum_prev > 1e-5)
         {
             if(!ReSTIR_RT::Visibility_Segment(candidate.posW, wi, t, candidate.normal, 
-                r_curr.ID, g_bvh, surface_prev.transmissive))
+                r_curr.ID, g_bvh, surface_prev.Transmissive()))
             {
                 return 0;
             }
@@ -346,7 +346,7 @@ namespace RGI_Util
         // Target at current pixel with temporal reservoir's sample
         if(targetLum_curr > 1e-6)
         {
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.transmissive))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.Transmissive()))
             {
                 PartialReadReservoir_ReuseRest(candidate.posSS, prevReservoir_C_DescHeapIdx, r_prev);
 
@@ -422,7 +422,7 @@ namespace RGI_Util
             if(targetLum_curr < 1e-5f)
                 continue;
 
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.transmissive))
+            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.Transmissive()))
             {
                 PartialReadReservoir_ReuseRest(candidate[i].posSS, prevReservoir_C_DescHeapIdx, r_prev[i]);
 
@@ -570,7 +570,7 @@ namespace RGI_Util
             float3 relfectedPos = r.pos;
 
             TemporalSamples<2> candidate = RGI_Util::FindTemporalCandidate<2>(DTid, pos, normal, 
-                z_view, roughness, surface.transmissive, prevUV, g_frame, rngThread);
+                z_view, roughness, surface.specTr, prevUV, g_frame, rngThread);
 
             // candidate.valid[0] = candidate.valid[0] && !r.IsValid();
 

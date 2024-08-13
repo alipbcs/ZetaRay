@@ -89,7 +89,7 @@ bool Visibility(float3 pos, float3 wi, float3 normal, bool transmissive)
 
 float3 Le(float3 pos, float3 normal, float3 wi, BSDF::ShadingData surface)
 {
-    const bool vis = Visibility(pos, wi, normal, surface.transmissive);
+    const bool vis = Visibility(pos, wi, normal, surface.Transmissive());
     if (!vis)
         return 0.0;
 
@@ -164,7 +164,7 @@ struct PairwiseMIS
             if(dot(currTarget, currTarget) > 0)
             {
                 currTarget *= Visibility(pos_c, r_i.wi, normal_c, 
-                    surface_c.transmissive);
+                    surface_c.Transmissive());
             }
 
             const float targetLum = Math::Luminance(currTarget);
@@ -182,7 +182,7 @@ struct PairwiseMIS
             if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
             {
                 brdfCosTheta_i *= Visibility(pos_i, r_c.wi, normal_i, 
-                    surface_i.transmissive);
+                    surface_i.Transmissive());
             }
 
             Update_m_c(r_c, r_i, brdfCosTheta_i);
@@ -226,7 +226,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
     {
         const float2 u = rng.Uniform2D();
         float p_e;
-        float3 wi_e = BSDF::SampleLambertianBRDF(normal, u, p_e);
+        float3 wi_e = BSDF::SampleLambertian(normal, u, p_e);
         const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
@@ -421,7 +421,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
             if(targetLumAtPrev > 0)
             {
                 targetLumAtPrev *= Visibility(candidate.pos, r.wi, candidate.normal, 
-                    prevSurface.transmissive);
+                    prevSurface.Transmissive());
             }
         }
 
@@ -440,7 +440,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 0)
-            targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.transmissive);
+            targetLumAtCurr *= Visibility(pos, prev.wi, normal, surface.Transmissive());
         
         // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
         if(targetLumAtCurr > 0)

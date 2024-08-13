@@ -129,7 +129,7 @@ namespace ZetaRay::RenderPass
 
         struct ResourceFormats_RPT
         {
-            static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R8G8_UINT;
+            static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R8G8B8A8_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R32G32_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_D = DXGI_FORMAT_R32G32B32A32_UINT;

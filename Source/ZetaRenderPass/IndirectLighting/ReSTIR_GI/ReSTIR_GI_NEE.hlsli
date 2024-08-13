@@ -29,7 +29,7 @@ namespace RGI_Util
 
             // Check if closest hit is a light source
             ReSTIR_RT::Hit_Emissive hitInfo = ReSTIR_RT::Hit_Emissive::FindClosest(pos, normal, 
-                wi, globals.bvh, globals.frameMeshData, surface.transmissive);
+                wi, globals.bvh, globals.frameMeshData, surface.Transmissive());
 
             if (hitInfo.HitWasEmissive())
             {
@@ -102,7 +102,7 @@ namespace RGI_Util
                 le *= BSDF::UnifiedBSDF(surface) * dwdA;
                 
                 if (dot(le, le) > 0)
-                    le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, surface.transmissive);
+                    le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, surface.Transmissive());
 
                 float bsdfPdf = skipDiffuse ? 
                     BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) :
@@ -173,7 +173,7 @@ namespace RGI_Util
                 if (Math::Luminance(le) > 1e-6)
                 {
                     le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, 
-                        surface.transmissive);
+                        surface.Transmissive());
                 }
 
                 ret.ld += le / max(lightPdf, 1e-6);
@@ -196,7 +196,7 @@ namespace RGI_Util
         if(-g_frame.SunDir.y > 0)
         {
             // Consider the sun only if the surface is not oriented away.
-            float q = (surface.transmissive ? 1 : 
+            float q = (surface.Transmissive() ? 1 : 
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 
             if(p_sun < q)
@@ -209,7 +209,7 @@ namespace RGI_Util
                 return ls;
             }
 
-            ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sky(pos, normal, surface, 
+            ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sky<true>(pos, normal, surface, 
                 globals.bvh, g_frame.EnvMapDescHeapOffset, rngThread);
             ls.ld /= (1 - q);
             ls.pdf_solidAngle *= (1 - q);

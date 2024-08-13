@@ -119,28 +119,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 #if defined (TEMPORAL_TO_CURRENT)
     if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint2> >(neighborPixel, 
+        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(neighborPixel, 
             g_local.Reservoir_A_DescHeapIdx);
     }
 
 #elif defined(CURRENT_TO_TEMPORAL)
     if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<RWTexture2D<uint2> >(DTid.xy, 
+        r_x = RPT_Util::Reservoir::Load_Metadata<RWTexture2D<uint4> >(DTid.xy, 
             g_local.Reservoir_A_DescHeapIdx);
     }
 
 #elif defined(CURRENT_TO_SPATIAL)
     if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint2> >(DTid.xy, 
+        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(DTid.xy, 
             g_local.Reservoir_A_DescHeapIdx);
     }
 
 #elif defined(SPATIAL_TO_CURRENT)
     if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint2> >(neighborPixel, 
+        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(neighborPixel, 
             g_local.Reservoir_A_DescHeapIdx);
     }
 

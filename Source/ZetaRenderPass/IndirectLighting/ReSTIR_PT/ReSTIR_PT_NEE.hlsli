@@ -34,23 +34,26 @@ namespace RPT_Util
         if(-g_frame.SunDir.y > 0)
         {
             // Skip sun the opaque surface is oriented away
-            float q = (surface.transmissive ? 1 : 
+            float q = (surface.Transmissive() ? 1 : 
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 
+            ReSTIR_Util::DirectLightingEstimate ls;
             if(p_sun < q)
             {
-                ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sun<true>(pos, normal, surface, 
-                    g_bvh, g_frame, rng);
+                ls = ReSTIR_Util::NEE_Sun<false>(pos, normal, surface, g_bvh, g_frame, rng);
                 ls.ld /= q;
                 ls.pdf_solidAngle *= q;
-
-                return ls;
+            }
+            else
+            {
+                ls = ReSTIR_Util::NEE_Sky<false>(pos, normal, surface, g_bvh, 
+                    g_frame.EnvMapDescHeapOffset, rng);
+                ls.ld /= (1 - q);
+                ls.pdf_solidAngle *= (1 - q);
             }
 
-            ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sky(pos, normal, surface, 
-                g_bvh, g_frame.EnvMapDescHeapOffset, rng);
-            ls.ld /= (1 - q);
-            ls.pdf_solidAngle *= (1 - q);
+            if(dot(ls.ld, ls.ld) > 0)
+                ls.ld *= ReSTIR_RT::Visibility_Ray(pos, ls.wi, normal, g_bvh, surface.Transmissive());
 
             return ls;
         }
@@ -82,7 +85,7 @@ namespace RPT_Util
 
         // Check if closest hit is a light source
         hitInfo = ReSTIR_RT::Hit_Emissive::FindClosest(pos, normal, wi, globals.bvh, 
-            globals.frameMeshData, surface.transmissive);
+            globals.frameMeshData, surface.Transmissive());
 
         if (hitInfo.HitWasEmissive())
         {
@@ -125,7 +128,7 @@ namespace RPT_Util
 
         // Last iteration -- set bsdfSample = null so that we early exit from path tracing loop
         const bool sampleNonDiffuse = (nextBounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.transmissive && (nextBounce < globals.maxGlossyBounces_Tr));
+            (surface.specTr && (nextBounce < globals.maxGlossyBounces_Tr));
 
         if((nextBounce >= globals.maxDiffuseBounces) && !sampleNonDiffuse)
             bsdfSample.bsdfOverPdf = 0;
@@ -185,7 +188,7 @@ namespace RPT_Util
             if (dot(ld, ld) > 0)
             {
                 ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
-                    globals.bvh, surface.transmissive);
+                    globals.bvh, surface.Transmissive());
             }
 
             float bsdfPdf = 0;
@@ -217,14 +220,8 @@ namespace RPT_Util
         BSDF::ShadingData surface, float3 wi, BSDF::LOBE lobe, uint skyViewDescHeapOffset, 
         RaytracingAccelerationStructure g_bvh, inout RNG rng)
     {
-        float2 u_wh = rng.Uniform2D();
-        float2 u_d = rng.Uniform2D();
-        float u_wrs_r = rng.Uniform();
-        float u_wrs_d = rng.Uniform();
-
         SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(skyViewDescHeapOffset);
-        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, u_wh, u_d, 
-            u_wrs_r, leFunc);
+        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, leFunc, rng);
 
         ReSTIR_Util::DirectLightingEstimate ret;
         // = Le(wi) * BSDF(wi) / pdf
@@ -232,7 +229,7 @@ namespace RPT_Util
         ret.pdf_solidAngle = eval.pdf;
 
         if(TestVisibility && (dot(ret.ld, ret.ld) > 0))
-            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.transmissive);
+            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive());
 
         return ret;
     }
@@ -297,7 +294,7 @@ namespace RPT_Util
         if(dot(ld, ld) > 0)
         {
             ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
-                surface.transmissive);
+                surface.Transmissive());
         }
 
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();

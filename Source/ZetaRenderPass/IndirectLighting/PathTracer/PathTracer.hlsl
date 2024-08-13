@@ -69,7 +69,7 @@ float3 EstimateIndirectLighting(uint2 DTid, float3 origin, float2 lensSample, fl
 
     Hit hitInfo = Hit::FindClosest<true>(pos, normal, bsdfSample.wi, globals.bvh, 
         globals.frameMeshData, globals.vertices, globals.indices, 
-        surface.transmissive);
+        surface.Transmissive());
 
     if(!hitInfo.hit)
         return 0;

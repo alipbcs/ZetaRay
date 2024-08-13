@@ -690,9 +690,9 @@ void TLAS::BuildFrameMeshInstanceData()
         m_frameInstanceData[currInstance].Scale = half3(s);
         m_frameInstanceData[currInstance].Translation = float3(t.x, t.y, t.z);
         m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : UINT32_MAX;
-        m_frameInstanceData[currInstance].BaseColorTex = mat->BaseColorTexture == UINT32_MAX
+        m_frameInstanceData[currInstance].BaseColorTex = mat->GetBaseColorTex() == UINT32_MAX
             ? UINT16_MAX :
-            (uint16_t)mat->BaseColorTexture;
+            (uint16_t)mat->GetBaseColorTex();
 
         float alpha = float((mat->BaseColorFactor >> 24) & 0xff) / 255.0f;
         m_frameInstanceData[currInstance].AlphaFactor_Cutoff = Float2ToRG8(float2(alpha, mat->GetAlphaCutoff()));

@@ -150,7 +150,7 @@ namespace RDI_Util
 
         // should use previous frame's bvh
         targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPos, wi, t, prevNormal, lightID, 
-            prevSurface.transmissive);
+            prevSurface.Transmissive());
 
         return targetLumAtPrev;
     }
@@ -164,7 +164,7 @@ namespace RDI_Util
         surface.SetWi(prevEmissive.wi, normal);
         float3 target = le * BSDF::UnifiedBSDF(surface) * dwdA;
         target *= VisibilityApproximate(g_bvh, pos, prevEmissive.wi, prevEmissive.t, normal, 
-            prevEmissive.ID, surface.transmissive);
+            prevEmissive.ID, surface.Transmissive());
 
         return target;
     }

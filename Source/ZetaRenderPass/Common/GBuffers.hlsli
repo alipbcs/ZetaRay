@@ -35,9 +35,11 @@ namespace GBuffer
         bool emissive;
         bool invalid;
         bool trDepthGt0;
+        bool subsurface;
     };
 
-    float EncodeMetallic(float metalness, bool isTransmissive, float3 emissive, float trDepth)
+    float EncodeMetallic(float metalness, bool isTransmissive, float3 emissive, float trDepth,
+        float subsurface)
     {
         bool isMetal = metalness >= MIN_METALNESS_METAL;
         bool isEmissive = dot(emissive, emissive) > 0;
@@ -45,6 +47,7 @@ namespace GBuffer
         uint ret = isTransmissive;
         ret |= uint(isEmissive) << 1;
         ret |= uint(trDepth > 0) << 3;
+        ret |= uint(subsurface > 0) << 4;
         ret |= uint(isMetal) << 7;
 
         return float(ret) / 255.0f;
@@ -59,6 +62,7 @@ namespace GBuffer
         ret.emissive = (v & (1 << 1)) != 0;
         ret.invalid = (v & (1 << 2)) != 0;
         ret.trDepthGt0 = (v & (1 << 3)) != 0;
+        ret.subsurface = (v & (1 << 4)) != 0;
         ret.metallic = (v & (1 << 7)) != 0;
 
         return ret;

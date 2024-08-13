@@ -215,12 +215,13 @@ namespace RPT_Util
             ctx.inTranslucentMedium = uint16(flags & 0x8);
             bool transmissive = flags & 0x4;
             half trDepth = half(flags & 0x10);
+            float subsurface = Math::UNorm8ToFloat((inC.z >> 24) & 0xff);
 
             float eta_t = ctx.eta_curr == ETA_AIR ? ETA_AIR : ctx.eta_mat;
             float eta_i = ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR;
 
             ctx.surface = BSDF::ShadingData::Init(ctx.normal, wo, metallic, roughness, 
-                baseColor, eta_i, eta_t, transmissive, trDepth);
+                baseColor, eta_i, eta_t, transmissive, trDepth, (half)subsurface);
 
             if(!isCase3)
                 ctx.rd.uv_grads.xy = asfloat16(uint16_t2(inC.w & 0xffff, inC.w >> 16));
@@ -239,7 +240,7 @@ namespace RPT_Util
             uint hasVolumetricInterior = surface.trDepth > 0;
             uint flags = (uint)surface.metallic | 
                 ((uint)this.anyGlossyBounces << 1) | 
-                ((uint)surface.transmissive << 2) |
+                ((uint)surface.specTr << 2) |
                 ((uint)inTranslucentMedium << 3) |
                 ((uint)hasVolumetricInterior << 4);
             uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
@@ -247,7 +248,8 @@ namespace RPT_Util
             uint roughness = Math::FloatToUNorm8(sqrt(surface.alpha));
             uint eta_curr = Math::FloatToUNorm8((this.eta_curr - 1.0f) / 1.5f);
             uint eta_mat = Math::FloatToUNorm8((this.eta_mat - 1.0f) / 1.5f);
-            uint packed = roughness | (eta_curr << 8) | (eta_mat << 16);
+            uint subsurface = Math::FloatToUNorm8((float)surface.subsurface);
+            uint packed = roughness | (eta_curr << 8) | (eta_mat << 16) | (subsurface << 24);
 
             // R16G16B16A16_FLOAT
             RWTexture2D<float4> g_rbA = ResourceDescriptorHeap[uavAIdx];
@@ -313,7 +315,7 @@ namespace RPT_Util
         ctx.anyGlossyBounces = false;
 
         float alpha_lobe_prev = BSDF::LobeAlpha(ctx.surface.alpha, bsdfSample.lobe);
-        bool tr_prev = ctx.surface.transmissive;
+        bool tr_prev = ctx.surface.specTr;
         BSDF::LOBE lobe_prev = bsdfSample.lobe;
         float3 pos_prev = ctx.pos;
 
@@ -321,7 +323,7 @@ namespace RPT_Util
         {
             ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<false>(ctx.pos, ctx.normal, 
                 bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
-                globals.indices, ctx.surface.transmissive);
+                globals.indices, ctx.surface.Transmissive());
 
             // Not invertible -- base path would've stopped here
             if(!hitInfo.hit)
@@ -365,7 +367,7 @@ namespace RPT_Util
             // Sample BSDF to generate new direction
             bsdfSample = BSDF::BSDFSample::Init();
             bool sampleNonDiffuseBSDF = (bounce < globals.maxGlossyBounces_NonTr) ||
-                (ctx.surface.transmissive && (bounce < globals.maxGlossyBounces_Tr));
+                (ctx.surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
 
             if(bounce < globals.maxDiffuseBounces)
                 bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, ctx.rngReplay);
@@ -397,7 +399,7 @@ namespace RPT_Util
 
             pos_prev = ctx.pos;
             alpha_lobe_prev = alpha_lobe;
-            tr_prev = ctx.surface.transmissive;
+            tr_prev = ctx.surface.specTr;
             lobe_prev = bsdfSample.lobe;
 
             ctx.rd.UpdateRays(ctx.pos, ctx.normal, bsdfSample.wi, ctx.surface.wo, 
@@ -451,7 +453,7 @@ namespace RPT_Util
 
         ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(y_k_min_1, normal_k_min_1, 
             w_k_min_1, globals.bvh, globals.frameMeshData, globals.vertices, globals.indices, 
-            surface.transmissive);
+            surface.Transmissive());
 
         // Not invertible
         if(!hitInfo.hit || (hitInfo.ID != rc.ID))

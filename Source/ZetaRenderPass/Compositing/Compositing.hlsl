@@ -20,14 +20,12 @@ float3 SunDirectLighting(uint2 DTid, float3 pos, float3 normal, BSDF::ShadingDat
     float shadowVal = g_sunShadowTemporalCache[DTid].x;
 
     // Must match the direction traced in SunShadow pass (RNG seeds must be the same).
-    float pdf;
-    float3 f;
-    float3 wi = Light::SampleSunDirection(DTid, g_frame.FrameNum, -g_frame.SunDir, 
-        g_frame.SunCosAngularRadius, normal, surface, f, pdf);
+    Light::SunSample sunSample = Light::SampleSunDirection(DTid, g_frame.FrameNum, -g_frame.SunDir, 
+        g_frame.SunCosAngularRadius, normal, surface);
 
     // After denoising, specular and non-specular values are averaged together
     // so following needs to be applied again
-    f *= dot(wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
+    sunSample.f *= dot(sunSample.wi, -g_frame.SunDir) >= g_frame.SunCosAngularRadius;
 
     const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
     const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
@@ -39,7 +37,7 @@ float3 SunDirectLighting(uint2 DTid, float3 pos, float3 normal, BSDF::ShadingDat
         pos, -g_frame.SunDir);
     float3 tr = Volume::EstimateTransmittance(g_frame.PlanetRadius, pos, -g_frame.SunDir, t,
         sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 8);
-    float3 li = g_frame.SunIlluminance * shadowVal * tr * f;
+    float3 li = g_frame.SunIlluminance * shadowVal * tr * sunSample.f;
 
     return li;
 }
@@ -141,7 +139,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
         GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::BASE_COLOR];
-        float3 baseColor = g_baseColor[DTid.xy].rgb;
+        const float4 baseColor = flags.subsurface ? g_baseColor[DTid.xy] :
+            float4(g_baseColor[DTid.xy].rgb, 0);
 
         GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
             GBUFFER_OFFSET::NORMAL];
@@ -160,8 +159,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         }
 
         const float3 wo = normalize(origin - pos);
-        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor,
-            eta_i, eta_t, flags.transmissive);
+        BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz,
+            eta_i, eta_t, flags.transmissive, 0, (half)baseColor.w);
 
         color += SunDirectLighting(DTid.xy, pos, normal, surface);
     }

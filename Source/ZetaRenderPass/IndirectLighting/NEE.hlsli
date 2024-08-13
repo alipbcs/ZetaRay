@@ -112,7 +112,7 @@ namespace ReSTIR_Util
 
         if(TestVisibility)
         {
-            if (!ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.transmissive))
+            if (!ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive()))
                 return ret;
         }
 
@@ -127,18 +127,13 @@ namespace ReSTIR_Util
         return ret;
     }
 
+    template<bool TestVisibility>
     DirectLightingEstimate NEE_Sky(float3 pos, float3 normal, BSDF::ShadingData surface, 
         RaytracingAccelerationStructure g_bvh, uint skyViewDescHeapOffset, inout RNG rng)
     {
-        float2 u_wh = rng.Uniform2D();
-        float2 u_d = rng.Uniform2D();
-        float u_wrs_r = rng.Uniform();
-        float u_wrs_d = rng.Uniform();
-
         // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
         SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(skyViewDescHeapOffset);
-        BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, u_wh, u_d, u_wrs_r, 
-            u_wrs_d, leFunc);
+        BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, leFunc, rng);
 
         DirectLightingEstimate ret = DirectLightingEstimate::Init();
         ret.dwdA = 1;
@@ -150,8 +145,11 @@ namespace ReSTIR_Util
         ret.pdf_solidAngle = bsdfSample.pdf;
         // ret.le = Light::Le_Sky(ret.wi, skyViewDescHeapOffset);
 
-        if(dot(ret.ld, ret.ld) > 0)
-            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.transmissive);
+        if(TestVisibility)
+        {
+            if(dot(ret.ld, ret.ld) > 0)
+                ret.ld *= ReSTIR_RT::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.Transmissive());
+        }
 
         return ret;
     }
@@ -205,7 +203,7 @@ namespace ReSTIR_Util
                 if (Math::Luminance(ld) > 1e-6)
                 {
                     ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
-                        globals.bvh, surface.transmissive);
+                        globals.bvh, surface.Transmissive());
                 }
 
                 ret.ld += ld / lightPdf;

@@ -43,8 +43,8 @@ ReSTIR_Util::Globals InitGlobals()
 // Shift base path in current pixel's domain to offset path in temporal domain
 RPT_Util::OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
     float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
-    bool prevTransmissive, bool prevTrDepthGt0, RPT_Util::Reconnection rc_curr, 
-    ReSTIR_Util::Globals globals)
+    bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
+    RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
 {
     float eta_t = DEFAULT_ETA_T;
     float eta_i = DEFAULT_ETA_I;
@@ -64,11 +64,12 @@ RPT_Util::OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 
 
     GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float3 baseColor = g_prevBaseColor[prevPosSS].rgb;
+    const float4 baseColor = prevSubsurface ? g_prevBaseColor[prevPosSS] :
+        float4(g_prevBaseColor[prevPosSS].rgb, 0);
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor, eta_i, eta_t, prevTransmissive, prevTrDepthGt0);
+        baseColor.rgb, eta_i, eta_t, prevTransmissive, prevTrDepthGt0, (half)baseColor.w);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -215,10 +216,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(prevFlags.emissive || (abs(prevMR.y - mr.y) > 0.3))
         return;
 
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<RWTexture2D<uint2>, 
+    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<RWTexture2D<uint4>, 
         RWTexture2D<float2> >(swizzledDTid, g_local.Reservoir_A_DescHeapIdx, 
         g_local.Reservoir_A_DescHeapIdx + 1);
-    RPT_Util::Reservoir r_prev = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint2> >(
+    RPT_Util::Reservoir r_prev = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
         prevPixel, g_local.PrevReservoir_A_DescHeapIdx);
 
     // Shift current reservoir's path to previous pixel and resample
@@ -235,7 +236,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         ReSTIR_Util::Globals globals = InitGlobals();
         RPT_Util::OffsetPath shift = ShiftCurrentToTemporal(swizzledDTid, prevPixel, origin_t, 
             lensSample_t, prevPos, prevFlags.metallic, prevMR.y, prevFlags.transmissive, 
-            prevFlags.trDepthGt0, r_curr.rc, globals);
+            prevFlags.trDepthGt0, prevFlags.subsurface, r_curr.rc, globals);
         float target_prev = Math::Luminance(shift.target);
 
         if(target_prev > 0)

@@ -450,11 +450,11 @@ namespace ReSTIR_RT
         eta = DEFAULT_ETA_I;
 
         // Ray hit the backside of an opaque surface, no radiance can be reflected back.
-        if(!mat.IsDoubleSided() && hitBackface)
+        if(!mat.DoubleSided() && hitBackface)
             return false;
 
         // Reverse normal for double-sided surfaces
-        if(mat.IsDoubleSided() && hitBackface)
+        if(mat.DoubleSided() && hitBackface)
         {
             hitInfo.normal *= -1;
             hitInfo.triDiffs.dndu *= -1;
@@ -462,20 +462,21 @@ namespace ReSTIR_RT
         }
 
         float3 baseColor = mat.GetBaseColorFactor();
-        float metallic = mat.IsMetallic() ? 1.0f : 0.0f;
+        float metallic = mat.Metallic() ? 1.0f : 0.0f;
         float roughness = mat.GetRoughnessFactor();
-        bool tr = mat.IsTransmissive();
+        bool tr = mat.Transmissive();
         eta = mat.GetIOR();
         half trDepth = tr ? mat.GetTransmissionDepth() : 0;
 
-        if ((trDepth == 0) && (mat.BaseColorTexture != Material::INVALID_ID))
+        const uint32_t baseColorTex = mat.GetBaseColorTex();
+        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
+
+        if ((trDepth == 0) && (baseColorTex != Material::INVALID_ID))
         {
             uint offset = NonUniformResourceIndex(g_frame.BaseColorMapsDescHeapOffset + 
-                mat.BaseColorTexture);
+                baseColorTex);
             baseColor *= ts.BaseColor(offset, samp, hitInfo.uv, uv_grads.xy, uv_grads.zw);
         }
-
-        const uint32_t metallicRoughnessTex = mat.GetMetallicRoughnessTex();
 
         if (metallicRoughnessTex != Material::INVALID_ID)
         {
@@ -489,9 +490,10 @@ namespace ReSTIR_RT
         // TODO surrounding medium is assumed to be always air
         float eta_t = eta_curr == ETA_AIR ? ETA_AIR : eta;
         float eta_i = eta_curr == ETA_AIR ? eta : ETA_AIR;
+        half subsurface = mat.ThinWalled() ? (half)mat.GetSubsurface() : 0;
 
         surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metallic >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_i, eta_t, tr, trDepth);
+            roughness, baseColor, eta_i, eta_t, tr, trDepth, subsurface);
 
         return true;
     }
@@ -505,7 +507,6 @@ namespace ReSTIR_RT
         return GetMaterialData(wo, g_materials, g_frame, eta_curr, uv_grads, hitInfo,
             surface, eta, samp, as);
     }
-
 }
 
 #endif

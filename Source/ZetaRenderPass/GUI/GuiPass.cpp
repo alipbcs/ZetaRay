@@ -1102,9 +1102,9 @@ void GuiPass::MaterialTab(uint64 pickedID)
     if (ImGui::TreeNode("Base"))
     {
         float3 color = mat.GetBaseColorFactor();
-        const bool baseColorTextured = mat.BaseColorTexture != Material::INVALID_ID;
+        const bool baseColorTextured = mat.GetBaseColorTex() != Material::INVALID_ID;
         const bool mrTextured = mat.GetMetallicRoughnessTex() != Material::INVALID_ID;
-        bool metallic = mat.IsMetallic();
+        bool metallic = mat.Metallic();
 
         if (baseColorTextured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
@@ -1132,6 +1132,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         ImGui::TreePop();
     }
+
     if (ImGui::TreeNode("Specular"))
     {
         float roughness = mat.GetRoughnessFactor();
@@ -1158,12 +1159,17 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         ImGui::TreePop();
     }
+
     if (ImGui::TreeNode("Transmission"))
     {
-        bool transmissive = mat.IsTransmissive();
-        const bool baseColorTextured = mat.BaseColorTexture != Material::INVALID_ID;
+        bool transmissive = mat.Transmissive();
+        const bool baseColorTextured = mat.GetBaseColorTex() != Material::INVALID_ID;
         float3 color = mat.GetBaseColorFactor();
         float depth = HalfToFloat(mat.GetTransmissionDepth().x);
+        bool thinWalled = mat.ThinWalled();
+
+        if (thinWalled)
+            ImGui::BeginDisabled();
 
         if (ImGui::Checkbox("Transmissive", &transmissive))
         {
@@ -1180,14 +1186,37 @@ void GuiPass::MaterialTab(uint64 pickedID)
             modified = true;
         }
 
+        if (baseColorTextured)
+            ImGui::PopStyleColor();
+
         if (ImGui::SliderFloat("Depth", &depth, 0.0f, 10.0f, "%.3f", ImGuiSliderFlags_Logarithmic))
         {
             mat.SetTransmissionDepth(depth);
             modified = true;
         }
 
-        if (baseColorTextured)
-            ImGui::PopStyleColor();
+        if (thinWalled)
+            ImGui::EndDisabled();
+
+        ImGui::TreePop();
+    }
+
+    if (ImGui::TreeNode("Subsurface"))
+    {
+        float subsurface = mat.GetSubsurface();
+        bool thinWalled = mat.ThinWalled();
+
+        if (mat.Transmissive() || !thinWalled)
+            ImGui::BeginDisabled();
+
+        if (ImGui::SliderFloat("Weight", &subsurface, 0.0f, 1.0f, "%.2f"))
+        {
+            mat.SetSubsurface(subsurface);
+            modified = true;
+        }
+
+        if (mat.Transmissive() || !thinWalled)
+            ImGui::EndDisabled();
 
         ImGui::TreePop();
     }
@@ -1201,7 +1230,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
     {
         const bool textured = mat.GetEmissiveTex() != Material::INVALID_ID;
 
-        if (!mat.IsEmissive())
+        if (!mat.Emissive())
             ImGui::BeginDisabled();
 
         const float3 oldColor = emissiveFactor;
@@ -1240,7 +1269,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         strEditFinished = ImGui::IsItemDeactivatedAfterEdit();
 
-        if (!mat.IsEmissive())
+        if (!mat.Emissive())
             ImGui::EndDisabled();
 
         ImGui::TreePop();
@@ -1248,13 +1277,26 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
     if (ImGui::TreeNode("Geometry"))
     {
-        bool doubleSided = mat.IsDoubleSided();
+        bool doubleSided = mat.DoubleSided();
+        bool thinWalled = mat.ThinWalled();
         
         if (ImGui::Checkbox("Double Sided", &doubleSided))
         {
             mat.SetDoubleSided(doubleSided);
             modified = true;
         }
+
+        if (mat.Transmissive() || !mat.DoubleSided())
+            ImGui::BeginDisabled();
+
+        if (ImGui::Checkbox("Thin Walled", &thinWalled))
+        {
+            mat.SetThinWalled(thinWalled);
+            modified = true;
+        }
+
+        if (mat.Transmissive() || !mat.DoubleSided())
+            ImGui::EndDisabled();
 
         ImGui::TreePop();
     }

@@ -72,7 +72,7 @@ namespace ReSTIR_RT
 
             bsdfSample = BSDF::BSDFSample::Init();
             bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
-                (surface.transmissive && (bounce < globals.maxGlossyBounces_Tr));
+                (surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
 
             if(bounce < globals.maxDiffuseBounces)
                 bsdfSample = BSDF::SampleBSDF(normal, surface, rngThread);
@@ -86,7 +86,7 @@ namespace ReSTIR_RT
             // Trace a ray to find next path vertex
             hitInfo = ReSTIR_RT::Hit::FindClosest<false>(pos, normal, bsdfSample.wi, globals.bvh, 
                 globals.frameMeshData, globals.vertices, globals.indices, 
-                surface.transmissive);
+                surface.Transmissive());
 
             if(!hitInfo.hit)
                 break;
