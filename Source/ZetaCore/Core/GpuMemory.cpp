@@ -57,7 +57,7 @@ namespace
             if (!m_directCmdList)
             {
                 m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
-#ifdef _DEBUG
+#ifndef NDEBUG
                 m_directCmdList->SetName("ResourceUploadBatch");
 #endif
             }
@@ -102,7 +102,7 @@ namespace
             if (!m_directCmdList)
             {
                 m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
-#ifdef _DEBUG
+#ifndef NDEBUG
                 m_directCmdList->SetName("ResourceUploadBatch");
 #endif
             }
@@ -148,7 +148,7 @@ namespace
             if (!m_directCmdList)
             {
                 m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
-#ifdef _DEBUG
+#ifndef NDEBUG
                 m_directCmdList->SetName("ResourceUploadBatch");
 #endif
             }
@@ -180,7 +180,7 @@ namespace
             if (!m_directCmdList)
             {
                 m_directCmdList = App::GetRenderer().GetGraphicsCmdList();
-#ifdef _DEBUG
+#ifndef NDEBUG
                 m_directCmdList->SetName("ResourceUploadBatch");
 #endif
             }
@@ -989,9 +989,9 @@ ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(uint32_t sizeInBytes)
     CheckHR(device->CreateCommittedResource(&readbackHeap, D3D12_HEAP_FLAG_NONE,
         &desc, D3D12_RESOURCE_STATE_COMMON, nullptr, IID_PPV_ARGS(&buffer)));
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     buffer->SetName(L"Readback");
-#endif // _DEBUG
+#endif
 
     return ReadbackHeapBuffer(buffer);
 }

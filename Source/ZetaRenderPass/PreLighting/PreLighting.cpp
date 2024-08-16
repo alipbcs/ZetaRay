@@ -35,7 +35,7 @@ namespace
         for (int64_t i = 0; i < N; i++)
         {
             table[i].CachedP_Orig = probs[i] * oneDivN;
-#ifdef _DEBUG
+#ifndef NDEBUG
             table[i].Alias = UINT32_MAX;
 #endif
         }
@@ -55,7 +55,7 @@ namespace
                 larger.push_back((uint32_t)i);
         }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         int64_t numInsertions = 0;
 #endif
 
@@ -86,7 +86,7 @@ namespace
                 smaller.push_back(largerIdx);
             }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
             numInsertions++;
 #endif
         }
@@ -101,7 +101,7 @@ namespace
             table[idx].Alias = (uint32_t)idx;
             table[idx].P_Curr = 1.0f;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
             numInsertions++;
 #endif
         }
@@ -116,7 +116,7 @@ namespace
             table[idx].Alias = (uint32_t)idx;
             table[idx].P_Curr = 1.0f;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
             numInsertions++;
 #endif
         }

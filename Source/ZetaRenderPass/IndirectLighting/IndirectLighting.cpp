@@ -454,7 +454,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
     // Sort - TtC
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_TtC");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
@@ -472,7 +472,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_TtC));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -489,7 +489,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
     // Sort - CtT
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtT");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
@@ -507,7 +507,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_CtT));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -523,7 +523,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
     // Replay - CtT
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_CtT");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
@@ -540,14 +540,14 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_CtT_E : SHADER::ReSTIR_PT_REPLAY_CtT;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
 
     // Replay - TtC
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_TtC");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
@@ -556,7 +556,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_TtC_E : SHADER::ReSTIR_PT_REPLAY_TtC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -586,7 +586,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
     // Reconnect CtT
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_CtT");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_TEMPORAL_GROUP_DIM_X);
@@ -599,14 +599,14 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_CtT_E : SHADER::ReSTIR_PT_RECONNECT_CtT;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
 
     // Reconnect TtC
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_TtC");
 #endif
         D3D12_TEXTURE_BARRIER uavBarriers[2];
@@ -624,7 +624,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_TtC_E : SHADER::ReSTIR_PT_RECONNECT_TtC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -648,7 +648,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
     // Search for reusable spatial neighbor
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_SpatialSearch");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_X);
@@ -666,7 +666,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SPATIAL_SEARCH));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -708,7 +708,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
     // Sort - CtS
     if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtS");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
@@ -726,7 +726,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_CtS));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
@@ -734,7 +734,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
     // Sort - StC
     if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_StC");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
@@ -753,14 +753,14 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_StC));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
 
     // Replay - CtS
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_CtS");
 #endif
         // Transition the thread maps into SRV
@@ -787,14 +787,14 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_CtS_E : SHADER::ReSTIR_PT_REPLAY_CtS;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
 
     // Replay - StC
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_StC");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
@@ -803,7 +803,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_StC_E : SHADER::ReSTIR_PT_REPLAY_StC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
     computeCmdList.PIXEndEvent();
 #endif
     }
@@ -833,7 +833,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
     // Reconnect CtS
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_CtS");
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_GROUP_DIM_X);
@@ -846,14 +846,14 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_CtS_E : SHADER::ReSTIR_PT_RECONNECT_CtS;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXEndEvent();
 #endif
     }
 
     // Reconnect StC
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_StC");
 #endif
 
@@ -871,7 +871,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_StC_E : SHADER::ReSTIR_PT_RECONNECT_StC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifdef _DEBUG
+#ifndef NDEBUG
     computeCmdList.PIXEndEvent();
 #endif
     }

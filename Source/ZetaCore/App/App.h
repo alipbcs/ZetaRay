@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Support/Memory.h"
-#ifdef _DEBUG
+#ifndef NDEBUG
 #include "../Utility/Error.h"
 #endif
 #include "FastDelegate/FastDelegate.h"
@@ -187,7 +187,7 @@ namespace ZetaRay::App
     {
         ZetaInline void* AllocateAligned(size_t size, size_t alignment)
         {
-#ifdef _DEBUG
+#ifndef NDEBUG
             Assert(m_numAllocs++ == 0, "This allocator can't be used more than once.");
 #endif
             if (size + alignment - 1 < App::FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE)
@@ -204,7 +204,7 @@ namespace ZetaRay::App
         }
 
     private:
-#ifdef _DEBUG
+#ifndef NDEBUG
         int m_numAllocs = 0;
 #endif
         bool m_usedFallback = false;

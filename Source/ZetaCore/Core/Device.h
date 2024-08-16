@@ -6,7 +6,7 @@
 #include <D3D12/1.613.3/dxgiformat.h>
 #include <dxgi1_6.h>
 
-#ifdef _DEBUG
+#ifndef NDEBUG 
 #include <dxgidebug.h>
 #endif
 
@@ -14,7 +14,7 @@
 
 using Microsoft::WRL::ComPtr;
 
-#ifdef _DEBUG 
+#ifndef NDEBUG  
 #ifndef CheckHR
 #define CheckHR(x)                                                                          \
     {                                                                                       \
@@ -41,10 +41,10 @@ using Microsoft::WRL::ComPtr;
             exit(EXIT_FAILURE);                                                             \
         }                                                                                   \
     }
-#endif // DEBUGBREAK
+#endif
 #endif
 
-#ifdef _DEBUG 
+#ifndef NDEBUG  
 #ifndef SET_D3D_OBJ_NAME
 #define SET_D3D_OBJ_NAME(pObj, str)                                                                 \
     {                                                                                               \

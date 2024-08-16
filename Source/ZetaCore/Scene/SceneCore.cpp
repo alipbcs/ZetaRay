@@ -567,7 +567,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
 void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float t_start, 
     bool loop, bool isSorted)
 {
-#ifdef _DEBUG
+#ifndef NDEBUG
     TreePos& p = FindTreePosFromID(id).value();
     Assert(GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC,
         "Static instances can't be animated.");

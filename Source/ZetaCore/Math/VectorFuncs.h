@@ -228,14 +228,14 @@ namespace ZetaRay::Math
     // vTheta must be in -XM_PI <= theta < XM_PI
     ZetaInline __m128 __vectorcall sin(__m128 vTheta)
     {
-#ifdef _DEBUG
+#ifndef NDEBUG
         __m128 vM1 = _mm_cmpge_ps(vTheta, _mm_set1_ps(-PI));
         __m128 vM2 = _mm_cmpgt_ps(_mm_set1_ps(PI), vTheta);
         __m128 vIsThetaValid = _mm_and_ps(vM1, vM2);
 
         //int valid = _mm_movemask_ps(vIsThetaValid);
         //Assert(valid == 0xf, "Invalid theta value");
-#endif // _DEBUG
+#endif
 
         // Map in [-pi/2,pi/2] with sin(y) = sin(x).
         __m128 sign = _mm_and_ps(vTheta, _mm_set1_ps(-0.0f));

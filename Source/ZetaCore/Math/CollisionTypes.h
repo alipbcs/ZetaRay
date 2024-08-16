@@ -1,7 +1,7 @@
 #pragma once
 
 #include "Vector.h"
-#ifdef _DEBUG
+#ifndef NDEBUG
 #include <type_traits>
 #endif
 
@@ -302,7 +302,7 @@ namespace ZetaRay::Math
         __m128 vDir;
     };
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     static_assert(std::is_trivially_default_constructible_v<AABB>);
     static_assert(std::is_trivially_default_constructible_v<v_AABB>);
     static_assert(std::is_trivially_default_constructible_v<Plane>);

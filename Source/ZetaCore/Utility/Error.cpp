@@ -33,7 +33,7 @@ using namespace ZetaRay::Support;
 // THE SOFTWARE.
 // 
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 
 #include <dbghelp.h>
 #include <string>
@@ -200,19 +200,19 @@ namespace dbg
         }
     }
 }
-#endif // _DEBUG
+#endif
 
 
 void ZetaRay::Util::ReportError(const char* title, const char* msg)
 {
-#ifdef _DEBUG
+#ifndef NDEBUG
     char buff[BUFF_SIZE];
 
     dbg::fail(buff, msg);
     MessageBoxA(nullptr, buff, title, MB_ICONERROR | MB_OK);
 #else
     MessageBoxA(nullptr, msg, title, MB_ICONERROR | MB_OK);
-#endif // _DEBUG
+#endif
 }
 
 void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* call)
@@ -220,13 +220,13 @@ void ZetaRay::Util::ReportErrorWin32(const char* file, int line, const char* cal
     char msg[256];
     stbsp_snprintf(msg, 256, "%s: %d\nPredicate: %s\nError code: %d", file, line, call, GetLastError());
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     char buff[BUFF_SIZE];
     dbg::fail(buff, msg);
     MessageBoxA(nullptr, buff, "Win32 call failed", MB_ICONERROR | MB_OK);
 #else
     MessageBoxA(nullptr, msg, "Win32 call failed", MB_ICONERROR | MB_OK);
-#endif // _DEBUG
+#endif
 }
 
 void ZetaRay::Util::DebugBreak()

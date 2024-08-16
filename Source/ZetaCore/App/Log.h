@@ -3,7 +3,7 @@
 #include "App.h"
 #include "../Utility/Error.h"
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 #define LOG_CONSOLE(formatStr, ...)          \
 {                                            \
     ZetaRay::App::LockStdOut();              \

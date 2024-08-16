@@ -4,12 +4,12 @@
 #include <stb/stb_sprintf.h>
 
 //--------------------------------------------------------------------------------------
-// Stack-allocated string with a maximum size of 256
+// Stack-allocated string with a maximum size
 //--------------------------------------------------------------------------------------
 
 // Note: stbsp_snprintf always returns a zero-terminated string.
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 #define StackStr(buffName, lenName, formatStr, ...)                         \
     char buffName[512];                                                     \
     int lenName = stbsp_snprintf(buffName, 512, formatStr, __VA_ARGS__);    
@@ -31,7 +31,7 @@ namespace ZetaRay::Util
     void Exit();
 }
 
-#ifdef _DEBUG
+#ifndef NDEBUG 
 #define Assert(expr, formatStr, ...)                                                          \
     if(!(expr))                                                                               \
     {                                                                                         \
@@ -45,7 +45,7 @@ namespace ZetaRay::Util
 #define Assert(expr, formatStr, ...) ((void)0)
 #endif
 
-#ifdef _DEBUG
+#ifndef NDEBUG 
 #define CheckWin32(expr)                                            \
     [[unlikely]]                                                    \
     if(!(expr))                                                     \
@@ -63,7 +63,7 @@ namespace ZetaRay::Util
     }
 #endif
 
-#ifdef _DEBUG   
+#ifndef NDEBUG
 #ifndef Check
 #define Check(expr, formatStr, ...)                                                          \
     [[unlikely]]                                                                             \

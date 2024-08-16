@@ -69,9 +69,9 @@ namespace ZetaRay::Support
         const size_t m_blockSize;
         Util::SmallVector<MemoryBlock, SystemAllocator, 8> m_blocks;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         uint32_t m_numAllocs = 0;
-#endif // _DEBUG
+#endif
     };
 
     struct ArenaAllocator

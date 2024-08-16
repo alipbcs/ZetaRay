@@ -73,7 +73,7 @@ void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntr
             larger.push_back((uint32_t)i);
     }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     int64_t numInsertions = 0;
 #endif
 
@@ -104,7 +104,7 @@ void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntr
             smaller.push_back(largerIdx);
         }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         numInsertions++;
 #endif
     }
@@ -119,7 +119,7 @@ void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntr
         table[idx].Alias = (uint32_t)idx;
         table[idx].P_Curr = 1.0f;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         numInsertions++;
 #endif
     }
@@ -134,7 +134,7 @@ void Math::AliasTable_Build(MutableSpan<float> probs, MutableSpan<AliasTableEntr
         table[idx].Alias = (uint32_t)idx;
         table[idx].P_Curr = 1.0f;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         numInsertions++;
 #endif
     }

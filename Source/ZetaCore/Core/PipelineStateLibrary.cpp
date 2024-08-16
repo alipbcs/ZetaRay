@@ -190,7 +190,7 @@ void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig,
     Filesystem::Path csoPath(App::GetCompileShadersDir());
     csoPath.Append(csoFilename);
 
-#if defined(_DEBUG) && defined(HAS_DEBUG_SHADERS)
+#if !defined(NDEBUG) && defined(HAS_DEBUG_SHADERS)
     StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s -E main -Zi -Od -all_resources_bound -nologo -enable-16bit-types -Qembed_debug -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), csoPath.Get(), hlsl.Get());
 #else
     StackStr(cmdLine, n, "%s -T cs_6_7 -Fo %s -E main -all_resources_bound -nologo -enable-16bit-types -Qstrip_reflect -WX -HV 202x %s", App::GetDXCPath(), csoPath.Get(), hlsl.Get());

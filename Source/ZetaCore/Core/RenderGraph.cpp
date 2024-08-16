@@ -11,7 +11,7 @@
 #include <xxHash/xxhash.h>
 #include <ImGui/imnodes.h>
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 #include "../App/Log.h"
 #include <string>
 #endif
@@ -286,7 +286,7 @@ void RenderGraph::MoveToPostRegister()
             return lhs.ID < rhs.ID;
         });
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     for (int i = 0; i < numResources - 1; i++)
     {
         if (m_frameResources[i].ID == m_frameResources[i + 1].ID)
@@ -419,7 +419,7 @@ void RenderGraph::Build(TaskSet& ts)
     MergeSmallNodes();
     BuildTaskGraph(ts);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     //Log();
 #endif
 }
@@ -467,7 +467,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                         cmdList = renderer.GetComputeCmdList();
                 }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
                 cmdList->SetName(aggregateNode.Name);
 #endif
 
@@ -475,7 +475,7 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                 {
                     CommandList* barrierCmdList = renderer.GetGraphicsCmdList();
                     GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(*barrierCmdList);
-#ifdef _DEBUG
+#ifndef NDEBUG
                     directCmdList.SetName("Barrier");
 #endif
                     directCmdList.ResourceBarrier(aggregateNode.Barriers.data(), 
@@ -969,7 +969,7 @@ void RenderGraph::MergeSmallNodes()
     //    }
     //}
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     bool inMerged = false;
     currCount = 0;
 
@@ -1097,7 +1097,7 @@ void RenderGraph::DebugDrawGraph()
             m_renderNodes[currNode].Type == RENDER_NODE_TYPE::ASYNC_COMPUTE ? "[Async Compute]" : "");
         ImNodes::EndNodeTitleBar();
 
-#ifdef _DEBUG
+#ifndef NDEBUG
         for (auto b : m_renderNodes[currNode].Barriers)
         {
             char buff[64] = { '\0' };
@@ -1139,7 +1139,7 @@ void RenderGraph::DebugDrawGraph()
         if (needsReorder)
         {
             const float x = currBatchIdx * 350.0f;
-#ifdef _DEBUG
+#ifndef NDEBUG
             const float y = 50.0f + idxInBatch++ * 75.0f + numBarriersInBatch * 60.0f;
 #else
             const float y = 50.0f + idxInBatch++ * 75.0f;
@@ -1203,7 +1203,7 @@ void RenderGraph::DebugDrawGraph()
     m_numPassesLastTimeDrawn = numNodes;
 }
 
-#ifdef _DEBUG
+#ifndef NDEBUG
 void RenderGraph::Log()
 {
     std::string formattedRenderGraph;

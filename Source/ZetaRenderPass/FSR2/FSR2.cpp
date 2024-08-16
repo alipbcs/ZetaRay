@@ -955,7 +955,7 @@ namespace
         }*/
 }
 
-#ifdef _DEBUG 
+#ifndef NDEBUG  
 #ifndef CheckFSR
 #define CheckFSR(x)                                                                                                                     \
     {                                                                                                                                   \

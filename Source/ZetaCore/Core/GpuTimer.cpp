@@ -31,9 +31,9 @@ void GpuTimer::Init()
 
     m_readbackBuff = GpuMemory::GetReadbackHeapBuffer(sizeof(uint64_t) * desc.Count);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     m_readbackBuff.Resource()->SetName(L"Timing_Buffer");
-#endif // _DEBUG
+#endif
 
     CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
 }

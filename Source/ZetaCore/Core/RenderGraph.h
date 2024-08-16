@@ -123,7 +123,7 @@ namespace ZetaRay::Core
         void InsertResourceBarriers();
         void JoinRenderNodes();
         void MergeSmallNodes();
-#ifdef _DEBUG
+#ifndef NDEBUG
         void Log();
 #endif
 

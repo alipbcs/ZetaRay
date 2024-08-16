@@ -16,9 +16,9 @@ MemoryArena::MemoryArena(MemoryArena&& other)
 {
     m_blocks.swap(other.m_blocks);
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     m_numAllocs = other.m_numAllocs;
-#endif // _DEBUG}
+#endif
 }
 
 MemoryArena& MemoryArena::operator=(MemoryArena&& other)
@@ -28,10 +28,10 @@ MemoryArena& MemoryArena::operator=(MemoryArena&& other)
     m_blocks.swap(other.m_blocks);
     other.m_blocks.free_memory();
 
-#ifdef _DEBUG
+#ifndef NDEBUG
     m_numAllocs = other.m_numAllocs;
     other.m_numAllocs = 0;
-#endif // _DEBUG}
+#endif
 
     return *this;
 }
@@ -48,7 +48,7 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
         {
             block.Offset = startOffset + size;
 
-#ifdef _DEBUG
+#ifndef NDEBUG
             m_numAllocs++;
 #endif
 

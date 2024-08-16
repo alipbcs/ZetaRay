@@ -103,7 +103,7 @@ namespace ZetaRay::Core
         // Segregated free lists
         const uint32_t m_blockSize;
         Block m_heads[MAX_NUM_LISTS];
-#ifdef _DEBUG
+#ifndef NDEBUG
         const uint32_t m_numLists;
 #endif
 

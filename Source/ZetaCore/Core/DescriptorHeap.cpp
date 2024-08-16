@@ -79,7 +79,7 @@ void DescriptorTable::Reset()
 //--------------------------------------------------------------------------------------
 
 DescriptorHeap::DescriptorHeap(uint32_t blockSize)
-#ifdef _DEBUG
+#ifndef NDEBUG
     : m_blockSize(blockSize),
     m_numLists((uint32_t)log2f((float)blockSize) + 1)
 #else

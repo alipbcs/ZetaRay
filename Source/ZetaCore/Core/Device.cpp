@@ -8,7 +8,7 @@ using namespace ZetaRay::App;
 
 void DeviceObjects::InitializeAdapter()
 {
-#if defined(_DEBUG) && defined(DIREC3D_DEBUG_LAYER)
+#if !defined(NDEBUG) && defined(DIREC3D_DEBUG_LAYER)
     {
         ComPtr<ID3D12Debug> debugController;
         CheckHR(D3D12GetDebugInterface(IID_PPV_ARGS(&debugController)));
@@ -53,7 +53,7 @@ void DeviceObjects::CreateDevice()
     CheckHR(device->QueryInterface(IID_PPV_ARGS(m_device.GetAddressOf())));
     device->Release();
 
-#if defined(_DEBUG) && defined(DIREC3D_DEBUG_LAYER)
+#if !defined(NDEBUG) && defined(DIREC3D_DEBUG_LAYER)
     ID3D12InfoQueue* infoQueue;
     CheckHR(m_device->QueryInterface(&infoQueue));
 
@@ -78,7 +78,7 @@ void DeviceObjects::CreateDevice()
 
     infoQueue->Release();
 
-#endif // _DEBUG
+#endif
 
 #ifdef STABLE_GPU_POWER_STATE
     CheckHR(device->SetStablePowerState(true));

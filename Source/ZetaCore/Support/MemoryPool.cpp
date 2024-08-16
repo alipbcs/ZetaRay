@@ -9,9 +9,9 @@ using namespace ZetaRay::Support;
 
 #define VALIDATE_MOVE 0
 
-#ifndef _DEBUG
+#ifdef NDEBUG
 #define VALIDATE_MOVE 0
-#endif // _DEBUG
+#endif
 
 namespace
 {
