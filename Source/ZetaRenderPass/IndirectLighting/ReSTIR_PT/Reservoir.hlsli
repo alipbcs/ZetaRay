@@ -54,7 +54,7 @@ namespace RPT_Util
             this.rc.partialJacobian = asfloat(inC.x);
             this.rc.seed_replay = inC.y;
             this.rc.ID = inC.z;
-            this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToInt16(inD.z));
+            this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
             this.rc.x_k = float3(asfloat(inC.w), asfloat(inD.xy));
 
             uint16_t2 lh = uint16_t2(inD.w & 0xffff, inD.w >> 16);
@@ -80,7 +80,7 @@ namespace RPT_Util
 
                 uint16_t2 lh = uint16_t2(inD.w & 0xffff, inD.w >> 16);
                 this.rc.L = half3(asfloat16(lh), inE);
-                this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToInt16(inD.z));
+                this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
                 this.rc.lightPdf = inF.x;
                 this.rc.dwdA = inF.y;
                 this.rc.seed_nee = inG;
@@ -89,7 +89,7 @@ namespace RPT_Util
             {
                 if(this.rc.lt_k_plus_1 == Light::TYPE::SKY)
                 {
-                    this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToInt16(inD.z));
+                    this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
                     this.rc.seed_nee = inD.w;
                 }
             }
@@ -119,7 +119,7 @@ namespace RPT_Util
                 this.rc.lightPdf = inF.x;
                 this.rc.seed_nee = inC.x;
                 // light normal
-                this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToInt16(inD.z));
+                this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
             }
             else
             {
@@ -127,7 +127,7 @@ namespace RPT_Util
 
                 if(this.rc.lt_k == Light::TYPE::SKY)
                 {
-                    this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToInt16(inD.z));
+                    this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
                     this.rc.seed_nee = inD.w;
                 }
             }
@@ -246,8 +246,8 @@ namespace RPT_Util
             g_outC[DTid] = uint4(asuint(this.rc.partialJacobian), this.rc.seed_replay, 
                 this.rc.ID, asuint(this.rc.x_k.x));
 
-            int16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
-            uint w_k_encoded = asuint16(temp.x) | (uint(asuint16(temp.y)) << 16);
+            uint16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
+            uint w_k_encoded = temp.x | (uint(temp.y) << 16);
 
             half2 lh = this.rc.L.rg;
             g_outD[DTid] = uint4(asuint(this.rc.x_k.yz), w_k_encoded, 
@@ -262,8 +262,8 @@ namespace RPT_Util
             g_outC[DTid] = uint4(asuint(this.rc.partialJacobian), this.rc.seed_replay, 
                 this.rc.ID, asuint(this.rc.x_k.x));
 
-            int16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
-            uint w_k_encoded = asuint16(temp.x) | (uint(asuint16(temp.y)) << 16);
+            uint16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
+            uint w_k_encoded = temp.x | (uint(temp.y) << 16);
 
             if(Emissive)
             {
@@ -288,8 +288,8 @@ namespace RPT_Util
             RWTexture2D<half> g_outE, RWTexture2D<float2> g_outF)
         {
             // w_sky or light normal
-            int16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
-            uint w_k_encoded = asuint16(temp.x) | (uint(asuint16(temp.y)) << 16);
+            uint16_t2 temp = Math::EncodeOct32(this.rc.w_k_lightNormal_w_sky);
+            uint w_k_encoded = temp.x | (uint(temp.y) << 16);
 
             if(Emissive)
             {

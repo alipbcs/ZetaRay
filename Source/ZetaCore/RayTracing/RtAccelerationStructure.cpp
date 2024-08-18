@@ -686,7 +686,7 @@ void TLAS::BuildFrameMeshInstanceData()
         m_frameInstanceData[currInstance].MatIdx = (uint16_t)mat->GpuBufferIndex();
         m_frameInstanceData[currInstance].BaseVtxOffset = (uint32_t)mesh->m_vtxBuffStartOffset;
         m_frameInstanceData[currInstance].BaseIdxOffset = (uint32_t)mesh->m_idxBuffStartOffset;
-        m_frameInstanceData[currInstance].Rotation = snorm4(r);
+        m_frameInstanceData[currInstance].Rotation = unorm4::FromNormalized(r);
         m_frameInstanceData[currInstance].Scale = half3(s);
         m_frameInstanceData[currInstance].Translation = float3(t.x, t.y, t.z);
         m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : UINT32_MAX;
@@ -704,7 +704,7 @@ void TLAS::BuildFrameMeshInstanceData()
         float4a s_prev;
         decomposeSRT(vM_prev, s_prev, r_prev, t_prev);
 
-        m_frameInstanceData[currInstance].PrevRotation = snorm4(r_prev);
+        m_frameInstanceData[currInstance].PrevRotation = unorm4::FromNormalized(r_prev);
         m_frameInstanceData[currInstance].PrevScale = half3(s_prev);
         m_frameInstanceData[currInstance].dTranslation = half3(float3(t.x - t_prev.x, t.y - t_prev.y, t.z - t_prev.z));
 

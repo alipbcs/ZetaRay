@@ -193,7 +193,7 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
     Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
 
-    float4 q = Math::DecodeSNorm4(meshData.Rotation);
+    float4 q = Math::DecodeNormalized4(meshData.Rotation);
     // due to quantization, it's necessary to renormalize
     q = normalize(q);
 
@@ -232,7 +232,7 @@ void PrimaryHitData(inout RayPayload payload, in BuiltInTriangleIntersectionAttr
     float3 v2W = Math::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
 
     // motion vector
-    float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
+    float4 q_prev = Math::DecodeNormalized4(meshData.PrevRotation);
     // due to quantization, it's necessary to renormalize
     q_prev = normalize(q_prev);
 

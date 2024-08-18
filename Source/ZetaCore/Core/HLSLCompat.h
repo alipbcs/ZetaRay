@@ -15,10 +15,9 @@
     #define half2_ ZetaRay::Math::half2
     #define half3_ ZetaRay::Math::half3
     #define half4_ ZetaRay::Math::half4
-    #define snorm2_ ZetaRay::Math::snorm2
-    #define snorm3_ ZetaRay::Math::snorm3
-    #define snorm4_ ZetaRay::Math::snorm4
     #define unorm2_ ZetaRay::Math::unorm2
+    #define unorm3_ ZetaRay::Math::unorm3
+    #define unorm4_ ZetaRay::Math::unorm4
 
     #define IN_PARAM(t) t&
     #define OUT_PARAM(t) t&
@@ -40,10 +39,9 @@
     #define half2_ half2
     #define half3_ half3
     #define half4_ half4
-    #define snorm2_ int16_t2
-    #define snorm3_ int16_t3
-    #define snorm4_ int16_t4
     #define unorm2_ uint16_t2
+    #define unorm3_ uint16_t3
+    #define unorm4_ uint16_t4
     #define uint16 uint16_t
     #define uint32 uint32_t
     #define int16 int16_t

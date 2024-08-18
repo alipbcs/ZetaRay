@@ -202,11 +202,11 @@ namespace RPT_Util
                 return ctx;
 
             ctx.pos = asfloat(inB.xyz);
-            ctx.normal = Math::DecodeOct32(Math::UnpackUintToInt16(inB.w));
+            ctx.normal = Math::DecodeOct32(Math::UnpackUintToUint16(inB.w));
             ctx.eta_curr = mad(Math::UNorm8ToFloat((inC.z >> 8) & 0xff), 1.5f, 1.0f);
             ctx.eta_mat = mad(Math::UNorm8ToFloat((inC.z >> 16) & 0xff), 1.5f, 1.0f);
 
-            float3 wo = Math::DecodeOct32(Math::UnpackUintToInt16(inC.x));
+            float3 wo = Math::DecodeOct32(Math::UnpackUintToUint16(inC.x));
             float roughness = Math::UNorm8ToFloat(inC.z & 0xff);
             float3 baseColor = Math::UnpackRGB8(inC.y & 0xffffff);
             uint flags = inC.y >> 24;
@@ -231,12 +231,12 @@ namespace RPT_Util
 
         void Write(uint2 DTid, uint uavAIdx, uint uavBIdx, uint uavCIdx, bool isCase3)
         {
-            int16_t2 e1 = Math::EncodeOct32(this.normal);
-            uint normal = asuint16(e1.x) | (uint(asuint16(e1.y)) << 16);
+            uint16_t2 e1 = Math::EncodeOct32(this.normal);
+            uint normal = e1.x | (uint(e1.y) << 16);
 
             // ShadingData
-            int16_t2 e2 = Math::EncodeOct32(this.surface.wo);
-            uint wo = asuint16(e2.x) | (uint(asuint16(e2.y)) << 16);
+            uint16_t2 e2 = Math::EncodeOct32(this.surface.wo);
+            uint wo = e2.x | (uint(e2.y) << 16);
             uint hasVolumetricInterior = surface.trDepth > 0;
             uint flags = (uint)surface.metallic | 
                 ((uint)this.anyGlossyBounces << 1) | 

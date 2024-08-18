@@ -118,7 +118,7 @@ namespace ZetaRay::Math
         return vSign;
     }
 
-    // Returns v.x + v.z + v.z in the 1st element of output.
+    // Returns v.x + v.y + v.z in the 1st element of output.
     // Note: Assumes fourth of element of v is zero.
     ZetaInline __m128 __vectorcall hadd_float3(__m128 v)
     {
@@ -143,8 +143,9 @@ namespace ZetaRay::Math
         vEncodedNegZ = _mm_mul_ps(vEncodedNegZ, vSign);
 
         __m128 vZ = _mm_shuffle_ps(v, v, V_SHUFFLE_XYZW(2, 2, 2, 2));
-        __m128 vZIsLeNeg = _mm_cmple_ps(vZ, _mm_setzero_ps());
-        __m128 vEncoded = _mm_blendv_ps(vEncodedPosZ, vEncodedNegZ, vZIsLeNeg);
+        __m128 vZLe0 = _mm_cmple_ps(vZ, _mm_setzero_ps());
+        // v.z <= 0.0 ? 1.0 - abs(v.yx) * SignNotZero(v) : v
+        __m128 vEncoded = _mm_blendv_ps(vEncodedPosZ, vEncodedNegZ, vZLe0);
 
         return vEncoded;
     }
@@ -333,12 +334,12 @@ namespace ZetaRay::Math
         return _mm_loadu_ps(reinterpret_cast<float*>(&v));
     }
 
-    ZetaInline __m128 __vectorcall loadSNorm2(snorm2& v)
+    ZetaInline __m128 __vectorcall loadUNorm2(unorm2& v)
     {
-        alignas(16) int32_t unpacked[4] = { int32_t(v.x), int32_t(v.y), 0, 0 };
+        alignas(16) uint32_t unpacked[4] = { uint32_t(v.x), uint32_t(v.y), 0, 0 };
 
         __m128 vV = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(unpacked)));
-        vV = _mm_div_ps(vV, _mm_set1_ps((1 << 15) - 1));
+        vV = _mm_div_ps(vV, _mm_set1_ps((1 << 16) - 1));
 
         return vV;
     }

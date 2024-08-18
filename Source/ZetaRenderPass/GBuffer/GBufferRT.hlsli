@@ -6,18 +6,6 @@
 
 namespace GBufferRT
 {
-    uint EncodeFloat2AsSNorm16(float2 u)
-    {
-        int16_t2 encoded = Math::EncodeAsSNorm2(u);
-        return (uint(asuint16(encoded.y)) << 16) | asuint16(encoded.x);
-    }
-
-    float2 DecodeSNorm16ToFloat2(uint e)
-    {
-        int16_t2 encoded = int16_t2(asint16(uint16_t(e & 0xffff)), asint16(uint16_t(e >> 16)));
-        return Math::DecodeSNorm2(encoded);
-    }
-
     // Rate of change of texture uv coordinates w.r.t. screen space
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
     float4 UVDifferentials(int2 DTid, float3 origin, float3 dir, float2 jitter, 

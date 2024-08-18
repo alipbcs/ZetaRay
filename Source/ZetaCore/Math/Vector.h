@@ -10,7 +10,6 @@ namespace ZetaRay::Math
     struct half2;
     struct half3;
     struct half4;
-    struct snorm3;
     struct alignas(16) float4a;
 
     struct float2
@@ -102,7 +101,6 @@ namespace ZetaRay::Math
             z(z)
         {}
         explicit float3(const half3& h);
-        explicit float3(const snorm3& v);
 
         constexpr float3& operator+=(const float3& other)
         {
@@ -501,151 +499,6 @@ namespace ZetaRay::Math
         uint32_t z;
     };
 
-    struct snorm2
-    {
-        snorm2() = default;
-        explicit snorm2(int16_t u)
-            : x(u),
-            y(u)
-        {}
-        snorm2(int16_t u, int16_t v)
-            : x(u),
-            y(v)
-        {}
-
-        explicit snorm2(float2 u)
-        {
-            __m128 vV = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&u)));
-            __m128 vMax = _mm_set1_ps((1 << 15) - 1);
-            __m128 vTemp = _mm_mul_ps(vV, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
-            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
-
-            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
-            alignas(16) uint32_t a[4];
-            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
-
-            x = static_cast<int16_t>(a[0]);
-            y = static_cast<int16_t>(a[1]);
-        }
-
-        explicit snorm2(__m128 v)
-        {
-            __m128 vMax = _mm_set1_ps((1 << 15) - 1);
-            __m128 vTemp = _mm_mul_ps(v, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
-            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
-
-            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
-            alignas(16) uint32_t a[4];
-            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
-
-            x = static_cast<int16_t>(a[0]);
-            y = static_cast<int16_t>(a[1]);
-        }
-
-        int16_t x;
-        int16_t y;
-    };
-
-    struct snorm3
-    {
-        snorm3() = default;
-        explicit snorm3(int16_t u)
-            : x(u),
-            y(u),
-            z(u)
-        {}
-        snorm3(int16_t u0, int16_t u1, int16_t u2)
-            : x(u0),
-            y(u1),
-            z(u2)
-        {}
-
-        explicit snorm3(float u0, float u1, float u2)
-        {
-            float4a v(u0, u1, u2, 0);
-            __m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
-            __m128 vMax = _mm_set1_ps((1 << 15) - 1);
-            __m128 vTemp = _mm_mul_ps(vV, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
-            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
-
-            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
-            alignas(16) uint32_t a[4];
-            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
-
-            x = static_cast<int16_t>(a[0]);
-            y = static_cast<int16_t>(a[1]);
-            z = static_cast<int16_t>(a[2]);
-        }
-
-        explicit snorm3(float3 v)
-        {
-            __m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&v)));
-            // &v.z does not need to be aligned
-            __m128 vZ = _mm_load_ss(&v.z);
-            __m128 vV = _mm_insert_ps(vXY, vZ, 0x20);
-
-            __m128 vMax = _mm_set1_ps((1 << 15) - 1);
-            __m128 vTemp = _mm_mul_ps(vV, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
-            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
-
-            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
-            alignas(16) uint32_t a[4];
-            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
-
-            x = static_cast<int16_t>(a[0]);
-            y = static_cast<int16_t>(a[1]);
-            z = static_cast<int16_t>(a[2]);
-        }
-
-        int16_t x;
-        int16_t y;
-        int16_t z;
-    };
-
-    struct snorm4
-    {
-        snorm4() = default;
-        explicit snorm4(int16_t u)
-            : x(u),
-            y(u),
-            z(u),
-            w(u)
-        {}
-        snorm4(int16_t u0, int16_t u1, int16_t u2, int16_t u3)
-            : x(u0),
-            y(u1),
-            z(u2),
-            w(u3)
-        {}
-
-        explicit snorm4(float4a& v)
-        {
-            __m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
-            __m128 vMax = _mm_set1_ps((1 << 15) - 1);
-            __m128 vTemp = _mm_mul_ps(vV, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
-            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
-
-            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
-            alignas(16) uint32_t a[4];
-            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
-
-            x = static_cast<int16_t>(a[0]);
-            y = static_cast<int16_t>(a[1]);
-            z = static_cast<int16_t>(a[2]);
-            w = static_cast<int16_t>(a[3]);
-        }
-
-        int16_t x;
-        int16_t y;
-        int16_t z;
-        int16_t w;
-    };
-
     struct unorm2
     {
         unorm2() = default;
@@ -658,39 +511,181 @@ namespace ZetaRay::Math
             y(v)
         {}
 
-        explicit unorm2(float2 u)
+        // Encodes float2 in [-1, 1]
+        static unorm2 FromNormalized(float2 u)
         {
+            unorm2 ret;
+
             __m128 vV = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&u)));
+            __m128 vHalf = _mm_set1_ps(0.5f);
+            // [-1, 1] -> [0, 1] 
+            vV = _mm_fmadd_ps(vV, vHalf, vHalf);
+
             __m128 vMax = _mm_set1_ps((1 << 16) - 1);
             __m128 vTemp = _mm_mul_ps(vV, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
+            // cvtps_epi32 uses the default rounding mode (round to nearest)
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
             // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
-            x = static_cast<uint16_t>(a[0]);
-            y = static_cast<uint16_t>(a[1]);
+            ret.x = static_cast<uint16_t>(a[0]);
+            ret.y = static_cast<uint16_t>(a[1]);
+
+            return ret;
         }
 
-        explicit unorm2(__m128 v)
+        // Encodes float2 in [-1, 1]
+        static unorm2 FromNormalized(__m128 vV)
         {
+            unorm2 ret;
+
+            __m128 vHalf = _mm_set1_ps(0.5f);
+            // [-1, 1] -> [0, 1] 
+            vV = _mm_fmadd_ps(vV, vHalf, vHalf);
+
             __m128 vMax = _mm_set1_ps((1 << 16) - 1);
-            __m128 vTemp = _mm_mul_ps(v, vMax);
-            vTemp = _mm_round_ps(vTemp, 0);
+            __m128 vTemp = _mm_mul_ps(vV, vMax);
+            // cvtps_epi32 uses the default rounding mode (round to nearest)
             __m128i vEncoded = _mm_cvtps_epi32(vTemp);
 
             // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
             alignas(16) uint32_t a[4];
             _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
 
-            x = static_cast<uint16_t>(a[0]);
-            y = static_cast<uint16_t>(a[1]);
+            ret.x = static_cast<uint16_t>(a[0]);
+            ret.y = static_cast<uint16_t>(a[1]);
+
+            return ret;
         }
 
         uint16_t x;
         uint16_t y;
+    };
+
+    struct unorm3
+    {
+        unorm3() = default;
+        explicit unorm3(uint16_t u)
+            : x(u),
+            y(u),
+            z(u)
+        {}
+        unorm3(uint16_t u0, uint16_t u1, uint16_t u2)
+            : x(u0),
+            y(u1),
+            z(u2)
+        {}
+
+        // Encodes float3 in [-1, 1]
+        static unorm3 FromNormalized(float u0, float u1, float u2)
+        {
+            unorm3 ret;
+
+            float4a v(u0, u1, u2, 0);
+            __m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
+            __m128 vHalf = _mm_set1_ps(0.5f);
+            // [-1, 1] -> [0, 1]
+            vV = _mm_fmadd_ps(vV, vHalf, vHalf);
+
+            __m128 vMax = _mm_set1_ps((1 << 16) - 1);
+            __m128 vTemp = _mm_mul_ps(vV, vMax);
+            // cvtps_epi32 uses the default rounding mode (round to nearest)
+            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
+
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            alignas(16) uint32_t a[4];
+            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
+
+            ret.x = static_cast<uint16_t>(a[0]);
+            ret.y = static_cast<uint16_t>(a[1]);
+            ret.z = static_cast<uint16_t>(a[2]);
+
+            return ret;
+        }
+
+        // Encodes float3 in [-1, 1]
+        static unorm3 FromNormalized(float3 v)
+        {
+            unorm3 ret;
+
+            __m128 vXY = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&v)));
+            // &v.z does not need to be aligned
+            __m128 vZ = _mm_load_ss(&v.z);
+            __m128 vV = _mm_insert_ps(vXY, vZ, 0x20);
+            __m128 vHalf = _mm_set1_ps(0.5f);
+            // [-1, 1] -> [0, 1]
+            vV = _mm_fmadd_ps(vV, vHalf, vHalf);
+
+            __m128 vMax = _mm_set1_ps((1 << 16) - 1);
+            __m128 vTemp = _mm_mul_ps(vV, vMax);
+            // cvtps_epi32 uses the default rounding mode (round to nearest)
+            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
+
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            alignas(16) uint32_t a[4];
+            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
+
+            ret.x = static_cast<uint16_t>(a[0]);
+            ret.y = static_cast<uint16_t>(a[1]);
+            ret.z = static_cast<uint16_t>(a[2]);
+
+            return ret;
+        }
+
+        uint16_t x;
+        uint16_t y;
+        uint16_t z;
+    };
+
+    struct unorm4
+    {
+        unorm4() = default;
+        explicit unorm4(uint16_t u)
+            : x(u),
+            y(u),
+            z(u),
+            w(u)
+        {}
+        unorm4(uint16_t u0, uint16_t u1, uint16_t u2, uint16_t u3)
+            : x(u0),
+            y(u1),
+            z(u2),
+            w(u3)
+        {}
+
+        // Encodes float4 in [-1, 1]
+        static unorm4 FromNormalized(float4a& v)
+        {
+            unorm4 ret;
+            
+            __m128 vV = _mm_load_ps(reinterpret_cast<float*>(&v));
+            __m128 vHalf = _mm_set1_ps(0.5f);
+            // [-1, 1] -> [0, 1]
+            vV = _mm_fmadd_ps(vV, vHalf, vHalf);
+
+            __m128 vMax = _mm_set1_ps((1 << 16) - 1);
+            __m128 vTemp = _mm_mul_ps(vV, vMax);
+            // cvtps_epi32 uses the default rounding mode (round to nearest)
+            __m128i vEncoded = _mm_cvtps_epi32(vTemp);
+
+            // Doesn't violate strict aliasing: https://stackoverflow.com/questions/13257166/print-a-m128i-variable
+            alignas(16) uint32_t a[4];
+            _mm_store_si128(reinterpret_cast<__m128i*>(a), vEncoded);
+
+            ret.x = static_cast<uint16_t>(a[0]);
+            ret.y = static_cast<uint16_t>(a[1]);
+            ret.z = static_cast<uint16_t>(a[2]);
+            ret.w = static_cast<uint16_t>(a[3]);
+
+            return ret;
+        }
+
+        uint16_t x;
+        uint16_t y;
+        uint16_t z;
+        uint16_t w;
     };
 
     inline float2::float2(const half2& h)
@@ -703,19 +698,6 @@ namespace ZetaRay::Math
         y(HalfToFloat(h.y)),
         z(HalfToFloat(h.z))
     {}
-
-    inline float3::float3(const snorm3& e)
-    {
-        alignas(16) int32_t packed[4] = { int32_t(e.x), int32_t(e.y), int32_t(e.z), 0 };
-
-        // Decode SNORM-16
-        __m128 vEncoded = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(packed)));
-        vEncoded = _mm_mul_ps(vEncoded, _mm_set1_ps(1.0f / ((1 << 15) - 1)));
-
-        x = _mm_cvtss_f32(vEncoded);
-        y = _mm_cvtss_f32(_mm_shuffle_ps(vEncoded, vEncoded, V_SHUFFLE_XYZW(1, 0, 0, 0)));
-        z = _mm_cvtss_f32(_mm_shuffle_ps(vEncoded, vEncoded, V_SHUFFLE_XYZW(2, 0, 0, 0)));
-    }
 
     inline float4::float4(const half4& h)
         : x(HalfToFloat(h.x)),

@@ -119,7 +119,7 @@ RayPayload TracePrimaryHit(float3 origin, float3 dir)
         Vertex V1 = g_sceneVertices[NonUniformResourceIndex(i1)];
         Vertex V2 = g_sceneVertices[NonUniformResourceIndex(i2)];
 
-        float4 q = Math::DecodeSNorm4(meshData.Rotation);
+        float4 q = Math::DecodeNormalized4(meshData.Rotation);
         // due to quantization, it's necessary to renormalize
         q = normalize(q);
 
@@ -184,7 +184,7 @@ RayPayload TracePrimaryHit(float3 origin, float3 dir)
             rayQuery.WorldRayOrigin());
         float3 posL = Math::InverseTransformTRS(hitPos, meshData.Translation, q, meshData.Scale);
         float3 prevTranslation = meshData.Translation - meshData.dTranslation;
-        float4 q_prev = Math::DecodeSNorm4(meshData.PrevRotation);
+        float4 q_prev = Math::DecodeNormalized4(meshData.PrevRotation);
         // due to quantization, it's necessary to renormalize
         q_prev = normalize(q_prev);
         float3 pos_prev = Math::TransformTRS(posL, prevTranslation, q_prev, meshData.PrevScale);

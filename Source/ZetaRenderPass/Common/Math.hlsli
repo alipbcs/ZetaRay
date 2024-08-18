@@ -97,7 +97,9 @@ namespace Math
     T ArcCos(T x)
     {
         T xAbs = abs(x);
-        T res = ((-0.0206453f * xAbs + 0.0764532f) * xAbs + -0.21271f) * xAbs + 1.57075f;
+        T res = mad(-0.0206453f, xAbs, 0.0764532f);
+        res = mad(res, xAbs, -0.21271f);
+        res = mad(res, xAbs, 1.57075f);
         res *= sqrt(1.0f - xAbs);
 
         return select((x >= 0), res, PI - res);
@@ -548,6 +550,7 @@ namespace Math
 
     uint FloatToUNorm8(float f)
     {
+        f = saturate(f);
         return (uint)mad(f, 255.0f, 0.5f);
     }
 
@@ -556,47 +559,38 @@ namespace Math
         return u / 255.0f;
     }
 
-    int16_t2 UnpackUintToInt16(uint x)
+    uint16_t FloatToUNorm16(float f)
     {
-        uint16_t2 u = uint16_t2(x & 0xffff, x >> 16);
-        return asint16(u);
+        f = saturate(f);
+        return (uint16_t)mad(f, float((1 << 16) - 1), 0.5f);
+    }
+
+    float UNorm16ToFloat(uint16_t u)
+    {
+        return u / (float)((1 << 16) - 1);
+    }
+
+    uint16_t2 UnpackUintToUint16(uint x)
+    {
+        return uint16_t2(x & 0xffff, x >> 16);
     }
 
     uint16_t2 EncodeAsUNorm2(float2 u)
     {
-        return uint16_t2(mad(saturate(u), float((1 << 16) - 1), 0.5));
+        u = saturate(u);
+        return (uint16_t2)mad(u, float((1 << 16) - 1), 0.5f);
     }
 
-    float2 DecodeUNorm2(uint16_t2 i)
+    float2 DecodeUNorm2(uint16_t2 u)
     {
-        return i / float((1 << 16) - 1);
+        return u / float((1 << 16) - 1);
     }
 
-    int16_t2 EncodeAsSNorm2(float2 u)
+    float4 DecodeNormalized4(uint16_t4 u)
     {
-        u = clamp(u, -1, 1);
-        return int16_t2(round(u * float((1 << 15) - 1)));
-    }
-
-    int16_t3 EncodeAsSNorm3(float3 u)
-    {
-        u = clamp(u, -1, 1);
-        return int16_t3(round(u * float((1 << 15) - 1)));
-    }
-
-    float2 DecodeSNorm2(int16_t2 u)
-    {
-        return u / float((1 << 15) - 1);
-    }
-
-    float3 DecodeSNorm3(int16_t3 u)
-    {
-        return u / float((1 << 15) - 1);
-    }
-
-    float4 DecodeSNorm4(int16_t4 u)
-    {
-        return u / float((1 << 15) - 1);
+        float4 decoded = u / float((1 << 16) - 1);
+        // [0, 1] -> [-1, 1]
+        return mad(decoded, 2.0f, -1.0f);
     }
 
     // Encodes 3D unit vector using octahedral mapping.
@@ -604,11 +598,16 @@ namespace Math
     float2 EncodeUnitVector(float3 n)
     {
         float2 p = n.xy / (abs(n.x) + abs(n.y) + abs(n.z));
-        return (n.z <= 0.0) ? ((1.0 - abs(p.yx)) * SignNotZero(p)) : p;
+        float2 encoded = (n.z <= 0.0) ? ((1.0 - abs(p.yx)) * SignNotZero(p)) : p;
+        // [-1, 1] -> [0, 1]
+        return mad(encoded, 0.5f, 0.5f);
     }
 
     float3 DecodeUnitVector(float2 u)
     {
+        // [0, 1] -> [-1, 1]
+        u = mad(u, 2.0f, -1.0f);
+
         // https://twitter.com/Stubbesaurus/status/937994790553227264
         float3 n = float3(u.x, u.y, 1.0f - abs(u.x) - abs(u.y));
         float t = saturate(-n.z);
@@ -618,25 +617,19 @@ namespace Math
         return normalize(n);
     }
 
-    int16_t2 EncodeOct32(float3 n)
+    uint16_t2 EncodeOct32(float3 n)
     {
         float2 u = EncodeUnitVector(n);
-        int16_t2 e = EncodeAsSNorm2(u);
-
-        return e;
+        return EncodeAsUNorm2(u);
     }
 
-    float3 DecodeOct32(int16_t2 e)
+    float3 DecodeOct32(uint16_t2 e)
     {
-        float2 u = DecodeSNorm2(e);
-        float3 n = float3(u.x, u.y, 1.0f - abs(u.x) - abs(u.y));
-        float t = saturate(-n.z);
-        n.xy += select(n.xy >= 0.0f, -t, t);
-
-        return normalize(n);
+        float2 u = DecodeUNorm2(e);
+        return DecodeUnitVector(u);
     }
 
-    // Octahedral encoding for unit vector in upper hemisphere (n.y >= 0).
+    // Octahedral encoding for unit vector in upper hemisphere (n.y >= 0)
     float2 EncodeUnitHemisphereVector(float3 n)
     {
         float2 p = n.xz / (abs(n.x) + abs(n.y) + abs(n.z));
@@ -712,6 +705,7 @@ namespace Math
 
     uint Float3ToRGB8(float3 v)
     {
+        v = saturate(v);
         uint3 u = (uint3)mad(v, 255.0f, 0.5f);
         uint packed = u.x | (u.y << 8) | (u.z << 16);
 

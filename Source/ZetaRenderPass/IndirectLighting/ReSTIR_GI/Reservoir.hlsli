@@ -101,7 +101,7 @@ namespace RGI_Util
         r.W = resC.y;
 
         uint n = asuint(resC.z);
-        int16_t2 ns = Math::UnpackUintToInt16(n);
+        uint16_t2 ns = Math::UnpackUintToUint16(n);
         r.normal = Math::DecodeOct32(ns);
     }
 
@@ -117,8 +117,8 @@ namespace RGI_Util
         RWTexture2D<half4> g_outReservoir_B = ResourceDescriptorHeap[outputBIdx];
         RWTexture2D<float4> g_outReservoir_C = ResourceDescriptorHeap[outputCIdx];
 
-        int16_t2 n = Math::EncodeOct32(r.normal);
-        uint nu = asuint16(n.x) | (uint(asuint16(n.y)) << 16);
+        uint16_t2 n = Math::EncodeOct32(r.normal);
+        uint nu = n.x | (uint(n.y) << 16);
         half M_clamped = min(r.M, (half)M_max);
 
         float4 outA = float4(r.pos, asfloat(r.ID));

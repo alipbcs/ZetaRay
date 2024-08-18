@@ -49,10 +49,10 @@ namespace Light
     float3 DecodeEmissiveTriV1(RT::EmissiveTriangle tri)
     {
 #if ENCODE_EMISSIVE_POS == 1
-        float3 v0v1 = float3(tri.V0V1 / float((1 << 15) - 1), 0);
-        v0v1 = Math::DecodeUnitVector(v0v1.xy);
+        float2 v0v1 = (float2)tri.V0V1 / float((1 << 16) - 1);
+        float3 decoded = Math::DecodeUnitVector(v0v1.xy);
 
-        return mad(v0v1, tri.EdgeLengths.x, tri.Vtx0);
+        return mad(decoded, tri.EdgeLengths.x, tri.Vtx0);
 #else
         return Vtx1;
 #endif
@@ -61,10 +61,10 @@ namespace Light
     float3 DecodeEmissiveTriV2(RT::EmissiveTriangle tri)
     {
 #if ENCODE_EMISSIVE_POS == 1
-        float3 v0v2 = float3(tri.V0V2 / float((1 << 15) - 1), 0);
-        v0v2 = Math::DecodeUnitVector(v0v2.xy);
+        float2 v0v2 = (float2)tri.V0V2 / float((1 << 16) - 1);
+        float3 decoded = Math::DecodeUnitVector(v0v2.xy);
         
-        return mad(v0v2, tri.EdgeLengths.y, tri.Vtx0);
+        return mad(decoded, tri.EdgeLengths.y, tri.Vtx0);
 #else
         return Vtx2;
 #endif

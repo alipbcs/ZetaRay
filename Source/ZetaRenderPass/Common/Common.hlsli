@@ -6,8 +6,8 @@ struct Vertex
 {
     float3 PosL;
     float2 TexUV;
-    int16_t2 NormalL;
-    int16_t2 TangentU;
+    uint16_t2 NormalL;
+    uint16_t2 TangentU;
 };
 
 namespace Common

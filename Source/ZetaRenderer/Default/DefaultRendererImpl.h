@@ -99,7 +99,7 @@ namespace ZetaRay::DefaultRenderer
         inline static const DXGI_FORMAT GBUFFER_FORMAT[GBUFFER::COUNT] =
         {
             DXGI_FORMAT_R8G8B8A8_UNORM,
-            DXGI_FORMAT_R16G16_SNORM,
+            DXGI_FORMAT_R16G16_UNORM,
             DXGI_FORMAT_R8G8_UNORM,
             DXGI_FORMAT_R16G16_SNORM,
             DXGI_FORMAT_UNKNOWN,

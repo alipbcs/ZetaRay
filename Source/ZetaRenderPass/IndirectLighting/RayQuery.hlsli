@@ -70,7 +70,7 @@ namespace ReSTIR_RT
                 Vertex V1 = g_vertices[NonUniformResourceIndex(i1)];
                 Vertex V2 = g_vertices[NonUniformResourceIndex(i2)];
 
-                float4 q = Math::DecodeSNorm4(meshData.Rotation);
+                float4 q = Math::DecodeNormalized4(meshData.Rotation);
                 // Due to quantization, it's necessary to renormalize
                 q = normalize(q);
 
@@ -223,7 +223,7 @@ namespace ReSTIR_RT
             Vertex V1 = g_vertices[NonUniformResourceIndex(i1)];
             Vertex V2 = g_vertices[NonUniformResourceIndex(i2)];
 
-            float4 q = Math::DecodeSNorm4(meshData.Rotation);
+            float4 q = Math::DecodeNormalized4(meshData.Rotation);
             // Due to quantization, it's necessary to renormalize
             q = normalize(q);
 

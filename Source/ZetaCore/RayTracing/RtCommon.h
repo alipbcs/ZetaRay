@@ -48,13 +48,13 @@ namespace ZetaRay
         {
             uint32_t BaseVtxOffset;
             uint32_t BaseIdxOffset;
-            snorm4_ Rotation;
+            unorm4_ Rotation;
             half3_ Scale;
             uint16_t MatIdx;
             uint32_t BaseEmissiveTriOffset;
 
             float3_ Translation;
-            snorm4_ PrevRotation;
+            unorm4_ PrevRotation;
             half3_ PrevScale;
             half3_ dTranslation;
 
@@ -94,8 +94,8 @@ namespace ZetaRay
             float3_ Vtx0;
 
 #if ENCODE_EMISSIVE_POS == 1
-            snorm2_ V0V1;
-            snorm2_ V0V2;
+            unorm2_ V0V1;
+            unorm2_ V0V2;
             half2_ EdgeLengths;
 #else
             float3_ Vtx1;
@@ -173,10 +173,12 @@ namespace ZetaRay
                 vE1 = Math::encode_octahedral(vE1);
                 vE0E1Normalized = _mm256_insertf128_ps(_mm256_castps128_ps256(vE0), vE1, 1);
 
-                // Encode using 16-bit SNORMs
-                __m256 vMax = _mm256_set1_ps((1 << 15) - 1);
+                // Encode using 16-bit UNORMs
+                __m256 vHalf = _mm256_set1_ps(0.5f);
+                // [-1, 1] -> [0, 1]
+                vE0E1Normalized = _mm256_fmadd_ps(vE0E1Normalized, vHalf, vHalf);
+                __m256 vMax = _mm256_set1_ps((1 << 16) - 1);
                 __m256 vTemp = _mm256_mul_ps(vE0E1Normalized, vMax);
-                vTemp = _mm256_round_ps(vTemp, 0);
                 __m256i vE0E1Encoded = _mm256_cvtps_epi32(vTemp);
 
                 // Store normalized edges
@@ -205,9 +207,11 @@ namespace ZetaRay
                 alignas(16) int32_t packed[4] = { int32_t(V0V1.x), int32_t(V0V1.y),
                     int32_t(V0V2.x), int32_t(V0V2.y) };
 
-                // Decode SNORM-16
+                // Decode UNORM-16
                 __m128 vE0E1 = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(packed)));
-                vE0E1 = _mm_div_ps(vE0E1, _mm_set1_ps((1 << 15) - 1));
+                vE0E1 = _mm_div_ps(vE0E1, _mm_set1_ps((1 << 16) - 1));
+                // [0, 1] -> [-1, 1]
+                vE0E1 = _mm_fmadd_ps(vE0E1, _mm_set1_ps(2.0f), _mm_set1_ps(-1.0f));
 
                 // Convert length to float
                 __m128i vLengthsHalf = _mm_cvtsi32_si128(EdgeLengths.x | (EdgeLengths.y << 16));
@@ -245,15 +249,15 @@ namespace ZetaRay
                 ID = id;
             }
 
-            ZetaInline void __vectorcall StoreEdge(__m128i vEdge, snorm2_& e)
+            ZetaInline void __vectorcall StoreEdge(__m128i vEdge, unorm2_& e)
             {
                 vEdge = _mm_and_si128(vEdge, _mm_set1_epi32(0xffff));
 
                 alignas(16) uint32_t a[4];
                 _mm_store_si128(reinterpret_cast<__m128i*>(a), vEdge);
 
-                e.x = static_cast<int16_t>(a[0]);
-                e.y = static_cast<int16_t>(a[1]);
+                e.x = static_cast<uint16_t>(a[0]);
+                e.y = static_cast<uint16_t>(a[1]);
             }
 
             ZetaInline void SetStrength(float newStrength)
@@ -299,7 +303,7 @@ namespace ZetaRay
         struct PresampledEmissiveTriangle
         {
             float3_ pos;
-            snorm2_ normal;
+            unorm2_ normal;
             float pdf;
             uint32_t ID;
             uint32_t idx;
@@ -311,7 +315,7 @@ namespace ZetaRay
         struct VoxelSample
         {
             float3_ pos;
-            snorm2_ normal;
+            unorm2_ normal;
             float pdf;
             uint32_t ID;
             half3_ le;
