@@ -6,6 +6,7 @@
 // 4. J. Boksansky, "Crash Course in BRDF Implementation," 2021. [Online]. Available: https://boksajak.github.io/blog/BRDF.
 // 5. S. Lagarde and C. de Rousiers, "Moving Frostbite to Physically Based Rendering," 2014.
 // 6. Autodesk Standard Surface: https://autodesk.github.io/standard-surface/.
+// 7. OpenPBR Surface: https://academysoftwarefoundation.github.io/OpenPBR
 
 #ifndef BSDF_H
 #define BSDF_H
@@ -39,6 +40,9 @@
 // Sample from the isotropic VNDF distribution. "Should" be faster as building a local 
 // coordinate system is not needed, but for some reason it's slower.
 #define USE_ISOTROPIC_VNDF 0
+
+#define USE_OREN_NAYAR 1
+#define ENERGY_PRESERVING_OREN_NAYAR 1
 
 namespace BSDF
 {
@@ -152,6 +156,7 @@ namespace BSDF
     //--------------------------------------------------------------------------------------
     // Normal Distribution Function
     //--------------------------------------------------------------------------------------
+
     float GGX(float ndotwh, float alphaSq)
     {
         float denom = mad(ndotwh * ndotwh, alphaSq - 1.0f, 1.0f);
@@ -159,8 +164,9 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
-    // Smith Geometry Shadowing-Masking Functions
+    // Smith Shadowing-Masking Functions
     //--------------------------------------------------------------------------------------
+
     // G1 is the Smith masking function. Output is in [0, 1].
     //
     // theta            = angle between wi or wo with normal
@@ -200,8 +206,8 @@ namespace BSDF
         return (0.5f * n) / (denomWo + denomWi);
     }
 
-    // Ref: E. Heitz and J. Dupuy, "Implementing a Simple Anisotropic Rough Diffuse Material 
-    // with Stochastic Evaluation," 2015.
+    // Ref: E. Heitz and J. Dupuy, "Implementing a Simple Anisotropic Rough Diffuse 
+    // Material with Stochastic Evaluation," 2015.
     float SmithHeightCorrelatedG2OverG1_GGX(float alphaSq, float ndotwi, float ndotwo)
     {
         float G1wi = SmithG1_GGX(alphaSq, ndotwi);
@@ -210,9 +216,9 @@ namespace BSDF
         return G1wi / (G1wi + G1wo - G1wi * G1wo);
     }
 
-    // Approximates how closely the specular lobe dominant direction is aligned with the reflected
-    // direction. Dominant direction tends to shift away from reflected direction as roughness
-    // or view angle increases (off-specular peak).
+    // Approximates how closely the specular lobe dominant direction is aligned with 
+    // the reflected direction. Dominant direction tends to shift away from reflected 
+    // direction as roughness or view angle increases (off-specular peak).
     float MicrofacetBRDFGGXSmithDominantFactor(float ndotwo, float roughness)
     {
         float a = 0.298475f * log(39.4115f - 39.0029f * roughness);
@@ -262,9 +268,11 @@ namespace BSDF
     //--------------------------------------------------------------------------------------
     // Sampling Distribution of Visible Normals (VNDF)
     //--------------------------------------------------------------------------------------
-    // Samples half vector wh in a coordinate system where z is aligned with the shading normal.
-    // PDF is GGX(wh) * max(0, whdotwo) * G1(ndotwo) / ndotwo.
-    // Ref: J. Dupuy and A. Benyoub, "Sampling Visible GGX Normals with Spherical Caps," High Performance Graphics, 2023.
+
+    // Samples half vector wh in a coordinate system where z is aligned with the shading 
+    // normal. PDF is GGX(wh) * max(0, whdotwo) * G1(ndotwo) / ndotwo.
+    // Ref: J. Dupuy and A. Benyoub, "Sampling Visible GGX Normals with Spherical Caps," 
+    // High Performance Graphics, 2023.
     float3 SampleGGXVNDF(float3 wo, float alpha_x, float alpha_y, float2 u)
     {
         // Section 3.2: transforming the view direction to the hemisphere configuration
@@ -343,11 +351,66 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
+    // Diffuse Reflection
+    //--------------------------------------------------------------------------------------
+
+    float3 SampleLambertian(float3 normal, float2 u, out float pdf)
+    {
+        float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+
+        float3 T;
+        float3 B;
+        Math::revisedONB(normal, T, B);
+        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
+
+        return wiWorld;
+    }
+
+    float3 SampleLambertian(float3 normal, float2 u)
+    {
+        float unused;
+        return SampleLambertian(normal, u, unused);
+    }
+
+    // G(theta) = sin(theta) (theta - sin(theta) cos(theta) - 2 / 3)
+    //          + (2 / 3) tan(theta) (1 - sin^3(theta))
+    float OrenNayar_G(float cosTheta)
+    {
+        float sinThetaSq = saturate(1 - cosTheta * cosTheta);
+        float sinTheta = sqrt(sinThetaSq);
+        float theta = Math::ArcCos(cosTheta);
+        float tanTheta = sinTheta / cosTheta;
+        float multiplier_sin = mad(-sinTheta, cosTheta, theta - (2.0f / 3.0f));
+        float multiplier_tan = (2.0f / 3.0f) * mad(-sinTheta, sinThetaSq, 1.0f);
+
+        return sinTheta * multiplier_sin + tanTheta * multiplier_tan;
+    }
+
+    //--------------------------------------------------------------------------------------
     // Utility structure with data needed for BSDF evaluation
     //--------------------------------------------------------------------------------------
 
     struct ShadingData
     {
+        static ShadingData Init()
+        {
+            ShadingData ret;
+            ret.wo = 0;
+            ret.backfacing_wo = false;
+            ret.ndotwo = 0;
+            ret.metallic = false;
+            ret.alpha = 0;
+            ret.diffuseReflectance_Fr0_TrCol = 0;
+            ret.eta = DEFAULT_ETA_I / DEFAULT_ETA_T;
+            ret.specTr = false;
+            ret.trDepth = 0;
+            ret.subsurface = 0;
+            ret.specular = true;
+            ret.g_wo = 0;
+
+            return ret;
+        }
+
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
             float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, 
             bool specTr = false, half transmissionDepth = 0, half subsurface = 0)
@@ -371,6 +434,8 @@ namespace BSDF
             // Specular reflection and microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
             si.specular = roughness <= MAX_ROUGHNESS_SPECULAR;
+            // Precompute as it only depends on wo
+            si.g_wo = !metallic && !specTr ? OrenNayar_G(max(ndotwo, 1e-4f)) : 0;
 
             return si;
         }
@@ -393,6 +458,7 @@ namespace BSDF
             this.invalid = isInvalid || ndotwi_n <= 0;
 
             this.ndotwi = max(ndotwi_n, 1e-5f);
+            this.wodotwi = dot(wo, wi);
         }
 
         void SetWi_Refl(float3 wi, float3 shadingNormal)
@@ -421,6 +487,7 @@ namespace BSDF
             this.invalid = isInvalid || ndotwi_n >= 0 || !Transmissive() || this.metallic;
 
             this.ndotwi = max(abs(ndotwi_n), 1e-5f);
+            this.wodotwi = dot(wo, wi);
         }
 
         void SetWi(float3 wi, float3 shadingNormal, float3 wh)
@@ -444,6 +511,7 @@ namespace BSDF
             // Clamp to a small value to avoid division by zero
             this.ndotwi = max(abs(ndotwi_n), 1e-5f);
             this.whdotwi = abs(dot(wh, wi));
+            this.wodotwi = dot(wo, wi);
         }
 
         void SetWi(float3 wi, float3 shadingNormal)
@@ -479,8 +547,8 @@ namespace BSDF
             // surface is specular, Fresnel must be computed with n.wo.
             float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
 
-            // Use Schlick's approximation for metals and non-transmissive dielectrics
-            if(this.metallic || (!this.specTr && (this.eta > 1)))
+            // Use Schlick's approximation for metals
+            if(this.metallic)
             {
                 float3 fr0 = this.metallic ? this.diffuseReflectance_Fr0_TrCol : 
                     DielectricF0(this.eta);
@@ -495,7 +563,7 @@ namespace BSDF
         {
             float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
 
-            if(this.metallic || (!this.specTr && (this.eta > 1)))
+            if(this.metallic)
                 return FresnelSchlick(fr0, cosIncident);
 
             return Fresnel_Dielectric(cosIncident, 1 / this.eta);
@@ -534,9 +602,9 @@ namespace BSDF
                 GGXReflectanceApprox(fr0, this.alpha, this.ndotwo).x;
         }
 
-        // Roughness textures actually contain an "interface" value of roughness that is perceptively 
-        // linear. That value needs to be remapped to the alpha value that's used in BSDF equations. 
-        // Literature suggests alpha = roughness^2.
+        // Roughness textures actually contain an "interface" value of roughness that 
+        // is perceptively linear. That value needs to be remapped to the alpha value 
+        // that's used in BSDF equations. Literature suggests alpha = roughness^2.
         float alpha;
 
         float3 wo;
@@ -545,18 +613,20 @@ namespace BSDF
         float ndotwh;
         float whdotwi;
         float whdotwo;
+        float wodotwi;
+        float g_wo;
         // Union of:
         //  - Diffuse reflectance for dielectrics
         //  - Fresnel at normal incidence for metals
         //  - Transmission color for dielectrics with specular transmission
         float3 diffuseReflectance_Fr0_TrCol;
         float eta;      // eta_i / eta_t
-        bool16 specTr;
-        bool16 metallic;
-        bool16 specular;  // delta BSDF
-        bool16 backfacing_wo;
-        bool16 invalid;
-        bool16 reflection;
+        bool specTr;
+        bool metallic;
+        bool specular;  // delta BSDF
+        bool backfacing_wo;
+        bool invalid;
+        bool reflection;
         half trDepth;
         half subsurface;
     };
@@ -579,48 +649,66 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
-    // Lambertian
+    // Diffuse
     //--------------------------------------------------------------------------------------
 
-    // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included for convenience.
-    float3 LambertianBxDF(ShadingData surface)
+    // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included 
+    // for convenience.
+    float3 Lambertian(ShadingData surface)
     {
         return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
     }
 
     // Pdf of cosine-weighted hemisphere sampling
-    float LambertianBxDFPdf(ShadingData surface)
+    float LambertianPdf(ShadingData surface)
     {
         return surface.ndotwi * ONE_OVER_PI;
     }
 
     // Lambertain BRDF times n.wi divided by pdf of cosine-weighted hemisphere sampling
-    float3 LambertianBxDFDivPdf(ShadingData surface)
+    float3 LambertianDivPdf(ShadingData surface)
     {
         return surface.diffuseReflectance_Fr0_TrCol;
-    }
-
-    float3 SampleLambertian(float3 normal, float2 u, out float pdf)
-    {
-        float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
-
-        float3 T;
-        float3 B;
-        Math::revisedONB(normal, T, B);
-        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
-
-        return wiWorld;
-    }
-
-    float3 SampleLambertian(float3 normal, float2 u)
-    {
-        float unused;
-        return SampleLambertian(normal, u, unused);
     }
 
     //--------------------------------------------------------------------------------------
     // Microfacet Models
     //--------------------------------------------------------------------------------------
+
+    // Refs: Improved Oren-Nayar model from https://mimosa-pudica.net/improved-oren-nayar.html, 
+    // energy-preserving multi-scattering term from the OpenPBR specs.
+    template<bool AccountForMultiScattering>
+    float3 OrenNayar(ShadingData surface)
+    {
+        // Reduces to Lambertian
+        if(surface.alpha == 0)
+            return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
+
+        float sigma = sqrt(surface.alpha);
+        float3 rho = surface.diffuseReflectance_Fr0_TrCol;
+        float A = 1.0f / mad(0.287793409f, sigma, 1.0f);
+        float B = sigma * A;
+        float s_over_t = mad(-surface.ndotwi, surface.ndotwo, surface.wodotwi);
+        s_over_t = s_over_t > 0 ? s_over_t / max(surface.ndotwi, surface.ndotwo) : s_over_t;
+        float3 f = ONE_OVER_PI * mad(B, s_over_t, A) * rho;
+        float3 f_comp = 0;
+
+        if(AccountForMultiScattering && surface.reflection)
+        {
+            float avgReflectance = mad(0.072488212f, B, A);
+            float one_min_avgReflectance = 1 - avgReflectance;
+            float tmp = ONE_OVER_PI * (avgReflectance / one_min_avgReflectance);
+            float3 rho_ms_over_piSq = tmp / (1 - rho * one_min_avgReflectance);
+            rho_ms_over_piSq *= rho * rho;
+
+            float B_over_pi = ONE_OVER_PI * B; 
+            float E_wo = mad(B_over_pi, surface.g_wo, A);
+            float E_wi = mad(B_over_pi, OrenNayar_G(surface.ndotwi), A);
+            f_comp = (1 - E_wo) * (1 - E_wi) * rho_ms_over_piSq;
+        }
+
+        return surface.ndotwi * (f + f_comp);
+    }
 
     // Includes multiplication by n.wi from the rendering equation
     float3 MicrofacetBRDFGGXSmith(ShadingData surface, float3 fr)
@@ -848,8 +936,11 @@ namespace BSDF
         // mul. by reflection is to handle thin walled case
         float3 gloss = MicrofacetBRDFGGXSmith(surface, fr) * surface.reflection;
         float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
-        float3 diffuse = (1 - reflectance) * s * LambertianBxDF(surface);
-
+#if USE_OREN_NAYAR == 1
+        float3 diffuse = (1 - reflectance) * s * OrenNayar<ENERGY_PRESERVING_OREN_NAYAR>(surface);
+#else
+        float3 diffuse = (1 - reflectance) * s * Lambertian(surface);
+#endif
         return diffuse + gloss;
     }
 
@@ -946,7 +1037,11 @@ namespace BSDF
         if(!surface.specTr)
         {
             float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
-            float3 diffuse = (1 - reflectance) * LambertianBxDF(surface);
+#if USE_OREN_NAYAR == 1
+            float3 diffuse = (1 - reflectance) * s * OrenNayar<ENERGY_PRESERVING_OREN_NAYAR>(surface);
+#else
+            float3 diffuse = (1 - reflectance) * s * Lambertian(surface);
+#endif
 
             return diffuse * s + glossyRefl * surface.reflection;
         }
@@ -957,9 +1052,9 @@ namespace BSDF
 
         // For specular, (1 - Fresnel) factor is already accounted for
         reflectance = surface.specular ? 0 : reflectance;
-        float gloss = MicrofacetBTDFGGXSmith(surface);
+        float glossyTr = MicrofacetBTDFGGXSmith(surface);
 
-        return (1 - reflectance) * gloss * (1 - fr.x) * surface.TransmissionTint();
+        return (1 - reflectance) * glossyTr * (1 - fr.x) * surface.TransmissionTint();
     }
 
     float3 UnifiedBSDF(ShadingData surface, out float fr_d)

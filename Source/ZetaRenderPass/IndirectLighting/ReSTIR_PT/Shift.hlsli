@@ -184,6 +184,22 @@ namespace RPT_Util
 
     struct PathContext
     {
+        static PathContext Init()
+        {
+            PathContext ret;
+            ret.throughput = 0;
+            ret.pos = 0;
+            ret.normal = 0;
+            ret.rd = RT::RayDifferentials::Init();
+            ret.surface = BSDF::ShadingData::Init();
+            ret.eta_curr = ETA_AIR;
+            ret.eta_mat = DEFAULT_ETA_I;
+            ret.rngReplay.State = 0;
+            ret.anyGlossyBounces = false;
+
+            return ret;
+        }
+        
         static PathContext Load(uint2 DTid, uint srvAIdx, uint srvBIdx, uint srvCIdx, 
             bool isCase3)
         {
@@ -195,7 +211,7 @@ namespace RPT_Util
             uint4 inB = g_cbB[DTid];
             uint4 inC = g_cbC[DTid];
 
-            PathContext ctx;
+            PathContext ctx = PathContext::Init();
             ctx.throughput = inA.xyz;
 
             if(dot(ctx.throughput, ctx.throughput) == 0)
@@ -211,17 +227,18 @@ namespace RPT_Util
             float3 baseColor = Math::UnpackRGB8(inC.y & 0xffffff);
             uint flags = inC.y >> 24;
             bool metallic = flags & 0x1;
-            ctx.anyGlossyBounces = uint16(flags & 0x2);
-            ctx.inTranslucentMedium = uint16(flags & 0x8);
-            bool transmissive = flags & 0x4;
-            half trDepth = half(flags & 0x10);
+            ctx.anyGlossyBounces = (flags & 0x2) == 0x2;
+            bool specTr = (flags & 0x4) == 0x4;
+            half trDepth = (flags & 0x8) == 0x8 ? 1.0h : 0.0h;
             float subsurface = Math::UNorm8ToFloat((inC.z >> 24) & 0xff);
 
+            // UNorm8 encoding above preserves ETA_AIR = 1, so the comparison
+            // below works
             float eta_t = ctx.eta_curr == ETA_AIR ? ETA_AIR : ctx.eta_mat;
             float eta_i = ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR;
 
             ctx.surface = BSDF::ShadingData::Init(ctx.normal, wo, metallic, roughness, 
-                baseColor, eta_i, eta_t, transmissive, trDepth, (half)subsurface);
+                baseColor, eta_i, eta_t, specTr, trDepth, (half)subsurface);
 
             if(!isCase3)
                 ctx.rd.uv_grads.xy = asfloat16(uint16_t2(inC.w & 0xffff, inC.w >> 16));
@@ -232,20 +249,21 @@ namespace RPT_Util
         void Write(uint2 DTid, uint uavAIdx, uint uavBIdx, uint uavCIdx, bool isCase3)
         {
             uint16_t2 e1 = Math::EncodeOct32(this.normal);
-            uint normal = e1.x | (uint(e1.y) << 16);
+            uint normal_e = e1.x | (uint(e1.y) << 16);
 
             // ShadingData
             uint16_t2 e2 = Math::EncodeOct32(this.surface.wo);
             uint wo = e2.x | (uint(e2.y) << 16);
-            uint hasVolumetricInterior = surface.trDepth > 0;
+            // Note: needed so that BSDF evaulation at x_{k - 1} uses the right
+            // transmission tint
+            bool hasVolumetricInterior = surface.trDepth > 0;
             uint flags = (uint)surface.metallic | 
                 ((uint)this.anyGlossyBounces << 1) | 
                 ((uint)surface.specTr << 2) |
-                ((uint)inTranslucentMedium << 3) |
-                ((uint)hasVolumetricInterior << 4);
+                ((uint)hasVolumetricInterior << 3);
             uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
             baseColor_Flags = baseColor_Flags | (flags << 24);
-            uint roughness = Math::FloatToUNorm8(sqrt(surface.alpha));
+            uint roughness = Math::FloatToUNorm8(!surface.specular ? sqrt(surface.alpha) : 0);
             uint eta_curr = Math::FloatToUNorm8((this.eta_curr - 1.0f) / 1.5f);
             uint eta_mat = Math::FloatToUNorm8((this.eta_mat - 1.0f) / 1.5f);
             uint subsurface = Math::FloatToUNorm8((float)surface.subsurface);
@@ -259,7 +277,7 @@ namespace RPT_Util
             RWTexture2D<uint4> g_rbC = ResourceDescriptorHeap[uavCIdx];
 
             g_rbA[DTid].xyz = this.throughput;
-            g_rbB[DTid] = uint4(asuint(this.pos), normal);
+            g_rbB[DTid] = uint4(asuint(this.pos), normal_e);
 
             if(!isCase3)
             {
@@ -282,8 +300,7 @@ namespace RPT_Util
         float eta_curr;
         float eta_mat;
         RNG rngReplay;
-        uint16 anyGlossyBounces;
-        uint16 inTranslucentMedium;
+        bool anyGlossyBounces;
     };
 
     bool CanReconnect(float alpha_lobe_k_min_1, float alpha_lobe_k, float3 x_k_min_1, float3 x_k, 
@@ -303,13 +320,14 @@ namespace RPT_Util
         return true;
     }
 
-    void Replay(int16 numBounces, BSDF::BSDFSample bsdfSample, float alpha_min, bool regularization, 
-        ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp,
+    void Replay(int16 numBounces, BSDF::BSDFSample bsdfSample, float alpha_min, 
+        bool regularization, ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp,
         ReSTIR_Util::Globals globals, inout PathContext ctx)
     {
         ctx.throughput = bsdfSample.bsdfOverPdf;
         int bounce = 0;
         ctx.eta_curr = dot(ctx.normal, bsdfSample.wi) < 0 ? ctx.eta_mat : ETA_AIR;
+        bool inTranslucentMedium = ctx.eta_curr != ETA_AIR;
         // Note: skip the first bounce for a milder impacet. May have to change in the future.
         // ctx.anyGlossyBounces = bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R;
         ctx.anyGlossyBounces = false;
@@ -354,7 +372,7 @@ namespace RPT_Util
             if(regularization && ctx.anyGlossyBounces)
                 ctx.surface.Regularize();
 
-            if(ctx.inTranslucentMedium && (ctx.surface.trDepth > 0))
+            if(inTranslucentMedium && (ctx.surface.trDepth > 0))
             {
                 float3 extCoeff = -log(ctx.surface.diffuseReflectance_Fr0_TrCol) / ctx.surface.trDepth;
                 ctx.throughput *= exp(-hitInfo.t * extCoeff);
@@ -366,16 +384,16 @@ namespace RPT_Util
 
             // Sample BSDF to generate new direction
             bsdfSample = BSDF::BSDFSample::Init();
-            bool sampleNonDiffuseBSDF = (bounce < globals.maxGlossyBounces_NonTr) ||
+            bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
                 (ctx.surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
 
             if(bounce < globals.maxDiffuseBounces)
                 bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, ctx.rngReplay);
-            else if(sampleNonDiffuseBSDF)
+            else if(sampleNonDiffuse)
                 bsdfSample = BSDF::SampleBSDF_NoDiffuse(ctx.normal, ctx.surface, ctx.rngReplay);
 
             // Not invertible -- base path would've stopped here
-            if(Math::Luminance(bsdfSample.bsdfOverPdf) < 1e-6)
+            if(dot(bsdfSample.bsdfOverPdf, bsdfSample.bsdfOverPdf) == 0)
             {
                 ctx.throughput = 0;
                 return;
@@ -395,7 +413,7 @@ namespace RPT_Util
             ctx.eta_curr = transmitted ? (ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR) : ctx.eta_curr;
             ctx.throughput *= bsdfSample.bsdfOverPdf;
             ctx.anyGlossyBounces = ctx.anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
-            ctx.inTranslucentMedium = (uint16)(transmitted ? !ctx.inTranslucentMedium : ctx.inTranslucentMedium);
+            inTranslucentMedium = ctx.eta_curr != ETA_AIR;
 
             pos_prev = ctx.pos;
             alpha_lobe_prev = alpha_lobe;
@@ -414,8 +432,8 @@ namespace RPT_Util
     template<bool Emissive>
     OffsetPath Reconnect_Case1Or2(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
         float eta_curr, float eta_mat, RT::RayDifferentials rd, BSDF::ShadingData surface, 
-        bool anyGlossyBounces, bool inTranslucentMedium, float alpha_min, bool regularization, 
-        Reconnection rc, ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp, 
+        bool anyGlossyBounces, float alpha_min, bool regularization, Reconnection rc, 
+        ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp, 
         ReSTIR_Util::Globals globals, RNG rngReplay, RNG rngNEE)
     {
         OffsetPath ret = OffsetPath::Init();
@@ -464,6 +482,7 @@ namespace RPT_Util
         bounce++;
         bool transmitted = dot(normal_k_min_1, w_k_min_1) < 0;
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
+        bool inTranslucentMedium = eta_curr != ETA_AIR;
 
         if(bounce == 0)
         {
@@ -628,76 +647,6 @@ namespace RPT_Util
         return ret;
     }
 
-    // Note: very slow, just for reference
-    template<bool Emissive>
-    OffsetPath Shift(float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
-        RT::RayDifferentials rd, Math::TriDifferentials triDiffs, RPT_Util::Reconnection rc, 
-        float alpha_min, bool regularization, SamplerState samp, ConstantBuffer<cbFrameConstants> g_frame, 
-        ReSTIR_Util::Globals globals)
-    {
-        PathContext ctx;
-        ctx.pos = pos;
-        ctx.normal = normal;
-        ctx.surface = surface;
-        ctx.rngReplay = RNG::Init(rc.seed_replay);
-        ctx.rd = rd;
-        // Assumes camera is in the air
-        ctx.eta_curr = ETA_AIR;
-        ctx.eta_mat = ior;
-        ctx.anyGlossyBounces = false;
-        ctx.throughput = 1;
-
-        // Number of bounces to reach y_{k - 1}, where zero means case 1 or case 2
-        const int16 numBounces = rc.k - (int16)2;
-        BSDF::BSDFSample bsdfSample;
-
-        if(numBounces > 0)
-        {
-            bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, ctx.rngReplay);
-
-            if(dot(bsdfSample.bsdfOverPdf, bsdfSample.bsdfOverPdf) == 0)
-                return RPT_Util::OffsetPath::Init();
-        }
-        else
-            bsdfSample.wi = rc.x_k - ctx.pos;
-
-        // Initialize ray differentials given the primary hit triangle
-        float3 dpdx;
-        float3 dpdy;
-        ctx.rd.dpdx_dpdy(ctx.pos, ctx.normal, dpdx, dpdy);
-        ctx.rd.ComputeUVDifferentials(dpdx, dpdy, triDiffs.dpdu, triDiffs.dpdv);
-
-        float eta = ior;  // = eta_i / eta_t = ior / ETA_AIR
-        ctx.rd.UpdateRays(ctx.pos, ctx.normal, bsdfSample.wi, ctx.surface.wo, 
-            triDiffs, dpdx, dpdy, dot(bsdfSample.wi, ctx.normal) < 0, eta);
-
-        if(numBounces > 0)
-        {
-            RPT_Util::Replay(numBounces, bsdfSample, alpha_min, regularization, g_frame, 
-                samp, globals, ctx);
-        }
-
-        if(dot(ctx.throughput, ctx.throughput) == 0)
-            return RPT_Util::OffsetPath::Init();
-
-        // Restore NEE rng to what it was before direct lighting at x_{k - 1} (case 3) or
-        // x_k (case 2)
-        RNG rngNEE = RNG::Init(rc.seed_nee);
-
-        if(rc.IsCase3())
-        {
-            return RPT_Util::Reconnect_Case3<Emissive>(ctx.throughput, ctx.pos, ctx.normal, 
-                ctx.surface, alpha_min, rc, g_frame, globals, ctx.rngReplay, rngNEE);
-        }
-        else
-        {
-            return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, ctx.normal, 
-                ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
-                ctx.inTranslucentMedium, alpha_min, regularization, rc, g_frame, samp, 
-                globals, ctx.rngReplay, rngNEE);
-        }
-    }
-
     template<bool Emissive>
     OffsetPath Shift2(uint2 DTid, float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
         RT::RayDifferentials rd, Math::TriDifferentials triDiffs, RPT_Util::Reconnection rc, 
@@ -705,7 +654,7 @@ namespace RPT_Util
         bool regularization, SamplerState samp, ConstantBuffer<cbFrameConstants> g_frame, 
         ReSTIR_Util::Globals globals)
     {
-        PathContext ctx;
+        PathContext ctx = PathContext::Init();
         ctx.pos = pos;
         ctx.normal = normal;
         ctx.surface = surface;
@@ -730,8 +679,6 @@ namespace RPT_Util
         }
         else
             bsdfSample.wi = rc.x_k - ctx.pos;
-
-        ctx.inTranslucentMedium = dot(normal, bsdfSample.wi) < 0;
 
         // Initialize ray differentials given the primary hit triangle. This is only
         // needed when replay is not used - replayed paths load path context (including ray 
@@ -785,8 +732,7 @@ namespace RPT_Util
         {
             return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, 
                 ctx.normal, ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
-                ctx.inTranslucentMedium, alpha_min, regularization, rc, g_frame, samp, globals, 
-                ctx.rngReplay, rngNEE);
+                alpha_min, regularization, rc, g_frame, samp, globals, ctx.rngReplay, rngNEE);
         }
     }
 
@@ -795,7 +741,7 @@ namespace RPT_Util
         float alpha_min, bool regularization, SamplerState samp, 
         ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals)
     {
-        PathContext ctx;
+        PathContext ctx = PathContext::Init();
         ctx.pos = pos;
         ctx.normal = normal;
         ctx.surface = surface;

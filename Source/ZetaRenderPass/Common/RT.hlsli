@@ -296,6 +296,18 @@ namespace RT
 
     struct RayDifferentials
     {
+        static RayDifferentials Init()
+        {
+            RayDifferentials ret;
+            ret.origin_x = 0;
+            ret.dir_x = 0;
+            ret.origin_y = 0;
+            ret.dir_y = 0;
+            ret.uv_grads = 0;
+
+            return ret;
+        }
+
         static RayDifferentials Init(int2 DTid, float2 renderDim, float tanHalfFOV, 
             float aspectRatio, float2 jitter, float3 viewBasis_x, float3 viewBasis_y, 
             float3 viewBasis_z, bool thinLens, float focusDepth, float2 lensSample, 

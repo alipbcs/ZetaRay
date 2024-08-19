@@ -153,7 +153,7 @@ namespace BSDF
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
@@ -192,7 +192,7 @@ namespace BSDF
             //    above, another SetWi*() call isn't needed. 
             // 2. SetWi*() calls don't change reflectance (refer to notes in SpecularReflectance()).
             float s = (float)surface.subsurface * 0.5f;
-            float3 target_dt = (1 - surface.SpecularReflectance()) * s * BSDF::LambertianBxDF(surface);
+            float3 target_dt = (1 - surface.SpecularReflectance()) * s * BSDF::OrenNayar<false>(surface);
             target_dt *= func(wi_dt);
             float targetLum_dt = Math::Luminance(target_dt);
 
@@ -289,7 +289,7 @@ namespace BSDF
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
@@ -306,7 +306,7 @@ namespace BSDF
             float targetLum_dr = Math::Luminance(target_dr);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             w_sum += RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_dr);
             target = isZ_dr ? target_dr : target;
         }
@@ -319,10 +319,10 @@ namespace BSDF
             float3 targetScale_dt = isZ_dt ? targetScale_z : func(wi_dt);
             float s = (float)surface.subsurface * 0.5f;
             float3 target_dt = (1 - surface.SpecularReflectance()) * s * 
-                BSDF::LambertianBxDF(surface) * targetScale_dt;
+                BSDF::OrenNayar<false>(surface) * targetScale_dt;
             float targetLum_dt = Math::Luminance(target_dt);
 
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             w_sum += targetLum_dt / pdf_d;
             target = isZ_dt ? target_dt : target;
         }
@@ -494,7 +494,7 @@ namespace BSDF
             float wh_z_pdf = BSDF::MicrofacetPdf(surface);
             float pdf_r = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 
                 wh_z_pdf / 4.0f;
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             float w = surface.reflection ? RT::BalanceHeuristic(pdf_r, pdf_d, targetLum) : targetLum / pdf_d;
             w_sum_gr = w;
             w_sum_dr = w;
@@ -521,7 +521,7 @@ namespace BSDF
         {
             float s = (float)surface.subsurface * 0.5f;
             float3 target_dt = (1 - surface.SpecularReflectance()) * s * 
-                BSDF::LambertianBxDF(surface);
+                BSDF::OrenNayar<false>(surface);
             float targetLum_dt = Math::Luminance(target_dt);
 
             float w = targetLum_dt / pdf_d;
@@ -542,7 +542,7 @@ namespace BSDF
 
             // Account for change of density from half vector to incident vector
             float pdf_r = surface.specular ? 1 : wh_pdf / 4.0f;
-            float pdf_d = BSDF::LambertianBxDFPdf(surface);
+            float pdf_d = BSDF::LambertianPdf(surface);
             float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
             w_sum_dr += w;
             w_sum_dt += w;

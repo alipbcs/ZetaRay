@@ -215,7 +215,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     // Note: skip the first bounce for a milder impacet. May have to change in the future.
     // bool anyGlossyBounces = bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R;
     bool anyGlossyBounces = false;
-    bool inTranslucentMedium = dot(normal, bsdfSample.wi) < 0;
+    bool inTranslucentMedium = eta_curr != ETA_AIR;
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
 #if NEE_EMISSIVE == 0
@@ -323,7 +323,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 #endif
 
         // Terminate early as extending this path won't contribute anything
-        if(Math::Luminance(bsdfSample.bsdfOverPdf) < 1e-6)
+        if(dot(bsdfSample.bsdfOverPdf, bsdfSample.bsdfOverPdf) == 0)
             break;
 
         // With x_k as reconnection vertex, now we know w_k towards the non-light vertex after it
@@ -349,7 +349,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         anyGlossyBounces = anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
 
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
-        inTranslucentMedium = transmitted ? !inTranslucentMedium : inTranslucentMedium;
+        inTranslucentMedium = eta_curr != ETA_AIR;
         prevHit.pos = pos;
         prevHit.alpha_lobe = alpha_lobe;
         prevHit.lobe = bsdfSample.lobe;
