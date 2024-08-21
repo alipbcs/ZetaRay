@@ -222,7 +222,8 @@ void MeshContainer::AddBatch(SmallVector<Model::glTF::Asset::Mesh>&& meshes,
             mesh.glTFMaterialIdx + 1 :
             SceneCore::DEFAULT_MATERIAL_IDX;
 
-        bool success = m_meshes.try_emplace(meshFromSceneID, Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices),
+        bool success = m_meshes.try_emplace(meshFromSceneID, 
+            Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices),
             vtxOffset + mesh.BaseVtxOffset,
             idxOffset + mesh.BaseIdxOffset,
             mesh.NumIndices, 
@@ -254,12 +255,12 @@ void MeshContainer::RebuildBuffers()
     Assert(m_indices.size() > 0, "index buffer is empty");
 
     const uint32_t vbSizeInBytes = sizeof(Vertex) * (uint32_t)m_vertices.size();
-    m_vertexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, vbSizeInBytes,
-        false, m_vertices.data(), true);
+    m_vertexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, 
+        vbSizeInBytes, false, m_vertices.data(), true);
 
     const uint32_t ibSizeInBytes = sizeof(uint32_t) * (uint32_t)m_indices.size();
-    m_indexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, ibSizeInBytes,
-        false, m_indices.data(), true);
+    m_indexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, 
+        ibSizeInBytes, false, m_indices.data(), true);
 
     auto& r = App::GetRenderer().GetSharedShaderResources();
     r.InsertOrAssignDefaultHeapBuffer(GlobalResource::SCENE_VERTEX_BUFFER, m_vertexBuffer);

@@ -78,16 +78,20 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 
                 meshDescs[currInstance].Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
                 // Force mesh to be opaque when possible to avoid invoking any-hit shaders
-                meshDescs[currInstance].Flags = flags.IsOpaque ? D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : 
+                meshDescs[currInstance].Flags = flags.IsOpaque ? 
+                    D3D12_RAYTRACING_GEOMETRY_FLAG_OPAQUE : 
                     D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
                 // Elements are tightly packed as size of each element is a multiple of required alignment
-                meshDescs[currInstance].Triangles.Transform3x4 = transformGpuVa + currInstance * transfromMatSize;
+                meshDescs[currInstance].Triangles.Transform3x4 = transformGpuVa + 
+                    currInstance * transfromMatSize;
                 meshDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
                 meshDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
                 meshDescs[currInstance].Triangles.IndexCount = mesh->m_numIndices;
                 meshDescs[currInstance].Triangles.VertexCount = mesh->m_numVertices;
-                meshDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
-                meshDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
+                meshDescs[currInstance].Triangles.IndexBuffer = sceneIBGpuVa + 
+                    mesh->m_idxBuffStartOffset * sizeof(uint32_t);
+                meshDescs[currInstance].Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + 
+                    mesh->m_vtxBuffStartOffset * sizeof(Vertex);
                 meshDescs[currInstance].Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
 
                 currInstance++;
@@ -105,10 +109,13 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
     buildDesc.Inputs.pGeometryDescs = meshDescs.data();
 
     D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO prebuild;
-    App::GetRenderer().GetDevice()->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &prebuild);
+    App::GetRenderer().GetDevice()->GetRaytracingAccelerationStructurePrebuildInfo(
+        &buildDesc.Inputs, &prebuild);
 
-    Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
-    Assert(prebuild.ResultDataMaxSizeInBytes < UINT32_MAX, "Allocation size exceeded maximum allowed.");
+    Assert(prebuild.ResultDataMaxSizeInBytes > 0, 
+        "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
+    Assert(prebuild.ResultDataMaxSizeInBytes < UINT32_MAX, 
+        "Allocation size exceeded maximum allowed.");
 
     // Allocate a new buffer if this is the first time or the old one isn't large enough
     if (!m_buffer.IsInitialized() || m_buffer.Desc().Width < prebuild.ResultDataMaxSizeInBytes)
@@ -155,10 +162,10 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
 
     cmdList.ResourceBarrier(barrier);
 
-    cmdList.CopyBufferRegion(m_postBuildInfoReadback.Resource(),            // dest
-        0,                                                                  // dest offset
-        m_scratch.Resource(),                                               // source
-        m_compactionInfoStartOffset,                                        // source offset
+    cmdList.CopyBufferRegion(m_postBuildInfoReadback.Resource(),
+        0,
+        m_scratch.Resource(),
+        m_compactionInfoStartOffset,
         sizeof(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_POSTBUILD_INFO_COMPACTED_SIZE_DESC));
 
     cmdList.PIXEndEvent();
@@ -276,7 +283,8 @@ DynamicBlasBuildItem DynamicBLAS::Rebuild()
     ret.GeoDesc.Triangles.IndexCount = mesh->m_numIndices;
     ret.GeoDesc.Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
     ret.GeoDesc.Triangles.Transform3x4 = 0;
-    ret.GeoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
+    ret.GeoDesc.Triangles.VertexBuffer.StartAddress = sceneVBGpuVa + 
+        mesh->m_vtxBuffStartOffset * sizeof(Vertex);
     ret.GeoDesc.Triangles.VertexBuffer.StrideInBytes = sizeof(Vertex);
     ret.GeoDesc.Triangles.VertexCount = mesh->m_numVertices;
     ret.GeoDesc.Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
@@ -559,7 +567,8 @@ void TLAS::RebuildDynamicBLASes(Core::ComputeCmdList& cmdList)
         for (int i = 0; i < rtFlagVec.size(); i++)
         {
             Scene::RT_Flags flags = Scene::GetRtFlags(rtFlagVec[i]);
-            Assert((flags.RebuildFlag & flags.UpdateFlag) == 0, "Rebuild & update flags can't be set at the same time.");
+            Assert((flags.RebuildFlag & flags.UpdateFlag) == 0, 
+                "Rebuild & update flags can't be set at the same time.");
 
             if (flags.MeshMode != RT_MESH_MODE::STATIC)
             {
@@ -568,7 +577,8 @@ void TLAS::RebuildDynamicBLASes(Core::ComputeCmdList& cmdList)
                 auto buildItem = m_dynamicBLASes.back().Rebuild();
                 blasBuilds.push_back(buildItem);
 
-                rtFlagVec[i] = Scene::SetRtFlags(flags.MeshMode, flags.InstanceMask, 0, 0, flags.IsOpaque);
+                rtFlagVec[i] = Scene::SetRtFlags(flags.MeshMode, flags.InstanceMask, 
+                    0, 0, flags.IsOpaque);
             }
         }
     }
@@ -593,11 +603,13 @@ void TLAS::RebuildDynamicBLASes(Core::ComputeCmdList& cmdList)
 
             Assert(prebuild.ResultDataMaxSizeInBytes > 0, "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
 
-            currBuildSizeInBytes = Math::AlignUp(currBuildSizeInBytes, uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
+            currBuildSizeInBytes = Math::AlignUp(currBuildSizeInBytes, 
+                uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
             *b.BlasBufferOffset = currBuildSizeInBytes;
             currBuildSizeInBytes += (uint32_t)prebuild.ResultDataMaxSizeInBytes;
 
-            currScratchSize = Math::AlignUp(currScratchSize, uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
+            currScratchSize = Math::AlignUp(currScratchSize, 
+                uint32_t(D3D12_RAYTRACING_ACCELERATION_STRUCTURE_BYTE_ALIGNMENT));
             b.ScratchBufferOffset = currScratchSize;
             currScratchSize += (uint32_t)prebuild.ScratchDataSizeInBytes;
         }
@@ -647,7 +659,8 @@ void TLAS::BuildFrameMeshInstanceData()
     // Resize to avoid repeatedly growing it
     scene.m_rtMeshInstanceIdxToID.resize(scene.m_IDtoTreePos.size());
 
-    auto addTLASInstance = [&scene, this, &currInstance, sceneHasEmissives](const SceneCore::TreeLevel& currTreeLevel,
+    auto addTLASInstance = [&scene, this, &currInstance, sceneHasEmissives](
+        const SceneCore::TreeLevel& currTreeLevel,
         int levelIdx, bool staticMesh)
     {
         if (currTreeLevel.m_meshIDs[levelIdx] == Scene::INVALID_MESH)
@@ -664,7 +677,8 @@ void TLAS::BuildFrameMeshInstanceData()
         const TriangleMesh* mesh = scene.GetMesh(currTreeLevel.m_meshIDs[levelIdx]).value();
         const Material* mat = scene.GetMaterial(mesh->m_materialIdx).value();
 
-        const EmissiveInstance* emissiveInstance = sceneHasEmissives && (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE) ?
+        const EmissiveInstance* emissiveInstance = sceneHasEmissives && 
+            (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE) ?
             scene.m_emissives.FindInstance(currTreeLevel.m_IDs[levelIdx]).value() :
             nullptr;
 
@@ -683,16 +697,23 @@ void TLAS::BuildFrameMeshInstanceData()
         float4a s;
         decomposeSRT(vM, s, r, t);
 
+        Assert(mat->GpuBufferIndex() < UINT16_MAX, "Material index exceeded maximum allowed.");
         m_frameInstanceData[currInstance].MatIdx = (uint16_t)mat->GpuBufferIndex();
-        m_frameInstanceData[currInstance].BaseVtxOffset = (uint32_t)mesh->m_vtxBuffStartOffset;
-        m_frameInstanceData[currInstance].BaseIdxOffset = (uint32_t)mesh->m_idxBuffStartOffset;
+        m_frameInstanceData[currInstance].BaseVtxOffset = mesh->m_vtxBuffStartOffset;
+        m_frameInstanceData[currInstance].BaseIdxOffset = mesh->m_idxBuffStartOffset;
         m_frameInstanceData[currInstance].Rotation = unorm4::FromNormalized(r);
         m_frameInstanceData[currInstance].Scale = half3(s);
         m_frameInstanceData[currInstance].Translation = float3(t.x, t.y, t.z);
-        m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? emissiveInstance->BaseTriOffset : UINT32_MAX;
-        m_frameInstanceData[currInstance].BaseColorTex = mat->GetBaseColorTex() == UINT32_MAX
-            ? UINT16_MAX :
-            (uint16_t)mat->GetBaseColorTex();
+        m_frameInstanceData[currInstance].BaseEmissiveTriOffset = emissiveInstance ? 
+            emissiveInstance->BaseTriOffset : 
+            UINT32_MAX;
+        // TODO unsafe as UINT16_MAX < Material::INVALID_ID
+        const uint32_t texIdx = mat->GetBaseColorTex();
+        Assert(rtFlags.IsOpaque || texIdx == Material::INVALID_ID || texIdx < UINT16_MAX, 
+            "Texture index for alpha material exceeded maximum.");
+        m_frameInstanceData[currInstance].BaseColorTex = texIdx == Material::INVALID_ID ?
+            UINT16_MAX :
+            (uint16_t)texIdx;
 
         float alpha = float((mat->BaseColorFactor >> 24) & 0xff) / 255.0f;
         m_frameInstanceData[currInstance].AlphaFactor_Cutoff = Float2ToRG8(float2(alpha, mat->GetAlphaCutoff()));
@@ -721,9 +742,10 @@ void TLAS::BuildFrameMeshInstanceData()
     // | SM 0 | SM 1 | ... | SM N - 1 | DM 0 | DM 1 | ... | DM D - 1 |
     //  -------------------------------------------------------------
     // 
-    // TLAS instance for Static BLAS has instanceID of 0. 
-    // TLAS instance for Dynamic BLAS d where 0 <= d < D has InstanceID of N + d
-    // With this setup, every instance can use GeometryIndex() + InstanceID() to index into the mesh instance buffer
+    //  - TLAS instance for Static BLAS has instanceID of 0. 
+    //  - TLAS instance for Dynamic BLAS d where 0 <= d < D has InstanceID of N + d
+    //  - With this setup, every instance can use GeometryIndex() + InstanceID() to index 
+    //    into the mesh instance buffer
 
     const bool rebuildStatic = App::GetScene().m_hasNewStaticInstances;
 
@@ -758,18 +780,23 @@ void TLAS::BuildFrameMeshInstanceData()
 
     if (!m_framesMeshInstances.IsInitialized() || m_framesMeshInstances.Desc().Width < sizeInBytes)
     {
-        m_framesMeshInstances = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::RT_FRAME_MESH_INSTANCES,
+        m_framesMeshInstances = GpuMemory::GetDefaultHeapBufferAndInit(
+            GlobalResource::RT_FRAME_MESH_INSTANCES,
             sizeInBytes,
             false,
             m_frameInstanceData.data());
 
         // Register the shared resource
         auto& r = App::GetRenderer().GetSharedShaderResources();
-        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, m_framesMeshInstances);
+        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::RT_FRAME_MESH_INSTANCES, 
+            m_framesMeshInstances);
     }
     else
+    {
         // This is recorded now but submitted after last frame's submissions
-        GpuMemory::UploadToDefaultHeapBuffer(m_framesMeshInstances, sizeInBytes, m_frameInstanceData.data());
+        GpuMemory::UploadToDefaultHeapBuffer(m_framesMeshInstances, sizeInBytes, 
+            m_frameInstanceData.data());
+    }
 }
 
 void TLAS::BuildStaticBLASTransforms()
