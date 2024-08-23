@@ -306,6 +306,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     }
 
     // If reconnection didn't change, skip writing it
+    const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
+    const uint16 numPasses = uint16((g_local.Packed >> 14) & 0x3);
     if(changed)
     {
         r_curr.Write<NEE_EMISSIVE>(swizzledDTid, g_local.PrevReservoir_A_DescHeapIdx,
@@ -314,8 +316,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.PrevReservoir_A_DescHeapIdx + 5, g_local.PrevReservoir_A_DescHeapIdx + 6, 
             g_local.MaxSpatialM);
 
-        // if(scale != numPasses)
-        //     r_curr.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
+        // Skip last pass
+        if(numPasses > 1 && (passIdx + 1 != numPasses))
+            r_curr.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
     }
     else
         CopyToNextFrame(swizzledDTid, r_curr);

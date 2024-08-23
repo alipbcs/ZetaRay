@@ -86,7 +86,8 @@ namespace ZetaRay::RenderPass
             m_cbRGI.SampleSetSize_NumSampleSets = enable ? (numSampleSets << 16) | sampleSetSize : 0;
             m_cbRPT_PathTrace.SampleSetSize_NumSampleSets = m_cbRGI.SampleSetSize_NumSampleSets;
         }
-        void SetLightVoxelGridParams(bool enabled, const Math::uint3& dim, const Math::float3& extents, float offset_y)
+        void SetLightVoxelGridParams(bool enabled, const Math::uint3& dim, 
+            const Math::float3& extents, float offset_y)
         {
             Assert(!enabled || (dim.x > 0 && dim.y > 0 && dim.z > 0
                 && extents.x > 0 && extents.y > 0 && extents.z > 0), "LVG is enabled, but the dimension is invalid.");
@@ -418,17 +419,17 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::Texture m_final;
 
         int m_currTemporalIdx = 0;
+        int m_numSpatialPasses = 0;
         bool m_isTemporalReservoirValid = false;
         bool m_isDnsrTemporalCacheValid = false;
         bool m_doTemporalResampling = true;
-        bool m_doSpatialResampling = false;
         bool m_preSampling = false;
         bool m_useLVG = false;
         INTEGRATOR m_method = INTEGRATOR::COUNT;
 
         cb_ReSTIR_GI m_cbRGI;
         cb_ReSTIR_PT_PathTrace m_cbRPT_PathTrace;
-        cb_ReSTIR_PT_Reuse m_cbRPT_Temporal;
+        cb_ReSTIR_PT_Reuse m_cbRPT_Reuse;
         cbIndirectDnsrTemporal m_cbDnsrTemporal;
         cbIndirectDnsrSpatial m_cbDnsrSpatial;
     };

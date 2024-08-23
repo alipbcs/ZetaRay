@@ -137,31 +137,30 @@ void IndirectLighting::Init(INTEGRATOR method)
 
     memset(&m_cbRGI, 0, sizeof(m_cbRGI));
     memset(&m_cbRPT_PathTrace, 0, sizeof(m_cbRPT_PathTrace));
-    memset(&m_cbRPT_Temporal, 0, sizeof(m_cbRPT_Temporal));
+    memset(&m_cbRPT_Reuse, 0, sizeof(m_cbRPT_Reuse));
     memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
     memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
     m_cbRGI.M_max = DefaultParamVals::M_MAX;
-    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Temporal.Alpha_min = 
+    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min =
         DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
     m_cbRGI.MaxDiffuseBounces = DefaultParamVals::MAX_DIFFUSE_BOUNCES;
     m_cbRGI.MaxGlossyBounces_NonTr = DefaultParamVals::MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE;
     m_cbRGI.MaxGlossyBounces_Tr = DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Temporal.Packed = DefaultParamVals::MAX_DIFFUSE_BOUNCES |
+    m_cbRPT_PathTrace.Packed = m_cbRPT_Reuse.Packed = DefaultParamVals::MAX_DIFFUSE_BOUNCES |
         (DefaultParamVals::MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE << 4) |
-        (DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE << 8);
-    m_cbRPT_PathTrace.Packed |= (DefaultParamVals::M_MAX << 16);
+        (DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE << 8) |
+        (DefaultParamVals::M_MAX << 16);
     m_cbRPT_PathTrace.TexFilterDescHeapIdx = EnumToSamplerIdx(DefaultParamVals::TEX_FILTER);
-    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Temporal.TexFilterDescHeapIdx = m_cbRPT_PathTrace.TexFilterDescHeapIdx;
-    m_cbRPT_Temporal.Packed |= (DefaultParamVals::M_MAX << 16);
-    m_cbRPT_Temporal.MaxSpatialM = DefaultParamVals::M_MAX_SPATIAL;
+    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Reuse.TexFilterDescHeapIdx = m_cbRPT_PathTrace.TexFilterDescHeapIdx;
+    m_cbRPT_Reuse.MaxSpatialM = DefaultParamVals::M_MAX_SPATIAL;
     m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
     m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
 
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::SORT_TEMPORAL, true);
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_TEMPORAL, true);
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_TEMPORAL, true);
 
     ParamVariant rr;
     rr.InitBool("Renderer", "Indirect Lighting", "Russian Roulette",
@@ -201,7 +200,7 @@ void IndirectLighting::Init(INTEGRATOR method)
 
     m_method = method;
     m_doTemporalResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doTemporalResampling;
-    m_doSpatialResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doSpatialResampling;
+    //m_doSpatialResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doSpatialResampling;
 
     ResetIntegrator(true, false);
 }
@@ -220,7 +219,7 @@ void IndirectLighting::SetMethod(INTEGRATOR method)
     const auto old = m_method;
     m_method = method;
     m_doTemporalResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doTemporalResampling;
-    m_doSpatialResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doSpatialResampling;
+    //m_doSpatialResampling = method == INTEGRATOR::PATH_TRACING ? false : m_doSpatialResampling;
 
     if (old != m_method)
     {
@@ -279,7 +278,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
 
         SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, Reservoir_RGI::NUM * 2 + 2> textureBarriers;
 
-        // transition current temporal reservoir into write state
+        // Current temporal reservoir into UAV
         ID3D12Resource* currReservoirs[Reservoir_RGI::NUM] = { m_reservoir_RGI[m_currTemporalIdx].A.Resource(),
             m_reservoir_RGI[m_currTemporalIdx].B.Resource(),
             m_reservoir_RGI[m_currTemporalIdx].C.Resource() };
@@ -287,14 +286,14 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         for (int i = 0; i < ZetaArrayLen(currReservoirs); i++)
             textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(currReservoirs[i]));
 
-        // transition color outputs into write state
+        // Color outputs into UAV
         if (IS_CB_FLAG_SET(m_cbRGI, CB_IND_FLAGS::DENOISE))
         {
             textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorA.Resource()));
             textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorB.Resource()));
         }
 
-        // transition previous temporal reservoirs into read state
+        // Previous temporal reservoirs into SRV
         if (m_isTemporalReservoirValid)
         {
             ID3D12Resource* prevReservoirs[Reservoir_RGI::NUM] = { m_reservoir_RGI[1 - m_currTemporalIdx].A.Resource(),
@@ -312,7 +311,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         m_cbRGI.DispatchDimX_NumGroupsInTile = ((RESTIR_GI_TEMPORAL_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
 
         SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::TEMPORAL_RESAMPLE, m_doTemporalResampling && m_isTemporalReservoirValid);
-        SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::SPATIAL_RESAMPLE, m_doSpatialResampling && m_isTemporalReservoirValid);
+        //SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::SPATIAL_RESAMPLE, m_doSpatialResampling && m_isTemporalReservoirValid);
         Assert(!m_preSampling || m_cbRGI.SampleSetSize_NumSampleSets, "Presampled set params haven't been set.");
 
         auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RGI::RESERVOIR_0_A_SRV : DESC_TABLE_RGI::RESERVOIR_1_A_SRV;
@@ -350,7 +349,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
 
     if (!IS_CB_FLAG_SET(m_cbRGI, CB_IND_FLAGS::DENOISE))
         return;
-    
+
     // denoiser - temporal
     {
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "IndirectDnsrTemporal");
@@ -360,10 +359,10 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
 
         D3D12_TEXTURE_BARRIER barriers[4];
 
-        // transition color into read state
+        // Color into SRV
         barriers[0] = Direct3DUtil::TextureBarrier_UavToSrvWithSync(m_colorA.Resource());
         barriers[1] = Direct3DUtil::TextureBarrier_UavToSrvWithSync(m_colorB.Resource());
-        // transition current denoiser caches into write
+        // Current denoiser caches into UAV
         barriers[2] = Direct3DUtil::TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
         barriers[3] = Direct3DUtil::TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
 
@@ -410,7 +409,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
 
         D3D12_TEXTURE_BARRIER barriers[2];
 
-        // transition color into read state
+        // Color into SRV
         barriers[0] = Direct3DUtil::TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
         barriers[1] = Direct3DUtil::TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
 
@@ -439,7 +438,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
     }
 }
 
-void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList, 
+void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
     Span<ID3D12Resource*> currReservoirs)
 {
     Assert(currReservoirs.size() == Reservoir_RPT::NUM, "Invalid #reservoirs.");
@@ -463,9 +462,9 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         cb_ReSTIR_PT_Sort cb;
         cb.DispatchDimX = dispatchDimX;
         cb.DispatchDimY = dispatchDimY;
-        cb.Reservoir_A_DescHeapIdx = m_cbRPT_Temporal.PrevReservoir_A_DescHeapIdx;
+        cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx;
         cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
-        cb.Flags = m_cbRPT_Temporal.Flags;
+        cb.Flags = m_cbRPT_Reuse.Flags;
 
         m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
         m_rootSig.End(computeCmdList);
@@ -500,7 +499,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         cb.DispatchDimY = dispatchDimY;
         cb.Reservoir_A_DescHeapIdx = m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx;
         cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
-        cb.Flags = m_cbRPT_Temporal.Flags;
+        cb.Flags = m_cbRPT_Reuse.Flags;
 
         m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
         m_rootSig.End(computeCmdList);
@@ -512,7 +511,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 #endif
     }
 
-    // Transition thread maps into read state
+    // Thread maps into SRV
     {
         D3D12_TEXTURE_BARRIER barriers[(int)SHIFT::COUNT];
         barriers[(int)SHIFT::CtN] = TextureBarrier_UavToSrvWithSync(m_threadMap[(int)SHIFT::CtN].Resource());
@@ -529,12 +528,12 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
 
-        m_cbRPT_Temporal.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
             (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV);
-        m_cbRPT_Temporal.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
             (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
 
-        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Temporal) / sizeof(DWORD), &m_cbRPT_Temporal);
+        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
         m_rootSig.End(computeCmdList);
 
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_CtT_E : SHADER::ReSTIR_PT_REPLAY_CtT;
@@ -562,21 +561,21 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
     }
 
     // Set SRVs for replay buffers
-    m_cbRPT_Temporal.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
         (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV);
-    m_cbRPT_Temporal.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
         (int)DESC_TABLE_RPT::RBUFFER_A_NtC_SRV);
 
-    // Transition r-buffers into read state
+    // r-buffers into SRV
     {
         D3D12_TEXTURE_BARRIER barriers[RBuffer::NUM * (int)SHIFT::COUNT];
 
-        // Transition CtN replay buffers into read state
+        // CtN replay buffers into SRV
         barriers[0] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].A.Resource());
         barriers[1] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].B.Resource());
         barriers[2] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].C.Resource());
 
-        // Transition NtC replay buffers into read state
+        // NtC replay buffers into SRV
         barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
         barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
         barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
@@ -591,9 +590,9 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_TEMPORAL_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_TEMPORAL_GROUP_DIM_Y);
-        m_cbRPT_Temporal.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
+        m_cbRPT_Reuse.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
 
-        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Temporal) / sizeof(DWORD), &m_cbRPT_Temporal);
+        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
         m_rootSig.End(computeCmdList);
 
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_CtT_E : SHADER::ReSTIR_PT_RECONNECT_CtT;
@@ -633,9 +632,9 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
     computeCmdList.PIXEndEvent();
 }
 
-void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList, 
-    Span<ID3D12Resource*> currReservoirs,
-    Span<ID3D12Resource*> prevReservoirs)
+void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
+    Span<ID3D12Resource*> currTemporalReservoirs,
+    Span<ID3D12Resource*> prevTemporalReservoirs)
 {
     auto& renderer = App::GetRenderer();
     auto& gpuTimer = renderer.GetGpuTimer();
@@ -643,237 +642,267 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
     const uint32_t h = renderer.GetRenderHeight();
     const bool emissive = App::GetScene().NumEmissiveInstances() > 0;
 
+    // Current frame's temporal reservoirs become the inputs, previous
+    // frame temporal reservoirs become the outputs
+    auto inputs = currTemporalReservoirs;
+    auto outputs = prevTemporalReservoirs;
+
     computeCmdList.PIXBeginEvent("ReSTIR_PT_Spatial");
     const uint32_t allQueryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_PT_Spatial");
 
-    // Search for reusable spatial neighbor
+    for (int pass = 0; pass < m_numSpatialPasses; pass++)
     {
-#ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_SpatialSearch");
-#endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_Y);
+        m_cbRPT_Reuse.Packed = m_cbRPT_Reuse.Packed & ~0xf000;
+        m_cbRPT_Reuse.Packed |= ((m_numSpatialPasses << 14) | (pass << 12));
 
-        cb_ReSTIR_PT_SpatialSearch cb;
-        cb.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
-        m_cbRPT_Temporal.Packed = (m_cbRPT_Temporal.Packed & 0xffff0fff);
-        cb.OutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV);
-        cb.Flags = m_cbRPT_Temporal.Flags;
-        cb.Final = m_cbRPT_Temporal.Final;
-
-        m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
-        m_rootSig.End(computeCmdList);
-
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SPATIAL_SEARCH));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifndef NDEBUG
-        computeCmdList.PIXEndEvent();
-#endif
-    }
-
-    // Barriers
-    {
-        constexpr int N = Reservoir_RPT::NUM * 2 + 1 + RBuffer::NUM * (int)SHIFT::COUNT + (int)SHIFT::COUNT;
-        SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, N> barriers;
-
-        // Transition previous frame's reservoirs into write state
-        for (int i = 0; i < Reservoir_RPT::NUM; i++)
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(prevReservoirs[i]));
-
-        // Transition current frame's reservoirs into read state
-        for (int i = 0; i < Reservoir_RPT::NUM; i++)
-            barriers.push_back(TextureBarrier_UavToSrvWithSync(currReservoirs[i]));
-
-        // Transition spatial neighbor idx into read state
-        barriers.push_back(TextureBarrier_UavToSrvWithSync(m_spatialNeighbor.Resource()));
-
-        // Transition r-buffers into write state
-        for (int i = 0; i < (int)SHIFT::COUNT; i++)
+        // Search for reusable spatial neighbor
         {
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].A.Resource()));
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].B.Resource()));
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].C.Resource()));
+#ifndef NDEBUG
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_SpatialSearch");
+#endif
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_Y);
+
+            cb_ReSTIR_PT_SpatialSearch cb;
+            cb.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
+            cb.OutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV);
+            cb.Flags = m_cbRPT_Reuse.Flags;
+            cb.Final = m_cbRPT_Reuse.Final;
+
+            m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
+            m_rootSig.End(computeCmdList);
+
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SPATIAL_SEARCH));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+#ifndef NDEBUG
+            computeCmdList.PIXEndEvent();
+#endif
         }
 
-        // Transition thread maps into UAV
-        if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
+        // Barriers
         {
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(m_threadMap[(int)SHIFT::NtC].Resource()));
-            barriers.push_back(TextureBarrier_SrvToUavWithSync(m_threadMap[(int)SHIFT::CtN].Resource()));
+            constexpr int N = Reservoir_RPT::NUM * 2 +      // reservoirs
+                1 +                                         // spatial neighbor
+                RBuffer::NUM * (int)SHIFT::COUNT +          // r-buffers
+                (int)SHIFT::COUNT +                         // thread maps
+                1;                                          // target
+            SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, N> barriers;
+
+            // Output reservoirs into UAV
+            for (int i = 0; i < Reservoir_RPT::NUM; i++)
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(outputs[i]));
+
+            // Input reservoirs into SRV
+            for (int i = 0; i < Reservoir_RPT::NUM; i++)
+                barriers.push_back(TextureBarrier_UavToSrvWithSync(inputs[i]));
+
+            // Spatial neighbor idx into SRV
+            barriers.push_back(TextureBarrier_UavToSrvWithSync(m_spatialNeighbor.Resource()));
+
+            // r-buffers into UAV
+            for (int i = 0; i < (int)SHIFT::COUNT; i++)
+            {
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].A.Resource()));
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].B.Resource()));
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].C.Resource()));
+            }
+
+            // Thread maps into UAV
+            if (IS_CB_FLAG_SET(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL))
+            {
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_threadMap[(int)SHIFT::NtC].Resource()));
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_threadMap[(int)SHIFT::CtN].Resource()));
+            }
+
+            // UAV barrier for target
+            barriers.push_back(UAVBarrier1(m_rptTarget.Resource()));
+
+            computeCmdList.ResourceBarrier(barriers.data(), (UINT)barriers.size());
+
+            // Update layout
+            m_reservoir_RPT[m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+            m_reservoir_RPT[1 - m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS;
+            m_currTemporalIdx = 1 - m_currTemporalIdx;
         }
 
-        computeCmdList.ResourceBarrier(barriers.data(), (UINT)barriers.size());
-    }
-
-    // Sort - CtS
-    if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
-    {
-#ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtS");
-#endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
-
-        cb_ReSTIR_PT_Sort cb;
-        cb.DispatchDimX = dispatchDimX;
-        cb.DispatchDimY = dispatchDimY;
-        cb.Reservoir_A_DescHeapIdx = m_cbRPT_Temporal.Reservoir_A_DescHeapIdx;
-        cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
-        cb.Flags = m_cbRPT_Temporal.Flags;
-
-        m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
-        m_rootSig.End(computeCmdList);
-
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_CtS));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifndef NDEBUG
-        computeCmdList.PIXEndEvent();
-#endif
-    }
-
-    // Sort - StC
-    if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
-    {
-#ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_StC");
-#endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
-
-        cb_ReSTIR_PT_Sort cb;
-        cb.DispatchDimX = dispatchDimX;
-        cb.DispatchDimY = dispatchDimY;
-        cb.Reservoir_A_DescHeapIdx = m_cbRPT_Temporal.Reservoir_A_DescHeapIdx;
-        cb.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
-        cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
-        cb.Flags = m_cbRPT_Temporal.Flags;
-
-        m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
-        m_rootSig.End(computeCmdList);
-
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_StC));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifndef NDEBUG
-        computeCmdList.PIXEndEvent();
-#endif
-    }
-
-    // Replay - CtS
-    {
-#ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_CtS");
-#endif
-        // Transition the thread maps into SRV
-        if (IS_CB_FLAG_SET(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL))
+        // Sort - CtS
+        if (IS_CB_FLAG_SET(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL))
         {
-            D3D12_TEXTURE_BARRIER barriers[(int)SHIFT::COUNT];
-            barriers[(int)SHIFT::CtN] = TextureBarrier_UavToSrvWithSync(m_threadMap[(int)SHIFT::CtN].Resource());
-            barriers[(int)SHIFT::NtC] = TextureBarrier_UavToSrvWithSync(m_threadMap[(int)SHIFT::NtC].Resource());
+#ifndef NDEBUG
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtS");
+#endif
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+
+            cb_ReSTIR_PT_Sort cb;
+            cb.DispatchDimX = dispatchDimX;
+            cb.DispatchDimY = dispatchDimY;
+            cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.Reservoir_A_DescHeapIdx;
+            cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
+            cb.Flags = m_cbRPT_Reuse.Flags;
+
+            m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
+            m_rootSig.End(computeCmdList);
+
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_CtS));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+#ifndef NDEBUG
+            computeCmdList.PIXEndEvent();
+#endif
+        }
+
+        // Sort - StC
+        if (IS_CB_FLAG_SET(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL))
+        {
+#ifndef NDEBUG
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_StC");
+#endif
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+
+            cb_ReSTIR_PT_Sort cb;
+            cb.DispatchDimX = dispatchDimX;
+            cb.DispatchDimY = dispatchDimY;
+            cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.Reservoir_A_DescHeapIdx;
+            cb.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
+            cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
+            cb.Flags = m_cbRPT_Reuse.Flags;
+
+            m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
+            m_rootSig.End(computeCmdList);
+
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ReSTIR_PT_SORT_StC));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+#ifndef NDEBUG
+            computeCmdList.PIXEndEvent();
+#endif
+        }
+
+        // Replay - CtS
+        {
+#ifndef NDEBUG
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_CtS");
+#endif
+            // Thread maps into SRV
+            if (IS_CB_FLAG_SET(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL))
+            {
+                D3D12_TEXTURE_BARRIER barriers[(int)SHIFT::COUNT];
+                barriers[(int)SHIFT::CtN] = TextureBarrier_UavToSrvWithSync(m_threadMap[(int)SHIFT::CtN].Resource());
+                barriers[(int)SHIFT::NtC] = TextureBarrier_UavToSrvWithSync(m_threadMap[(int)SHIFT::NtC].Resource());
+
+                computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+            }
+
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
+
+            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+                (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV);
+            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+                (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
+
+            m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
+            m_rootSig.End(computeCmdList);
+
+            auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_CtS_E : SHADER::ReSTIR_PT_REPLAY_CtS;
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+#ifndef NDEBUG
+            computeCmdList.PIXEndEvent();
+#endif
+        }
+
+        // Replay - StC
+        {
+#ifndef NDEBUG
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_StC");
+#endif
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
+
+            auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_StC_E : SHADER::ReSTIR_PT_REPLAY_StC;
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+#ifndef NDEBUG
+            computeCmdList.PIXEndEvent();
+#endif
+        }
+
+        // r-buffers into SRV
+        {
+            D3D12_TEXTURE_BARRIER barriers[RBuffer::NUM * (int)SHIFT::COUNT];
+
+            // CtN 
+            barriers[0] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].A.Resource());
+            barriers[1] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].B.Resource());
+            barriers[2] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].C.Resource());
+
+            // NtC
+            barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
+            barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
+            barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
 
             computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+
+            // Set SRVs for replay buffers
+            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+                (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV);
+            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+                (int)DESC_TABLE_RPT::RBUFFER_A_NtC_SRV);
         }
 
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
-
-        m_cbRPT_Temporal.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-            (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV);
-        m_cbRPT_Temporal.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-            (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
-
-        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Temporal) / sizeof(DWORD), &m_cbRPT_Temporal);
-        m_rootSig.End(computeCmdList);
-
-        auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_CtS_E : SHADER::ReSTIR_PT_REPLAY_CtS;
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+        // Reconnect CtS
+        {
 #ifndef NDEBUG
-        computeCmdList.PIXEndEvent();
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_CtS");
 #endif
-    }
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_GROUP_DIM_Y);
 
-    // Replay - StC
-    {
+            m_cbRPT_Reuse.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
+            m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
+            m_rootSig.End(computeCmdList);
+
+            auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_CtS_E : SHADER::ReSTIR_PT_RECONNECT_CtS;
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 #ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Replay_StC");
+            computeCmdList.PIXEndEvent();
 #endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
+        }
 
-        auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_StC_E : SHADER::ReSTIR_PT_REPLAY_StC;
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+        // Reconnect StC
+        {
 #ifndef NDEBUG
-    computeCmdList.PIXEndEvent();
+            computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_StC");
 #endif
-    }
+            // UAV barriers for output reservoir B
+            D3D12_TEXTURE_BARRIER uavBarrier = UAVBarrier1(outputs[1]);
+            computeCmdList.ResourceBarrier(uavBarrier);
 
-    // Set SRVs for replay buffers
-    m_cbRPT_Temporal.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-        (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV);
-    m_cbRPT_Temporal.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-        (int)DESC_TABLE_RPT::RBUFFER_A_NtC_SRV);
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_GROUP_DIM_X);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_GROUP_DIM_Y);
 
-    // Transition r-buffers into read state
-    {
-        D3D12_TEXTURE_BARRIER barriers[RBuffer::NUM * (int)SHIFT::COUNT];
-
-        // CtN 
-        barriers[0] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].A.Resource());
-        barriers[1] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].B.Resource());
-        barriers[2] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].C.Resource());
-
-        // NtC
-        barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
-        barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
-        barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
-
-        computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
-    }
-
-    // Reconnect CtS
-    {
+            auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_StC_E : SHADER::ReSTIR_PT_RECONNECT_StC;
+            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
+            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 #ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_CtS");
+            computeCmdList.PIXEndEvent();
 #endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_GROUP_DIM_Y);
+        }
 
-        m_cbRPT_Temporal.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
-        m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Temporal) / sizeof(DWORD), &m_cbRPT_Temporal);
-        m_rootSig.End(computeCmdList);
+        // Prepare for next iteration (if any)
+        if (pass == 0 && m_numSpatialPasses == 2)
+        {
+            // Spatial neighbor idx into UAV
+            auto barrier = TextureBarrier_SrvToUavWithSync(m_spatialNeighbor.Resource());
+            computeCmdList.ResourceBarrier(barrier);
 
-        auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_CtS_E : SHADER::ReSTIR_PT_RECONNECT_CtS;
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifndef NDEBUG
-        computeCmdList.PIXEndEvent();
-#endif
-    }
-
-    // Reconnect StC
-    {
-#ifndef NDEBUG
-        computeCmdList.PIXBeginEvent("ReSTIR_PT_Reconnect_StC");
-#endif
-
-        // UAV barriers for previous frame's reservoir B
-        D3D12_TEXTURE_BARRIER uavBarriers[2];
-        uavBarriers[0] = UAVBarrier1(prevReservoirs[1]);
-        // UAV barriers for target
-        uavBarriers[1] = UAVBarrier1(m_rptTarget.Resource());
-
-        computeCmdList.ResourceBarrier(uavBarriers, ZetaArrayLen(uavBarriers));
-
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SPATIAL_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SPATIAL_GROUP_DIM_Y);
-
-        auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_StC_E : SHADER::ReSTIR_PT_RECONNECT_StC;
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
-        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-#ifndef NDEBUG
-    computeCmdList.PIXEndEvent();
-#endif
+            // Swap input and output reservoirs
+            std::swap(m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx,
+                m_cbRPT_Reuse.Reservoir_A_DescHeapIdx);
+            std::swap(inputs, outputs);
+        }
     }
 
     gpuTimer.EndQuery(computeCmdList, allQueryIdx);
@@ -903,23 +932,23 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         m_reservoir_RPT[1 - m_currTemporalIdx].F.Resource(),
         m_reservoir_RPT[1 - m_currTemporalIdx].G.Resource() };
 
-    auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RPT::RESERVOIR_0_A_SRV : 
+    auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RPT::RESERVOIR_0_A_SRV :
         DESC_TABLE_RPT::RESERVOIR_1_A_SRV;
-    auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RPT::RESERVOIR_1_A_UAV : 
+    auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RPT::RESERVOIR_1_A_UAV :
         DESC_TABLE_RPT::RESERVOIR_0_A_UAV;
 
     const bool doTemporal = m_doTemporalResampling && m_isTemporalReservoirValid;
-    const bool doSpatial = m_doSpatialResampling && doTemporal;
+    const bool doSpatial = (m_numSpatialPasses > 0) && doTemporal;
 
     // Initial candidates
     {
         computeCmdList.PIXBeginEvent("ReSTIR_PT_PathTrace");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_PT_PathTrace");
 
-        SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, 
+        SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator,
             Reservoir_RPT::NUM * 2 + RBuffer::NUM * 2 + (int)SHIFT::COUNT + 1> textureBarriers;
 
-        // Transition current reservoir into write state
+        // Current reservoirs into UAV
         if (m_reservoir_RPT[m_currTemporalIdx].Layout != D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS)
         {
             for (int i = 0; i < ZetaArrayLen(currReservoirs); i++)
@@ -930,16 +959,16 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
 
         if (doTemporal)
         {
-            Assert(m_reservoir_RPT[1 - m_currTemporalIdx].Layout == D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
-                "Unexpected resource layout.");
+            // Temporal reservoirs into SRV
+            if (m_reservoir_RPT[1 - m_currTemporalIdx].Layout == D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS)
+            {
+                for (int i = 0; i < ZetaArrayLen(prevReservoirs); i++)
+                    textureBarriers.push_back(TextureBarrier_UavToSrvNoSync(prevReservoirs[i]));
 
-            // Transition temporal reservoirs into read state
-            for (int i = 0; i < ZetaArrayLen(prevReservoirs); i++)
-                textureBarriers.push_back(TextureBarrier_UavToSrvNoSync(prevReservoirs[i]));
+                m_reservoir_RPT[1 - m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+            }
 
-            m_reservoir_RPT[1 - m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
-
-            // Transition r-buffers into write state
+            // r-buffers into UAV
             for (int i = 0; i < (int)SHIFT::COUNT; i++)
             {
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].A.Resource()));
@@ -947,7 +976,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].C.Resource()));
             }
 
-            // Transition thread maps into write state
+            // Thread maps into UAV
             textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_threadMap[(int)SHIFT::CtN].Resource()));
             textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_threadMap[(int)SHIFT::NtC].Resource()));
 
@@ -955,7 +984,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_spatialNeighbor.Resource()));
         }
 
-        if(!textureBarriers.empty())
+        if (!textureBarriers.empty())
             computeCmdList.ResourceBarrier(textureBarriers.data(), (UINT)textureBarriers.size());
 
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_PATH_TRACE_GROUP_DIM_X);
@@ -963,8 +992,8 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
 
         SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::TEMPORAL_RESAMPLE, doTemporal);
         SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::SPATIAL_RESAMPLE, doSpatial);
-        SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::SPATIAL_RESAMPLE, doSpatial);
-        Assert(!m_preSampling || m_cbRPT_PathTrace.SampleSetSize_NumSampleSets, 
+        SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SPATIAL_RESAMPLE, doSpatial);
+        Assert(!m_preSampling || m_cbRPT_PathTrace.SampleSetSize_NumSampleSets,
             "Presampled set params haven't been set.");
 
         m_cbRPT_PathTrace.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
@@ -973,7 +1002,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_PathTrace) / sizeof(DWORD), &m_cbRPT_PathTrace);
         m_rootSig.End(computeCmdList);
 
-        auto sh = App::GetScene().NumEmissiveInstances() > 0 ? SHADER::ReSTIR_PT_PATH_TRACE_WoPS : 
+        auto sh = App::GetScene().NumEmissiveInstances() > 0 ? SHADER::ReSTIR_PT_PATH_TRACE_WoPS :
             SHADER::ReSTIR_PT_PATH_TRACE;
         sh = m_preSampling ? SHADER::ReSTIR_PT_PATH_TRACE_WPS : sh;
 
@@ -984,24 +1013,18 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         computeCmdList.PIXEndEvent();
     }
 
-    if(doTemporal)
+    if (doTemporal)
     {
         // Since reservoir descriptors were allocated consecutively, filling just
         // the heap index for A is enough
-        m_cbRPT_Temporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-        m_cbRPT_Temporal.Reservoir_A_DescHeapIdx = m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx;
+        m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+        m_cbRPT_Reuse.Reservoir_A_DescHeapIdx = m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx;
 
         ReSTIR_PT_Temporal(computeCmdList, currReservoirs);
     }
 
     if (doSpatial)
-    {
         ReSTIR_PT_Spatial(computeCmdList, currReservoirs, prevReservoirs);
-
-        m_reservoir_RPT[1 - m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS;
-        m_reservoir_RPT[m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
-        m_currTemporalIdx = 1 - m_currTemporalIdx;
-    }
 }
 
 void IndirectLighting::Render(CommandList& cmdList)
@@ -1096,7 +1119,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
 
         func(m_reservoir_RPT[i].A, ResourceFormats_RPT::RESERVOIR_A,
             "RPT_Reservoir", i, "A", allocs[currRes++],
-            (int)DESC_TABLE_RPT::RESERVOIR_0_A_SRV, (int)DESC_TABLE_RPT::RESERVOIR_0_A_UAV, 
+            (int)DESC_TABLE_RPT::RESERVOIR_0_A_SRV, (int)DESC_TABLE_RPT::RESERVOIR_0_A_UAV,
             descOffset, state);
         func(m_reservoir_RPT[i].B, ResourceFormats_RPT::RESERVOIR_B,
             "RPT_Reservoir", i, "B", allocs[currRes++],
@@ -1111,7 +1134,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
             (int)DESC_TABLE_RPT::RESERVOIR_0_D_SRV, (int)DESC_TABLE_RPT::RESERVOIR_0_D_UAV,
             descOffset, state);
         func(m_reservoir_RPT[i].E, ResourceFormats_RPT::RESERVOIR_E,
-            "RPT_Reservoir", i, "E",  allocs[currRes++],
+            "RPT_Reservoir", i, "E", allocs[currRes++],
             (int)DESC_TABLE_RPT::RESERVOIR_0_E_SRV, (int)DESC_TABLE_RPT::RESERVOIR_0_E_UAV,
             descOffset, state);
         func(m_reservoir_RPT[i].F, ResourceFormats_RPT::RESERVOIR_F,
@@ -1133,15 +1156,15 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         const int descOffset = i * (int)SHIFT::COUNT;
 
         func(m_threadMap[i], ResourceFormats_RPT::THREAD_MAP,
-            "RPT_Map", i, "", allocs[currRes++], 
-            (int)DESC_TABLE_RPT::THREAD_MAP_CtN_SRV, (int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV, 
+            "RPT_Map", i, "", allocs[currRes++],
+            (int)DESC_TABLE_RPT::THREAD_MAP_CtN_SRV, (int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV,
             descOffset, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
     }
 
     // Spatial neighbor 
     func(m_spatialNeighbor, ResourceFormats_RPT::SPATIAL_NEIGHBOR,
-        "RPT_SpatialNeighbor", 0, "", allocs[currRes++], 
-        (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV, (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV, 
+        "RPT_SpatialNeighbor", 0, "", allocs[currRes++],
+        (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV, (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV,
         0, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
 
     // Target
@@ -1164,19 +1187,19 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         const auto layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
 
         func(m_rbuffer[i].A, ResourceFormats_RPT::RBUFFER_A,
-            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "A_CtN" : "A_NtC", 
+            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "A_CtN" : "A_NtC",
             allocs[currRes++],
-            (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV, 
+            (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV,
             (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV,
             descOffset, layout);
         func(m_rbuffer[i].B, ResourceFormats_RPT::RBUFFER_B,
-            "RPT_RBuffer", i,  i == (int)SHIFT::CtN ? "B_CtN" : "B_NtC", 
+            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "B_CtN" : "B_NtC",
             allocs[currRes++],
             (int)DESC_TABLE_RPT::RBUFFER_B_CtN_SRV,
             (int)DESC_TABLE_RPT::RBUFFER_B_CtN_UAV,
             descOffset, layout);
         func(m_rbuffer[i].C, ResourceFormats_RPT::RBUFFER_C,
-            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "C_CtN" : "C_NtC", 
+            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "C_CtN" : "C_NtC",
             allocs[currRes++],
             (int)DESC_TABLE_RPT::RBUFFER_C_CtN_SRV,
             (int)DESC_TABLE_RPT::RBUFFER_C_CtN_UAV,
@@ -1188,17 +1211,17 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
 
     // Following never change, so can be set only once
     m_cbRPT_PathTrace.TargetDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::TARGET_UAV);
-        m_cbRPT_Temporal.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-            (int)DESC_TABLE_RPT::THREAD_MAP_NtC_SRV);
-    m_cbRPT_PathTrace.Final = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::FINAL_UAV);
-    m_cbRPT_Temporal.ThreadMap_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
-        (int)DESC_TABLE_RPT::THREAD_MAP_CtN_SRV);
-    m_cbRPT_Temporal.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
         (int)DESC_TABLE_RPT::THREAD_MAP_NtC_SRV);
-    m_cbRPT_Temporal.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_PathTrace.Final = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::FINAL_UAV);
+    m_cbRPT_Reuse.ThreadMap_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        (int)DESC_TABLE_RPT::THREAD_MAP_CtN_SRV);
+    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        (int)DESC_TABLE_RPT::THREAD_MAP_NtC_SRV);
+    m_cbRPT_Reuse.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex(
         (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
-    m_cbRPT_Temporal.TargetDescHeapIdx = m_cbRPT_PathTrace.TargetDescHeapIdx;
-    m_cbRPT_Temporal.Final = m_cbRPT_PathTrace.Final;
+    m_cbRPT_Reuse.TargetDescHeapIdx = m_cbRPT_PathTrace.TargetDescHeapIdx;
+    m_cbRPT_Reuse.Final = m_cbRPT_PathTrace.Final;
 
     // Add ReSTIR PT parameters and shader reload handlers
     if (!skipNonResources)
@@ -1214,15 +1237,15 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         App::AddParam(alphaMin);
 
         ParamVariant p2;
-        p2.InitEnum("Renderer", "Indirect Lighting", "Debug View", 
+        p2.InitEnum("Renderer", "Indirect Lighting", "Debug View",
             fastdelegate::MakeDelegate(this, &IndirectLighting::DebugViewCallback),
             Params::DebugView, ZetaArrayLen(Params::DebugView), 0);
         App::AddParam(p2);
 
         ParamVariant doSpatial;
-        doSpatial.InitBool("Renderer", "Indirect Lighting", "Spatial Resample",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::SpatialResamplingCallback), 
-            m_doSpatialResampling, "Reuse");
+        doSpatial.InitInt("Renderer", "Indirect Lighting", "Spatial Resample",
+            fastdelegate::MakeDelegate(this, &IndirectLighting::SpatialResamplingCallback),
+            m_numSpatialPasses, 0, 2, 1, "Reuse");
         App::AddParam(doSpatial);
 
         ParamVariant sortTemporal;
@@ -1328,7 +1351,7 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
         list.PushTex2D(ResourceFormats_RGI::RESERVOIR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
         list.PushTex2D(ResourceFormats_RGI::RESERVOIR_C, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     }
-    
+
     list.PushTex2D(ResourceFormats_RGI::COLOR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     list.PushTex2D(ResourceFormats_RGI::COLOR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
@@ -1377,11 +1400,11 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
     }
 
     // denoiser
-    func(m_colorA, ResourceFormats_RGI::COLOR_A, "RGI_COLOR", 0, "A", allocs[currRes++], 
-        (int)DESC_TABLE_RGI::COLOR_A_SRV, (int)DESC_TABLE_RGI::COLOR_A_UAV, 
+    func(m_colorA, ResourceFormats_RGI::COLOR_A, "RGI_COLOR", 0, "A", allocs[currRes++],
+        (int)DESC_TABLE_RGI::COLOR_A_SRV, (int)DESC_TABLE_RGI::COLOR_A_UAV,
         0, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
     func(m_colorB, ResourceFormats_RGI::COLOR_B, "RGI_COLOR", 0, "B", allocs[currRes++],
-        (int)DESC_TABLE_RGI::COLOR_B_SRV, (int)DESC_TABLE_RGI::COLOR_B_UAV, 
+        (int)DESC_TABLE_RGI::COLOR_B_SRV, (int)DESC_TABLE_RGI::COLOR_B_UAV,
         0, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
 
     for (int i = 0; i < 2; i++)
@@ -1389,9 +1412,9 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
         const auto layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
         const int descOffset = i * 4;
 
-        func(m_dnsrCache[i].Diffuse, ResourceFormats_RGI::DNSR_TEMPORAL_CACHE, 
-            "IndirectDnsr", i, "Diffuse", allocs[currRes++], 
-            (int)DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV, 
+        func(m_dnsrCache[i].Diffuse, ResourceFormats_RGI::DNSR_TEMPORAL_CACHE,
+            "IndirectDnsr", i, "Diffuse", allocs[currRes++],
+            (int)DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV,
             (int)DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
             descOffset, layout);
 
@@ -1439,13 +1462,13 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
 
         ParamVariant dnsrSpatialFilterDiffuse;
         dnsrSpatialFilterDiffuse.InitBool("Renderer", "Indirect Lighting", "Spatial Filter (Diffuse)",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterDiffuseCallback), 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterDiffuseCallback),
             m_cbDnsrSpatial.FilterDiffuse, "Denoiser");
         App::AddParam(dnsrSpatialFilterDiffuse);
 
         ParamVariant dnsrSpatialFilterSpecular;
         dnsrSpatialFilterSpecular.InitBool("Renderer", "Indirect Lighting", "Spatial Filter (Specular)",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterSpecularCallback), 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::DnsrSpatialFilterSpecularCallback),
             m_cbDnsrSpatial.FilterSpecular, "Denoiser");
         App::AddParam(dnsrSpatialFilterSpecular);
 
@@ -1478,7 +1501,7 @@ void IndirectLighting::ReleaseReSTIR_GI()
         m_reservoir_RGI[i].A.Reset();
         m_reservoir_RGI[i].B.Reset();
         m_reservoir_RGI[i].C.Reset();
-        
+
         m_dnsrCache[i].Diffuse.Reset();
         m_dnsrCache[i].Specular.Reset();
     }
@@ -1538,30 +1561,27 @@ void IndirectLighting::MaxDiffuseBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
     m_cbRGI.MaxDiffuseBounces = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Temporal.Packed = (m_cbRPT_Temporal.Packed & 0xfffff000) |
-        (m_cbRGI.MaxDiffuseBounces |
-        (m_cbRGI.MaxGlossyBounces_NonTr << 4) |
-        (m_cbRGI.MaxGlossyBounces_Tr << 8));
+    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf;
+    m_cbRPT_PathTrace.Packed |= newVal;
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::MaxGlossyBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
     m_cbRGI.MaxGlossyBounces_NonTr = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Temporal.Packed = (m_cbRPT_Temporal.Packed & 0xfffff000) |
-        (m_cbRGI.MaxDiffuseBounces |
-        (m_cbRGI.MaxGlossyBounces_NonTr << 4) |
-        (m_cbRGI.MaxGlossyBounces_Tr << 8));
+    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf0;
+    m_cbRPT_PathTrace.Packed |= (newVal << 4);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::MaxTransmissionBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
     m_cbRGI.MaxGlossyBounces_Tr = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Temporal.Packed = (m_cbRPT_Temporal.Packed & 0xfffff000) |
-        (m_cbRGI.MaxDiffuseBounces |
-        (m_cbRGI.MaxGlossyBounces_NonTr << 4) |
-        (m_cbRGI.MaxGlossyBounces_Tr << 8));
+    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf00;
+    m_cbRPT_PathTrace.Packed |= (newVal << 8);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::StochasticMultibounceCallback(const Support::ParamVariant& p)
@@ -1583,51 +1603,53 @@ void IndirectLighting::TemporalResamplingCallback(const Support::ParamVariant& p
 
 void IndirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 {
-    m_doSpatialResampling = p.GetBool();
+    m_numSpatialPasses = p.GetInt().m_value;
 }
 
 void IndirectLighting::M_maxTCallback(const Support::ParamVariant& p)
 {
     auto newM = (uint16_t)p.GetInt().m_value;
     m_cbRGI.M_max = newM;
-    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & 0xfff0ffff) | (newM << 16);
-    m_cbRPT_Temporal.Packed = m_cbRPT_PathTrace.Packed;
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ~0xf0000);
+    m_cbRPT_PathTrace.Packed |= (newM << 16);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::M_maxSCallback(const Support::ParamVariant& p)
 {
     auto newM = (uint16_t)p.GetInt().m_value;
-    m_cbRPT_Temporal.MaxSpatialM = p.GetInt().m_value;
+    m_cbRPT_Reuse.MaxSpatialM = p.GetInt().m_value;
 }
 
- void IndirectLighting::RejectOutliersCallback(const Support::ParamVariant& p)
- {
-     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
-     SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
- }
+void IndirectLighting::RejectOutliersCallback(const Support::ParamVariant& p)
+{
+    SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
+}
 
 void IndirectLighting::DebugViewCallback(const Support::ParamVariant& p)
 {
     auto newVal = (uint16_t)p.GetEnum().m_curr;
-    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & 0xfffff) | (newVal << 20);
-    m_cbRPT_Temporal.Packed = m_cbRPT_PathTrace.Packed;
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ~0xfff00000);
+    m_cbRPT_PathTrace.Packed |= (newVal << 20);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::SortTemporalCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::SORT_TEMPORAL, p.GetBool());
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_TEMPORAL, p.GetBool());
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_TEMPORAL, p.GetBool());
 }
 
 void IndirectLighting::SortSpatialCallback(const Support::ParamVariant& p)
 {
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::SORT_SPATIAL, p.GetBool());
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL, p.GetBool());
 }
 
 void IndirectLighting::TexFilterCallback(const Support::ParamVariant& p)
 {
     m_cbRPT_PathTrace.TexFilterDescHeapIdx = EnumToSamplerIdx((TEXTURE_FILTER)p.GetEnum().m_curr);
-    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Temporal.TexFilterDescHeapIdx = 
+    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Reuse.TexFilterDescHeapIdx =
         m_cbRPT_PathTrace.TexFilterDescHeapIdx;
 }
 
@@ -1656,20 +1678,20 @@ void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p
 {
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
 }
 
 void IndirectLighting::PathRegularizationCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
-    SET_CB_FLAG(m_cbRPT_Temporal, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
 }
 
 void IndirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
 {
     float newVal = p.GetFloat().m_value;
-    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Temporal.Alpha_min = newVal * newVal;
+    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min = newVal * newVal;
 }
 
 void IndirectLighting::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)
@@ -1705,7 +1727,7 @@ void IndirectLighting::ReloadRGI()
         }
     }
 
-    const int i = (int)sh;    
+    const int i = (int)sh;
     m_psoLib.Reload(i, m_rootSigObj.Get(), p);
 }
 
@@ -1762,15 +1784,15 @@ void IndirectLighting::ReloadRPT_Temporal()
 void IndirectLighting::ReloadRPT_Spatial()
 {
     {
-       auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
-       const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
-       if (App::GetScene().NumEmissiveInstances() > 0)
-       {
-           sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
-           p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
-       }
-       const int i = (int)sh;
-       m_psoLib.Reload(i, m_rootSigObj.Get(), p);
+        auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
+        const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
+        if (App::GetScene().NumEmissiveInstances() > 0)
+        {
+            sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
+            p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
+        }
+        const int i = (int)sh;
+        m_psoLib.Reload(i, m_rootSigObj.Get(), p);
     }
 
     {

@@ -157,9 +157,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
-    RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum)).xy, g_frame.FrameNum);
-    const uint16_t passIdx = (uint16_t)((g_local.Packed >> 12) & 0x3);
-    const uint16_t scale = passIdx + (uint16_t)1;
+    const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
+    RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum + passIdx)).xy, g_frame.FrameNum);
+    const uint16_t scale = (uint16_t)1;
 
     int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, flags.metallic, mr.y, 
         flags.transmissive, viewDepth, SPATIAL_SEARCH_RADIUS * scale, rng);
