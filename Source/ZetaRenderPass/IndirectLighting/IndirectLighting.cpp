@@ -456,8 +456,8 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 #ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_TtC");
 #endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X * 2);
+        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y * 2);
 
         cb_ReSTIR_PT_Sort cb;
         cb.DispatchDimX = dispatchDimX;
@@ -491,8 +491,8 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 #ifndef NDEBUG
         computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtT");
 #endif
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X * 2);
+        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y * 2);
 
         cb_ReSTIR_PT_Sort cb;
         cb.DispatchDimX = dispatchDimX;
@@ -731,8 +731,8 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 #ifndef NDEBUG
             computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_CtS");
 #endif
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X * 2);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y * 2);
 
             cb_ReSTIR_PT_Sort cb;
             cb.DispatchDimX = dispatchDimX;
@@ -757,8 +757,8 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 #ifndef NDEBUG
             computeCmdList.PIXBeginEvent("ReSTIR_PT_Sort_StC");
 #endif
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y);
+            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_SORT_GROUP_DIM_X * 2);
+            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_SORT_GROUP_DIM_Y * 2);
 
             cb_ReSTIR_PT_Sort cb;
             cb.DispatchDimX = dispatchDimX;

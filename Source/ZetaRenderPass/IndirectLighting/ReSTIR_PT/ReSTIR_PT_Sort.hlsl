@@ -1,8 +1,6 @@
 #include "../../Common/Common.hlsli"
 #include "Util.hlsli"
 
-#define LOG_THREAD_GROUP_DIM_X 5
-
 #if !defined (TEMPORAL_TO_CURRENT) && !defined (SPATIAL_TO_CURRENT) && !defined (CURRENT_TO_SPATIAL)
 #define CURRENT_TO_TEMPORAL
 #endif
@@ -62,7 +60,8 @@ RPT_Util::SHIFT_ERROR FindNeighbor(uint2 DTid, out int2 neighborPixel)
 
 uint2 GroupIndexToGTid(uint Gidx)
 {
-    return uint2(Gidx & (RESTIR_PT_SORT_GROUP_DIM_X - 1), Gidx >> LOG_THREAD_GROUP_DIM_X);
+    return uint2(Gidx & (2 * RESTIR_PT_SORT_GROUP_DIM_X - 1), 
+        Gidx >> (LOG_RESTIR_PT_SORT_GROUP_DIM + 1));
 }
 
 void WriteOutput(uint2 Gid, uint2 DTid, uint2 mappedGTid, uint result)
@@ -72,7 +71,7 @@ void WriteOutput(uint2 Gid, uint2 DTid, uint2 mappedGTid, uint result)
     if((Gid.x == (g_local.DispatchDimX - 1)) && (Gid.y != (g_local.DispatchDimY - 1)))
         mappedGTid = mappedGTid.yx;
 
-    uint2 mappedDTid = Gid * GroupDim + mappedGTid;
+    uint2 mappedDTid = Gid * GroupDim * 2 + mappedGTid;
 
 #if defined (TEMPORAL_TO_CURRENT)
     // Reconnect_TtC still needs to run even if motion vector is invalid and spatial is disabled
@@ -110,48 +109,93 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     GroupMemoryBarrierWithGroupSync();
 
-    int2 neighborPixel;
-    RPT_Util::SHIFT_ERROR error = FindNeighbor(DTid.xy, neighborPixel);
-    bool skip = error != RPT_Util::SHIFT_ERROR::SUCCESS;
-    uint result = (uint)error;
-    RPT_Util::Reservoir r_x = RPT_Util::Reservoir::Init();
+    uint2 gtID[4];
+    gtID[0] = GTid.xy * 2;
+    gtID[1] = GTid.xy * 2 + uint2(1, 0);
+    gtID[2] = GTid.xy * 2 + uint2(0, 1);
+    gtID[3] = GTid.xy * 2 + uint2(1, 1);
+
+    uint2 dtID[4];
+    const uint2 groupStart = Gid.xy * GroupDim * 2;
+
+    [unroll]
+    for(int i = 0; i < 4; i++)
+        dtID[i] = groupStart + gtID[i];
+
+    bool4 skip;
+    int2 neighborPixel[4];
+    RPT_Util::SHIFT_ERROR error[4];
+
+    [unroll]
+    for(int i = 0; i < 4; i++)
+    {
+        error[i] = FindNeighbor(dtID[i], neighborPixel[i]);
+        skip[i] = error[i] != RPT_Util::SHIFT_ERROR::SUCCESS;
+    }
+
+    uint4 result = (uint4)error;
+    RPT_Util::Reservoir r_x[4];
+
+    [unroll]
+    for(int i = 0; i < 4; i++)
+        r_x[i] = RPT_Util::Reservoir::Init();
 
 #if defined (TEMPORAL_TO_CURRENT)
-    if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(neighborPixel, 
-            g_local.Reservoir_A_DescHeapIdx);
+        if(error[i] == RPT_Util::SHIFT_ERROR::SUCCESS)
+        {
+            r_x[i] = RPT_Util::Reservoir::Load_MetadataX<Texture2D<uint4> >(neighborPixel[i], 
+                g_local.Reservoir_A_DescHeapIdx);
+        }
     }
 
 #elif defined(CURRENT_TO_TEMPORAL)
-    if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<RWTexture2D<uint4> >(DTid.xy, 
-            g_local.Reservoir_A_DescHeapIdx);
+        if(error[i] == RPT_Util::SHIFT_ERROR::SUCCESS)
+        {
+            r_x[i] = RPT_Util::Reservoir::Load_MetadataX<RWTexture2D<uint4> >(dtID[i], 
+                g_local.Reservoir_A_DescHeapIdx);
+        }
     }
 
 #elif defined(CURRENT_TO_SPATIAL)
-    if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(DTid.xy, 
-            g_local.Reservoir_A_DescHeapIdx);
+        if(error[i] == RPT_Util::SHIFT_ERROR::SUCCESS)
+        {
+            r_x[i] = RPT_Util::Reservoir::Load_MetadataX<Texture2D<uint4> >(dtID[i], 
+                g_local.Reservoir_A_DescHeapIdx);
+        }
     }
 
 #elif defined(SPATIAL_TO_CURRENT)
-    if(error == RPT_Util::SHIFT_ERROR::SUCCESS)
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        r_x = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(neighborPixel, 
-            g_local.Reservoir_A_DescHeapIdx);
+        if(error[i] == RPT_Util::SHIFT_ERROR::SUCCESS)
+        {
+            r_x[i] = RPT_Util::Reservoir::Load_MetadataX<Texture2D<uint4> >(neighborPixel[i], 
+                g_local.Reservoir_A_DescHeapIdx);
+        }
     }
 
 #else
 #error Undefined shift type
 #endif
 
-    if(r_x.rc.Empty())
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        result = result | RPT_Util::SHIFT_ERROR::EMPTY;
-        skip = true;
+        if(r_x[i].rc.Empty())
+        {
+            result[i] = result[i] | RPT_Util::SHIFT_ERROR::EMPTY;
+            skip[i] = true;
+        }
     }
 
     // Handle an edge case where for thread groups at the right and bottom 
@@ -159,33 +203,45 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     // erroneously skippped in the subsequent passes
     const bool againstEdge = (Gid.x == (g_local.DispatchDimX - 1)) ||
         (Gid.y == (g_local.DispatchDimY - 1));
-    bool edgeCase = false;
+    bool4 edgeCase = false;
 
     // Make sure "skip" is true to avoid double counting
-    if(skip && againstEdge && (DTid.x < g_frame.RenderWidth) && (DTid.y < g_frame.RenderHeight))
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        result = RPT_Util::SHIFT_ERROR::SUCCESS;
-        skip = false;
-        edgeCase = true;
+        if(skip[i] && againstEdge && (dtID[i].x < g_frame.RenderWidth) && (dtID[i].y < g_frame.RenderHeight))
+        {
+            result[i] = RPT_Util::SHIFT_ERROR::SUCCESS;
+            skip[i] = false;
+            edgeCase[i] = true;
+        }
     }
 
-    const bool kEq2 = !skip && (r_x.rc.k == 2);
-    const bool kEq3 = !skip && (r_x.rc.k == 3);
-    const bool kEq4 = !skip && (r_x.rc.k == 4);
-    const bool kGe5 = !skip && ((r_x.rc.k >= 5) || edgeCase);
+    bool4 kEq2;
+    bool4 kEq3;
+    bool4 kEq4;
+    bool4 kGe5;
 
-    const uint16_t wavekEq2Count = (uint16_t)WaveActiveCountBits(kEq2);
-    const uint16_t wavekEq3Count = (uint16_t)WaveActiveCountBits(kEq3);
-    const uint16_t wavekEq4Count = (uint16_t)WaveActiveCountBits(kEq4);
-    const uint16_t wavekGe5Count = (uint16_t)WaveActiveCountBits(kGe5);
-    const uint16_t waveSkipCount = (uint16_t)WaveActiveCountBits(skip);
+    [unroll]
+    for(int i = 0; i < 4; i++)
+    {
+        kEq2[i] = !skip[i] && (r_x[i].rc.k == 2);
+        kEq3[i] = !skip[i] && (r_x[i].rc.k == 3);
+        kEq4[i] = !skip[i] && (r_x[i].rc.k == 4);
+        kGe5[i] = !skip[i] && ((r_x[i].rc.k >= 5) || edgeCase[i]);
+    }
+
+    const uint16_t wavekEq2Count = (uint16_t)WaveActiveSum(dot(1, kEq2));
+    const uint16_t wavekEq3Count = (uint16_t)WaveActiveSum(dot(1, kEq3));
+    const uint16_t wavekEq4Count = (uint16_t)WaveActiveSum(dot(1, kEq4));
+    const uint16_t wavekGe5Count = (uint16_t)WaveActiveSum(dot(1, kGe5));
+    const uint16_t waveSkipCount = (uint16_t)WaveActiveSum(dot(1, skip));
     const uint16_t4 allCounts = uint16_t4(wavekEq2Count, wavekEq3Count, wavekEq4Count, wavekGe5Count);
 
-    const uint16_t laneIdx = (uint16_t)WaveGetLaneIndex();
     uint4 waveOffsets;
     uint skipOffset;
 
-    if(laneIdx == 0)
+    if(WaveGetLaneIndex() == 0)
     {
         InterlockedAdd(g_count.x, wavekEq2Count, waveOffsets.x);
         InterlockedAdd(g_count.y, wavekEq3Count, waveOffsets.y);
@@ -205,42 +261,70 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     const uint kGe5BaseOffset = g_count.x + g_count.y + g_count.z + waveOffsets.w;
     const uint skipBaseOffset = g_count.x + g_count.y + g_count.z + g_count.w + skipOffset;
 
-    uint lanekEq2Idx = WavePrefixCountBits(kEq2);
-    uint lanekEq3Idx = WavePrefixCountBits(kEq3);
-    uint lanekEq4Idx = WavePrefixCountBits(kEq4);
-    uint lanekGe5Idx = WavePrefixCountBits(kGe5);
-    uint laneSkipIdx = WavePrefixCountBits(skip);
+    uint lanekEq2Idx = WavePrefixSum(dot(1, kEq2));
+    uint lanekEq3Idx = WavePrefixSum(dot(1, kEq3));
+    uint lanekEq4Idx = WavePrefixSum(dot(1, kEq4));
+    uint lanekGe5Idx = WavePrefixSum(dot(1, kGe5));
+    uint laneSkipIdx = WavePrefixSum(dot(1, skip));
 
     // One-to-one mapping for the very last thread group
     if(Gid.x == (g_local.DispatchDimX - 1) && Gid.y == (g_local.DispatchDimY - 1))
     {
-        WriteOutput(Gid.xy, DTid.xy, GTid.xy, result);
-        return;
+        [unroll]
+        for(int i = 0; i < 4; i++)
+        {
+            WriteOutput(Gid.xy, dtID[i], gtID[i], result[i]);
+            return;
+        }
     }
 
-    if(kEq2)
+    [unroll]
+    for(int i = 0; i < 4; i++)
     {
-        uint2 mappedGTid = GroupIndexToGTid(kEq2BaseOffset + lanekEq2Idx);
-        WriteOutput(Gid.xy, DTid.xy, mappedGTid, result);
-    }
-    else if(kEq3)
-    {
-        uint2 mappedGTid = GroupIndexToGTid(kEq3BaseOffset + lanekEq3Idx);
-        WriteOutput(Gid.xy, DTid.xy, mappedGTid, result);
-    }
-    else if(kEq4)
-    {
-        uint2 mappedGTid = GroupIndexToGTid(kEq4BaseOffset + lanekEq4Idx);
-        WriteOutput(Gid.xy, DTid.xy, mappedGTid, result);
-    }
-    else if(kGe5)
-    {
-        uint2 mappedGTid = GroupIndexToGTid(kGe5BaseOffset + lanekGe5Idx);
-        WriteOutput(Gid.xy, DTid.xy, mappedGTid, result);
-    }
-    else if(skip)
-    {
-        uint2 mappedGTid = GroupIndexToGTid(skipBaseOffset + laneSkipIdx);
-        WriteOutput(Gid.xy, DTid.xy, mappedGTid, result);
+        if(kEq2[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += kEq2[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(kEq2BaseOffset + lanekEq2Idx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
+        else if(kEq3[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += kEq3[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(kEq3BaseOffset + lanekEq3Idx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
+        else if(kEq4[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += kEq4[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(kEq4BaseOffset + lanekEq4Idx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
+        else if(kGe5[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += kGe5[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(kGe5BaseOffset + lanekGe5Idx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
+        else if(skip[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += skip[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(skipBaseOffset + laneSkipIdx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
     }
 }

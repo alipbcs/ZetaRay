@@ -144,6 +144,13 @@ namespace RPT_Util
             this.M = (uint16_t)(metadata.x >> 4);
         }
 
+        void UnpackMetadataX(uint metadata)
+        {
+            uint16_t k = uint16_t(metadata.x & 0xf);
+            this.rc.k = k == Reconnection::EMPTY ? k : k + (uint16_t)2;
+            this.M = (uint16_t)(metadata.x >> 4);
+        }
+
         template<typename TexA>
         static Reservoir Load_Metadata(uint2 DTid, uint inputAIdx)
         {
@@ -151,6 +158,17 @@ namespace RPT_Util
 
             Reservoir ret;
             ret.UnpackMetadata(g_inA[DTid].xyz);
+
+            return ret;
+        }
+
+        template<typename TexA>
+        static Reservoir Load_MetadataX(uint2 DTid, uint inputAIdx)
+        {
+            TexA g_inA = ResourceDescriptorHeap[inputAIdx];
+
+            Reservoir ret;
+            ret.UnpackMetadata(g_inA[DTid].x);
 
             return ret;
         }
