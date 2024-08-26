@@ -143,7 +143,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RBUFFER_B = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT RBUFFER_C = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT TARGET = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            static constexpr DXGI_FORMAT DNSR_TEMPORAL_CACHE = DXGI_FORMAT_R16G16B16A16_FLOAT;
+            static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
 
         enum class DESC_TABLE_RGI
@@ -390,7 +390,6 @@ namespace ZetaRay::RenderPass
         void SortTemporalCallback(const Support::ParamVariant& p);
         void SortSpatialCallback(const Support::ParamVariant& p);
         void TexFilterCallback(const Support::ParamVariant& p);
-        void RejectOutliersCallback(const Support::ParamVariant& p);
         void DenoiseCallback(const Support::ParamVariant& p);
         void TsppDiffuseCallback(const Support::ParamVariant& p);
         void TsppSpecularCallback(const Support::ParamVariant& p);

@@ -7,6 +7,10 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
+using namespace ReSTIR_RT;
+using namespace ReSTIR_Util;
+using namespace RPT_Util;
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -41,8 +45,8 @@ ReSTIR_Util::Globals InitGlobals()
 }
 
 // Shift base path in current pixel's domain to offset path in spatial pixel's domain
-RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Util::Reconnection rc_curr,
-    ReSTIR_Util::Globals globals)
+OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, Reconnection rc_curr,
+    Globals globals)
 {
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::NORMAL];
@@ -113,14 +117,12 @@ RPT_Util::OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, RPT_Ut
             lensSample_n, origin_n);
     }
 
-    const uint16_t maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos_n, normal_n, eta_i, surface_n, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, samp, g_frame, globals);
+        g_local.Alpha_min, regularization, g_frame, globals);
 }
 
 //--------------------------------------------------------------------------------------
@@ -174,10 +176,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
     samplePos += swizzledDTid;
 
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<Texture2D<uint4>, 
+    Reservoir r_curr = Reservoir::Load_NonReconnection<Texture2D<uint4>, 
         Texture2D<float2> >(swizzledDTid, g_local.Reservoir_A_DescHeapIdx, 
         g_local.Reservoir_A_DescHeapIdx + 1);
-    RPT_Util::Reservoir r_spatial = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
+    Reservoir r_spatial = Reservoir::Load_Metadata<Texture2D<uint4> >(
         samplePos, g_local.Reservoir_A_DescHeapIdx);
 
     // Shift current reservoir's path to spatial pixel and resample
@@ -191,8 +193,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        ReSTIR_Util::Globals globals = InitGlobals();
-        RPT_Util::OffsetPath shift = ShiftCurrentToSpatial(swizzledDTid, samplePos, r_curr.rc, globals);
+        Globals globals = InitGlobals();
+        OffsetPath shift = ShiftCurrentToSpatial(swizzledDTid, samplePos, r_curr.rc, globals);
         float target_spatial = Math::Luminance(shift.target);
 
         if(target_spatial > 0)

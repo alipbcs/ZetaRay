@@ -182,11 +182,11 @@ namespace RPT_Util
         float partialJacobian;
     };
 
-    struct PathContext
+    struct OffsetPathContext
     {
-        static PathContext Init()
+        static OffsetPathContext Init()
         {
-            PathContext ret;
+            OffsetPathContext ret;
             ret.throughput = 0;
             ret.pos = 0;
             ret.normal = 0;
@@ -200,7 +200,7 @@ namespace RPT_Util
             return ret;
         }
         
-        static PathContext Load(uint2 DTid, uint srvAIdx, uint srvBIdx, uint srvCIdx, 
+        static OffsetPathContext Load(uint2 DTid, uint srvAIdx, uint srvBIdx, uint srvCIdx, 
             bool isCase3)
         {
             Texture2D<float4> g_cbA = ResourceDescriptorHeap[srvAIdx];
@@ -211,7 +211,7 @@ namespace RPT_Util
             uint4 inB = g_cbB[DTid];
             uint4 inC = g_cbC[DTid];
 
-            PathContext ctx = PathContext::Init();
+            OffsetPathContext ctx = OffsetPathContext::Init();
             ctx.throughput = inA.xyz;
 
             if(dot(ctx.throughput, ctx.throughput) == 0)
@@ -322,7 +322,7 @@ namespace RPT_Util
 
     void Replay(int16 numBounces, BSDF::BSDFSample bsdfSample, float alpha_min, 
         bool regularization, ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp,
-        ReSTIR_Util::Globals globals, inout PathContext ctx)
+        ReSTIR_Util::Globals globals, inout OffsetPathContext ctx)
     {
         ctx.throughput = bsdfSample.bsdfOverPdf;
         int bounce = 0;
@@ -433,8 +433,8 @@ namespace RPT_Util
     OffsetPath Reconnect_Case1Or2(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
         float eta_curr, float eta_mat, RT::RayDifferentials rd, BSDF::ShadingData surface, 
         bool anyGlossyBounces, float alpha_min, bool regularization, Reconnection rc, 
-        ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp, 
-        ReSTIR_Util::Globals globals, RNG rngReplay, RNG rngNEE)
+        ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, 
+        RNG rngReplay, RNG rngNEE)
     {
         OffsetPath ret = OffsetPath::Init();
 
@@ -484,24 +484,12 @@ namespace RPT_Util
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
         bool inTranslucentMedium = eta_curr != ETA_AIR;
 
-        if(bounce == 0)
+        ReSTIR_RT::IsotropicSampler is;
+        if(!ReSTIR_RT::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
+            rd.uv_grads, hitInfo, surface, eta_mat, g_samLinearWrap, is))
         {
-            if(!ReSTIR_RT::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
-                rd.uv_grads, hitInfo, surface, eta_mat, samp))
-            {
-                // Not invertible
-                return ret;
-            }
-        }
-        else
-        {
-            ReSTIR_RT::IsotropicSampler is;
-            if(!ReSTIR_RT::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
-                rd.uv_grads, hitInfo, surface, eta_mat, g_samLinearWrap, is))
-            {
-                // Not invertible
-                return ret;
-            }
+            // Not invertible
+            return ret;
         }
 
         if(regularization && anyGlossyBounces)
@@ -651,10 +639,9 @@ namespace RPT_Util
     OffsetPath Shift2(uint2 DTid, float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
         RT::RayDifferentials rd, Math::TriDifferentials triDiffs, RPT_Util::Reconnection rc, 
         uint rbufferASrv, uint rbufferBSrv, uint rbufferCSrv, float alpha_min, 
-        bool regularization, SamplerState samp, ConstantBuffer<cbFrameConstants> g_frame, 
-        ReSTIR_Util::Globals globals)
+        bool regularization, ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals)
     {
-        PathContext ctx = PathContext::Init();
+        OffsetPathContext ctx = OffsetPathContext::Init();
         ctx.pos = pos;
         ctx.normal = normal;
         ctx.surface = surface;
@@ -698,7 +685,7 @@ namespace RPT_Util
         if(numBounces > 0)
         {
             int16 bounce = 0;
-            ctx = PathContext::Load(DTid, rbufferASrv, rbufferBSrv, rbufferCSrv, rc.IsCase3());
+            ctx = OffsetPathContext::Load(DTid, rbufferASrv, rbufferBSrv, rbufferCSrv, rc.IsCase3());
 
             // Advance rng of path context to what it would be after replay
             while(true)
@@ -732,16 +719,16 @@ namespace RPT_Util
         {
             return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, 
                 ctx.normal, ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
-                alpha_min, regularization, rc, g_frame, samp, globals, ctx.rngReplay, rngNEE);
+                alpha_min, regularization, rc, g_frame, globals, ctx.rngReplay, rngNEE);
         }
     }
 
-    PathContext Replay_kGt2(float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
+    OffsetPathContext Replay_kGt2(float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
         RT::RayDifferentials rd, Math::TriDifferentials triDiffs, Reconnection rc, 
         float alpha_min, bool regularization, SamplerState samp, 
         ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals)
     {
-        PathContext ctx = PathContext::Init();
+        OffsetPathContext ctx = OffsetPathContext::Init();
         ctx.pos = pos;
         ctx.normal = normal;
         ctx.surface = surface;

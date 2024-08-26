@@ -62,7 +62,7 @@ namespace
 #endif
             }
 
-            constexpr int MAX_NUM_SUBRESOURCES = 12;
+            constexpr int MAX_NUM_SUBRESOURCES = 13;
             Assert(MAX_NUM_SUBRESOURCES >= subResData.size(), "MAX_NUM_SUBRESOURCES is too small.");
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout[MAX_NUM_SUBRESOURCES];

@@ -11,6 +11,10 @@
 
 #define THREAD_GROUP_SWIZZLING 0
 
+using namespace ReSTIR_RT;
+using namespace ReSTIR_Util;
+using namespace RPT_Util;
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -44,7 +48,7 @@ ReSTIR_Util::Globals InitGlobals()
     return globals;
 }
 
-RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin, 
+OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin, 
     float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
     bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
     RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
@@ -102,7 +106,7 @@ RPT_Util::PathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 orig
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
-RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reconnection rc_curr,
+OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reconnection rc_curr,
     ReSTIR_Util::Globals globals)
 {
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -175,9 +179,9 @@ RPT_Util::PathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
-RPT_Util::PathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, float3 pos, 
+OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, float3 pos, 
     float3 normal, bool metallic, float roughness, bool transmissive, bool trDepthGt0, 
-    bool subsurface, RPT_Util::Reconnection rc, ReSTIR_Util::Globals globals)
+    bool subsurface, Reconnection rc, Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -353,7 +357,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Replay temporal reservoir's path
 #if defined (TEMPORAL_TO_CURRENT)
-    RPT_Util::Reservoir r_prev = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
+    Reservoir r_prev = Reservoir::Load_Metadata<Texture2D<uint4> >(
         prevPixel, g_local.PrevReservoir_A_DescHeapIdx);
 
     // If reconnection vertex exists and replay is needed
@@ -367,7 +371,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.PrevReservoir_A_DescHeapIdx + 5,
             g_local.PrevReservoir_A_DescHeapIdx + 6);
 
-        RPT_Util::PathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
+        OffsetPathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
             pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
             flags.subsurface, r_prev.rc, globals);
 
@@ -388,7 +392,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
     samplePos += swizzledDTid;
 
-    RPT_Util::Reservoir r_spatial = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
+    Reservoir r_spatial = Reservoir::Load_Metadata<Texture2D<uint4> >(
         samplePos, g_local.Reservoir_A_DescHeapIdx);
 
     if(!r_spatial.rc.Empty() && (r_spatial.rc.k > 2))
@@ -401,7 +405,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        RPT_Util::PathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
+        OffsetPathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
             pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
             flags.subsurface, r_spatial.rc, globals);
 
@@ -413,7 +417,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Replay current reservoir's path in temporal
 #elif defined(CURRENT_TO_TEMPORAL)
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_Metadata<RWTexture2D<uint4> >(
+    Reservoir r_curr = Reservoir::Load_Metadata<RWTexture2D<uint4> >(
         swizzledDTid, g_local.Reservoir_A_DescHeapIdx);
 
     if(!r_curr.rc.Empty() && (r_curr.rc.k > 2))
@@ -426,7 +430,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        RPT_Util::PathContext ctx_ctn = ReplayCurrentInTemporalDomain(prevPixel, origin_n, 
+        OffsetPathContext ctx_ctn = ReplayCurrentInTemporalDomain(prevPixel, origin_n, 
             lensSample_n, pos_n, flags_n.metallic, mr_n.y, flags_n.transmissive, flags_n.trDepthGt0, 
             flags_n.subsurface, r_curr.rc, globals);
 
@@ -438,7 +442,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Replay current reservoir's path in spatial neighbor
 #elif defined(CURRENT_TO_SPATIAL)
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_Metadata<Texture2D<uint4> >(
+    Reservoir r_curr = Reservoir::Load_Metadata<Texture2D<uint4> >(
         swizzledDTid, g_local.Reservoir_A_DescHeapIdx);
 
     if(!r_curr.rc.Empty() && (r_curr.rc.k > 2))
@@ -460,7 +464,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
         samplePos += swizzledDTid;
 
-        RPT_Util::PathContext ctx_ctn = ReplayCurrentInSpatialDomain(samplePos, r_curr.rc, 
+        OffsetPathContext ctx_ctn = ReplayCurrentInSpatialDomain(samplePos, r_curr.rc, 
             globals);
         ctx_ctn.Write(swizzledDTid, g_local.RBufferA_CtN_DescHeapIdx, 
             g_local.RBufferA_CtN_DescHeapIdx + 1,

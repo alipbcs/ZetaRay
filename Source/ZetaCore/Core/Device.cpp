@@ -2,6 +2,12 @@
 #include "Config.h"
 #include "../App/Common.h"
 
+// PIX crashes & NSight doesn't work when the debug layer is enabled
+//#define DIREC3D_DEBUG_LAYER
+
+// To ensure stable GPU frequency for performance testing. Requires developer mode to be enabled.
+//#define STABLE_GPU_POWER_STATE
+
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::App;
@@ -114,7 +120,7 @@ void DeviceObjects::CreateDevice()
     // Enhanced barriers
     D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)));
-    Check(options12.EnhancedBarriersSupported, "Enhanced barriers is not supported.");
+    Check(options12.EnhancedBarriersSupported, "Enhanced barriers are not supported.");
 
     // RGBE support
     D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport{};

@@ -9,7 +9,7 @@
 
 // When enabled, sun is treated as a disk area light with radius based on the 
 // sun angular diameter, otherwise a directional light. Has minimal impact on 
-// quality and performance.
+// quality and performance (currently not supported for ReSTIR PT).
 #define SUN_DISK_SAMPLING 0
 
 // Suppresses fireflies from sun at the expense of some bias

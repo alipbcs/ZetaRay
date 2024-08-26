@@ -283,9 +283,8 @@ void GuiPass::Init()
     ImGuiIO& io = ImGui::GetIO();
     io.ConfigWindowsResizeFromEdges = true;
 
-    // root signature
+    // Root signature
     {
-        // root constants
         m_rootSig.InitAsConstants(0, sizeof(cbGuiPass) / sizeof(DWORD), 0);
 
         constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
@@ -336,7 +335,6 @@ void GuiPass::Init()
         psoDesc.DepthStencilState.DepthWriteMask = D3D12_DEPTH_WRITE_MASK_ALL;
         psoDesc.DepthStencilState.DepthFunc = D3D12_COMPARISON_FUNC_ALWAYS;
 
-        // use an arbitrary number as "nameID" since there's only one shader
         m_psoLib.CompileGraphicsPSO(0, psoDesc, m_rootSigObj.Get(), COMPILED_VS[0], COMPILED_PS[0]);
     }
 }
@@ -510,14 +508,16 @@ void GuiPass::RenderSettings()
 {
     const int displayWidth = App::GetRenderer().GetDisplayWidth();
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
-    const float wndPosX = ceilf(displayWidth * (1 - m_dbgWndWidthPct));
+    // Round to nearest
+    const int wndSizeX = (int)std::fmaf((float)displayWidth, m_dbgWndWidthPct, 0.5f);
+    const int wndSizeY = (int)std::fmaf((float)displayHeight, m_dbgWndHeightPct, 0.5f);
+    const int wndPosX = displayWidth - wndSizeX;
 
     ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
-    ImGui::SetWindowPos(ImVec2(wndPosX, 0.0f), ImGuiCond_Once);
-    ImGui::SetWindowSize(ImVec2(m_dbgWndWidthPct * displayWidth, m_dbgWndHeightPct * displayHeight), 
-        ImGuiCond_Once);
+    ImGui::SetWindowPos(ImVec2((float)wndPosX, 0.0f), ImGuiCond_Once);
+    ImGui::SetWindowSize(ImVec2((float)wndSizeX, (float)wndSizeY), ImGuiCond_Once);
 
-    m_logWndWidth = displayWidth - ImGui::GetWindowWidth();
+    m_logWndWidth = displayWidth - wndSizeX;
 
     if (ImGui::CollapsingHeader(ICON_FA_INFO "  Info", ImGuiTreeNodeFlags_None))
     {
@@ -571,8 +571,6 @@ void GuiPass::RenderSettings()
 
 void GuiPass::RenderProfiler()
 {
-    const float w = ImGui::GetWindowWidth();
-
     auto& renderer = App::GetRenderer();
     auto& timer = App::GetTimer();
 
@@ -630,15 +628,16 @@ void GuiPass::RenderProfiler()
     if (ImGui::CollapsingHeader(ICON_FA_CLOCK "  GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
     {
         auto frameTimeHist = App::GetFrameTimeHistory();
+        const float w = ImGui::GetWindowWidth();
 
-        float max_ = 0.0f;
+        float maxTime = 0.0f;
         for (auto f : frameTimeHist)
-            max_ = Math::Max(max_, f);
+            maxTime = Math::Max(maxTime, f);
 
-        if (ImPlot::BeginPlot("Frame Time", ImVec2(w * 0.9f, 150.0f), ImPlotFlags_NoLegend))
+        if (ImPlot::BeginPlot("Frame Time", ImVec2(w * m_frameHistWidthPct, 150.0f), ImPlotFlags_NoLegend))
         {
             ImPlot::SetupAxes("Moving Window", "Time (ms)", 0, ImPlotAxisFlags_NoHighlight);
-            ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, max_ + 1.0, ImGuiCond_Always);
+            ImPlot::SetupAxesLimits(0, (double)frameTimeHist.size(), 0, maxTime + 1.0, ImGuiCond_Always);
             //ImPlot::SetNextMarkerStyle(ImPlotMarker_Circle);
             ImPlot::PushStyleColor(ImPlotCol_Line, ImVec4(85 / 255.0f, 85 / 255.0f, 85 / 255.0f, 1.0f));
 
@@ -668,9 +667,9 @@ void GuiPass::RenderLogWindow()
     ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
-    const float logWndHeightPct = m_logWndHeightPct;
+    const int wndSizeY = (int)std::fmaf((float)displayHeight, m_logWndHeightPct, 0.5f);
 
-    ImGui::SetWindowSize(ImVec2(m_logWndWidth, logWndHeightPct * displayHeight), ImGuiCond_Once);
+    ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndSizeY), ImGuiCond_Once);
     ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
 
     ImGui::Text("#Items: %d\t", (int)m_logs.size());
@@ -694,7 +693,8 @@ void GuiPass::RenderLogWindow()
     // TODO consider using ImGuiListClipper
     for (auto& msg : m_logs)
     {
-        ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
+        ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : 
+            ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
         ImGui::TextColored(color, msg.Msg);
     }
 
@@ -721,13 +721,13 @@ void GuiPass::RenderMainHeader()
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
-    const float wndHeight = m_headerWndHeightPct * displayHeight;
+    const int wndHeight = (int)std::fmaf(m_headerWndHeightPct, (float)displayHeight, 0.5f);
 
-    ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoScrollbar | 
-        ImGuiWindowFlags_NoResize);
+    ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | 
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
 
     ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
-    ImGui::SetWindowSize(ImVec2(m_logWndWidth, wndHeight), ImGuiCond_Always);
+    ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndHeight), ImGuiCond_Always);
 
     ImGui::Text("        ");
     ImGui::SameLine();
@@ -744,7 +744,7 @@ void GuiPass::RenderMainHeader()
 
     if(showMainWnd)
     {
-        ImGui::SetWindowSize(ImVec2(m_logWndWidth, m_headerWndHeightPct * displayHeight), ImGuiCond_Always);
+        ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndHeight), ImGuiCond_Always);
         ImGui::EndTabItem();
     }
 
@@ -763,7 +763,7 @@ void GuiPass::RenderMainHeader()
 
         ImGui::Begin(" ", nullptr, ImGuiWindowFlags_NoMove);
 
-        ImGui::SetWindowSize(ImVec2(m_logWndWidth, displayHeight - h_prev), ImGuiCond_Once);
+        ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, displayHeight - h_prev), ImGuiCond_Once);
         ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
 
         App::GetScene().DebugDrawRenderGraph();
@@ -812,8 +812,10 @@ void GuiPass::InfoTab()
 {
     auto& renderer = App::GetRenderer();
     ImGui::Text(" - Device: %s", renderer.GetDeviceDescription());
-    ImGui::Text(" - Render Resolution: %d x %d", renderer.GetRenderWidth(), renderer.GetRenderHeight());
-    ImGui::Text(" - Display Resolution: %d x %d (%u DPI)", renderer.GetDisplayWidth(), renderer.GetDisplayHeight(), App::GetDPI());
+    ImGui::Text(" - Render Resolution: %d x %d", renderer.GetRenderWidth(), 
+        renderer.GetRenderHeight());
+    ImGui::Text(" - Display Resolution: %d x %d (%u DPI)", renderer.GetDisplayWidth(), 
+        renderer.GetDisplayHeight(), App::GetDPI());
     ImGui::Text("");
     ImGui::Text(" - Controls:");
     ImGui::Text("\t- WASD+LMB moves the camera");
@@ -849,7 +851,6 @@ void GuiPass::CameraTab()
     ImGui::SetItemTooltip("Copy vector to clipboard");
 
     ImGui::Text(" - Aspect Ratio: %f", camera.GetAspectRatio());
-    ImGui::Text(" - Near Plane Z: %.3f", camera.GetNearZ());
 
     constexpr int plotFlags = ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText | ImPlotFlags_Equal;
 

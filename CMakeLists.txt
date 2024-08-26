@@ -34,11 +34,11 @@ set(CMAKE_DEBUG_POSTFIX "d")
 # enable folders for code organization
 set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 
-if(MSVC)
-    # generate pdb files for the release build (off by default)
-    add_compile_options("$<$<CONFIG:RELEASE>:/Zi>")
-    add_link_options("$<$<CONFIG:RELEASE>:/DEBUG>")
-endif()
+# if(MSVC)
+#     # generate pdb files for the release build (off by default)
+#     add_compile_options("$<$<CONFIG:RELEASE>:/Zi>")
+#     add_link_options("$<$<CONFIG:RELEASE>:/DEBUG>")
+# endif()
 
 # 
 # compiler options

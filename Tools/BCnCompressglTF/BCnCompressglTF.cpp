@@ -22,7 +22,7 @@ using namespace ZetaRay::Support;
 
 namespace
 {
-    static constexpr int MAX_TEX_RES = 2048;
+    static constexpr int MAX_TEX_RES = 4096;
     static constexpr const char* COMPRESSED_DIR_NAME = "compressed";
 
     namespace TEX_CONV_ARGV_NO_OVERWRITE_SRGB

@@ -340,13 +340,13 @@ namespace RT
             return ret;
         }
 
-        // At each hit point, provides an estimate of how position changes w.r.t. one pixel
-        // screen movement:
-        //      (p_x - p) = dpdx.(dx dy)
-        //                = dpdx.(1, 0)
+        // At each hit point, provides an estimate of how hit position changes w.r.t. one pixel
+        // screen movement, e.g. for one pixel horizontal movement:
+        //      (p_x - p) ~= (dpdx, dpdy).(dx, dy)
+        //                = (dpdx, dpdy).(1, 0)
         //                = dpdx
-        // where p_x is offset ray's origin. To update the origins after each hit,
-        // compute "virtual" intersections with tangent plane at actual hit point.
+        // where p_x is offset ray's hit point. To estimate p_x, compute the "virtual" intersection
+        // with the tangent plane at the actual hit point of the main ray.
         void dpdx_dpdy(float3 hitPoint, float3 normal, out float3 dpdx, out float3 dpdy)
         {
             float d = dot(normal, hitPoint);
@@ -365,13 +365,15 @@ namespace RT
             // If ray is parallel to tangent plane, set differential to a large value,
             // so that the highest mip would be used. From this point on, this
             // differential is undefined.
-            // dpdx = denom_x != 0 ? hitPoint_x - hitPoint : FLT_MAX;
-            // dpdy = denom_y != 0 ? hitPoint_y - hitPoint : FLT_MAX;
-            dpdx = denom_x != 0 ? hitPoint_x - hitPoint : 0;
-            dpdy = denom_y != 0 ? hitPoint_y - hitPoint : 0;
+            dpdx = denom_x != 0 ? hitPoint_x - hitPoint : FLT16_MAX;
+            dpdy = denom_y != 0 ? hitPoint_y - hitPoint : FLT16_MAX;
+            // dpdx = denom_x != 0 ? hitPoint_x - hitPoint : 0;
+            // dpdy = denom_y != 0 ? hitPoint_y - hitPoint : 0;
         }
 
-        // Note: Assumes normal and wo are in the hemisphere
+        // Notes: 
+        //  - Assumes normal and wo are in the hemisphere
+        //  - eta: Relative IOR of wi's medium to wo's medium
         void UpdateRays(float3 p, float3 normal, float3 wi, float3 wo, 
             Math::TriDifferentials triDiffs, float3 dpdx, float3 dpdy, 
             bool transmitted, float eta)
@@ -402,7 +404,7 @@ namespace RT
             }
             else
             {
-                // Let eta = eta_t / eta_i, then
+                // Let eta be relative IOR of wo's medium to wi's medium, then
                 //      wi = -eta wo + qn 
                 // where q = eta (n.wo) - cos(theta_i).
                 //
@@ -414,16 +416,16 @@ namespace RT
                 // After simplifying 
                 //      dqdx = eta d(n.wo)dx - (n.wo) d(n.wo)dx / eta^2 cos(theta_i)
                 //           = d(n.wo)dx (eta - (n.wo) / eta^2 cos(theta_i))
-                float oneOverEta = 1.0f / eta;
+                float eta_relative = 1.0f / eta;
                 float ndotwi = abs(dot(normal, wi));
 
-                float q = mad(oneOverEta, ndotwo, -ndotwi);
-                float common = mad(oneOverEta, -ndotwo / ndotwi, 1.0f);
-                float dqdx = oneOverEta * dndotWodx * common;
-                float dqdy = oneOverEta * dndotWody * common;
+                float q = mad(eta_relative, ndotwo, -ndotwi);
+                float common = mad(eta_relative, -ndotwo / ndotwi, 1.0f);
+                float dqdx = eta_relative * dndotWodx * common;
+                float dqdy = eta_relative * dndotWody * common;
 
-                this.dir_x = wi - oneOverEta * dwodx + q * dndx + dqdx * normal;
-                this.dir_y = wi - oneOverEta * dwody + q * dndy + dqdy * normal;
+                this.dir_x = mad(-eta_relative, dwodx, wi) + mad(q, dndx, dqdx * normal);
+                this.dir_y = mad(-eta_relative, dwody, wi) + mad(q, dndy, dqdy * normal);
             }
         }
 
@@ -450,10 +452,10 @@ namespace RT
             float2 b_y = float2(dot(dpdu, dpdy), dot(dpdv, dpdy));
             float2 grads_y = mul(A_T_A_Inv, b_y) / det;
 
-            bool invalid_x = (this.uv_grads.x == FLT_MAX) || (dpdx.x == FLT_MAX);
-            bool invalid_y = (this.uv_grads.z == FLT_MAX) || (dpdy.x == FLT_MAX);
-            this.uv_grads.xy = invalid_x ? FLT_MAX : grads_x;
-            this.uv_grads.zw = invalid_y ? FLT_MAX : grads_y;
+            bool invalid_x = (this.uv_grads.x == FLT16_MAX) || (dpdx.x == FLT16_MAX);
+            bool invalid_y = (this.uv_grads.z == FLT16_MAX) || (dpdy.x == FLT16_MAX);
+            this.uv_grads.xy = invalid_x ? FLT16_MAX : grads_x;
+            this.uv_grads.zw = invalid_y ? FLT16_MAX : grads_y;
         }
 
         float3 origin_x;

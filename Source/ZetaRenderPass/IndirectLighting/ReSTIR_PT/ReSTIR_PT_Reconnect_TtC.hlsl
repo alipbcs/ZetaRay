@@ -7,6 +7,10 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
+using namespace ReSTIR_RT;
+using namespace ReSTIR_Util;
+using namespace RPT_Util;
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -23,9 +27,9 @@ StructuredBuffer<Material> g_materials : register(t4);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-ReSTIR_Util::Globals InitGlobals()
+Globals InitGlobals()
 {
-    ReSTIR_Util::Globals globals;
+    Globals globals;
     globals.bvh = g_bvh;
     globals.frameMeshData = g_frameMeshData;
     globals.vertices = g_vertices;
@@ -41,10 +45,9 @@ ReSTIR_Util::Globals InitGlobals()
 }
 
 // Shift base path in temporal domain to offset path in current pixel's domain
-RPT_Util::OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
+OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
     float3 pos, float3 normal, bool metallic, float roughness, bool transmissive, 
-    bool trDepthGt0, bool subsurface, RPT_Util::Reconnection rc_prev, 
-    ReSTIR_Util::Globals globals)
+    bool trDepthGt0, bool subsurface, Reconnection rc_prev, Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -88,14 +91,12 @@ RPT_Util::OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 le
             lensSample, origin);
     }
 
-    const uint16_t maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_i, 
         surface, rd, triDiffs, rc_prev, g_local.RBufferA_NtC_DescHeapIdx, 
         g_local.RBufferA_NtC_DescHeapIdx + 1, g_local.RBufferA_NtC_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, samp, g_frame, globals);
+        g_local.Alpha_min, regularization, g_frame, globals);
 }
 
 //--------------------------------------------------------------------------------------
@@ -161,8 +162,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W, g_local.Packed, 
                 g_local.Final, g_frame);
         }
-        else
-            RPT_Util::ResetDeriv(swizzledDTid, g_local.Final);
 
         return;
     }
@@ -180,8 +179,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W, 
                 g_local.Packed, g_local.Final, g_frame);
         }
-        else
-            RPT_Util::ResetDeriv(swizzledDTid, g_local.Final);
 
         return;
     }
@@ -231,8 +228,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W, 
                 g_local.Packed, g_local.Final, g_frame);
         }
-        else
-            RPT_Util::ResetDeriv(swizzledDTid, g_local.Final);
 
         return;
     }
@@ -250,17 +245,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W,
                 g_local.Packed, g_local.Final, g_frame);
         }
-        else
-            RPT_Util::ResetDeriv(swizzledDTid, g_local.Final);
 
         return;
     }
 
-    RPT_Util::Reservoir r_prev = RPT_Util::Reservoir::Load_NonReconnection<
-        Texture2D<uint4>, Texture2D<float2> >(prevPixel, 
-        g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_A_DescHeapIdx + 1);
+    Reservoir r_prev = Reservoir::Load_NonReconnection<Texture2D<uint4>, 
+        Texture2D<float2> >(prevPixel, g_local.PrevReservoir_A_DescHeapIdx, 
+        g_local.PrevReservoir_A_DescHeapIdx + 1);
 
-    ReSTIR_Util::Globals globals = InitGlobals();
+    Globals globals = InitGlobals();
     const uint16_t M_new = r_curr.M + r_prev.M;
 
     // Temporal history can't be shifted for reuse
@@ -293,7 +286,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         g_local.PrevReservoir_A_DescHeapIdx + 6);
 
     // Shift temporal path to current pixel and resample
-    RPT_Util::OffsetPath shift = ShiftTemporalToCurrent(swizzledDTid, origin, lensSample,
+    OffsetPath shift = ShiftTemporalToCurrent(swizzledDTid, origin, lensSample,
         pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
         flags.subsurface, r_prev.rc, globals);
 

@@ -145,6 +145,16 @@ struct RNG
         return float3(u0, u1, u2);
     }
 
+    float4 Uniform4D()
+    {
+        float u0 = Uniform();
+        float u1 = Uniform();
+        float u2 = Uniform();
+        float u3 = Uniform();
+
+        return float4(u0, u1, u2, u3);
+    }
+
     uint State;
 };
 

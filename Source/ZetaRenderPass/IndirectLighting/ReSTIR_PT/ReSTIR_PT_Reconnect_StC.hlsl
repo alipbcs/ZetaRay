@@ -7,6 +7,10 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
+using namespace ReSTIR_RT;
+using namespace ReSTIR_Util;
+using namespace RPT_Util;
+
 //--------------------------------------------------------------------------------------
 // Root Signature
 //--------------------------------------------------------------------------------------
@@ -41,10 +45,9 @@ ReSTIR_Util::Globals InitGlobals()
 }
 
 // Shift base path in spatial domain to offset path in current pixel's domain
-RPT_Util::OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample, 
+OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample, 
     float3 pos, float3 normal, bool metallic, float roughness, bool transmissive, 
-    bool trDepthGt0, bool subsurface, RPT_Util::Reconnection rc_spatial, 
-    ReSTIR_Util::Globals globals)
+    bool trDepthGt0, bool subsurface, Reconnection rc_spatial, Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
@@ -88,19 +91,17 @@ RPT_Util::OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 len
             lensSample, origin);
     }
 
-    const uint16_t maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_i, surface, rd, 
         triDiffs, rc_spatial, g_local.RBufferA_NtC_DescHeapIdx, 
         g_local.RBufferA_NtC_DescHeapIdx + 1, g_local.RBufferA_NtC_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, samp, g_frame, globals);
+        g_local.Alpha_min, regularization, g_frame, globals);
 }
 
 // Copies reservoir data along with the reconnection found after temporal resue (if any)
 // to next frame's reservoir
-void CopyToNextFrame(uint2 DTid, RPT_Util::Reservoir r_curr)
+void CopyToNextFrame(uint2 DTid, Reservoir r_curr)
 {
     if(!r_curr.rc.Empty())
     {
@@ -167,7 +168,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if (flags.invalid || flags.emissive)
         return;
 
-    RPT_Util::Reservoir r_curr = RPT_Util::Reservoir::Load_NonReconnection<
+    Reservoir r_curr = Reservoir::Load_NonReconnection<
         Texture2D<uint4>, Texture2D<float2> >(swizzledDTid, 
         g_local.Reservoir_A_DescHeapIdx, g_local.Reservoir_A_DescHeapIdx + 1);
     r_curr.LoadTarget(swizzledDTid, g_local.TargetDescHeapIdx);
@@ -219,7 +220,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
-    RPT_Util::Reservoir r_spatial = RPT_Util::Reservoir::Load_NonReconnection<Texture2D<uint4>, 
+    Reservoir r_spatial = Reservoir::Load_NonReconnection<Texture2D<uint4>, 
         Texture2D<float2> >(samplePos, g_local.Reservoir_A_DescHeapIdx, 
         g_local.Reservoir_A_DescHeapIdx + 1);
 
@@ -230,7 +231,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if((r_curr.w_sum != 0) && (r_spatial.M > 0) && !r_curr.rc.Empty())
         r_curr.LoadWSum(swizzledDTid, g_local.PrevReservoir_A_DescHeapIdx + 1);
 
-    ReSTIR_Util::Globals globals = InitGlobals();
+    Globals globals = InitGlobals();
     const uint16_t M_new = r_curr.M + r_spatial.M;
 
     waveSum += WaveActiveSum(r_curr.w_sum * r_spatial.rc.Empty());
@@ -262,7 +263,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         g_local.Reservoir_A_DescHeapIdx + 6);
 
     // Shift spatial neighbor's path to current pixel and resample
-    RPT_Util::OffsetPath shift = ShiftSpatialToCurrent(swizzledDTid, origin, lensSample,
+    OffsetPath shift = ShiftSpatialToCurrent(swizzledDTid, origin, lensSample,
         pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
         flags.subsurface, r_spatial.rc, globals);
 
@@ -325,6 +326,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     float3 li = r_curr.target * r_curr.W;
     RPT_Util::DebugColor(r_curr.rc, g_local.Packed, li);
-    RPT_Util::WriteOutputColor2(swizzledDTid, float4(li, runningDeriv), 
-        g_local.Packed, g_local.Final, g_frame, false);
+    RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final, g_frame, false);
 }

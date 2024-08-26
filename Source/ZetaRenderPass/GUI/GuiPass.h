@@ -70,9 +70,10 @@ namespace ZetaRay::RenderPass
         int m_currShader = -1;
         static constexpr float m_dbgWndWidthPct = 0.21f;
         static constexpr float m_dbgWndHeightPct = 1.0f;
-        float m_logWndWidth = 0.0f;
+        int m_logWndWidth = 0;
         static constexpr float m_logWndHeightPct = 0.21f;
         static constexpr float m_headerWndHeightPct = 0.02f;
+        static constexpr float m_frameHistWidthPct = 0.9f;
         bool m_firstTime = true;
         bool m_closeLogsTab = false;
         int m_prevNumLogs = 0;

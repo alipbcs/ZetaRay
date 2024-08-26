@@ -59,7 +59,8 @@ function(CompileHLSL HLSL_PATH RET)
 
     # Figure out if shader is a compute shader, DXIL lib, etc
 
-    set(COMMON_DBG_ARGS "-Qembed_debug" "-Qstrip_reflect" "-nologo" "-Zi" "-Od" "-all_resources_bound" "-enable-16bit-types" "-WX" "-HV 202x" "-Wconversion" "-Wdouble-promotion")
+    set(COMMON_DBG_ARGS "-Qembed_debug" "-Qstrip_reflect" "-nologo" "-Zi" "-Od" "-all_resources_bound" "-enable-16bit-types" "-WX" "-HV 202x" "-Wdouble-promotion")
+    # set(COMMON_RLS_ARGS "-Qembed_debug" "-Qstrip_reflect" "-nologo" "-Zi" "-all_resources_bound" "-enable-16bit-types" "-WX" "-HV 202x" "-Wdouble-promotion")
     set(COMMON_RLS_ARGS "-Qstrip_reflect" "-nologo" "-all_resources_bound" "-enable-16bit-types" "-WX" "-HV 202x" "-Wdouble-promotion")
     
     # Compute shader

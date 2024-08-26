@@ -51,7 +51,6 @@ namespace CB_IND_FLAGS
     static constexpr uint32_t PATH_REGULARIZATION = 1 << 6;
     static constexpr uint32_t SORT_TEMPORAL = 1 << 7;
     static constexpr uint32_t SORT_SPATIAL = 1 << 8;
-    static constexpr uint32_t REJECT_OUTLIERS = 1 << 9;
 };
 
 enum class RPT_DEBUG_VIEW

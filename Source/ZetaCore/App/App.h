@@ -144,10 +144,9 @@ namespace ZetaRay::App
     void RemoveShaderReloadHandler(const char* name);
     Util::RSynchronizedVariable<Util::MutableSpan<ShaderReloadHandler>> GetShaderReloadHandlers();
 
-    // These could be implemented as template functions, but that would require the 
-    // implementation to be in the header and exposing some expensive-to-compile 
-    // headers here. Since App.h is included in most of the codebase, this would 
-    // have a measurable impact on the compile time.
+    // These could be implemented as templated functions, but that would require the 
+    // implementation to be in the header, which would then expose some heavy 
+    // headers to the rest of the code base (App.h is included almost everywhere).
     void AddFrameStat(const char* group, const char* name, int i);
     void AddFrameStat(const char* group, const char* name, uint32_t u);
     void AddFrameStat(const char* group, const char* name, float f);

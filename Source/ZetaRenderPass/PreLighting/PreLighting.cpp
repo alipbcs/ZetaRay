@@ -515,7 +515,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
     }
 
     timer.End();
-    LOG_UI_INFO("Alias table - computation took %u [ms].", (uint32_t)timer.DeltaMilli());
+    LOG_UI_INFO("Alias table - computation took %u [us].", (uint32_t)timer.DeltaMicro());
 
     auto& gpuTimer = renderer.GetGpuTimer();
     const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "UploadAliasTable");

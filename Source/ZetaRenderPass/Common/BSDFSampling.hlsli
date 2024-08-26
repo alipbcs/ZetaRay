@@ -557,6 +557,30 @@ namespace BSDF
 
         return pdf;
     }
+
+    void AdvanceRNGDeterministic(int numBounces, int maxDiffuseBounces, inout RNG rng)
+    {
+        if(numBounces > 0)
+        {
+            int bounce = 0;
+
+            while(true)
+            {
+                bounce++;
+
+                if(bounce >= numBounces)
+                    break;
+
+                if(bounce < maxDiffuseBounces)
+                {
+                    rng.Uniform3D();
+                    rng.Uniform3D();
+                }
+                else
+                    rng.Uniform3D();
+            }
+        }
+    }
 }
 
 #endif

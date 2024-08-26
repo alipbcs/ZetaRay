@@ -12,6 +12,7 @@
 #define TWO_OVER_PI          0.636619772f
 #define FLT_MIN              1.175494351e-38 
 #define FLT_MAX              3.402823466e+38 
+#define FLT16_MAX            65504 
 #define UINT8_MAX            0xffu
 #define UINT16_MAX           0xffffu
 #define UINT32_MAX           0xffffffffu
@@ -621,6 +622,14 @@ namespace Math
     {
         float2 u = EncodeUnitVector(n);
         return EncodeAsUNorm2(u);
+    }
+
+    uint32_t EncodeOct32u(float3 n)
+    {
+        float2 u = EncodeUnitVector(n);
+        uint16_t2 un = EncodeAsUNorm2(u);
+
+        return un.x | (uint(un.y) << 16);
     }
 
     float3 DecodeOct32(uint16_t2 e)

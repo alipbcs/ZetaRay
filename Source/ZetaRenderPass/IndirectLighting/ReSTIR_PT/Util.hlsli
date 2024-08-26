@@ -21,8 +21,9 @@ namespace RPT_Util
     {
         // In [-31, +31]
         int2 diff = (int2)DTid - (int2)mappedDTid;
-        uint2 diffU = (uint2)(diff + 32);
-        uint encoded = diffU.x | (diffU.y << 6) | (error << 14);
+        uint2 diffU = (uint2)(diff + 31);
+        error = error > 0;
+        uint encoded = diffU.x | (diffU.y << 7) | (error << 15);
 
         RWTexture2D<uint> g_threadMap = ResourceDescriptorHeap[descHeapIdx];
         g_threadMap[mappedDTid] = encoded;
@@ -33,9 +34,9 @@ namespace RPT_Util
         Texture2D<uint> g_threadMap = ResourceDescriptorHeap[descHeapIdx];
         uint encoded = g_threadMap[DTid];
 
-        error = (encoded >> 14) > 0;
-        uint2 decoded = uint2(encoded, (encoded >> 6)) & 0x3f;
-        int2 decodedI = (int2)decoded - 32;
+        error = (encoded & (1 << 15)) != 0;
+        uint2 decoded = uint2(encoded, (encoded >> 7)) & 0x3f;
+        int2 decodedI = (int2)decoded - 31;
 
         return (int2)DTid + decodedI;
     }
@@ -45,7 +46,7 @@ namespace RPT_Util
         float waveSum = WaveActiveSum(r.w_sum);
         float waveNonZeroCount = WaveActiveSum(r.w_sum != 0.0);
         float waveAvgExclusive = (waveSum - r.w_sum) / max(waveNonZeroCount - 1, 1);
-        if(r.w_sum > 25 * waveAvgExclusive)
+        if(r.w_sum > 30 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;
@@ -56,7 +57,7 @@ namespace RPT_Util
 
     void SuppressOutlierReservoirs(float waveAvgExclusive, inout RPT_Util::Reservoir r)
     {
-        if(r.w_sum > 25 * waveAvgExclusive)
+        if(r.w_sum > 30 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;
@@ -65,7 +66,7 @@ namespace RPT_Util
         }
     }
 
-    void DebugColor(RPT_Util::Reconnection rc, uint packed, inout float3 c)
+    void DebugColor(Reconnection rc, uint packed, inout float3 c)
     {
         uint option = packed >> 20;
         if(option == (int) RPT_DEBUG_VIEW::NONE)
@@ -153,31 +154,6 @@ namespace RPT_Util
         }
         else
             g_final[DTid].rgb = li;
-    }
-
-    void WriteOutputColor2(uint2 DTid, float4 val, uint packed, uint outDescHeapIdx, 
-        ConstantBuffer<cbFrameConstants> g_frame,
-        bool filterToBlackWhenDebugViewEnabled = true)
-    {
-        if((filterToBlackWhenDebugViewEnabled && ((packed >> 20) != (int) RPT_DEBUG_VIEW::NONE)))
-            val.xyz = 0;
-
-        RWTexture2D<float4> g_final = ResourceDescriptorHeap[outDescHeapIdx];
-        val = any(isnan(val)) ? 0 : val;
-
-        if(g_frame.Accumulate && g_frame.CameraStatic)
-        {
-            float3 prev = g_final[DTid].rgb;
-            g_final[DTid] = float4(prev + val.rgb, val.a);
-        }
-        else
-            g_final[DTid] = val;
-    }
-
-    void ResetDeriv(uint2 DTid, uint outDescHeapIdx)
-    {
-        RWTexture2D<float4> g_final = ResourceDescriptorHeap[outDescHeapIdx];
-        g_final[DTid].w = 0;
     }
 }
 

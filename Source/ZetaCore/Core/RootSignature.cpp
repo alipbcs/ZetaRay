@@ -264,12 +264,14 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
     ComPtr<ID3DBlob> pOutBlob, pErrorBlob;
     HRESULT hr = D3D12SerializeVersionedRootSignature(&rootSigDesc, pOutBlob.GetAddressOf(), pErrorBlob.GetAddressOf());
 
-    if(FAILED(hr))
-        Check(false, "D3D12SerializeVersionedRootSignature() failed: %s", (char*)pErrorBlob->GetBufferPointer());
+    if (FAILED(hr))
+    {
+        const char* error = pErrorBlob ? (const char* )pErrorBlob->GetBufferPointer() : "Unknown error.";
+        Check(false, "D3D12SerializeVersionedRootSignature() failed: %s", error);
+    }
 
     auto* device = App::GetRenderer().GetDevice();
-    CheckHR(device->CreateRootSignature(
-        0,
+    CheckHR(device->CreateRootSignature(0,
         pOutBlob->GetBufferPointer(),
         pOutBlob->GetBufferSize(),
         IID_PPV_ARGS(rootSig.GetAddressOf())));

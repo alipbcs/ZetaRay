@@ -215,7 +215,7 @@ namespace ZetaRay::Support
         const char* GetSubSubGroup() const { return m_subsubgroup; }
         const char* GetName() const { return m_name; }
         PARAM_TYPE GetType() const { return m_type; }
-        uint64_t GetID() const { return m_id; }
+        uint64_t ID() const { return m_id; }
 
         const FloatParam& GetFloat() const;
         void SetFloat(float v);

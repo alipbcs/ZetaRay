@@ -88,7 +88,8 @@ namespace ReSTIR_Util
 
     template<bool TestVisibility>
     DirectLightingEstimate NEE_Sun(float3 pos, float3 normal, BSDF::ShadingData surface, 
-        RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
+        RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, 
+        inout RNG rng)
     {
         DirectLightingEstimate ret = DirectLightingEstimate::Init();
         ret.pdf_solidAngle = 1;
@@ -155,8 +156,9 @@ namespace ReSTIR_Util
     }
 
     template<int NumSamples>
-    DirectLightingEstimate NEE_Emissive(float3 pos, float3 normal, BSDF::ShadingData surface, uint sampleSetIdx,
-        uint numEmissives, ReSTIR_Util::Globals globals, uint emissiveMapsDescHeapOffset, inout RNG rng)
+    DirectLightingEstimate NEE_Emissive(float3 pos, float3 normal, BSDF::ShadingData surface, 
+        uint sampleSetIdx, uint numEmissives, ReSTIR_Util::Globals globals, 
+        uint emissiveMapsDescHeapOffset, inout RNG rng)
     {
         DirectLightingEstimate ret = DirectLightingEstimate::Init();
 

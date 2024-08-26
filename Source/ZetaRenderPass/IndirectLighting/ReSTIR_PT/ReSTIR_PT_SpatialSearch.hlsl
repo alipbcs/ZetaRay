@@ -97,14 +97,6 @@ int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, f
         if(dot(sampleNormal, normal) < MIN_NORMAL_SIMILARITY_SPATIAL_REUSE)
             continue;
 
-        if(IS_CB_FLAG_SET(CB_IND_FLAGS::REJECT_OUTLIERS))
-        {
-            RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.Final];
-            float derivative = g_final[samplePosSS].w;
-            if(abs(derivative) > MAX_W_SUM_DERIV_SPATIAL_REUSE)
-                continue;
-        }
-
         return samplePosSS;
     }
 

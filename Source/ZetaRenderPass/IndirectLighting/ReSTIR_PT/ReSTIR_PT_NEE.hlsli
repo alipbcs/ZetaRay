@@ -28,7 +28,7 @@ namespace RPT_Util
         BSDF::ShadingData surface, ConstantBuffer<cbFrameConstants> g_frame, 
         RaytracingAccelerationStructure g_bvh, inout RNG rng)
     {
-        float p_sun = rng.Uniform();
+        float u_sun = rng.Uniform();
 
         // Sun and sky can be skipped if sun is below the horizon
         if(-g_frame.SunDir.y > 0)
@@ -38,7 +38,7 @@ namespace RPT_Util
                 dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
 
             ReSTIR_Util::DirectLightingEstimate ls;
-            if(p_sun < q)
+            if(u_sun < q)
             {
                 ls = ReSTIR_Util::NEE_Sun<false>(pos, normal, surface, g_bvh, g_frame, rng);
                 ls.ld /= q;
@@ -136,9 +136,9 @@ namespace RPT_Util
         return ret;
     }
 
-    ReSTIR_Util::DirectLightingEstimate NEE_Emissive(float3 pos, float3 normal, BSDF::ShadingData surface, 
-        uint sampleSetIdx, uint numEmissives, int nextBounce, ReSTIR_Util::Globals globals, 
-        uint emissiveMapsDescHeapOffset, inout RNG rng)
+    ReSTIR_Util::DirectLightingEstimate NEE_Emissive(float3 pos, float3 normal, 
+        BSDF::ShadingData surface, uint sampleSetIdx, uint numEmissives, int nextBounce, 
+        ReSTIR_Util::Globals globals, uint emissiveMapsDescHeapOffset, inout RNG rng)
     {
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
         ret.lt = Light::TYPE::EMISSIVE;
@@ -163,7 +163,7 @@ namespace RPT_Util
             lightSample.normal *= -1;
 
         // Deterministic RNG state regardless of USE_PRESAMPLED_SETS
-        rng.Uniform2D();
+        rng.Uniform3D();
 #else
         Light::AliasTableSample entry = Light::AliasTableSample::get(globals.aliasTable, 
             numEmissives, rng);
@@ -248,7 +248,7 @@ namespace RPT_Util
 
         if(lobe == BSDF::LOBE::ALL)
         {
-            rngNEE.Uniform3D();
+            rngNEE.Uniform4D();
 
             float bsdfPdf = bounce < maxDiffuseBounces ? 
                 BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE) :
@@ -303,7 +303,7 @@ namespace RPT_Util
 
         if(lobe == BSDF::LOBE::ALL)
         {
-            rngNEE.Uniform3D();
+            rngNEE.Uniform4D();
 
             float bsdfPdf = bounce < maxDiffuseBounces ? 
                 BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE) :

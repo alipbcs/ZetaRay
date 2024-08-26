@@ -9,6 +9,7 @@
 
 using namespace ReSTIR_RT;
 using namespace ReSTIR_Util;
+using namespace RPT_Util;
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -34,11 +35,9 @@ StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t7);
 // Data needed from previous hit to decide if reconnection is possible
 struct PrevHit
 {
-    static PrevHit Init(float3 pos_prev, float alpha, BSDF::LOBE lobe_prev, 
-        float3 wi, float pdf)
+    static PrevHit Init(float alpha, BSDF::LOBE lobe_prev, float3 wi, float pdf)
     {
         PrevHit ret;
-        ret.pos = pos_prev;
         ret.alpha_lobe = alpha;
         ret.lobe = lobe_prev;
         ret.wi = wi;
@@ -47,7 +46,6 @@ struct PrevHit
         return ret;
     }
 
-    float3 pos;
     float alpha_lobe;
     float3 wi;
     float pdf;
@@ -80,13 +78,13 @@ ReSTIR_Util::Globals InitGlobals()
 
 void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t, 
     uint ID, BSDF::ShadingData surface, PrevHit prevHit, DirectLightingEstimate ls, 
-    uint seed_nee, inout RPT_Util::Reconnection rc)
+    uint seed_nee, inout Reconnection rc)
 {
     // Possibly update reconnection vertex (Case 2)
     const float alpha_lobe_direct = BSDF::LobeAlpha(surface.alpha, ls.lobe);
 
     if(rc.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe_direct, 
-        prevHit.pos, pos, prevHit.lobe, ls.lobe, g_local.Alpha_min))
+        0, pos, prevHit.lobe, ls.lobe, g_local.Alpha_min))
     {
         rc.SetCase2(pathVertex, pos, t, normal, ID, 
             prevHit.wi, prevHit.lobe, prevHit.pdf, 
@@ -106,11 +104,11 @@ void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t,
 }
 
 template<bool Emissive>
-void EstimateDirectLighting(int16 pathVertex, float3 pos, Hit hitInfo, 
-    BSDF::ShadingData surface, PrevHit prevHit, float3 throughput, uint sampleSetIdx, 
-    float3 throughput_k, Globals globals, inout float3 li, inout BSDF::BSDFSample bsdfSample, 
-    out Hit_Emissive nextHit, inout RPT_Util::Reconnection rc, inout RPT_Util::Reservoir r, 
-    inout RNG rngNEE, inout RNG rngReplay)
+void EstimateDirectAndUpdateRC(int16 pathVertex, float3 pos, Hit hitInfo, 
+    BSDF::ShadingData surface, PrevHit prevHit, float3 throughput, float3 throughput_k, 
+    uint sampleSetIdx, Globals globals, inout float3 li, inout BSDF::BSDFSample bsdfSample, 
+    out Hit_Emissive nextHit, inout Reconnection rc, inout Reservoir r, inout RNG rngNEE, 
+    inout RNG rngReplay)
 {
     // Path resampling:
     //  - target = (Le * \prod f * g) / p
@@ -122,26 +120,24 @@ void EstimateDirectLighting(int16 pathVertex, float3 pos, Hit hitInfo,
         int16 nextBounce = pathVertex - (int16)1;
 
         // BSDF sampling
+        DirectLightingEstimate ls_b = RPT_Util::NEE_Bsdf(pos, hitInfo.normal, surface, 
+            nextBounce, globals, g_frame.EmissiveMapsDescHeapOffset, nextBsdfSample, 
+            nextHit, rngReplay);
+
+        if(nextHit.HitWasEmissive())
         {
-            DirectLightingEstimate ls = RPT_Util::NEE_Bsdf(pos, hitInfo.normal, surface, 
-                nextBounce, globals, g_frame.EmissiveMapsDescHeapOffset, nextBsdfSample, 
-                nextHit, rngReplay);
+            const float3 fOverPdf = throughput * ls_b.ld;
+            li += fOverPdf;
 
-            if(nextHit.HitWasEmissive())
-            {
-                const float3 fOverPdf = throughput * ls.ld;
-                li += fOverPdf;
+            // Case 1: For path x_0, ..., x_k, x_{k + 1}, ..., L is the radiance reflected from 
+            // x_{k + 1} towards x_k. If connection becomes case 2 or case 3, it is overwritten.
+            rc.L = half3(ls_b.ld * throughput_k);
 
-                // Case 1: For path x_0, ..., x_k, x_{k + 1}, ..., L is the radiance reflected from 
-                // x_{k + 1} towards x_k. If connection becomes case 2 or case 3, it is overwritten.
-                rc.L = half3(ls.ld * throughput_k);
+            MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 
+                surface, prevHit, ls_b, /*unused*/ 0, rc);
 
-                MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 
-                    surface, prevHit, ls, /*unused*/ 0, rc);
-
-                float risWeight = Math::Luminance(fOverPdf);
-                r.Update(risWeight, fOverPdf, rc, rngNEE);
-            }
+            float risWeight = Math::Luminance(fOverPdf);
+            r.Update(risWeight, fOverPdf, rc, rngNEE);
         }
 
         // Light sampling
@@ -202,9 +198,9 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     RPT_Util::Reconnection reconnection = RPT_Util::Reconnection::Init();
     RPT_Util::Reservoir r = RPT_Util::Reservoir::Init();
     li = 0.0;
-    int16_t bounce = 0;
+    int16 bounce = 0;
     float3 throughput = bsdfSample.bsdfOverPdf;
-    PrevHit prevHit = PrevHit::Init(pos, BSDF::LobeAlpha(surface.alpha, bsdfSample.lobe), 
+    PrevHit prevHit = PrevHit::Init(BSDF::LobeAlpha(surface.alpha, bsdfSample.lobe), 
         bsdfSample.lobe, bsdfSample.wi, bsdfSample.pdf);
 
     // If ray was refracted, current IOR changes to that of hit material, otherwise
@@ -230,7 +226,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     while(true)
     {
         // Skip first two vertices (camera and primary)
-        const int16_t pathVertex = bounce + (int16_t)2;
+        const int16 pathVertex = bounce + (int16)2;
 
 #if NEE_EMISSIVE == 0
         Hit hitInfo = Hit::FindClosest<true>(pos, normal, bsdfSample.wi, g_bvh, g_frameMeshData, 
@@ -277,8 +273,8 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         }
 
         // Direct lighting
-        EstimateDirectLighting<NEE_EMISSIVE>(pathVertex, pos, hitInfo, surface, prevHit, 
-            throughput, sampleSetIdx, throughput_k, globals, li, bsdfSample, nextHit, 
+        EstimateDirectAndUpdateRC<NEE_EMISSIVE>(pathVertex, pos, hitInfo, surface, prevHit, 
+            throughput, throughput_k, sampleSetIdx, globals, li, bsdfSample, nextHit, 
             reconnection, r, rngThread, rngReplay);
 
         // Remaining code can be skipped in the last iteration
@@ -331,7 +327,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         // Possibly update reconnection vertex (x_{k + 1} on a non-light vertex)
         if(reconnection.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe, 
-            prevHit.pos, pos, prevHit.lobe, bsdfSample.lobe, g_local.Alpha_min))
+            0, 0, prevHit.lobe, bsdfSample.lobe, g_local.Alpha_min))
         {
             reconnection.SetCase1(pathVertex, pos, hitInfo.t, hitInfo.normal, hitInfo.ID,
                 -surface.wo, prevBsdfSampleLobe, prevBsdfSamplePdf,
@@ -350,7 +346,6 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
         inTranslucentMedium = eta_curr != ETA_AIR;
-        prevHit.pos = pos;
         prevHit.alpha_lobe = alpha_lobe;
         prevHit.lobe = bsdfSample.lobe;
         prevHit.wi = bsdfSample.wi;

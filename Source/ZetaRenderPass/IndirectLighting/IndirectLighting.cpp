@@ -1,6 +1,7 @@
 #include "IndirectLighting.h"
 #include <Core/RendererCore.h>
 #include <Core/CommandList.h>
+#include <Core/SharedShaderResources.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <Scene/SceneCore.h>
@@ -89,10 +90,10 @@ IndirectLighting::IndirectLighting()
         GlobalResource::EMISSIVE_TRIANGLE_ALIAS_TABLE,
         true);
 
-    // light voxel grid
+    // light voxel grid/path state
     m_rootSig.InitAsBufferSRV(10, 8, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-        GlobalResource::LIGHT_VOXEL_GRID,
+        nullptr,
         true);
 }
 
@@ -332,6 +333,17 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
             m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_UAV) :
             m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
         m_cbRGI.ColorBUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_UAV);
+
+        if (m_useLVG)
+        {
+            SharedShaderResources& shared = App::GetRenderer().GetSharedShaderResources();
+            constexpr auto id = GlobalResource::LIGHT_VOXEL_GRID;
+            const auto idHash = XXH3_64bits(id, strlen(id));
+
+            auto* lvg = shared.GetDefaultHeapBuffer(idHash);
+            m_rootSig.SetRootSRV(8, lvg->GpuVA());
+        }
+
         m_rootSig.SetRootConstants(0, sizeof(m_cbRGI) / sizeof(DWORD), &m_cbRGI);
         m_rootSig.End(computeCmdList);
 
@@ -1281,12 +1293,6 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
             fastdelegate::MakeDelegate(this, &IndirectLighting::BoilingSuppressionCallback),
             DefaultParamVals::BOILING_SUPPRESSION, "Reuse");
         App::AddParam(suppressOutliers);
-
-        ParamVariant rejectOutliers;
-        rejectOutliers.InitBool("Renderer", "Indirect Lighting", "Reject Outlier Samples",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::RejectOutliersCallback),
-            true, "Reuse");
-        App::AddParam(rejectOutliers);
     }
 }
 
@@ -1323,12 +1329,10 @@ void IndirectLighting::ReleaseReSTIR_PT()
     App::RemoveParam("Renderer", "Indirect Lighting", "M_max (Temporal)");
     App::RemoveParam("Renderer", "Indirect Lighting", "M_max (Spatial)");
     App::RemoveParam("Renderer", "Indirect Lighting", "Spatial Resample");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Wavefront");
     App::RemoveParam("Renderer", "Indirect Lighting", "Sort (Temporal)");
     App::RemoveParam("Renderer", "Indirect Lighting", "Sort (Spatial)");
     App::RemoveParam("Renderer", "Indirect Lighting", "Temporal Resample");
     App::RemoveParam("Renderer", "Indirect Lighting", "Boiling Suppression");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Reject Outlier Samples");
 }
 
 void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
@@ -1619,12 +1623,6 @@ void IndirectLighting::M_maxSCallback(const Support::ParamVariant& p)
 {
     auto newM = (uint16_t)p.GetInt().m_value;
     m_cbRPT_Reuse.MaxSpatialM = p.GetInt().m_value;
-}
-
-void IndirectLighting::RejectOutliersCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
-    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::REJECT_OUTLIERS, p.GetBool());
 }
 
 void IndirectLighting::DebugViewCallback(const Support::ParamVariant& p)

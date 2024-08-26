@@ -1012,7 +1012,7 @@ namespace ZetaRay::AppImpl
                 bool found = false;
                 while (i < g_app->m_params.size())
                 {
-                    if (g_app->m_params[i].GetID() == p.P.GetID())
+                    if (g_app->m_params[i].ID() == p.P.ID())
                     {
                         found = true;
                         break;
