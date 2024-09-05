@@ -524,30 +524,32 @@ UploadHeapArena::Allocation UploadHeapArena::SubAllocate(uint32_t size, uint32_t
 }
 
 //--------------------------------------------------------------------------------------
-// DefaultHeapBuffer
+// Buffer
 //--------------------------------------------------------------------------------------
 
-DefaultHeapBuffer::DefaultHeapBuffer(const char* p, ID3D12Resource* r)
-    : m_resource(r)
+Buffer::Buffer(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType)
+    : m_resource(r),
+    m_ID(XXH3_64bits(p, strlen(p)) & UINT32_MAX),
+    m_heapType(heapType)
 {
-    m_ID = XXH3_64bits(p, strlen(p)) & UINT32_MAX;
     SET_D3D_OBJ_NAME(m_resource, p);
 }
 
-DefaultHeapBuffer::~DefaultHeapBuffer()
+Buffer::~Buffer()
 {
     Reset();
 }
 
-DefaultHeapBuffer::DefaultHeapBuffer(DefaultHeapBuffer&& other)
+Buffer::Buffer(Buffer&& other)
     : m_ID(other.m_ID),
-    m_resource(other.m_resource)
+    m_resource(other.m_resource),
+    m_heapType(other.m_heapType)
 {
     other.m_resource = nullptr;
     other.m_ID = INVALID_ID;
 }
 
-DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& other)
+Buffer& Buffer::operator=(Buffer&& other)
 {
     if (this == &other)
         return *this;
@@ -559,15 +561,16 @@ DefaultHeapBuffer& DefaultHeapBuffer::operator=(DefaultHeapBuffer&& other)
 
     other.m_resource = nullptr;
     other.m_ID = INVALID_ID;
+    m_heapType = other.m_heapType;
 
     return *this;
 }
 
-void DefaultHeapBuffer::Reset(bool waitForGpu)
+void Buffer::Reset(bool waitForGpu)
 {
     if (m_resource)
     {
-        if (waitForGpu)
+        if (waitForGpu && (m_heapType == RESOURCE_HEAP_TYPE::COMMITTED))
             GpuMemory::ReleaseDefaultHeapBuffer(*this);
         else
         {
@@ -1011,7 +1014,7 @@ void GpuMemory::ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer)
     ReleaseSRWLockExclusive(&g_data->m_pendingResourceLock);
 }
 
-DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
+Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
     D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero)
 {
     const D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
@@ -1032,10 +1035,10 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
         nullptr,
         IID_PPV_ARGS(&r)));
 
-    return DefaultHeapBuffer(name, r);
+    return Buffer(name, r, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
-DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
+Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
     bool isRtAs, bool allowUAV, bool initToZero)
 {
     D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
@@ -1061,10 +1064,31 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t siz
         nullptr,
         IID_PPV_ARGS(&r)));
 
-    return DefaultHeapBuffer(name, r);
+    return Buffer(name, r, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
-DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, 
+Buffer GpuMemory::GetPlacedHeapBuffer(const char* name, uint32_t sizeInBytes, ID3D12Heap* heap,
+    uint64_t offsetInBytes, bool allowUAV)
+{
+    const D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
+        D3D12_RESOURCE_FLAG_NONE;
+    const D3D12_RESOURCE_DESC1 bufferDesc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
+
+    auto* device = App::GetRenderer().GetDevice();
+    ID3D12Resource* r;
+    CheckHR(device->CreatePlacedResource2(heap,
+        offsetInBytes,
+        &bufferDesc,
+        D3D12_BARRIER_LAYOUT_UNDEFINED,
+        nullptr,
+        0,
+        nullptr,
+        IID_PPV_ARGS(&r)));
+
+    return Buffer(name, r, RESOURCE_HEAP_TYPE::PLACED);
+}
+
+Buffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, 
     bool allowUAV, void* data, bool forceSeparateUploadBuffer)
 {
     auto buffer = GpuMemory::GetDefaultHeapBuffer(name,
@@ -1080,14 +1104,14 @@ DefaultHeapBuffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint3
     return buffer;
 }
 
-void GpuMemory::UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, 
+void GpuMemory::UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, 
     void* data, uint32_t destOffsetInBytes)
 {
     const int idx = GetThreadIndex(g_data->m_threadIDs);
     g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffsetInBytes);
 }
 
-ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt)
+ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt, bool createZeroed)
 {
     D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
     D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(sizeInBytes);
@@ -1098,7 +1122,7 @@ ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt
     heapDesc.SizeInBytes = Math::AlignUp(sizeInBytes, alignemnt);
     heapDesc.Alignment = alignemnt;
     heapDesc.Properties = defaultHeap;
-    heapDesc.Flags = D3D12_HEAP_FLAG_CREATE_NOT_ZEROED;
+    heapDesc.Flags = !createZeroed ? D3D12_HEAP_FLAG_CREATE_NOT_ZEROED : D3D12_HEAP_FLAG_NONE;
 
     ID3D12Heap* heap;
     CheckHR(device->CreateHeap(&heapDesc, IID_PPV_ARGS(&heap)));
@@ -1106,7 +1130,7 @@ ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt
     return ResourceHeap(heap);
 }
 
-void GpuMemory::ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer)
+void GpuMemory::ReleaseDefaultHeapBuffer(Buffer& buffer)
 {
     Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
 

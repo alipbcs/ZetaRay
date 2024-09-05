@@ -132,7 +132,7 @@ namespace
         FfxFsr2Context m_ctx;
 
         UploadHeapBuffer m_uploadHeapBuffs[FFX_FSR2_RESOURCE_IDENTIFIER_COUNT];
-        DefaultHeapBuffer m_defaultHeapBuffs[FFX_FSR2_RESOURCE_IDENTIFIER_COUNT];
+        Buffer m_defaultHeapBuffs[FFX_FSR2_RESOURCE_IDENTIFIER_COUNT];
         Texture m_textures[FFX_FSR2_RESOURCE_IDENTIFIER_COUNT];
         ResourceData m_resData[FFX_FSR2_RESOURCE_IDENTIFIER_COUNT];
 

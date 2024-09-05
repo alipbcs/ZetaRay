@@ -126,8 +126,8 @@ namespace ZetaRay::Scene
             return m_meshes.GetMesh(id);
         }
 
-        ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshVB() { return m_meshes.GetVB(); }
-        ZetaInline const Core::GpuMemory::DefaultHeapBuffer& GetMeshIB() { return m_meshes.GetIB(); }
+        ZetaInline const Core::GpuMemory::Buffer& GetMeshVB() { return m_meshes.GetVB(); }
+        ZetaInline const Core::GpuMemory::Buffer& GetMeshIB() { return m_meshes.GetIB(); }
 
         //
         // Material

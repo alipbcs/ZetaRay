@@ -101,7 +101,7 @@ namespace ZetaRay::Scene::Internal
         static_assert(NUM_MASKS * 64 == MAX_NUM_MATERIALS, "these must match.");
         uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
 
-        Core::GpuMemory::DefaultHeapBuffer m_buffer;
+        Core::GpuMemory::Buffer m_buffer;
         Util::SmallVector<Material> m_materials;
         int m_staleIdx = -1;
     };
@@ -130,16 +130,16 @@ namespace ZetaRay::Scene::Internal
             return {};
         }
 
-        const Core::GpuMemory::DefaultHeapBuffer& GetVB() { return m_vertexBuffer; }
-        const Core::GpuMemory::DefaultHeapBuffer& GetIB() { return m_indexBuffer; }
+        const Core::GpuMemory::Buffer& GetVB() { return m_vertexBuffer; }
+        const Core::GpuMemory::Buffer& GetIB() { return m_indexBuffer; }
 
     private:
         Util::HashTable<Model::TriangleMesh> m_meshes;
         Util::SmallVector<Core::Vertex> m_vertices;
         Util::SmallVector<uint32_t> m_indices;
 
-        Core::GpuMemory::DefaultHeapBuffer m_vertexBuffer;
-        Core::GpuMemory::DefaultHeapBuffer m_indexBuffer;
+        Core::GpuMemory::Buffer m_vertexBuffer;
+        Core::GpuMemory::Buffer m_indexBuffer;
     };
 
     //--------------------------------------------------------------------------------------
@@ -183,7 +183,7 @@ namespace ZetaRay::Scene::Internal
         Util::SmallVector<RT::EmissiveTriangle> m_trisCpu;
         // Maps instance ID to index in m_instances
         Util::HashTable<uint32_t> m_idToIdxMap;
-        Core::GpuMemory::DefaultHeapBuffer m_trisGpu;
+        Core::GpuMemory::Buffer m_trisGpu;
         uint32_t m_staleBaseOffset = UINT32_MAX;
         uint32_t m_staleNumTris = 0;
     };

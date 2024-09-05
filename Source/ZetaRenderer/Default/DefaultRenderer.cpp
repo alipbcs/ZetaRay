@@ -27,7 +27,7 @@ namespace
 // DefaultRenderer::Common
 //--------------------------------------------------------------------------------------
 
-void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, DefaultHeapBuffer& frameConstsBuff,
+void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameConstsBuff,
     const GBufferData& gbuffData, const RayTracerData& rtData)
 {
     auto& renderer = App::GetRenderer();

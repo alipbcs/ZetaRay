@@ -37,7 +37,7 @@ void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const Up
     m_uploadHeapBuffs[id] = &buf;
 }
 
-const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
+const Buffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
     std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
     auto* it = m_defaultHeapBuffs.find(id);
@@ -47,32 +47,32 @@ const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id
     return *it;
 }
 
-const DefaultHeapBuffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
+const Buffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
 {
     uint64_t h = XXH3_64bits(id.data(), id.size());
     return GetDefaultHeapBuffer(h);
 }
 
-void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf)
+void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(uint64_t id, const Buffer& buf)
 {
     std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
     m_defaultHeapBuffs[id] = &buf;
 }
 
-void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(std::string_view id, const DefaultHeapBuffer& buf)
+void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(std::string_view id, const Buffer& buf)
 {
     uint64_t h = XXH3_64bits(id.data(), id.size());
     InsertOrAssignDefaultHeapBuffer(h, buf);
 }
 
-void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id, const DefaultHeapBuffer& buf)
+void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id, const Buffer& buf)
 {
     std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
     auto numDeleted = m_defaultHeapBuffs.erase(id);
     Assert(numDeleted == 1, "Buffer with ID %llu was not found.", id);
 }
 
-void SharedShaderResources::RemoveDefaultHeapBuffer(std::string_view id, const DefaultHeapBuffer& buf)
+void SharedShaderResources::RemoveDefaultHeapBuffer(std::string_view id, const Buffer& buf)
 {
     uint64_t h = XXH3_64bits(id.data(), id.size());
     auto numDeleted = m_defaultHeapBuffs.erase(h);

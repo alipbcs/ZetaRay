@@ -21,7 +21,7 @@ namespace ZetaRay::Util
 namespace ZetaRay::Core::GpuMemory
 {
     struct Texture;
-    struct DefaultHeapBuffer;
+    struct Buffer;
 }
 
 namespace ZetaRay::Core::Direct3DUtil
@@ -592,11 +592,11 @@ namespace ZetaRay::Core::Direct3DUtil
         const D3D12_SHADER_BYTECODE* domainShader,
         ID3D12PipelineState** pPipelineState);
 
-    void CreateBufferSRV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+    void CreateBufferSRV(const GpuMemory::Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
         UINT stride, UINT numElements);
-    void CreateBufferUAV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+    void CreateBufferUAV(const GpuMemory::Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
         UINT stride, UINT numElements);
-    void CreateRawBufferUAV(const GpuMemory::DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
+    void CreateRawBufferUAV(const GpuMemory::Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
         UINT stride, UINT numElements);
     void CreateTexture2DSRV(ID3D12Resource* t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
         float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);

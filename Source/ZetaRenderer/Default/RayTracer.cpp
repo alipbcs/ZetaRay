@@ -217,7 +217,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
 
     if (tlasReady)
     {
-        auto& tlas = const_cast<DefaultHeapBuffer&>(data.RtAS.GetTLAS());
+        auto& tlas = const_cast<Buffer&>(data.RtAS.GetTLAS());
         renderGraph.RegisterResource(tlas.Resource(), tlas.ID(), 
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
             false);
@@ -248,7 +248,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
         if (App::GetScene().AreEmissivesStale())
         {
             auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
-            renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(triLumenBuff).Resource(), 
+            renderGraph.RegisterResource(const_cast<Buffer&>(triLumenBuff).Resource(), 
                 triLumenBuff.ID(), D3D12_RESOURCE_STATE_COPY_SOURCE, false);
 
             fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.EmissiveAliasTable,
@@ -303,13 +303,13 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
                 if (settings.LightPresampling && presampledSetsBuiltOnce)
                 {
                     auto& presampled = data.PreLightingPass.GePresampledSets();
-                    renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(presampled).Resource(), 
+                    renderGraph.RegisterResource(const_cast<Buffer&>(presampled).Resource(), 
                         presampled.ID(), D3D12_RESOURCE_STATE_COMMON);
 
                     if (settings.UseLVG)
                     {
                         auto& lvg = data.PreLightingPass.GetLightVoxelGrid();
-                        renderGraph.RegisterResource(const_cast<DefaultHeapBuffer&>(lvg).Resource(), lvg.ID(),
+                        renderGraph.RegisterResource(const_cast<Buffer&>(lvg).Resource(), lvg.ID(),
                             D3D12_RESOURCE_STATE_COMMON);
                     }
                 }

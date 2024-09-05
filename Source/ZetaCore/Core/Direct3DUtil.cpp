@@ -412,8 +412,9 @@ namespace
         return initData.empty() ? E_FAIL : S_OK;
     }
 
-    void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA>& subresources, const uint8_t* bitData, 
-        size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, uint16_t& mipCount, DXGI_FORMAT& format)
+    void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA>& subresources, 
+        const uint8_t* bitData, size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, 
+        uint16_t& mipCount, DXGI_FORMAT& format)
     {
         auto* device = App::GetRenderer().GetDevice();
 
@@ -586,8 +587,8 @@ namespace
             twidth, theight, tdepth, skipMip, subresources));
     }
 
-    LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, const DDS_HEADER** header,
-        const uint8_t** bitData, size_t* bitSize)
+    LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, 
+        const DDS_HEADER** header, const uint8_t** bitData, size_t* bitSize)
     {
         Assert(header && bitData && bitSize, "invalid args.");
 
@@ -1016,13 +1017,15 @@ HRESULT Direct3DUtil::GetSurfaceInfo(size_t width,
     return S_OK;
 }
 
-UINT64 Direct3DUtil::GetRequiredIntermediateSize(ID3D12Resource* destinationResource, UINT firstSubresource, UINT numSubresources)
+UINT64 Direct3DUtil::GetRequiredIntermediateSize(ID3D12Resource* destinationResource, 
+    UINT firstSubresource, UINT numSubresources)
 {
     auto desc = destinationResource->GetDesc();
     UINT64 requiredSize = 0;
 
     ID3D12Device* device = App::GetRenderer().GetDevice();
-    device->GetCopyableFootprints(&desc, firstSubresource, numSubresources, 0, nullptr, nullptr, nullptr, &requiredSize);
+    device->GetCopyableFootprints(&desc, firstSubresource, numSubresources, 0, nullptr, 
+        nullptr, nullptr, &requiredSize);
 
     return requiredSize;
 }
@@ -1117,10 +1120,10 @@ void Direct3DUtil::CreateGraphicsPSO(D3D12_GRAPHICS_PIPELINE_STATE_DESC& psDesc,
     CheckHR(device->CreateGraphicsPipelineState(&psDesc, IID_PPV_ARGS(pipelineState)));
 }
 
-void Direct3DUtil::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+void Direct3DUtil::CreateBufferSRV(const Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
     UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
+    auto* res = const_cast<Buffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
 
     D3D12_SHADER_RESOURCE_VIEW_DESC srvDesc{};
@@ -1134,10 +1137,10 @@ void Direct3DUtil::CreateBufferSRV(const DefaultHeapBuffer& buff, D3D12_CPU_DESC
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+void Direct3DUtil::CreateBufferUAV(const Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
     UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
+    auto* res = const_cast<Buffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
 
     D3D12_UNORDERED_ACCESS_VIEW_DESC uavDesc{};
@@ -1150,9 +1153,10 @@ void Direct3DUtil::CreateBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESC
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, UINT stride, UINT numElements)
+void Direct3DUtil::CreateRawBufferUAV(const Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    UINT stride, UINT numElements)
 {
-    auto* res = const_cast<DefaultHeapBuffer&>(buff).Resource();
+    auto* res = const_cast<Buffer&>(buff).Resource();
     Assert(res, "Buffer hasn't been initialized.");
     Assert((stride & (4 - 1)) == 0, "Stride must be a multiple of 4.");
 
@@ -1168,8 +1172,8 @@ void Direct3DUtil::CreateRawBufferUAV(const DefaultHeapBuffer& buff, D3D12_CPU_D
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
-    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
+void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    DXGI_FORMAT f, float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
@@ -1188,8 +1192,8 @@ void Direct3DUtil::CreateTexture2DSRV(ID3D12Resource* res, D3D12_CPU_DESCRIPTOR_
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
-    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
+void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    DXGI_FORMAT f, float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
@@ -1209,8 +1213,8 @@ void Direct3DUtil::CreateTexture2DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
     device->CreateShaderResourceView(res, &srvDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f,
-    float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
+void Direct3DUtil::CreateTexture3DSRV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    DXGI_FORMAT f, float minLODClamp, UINT mostDetailedMip, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
@@ -1245,8 +1249,8 @@ void Direct3DUtil::CreateRTV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHa
     device->CreateRenderTargetView(res, &rtvDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
-    UINT mipSlice, UINT planeSlice)
+void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    DXGI_FORMAT f, UINT mipSlice, UINT planeSlice)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();
@@ -1262,8 +1266,8 @@ void Direct3DUtil::CreateTexture2DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HAN
     device->CreateUnorderedAccessView(res, nullptr, &uavDesc, cpuHandle);
 }
 
-void Direct3DUtil::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f, 
-    UINT mipSlice, UINT numSlices, UINT firstSliceIdx)
+void Direct3DUtil::CreateTexture3DUAV(const Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+    DXGI_FORMAT f, UINT mipSlice, UINT numSlices, UINT firstSliceIdx)
 {
     Assert(cpuHandle.ptr != 0, "Uninitialized D3D12_CPU_DESCRIPTOR_HANDLE.");
     auto* device = App::GetRenderer().GetDevice();

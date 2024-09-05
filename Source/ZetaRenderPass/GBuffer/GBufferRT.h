@@ -111,7 +111,7 @@ namespace ZetaRay::RenderPass
             static constexpr int NUM_MISS_SHADERS = 1;
             static constexpr int NUM_HIT_GROUPS = 1;
 
-            Core::GpuMemory::DefaultHeapBuffer ShaderRecords;
+            Core::GpuMemory::Buffer ShaderRecords;
             void* RayGenShaderIdentifier;
             void* MissShaderIdentifier;
             void* HitGroupIdentifier;
@@ -135,7 +135,7 @@ namespace ZetaRay::RenderPass
         void ReloadGBufferInline();
 
         ComPtr<ID3D12StateObject> m_rtPSO;
-        Core::GpuMemory::DefaultHeapBuffer m_pickedInstance;
+        Core::GpuMemory::Buffer m_pickedInstance;
         Core::GpuMemory::ReadbackHeapBuffer m_readbackBuffer;
         ShaderTable m_shaderTable;
         cbGBufferRt m_cbLocal;

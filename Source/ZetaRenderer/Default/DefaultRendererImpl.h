@@ -215,7 +215,7 @@ namespace ZetaRay::DefaultRenderer
     struct PrivateData
     {
         Core::RenderGraph m_renderGraph;
-        Core::GpuMemory::DefaultHeapBuffer m_frameConstantsBuff;
+        Core::GpuMemory::Buffer m_frameConstantsBuff;
 
         cbFrameConstants m_frameConstants;
         RenderSettings m_settings;
@@ -236,7 +236,7 @@ using Data = ZetaRay::DefaultRenderer::PrivateData;
 
 namespace ZetaRay::DefaultRenderer::Common
 {
-    void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::GpuMemory::DefaultHeapBuffer& frameConstsBuff,
+    void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::GpuMemory::Buffer& frameConstsBuff,
         const GBufferData& gbuffData, const RayTracerData& rtData);
 }
 

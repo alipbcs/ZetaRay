@@ -36,15 +36,15 @@ namespace ZetaRay::RT
         void FillMeshTransformBufferForBuild();
         void Clear();
 
-        Core::GpuMemory::DefaultHeapBuffer m_buffer;
-        Core::GpuMemory::DefaultHeapBuffer m_bufferCompacted;
-        Core::GpuMemory::DefaultHeapBuffer m_scratch;
+        Core::GpuMemory::Buffer m_buffer;
+        Core::GpuMemory::Buffer m_bufferCompacted;
+        Core::GpuMemory::Buffer m_scratch;
 
         uint32_t m_compactionInfoStartOffset;
         Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
 
         // 3x4 affine transformation matrix for each triangle mesh
-        Core::GpuMemory::DefaultHeapBuffer m_perMeshTransform;
+        Core::GpuMemory::Buffer m_perMeshTransform;
     };
 
     //--------------------------------------------------------------------------------------
@@ -75,7 +75,7 @@ namespace ZetaRay::RT
         void Render(Core::CommandList& cmdList);
         void BuildFrameMeshInstanceData();
         void BuildStaticBLASTransforms();
-        const Core::GpuMemory::DefaultHeapBuffer& GetTLAS() const { return m_tlasBuffer;  };
+        const Core::GpuMemory::Buffer& GetTLAS() const { return m_tlasBuffer;  };
         bool IsReady() const { return m_ready; };
 
     private:
@@ -85,13 +85,13 @@ namespace ZetaRay::RT
         void RebuildDynamicBLASes(Core::ComputeCmdList& cmdList);
 
         StaticBLAS m_staticBLAS;
-        Core::GpuMemory::DefaultHeapBuffer m_dynamicBlasBuffer;
+        Core::GpuMemory::Buffer m_dynamicBlasBuffer;
         Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
-        Core::GpuMemory::DefaultHeapBuffer m_framesMeshInstances;
-        Core::GpuMemory::DefaultHeapBuffer m_tlasBuffer;
-        Core::GpuMemory::DefaultHeapBuffer m_scratchBuffer;
-        Core::GpuMemory::DefaultHeapBuffer m_tlasInstanceBuff;
+        Core::GpuMemory::Buffer m_framesMeshInstances;
+        Core::GpuMemory::Buffer m_tlasBuffer;
+        Core::GpuMemory::Buffer m_scratchBuffer;
+        Core::GpuMemory::Buffer m_tlasInstanceBuff;
 
         Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
 

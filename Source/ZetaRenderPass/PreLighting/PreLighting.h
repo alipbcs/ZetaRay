@@ -49,9 +49,9 @@ namespace ZetaRay::RenderPass
             m_voxelExtents = extents;
             m_yOffset = offset_y;
         }
-        const Core::GpuMemory::DefaultHeapBuffer& GetLumenBuffer() { return m_lumen; }
-        const Core::GpuMemory::DefaultHeapBuffer& GePresampledSets() { return m_sampleSets; }
-        const Core::GpuMemory::DefaultHeapBuffer& GetLightVoxelGrid() { return m_lvg; }
+        const Core::GpuMemory::Buffer& GetLumenBuffer() { return m_lumen; }
+        const Core::GpuMemory::Buffer& GePresampledSets() { return m_sampleSets; }
+        const Core::GpuMemory::Buffer& GetLightVoxelGrid() { return m_lvg; }
         Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
         // Releasing the lumen buffer and its readback buffer should happen after the alias table 
         // has been calculated. Delegate that to code that does that calculation.
@@ -79,11 +79,11 @@ namespace ZetaRay::RenderPass
         void ReleaseLumenBufferAndReadback();
         void ReloadBuildLVG();
 
-        Core::GpuMemory::DefaultHeapBuffer m_halton;
-        Core::GpuMemory::DefaultHeapBuffer m_lumen;
+        Core::GpuMemory::Buffer m_halton;
+        Core::GpuMemory::Buffer m_lumen;
         Core::GpuMemory::ReadbackHeapBuffer m_readback;
-        Core::GpuMemory::DefaultHeapBuffer m_sampleSets;
-        Core::GpuMemory::DefaultHeapBuffer m_lvg;
+        Core::GpuMemory::Buffer m_sampleSets;
+        Core::GpuMemory::Buffer m_lvg;
         uint32_t m_currNumTris = 0;
         uint32_t m_minNumLightsForPresampling = UINT32_MAX;
         uint32_t m_numSampleSets = 0;
@@ -108,7 +108,7 @@ namespace ZetaRay::RenderPass
         EmissiveTriangleAliasTable() = default;
         ~EmissiveTriangleAliasTable() = default;
 
-        ZetaInline Core::GpuMemory::DefaultHeapBuffer& GetOutput(SHADER_OUT_RES i)
+        ZetaInline Core::GpuMemory::Buffer& GetOutput(SHADER_OUT_RES i)
         {
             Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
             return m_aliasTable;
@@ -121,7 +121,7 @@ namespace ZetaRay::RenderPass
         void Render(Core::CommandList& cmdList);
 
     private:
-        Core::GpuMemory::DefaultHeapBuffer m_aliasTable;
+        Core::GpuMemory::Buffer m_aliasTable;
         Core::GpuMemory::UploadHeapBuffer m_aliasTableUpload;
         Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
         fastdelegate::FastDelegate0<> m_releaseDlg;

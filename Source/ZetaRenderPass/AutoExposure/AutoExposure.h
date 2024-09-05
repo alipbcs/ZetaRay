@@ -89,9 +89,9 @@ namespace ZetaRay::RenderPass
         void Reload();
 
         Core::GpuMemory::Texture m_exposure;
-        Core::GpuMemory::DefaultHeapBuffer m_counter;
-        Core::GpuMemory::DefaultHeapBuffer m_hist;
-        Core::GpuMemory::DefaultHeapBuffer m_zeroBuffer;        // for resetting the histogram to zero each frame
+        Core::GpuMemory::Buffer m_counter;
+        Core::GpuMemory::Buffer m_hist;
+        Core::GpuMemory::Buffer m_zeroBuffer;        // for resetting the histogram to zero each frame
         uint32_t m_inputDesc[(int)SHADER_IN_DESC::COUNT] = { 0 };
         Core::DescriptorTable m_descTable;
         float m_minLum;

@@ -223,8 +223,8 @@ void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
         cb.row2 = wvp.m[2];
         cb.row3 = wvp.m[3];
 
-        const DefaultHeapBuffer& sceneVB = App::GetScene().GetMeshVB();
-        const DefaultHeapBuffer& sceneIB = App::GetScene().GetMeshIB();
+        const Buffer& sceneVB = App::GetScene().GetMeshVB();
+        const Buffer& sceneIB = App::GetScene().GetMeshIB();
 
         D3D12_VERTEX_BUFFER_VIEW vbv;
         vbv.StrideInBytes = sizeof(Vertex);

@@ -38,7 +38,8 @@ namespace ZetaRay::Core::GpuMemory
     {
         void PushBuffer(uint32_t sizeInBytes, bool allowUAV)
         {
-            D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+            D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
+                D3D12_RESOURCE_FLAG_NONE;
             D3D12_RESOURCE_DESC1 desc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
             m_descs.push_back(desc);
 
@@ -170,13 +171,13 @@ namespace ZetaRay::Core::GpuMemory
         void* m_mappedMemory = nullptr;
     };
 
-    struct DefaultHeapBuffer
+    struct Buffer
     {
-        DefaultHeapBuffer() = default;
-        DefaultHeapBuffer(const char* p, ID3D12Resource* r);
-        ~DefaultHeapBuffer();
-        DefaultHeapBuffer(DefaultHeapBuffer&&);
-        DefaultHeapBuffer& operator=(DefaultHeapBuffer&&);
+        Buffer() = default;
+        Buffer(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType);
+        ~Buffer();
+        Buffer(Buffer&&);
+        Buffer& operator=(Buffer&&);
 
         void Reset(bool waitForGpu = true);
         ZetaInline bool IsInitialized() const { return m_resource != nullptr; }
@@ -204,6 +205,7 @@ namespace ZetaRay::Core::GpuMemory
     private:
         ID3D12Resource* m_resource = nullptr;
         uint32_t m_ID = INVALID_ID;
+        RESOURCE_HEAP_TYPE m_heapType;
     };
 
     struct Texture
@@ -216,11 +218,6 @@ namespace ZetaRay::Core::GpuMemory
 
         void Reset(bool waitForGpu = true, bool checkRefCount = true);
         ZetaInline bool IsInitialized() const { return m_ID != INVALID_ID; }
-        ZetaInline D3D12_GPU_VIRTUAL_ADDRESS GpuVA() const
-        {
-            Assert(m_resource, "Texture hasn't been initialized.");
-            return m_resource->GetGPUVirtualAddress();
-        }
         ZetaInline ID3D12Resource* Resource()
         {
             Assert(m_resource, "Texture hasn't been initialized.");
@@ -240,6 +237,8 @@ namespace ZetaRay::Core::GpuMemory
         {
             return m_heapType;
         }
+        // Note: No GpuVa() method - from MS docs: "ID3D12Resource::GetGPUVirtualAddress() 
+        // is only useful for buffer resources, it will return zero for all texture resources."
 
     private:
         ID3D12Resource* m_resource = nullptr;
@@ -284,19 +283,22 @@ namespace ZetaRay::Core::GpuMemory
     ReadbackHeapBuffer GetReadbackHeapBuffer(uint32_t sizeInBytes);
     void ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer);
 
-    DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
+    Buffer GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
         D3D12_RESOURCE_STATES initialState, bool allowUAV, bool initToZero = false);
-    DefaultHeapBuffer GetDefaultHeapBuffer(const char* name, uint32_t size,
+    Buffer GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
         bool isRtAs, bool allowUAV, bool initToZero = false);
-    DefaultHeapBuffer GetDefaultHeapBufferAndInit(const char* name,
+    Buffer GetPlacedHeapBuffer(const char* name, uint32_t sizeInBytes,
+        ID3D12Heap* heap, uint64_t offsetInBytes, bool allowUAV);
+    Buffer GetDefaultHeapBufferAndInit(const char* name,
         uint32_t sizeInBytes,
         bool allowUAV, 
         void* data,
         bool forceSeparateUploadBuffer = false);
-    void UploadToDefaultHeapBuffer(DefaultHeapBuffer& buffer, uint32_t sizeInBytes, void* data, 
+    void UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, void* data, 
         uint32_t destOffsetInBytes = 0);
-    ResourceHeap GetResourceHeap(uint64_t size, uint64_t alignemnt = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
-    void ReleaseDefaultHeapBuffer(DefaultHeapBuffer& buffer);
+    ResourceHeap GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+        bool createZeroed = false);
+    void ReleaseDefaultHeapBuffer(Buffer& buffer);
     void ReleaseTexture(Texture& textue);
     void ReleaseResourceHeap(ResourceHeap& heap);
 

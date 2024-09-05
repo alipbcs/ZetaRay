@@ -6,7 +6,7 @@
 namespace ZetaRay::Core::GpuMemory
 {
     struct UploadHeapBuffer;
-    struct DefaultHeapBuffer;
+    struct Buffer;
 }
 
 namespace ZetaRay::Core
@@ -31,12 +31,12 @@ namespace ZetaRay::Core
         void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buffer);
 
         // Default heap buffers
-        const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuffer(uint64_t id);
-        const GpuMemory::DefaultHeapBuffer* GetDefaultHeapBuffer(std::string_view id);
-        void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buffer);
-        void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buffer);
-        void RemoveDefaultHeapBuffer(uint64_t id, const GpuMemory::DefaultHeapBuffer& buffer);
-        void RemoveDefaultHeapBuffer(std::string_view id, const GpuMemory::DefaultHeapBuffer& buffer);
+        const GpuMemory::Buffer* GetDefaultHeapBuffer(uint64_t id);
+        const GpuMemory::Buffer* GetDefaultHeapBuffer(std::string_view id);
+        void InsertOrAssignDefaultHeapBuffer(uint64_t id, const GpuMemory::Buffer& buffer);
+        void InsertOrAssignDefaultHeapBuffer(std::string_view id, const GpuMemory::Buffer& buffer);
+        void RemoveDefaultHeapBuffer(uint64_t id, const GpuMemory::Buffer& buffer);
+        void RemoveDefaultHeapBuffer(std::string_view id, const GpuMemory::Buffer& buffer);
 
         // Descriptor tables
         const DescriptorTable* GetDescriptorTable(uint64_t id);
@@ -47,7 +47,7 @@ namespace ZetaRay::Core
     private:
         Util::HashTable<const DescriptorTable*> m_descTables;
         Util::HashTable<const GpuMemory::UploadHeapBuffer*> m_uploadHeapBuffs;
-        Util::HashTable<const GpuMemory::DefaultHeapBuffer*> m_defaultHeapBuffs;
+        Util::HashTable<const GpuMemory::Buffer*> m_defaultHeapBuffs;
 
         std::shared_mutex m_descTableMtx;
         std::shared_mutex m_uploadHeapMtx;
