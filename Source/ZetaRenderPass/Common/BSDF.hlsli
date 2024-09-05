@@ -278,14 +278,15 @@ namespace BSDF
         // Section 3.2: transforming the view direction to the hemisphere configuration
         float3 Vh = normalize(float3(alpha_x * wo.x, alpha_y * wo.y, wo.z));
 
-        // sample a spherical cap in (-wi.z, 1]
+        // Sample a spherical cap in (-Vh.z, 1]
         float phi = TWO_PI * u.x;
-        float z = mad((1.0f - u.y), (1.0f + wo.z), -wo.z);
+        float z = mad((1.0f - u.y), (1.0f + Vh.z), -Vh.z);
         float sinTheta = sqrt(saturate(1.0f - z * z));
         float x = sinTheta * cos(phi);
         float y = sinTheta * sin(phi);
         float3 c = float3(x, y, z);
-        // compute halfway direction;
+
+        // Compute halfway direction
         float3 Nh = c + Vh;
 
         // Section 3.4: transforming the normal back to the ellipsoid configuration
