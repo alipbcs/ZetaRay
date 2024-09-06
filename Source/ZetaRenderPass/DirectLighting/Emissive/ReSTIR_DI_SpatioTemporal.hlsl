@@ -379,7 +379,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             }
         }
         else
-            f_s = BSDF::MicrofacetBRDFGGXSmith(surface, fr);
+            f_s = BSDF::EvalGGXMicrofacetBRDF(surface, fr);
 
         float3 Li_d = r.Le * target.dwdA * f_d * r.W;
         float3 Li_s = r.Le * target.dwdA * f_s * r.W;

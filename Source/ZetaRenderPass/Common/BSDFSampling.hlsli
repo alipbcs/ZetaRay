@@ -49,9 +49,9 @@ namespace BSDF
     BSDFSample SampleBSDF_NoDiffuse(float3 normal, ShadingData surface, float2 u_wh, 
         float u_lobe, Func func)
     {
-        float3 wh = surface.specular ? normal : BSDF::SampleMicrofacet(surface.wo, 
+        float3 wh = surface.specular ? normal : BSDF::SampleGGXMicrofacet(surface.wo, 
             surface.alpha, normal, u_wh);
-        float wh_pdf = BSDF::MicrofacetPdf(normal, wh, surface);
+        float wh_pdf = BSDF::GGXMicrofacetPdf(normal, wh, surface);
 
         float3 wi_r = reflect(-surface.wo, wh);
         surface.SetWi_Refl(wi_r, normal, wh);
@@ -125,7 +125,7 @@ namespace BSDF
         float u_wrs_dr, float u_wrs_dt, Func func)
     {
         // Samples wh = n when surface is specular
-        float3 wi_r = BSDF::SampleMicrofacetBRDF(surface, normal, u_r);
+        float3 wi_r = BSDF::SampleGGXMicrofacet_Refl(surface, normal, u_r);
         surface.SetWi_Refl(wi_r, normal);
 
         float3 target = BSDF::NonTranslucentBase(surface);
@@ -153,12 +153,12 @@ namespace BSDF
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
         float pdf_d;
-        float3 wi_d = BSDF::SampleLambertian(normal, u_d, pdf_d);
+        float3 wi_d = BSDF::SampleDiffuseRefl(normal, u_d, pdf_d);
 
         // Diffuse reflection
         {
@@ -269,7 +269,7 @@ namespace BSDF
             float3 fr = surface.Fresnel();
 
             ret.pdf = BSDF::VNDFReflectionPdf(surface);
-            ret.bsdfOverPdf = !surface.invalid * BSDF::MicrofacetBRDFOverPdf(surface, fr);
+            ret.bsdfOverPdf = !surface.invalid * BSDF::GGXMicrofacetBRDFOverPdf(surface, fr);
             ret.bsdfOverPdf *= targetScale_z;
 
             return ret;
@@ -281,7 +281,7 @@ namespace BSDF
         // Specular/glossy reflection
         {
             bool isZ_r = lobe == BSDF::LOBE::GLOSSY_R;
-            float3 wi_r = isZ_r ? wi : BSDF::SampleMicrofacetBRDF(surface, normal, u_r);
+            float3 wi_r = isZ_r ? wi : BSDF::SampleGGXMicrofacet_Refl(surface, normal, u_r);
             surface.SetWi_Refl(wi_r, normal);
 
             float3 targetScale_r = isZ_r ? targetScale_z : func(wi_r);
@@ -289,11 +289,11 @@ namespace BSDF
             float targetLum_r = Math::Luminance(target);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             w_sum = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
         }
 
-        float3 w_d = BSDF::SampleLambertian(normal, u_d);
+        float3 w_d = BSDF::SampleDiffuseRefl(normal, u_d);
 
         // Diffuse reflection
         {
@@ -306,7 +306,7 @@ namespace BSDF
             float targetLum_dr = Math::Luminance(target_dr);
 
             float pdf_r = BSDF::VNDFReflectionPdf(surface);
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             w_sum += RT::BalanceHeuristic(pdf_d, pdf_r, targetLum_dr);
             target = isZ_dr ? target_dr : target;
         }
@@ -322,7 +322,7 @@ namespace BSDF
                 BSDF::OrenNayar<false>(surface) * targetScale_dt;
             float targetLum_dt = Math::Luminance(target_dt);
 
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             w_sum += targetLum_dt / pdf_d;
             target = isZ_dt ? target_dt : target;
         }
@@ -339,12 +339,12 @@ namespace BSDF
         BSDF::LOBE lobe, float u_lobe, Func func)
     {
         surface.SetWi(wi, normal);
-        float wh_pdf = BSDF::MicrofacetPdf(surface);
+        float wh_pdf = BSDF::GGXMicrofacetPdf(surface);
         float3 fr = surface.Fresnel();
         float3 targetScale = func(wi);
 
         BSDFSamplerEval ret;
-        ret.bsdfOverPdf = !surface.invalid * surface.reflection * BSDF::MicrofacetBRDFOverPdf(surface, fr);
+        ret.bsdfOverPdf = !surface.invalid * surface.reflection * BSDF::GGXMicrofacetBRDFOverPdf(surface, fr);
         ret.bsdfOverPdf *= targetScale;
         ret.pdf = !surface.specular ? wh_pdf / 4.0f : surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
 
@@ -360,11 +360,11 @@ namespace BSDF
 
 #if 0
         ret.bsdfOverPdf = !surface.invalid * !surface.reflection * 
-            BSDF::MicrofacetBTDFOverPdf(surface, fr.x) / (1 - fr.x);
+            BSDF::GGXMicrofacetBTDFOverPdf(surface, fr.x) / (1 - fr.x);
 #else
         // Since we're dividing by 1 - fr, passing 0 for fr causes 1 - fr to cancel out
         ret.bsdfOverPdf = !surface.invalid * !surface.reflection * 
-            BSDF::MicrofacetBTDFOverPdf(surface, 0);
+            BSDF::GGXMicrofacetBTDFOverPdf(surface, 0);
 #endif
         float fr0 = DielectricF0(surface.eta);
         ret.bsdfOverPdf *= surface.specular ? 1 : 1 - BSDF::GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
@@ -436,7 +436,7 @@ namespace BSDF
     float BSDFSamplerPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
     {
         surface.SetWi(wi, normal);
-        float wh_pdf = BSDF::MicrofacetPdf(surface);
+        float wh_pdf = BSDF::GGXMicrofacetPdf(surface);
 
         if(surface.metallic || !surface.specTr)
         {
@@ -491,10 +491,10 @@ namespace BSDF
             float3 target = BSDF::UnifiedBSDF(surface);
             targetLum = Math::Luminance(target);
 
-            float wh_z_pdf = BSDF::MicrofacetPdf(surface);
+            float wh_z_pdf = BSDF::GGXMicrofacetPdf(surface);
             float pdf_r = surface.specular ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 
                 wh_z_pdf / 4.0f;
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             float w = surface.reflection ? RT::BalanceHeuristic(pdf_r, pdf_d, targetLum) : targetLum / pdf_d;
             w_sum_gr = w;
             w_sum_dr = w;
@@ -502,7 +502,7 @@ namespace BSDF
         }
 
         float pdf_d;
-        float3 wi_d = BSDF::SampleLambertian(normal, rng.Uniform2D(), pdf_d);
+        float3 wi_d = BSDF::SampleDiffuseRefl(normal, rng.Uniform2D(), pdf_d);
 
         // wi_dr
         {
@@ -530,8 +530,8 @@ namespace BSDF
         }
 
         float3 wh = surface.specular ? normal : 
-            BSDF::SampleMicrofacet(surface.wo, surface.alpha, normal, rng.Uniform2D());
-        float wh_pdf = BSDF::MicrofacetPdf(normal, wh, surface);
+            BSDF::SampleGGXMicrofacet(surface.wo, surface.alpha, normal, rng.Uniform2D());
+        float wh_pdf = BSDF::GGXMicrofacetPdf(normal, wh, surface);
 
         // wi_gr
         {
@@ -542,7 +542,7 @@ namespace BSDF
 
             // Account for change of density from half vector to incident vector
             float pdf_r = surface.specular ? 1 : wh_pdf / 4.0f;
-            float pdf_d = BSDF::LambertianPdf(surface);
+            float pdf_d = BSDF::DiffuseReflectiondPdf(surface);
             float w = RT::BalanceHeuristic(pdf_r, pdf_d, targetLum_r);
             w_sum_dr += w;
             w_sum_dt += w;

@@ -37,8 +37,8 @@
 // refraction into the medium and refraction out of the medium.
 #define NON_SYMMTERIC_REFRACTION_CORRECTION 0
 
-// Sample from the isotropic VNDF distribution. "Should" be faster as building a local 
-// coordinate system is not needed, but for some reason it's slower.
+// Sample from the isotropic VNDF distribution. Should be faster as building a local 
+// coordinate system is not needed, but here it's slightly slower.
 #define USE_ISOTROPIC_VNDF 0
 
 #define USE_OREN_NAYAR 1
@@ -266,7 +266,7 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
-    // Sampling Distribution of Visible Normals (VNDF)
+    // Sampling
     //--------------------------------------------------------------------------------------
 
     // Samples half vector wh in a coordinate system where z is aligned with the shading 
@@ -328,7 +328,7 @@ namespace BSDF
         return normalize(alpha * wmStd_xy + wmStd_z);
     }
 
-    float3 SampleMicrofacet(float3 wo, float alpha, float3 shadingNormal, float2 u)
+    float3 SampleGGXMicrofacet(float3 wo, float alpha, float3 shadingNormal, float2 u)
     {
 #if USE_ISOTROPIC_VNDF == 0
         // Build an orthonormal basis C around the normal such that it points towards +Z.
@@ -351,11 +351,7 @@ namespace BSDF
         return wh;
     }
 
-    //--------------------------------------------------------------------------------------
-    // Diffuse Reflection
-    //--------------------------------------------------------------------------------------
-
-    float3 SampleLambertian(float3 normal, float2 u, out float pdf)
+    float3 SampleDiffuseRefl(float3 normal, float2 u, out float pdf)
     {
         float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
@@ -367,11 +363,15 @@ namespace BSDF
         return wiWorld;
     }
 
-    float3 SampleLambertian(float3 normal, float2 u)
+    float3 SampleDiffuseRefl(float3 normal, float2 u)
     {
         float unused;
-        return SampleLambertian(normal, u, unused);
+        return SampleDiffuseRefl(normal, u, unused);
     }
+
+    //--------------------------------------------------------------------------------------
+    // Energy-preserving Oren-Nayar
+    //--------------------------------------------------------------------------------------
 
     // G(theta) = sin(theta) (theta - sin(theta) cos(theta) - 2 / 3)
     //          + (2 / 3) tan(theta) (1 - sin^3(theta))
@@ -650,7 +650,7 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
-    // Diffuse
+    // Diffuse Reflection
     //--------------------------------------------------------------------------------------
 
     // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included 
@@ -660,21 +660,17 @@ namespace BSDF
         return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
     }
 
-    // Pdf of cosine-weighted hemisphere sampling
-    float LambertianPdf(ShadingData surface)
-    {
-        return surface.ndotwi * ONE_OVER_PI;
-    }
-
     // Lambertain BRDF times n.wi divided by pdf of cosine-weighted hemisphere sampling
-    float3 LambertianDivPdf(ShadingData surface)
+    float3 LambertianOverPdf(ShadingData surface)
     {
         return surface.diffuseReflectance_Fr0_TrCol;
     }
 
-    //--------------------------------------------------------------------------------------
-    // Microfacet Models
-    //--------------------------------------------------------------------------------------
+    // Pdf of cosine-weighted hemisphere sampling
+    float DiffuseReflectiondPdf(ShadingData surface)
+    {
+        return surface.ndotwi * ONE_OVER_PI;
+    }
 
     // Refs: Improved Oren-Nayar model from https://mimosa-pudica.net/improved-oren-nayar.html, 
     // energy-preserving multi-scattering term from the OpenPBR specs.
@@ -711,8 +707,12 @@ namespace BSDF
         return surface.ndotwi * (f + f_comp);
     }
 
+    //--------------------------------------------------------------------------------------
+    // GGX Microfacet Model
+    //--------------------------------------------------------------------------------------
+
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBRDFGGXSmith(ShadingData surface, float3 fr)
+    float3 EvalGGXMicrofacetBRDF(ShadingData surface, float3 fr)
     {
         if(surface.invalid)
             return 0;
@@ -753,7 +753,7 @@ namespace BSDF
 
     // Includes multiplication by n.wi from the rendering equation, but multiplication 
     // by (1 - F) is done later.
-    float MicrofacetBTDFGGXSmith(ShadingData surface)
+    float EvalGGXMicrofacetBTDF(ShadingData surface)
     {
         if(surface.specular)
         {
@@ -785,7 +785,7 @@ namespace BSDF
     // Note: The following returns D(w_h) * max(0, w_o.w_h), where
     // D(w_h) (distribution of visible normals) is defined as:
     //      D(w_h) = G1(w_o) / n.w_o GGX(w_h) max(0, w_o.w_h),
-    float MicrofacetPdf(ShadingData surface)
+    float GGXMicrofacetPdf(ShadingData surface)
     {
         float wh_pdf = 1;
 
@@ -800,10 +800,10 @@ namespace BSDF
         return wh_pdf;
     }
 
-    float MicrofacetPdf(float3 normal, float3 wh, inout ShadingData surface)
+    float GGXMicrofacetPdf(float3 normal, float3 wh, inout ShadingData surface)
     {
         surface.ndotwh = saturate(dot(normal, wh));
-        return MicrofacetPdf(surface);
+        return GGXMicrofacetPdf(surface);
     }
 
     // Evaluates distribution of visible normals for reflection
@@ -851,7 +851,7 @@ namespace BSDF
         return pdf;
     }
 
-    float3 SampleMicrofacetBRDF(ShadingData surface, float3 shadingNormal, float2 u)
+    float3 SampleGGXMicrofacet_Refl(ShadingData surface, float3 shadingNormal, float2 u)
     {
         // Reminder: reflect(w, n) = reflect(w, -n)
 
@@ -861,7 +861,7 @@ namespace BSDF
 
         // As a convention, microfacet normals point into the upper hemisphere (in the coordinate
         // system aligned with normal). Since here it's assumed n.wo > 0, this is always true.
-        float3 wh = SampleMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
+        float3 wh = SampleGGXMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
 
         // Reflect wo about the plane with normal wh (each microsurface is a perfect mirror).
         float3 wi = reflect(-surface.wo, wh);
@@ -869,7 +869,7 @@ namespace BSDF
         return wi;
     }
 
-    float3 SampleMicrofacetBTDF(ShadingData surface, float3 shadingNormal, float2 u)
+    float3 SampleGGXMicrofacet_Tr(ShadingData surface, float3 shadingNormal, float2 u)
     {
         // Note that: 
         //  - refract(w, n, eta) requires w.n > 0 and ||n|| = 1. Here it's assumed 
@@ -882,7 +882,7 @@ namespace BSDF
         if(surface.specular)
             return refract(-surface.wo, shadingNormal, 1 / surface.eta);
 
-        float3 wh = SampleMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
+        float3 wh = SampleGGXMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
 
         // Refract wo about the plane with normal wh using Snell's law.
         float3 wi = refract(-surface.wo, wh, 1 / surface.eta);
@@ -891,7 +891,7 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBRDFOverPdf(ShadingData surface, float3 fr)
+    float3 GGXMicrofacetBRDFOverPdf(ShadingData surface, float3 fr)
     {
         if(surface.specular)
         {
@@ -907,7 +907,7 @@ namespace BSDF
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 MicrofacetBTDFOverPdf(ShadingData surface, float fr)
+    float3 GGXMicrofacetBTDFOverPdf(ShadingData surface, float fr)
     {
         if(surface.specular)
         {
@@ -935,7 +935,7 @@ namespace BSDF
             return 0;
 
         // mul. by reflection is to handle thin walled case
-        float3 gloss = MicrofacetBRDFGGXSmith(surface, fr) * surface.reflection;
+        float3 gloss = EvalGGXMicrofacetBRDF(surface, fr) * surface.reflection;
         float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
 #if USE_OREN_NAYAR == 1
         float3 diffuse = (1 - reflectance) * s * OrenNayar<ENERGY_PRESERVING_OREN_NAYAR>(surface);
@@ -965,7 +965,7 @@ namespace BSDF
 
         float3 fr = FresnelSchlick(surface.diffuseReflectance_Fr0_TrCol, 
             surface.whdotwo);
-        return MicrofacetBRDFGGXSmith(surface, fr);
+        return EvalGGXMicrofacetBRDF(surface, fr);
     }
 
     float3 DielectricSpecularTr(ShadingData surface, float fr)
@@ -977,7 +977,7 @@ namespace BSDF
         float reflectance = surface.specular ? 0 : 
             GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
 
-        float gloss = MicrofacetBTDFGGXSmith(surface);
+        float gloss = EvalGGXMicrofacetBTDF(surface);
         return (1 - reflectance) * gloss * (1 - fr) * surface.TransmissionTint();
     }
 
@@ -997,7 +997,7 @@ namespace BSDF
             return 0;
 
         if(surface.metallic)
-            return MicrofacetBRDFGGXSmith(surface, fr);
+            return EvalGGXMicrofacetBRDF(surface, fr);
 
         return OpaqueBase(surface, fr.x, reflectance);
     }
@@ -1012,7 +1012,7 @@ namespace BSDF
         float3 fr = surface.Fresnel(fr0);
 
         if(surface.metallic)
-            return MicrofacetBRDFGGXSmith(surface, fr);
+            return EvalGGXMicrofacetBRDF(surface, fr);
 
         float reflectance = surface.specular ? fr.x : 
             GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
@@ -1025,7 +1025,7 @@ namespace BSDF
         if(surface.invalid)
             return 0;
 
-        float3 glossyRefl = MicrofacetBRDFGGXSmith(surface, fr);
+        float3 glossyRefl = EvalGGXMicrofacetBRDF(surface, fr);
 
         // Metal
         if(surface.metallic)
@@ -1053,7 +1053,7 @@ namespace BSDF
 
         // For specular, (1 - Fresnel) factor is already accounted for
         reflectance = surface.specular ? 0 : reflectance;
-        float glossyTr = MicrofacetBTDFGGXSmith(surface);
+        float glossyTr = EvalGGXMicrofacetBTDF(surface);
 
         return (1 - reflectance) * glossyTr * (1 - fr.x) * surface.TransmissionTint();
     }

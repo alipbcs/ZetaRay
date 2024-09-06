@@ -226,7 +226,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
     {
         const float2 u = rng.Uniform2D();
         float p_e;
-        float3 wi_e = BSDF::SampleLambertian(normal, u, p_e);
+        float3 wi_e = BSDF::SampleDiffuseRefl(normal, u, p_e);
         const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
@@ -734,7 +734,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             }
         }
         else
-            f_s = BSDF::MicrofacetBRDFGGXSmith(surface, fr);
+            f_s = BSDF::EvalGGXMicrofacetBRDF(surface, fr);
 
         float3 Li_d = r.Le * f_d * r.W;
         float3 Li_s = r.Le * f_s * r.W;
