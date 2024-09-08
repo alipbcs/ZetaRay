@@ -53,8 +53,8 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
     bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
     RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
 {
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(prevTransmissive)
     {
@@ -62,7 +62,7 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[prevPosSS];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -76,7 +76,7 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor.rgb, eta_i, eta_t, prevTransmissive, prevTrDepthGt0, (half)baseColor.a);
+        baseColor.rgb, eta_curr, eta_next, prevTransmissive, prevTrDepthGt0, (half)baseColor.a);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -102,7 +102,7 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
     const bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
-    return Replay_kGt2(prevPos, normal, eta_i, surface, rd, triDiffs, rc_curr, 
+    return Replay_kGt2(prevPos, normal, eta_next, surface, rd, triDiffs, rc_curr, 
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
@@ -141,7 +141,7 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
     float3 normal_n = Math::DecodeUnitVector(g_normal[samplePosSS]);
     float4 baseColor_n = flags_n.subsurface ? g_baseColor[samplePosSS] : 
         float4(g_baseColor[samplePosSS].rgb, 0);
-    float eta_i = DEFAULT_ETA_I;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags_n.transmissive)
     {
@@ -149,12 +149,12 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[samplePosSS];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
-        mr_n.y, baseColor_n.rgb, eta_i, DEFAULT_ETA_T, flags_n.transmissive, flags_n.trDepthGt0,
+        mr_n.y, baseColor_n.rgb, ETA_AIR, eta_next, flags_n.transmissive, flags_n.trDepthGt0,
         (half)baseColor_n.a);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -175,7 +175,7 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
-    return Replay_kGt2(pos_n, normal_n, eta_i, surface_n, rd, triDiffs, rc_curr, 
+    return Replay_kGt2(pos_n, normal_n, eta_next, surface_n, rd, triDiffs, rc_curr, 
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
@@ -187,8 +187,8 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
         GBUFFER_OFFSET::BASE_COLOR];
     const float4 baseColor = subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(transmissive)
     {
@@ -196,12 +196,12 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[DTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor.rgb, eta_i, eta_t, transmissive, trDepthGt0, (half)baseColor.a);
+        baseColor.rgb, eta_curr, eta_next, transmissive, trDepthGt0, (half)baseColor.a);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -222,7 +222,7 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
     const bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
-    return Replay_kGt2(pos, normal, eta_i, surface, rd, triDiffs, rc, g_local.Alpha_min, 
+    return Replay_kGt2(pos, normal, eta_next, surface, rd, triDiffs, rc, g_local.Alpha_min, 
         regularization, samp, g_frame, globals);
 }
 

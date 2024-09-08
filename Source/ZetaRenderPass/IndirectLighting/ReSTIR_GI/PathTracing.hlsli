@@ -27,9 +27,9 @@ namespace ReSTIR_RT
             rd.ComputeUVDifferentials(dpdx, dpdy, hitInfo.triDiffs.dpdu, hitInfo.triDiffs.dpdv);
 
             BSDF::ShadingData surface;
-            float eta_mat;
+            float eta_next;
             if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, eta_curr, 
-                rd.uv_grads, hitInfo, surface, eta_mat, samp))
+                rd.uv_grads, hitInfo, surface, eta_next, samp))
             {
                 break;
             }
@@ -93,7 +93,7 @@ namespace ReSTIR_RT
 
             throughput *= bsdfSample.bsdfOverPdf;
             bool transmitted = dot(normal, bsdfSample.wi) < 0;
-            eta_curr = transmitted ? (eta_curr == 1.0f ? eta_mat : 1.0f) : eta_curr;
+            eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
             inTranslucentMedium = transmitted ? !inTranslucentMedium : inTranslucentMedium;
 
             rd.UpdateRays(pos, normal, bsdfSample.wi, surface.wo, hitInfo.triDiffs, 

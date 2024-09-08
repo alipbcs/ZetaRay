@@ -146,8 +146,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
             GBUFFER_OFFSET::NORMAL];
         const float3 normal = Math::DecodeUnitVector(g_normal[DTid.xy]);
 
-        float eta_t = DEFAULT_ETA_T;
-        float eta_i = DEFAULT_ETA_I;
+        float eta_curr = ETA_AIR;
+        float eta_next = DEFAULT_ETA_MAT;
 
         if(flags.transmissive)
         {
@@ -155,12 +155,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
                 GBUFFER_OFFSET::IOR];
 
             float ior = g_ior[DTid.xy];
-            eta_i = GBuffer::DecodeIOR(ior);
+            eta_next = GBuffer::DecodeIOR(ior);
         }
 
         const float3 wo = normalize(origin - pos);
         BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz,
-            eta_i, eta_t, flags.transmissive, 0, (half)baseColor.w);
+            eta_curr, eta_next, flags.transmissive, 0, (half)baseColor.w);
 
         color += SunDirectLighting(DTid.xy, pos, normal, surface);
     }

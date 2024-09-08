@@ -88,12 +88,12 @@ namespace RDI_Util
 
             if(candidate.valid)
             {
-                float prevEta_i = DEFAULT_ETA_I;
+                float prevEta_mat = DEFAULT_ETA_MAT;
 
                 if(prevFlags.transmissive)
                 {
                     float ior = g_prevIOR[samplePosSS];
-                    prevEta_i = GBuffer::DecodeIOR(ior);
+                    prevEta_mat = GBuffer::DecodeIOR(ior);
                 }
 
                 candidate.posSS = (int16_t2)samplePosSS;
@@ -102,7 +102,7 @@ namespace RDI_Util
                 candidate.metallic = prevFlags.metallic;
                 candidate.roughness = prevMR.y;
                 candidate.transmissive = prevFlags.transmissive;
-                candidate.eta_i = prevEta_i;
+                candidate.eta_next = prevEta_mat;
 
                 break;
             }
@@ -113,7 +113,7 @@ namespace RDI_Util
 
     float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, 
         uint2 posSS, float3 prevPos, float3 prevNormal, bool prevMetallic, float prevRoughness, 
-        bool prevTransmissive, float prevEta_i, ConstantBuffer<cbFrameConstants> g_frame,
+        bool prevTransmissive, float prevEta_mat, ConstantBuffer<cbFrameConstants> g_frame,
         RaytracingAccelerationStructure g_bvh, out BSDF::ShadingData prevSurface)
     {
         GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
@@ -135,7 +135,7 @@ namespace RDI_Util
         const float3 prevWo = normalize(prevCameraPos - prevPos);
 
         prevSurface = BSDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness,
-            prevBaseColor, prevEta_i, DEFAULT_ETA_T, prevTransmissive);
+            prevBaseColor, ETA_AIR, prevEta_mat, prevTransmissive);
 
         const float t = length(lightPos - prevPos);
         const float3 wi = (lightPos - prevPos) / t;
@@ -145,7 +145,7 @@ namespace RDI_Util
         cosThetaPrime = dot(lightNormal, lightNormal) == 0 ? 1 : cosThetaPrime;
         const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
-        const float3 targetAtPrev = le * BSDF::UnifiedBSDF(prevSurface) * dwdA;
+        const float3 targetAtPrev = le * BSDF::UnifiedBSDF(prevSurface).f * dwdA;
         float targetLumAtPrev = Math::Luminance(targetAtPrev);
 
         // should use previous frame's bvh
@@ -162,7 +162,7 @@ namespace RDI_Util
         dwdA = prevEmissive.dWdA();
 
         surface.SetWi(prevEmissive.wi, normal);
-        float3 target = le * BSDF::UnifiedBSDF(surface) * dwdA;
+        float3 target = le * BSDF::UnifiedBSDF(surface).f * dwdA;
         target *= VisibilityApproximate(g_bvh, pos, prevEmissive.wi, prevEmissive.t, normal, 
             prevEmissive.ID, surface.Transmissive());
 
@@ -189,7 +189,7 @@ namespace RDI_Util
                 targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, 
                     target.lightNormal, target.lightID, candidate.posSS, candidate.pos, 
                     candidate.normal, candidate.metallic, candidate.roughness, 
-                    candidate.transmissive, candidate.eta_i, g_frame, 
+                    candidate.transmissive, candidate.eta_next, g_frame, 
                     g_bvh, prevSurface);
             }
 
@@ -285,7 +285,7 @@ namespace RDI_Util
         float sampleRoughness[MAX_NUM_SPATIAL_SAMPLES];
         uint16 sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
         uint16 sampleTr[MAX_NUM_SPATIAL_SAMPLES];
-        float sampleEta_i[MAX_NUM_SPATIAL_SAMPLES];
+        float sampleEta_mat[MAX_NUM_SPATIAL_SAMPLES];
         uint16_t k = 0;
         const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
             g_frame.PrevViewInv._m23);
@@ -338,12 +338,12 @@ namespace RDI_Util
                 sampleMetallic[k] = flags_i.metallic;
                 sampleRoughness[k] = mr_i.y;
                 sampleTr[k] = flags_i.transmissive;
-                sampleEta_i[k] = DEFAULT_ETA_I;
+                sampleEta_mat[k] = DEFAULT_ETA_MAT;
 
                 if(flags_i.transmissive)
                 {
                     float ior = g_prevIOR[posSS_i];
-                    sampleEta_i[k] = GBuffer::DecodeIOR(ior);
+                    sampleEta_mat[k] = GBuffer::DecodeIOR(ior);
                 }
 
                 k++;
@@ -359,8 +359,8 @@ namespace RDI_Util
 
             const float3 wo_i = normalize(sampleOrigin[i] - samplePos[i]);
             BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
-                sampleMetallic[i], sampleRoughness[i], sampleBaseColor, sampleEta_i[i],
-                DEFAULT_ETA_T, sampleTr[i]);
+                sampleMetallic[i], sampleRoughness[i], sampleBaseColor, ETA_AIR,
+                sampleEta_mat[i], sampleTr[i]);
 
             Reservoir neighbor = PartialReadReservoir_ReuseRest(samplePosSS[i],
                 prevReservoir_A_DescHeapIdx,

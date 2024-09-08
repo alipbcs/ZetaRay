@@ -60,7 +60,7 @@ namespace RDI_Util
         float roughness;
         int16_t2 posSS;
         bool transmissive;
-        float eta_i;
+        float eta_next;
         bool valid;
         bool metallic;
     };

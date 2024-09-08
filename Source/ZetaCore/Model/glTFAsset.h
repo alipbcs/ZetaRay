@@ -62,7 +62,7 @@ namespace ZetaRay::Model::glTF::Asset
             BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
             EmissiveFactor(0.0f, 0.0f, 0.0f),
             EmissiveStrength(1.0f),
-            IOR(DEFAULT_ETA_I),
+            IOR(DEFAULT_ETA_MAT),
             Transmission(0.0f)
         {}
 

@@ -105,7 +105,7 @@ namespace ReSTIR_Util
 #else
         float3 wi = -g_frame.SunDir;
         surface.SetWi(wi, normal);
-        float3 bsdfxCosTheta = BSDF::UnifiedBSDF(surface);
+        float3 bsdfxCosTheta = BSDF::UnifiedBSDF(surface).f;
 #endif
 
         if(dot(bsdfxCosTheta, bsdfxCosTheta) == 0)
@@ -200,7 +200,7 @@ namespace ReSTIR_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                float3 ld = le * BSDF::UnifiedBSDF(surface) * dwdA;
+                float3 ld = le * BSDF::UnifiedBSDF(surface).f * dwdA;
                     
                 if (Math::Luminance(ld) > 1e-6)
                 {

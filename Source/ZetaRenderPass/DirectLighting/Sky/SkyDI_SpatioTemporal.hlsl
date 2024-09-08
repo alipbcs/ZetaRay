@@ -30,7 +30,7 @@ struct TemporalCandidate
     float roughness;
     float3 normal;
     int16_t2 posSS;
-    float eta_i;
+    float eta_next;
     bool transmissive;
     bool valid;
 };
@@ -158,7 +158,7 @@ struct PairwiseMIS
         if(r_i.IsValid())
         {
             surface_c.SetWi(r_i.wi, normal_c);
-            const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
+            const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c).f;
             currTarget = r_i.Le * brdfCosTheta_c;
 
             if(dot(currTarget, currTarget) > 0)
@@ -177,7 +177,7 @@ struct PairwiseMIS
         if(r_c.IsValid())
         {
             surface_i.SetWi(r_c.wi, normal_i);
-            brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
+            brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i).f;
 
             if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
             {
@@ -230,7 +230,7 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
         const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
-        const float3 target = le * BSDF::UnifiedBSDF(surface);
+        const float3 target = le * BSDF::UnifiedBSDF(surface).f;
 
         // Balance heuristic
         // p_e in m_e's numerator and w_e's denominator cancel out
@@ -357,12 +357,12 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
 
         if(candidate.valid)
         {
-            float prevEta_i = DEFAULT_ETA_I;
+            float prevEta_mat = DEFAULT_ETA_MAT;
 
             if(prevFlags.transmissive)
             {
                 float ior = g_prevIOR[samplePosSS];
-                prevEta_i = GBuffer::DecodeIOR(ior);
+                prevEta_mat = GBuffer::DecodeIOR(ior);
             }
 
             candidate.posSS = (int16_t2)samplePosSS;
@@ -370,7 +370,7 @@ TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, f
             candidate.normal = prevNormal;
             candidate.roughness = prevMR.y;
             candidate.transmissive = prevFlags.transmissive;
-            candidate.eta_i = prevEta_i;
+            candidate.eta_next = prevEta_mat;
 
             break;
         }
@@ -410,12 +410,12 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
             const float3 prevWo = normalize(prevCameraPos - candidate.pos);
 
             BSDF::ShadingData prevSurface = BSDF::ShadingData::Init(candidate.normal, prevWo,
-                metallic, candidate.roughness, prevBaseColor, candidate.eta_i, DEFAULT_ETA_T, 
+                metallic, candidate.roughness, prevBaseColor, ETA_AIR, candidate.eta_next, 
                 candidate.transmissive);
 
             prevSurface.SetWi(r.wi, candidate.normal);
 
-            const float3 targetAtPrev = r.Le * BSDF::UnifiedBSDF(prevSurface);
+            const float3 targetAtPrev = r.Le * BSDF::UnifiedBSDF(prevSurface).f;
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
             if(targetLumAtPrev > 0)
@@ -436,7 +436,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
     {
         // compute target at current pixel with temporal reservoir's sample
         surface.SetWi(prev.wi, normal);
-        const float3 currTarget = prev.Le * BSDF::UnifiedBSDF(surface);
+        const float3 currTarget = prev.Le * BSDF::UnifiedBSDF(surface).f;
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 0)
@@ -505,7 +505,7 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
     float sampleRoughness[3];
     bool sampleMetallic[3];
     bool sampleTransmissive[3];
-    float sampleEta_i[3];
+    float sampleEta_mat[3];
     uint16_t k = 0;
     const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
         g_frame.PrevViewInv._m23);
@@ -555,12 +555,12 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
             sampleMetallic[k] = flags_i.metallic;
             sampleRoughness[k] = mr_i.y;
             sampleTransmissive[k] = flags_i.transmissive;
-            sampleEta_i[k] = DEFAULT_ETA_I;
+            sampleEta_mat[k] = DEFAULT_ETA_MAT;
 
             if(flags_i.transmissive)
             {
                 float ior = g_prevIOR[posSS_i];
-                sampleEta_i[k] = GBuffer::DecodeIOR(ior);
+                sampleEta_mat[k] = GBuffer::DecodeIOR(ior);
             }
 
             k++;
@@ -576,8 +576,8 @@ void SpatialResample(uint2 DTid, uint16_t numSamples, float radius, float3 pos, 
 
         const float3 wo_i = normalize(sampleOrigin[i] - samplePos[i]);
         BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
-            sampleMetallic[i], sampleRoughness[i], sampleBaseColor, sampleEta_i[i],
-            DEFAULT_ETA_T, sampleTransmissive[i]);
+            sampleMetallic[i], sampleRoughness[i], sampleBaseColor, ETA_AIR,
+            sampleEta_mat[i], sampleTransmissive[i]);
 
         SkyDI_Util::Reservoir neighbor = SkyDI_Util::PartialReadReservoir_Reuse(samplePosSS[i], 
             g_local.PrevReservoir_A_DescHeapIdx);
@@ -685,8 +685,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags.transmissive)
     {
@@ -694,12 +694,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[swizzledDTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor, 
-        eta_i, eta_t, flags.transmissive);
+        eta_curr, eta_next, flags.transmissive);
 
     RNG rng = RNG::Init(swizzledDTid, g_frame.FrameNum);
 

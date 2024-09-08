@@ -447,7 +447,7 @@ namespace ReSTIR_RT
         const Material mat = g_materials[hitInfo.matIdx];
         const bool hitBackface = dot(wo, hitInfo.normal) < 0;
         // Set to an arbitrary value to fix compiler error
-        eta = DEFAULT_ETA_I;
+        eta = DEFAULT_ETA_MAT;
 
         // Ray hit the backside of an opaque surface, no radiance can be reflected back.
         if(!mat.DoubleSided() && hitBackface)
@@ -488,12 +488,11 @@ namespace ReSTIR_RT
         }
 
         // TODO surrounding medium is assumed to be always air
-        float eta_t = eta_curr == ETA_AIR ? ETA_AIR : eta;
-        float eta_i = eta_curr == ETA_AIR ? eta : ETA_AIR;
+        float eta_next = eta_curr == ETA_AIR ? eta : ETA_AIR;
         half subsurface = mat.ThinWalled() ? (half)mat.GetSubsurface() : 0;
 
         surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metallic >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_i, eta_t, tr, trDepth, subsurface);
+            roughness, baseColor, eta_curr, eta_next, tr, trDepth, subsurface);
 
         return true;
     }

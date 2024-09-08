@@ -139,7 +139,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
         // skip backfacing lights
         if(dot(lightSample.normal, -wi) > 0)
         {
-            currTarget = le * BSDF::UnifiedBSDF(surface) * dwdA;
+            currTarget = le * BSDF::UnifiedBSDF(surface).f * dwdA;
                 
             if (dot(currTarget, currTarget) > 0)
             {
@@ -327,8 +327,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags.transmissive)
     {
@@ -336,12 +336,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[swizzledDTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor,
-        eta_i, eta_t, flags.transmissive);
+        eta_curr, eta_next, flags.transmissive);
 
     // Group-uniform index so that every thread in this group uses the same set
     RNG rng_group = RNG::Init(Gid.xy, g_frame.FrameNum);

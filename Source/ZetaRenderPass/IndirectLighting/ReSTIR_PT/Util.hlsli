@@ -69,10 +69,10 @@ namespace RPT_Util
     void DebugColor(Reconnection rc, uint packed, inout float3 c)
     {
         uint option = packed >> 20;
-        if(option == (int) RPT_DEBUG_VIEW::NONE)
+        if(option == (int)RPT_DEBUG_VIEW::NONE)
             return;
 
-        if (option == (int) RPT_DEBUG_VIEW::K)
+        if(option == (int)RPT_DEBUG_VIEW::K)
         {
             if(rc.Empty())
                 c = float3(0, 0, 0);
@@ -85,7 +85,7 @@ namespace RPT_Util
             else if(rc.k >= 5)
                 c = float3(0.88, 0.08, 0.1);
         }
-        else if (option == (int) RPT_DEBUG_VIEW::CASE)
+        else if(option == (int)RPT_DEBUG_VIEW::CASE)
         {
             if(rc.Empty())
                 c = float3(0, 0, 0);
@@ -96,14 +96,11 @@ namespace RPT_Util
             else if(rc.IsCase3())
                 c = float3(0.1, 0.27, 0.888);
         }
-        else if (option == (int) RPT_DEBUG_VIEW::FOUND_CONNECTION)
+        else if(option == (int)RPT_DEBUG_VIEW::FOUND_CONNECTION)
         {
-            if(rc.Empty())
-                c = float3(0, 0, 0);
-            else
-                c = float3(0.234, 0.12, 0.2134);
+            c = !rc.Empty() ? float3(0.234, 0.12, 0.2134) : float3(0, 0, 0);
         }
-        else if (option == (int) RPT_DEBUG_VIEW::RECONNECTION_LOBE_K_MIN_1)
+        else if(option == (int)RPT_DEBUG_VIEW::CONNECTION_LOBE_K_MIN_1)
         {
             if(rc.Empty())
                 c = float3(0, 0, 0);
@@ -115,11 +112,13 @@ namespace RPT_Util
                     c = float3(0.12, 0.284, 0.2134);
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_T)
                     c = float3(0.1134, 0.12, 0.634);
-                else
+                else if(rc.lobe_k_min_1 == BSDF::LOBE::DIFFUSE_T)
                     c = float3(0.25f, 0.25f, 0);
+                else
+                    c = float3(0.25f, 0.25f, 0.25f);
             }
         }
-        else if (option == (int) RPT_DEBUG_VIEW::RECONNECTION_LOBE_K)
+        else if(option == (int)RPT_DEBUG_VIEW::CONNECTION_LOBE_K)
         {
             if(rc.Empty() || rc.IsCase3())
                 c = float3(0, 0, 0);
@@ -131,8 +130,10 @@ namespace RPT_Util
                     c = float3(0.12, 0.284, 0.2134);
                 else if(rc.lobe_k == BSDF::LOBE::GLOSSY_T)
                     c = float3(0.1134, 0.12, 0.634);
-                else
+                else if(rc.lobe_k == BSDF::LOBE::DIFFUSE_T)
                     c = float3(0.25f, 0.25f, 0);
+                else
+                    c = float3(0.25f, 0.25f, 0.25f);
             }
         }
     }

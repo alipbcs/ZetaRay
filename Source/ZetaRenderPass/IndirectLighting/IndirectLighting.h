@@ -261,7 +261,7 @@ namespace ZetaRay::RenderPass
         struct Params
         {
             inline static const char* DebugView[] = { "None", "K", "Case",
-                "Found Connection", "Reconnection Lobe (k - 1)", "Reconnection Lobe (k)"};
+                "Found Connection", "Connection Lobe (k - 1)", "Connection Lobe (k)"};
             static_assert((int)RPT_DEBUG_VIEW::COUNT == ZetaArrayLen(DebugView), "enum <-> strings mismatch.");
 
             inline static const char* TextureFilter[] = { "Mip 0", "Tri-linear", "Anisotropic (4x)", "Anisotropic (16x)" };

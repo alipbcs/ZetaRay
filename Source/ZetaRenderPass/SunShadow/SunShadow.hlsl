@@ -84,8 +84,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     const float2 mr = g_mr[DTid.xy];
     GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags.transmissive)
     {
@@ -93,7 +93,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[DTid.xy];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     float3 baseColor = 0;
@@ -107,7 +107,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     const float3 wo = normalize(origin - pos);
     // Actual subsurface weight isn't needed, just whether it's non-zero
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, 
-        baseColor, eta_i, eta_t, flags.transmissive, 0, flags.subsurface);
+        baseColor, eta_curr, eta_next, flags.transmissive, 0, flags.subsurface);
 
     float3 wi = -g_frame.SunDir;
     float pdf = 1;

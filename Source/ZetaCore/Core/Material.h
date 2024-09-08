@@ -12,8 +12,7 @@
 
 #define MIN_IOR 1.0f
 #define MAX_IOR 2.5f
-#define DEFAULT_ETA_I 1.5f
-#define DEFAULT_ETA_T 1.0f
+#define DEFAULT_ETA_MAT 1.5f
 #define ETA_AIR 1.0f
 
 #ifdef __cplusplus

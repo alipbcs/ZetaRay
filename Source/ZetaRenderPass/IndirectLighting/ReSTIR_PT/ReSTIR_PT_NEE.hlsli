@@ -183,7 +183,7 @@ namespace RPT_Util
         {
             const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
             surface.SetWi(wi, normal);
-            float3 ld = le * BSDF::UnifiedBSDF(surface) * dwdA;
+            float3 ld = le * BSDF::UnifiedBSDF(surface).f * dwdA;
                 
             if (dot(ld, ld) > 0)
             {
@@ -240,7 +240,7 @@ namespace RPT_Util
         inout RNG rngNEE)
     {
         surface.SetWi(wi, normal);
-        float3 ld = le * BSDF::UnifiedBSDF(surface) * dwdA;
+        float3 ld = le * BSDF::UnifiedBSDF(surface).f * dwdA;
 
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
         if(dot(ld, ld) == 0)
@@ -288,7 +288,7 @@ namespace RPT_Util
 
         surface.SetWi(wi, normal);
         float3 ld = (wiDotLightNormal > 0) || twoSided ? 
-            le * BSDF::UnifiedBSDF(surface) * dwdA :
+            le * BSDF::UnifiedBSDF(surface).f * dwdA :
             0;
 
         if(dot(ld, ld) > 0)

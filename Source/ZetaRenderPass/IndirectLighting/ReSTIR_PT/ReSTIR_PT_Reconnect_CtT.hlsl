@@ -50,8 +50,8 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
     bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
     Reconnection rc_curr, Globals globals)
 {
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(prevTransmissive)
     {
@@ -59,7 +59,7 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[prevPosSS];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -73,7 +73,7 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
 
     const float3 wo = normalize(origin - prevPos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor.rgb, eta_i, eta_t, prevTransmissive, prevTrDepthGt0, (half)baseColor.w);
+        baseColor.rgb, eta_curr, eta_next, prevTransmissive, prevTrDepthGt0, (half)baseColor.w);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -99,7 +99,7 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
 
-    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, prevPos, normal, eta_i, surface, 
+    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, prevPos, normal, eta_next, surface, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
         g_local.Alpha_min, regularization, g_frame, globals);

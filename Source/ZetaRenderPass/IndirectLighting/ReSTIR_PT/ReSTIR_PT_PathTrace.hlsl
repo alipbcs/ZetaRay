@@ -247,9 +247,9 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         rd.ComputeUVDifferentials(dpdx, dpdy, hitInfo.triDiffs.dpdu, hitInfo.triDiffs.dpdv);
 
         // Fetch material at new vertex
-        float eta_mat;
+        float eta_next;
         if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, g_materials, g_frame, eta_curr, 
-            rd.uv_grads, hitInfo, surface, eta_mat, samp))
+            rd.uv_grads, hitInfo, surface, eta_next, samp))
         {
            break;
         }
@@ -344,7 +344,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         throughput *= bsdfSample.bsdfOverPdf;
         anyGlossyBounces = anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
 
-        eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
+        eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
         inTranslucentMedium = eta_curr != ETA_AIR;
         prevHit.alpha_lobe = alpha_lobe;
         prevHit.lobe = bsdfSample.lobe;
@@ -480,8 +480,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     const float4 baseColor = flags.subsurface ? g_baseColor[swizzledDTid] :
         float4(g_baseColor[swizzledDTid].rgb, 0);
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags.transmissive)
     {
@@ -489,16 +489,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[swizzledDTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz, 
-        eta_i, eta_t, flags.transmissive, flags.trDepthGt0, (half)baseColor.w);
+        eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, (half)baseColor.w);
 
     float3 li;
     RPT_Util::Reservoir r = RIS_InitialCandidates(swizzledDTid, swizzledGid, origin, lensSample,
-        pos, normal, eta_i, surface, li);
+        pos, normal, eta_next, surface, li);
 
     // Since p_source = 1, weight = |target|
     float targetLum = Math::Luminance(r.target);

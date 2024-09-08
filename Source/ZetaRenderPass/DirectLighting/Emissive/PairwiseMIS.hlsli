@@ -66,7 +66,7 @@ namespace RDI_Util
                 dwdA = emissive_i.dWdA();
 
                 surface_c.SetWi(emissive_i.wi, normal_c);
-                const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c);
+                const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c).f;
                 currTarget = r_i.Le * brdfCosTheta_c * dwdA;
 
                 if(dot(currTarget, currTarget) > 0)
@@ -89,7 +89,7 @@ namespace RDI_Util
                 t_i = length(target_c.lightPos - pos_i);
                 wi_i = (target_c.lightPos - pos_i) / t_i;
                 surface_i.SetWi(wi_i, normal_i);
-                brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i);
+                brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i).f;
 
                 if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
                 {

@@ -15,7 +15,7 @@ namespace RGI_Util
         int16_t2 posSS;
         uint16 metallic;
         uint16 transmissive;
-        float eta_i;
+        float eta_next;
     };
 
     template<int N>
@@ -92,7 +92,7 @@ namespace RGI_Util
         if(dot(lo, lo) > 0)
         {
             primarySurface.SetWi(bsdfSample.wi, primaryNormal);
-            target *= BSDF::UnifiedBSDF(primarySurface);
+            target *= BSDF::UnifiedBSDF(primarySurface).f;
         }
 
         float targetLum = Math::Luminance(target);
@@ -190,12 +190,12 @@ namespace RGI_Util
                 candidate.valid[curr] = candidate.valid[curr] && (roughnessDiff < 0.15);
             }
 
-            float prevEta_i = DEFAULT_ETA_I;
+            float prevEta_mat = DEFAULT_ETA_MAT;
 
             if(prevFlags.transmissive)
             {
                 float ior = g_ior[samplePosSS];
-                prevEta_i = GBuffer::DecodeIOR(ior);
+                prevEta_mat = GBuffer::DecodeIOR(ior);
             }
 
             candidate.valid[curr] = candidate.valid[curr] && (prevFlags.transmissive == transmissive);
@@ -209,7 +209,7 @@ namespace RGI_Util
                 candidate.data[curr].metallic = prevFlags.metallic;
                 candidate.data[curr].roughness = prevMR.y;
                 candidate.data[curr].transmissive = prevFlags.transmissive;
-                candidate.data[curr].eta_i = prevEta_i;
+                candidate.data[curr].eta_next = prevEta_mat;
 
                 curr++;
 
@@ -250,11 +250,11 @@ namespace RGI_Util
         const float3 wo_prev = normalize(camPos_prev - candidate.posW);
 
         BSDF::ShadingData surface_prev = BSDF::ShadingData::Init(candidate.normal, wo_prev, 
-            candidate.metallic, candidate.roughness, baseColor_prev, candidate.eta_i, 
-            DEFAULT_ETA_T, candidate.transmissive);
+            candidate.metallic, candidate.roughness, baseColor_prev, ETA_AIR, 
+            candidate.eta_next, candidate.transmissive);
 
         surface_prev.SetWi(wi, candidate.normal);
-        const float3 target_prev = r_curr.Lo * BSDF::UnifiedBSDF(surface_prev);
+        const float3 target_prev = r_curr.Lo * BSDF::UnifiedBSDF(surface_prev).f;
         const float targetLum_prev = Math::Luminance(target_prev);
 
         // Test if sample point was visible from temporal pixel. Ideally, previous frame's 
@@ -340,7 +340,7 @@ namespace RGI_Util
         wi /= t;
 
         surface.SetWi(wi, normal);
-        const float3 target_curr = r_prev.Lo * BSDF::UnifiedBSDF(surface);
+        const float3 target_curr = r_prev.Lo * BSDF::UnifiedBSDF(surface).f;
         const float targetLum_curr = Math::Luminance(target_curr);
 
         // Target at current pixel with temporal reservoir's sample
@@ -415,7 +415,7 @@ namespace RGI_Util
             wi /= max(t, 1e-6);
             surface.SetWi(wi, normal);
 
-            const float3 target_curr = r_prev[i].Lo * BSDF::UnifiedBSDF(surface);
+            const float3 target_curr = r_prev[i].Lo * BSDF::UnifiedBSDF(surface).f;
             const float targetLum_curr = Math::Luminance(target_curr);
     
             // RIS weights becomes zero; then only M needs to be updated, which is done at the end anyway

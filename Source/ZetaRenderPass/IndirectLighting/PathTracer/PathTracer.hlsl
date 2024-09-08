@@ -171,8 +171,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::BASE_COLOR];
     const float3 baseColor = g_baseColor[swizzledDTid].rgb;
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(flags.transmissive)
     {
@@ -180,12 +180,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[swizzledDTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor, 
-        eta_i, eta_t, flags.transmissive, flags.trDepthGt0);
+        eta_curr, eta_next, flags.transmissive, flags.trDepthGt0);
 
     // Per-group RNG
     RNG rngGroup = RNG::Init(swizzledGid ^ 61, g_frame.FrameNum);
@@ -195,7 +195,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     ReSTIR_Util::Globals globals = InitGlobals();
 
     float3 li = EstimateIndirectLighting(swizzledDTid, origin, lensSample, pos, 
-        normal, eta_i, surface, globals, rngThread, rngGroup);
+        normal, eta_next, surface, globals, rngThread, rngGroup);
     li = any(isnan(li)) ? 0 : li;
 
     RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalOrColorAUavDescHeapIdx];

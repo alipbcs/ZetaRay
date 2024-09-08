@@ -53,8 +53,8 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
         GBUFFER_OFFSET::BASE_COLOR];
     const float4 baseColor =  subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
 
-    float eta_t = DEFAULT_ETA_T;
-    float eta_i = DEFAULT_ETA_I;
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
 
     if(transmissive)
     {
@@ -62,12 +62,12 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
             GBUFFER_OFFSET::IOR];
 
         float ior = g_ior[DTid];
-        eta_i = GBuffer::DecodeIOR(ior);
+        eta_next = GBuffer::DecodeIOR(ior);
     }
 
     const float3 wo = normalize(origin - pos);
     BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor.rgb, eta_i, eta_t, transmissive, trDepthGt0, (half)baseColor.a);
+        baseColor.rgb, eta_curr, eta_next, transmissive, trDepthGt0, (half)baseColor.a);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -93,7 +93,7 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
 
-    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_i, surface, rd, 
+    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_next, surface, rd, 
         triDiffs, rc_spatial, g_local.RBufferA_NtC_DescHeapIdx, 
         g_local.RBufferA_NtC_DescHeapIdx + 1, g_local.RBufferA_NtC_DescHeapIdx + 2, 
         g_local.Alpha_min, regularization, g_frame, globals);
