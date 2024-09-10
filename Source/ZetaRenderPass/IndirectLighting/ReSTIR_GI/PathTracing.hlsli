@@ -42,7 +42,7 @@ namespace ReSTIR_RT
             // Beer's law
             if(inTranslucentMedium && (surface.trDepth > 0))
             {
-                float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+                float3 extCoeff = -log(surface.baseColor_Fr0_TrCol) / surface.trDepth;
                 throughput *= exp(-hitInfo.t * extCoeff);
             }
 #endif

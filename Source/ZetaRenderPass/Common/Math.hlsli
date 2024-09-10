@@ -697,7 +697,7 @@ namespace Math
         ret.x = float(rgb & 0xff) / 255.0f;
         ret.y = float((rgb >> 8) & 0xff) / 255.0f;
         ret.z = float((rgb >> 16) & 0xff) / 255.0f;
-        
+
         return ret;
     }
 

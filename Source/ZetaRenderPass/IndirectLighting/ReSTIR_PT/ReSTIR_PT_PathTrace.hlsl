@@ -267,7 +267,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         // Beer's law
         if(inTranslucentMedium && (surface.trDepth > 0))
         {
-            float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+            float3 extCoeff = -log(surface.baseColor_Fr0_TrCol) / surface.trDepth;
             tr = exp(-hitInfo.t * extCoeff);
             throughput *= tr;
         }

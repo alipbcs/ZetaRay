@@ -50,9 +50,10 @@ namespace BSDF
     {
         DIFFUSE_R = 0,     // Diffuse reflection
         DIFFUSE_T = 1,     // Diffuse transmission
-        GLOSSY_R = 2,      // Specular reflection or glossy GGX BRDF
-        GLOSSY_T = 3,      // Specular transmission or glossy GGX BTDF
-        ALL = 4
+        GLOSSY_R = 2,      // Specular or glossy reflection
+        GLOSSY_T = 3,      // Specular or glossy transmission
+        COAT = 4,          // Coating
+        ALL = 5
     };
 
     uint16_t LobeToValue(LOBE t)
@@ -67,9 +68,11 @@ namespace BSDF
                 return 2;
             case LOBE::GLOSSY_T:
                 return 3;
+            case LOBE::COAT:
+                return 4;
             case LOBE::ALL:
             default:
-                return 4;
+                return 5;
         }
     }
 
@@ -83,6 +86,8 @@ namespace BSDF
             return LOBE::GLOSSY_R;
         if(x == 3)
             return LOBE::GLOSSY_T;
+        if(x == 4)
+            return LOBE::COAT;
 
         return LOBE::ALL;
     }
@@ -99,7 +104,7 @@ namespace BSDF
     // Fresnel
     //--------------------------------------------------------------------------------------
 
-    // Note that F0(eta_1, eta_2) = F0(eta_2, eta_1).
+    // Note that F0(eta_i, eta_t) = F0(eta_t, eta_i).
     // Inputs:
     //   - eta_i: Refractive index of material travelled through by incident ray
     //   - eta_t: Refractive index of material travelled through by transmitted ray
@@ -139,13 +144,22 @@ namespace BSDF
     float Fresnel_Dielectric(float ndotwi, float eta)
     {
         float sinTheta_iSq = saturate(mad(-ndotwi, ndotwi, 1.0f));
-        float sinTheta_tSq = mad(-eta * eta, sinTheta_iSq, 1.0f);
+        float cosTheta_tSq = mad(-eta * eta, sinTheta_iSq, 1.0f);
 
         // TIR
-        if(sinTheta_tSq < 0)
+        if(cosTheta_tSq <= 0)
             return 1;
 
-        float cosTheta_t = sqrt(sinTheta_tSq);
+        float cosTheta_t = sqrt(cosTheta_tSq);
+        float r_parallel = mad(-eta, cosTheta_t, ndotwi) / mad(eta, cosTheta_t, ndotwi);
+        float r_perp = mad(eta, ndotwi, -cosTheta_t) / mad(eta, ndotwi, cosTheta_t);
+        float2 r = float2(r_parallel, r_perp);
+
+        return 0.5 * dot(r, r);
+    }
+
+    float Fresnel_Dielectric(float ndotwi, float eta, float cosTheta_t)
+    {
         float r_parallel = mad(-eta, cosTheta_t, ndotwi) / mad(eta, cosTheta_t, ndotwi);
         float r_perp = mad(eta, ndotwi, -cosTheta_t) / mad(eta, ndotwi, cosTheta_t);
         float2 r = float2(r_parallel, r_perp);
@@ -173,7 +187,7 @@ namespace BSDF
     // ndotx            = n.wi or n.wo
     // GGXLambda        = (sqrt(1 + alpha^2 tan^2(theta)) - 1) / 2
     // G1(GGXLambda)    = 1 / (1 + GGXLambda)
-    float SmithG1_GGX(float alphaSq, float ndotx)
+    float SmithG1(float alphaSq, float ndotx)
     {
         float ndotxSq = ndotx * ndotx;
         float tanThetaSq = (1.0f - ndotxSq) / ndotxSq;
@@ -182,7 +196,7 @@ namespace BSDF
 
     // G2 is the height-correlated Smith shadowing-masking function defined as:
     //      1 / (1 + SmithG1_GGX(alpha^2, ndotwo) + SmithG1_GGX(alpha^2, ndotwi))
-    float SmithHeightCorrelatedG2_GGX(float alphaSq, float ndotwi, float ndotwo)
+    float SmithHeightCorrelatedG2(float alphaSq, float ndotwi, float ndotwo)
     {
         float denomWo = ndotwi * sqrt((-ndotwo * alphaSq + ndotwo) * ndotwo + alphaSq);
         float denomWi = ndotwo * sqrt((-ndotwi * alphaSq + ndotwi) * ndotwi + alphaSq);
@@ -198,7 +212,7 @@ namespace BSDF
     //  - BTDF: Move 1 / (ndotwi * ndotwo) from BTDF to G2 to return
     //    G2 / (ndotwi * ndotwo).
     template<int n>
-    float SmithHeightCorrelatedG2_GGX_Opt(float alphaSq, float ndotwi, float ndotwo)
+    float SmithHeightCorrelatedG2_Opt(float alphaSq, float ndotwi, float ndotwo)
     {
         float denomWo = ndotwi * sqrt((-ndotwo * alphaSq + ndotwo) * ndotwo + alphaSq);
         float denomWi = ndotwo * sqrt((-ndotwi * alphaSq + ndotwi) * ndotwi + alphaSq);
@@ -208,10 +222,10 @@ namespace BSDF
 
     // Ref: E. Heitz and J. Dupuy, "Implementing a Simple Anisotropic Rough Diffuse 
     // Material with Stochastic Evaluation," 2015.
-    float SmithHeightCorrelatedG2OverG1_GGX(float alphaSq, float ndotwi, float ndotwo)
+    float SmithHeightCorrelatedG2OverG1(float alphaSq, float ndotwi, float ndotwo)
     {
-        float G1wi = SmithG1_GGX(alphaSq, ndotwi);
-        float G1wo = SmithG1_GGX(alphaSq, ndotwo);
+        float G1wi = SmithG1(alphaSq, ndotwi);
+        float G1wo = SmithG1(alphaSq, ndotwo);
 
         return G1wi / (G1wi + G1wo - G1wi * G1wo);
     }
@@ -266,8 +280,147 @@ namespace BSDF
     }
 
     //--------------------------------------------------------------------------------------
-    // Sampling
+    // Lambertian
     //--------------------------------------------------------------------------------------
+
+    // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included 
+    // for convenience.
+    float3 Lambertian(float3 baseColor, float ndotwi)
+    {
+        return ONE_OVER_PI * ndotwi * baseColor;
+    }
+
+    // Lambertain BRDF times n.wi divided by pdf of cosine-weighted hemisphere sampling
+    float3 LambertianOverPdf(float3 baseColor)
+    {
+        return baseColor;
+    }
+
+    //--------------------------------------------------------------------------------------
+    // Microfacet Models
+    //--------------------------------------------------------------------------------------
+
+    // G(theta) = sin(theta) (theta - sin(theta) cos(theta) - 2 / 3)
+    //          + (2 / 3) tan(theta) (1 - sin^3(theta))
+    float OrenNayar_G(float cosTheta)
+    {
+        float sinThetaSq = saturate(1 - cosTheta * cosTheta);
+        float sinTheta = sqrt(sinThetaSq);
+        float theta = Math::ArcCos(cosTheta);
+        float tanTheta = sinTheta / cosTheta;
+        float multiplier_sin = mad(-sinTheta, cosTheta, theta - (2.0f / 3.0f));
+        float multiplier_tan = (2.0f / 3.0f) * mad(-sinTheta, sinThetaSq, 1.0f);
+
+        return sinTheta * multiplier_sin + tanTheta * multiplier_tan;
+    }
+
+    // Refs: Improved Oren-Nayar model from https://mimosa-pudica.net/improved-oren-nayar.html, 
+    // energy-preserving multi-scattering term from the OpenPBR specs.
+    // 
+    // Params:
+    //  - sigma: diffuse roughness
+    //  - rho: base color
+    //  - g_wo: OrenNayar_G(cos \theta_o)
+    template<bool AccountForMultiScattering>
+    float3 OrenNayar(float3 rho, float sigma, float ndotwo, float ndotwi, float wodotwi,
+        float g_wo, bool reflection)
+    {
+        // Reduces to Lambertian
+        if(sigma == 0)
+            return ONE_OVER_PI * ndotwi * rho;
+
+        float A = 1.0f / mad(0.287793409f, sigma, 1.0f);
+        float B = sigma * A;
+        float s_over_t = mad(-ndotwi, ndotwo, wodotwi);
+        s_over_t = s_over_t > 0 ? s_over_t / max(ndotwi, ndotwo) : s_over_t;
+        float3 f = ONE_OVER_PI * mad(B, s_over_t, A) * rho;
+        float3 f_comp = 0;
+
+        if(AccountForMultiScattering && reflection)
+        {
+            float avgReflectance = mad(0.072488212f, B, A);
+            float one_min_avgReflectance = 1 - avgReflectance;
+            float tmp = ONE_OVER_PI * (avgReflectance / one_min_avgReflectance);
+            float3 rho_ms_over_piSq = tmp / (1 - rho * one_min_avgReflectance);
+            rho_ms_over_piSq *= rho * rho;
+
+            float B_over_pi = ONE_OVER_PI * B; 
+            float E_wo = mad(B_over_pi, g_wo, A);
+            float E_wi = mad(B_over_pi, OrenNayar_G(ndotwi), A);
+            f_comp = (1 - E_wo) * (1 - E_wi) * rho_ms_over_piSq;
+        }
+
+        return ndotwi * (f + f_comp);
+    }
+
+    // Includes multiplication by n.wi from the rendering equation
+    float3 GGXMicrofacetBRDF(float alpha, float ndotwh, float ndotwo, float ndotwi,
+        float3 fr, bool specular)
+    {
+        if(specular)
+        {
+            // For specular surfaces, total radiance reflected back towards w_o (L_o(w_o)) 
+            // should be F * L_i(w_r), where w_r = reflect(-w_o, n). Plugging into the rendering 
+            // equation:
+            //      L_o(w_o) = /int f(w_o, w_i) * L_i(w_i) * ndotwi dw_i = F * L_i(w_r).
+            // Now in order for the above to hold, we must have
+            //      f(w_o, w_i) = F * delta(n - wh) / ndotwi
+            // Note that ndotwi cancels out.
+            return (ndotwh >= MIN_N_DOT_H_SPECULAR) * fr;
+        }
+
+        float alphaSq = alpha * alpha;
+        float NDF = GGX(ndotwh, alphaSq);
+        float G2DivDenom = SmithHeightCorrelatedG2_Opt<1>(alphaSq, ndotwi, ndotwo);
+        float f = NDF * G2DivDenom * ndotwi;
+
+        return f * fr;
+    }
+
+    // Given the bijective mapping w_i = f(w_h) where w_h denotes half vector,
+    // the pdfs are related as follows:
+    //      p(w_i) = p(w_h) / |J_f(w_h)|,
+    // where J_f() is the Jacobian of f, from which dw_i = |J_f(w_h)| dw_h.
+    // Putting everything together, p(w_i) = p(w_h) * dw_h / dw_i.
+    float JacobianHalfVecToIncident_Tr(float eta, float whdotwo, float whdotwi)
+    {
+        float denom = mad(whdotwo, 1 / eta, whdotwi);
+        denom *= denom;
+        float dwh_dwi = whdotwi / denom;
+
+        return dwh_dwi;
+    }
+
+    // Includes multiplication by n.wi from the rendering equation
+    float GGXMicrofacetBTDF(float alpha, float ndotwh, float ndotwo, float ndotwi,
+        float whdotwo, float whdotwi, float eta, float fr, bool specular)
+    {
+        if(specular)
+        {
+            // For specular surfaces, total radiance reflected back towards w_o (L_o(w_o)) 
+            // should be (1 - F) * L_i(w_t), where w_t = refract(-w_o, n). Plugging into the 
+            // rendering equation:
+            //      L_o(w_o) = /int f(w_o, w_i) * L_i(w_i) * ndotwi dw_i = (1 - F) * L_i(w_t).
+            // Now in order for the above to hold, we must have
+            //      f(w_o, w_i) = (1 - F) * delta(n - wh) / ndotwi
+            // Note that ndotwi cancels out.
+            float f = ndotwh >= MIN_N_DOT_H_SPECULAR;
+            // f *= 1 / (surface.eta * surface.eta);
+            return f * (1 - fr);
+        }
+
+        float alphaSq = alpha * alpha;
+        float NDF = GGX(ndotwh, alphaSq);
+        float G2opt = SmithHeightCorrelatedG2_Opt<4>(alphaSq, ndotwi, ndotwo);
+
+        float f = NDF * G2opt * whdotwo;
+        float dwh_dwi = JacobianHalfVecToIncident_Tr(eta, whdotwo, whdotwi);
+        f *= dwh_dwi;
+        f *= ndotwi;
+        // f *= 1 / (surface.eta * surface.eta);
+
+        return f * (1 - fr);
+    }
 
     // Samples half vector wh in a coordinate system where z is aligned with the shading 
     // normal. PDF is GGX(wh) * max(0, whdotwo) * G1(ndotwo) / ndotwo.
@@ -351,40 +504,20 @@ namespace BSDF
         return wh;
     }
 
-    float3 SampleDiffuseRefl(float3 normal, float2 u, out float pdf)
+    // D(w_h) (distribution of visible normals) is defined as:
+    //      D(w_h) = GGX(w_h) * max(w_h.w_o, 0) * G1(n.w_o) / n.w_o.
+    // 
+    // Note: The following returns D(w_h) / w_o.w_h as w_o.w_h is canceled out
+    // after change of variable from w_h to w_i for reflection. For transmission, 
+    // it has to be mutiplied back.
+    float GGXMicrofacetPdf(float alpha, float ndotwh, float ndotwo)
     {
-        float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+        float alphaSq = alpha * alpha;
+        float NDF = GGX(ndotwh, alphaSq);
+        float G1 = SmithG1(alphaSq, ndotwo);
+        float wh_pdf = (NDF * G1) / ndotwo;
 
-        float3 T;
-        float3 B;
-        Math::revisedONB(normal, T, B);
-        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
-
-        return wiWorld;
-    }
-
-    float3 SampleDiffuseRefl(float3 normal, float2 u)
-    {
-        float unused;
-        return SampleDiffuseRefl(normal, u, unused);
-    }
-
-    //--------------------------------------------------------------------------------------
-    // Energy-preserving Oren-Nayar
-    //--------------------------------------------------------------------------------------
-
-    // G(theta) = sin(theta) (theta - sin(theta) cos(theta) - 2 / 3)
-    //          + (2 / 3) tan(theta) (1 - sin^3(theta))
-    float OrenNayar_G(float cosTheta)
-    {
-        float sinThetaSq = saturate(1 - cosTheta * cosTheta);
-        float sinTheta = sqrt(sinThetaSq);
-        float theta = Math::ArcCos(cosTheta);
-        float tanTheta = sinTheta / cosTheta;
-        float multiplier_sin = mad(-sinTheta, cosTheta, theta - (2.0f / 3.0f));
-        float multiplier_tan = (2.0f / 3.0f) * mad(-sinTheta, sinThetaSq, 1.0f);
-
-        return sinTheta * multiplier_sin + tanTheta * multiplier_tan;
+        return wh_pdf;
     }
 
     //--------------------------------------------------------------------------------------
@@ -401,8 +534,8 @@ namespace BSDF
             ret.ndotwo = 0;
             ret.metallic = false;
             ret.alpha = 0;
-            ret.diffuseReflectance_Fr0_TrCol = 0;
-            ret.eta = DEFAULT_ETA_I / DEFAULT_ETA_T;
+            ret.baseColor_Fr0_TrCol = 0;
+            ret.eta = DEFAULT_ETA_MAT / ETA_AIR;
             ret.specTr = false;
             ret.trDepth = 0;
             ret.subsurface = 0;
@@ -413,7 +546,7 @@ namespace BSDF
         }
 
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
-            float3 baseColor, float eta_i = DEFAULT_ETA_I, float eta_t = DEFAULT_ETA_T, 
+            float3 baseColor, float eta_curr = ETA_AIR, float eta_next = DEFAULT_ETA_MAT, 
             bool specTr = false, half transmissionDepth = 0, half subsurface = 0)
         {
             ShadingData si;
@@ -426,13 +559,13 @@ namespace BSDF
 
             si.metallic = metallic;
             si.alpha = roughness * roughness;
-            si.diffuseReflectance_Fr0_TrCol = baseColor;
-            si.eta = eta_i / eta_t;
+            si.baseColor_Fr0_TrCol = baseColor;
+            si.eta = eta_next / eta_curr;
             si.specTr = specTr;
             si.trDepth = transmissionDepth;
             si.subsurface = subsurface;
 
-            // Specular reflection and microfacet model are different surface reflection
+            // Specular reflection and GGX microfacet model are different surface reflection
             // models, but both are handled by the microfacet routines below for convenience.
             si.specular = roughness <= MAX_ROUGHNESS_SPECULAR;
             // Precompute as it only depends on wo
@@ -541,33 +674,45 @@ namespace BSDF
             SetWi(wi, shadingNormal, wh);
         }
 
-        float3 Fresnel()
+        float3 Fresnel(float3 fr0, out bool tir)
         {
             // When specular, wh = n and wh.wo = n.wo. Besides, when there are
             // other lobes besides microfacet (e.g. diffuse reflection) and
             // surface is specular, Fresnel must be computed with n.wo.
-            float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
+            float cosTheta_i = this.specular ? this.ndotwo : this.whdotwo;
+            float eta_relative = 1 / this.eta;
+
+            // Check for TIR
+            float sinTheta_iSq = saturate(mad(-cosTheta_i, cosTheta_i, 1.0f));
+            float cosTheta_tSq = mad(-eta_relative * eta_relative, sinTheta_iSq, 1.0f);
+            tir = cosTheta_tSq <= 0;
+            if(tir)
+                return 1;
+
+            float cosTheta_t = sqrt(cosTheta_tSq);
 
             // Use Schlick's approximation for metals
             if(this.metallic)
-            {
-                float3 fr0 = this.metallic ? this.diffuseReflectance_Fr0_TrCol : 
-                    DielectricF0(this.eta);
+                return FresnelSchlick(fr0, eta_relative < 1 ? cosTheta_i : cosTheta_t);
 
-                return FresnelSchlick(fr0, cosIncident);
-            }
-
-            return Fresnel_Dielectric(cosIncident, 1 / this.eta);
+            return Fresnel_Dielectric(cosTheta_i, eta_relative, cosTheta_t);
         }
 
-        float3 Fresnel(float3 fr0)
+        float3 Fresnel(out bool tir)
         {
-            float cosIncident = this.specular ? this.ndotwo : this.whdotwo;
+            float3 fr0 = this.metallic ? this.baseColor_Fr0_TrCol : 
+                DielectricF0(this.eta);
 
-            if(this.metallic)
-                return FresnelSchlick(fr0, cosIncident);
+            return Fresnel(fr0, tir);
+        }
 
-            return Fresnel_Dielectric(cosIncident, 1 / this.eta);
+        float3 Fresnel()
+        {
+            float3 fr0 = this.metallic ? this.baseColor_Fr0_TrCol : 
+                DielectricF0(this.eta);
+            bool unused;
+
+            return Fresnel(fr0, unused);
         }
 
         void Regularize()
@@ -579,7 +724,7 @@ namespace BSDF
 
         float3 TransmissionTint()
         {
-            return trDepth > 0 ? 1 : diffuseReflectance_Fr0_TrCol;
+            return trDepth > 0 ? 1 : baseColor_Fr0_TrCol;
         }
 
         bool ThinWalled()
@@ -592,15 +737,10 @@ namespace BSDF
             return specTr || ThinWalled();
         }
 
-        float SpecularReflectance()
+        bool Coated()
         {
-            // Reflectance only depends on wo. When surface is specular, it's equal 
-            // to Fresnel, which requires the incident and half vectors. But in that 
-            // case, n = wh and Fresnel is computed by passing n.wo, which doesn't 
-            // depend on any SetWi*() calls.
-            float fr0 = DielectricF0(this.eta);
-            return this.specular ? this.Fresnel(fr0).x : 
-                GGXReflectanceApprox(fr0, this.alpha, this.ndotwo).x;
+            // return coat_weight > 0;
+            return false;
         }
 
         // Roughness textures actually contain an "interface" value of roughness that 
@@ -617,10 +757,10 @@ namespace BSDF
         float wodotwi;
         float g_wo;
         // Union of:
-        //  - Diffuse reflectance for dielectrics
+        //  - Base color for dielectrics
         //  - Fresnel at normal incidence for metals
         //  - Transmission color for dielectrics with specular transmission
-        float3 diffuseReflectance_Fr0_TrCol;
+        float3 baseColor_Fr0_TrCol;
         float eta;      // eta_i / eta_t
         bool specTr;
         bool metallic;
@@ -630,6 +770,9 @@ namespace BSDF
         bool reflection;
         half trDepth;
         half subsurface;
+        // uint coat_color;
+        // uint16 coat_weight;
+        // uint16 coat_alpha;
     };
 
     bool IsLobeValid(ShadingData surface, LOBE lt)
@@ -646,212 +789,83 @@ namespace BSDF
         if(surface.specTr && (lt == LOBE::DIFFUSE_R))
             return false;
 
+        if(!surface.ThinWalled() && (lt == LOBE::DIFFUSE_T))
+            return false;
+
+        // if(!surface.Coated() && (lt == LOBE::COAT))
+        //     return false;
+
         return true;
     }
+
+    // float LobeAlpha(ShadingData surface, LOBE lt)
+    // {
+    //     if(lt == LOBE::GLOSSY_R || lt == LOBE::GLOSSY_T)
+    //         return surface.alpha;
+    //     if(lt == LOBE::COAT)
+    //         return surface.coat_alpha;
+
+    //     return 1.0f;
+    // }
 
     //--------------------------------------------------------------------------------------
     // Diffuse Reflection
     //--------------------------------------------------------------------------------------
 
-    // Note that multiplication by n.wi is not part of the Lambertian BRDF and is included 
-    // for convenience.
-    float3 Lambertian(ShadingData surface)
+    // Use the same routine for diffuse reflection and diffuse transmission to avoid
+    // a branching code path.
+    // Includes multiplication by n.wi from the rendering equation
+    template<bool EON>
+    float3 EvalDiffuse(ShadingData surface)
     {
-        return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
+        float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
+
+#if USE_OREN_NAYAR == 1
+        // Diffuse roughness should be a separate parameter, but for now
+        // use specular roughness
+        float diffuseRoughness = sqrt(surface.alpha);
+        float3 diffuse = OrenNayar<EON>(surface.baseColor_Fr0_TrCol,
+            diffuseRoughness, surface.ndotwo, surface.ndotwi, surface.wodotwi,
+            surface.g_wo, surface.reflection);
+#else
+        float3 diffuse = Lambertian(surface.baseColor_Fr0_TrCol, surface.ndotwi);
+#endif
+
+        return s * diffuse;
     }
 
-    // Lambertain BRDF times n.wi divided by pdf of cosine-weighted hemisphere sampling
-    float3 LambertianOverPdf(ShadingData surface)
+    float3 SampleDiffuse(float3 normal, float2 u, out float pdf)
     {
-        return surface.diffuseReflectance_Fr0_TrCol;
+        float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
+
+        float3 T;
+        float3 B;
+        Math::revisedONB(normal, T, B);
+        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
+
+        return wiWorld;
     }
 
-    // Pdf of cosine-weighted hemisphere sampling
-    float DiffuseReflectiondPdf(ShadingData surface)
+    float3 SampleDiffuse(float3 normal, float2 u)
+    {
+        float unused;
+        return SampleDiffuse(normal, u, unused);
+    }
+
+    // = Pdf of cosine-weighted hemisphere sampling
+    float DiffusePdf(ShadingData surface)
     {
         return surface.ndotwi * ONE_OVER_PI;
     }
 
-    // Refs: Improved Oren-Nayar model from https://mimosa-pudica.net/improved-oren-nayar.html, 
-    // energy-preserving multi-scattering term from the OpenPBR specs.
-    template<bool AccountForMultiScattering>
-    float3 OrenNayar(ShadingData surface)
-    {
-        // Reduces to Lambertian
-        if(surface.alpha == 0)
-            return ONE_OVER_PI * surface.ndotwi * surface.diffuseReflectance_Fr0_TrCol;
-
-        float sigma = sqrt(surface.alpha);
-        float3 rho = surface.diffuseReflectance_Fr0_TrCol;
-        float A = 1.0f / mad(0.287793409f, sigma, 1.0f);
-        float B = sigma * A;
-        float s_over_t = mad(-surface.ndotwi, surface.ndotwo, surface.wodotwi);
-        s_over_t = s_over_t > 0 ? s_over_t / max(surface.ndotwi, surface.ndotwo) : s_over_t;
-        float3 f = ONE_OVER_PI * mad(B, s_over_t, A) * rho;
-        float3 f_comp = 0;
-
-        if(AccountForMultiScattering && surface.reflection)
-        {
-            float avgReflectance = mad(0.072488212f, B, A);
-            float one_min_avgReflectance = 1 - avgReflectance;
-            float tmp = ONE_OVER_PI * (avgReflectance / one_min_avgReflectance);
-            float3 rho_ms_over_piSq = tmp / (1 - rho * one_min_avgReflectance);
-            rho_ms_over_piSq *= rho * rho;
-
-            float B_over_pi = ONE_OVER_PI * B; 
-            float E_wo = mad(B_over_pi, surface.g_wo, A);
-            float E_wi = mad(B_over_pi, OrenNayar_G(surface.ndotwi), A);
-            f_comp = (1 - E_wo) * (1 - E_wi) * rho_ms_over_piSq;
-        }
-
-        return surface.ndotwi * (f + f_comp);
-    }
-
-    //--------------------------------------------------------------------------------------
-    // GGX Microfacet Model
-    //--------------------------------------------------------------------------------------
-
     // Includes multiplication by n.wi from the rendering equation
-    float3 EvalGGXMicrofacetBRDF(ShadingData surface, float3 fr)
+    float3 EvalGloss(ShadingData surface, float3 fr)
     {
-        if(surface.invalid)
-            return 0;
-
-        if(surface.specular)
-        {
-            // For specular surfaces, total radiance reflected back towards w_o (L_o(w_o)) 
-            // should be F * L_i(w_r), where w_r = reflect(-w_o, n). Plugging into the rendering 
-            // equation:
-            //      L_o(w_o) = /int f(w_o, w_i) * L_i(w_i) * ndotwi dw_i = F * L_i(w_r).
-            // Now in order for the above to hold, we must have
-            //      f(w_o, w_i) = F * delta(n - wh) / ndotwi
-            // Note that ndotwi cancels out.
-            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR) * fr;
-        }
-
-        float alphaSq = surface.alpha * surface.alpha;
-        float NDF = GGX(surface.ndotwh, alphaSq);
-        float G2DivDenom = SmithHeightCorrelatedG2_GGX_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
-        float f = NDF * G2DivDenom * surface.ndotwi;
-
-        return f * fr;
+        return GGXMicrofacetBRDF(surface.alpha, surface.ndotwh, surface.ndotwo, 
+            surface.ndotwi, fr, surface.specular);
     }
 
-    // Given the bijective mapping wi = f(wh) where wh denotes half vector,
-    // the pdfs are related as follows:
-    //      p(wi) = p(wh) / |J_f(wh)|,
-    // where J_f() is the Jacobian determinat of f, from which dwi = |J_f(wh)| dwh.
-    // Putting everything together, p(wi) = p(wh) * dwh / dwi.
-    float JacobianHalfVecToIncident_Tr(ShadingData surface)
-    {
-        float denom = mad(surface.whdotwo, 1 / surface.eta, surface.whdotwi);
-        denom *= denom;
-        float dwh_dwi = surface.whdotwi / denom;
-
-        return dwh_dwi;
-    }
-
-    // Includes multiplication by n.wi from the rendering equation, but multiplication 
-    // by (1 - F) is done later.
-    float EvalGGXMicrofacetBTDF(ShadingData surface)
-    {
-        if(surface.specular)
-        {
-            // For specular surfaces, total radiance reflected back towards w_o (L_o(w_o)) 
-            // should be (1 - F) * L_i(w_t), where w_t = refract(-w_o, n). Plugging into the 
-            // rendering equation:
-            //      L_o(w_o) = /int f(w_o, w_i) * L_i(w_i) * ndotwi dw_i = (1 - F) * L_i(w_t).
-            // Now in order for the above to hold, we must have
-            //      f(w_o, w_i) = (1 - F) * delta(n - wh) / ndotwi
-            // Note that ndotwi cancels out.
-            float f = surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
-            // f *= 1 / (surface.eta * surface.eta);
-            return f;
-        }
-
-        float alphaSq = surface.alpha * surface.alpha;
-        float NDF = GGX(surface.ndotwh, alphaSq);
-        float G2opt = SmithHeightCorrelatedG2_GGX_Opt<4>(alphaSq, surface.ndotwi, surface.ndotwo);
-
-        float f = NDF * G2opt * surface.whdotwo;
-        float dwh_dwi = JacobianHalfVecToIncident_Tr(surface);
-        f *= dwh_dwi;
-        f *= surface.ndotwi;
-        // f *= 1 / (surface.eta * surface.eta);
-
-        return f;
-    }
-
-    // Note: The following returns D(w_h) * max(0, w_o.w_h), where
-    // D(w_h) (distribution of visible normals) is defined as:
-    //      D(w_h) = G1(w_o) / n.w_o GGX(w_h) max(0, w_o.w_h),
-    float GGXMicrofacetPdf(ShadingData surface)
-    {
-        float wh_pdf = 1;
-
-        if(!surface.specular)
-        {
-            float alphaSq = surface.alpha * surface.alpha;
-            float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-            float G1 = BSDF::SmithG1_GGX(alphaSq, surface.ndotwo);
-            wh_pdf = (NDF * G1) / surface.ndotwo;
-        }
-
-        return wh_pdf;
-    }
-
-    float GGXMicrofacetPdf(float3 normal, float3 wh, inout ShadingData surface)
-    {
-        surface.ndotwh = saturate(dot(normal, wh));
-        return GGXMicrofacetPdf(surface);
-    }
-
-    // Evaluates distribution of visible normals for reflection
-    //      VNDF(wh) = GGX(wh) * wh.wo * G1(n.wo) / n.wo.
-    //
-    // After correction for change of variable from wh to wi, it becomes
-    //      VNDF(wi) = VNDF(wh) * 1 / (4 * wh.wi)
-    //               = GGX(wh) * G1(n.wo) / (4 * n.wo)
-    // (Note that wh.wo = wh.wi).
-    float VNDFReflectionPdf(ShadingData surface)
-    {
-        if(surface.specular)
-            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
-
-        float alphaSq = surface.alpha * surface.alpha;
-        float NDF = GGX(surface.ndotwh, alphaSq);
-        float G1 = SmithG1_GGX(alphaSq, surface.ndotwo);
-        float pdf = (NDF * G1) / (4.0f * surface.ndotwo);
-
-        return pdf;
-    }
-
-    // Evaluates distribution of visible normals for transmission
-    //      VNDF(wh) = GGX(wh) * wh.wo * G1(n.wo) / n.wo.
-    //
-    // After correction for change of variable from wh to wi, it becomes
-    //      VNDF(wi) = VNDF(wh) * wh.wi / (wh.wi + wh.wo * eta)^2
-    //               = GGX(wh) * wh.wo * wh.wi * G1(n.wo) / (n.wo * (wh.wi + wh.wo * eta)^2)
-    float VNDFTransmissionPdf(ShadingData surface)
-    {
-        if(!surface.specTr)
-            return 0;
-
-        if(surface.specular)
-            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
-
-        float alphaSq = surface.alpha * surface.alpha;
-        float NDF = GGX(surface.ndotwh, alphaSq);
-        float G1 = SmithG1_GGX(alphaSq, surface.ndotwo);
-        float pdf = (NDF * G1 * surface.whdotwo) / surface.ndotwo;
-
-        float dwh_dwi = JacobianHalfVecToIncident_Tr(surface);
-        pdf *= dwh_dwi;
-
-        return pdf;
-    }
-
-    float3 SampleGGXMicrofacet_Refl(ShadingData surface, float3 shadingNormal, float2 u)
+    float3 SampleGloss(ShadingData surface, float3 shadingNormal, float2 u)
     {
         // Reminder: reflect(w, n) = reflect(w, -n)
 
@@ -863,13 +877,36 @@ namespace BSDF
         // system aligned with normal). Since here it's assumed n.wo > 0, this is always true.
         float3 wh = SampleGGXMicrofacet(surface.wo, surface.alpha, shadingNormal, u);
 
-        // Reflect wo about the plane with normal wh (each microsurface is a perfect mirror).
+        // Reflect wo about the plane with normal wh (each microsurface is a perfect mirror)
         float3 wi = reflect(-surface.wo, wh);
 
         return wi;
     }
 
-    float3 SampleGGXMicrofacet_Tr(ShadingData surface, float3 shadingNormal, float2 u)
+    // Evaluates distribution of visible normals for reflection
+    //      D(w_h) = GGX(w_h) * max(w_h.w_o, 0) * G1(n.w_o) / n.w_o.
+    //
+    // After correction for change of variable from w_h to w_i, it becomes
+    //      p(wi) = D(w_h) * 1 / (4 * w_h.w_i)
+    //            = GGX(w_h) * G1(n.w_o) / (4 * n.w_o)
+    // (Note that w_h.w_o = w_h.w_i).
+    float GlossPdf(ShadingData surface)
+    {
+        if(surface.specular)
+            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
+
+        float pdf = GGXMicrofacetPdf(surface.alpha, surface.ndotwh, surface.ndotwo);
+        return pdf / 4.0f;
+    }
+
+    float EvalTranslucentTr(ShadingData surface, float fr)
+    {
+        return GGXMicrofacetBTDF(surface.alpha, surface.ndotwh, surface.ndotwo, 
+            surface.ndotwi, surface.whdotwo, surface.whdotwi, surface.eta, fr, 
+            surface.specular);
+    }
+
+    float3 SampleTranslucentTr(ShadingData surface, float3 shadingNormal, float2 u)
     {
         // Note that: 
         //  - refract(w, n, eta) requires w.n > 0 and ||n|| = 1. Here it's assumed 
@@ -890,8 +927,29 @@ namespace BSDF
         return wi;
     }
 
+    // Evaluates distribution of visible normals for transmission
+    //      D(w_h) = GGX(w_h) * max(w_h.wo, 0) * G1(n.w_o) / n.w_o.
+    //
+    // After correction for change of variable from wh to wi, it becomes
+    //      p(wi) = D(w_h) * w_h.w_i / (w_h.w_i + w_h.w_o / eta)^2
+    //            = GGX(wh) * w_h.w_o * w_h.w_i * G1(n.w_o) / (n.w_o * w_h.w_i + w_h.w_o / eta)^2)
+    float TranslucentTrPdf(ShadingData surface)
+    {
+        if(surface.specular)
+            return (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
+
+        float pdf = GGXMicrofacetPdf(surface.alpha, surface.ndotwh, surface.ndotwo);
+        pdf *= surface.whdotwo;
+
+        float dwh_dwi = JacobianHalfVecToIncident_Tr(surface.eta, surface.whdotwo,
+            surface.whdotwi);
+        pdf *= dwh_dwi;
+
+        return pdf;
+    }
+
     // Includes multiplication by n.wi from the rendering equation
-    float3 GGXMicrofacetBRDFOverPdf(ShadingData surface, float3 fr)
+    float3 GlossOverPdf(ShadingData surface, float3 fr)
     {
         if(surface.specular)
         {
@@ -903,11 +961,12 @@ namespace BSDF
         //        f * cos(theta) / Pdf(wi)
         // is simplified to Fr * G2 / G1.
         float alphaSq = surface.alpha * surface.alpha;
-        return SmithHeightCorrelatedG2OverG1_GGX(alphaSq, surface.ndotwi, surface.ndotwo) * fr;
+        return SmithHeightCorrelatedG2OverG1(alphaSq, surface.ndotwi, surface.ndotwo) * 
+            fr;
     }
 
     // Includes multiplication by n.wi from the rendering equation
-    float3 GGXMicrofacetBTDFOverPdf(ShadingData surface, float fr)
+    float3 TranslucentTrOverPdf(ShadingData surface, float fr)
     {
         if(surface.specular)
         {
@@ -919,66 +978,49 @@ namespace BSDF
         //        f * cos(theta) / Pdf(wi)
         // is simplified to (1 - Fr) * G2 / G1.
         float alphaSq = surface.alpha * surface.alpha;
-        return SmithHeightCorrelatedG2OverG1_GGX(alphaSq, surface.ndotwi, surface.ndotwo) * 
+        return SmithHeightCorrelatedG2OverG1(alphaSq, surface.ndotwi, surface.ndotwo) * 
             (1 - fr) * surface.TransmissionTint();
     }
 
+    float GGXReflectance_Dielectric(ShadingData surface, float fr)
+    {
+        float fr0 = DielectricF0(surface.eta);
+        return surface.specular ? fr : 
+            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+    }
+
     //--------------------------------------------------------------------------------------
-    // Surface BSDF
+    // Surface Shader
     //--------------------------------------------------------------------------------------
+
+    struct BSDFEval
+    {
+        static BSDFEval Init()
+        {
+            BSDFEval ret;
+            ret.f = 0;
+            ret.Fr = 0;
+            ret.tir = false;
+
+            return ret;
+        }
+
+        float3 f;
+        float3 Fr;
+        bool tir;
+    };
 
     // All routines below include multiplication by n.wi from the rendering equation
-
-    float3 OpaqueBase(ShadingData surface, float fr, float reflectance)
-    {
-        if(surface.invalid)
-            return 0;
-
-        // mul. by reflection is to handle thin walled case
-        float3 gloss = EvalGGXMicrofacetBRDF(surface, fr) * surface.reflection;
-        float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
-#if USE_OREN_NAYAR == 1
-        float3 diffuse = (1 - reflectance) * s * OrenNayar<ENERGY_PRESERVING_OREN_NAYAR>(surface);
-#else
-        float3 diffuse = (1 - reflectance) * s * Lambertian(surface);
-#endif
-        return diffuse + gloss;
-    }
-
-    float3 OpaqueBase(ShadingData surface)
-    {
-        if(surface.invalid)
-            return 0;
-
-        float fr0 = DielectricF0(surface.eta);
-        float fr = surface.Fresnel(fr0).x;
-        float reflectance = surface.specular ? fr : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
-
-        return OpaqueBase(surface, fr, reflectance);
-    }
-
-    float3 MetalBase(ShadingData surface)
-    {
-        if(surface.invalid)
-            return 0;
-
-        float3 fr = FresnelSchlick(surface.diffuseReflectance_Fr0_TrCol, 
-            surface.whdotwo);
-        return EvalGGXMicrofacetBRDF(surface, fr);
-    }
-
     float3 DielectricSpecularTr(ShadingData surface, float fr)
     {
         if(surface.invalid || !surface.specTr)
             return 0;
 
-        float fr0 = DielectricF0(surface.eta);
         float reflectance = surface.specular ? 0 : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+            GGXReflectance_Dielectric(surface, fr).x;
+        float glossyTr = EvalTranslucentTr(surface, fr);
 
-        float gloss = EvalGGXMicrofacetBTDF(surface);
-        return (1 - reflectance) * gloss * (1 - fr) * surface.TransmissionTint();
+        return (1 - reflectance) * glossyTr * surface.TransmissionTint();
     }
 
     float3 DielectricSpecularTr(ShadingData surface)
@@ -986,95 +1028,62 @@ namespace BSDF
         if(surface.invalid || !surface.specTr)
             return 0;
 
-        float fr = Fresnel_Dielectric(surface.whdotwo, 1 / surface.eta);
+        bool tir;
+        float fr = surface.Fresnel(tir).x;
+        if(tir)
+            return 0;
+
         return DielectricSpecularTr(surface, fr);
     }
 
-    // Excludes translucent base. Useful when we know surface doesn't have specular transmission.
-    float3 NonTranslucentBase(ShadingData surface, float3 fr, float reflectance)
+    BSDFEval Unified(ShadingData surface)
     {
+        BSDFEval ret = BSDFEval::Init();
         if(surface.invalid)
-            return 0;
+            return ret;
 
-        if(surface.metallic)
-            return EvalGGXMicrofacetBRDF(surface, fr);
-
-        return OpaqueBase(surface, fr.x, reflectance);
-    }
-
-    float3 NonTranslucentBase(ShadingData surface)
-    {
-        if(surface.invalid)
-            return 0;
-
-        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
+        float3 fr0 = surface.metallic ? surface.baseColor_Fr0_TrCol : 
             DielectricF0(surface.eta);
-        float3 fr = surface.Fresnel(fr0);
+        ret.Fr = surface.Fresnel(fr0, ret.tir);
 
-        if(surface.metallic)
-            return EvalGGXMicrofacetBRDF(surface, fr);
+        // = Metal = reflection from Translucent Base
+        float3 glossyRefl = EvalGloss(surface, ret.Fr);
 
-        float reflectance = surface.specular ? fr.x : 
-            GGXReflectanceApprox(fr0, surface.alpha, surface.ndotwo).x;
+        // Metal or TIR
+        if(surface.metallic || ret.tir)
+        {
+            ret.f = glossyRefl; 
+            return ret;
+        }
 
-        return OpaqueBase(surface, fr.x, reflectance);
-    }
+        float reflectance_dielectric = surface.specular ? ret.Fr.x : 
+            GGXReflectanceApprox(fr0.x, surface.alpha, surface.ndotwo).x;
 
-    float3 UnifiedBSDF(ShadingData surface, float3 fr, float fr0_d)
-    {
-        if(surface.invalid)
-            return 0;
-
-        float3 glossyRefl = EvalGGXMicrofacetBRDF(surface, fr);
-
-        // Metal
-        if(surface.metallic)
-            return glossyRefl;
-
-        float reflectance = surface.specular ? fr.x : 
-            GGXReflectanceApprox(fr0_d, surface.alpha, surface.ndotwo).x;
-
-        // Opaque Base
+        // Opaque Base, possibly in thin walled mode
         if(!surface.specTr)
         {
-            float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
-#if USE_OREN_NAYAR == 1
-            float3 diffuse = (1 - reflectance) * s * OrenNayar<ENERGY_PRESERVING_OREN_NAYAR>(surface);
-#else
-            float3 diffuse = (1 - reflectance) * s * Lambertian(surface);
-#endif
+            float3 diffuse = EvalDiffuse<ENERGY_PRESERVING_OREN_NAYAR>(surface);
 
-            return diffuse * s + glossyRefl * surface.reflection;
+            // For diffuse transmission, all other lobes are excluded
+            ret.f = (1 - reflectance_dielectric) * diffuse + 
+                glossyRefl * surface.reflection;
+
+            return ret;
         }
 
         // Translucent Base
         if(surface.reflection)
-            return glossyRefl;
+        {
+            ret.f = glossyRefl;
+            return ret;
+        }
 
         // For specular, (1 - Fresnel) factor is already accounted for
-        reflectance = surface.specular ? 0 : reflectance;
-        float glossyTr = EvalGGXMicrofacetBTDF(surface);
+        reflectance_dielectric = surface.specular ? 0 : reflectance_dielectric;
+        float glossyTr = EvalTranslucentTr(surface, ret.Fr.x);
+        ret.f = (1 - reflectance_dielectric) * glossyTr * surface.TransmissionTint();
 
-        return (1 - reflectance) * glossyTr * (1 - fr.x) * surface.TransmissionTint();
-    }
-
-    float3 UnifiedBSDF(ShadingData surface, out float fr_d)
-    {
-        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
-            DielectricF0(surface.eta);
-        float3 fr = surface.Fresnel(fr0);
-        fr_d = fr.x;
-
-        return UnifiedBSDF(surface, fr, fr0.x);
-    }
-
-    float3 UnifiedBSDF(ShadingData surface)
-    {
-        float3 fr0 = surface.metallic ? surface.diffuseReflectance_Fr0_TrCol : 
-            DielectricF0(surface.eta);
-        float3 fr = surface.Fresnel(fr0);
-
-        return UnifiedBSDF(surface, fr, fr0.x);
+        return ret;
     }
 }
 

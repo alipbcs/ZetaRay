@@ -1752,74 +1752,139 @@ void IndirectLighting::ReloadRPT_PathTrace()
 
 void IndirectLighting::ReloadRPT_Temporal()
 {
-    {
-        auto sh = SHADER::ReSTIR_PT_RECONNECT_CtT;
-        const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtT.hlsl";
-        if (App::GetScene().NumEmissiveInstances() > 0)
+    TaskSet ts;
+
+    ts.EmplaceTask("Reload_Reconnect_CtT", [this]()
         {
-            sh = SHADER::ReSTIR_PT_RECONNECT_CtT_E;
-            p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtT_E.hlsl";
-        }
-        const int i = (int)sh;
-        m_psoLib.Reload(i, m_rootSigObj.Get(), p);
+            auto sh = SHADER::ReSTIR_PT_RECONNECT_CtT;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtT.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_RECONNECT_CtT_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtT_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    ts.EmplaceTask("Reload_Reconnect_TtC", [this]()
+        {
+            auto sh = SHADER::ReSTIR_PT_RECONNECT_TtC;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_TtC.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_RECONNECT_TtC_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_TtC_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    ts.EmplaceTask("Reload_Replay_CtT", [this]()
+        {
+            auto sh = SHADER::ReSTIR_PT_REPLAY_CtT;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Replay.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_REPLAY_CtT_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    WaitObject waitObj;
+    ts.Sort();
+    ts.Finalize(&waitObj);
+    App::Submit(ZetaMove(ts));
+
+    auto sh = SHADER::ReSTIR_PT_REPLAY_TtC;
+    const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_TtC.hlsl";
+
+    if (App::GetScene().NumEmissiveInstances() > 0)
+    {
+        sh = SHADER::ReSTIR_PT_REPLAY_TtC_E;
+        p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_TtC_E.hlsl";
     }
 
-    {
-        auto sh = SHADER::ReSTIR_PT_RECONNECT_TtC;
-        const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_TtC.hlsl";
+    const int i = (int)sh;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
 
-        if (App::GetScene().NumEmissiveInstances() > 0)
-        {
-            sh = SHADER::ReSTIR_PT_RECONNECT_TtC_E;
-            p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_TtC_E.hlsl";
-        }
-
-        const int i = (int)sh;
-        m_psoLib.Reload(i, m_rootSigObj.Get(), p);
-    }
+    waitObj.Wait();
 }
 
 void IndirectLighting::ReloadRPT_Spatial()
 {
-    {
-        auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
-        const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
-        if (App::GetScene().NumEmissiveInstances() > 0)
+    TaskSet ts;
+
+    ts.EmplaceTask("Reload_Reconnect_CtS", [this]()
         {
-            sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
-            p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
-        }
-        const int i = (int)sh;
-        m_psoLib.Reload(i, m_rootSigObj.Get(), p);
+            auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    ts.EmplaceTask("Reload_Reconnect_StC", [this]()
+        {
+            auto sh = SHADER::ReSTIR_PT_RECONNECT_StC;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_StC.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_RECONNECT_StC_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_StC_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    ts.EmplaceTask("Reload_Replay_CtS", [this]()
+        {
+            auto sh = SHADER::ReSTIR_PT_REPLAY_CtS;
+            const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_CtS.hlsl";
+
+            if (App::GetScene().NumEmissiveInstances() > 0)
+            {
+                sh = SHADER::ReSTIR_PT_REPLAY_CtS_E;
+                p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_CtS_E.hlsl";
+            }
+
+            const int i = (int)sh;
+            m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
+        });
+
+    WaitObject waitObj;
+    ts.Sort();
+    ts.Finalize(&waitObj);
+    App::Submit(ZetaMove(ts));
+
+    auto sh = SHADER::ReSTIR_PT_REPLAY_StC;
+    const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_StC.hlsl";
+
+    if (App::GetScene().NumEmissiveInstances() > 0)
+    {
+        sh = SHADER::ReSTIR_PT_REPLAY_StC_E;
+        p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_StC_E.hlsl";
     }
 
-    {
-        auto sh = SHADER::ReSTIR_PT_RECONNECT_StC;
-        const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_StC.hlsl";
+    const int i = (int)sh;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
 
-        if (App::GetScene().NumEmissiveInstances() > 0)
-        {
-            sh = SHADER::ReSTIR_PT_RECONNECT_StC_E;
-            p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_StC_E.hlsl";
-        }
-
-        const int i = (int)sh;
-        m_psoLib.Reload(i, m_rootSigObj.Get(), p);
-    }
+    waitObj.Wait();
 }
 
-//void IndirectLighting::ReloadDnsrTemporal()
-//{
-//    const int i = (int)SHADER::DNSR_TEMPORAL;
-//
-//    m_psoLib.Reload(i, "IndirectLighting\\IndirectDnsr_Temporal.hlsl", true);
-//    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
-//}
-//
-//void IndirectLighting::ReloadDnsrSpatial()
-//{
-//    const int i = (int)SHADER::DNSR_SPATIAL;
-//
-//    m_psoLib.Reload(i, "IndirectLighting\\IndirectDnsr_Spatial.hlsl", true);
-//    m_psos[i] = m_psoLib.GetComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
-//}

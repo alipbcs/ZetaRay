@@ -92,7 +92,7 @@ namespace RGI_Util
         if(dot(lo, lo) > 0)
         {
             primarySurface.SetWi(bsdfSample.wi, primaryNormal);
-            target *= BSDF::UnifiedBSDF(primarySurface).f;
+            target *= BSDF::Unified(primarySurface).f;
         }
 
         float targetLum = Math::Luminance(target);
@@ -254,7 +254,7 @@ namespace RGI_Util
             candidate.eta_next, candidate.transmissive);
 
         surface_prev.SetWi(wi, candidate.normal);
-        const float3 target_prev = r_curr.Lo * BSDF::UnifiedBSDF(surface_prev).f;
+        const float3 target_prev = r_curr.Lo * BSDF::Unified(surface_prev).f;
         const float targetLum_prev = Math::Luminance(target_prev);
 
         // Test if sample point was visible from temporal pixel. Ideally, previous frame's 
@@ -340,7 +340,7 @@ namespace RGI_Util
         wi /= t;
 
         surface.SetWi(wi, normal);
-        const float3 target_curr = r_prev.Lo * BSDF::UnifiedBSDF(surface).f;
+        const float3 target_curr = r_prev.Lo * BSDF::Unified(surface).f;
         const float targetLum_curr = Math::Luminance(target_curr);
 
         // Target at current pixel with temporal reservoir's sample
@@ -415,7 +415,7 @@ namespace RGI_Util
             wi /= max(t, 1e-6);
             surface.SetWi(wi, normal);
 
-            const float3 target_curr = r_prev[i].Lo * BSDF::UnifiedBSDF(surface).f;
+            const float3 target_curr = r_prev[i].Lo * BSDF::Unified(surface).f;
             const float targetLum_curr = Math::Luminance(target_curr);
     
             // RIS weights becomes zero; then only M needs to be updated, which is done at the end anyway

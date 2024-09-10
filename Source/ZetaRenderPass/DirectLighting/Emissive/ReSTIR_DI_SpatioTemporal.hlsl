@@ -139,7 +139,7 @@ RDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
         // skip backfacing lights
         if(dot(lightSample.normal, -wi) > 0)
         {
-            currTarget = le * BSDF::UnifiedBSDF(surface).f * dwdA;
+            currTarget = le * BSDF::Unified(surface).f * dwdA;
                 
             if (dot(currTarget, currTarget) > 0)
             {

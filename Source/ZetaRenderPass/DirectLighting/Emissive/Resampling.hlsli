@@ -145,7 +145,7 @@ namespace RDI_Util
         cosThetaPrime = dot(lightNormal, lightNormal) == 0 ? 1 : cosThetaPrime;
         const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
-        const float3 targetAtPrev = le * BSDF::UnifiedBSDF(prevSurface).f * dwdA;
+        const float3 targetAtPrev = le * BSDF::Unified(prevSurface).f * dwdA;
         float targetLumAtPrev = Math::Luminance(targetAtPrev);
 
         // should use previous frame's bvh
@@ -162,7 +162,7 @@ namespace RDI_Util
         dwdA = prevEmissive.dWdA();
 
         surface.SetWi(prevEmissive.wi, normal);
-        float3 target = le * BSDF::UnifiedBSDF(surface).f * dwdA;
+        float3 target = le * BSDF::Unified(surface).f * dwdA;
         target *= VisibilityApproximate(g_bvh, pos, prevEmissive.wi, prevEmissive.t, normal, 
             prevEmissive.ID, surface.Transmissive());
 

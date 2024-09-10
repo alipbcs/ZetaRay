@@ -206,7 +206,7 @@ namespace Light
             {
                 float3 wi = reflect(-surface.wo, normal);
                 surface.SetWi_Refl(wi, normal);
-                ret.f = BSDF::UnifiedBSDF(surface).f;
+                ret.f = BSDF::Unified(surface).f;
                 ret.wi = wi;
                 ret.pdf = 1.0f;
 
@@ -227,7 +227,7 @@ namespace Light
             if(!surface.specular || (surface.ThinWalled() && (dot(wi_light, normal) < 0)))
             {
                 surface.SetWi(wi_light, normal);
-                ret.f = BSDF::UnifiedBSDF(surface).f;
+                ret.f = BSDF::Unified(surface).f;
                 ret.wi = wi_light;
                 ret.pdf = pdf_light;
 
@@ -268,7 +268,7 @@ namespace Light
             if(!insideCone)
             {
                 surface.SetWi_Refl(wi_light, normal);
-                ret.f = BSDF::UnifiedBSDF(surface).f;
+                ret.f = BSDF::Unified(surface).f;
                 ret.wi = wi_light;
                 ret.pdf = pdf_light;
 
@@ -279,7 +279,7 @@ namespace Light
 
             // Feed light sample
             surface.SetWi_Refl(wi_light, normal);
-            float3 target = BSDF::UnifiedBSDF(surface).f;
+            float3 target = BSDF::Unified(surface).f;
             float targetLum = Math::Luminance(target);
             // rate of change of reflection vector is twice the rate of change of half vector
             // 0.99996 = 1.0f - (1.0f - MIN_N_DOT_H_SPECULAR) * 2
@@ -289,7 +289,7 @@ namespace Light
 
             // Feed BSDF sample
             surface.SetWi_Refl(wi_refl, normal);
-            float3 target_bsdf = BSDF::UnifiedBSDF(surface).f * insideCone;
+            float3 target_bsdf = BSDF::Unified(surface).f * insideCone;
             float targetLum_bsdf = Math::Luminance(target_bsdf);
             float w = RT::BalanceHeuristic(1, pdf_light, targetLum_bsdf);
             w_sum += w;

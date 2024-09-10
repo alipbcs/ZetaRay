@@ -99,7 +99,7 @@ namespace RGI_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                le *= BSDF::UnifiedBSDF(surface).f * dwdA;
+                le *= BSDF::Unified(surface).f * dwdA;
                 
                 if (dot(le, le) > 0)
                     le *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, globals.bvh, surface.Transmissive());
@@ -168,7 +168,7 @@ namespace RGI_Util
                 const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
 
                 surface.SetWi(wi, normal);
-                le *= BSDF::UnifiedBSDF(surface).f * dwdA;
+                le *= BSDF::Unified(surface).f * dwdA;
                 
                 if (Math::Luminance(le) > 1e-6)
                 {

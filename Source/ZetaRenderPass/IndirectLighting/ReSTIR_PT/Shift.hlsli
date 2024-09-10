@@ -193,7 +193,7 @@ namespace RPT_Util
             ret.rd = RT::RayDifferentials::Init();
             ret.surface = BSDF::ShadingData::Init();
             ret.eta_curr = ETA_AIR;
-            ret.eta_mat = DEFAULT_ETA_I;
+            ret.eta_next = DEFAULT_ETA_MAT;
             ret.rngReplay.State = 0;
             ret.anyGlossyBounces = false;
 
@@ -220,7 +220,7 @@ namespace RPT_Util
             ctx.pos = asfloat(inB.xyz);
             ctx.normal = Math::DecodeOct32(Math::UnpackUintToUint16(inB.w));
             ctx.eta_curr = mad(Math::UNorm8ToFloat((inC.z >> 8) & 0xff), 1.5f, 1.0f);
-            ctx.eta_mat = mad(Math::UNorm8ToFloat((inC.z >> 16) & 0xff), 1.5f, 1.0f);
+            ctx.eta_next = mad(Math::UNorm8ToFloat((inC.z >> 16) & 0xff), 1.5f, 1.0f);
 
             float3 wo = Math::DecodeOct32(Math::UnpackUintToUint16(inC.x));
             float roughness = Math::UNorm8ToFloat(inC.z & 0xff);
@@ -234,11 +234,10 @@ namespace RPT_Util
 
             // UNorm8 encoding above preserves ETA_AIR = 1, so the comparison
             // below works
-            float eta_t = ctx.eta_curr == ETA_AIR ? ETA_AIR : ctx.eta_mat;
-            float eta_i = ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR;
+            float eta_next = ctx.eta_curr == ETA_AIR ? ctx.eta_next : ETA_AIR;
 
             ctx.surface = BSDF::ShadingData::Init(ctx.normal, wo, metallic, roughness, 
-                baseColor, eta_i, eta_t, specTr, trDepth, (half)subsurface);
+                baseColor, ctx.eta_curr, eta_next, specTr, trDepth, (half)subsurface);
 
             if(!isCase3)
                 ctx.rd.uv_grads.xy = asfloat16(uint16_t2(inC.w & 0xffff, inC.w >> 16));
@@ -261,13 +260,13 @@ namespace RPT_Util
                 ((uint)this.anyGlossyBounces << 1) | 
                 ((uint)surface.specTr << 2) |
                 ((uint)hasVolumetricInterior << 3);
-            uint baseColor_Flags = Math::Float3ToRGB8(surface.diffuseReflectance_Fr0_TrCol);
+            uint baseColor_Flags = Math::Float3ToRGB8(surface.baseColor_Fr0_TrCol);
             baseColor_Flags = baseColor_Flags | (flags << 24);
             uint roughness = Math::FloatToUNorm8(!surface.specular ? sqrt(surface.alpha) : 0);
             uint eta_curr = Math::FloatToUNorm8((this.eta_curr - 1.0f) / 1.5f);
-            uint eta_mat = Math::FloatToUNorm8((this.eta_mat - 1.0f) / 1.5f);
+            uint eta_next = Math::FloatToUNorm8((this.eta_next - 1.0f) / 1.5f);
             uint subsurface = Math::FloatToUNorm8((float)surface.subsurface);
-            uint packed = roughness | (eta_curr << 8) | (eta_mat << 16) | (subsurface << 24);
+            uint packed = roughness | (eta_curr << 8) | (eta_next << 16) | (subsurface << 24);
 
             // R16G16B16A16_FLOAT
             RWTexture2D<float4> g_rbA = ResourceDescriptorHeap[uavAIdx];
@@ -298,7 +297,7 @@ namespace RPT_Util
         RT::RayDifferentials rd;
         BSDF::ShadingData surface;
         float eta_curr;
-        float eta_mat;
+        float eta_next;
         RNG rngReplay;
         bool anyGlossyBounces;
     };
@@ -326,7 +325,7 @@ namespace RPT_Util
     {
         ctx.throughput = bsdfSample.bsdfOverPdf;
         int bounce = 0;
-        ctx.eta_curr = dot(ctx.normal, bsdfSample.wi) < 0 ? ctx.eta_mat : ETA_AIR;
+        ctx.eta_curr = dot(ctx.normal, bsdfSample.wi) < 0 ? ctx.eta_next : ETA_AIR;
         bool inTranslucentMedium = ctx.eta_curr != ETA_AIR;
         // Note: skip the first bounce for a milder impacet. May have to change in the future.
         // ctx.anyGlossyBounces = bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R;
@@ -357,7 +356,7 @@ namespace RPT_Util
             ctx.rd.ComputeUVDifferentials(dpdx, dpdy, hitInfo.triDiffs.dpdu, hitInfo.triDiffs.dpdv);
 
             if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, ctx.eta_curr, 
-                ctx.rd.uv_grads, hitInfo, ctx.surface, ctx.eta_mat, samp))
+                ctx.rd.uv_grads, hitInfo, ctx.surface, ctx.eta_next, samp))
             {
                 // Not invertible
                 ctx.throughput = 0;
@@ -374,7 +373,7 @@ namespace RPT_Util
 
             if(inTranslucentMedium && (ctx.surface.trDepth > 0))
             {
-                float3 extCoeff = -log(ctx.surface.diffuseReflectance_Fr0_TrCol) / ctx.surface.trDepth;
+                float3 extCoeff = -log(ctx.surface.baseColor_Fr0_TrCol) / ctx.surface.trDepth;
                 ctx.throughput *= exp(-hitInfo.t * extCoeff);
             }
 
@@ -409,8 +408,8 @@ namespace RPT_Util
                 return;
             }
 
-            bool transmitted = dot(ctx.normal, bsdfSample.wi) < 0;
-            ctx.eta_curr = transmitted ? (ctx.eta_curr == ETA_AIR ? ctx.eta_mat : ETA_AIR) : ctx.eta_curr;
+            const bool transmitted = dot(ctx.normal, bsdfSample.wi) < 0;
+            ctx.eta_curr = transmitted ? (ctx.eta_curr == ETA_AIR ? ctx.eta_next : ETA_AIR) : ctx.eta_curr;
             ctx.throughput *= bsdfSample.bsdfOverPdf;
             ctx.anyGlossyBounces = ctx.anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
             inTranslucentMedium = ctx.eta_curr != ETA_AIR;
@@ -428,10 +427,10 @@ namespace RPT_Util
     // Inputs:
     //  - beta: Throughput of path y_1, ... y_{k - 2}
     //  - surface: Shading data at vertex y_{k - 1}
-    //  - eta_mat: IOR of material at vertex y_{k - 1}
+    //  - eta_next: IOR of material at vertex y_{k - 1}
     template<bool Emissive>
     OffsetPath Reconnect_Case1Or2(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
-        float eta_curr, float eta_mat, RT::RayDifferentials rd, BSDF::ShadingData surface, 
+        float eta_curr, float eta_next, RT::RayDifferentials rd, BSDF::ShadingData surface, 
         bool anyGlossyBounces, float alpha_min, bool regularization, Reconnection rc, 
         ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, 
         RNG rngReplay, RNG rngNEE)
@@ -480,13 +479,15 @@ namespace RPT_Util
         // Move to y_k = x_k
         const float3 y_k = mad(hitInfo.t, w_k_min_1, y_k_min_1);
         bounce++;
-        bool transmitted = dot(normal_k_min_1, w_k_min_1) < 0;
-        eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_mat : ETA_AIR) : eta_curr;
-        bool inTranslucentMedium = eta_curr != ETA_AIR;
+
+        // Update medium (from y_{k - 1} to x_k)
+        const bool transmitted = dot(normal_k_min_1, w_k_min_1) < 0;
+        eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
+        const bool inTranslucentMedium = eta_curr != ETA_AIR;
 
         ReSTIR_RT::IsotropicSampler is;
         if(!ReSTIR_RT::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
-            rd.uv_grads, hitInfo, surface, eta_mat, g_samLinearWrap, is))
+            rd.uv_grads, hitInfo, surface, eta_next, g_samLinearWrap, is))
         {
             // Not invertible
             return ret;
@@ -495,9 +496,10 @@ namespace RPT_Util
         if(regularization && anyGlossyBounces)
             surface.Regularize();
 
+        // Account for transmittance from y_{k - 1} to x_k
         if(inTranslucentMedium && (surface.trDepth > 0))
         {
-            float3 extCoeff = -log(surface.diffuseReflectance_Fr0_TrCol) / surface.trDepth;
+            float3 extCoeff = -log(surface.baseColor_Fr0_TrCol) / surface.trDepth;
             beta *= exp(-hitInfo.t * extCoeff);
         }
 
@@ -649,7 +651,7 @@ namespace RPT_Util
         ctx.rd = rd;
         // Assumes camera is in the air
         ctx.eta_curr = ETA_AIR;
-        ctx.eta_mat = ior;
+        ctx.eta_next = ior;
         ctx.anyGlossyBounces = false;
         ctx.throughput = 1;
 
@@ -718,7 +720,7 @@ namespace RPT_Util
         else
         {
             return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, 
-                ctx.normal, ctx.eta_curr, ctx.eta_mat, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
+                ctx.normal, ctx.eta_curr, ctx.eta_next, ctx.rd, ctx.surface, ctx.anyGlossyBounces, 
                 alpha_min, regularization, rc, g_frame, globals, ctx.rngReplay, rngNEE);
         }
     }
@@ -736,7 +738,7 @@ namespace RPT_Util
         ctx.rd = rd;
         // Assumes camera is in the air
         ctx.eta_curr = ETA_AIR;
-        ctx.eta_mat = ior;
+        ctx.eta_next = ior;
         ctx.anyGlossyBounces = false;
         ctx.throughput = 1;
 

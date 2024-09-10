@@ -158,7 +158,7 @@ struct PairwiseMIS
         if(r_i.IsValid())
         {
             surface_c.SetWi(r_i.wi, normal_c);
-            const float3 brdfCosTheta_c = BSDF::UnifiedBSDF(surface_c).f;
+            const float3 brdfCosTheta_c = BSDF::Unified(surface_c).f;
             currTarget = r_i.Le * brdfCosTheta_c;
 
             if(dot(currTarget, currTarget) > 0)
@@ -177,7 +177,7 @@ struct PairwiseMIS
         if(r_c.IsValid())
         {
             surface_i.SetWi(r_c.wi, normal_i);
-            brdfCosTheta_i = BSDF::UnifiedBSDF(surface_i).f;
+            brdfCosTheta_i = BSDF::Unified(surface_i).f;
 
             if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
             {
@@ -226,11 +226,11 @@ SkyDI_Util::Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 norma
     {
         const float2 u = rng.Uniform2D();
         float p_e;
-        float3 wi_e = BSDF::SampleDiffuseRefl(normal, u, p_e);
+        float3 wi_e = BSDF::SampleDiffuse(normal, u, p_e);
         const float3 le = Le(pos, normal, wi_e, surface);
 
         surface.SetWi(wi_e, normal);
-        const float3 target = le * BSDF::UnifiedBSDF(surface).f;
+        const float3 target = le * BSDF::Unified(surface).f;
 
         // Balance heuristic
         // p_e in m_e's numerator and w_e's denominator cancel out
@@ -415,7 +415,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
 
             prevSurface.SetWi(r.wi, candidate.normal);
 
-            const float3 targetAtPrev = r.Le * BSDF::UnifiedBSDF(prevSurface).f;
+            const float3 targetAtPrev = r.Le * BSDF::Unified(prevSurface).f;
             targetLumAtPrev = Math::Luminance(targetAtPrev);
 
             if(targetLumAtPrev > 0)
@@ -436,7 +436,7 @@ void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal, bo
     {
         // compute target at current pixel with temporal reservoir's sample
         surface.SetWi(prev.wi, normal);
-        const float3 currTarget = prev.Le * BSDF::UnifiedBSDF(surface).f;
+        const float3 currTarget = prev.Le * BSDF::Unified(surface).f;
         float targetLumAtCurr = Math::Luminance(currTarget);
         
         if(targetLumAtCurr > 0)
