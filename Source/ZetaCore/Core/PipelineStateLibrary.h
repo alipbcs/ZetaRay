@@ -17,7 +17,8 @@ namespace ZetaRay::Core
 
         void Init(const char* name);
         void Reset();
-        void Reload(uint64_t idx, ID3D12RootSignature* rootSig, const char* pathToHlsl);
+        void Reload(uint64_t idx, ID3D12RootSignature* rootSig, const char* pathToHlsl, 
+            bool flushGpu = false);
 
         ID3D12PipelineState* CompileGraphicsPSO(uint32_t idx,
             D3D12_GRAPHICS_PIPELINE_STATE_DESC& psoDesc,

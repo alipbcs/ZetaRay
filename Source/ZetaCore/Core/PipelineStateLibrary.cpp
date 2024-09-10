@@ -3,11 +3,13 @@
 #include "../App/Log.h"
 #include <App/Common.h>
 #include <App/Timer.h>
+#include <Support/Task.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::App;
+using namespace ZetaRay::Support;
 
 #define LOGGING 1
 
@@ -177,7 +179,7 @@ void PipelineStateLibrary::ClearAndFlushToDisk()
 }
 
 void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig, 
-    const char* pathToHlsl)
+    const char* pathToHlsl, bool flushGpu)
 {
     Filesystem::Path hlsl(App::GetRenderPassDir());
     hlsl.Append(pathToHlsl);
@@ -240,12 +242,42 @@ void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig,
 
     m_needsRebuild.store(true, std::memory_order_relaxed);
 
-    // GPU has to be finished with the old PSO before it can be released
-    App::GetRenderer().FlushAllCommandQueues();
-
     ID3D12PipelineState* oldPSO = m_compiledPSOs[idx];
     Assert(oldPSO, "Reload was called for a shader that hasn't been loaded yet.");
-    oldPSO->Release();
+
+    // GPU has to be finished with the old PSO before it can be released
+    if (flushGpu)
+    {
+        App::GetRenderer().FlushAllCommandQueues();
+        oldPSO->Release();
+    }
+    else
+    {
+        // Wait on a background thread for GPU
+        Task t("WaitForGpu", TASK_PRIORITY::BACKGRUND, [oldPSO]()
+            {
+                auto& renderer = App::GetRenderer();
+
+                ComPtr<ID3D12Fence> fence;
+                CheckHR(renderer.GetDevice()->CreateFence(0, D3D12_FENCE_FLAG_NONE, 
+                    IID_PPV_ARGS(fence.GetAddressOf())));
+
+                const uint64_t fenceToWaitFor = 1;
+                renderer.SignalDirectQueue(fence.Get(), fenceToWaitFor);
+
+                HANDLE fenceEvent = CreateEventA(nullptr, false, false, nullptr);
+                CheckWin32(fenceEvent);
+
+                CheckHR(fence->SetEventOnCompletion(fenceToWaitFor, fenceEvent));
+                WaitForSingleObject(fenceEvent, INFINITE);
+
+                CloseHandle(fenceEvent);
+
+                oldPSO->Release();
+            });
+
+        App::SubmitBackground(ZetaMove(t));
+    }
 
     // Replace the old PSO
     m_compiledPSOs[idx] = pso;
