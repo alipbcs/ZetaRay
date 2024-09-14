@@ -137,6 +137,7 @@ namespace ZetaRay::App
     Util::Span<uint32_t> GetAllThreadIDs();
 
     void AddParam(Support::ParamVariant& p);
+    void TryAddParam(Support::ParamVariant& p);
     void RemoveParam(const char* group, const char* subgroup, const char* name);
     Util::RWSynchronizedVariable<Util::MutableSpan<Support::ParamVariant>> GetParams();
 

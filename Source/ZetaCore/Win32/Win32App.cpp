@@ -1827,6 +1827,31 @@ namespace ZetaRay
         ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
     }
 
+    void App::TryAddParam(ParamVariant& p)
+    {
+        AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);
+
+        // TODO Linear search can be slow if there are a lot of parameters
+        bool found = false;
+        for(auto& param : g_app->m_params)
+        {
+            if (param.ID() == p.ID())
+            {
+                found = true;
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            g_app->m_paramsUpdates.push_back(ParamUpdate{
+                .P = p,
+                .Op = ParamUpdate::ADD });
+        }
+
+        ReleaseSRWLockExclusive(&g_app->m_paramUpdateLock);
+    }
+
     void App::RemoveParam(const char* group, const char* subgroup, const char* name)
     {
         AcquireSRWLockExclusive(&g_app->m_paramUpdateLock);

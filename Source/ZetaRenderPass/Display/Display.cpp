@@ -439,10 +439,20 @@ void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
     else
         App::RemoveParam("Renderer", "Display", "Exponent");
 
-    if(m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_DEFAULT || 
+    if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_DEFAULT ||
         m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_GOLDEN ||
         m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_PUNCHY)
+    {
         App::RemoveParam("Renderer", "Display", "Saturation");
+    }
+    else
+    {
+        ParamVariant p2;
+        p2.InitFloat("Renderer", "Display", "Saturation",
+            fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback),
+            1, 0.5, 1.5f, 1e-2f);
+        App::TryAddParam(p2);
+    }
 }
 
 void DisplayPass::SaturationCallback(const Support::ParamVariant& p)
