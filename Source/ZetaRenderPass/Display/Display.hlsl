@@ -104,6 +104,40 @@ float4 mainPS(VSOut psin) : SV_Target
 
         display = float3(mr, 0.0f);
     }
+    else if (g_local.DisplayOption == (int) DisplayOption::COAT_WEIGHT)
+    {
+        GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+        float2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
+        GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
+        display = 0;
+
+        if(flags.coated)
+        {
+            GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+                GBUFFER_OFFSET::COAT];
+            uint3 packed = g_coat[psin.PosSS.xy].xyz;
+            GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+            display = coat.weight;
+        }
+    }
+    else if (g_local.DisplayOption == (int) DisplayOption::COAT_COLOR)
+    {
+        GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+        float2 mr = g_metallicRoughness.SampleLevel(g_samPointClamp, uv, 0);
+        GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
+        display = 0;
+
+        if(flags.coated)
+        {
+            GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+                GBUFFER_OFFSET::COAT];
+            uint3 packed = g_coat[psin.PosSS.xy].xyz;
+            GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+            display = coat.color;
+        }
+    }
     else if (g_local.DisplayOption == (int) DisplayOption::ROUGHNESS_TH)
     {
         GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +

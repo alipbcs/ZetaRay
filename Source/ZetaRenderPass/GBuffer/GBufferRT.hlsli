@@ -101,43 +101,68 @@ namespace GBufferRT
 
     void WriteToGBuffers(uint2 DTid, float t, float3 normal, float3 baseColor, float flags, 
         float roughness,float3 emissive, float2 motionVec, bool transmissive, float ior, 
-        float subsurface, float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, 
+        float subsurface, float coat_weight, float3 coat_color, float coat_roughness,
+        float coat_ior, float3 dpdu, float3 dpdv, float3 dndu, float3 dndv, 
         ConstantBuffer<cbGBufferRt> g_local)
     {
-        RWTexture2D<float> g_outDepth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
+        RWTexture2D<float> g_outDepth = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::DEPTH];
         g_outDepth[DTid] = t;
 
-        RWTexture2D<float2> g_outNormal = ResourceDescriptorHeap[g_local.NormalUavDescHeapIdx];
+        RWTexture2D<float2> g_outNormal = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::NORMAL];
         g_outNormal[DTid] = Math::EncodeUnitVector(normal);
 
-        RWTexture2D<float4> g_outBaseColor = ResourceDescriptorHeap[g_local.BaseColorUavDescHeapIdx];
+        RWTexture2D<float4> g_outBaseColor = ResourceDescriptorHeap[g_local.UavTableDescHeapIdx];
         if(subsurface > 0)
             g_outBaseColor[DTid] = float4(baseColor, subsurface);
         else
             g_outBaseColor[DTid].rgb = baseColor;
 
-        RWTexture2D<float2> g_outMetallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
+        RWTexture2D<float2> g_outMetallicRoughness = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::METALLIC_ROUGHNESS];
         g_outMetallicRoughness[DTid] = float2(flags, roughness);
 
         if(dot(emissive, emissive) > 0)
         {
-            RWTexture2D<float3> g_outEmissive = ResourceDescriptorHeap[g_local.EmissiveColorUavDescHeapIdx];
+            RWTexture2D<float3> g_outEmissive = 
+                ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::EMISSIVE];
             // R11G11B10 doesn't have a sign bit, make sure passed value is non-negative
             g_outEmissive[DTid] = max(0, emissive);
         }
 
         if(transmissive)
         {
-            RWTexture2D<float> g_outIOR = ResourceDescriptorHeap[g_local.IORUavDescHeapIdx];
+            RWTexture2D<float> g_outIOR = 
+                ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::IOR];
             float ior_unorm = GBuffer::EncodeIOR(ior);
             g_outIOR[DTid] = ior_unorm;
         }
 
-        RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
+        if(coat_weight > 0)
+        {
+            RWTexture2D<uint4> g_outCoat = 
+                ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::COAT];
+
+            uint3 packed;
+            uint c = Math::Float3ToRGB8(coat_color);
+            packed.x = (c & 0xffff);
+            packed.y = (c >> 16) | (Math::FloatToUNorm8(coat_weight) << 8);
+
+            float normalized = GBuffer::EncodeIOR(coat_ior);
+            packed.z = Math::FloatToUNorm8(coat_roughness) | (Math::FloatToUNorm8(normalized) << 8);
+
+            g_outCoat[DTid].xyz = packed;
+        }
+
+        RWTexture2D<float2> g_outMotion = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::MOTION_VECTOR];
         g_outMotion[DTid] = motionVec;
 
-        RWTexture2D<uint4> g_outTriGeo_A = ResourceDescriptorHeap[g_local.TriGeoADescHeapIdx];
-        RWTexture2D<uint2> g_outTriGeo_B = ResourceDescriptorHeap[g_local.TriGeoBDescHeapIdx];
+        RWTexture2D<uint4> g_outTriGeo_A = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::TRI_DIFF_GEO_A];
+        RWTexture2D<uint2> g_outTriGeo_B = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::TRI_DIFF_GEO_B];
         uint3 dpdu_h = asuint16(half3(dpdu));
         uint3 dpdv_h = asuint16(half3(dpdv));
         uint3 dndu_h = asuint16(half3(dndu));
@@ -267,11 +292,16 @@ namespace GBufferRT
         float ior = mat.GetSpecularIOR();
         float trDepth = transmissive ? (float)mat.GetTransmissionDepth() : 0;
         float subsurface = mat.ThinWalled() ? (float)mat.GetSubsurface() : 0;
+        float coat_weight = mat.GetCoatWeight();
+        float3 coat_color = mat.GetCoatColor();
+        float coat_roughness = mat.GetCoatRoughness();
+        float coat_ior = mat.GetCoatIOR();
         float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor, 
-            trDepth, subsurface);
+            trDepth, subsurface, coat_weight);
 
         WriteToGBuffers(DTid, z_view, shadingNormal, baseColor.rgb, encoded, 
             roughness, emissiveColor, motionVec, transmissive, ior, subsurface, 
+            coat_weight, coat_color, coat_roughness, coat_ior,
             dpdu, dpdv, dndu, dndv, g_local);
     }
 }

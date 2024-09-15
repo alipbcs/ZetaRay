@@ -188,6 +188,7 @@ void GBufferRT::Render(CommandList& cmdList)
     cmdList.PIXEndEvent();
 }
 
+/*
 void GBufferRT::CreateRTPSO()
 {
     Filesystem::Path csoPath(App::GetCompileShadersDir());
@@ -267,6 +268,7 @@ void GBufferRT::BuildShaderTable()
     // it'll have the correct alignment
     m_shaderTable.ShaderRecords = GpuMemory::GetDefaultHeapBufferAndInit("SBT", sizeInBytes, false, m_sbt.data());
 }
+*/
 
 void GBufferRT::ReloadGBufferInline()
 {

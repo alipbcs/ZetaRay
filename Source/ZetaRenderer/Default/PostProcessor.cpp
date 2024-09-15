@@ -295,6 +295,14 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
             gbuffData.MetallicRoughness[outIdx].ID(),
             D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
+        renderGraph.AddInput(data.CompositingHandle,
+            gbuffData.IORBuffer[outIdx].ID(),
+            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+        renderGraph.AddInput(data.CompositingHandle,
+            gbuffData.CoatBuffer[outIdx].ID(),
+            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
         if (tlasReady)
         {
             // Sun shadow
@@ -429,6 +437,10 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 
         renderGraph.AddInput(data.DisplayHandle,
             gbuffData.MetallicRoughness[outIdx].ID(),
+            D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
+
+        renderGraph.AddInput(data.DisplayHandle,
+            gbuffData.CoatBuffer[outIdx].ID(),
             D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE);
 
         renderGraph.AddInput(data.DisplayHandle,

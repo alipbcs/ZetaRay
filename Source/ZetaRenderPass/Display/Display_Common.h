@@ -9,6 +9,8 @@ enum class DisplayOption
     BASE_COLOR,
     NORMAL,
     METALNESS_ROUGHNESS,
+    COAT_WEIGHT,
+    COAT_COLOR,
     ROUGHNESS_TH,
     EMISSIVE,
     TRANSMISSION,

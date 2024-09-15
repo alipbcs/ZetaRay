@@ -90,6 +90,7 @@ namespace ZetaRay::DefaultRenderer
             MOTION_VECTOR,
             EMISSIVE_COLOR,
             IOR,
+            COAT,
             DEPTH,
             TRI_DIFF_GEO_A,
             TRI_DIFF_GEO_B,
@@ -104,6 +105,7 @@ namespace ZetaRay::DefaultRenderer
             DXGI_FORMAT_R16G16_SNORM,
             DXGI_FORMAT_UNKNOWN,
             DXGI_FORMAT_R8_UNORM,
+            DXGI_FORMAT_R16G16B16A16_UINT,
             DXGI_FORMAT_R32_FLOAT,
             DXGI_FORMAT_R32G32B32A32_UINT,
             DXGI_FORMAT_R32G32_UINT
@@ -116,6 +118,7 @@ namespace ZetaRay::DefaultRenderer
         Core::GpuMemory::Texture MotionVec;
         Core::GpuMemory::Texture EmissiveColor;
         Core::GpuMemory::Texture IORBuffer[2];
+        Core::GpuMemory::Texture CoatBuffer[2];
         Core::GpuMemory::Texture Depth[2];
         Core::GpuMemory::Texture TriDiffGeo_A[2];
         Core::GpuMemory::Texture TriDiffGeo_B[2];

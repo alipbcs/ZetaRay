@@ -11,6 +11,7 @@ enum GBUFFER_OFFSET
     MOTION_VECTOR,
     EMISSIVE_COLOR,
     IOR,
+    COAT,
     DEPTH,
     TRI_DIFF_GEO_A,
     TRI_DIFF_GEO_B
@@ -22,6 +23,7 @@ enum GBUFFER_OFFSET
 #define GBUFFER_MOTION_VECTOR Texture2D<float2> 
 #define GBUFFER_EMISSIVE_COLOR Texture2D<float3>
 #define GBUFFER_IOR Texture2D<float>
+#define GBUFFER_COAT Texture2D<uint4>
 #define GBUFFER_DEPTH Texture2D<float> 
 #define GBUFFER_TRI_DIFF_GEO_A Texture2D<uint4> 
 #define GBUFFER_TRI_DIFF_GEO_B Texture2D<uint2> 
@@ -36,19 +38,29 @@ namespace GBuffer
         bool invalid;
         bool trDepthGt0;
         bool subsurface;
+        bool coated;
+    };
+
+    struct Coat
+    {
+        float weight;
+        float3 color;
+        float roughness;
+        float ior;
     };
 
     float EncodeMetallic(float metalness, bool isTransmissive, float3 emissive, float trDepth,
-        float subsurface)
+        float subsurface, float coat_weight)
     {
         bool isMetal = metalness >= MIN_METALNESS_METAL;
         bool isEmissive = dot(emissive, emissive) > 0;
 
         uint ret = isTransmissive;
-        ret |= uint(isEmissive) << 1;
-        ret |= uint(trDepth > 0) << 3;
-        ret |= uint(subsurface > 0) << 4;
-        ret |= uint(isMetal) << 7;
+        ret |= (uint(isEmissive) << 1);
+        ret |= (uint(trDepth > 0) << 3);
+        ret |= (uint(subsurface > 0) << 4);
+        ret |= (uint(coat_weight > 0) << 5);
+        ret |= (uint(isMetal) << 7);
 
         return float(ret) / 255.0f;
     }
@@ -63,6 +75,7 @@ namespace GBuffer
         ret.invalid = (v & (1 << 2)) != 0;
         ret.trDepthGt0 = (v & (1 << 3)) != 0;
         ret.subsurface = (v & (1 << 4)) != 0;
+        ret.coated = (v & (1 << 5)) != 0;
         ret.metallic = (v & (1 << 7)) != 0;
 
         return ret;
@@ -89,6 +102,21 @@ namespace GBuffer
     float DecodeIOR(float encoded)
     {
         return mad(encoded, MAX_IOR - MIN_IOR, MIN_IOR);
+    }
+
+    GBuffer::Coat UnpackCoat(uint3 packed)
+    {
+        GBuffer::Coat ret;
+        ret.weight = Math::UNorm8ToFloat((packed.y >> 8) & 0xff);
+        ret.roughness = Math::UNorm8ToFloat(packed.z & 0xff);
+
+        uint c = packed.x | ((packed.y & 0xff) << 16);
+        ret.color = Math::UnpackRGB8(c);
+
+        float normalized = Math::UNorm8ToFloat(packed.z >> 8);
+        ret.ior = DecodeIOR(normalized);
+
+        return ret;
     }
 }
 

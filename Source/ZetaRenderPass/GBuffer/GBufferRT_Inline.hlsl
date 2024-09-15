@@ -244,15 +244,18 @@ void main(uint3 DTid : SV_DispatchThreadID)
     // ray missed the scene
     if(rayPayload.t == FLT_MAX)
     {
-        RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.DepthUavDescHeapIdx];
+        RWTexture2D<float> g_depth = ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::DEPTH];
         g_depth[DTid.xy] = FLT_MAX;
 
-        RWTexture2D<float2> g_metallicRoughness = ResourceDescriptorHeap[g_local.MetallicRoughnessUavDescHeapIdx];
+        RWTexture2D<float2> g_metallicRoughness = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::METALLIC_ROUGHNESS];
         g_metallicRoughness[DTid.xy].x = 4.0f / 255.0f;
 
         // just the camera motion
-        RWTexture2D<float2> g_outMotion = ResourceDescriptorHeap[g_local.MotionVectorUavDescHeapIdx];
-        float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, g_frame.PrevViewInv._m23);
+        RWTexture2D<float2> g_outMotion = 
+            ResourceDescriptorHeap[g_local.UavTableDescHeapIdx + (int)UAV_DESC_TABLE::MOTION_VECTOR];
+        float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
+            g_frame.PrevViewInv._m23);
         float3 motion = g_frame.CameraPos - prevCameraPos;
         float2 motionNDC = motion.z > 0 ? motion.xy / (motion.z * g_frame.TanHalfFOV) : 0;
         motionNDC.x /= g_frame.AspectRatio;

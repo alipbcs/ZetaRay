@@ -170,6 +170,29 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         }    
     }
 
+    // Coat
+    {
+        for (int i = 0; i < 2; i++)
+        {
+            StackStr(name, n, "GBuffer_Coat_%d", i);
+
+            data.CoatBuffer[i] = ZetaMove(GpuMemory::GetTexture2D(name,
+                width, height,
+                GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::COAT],
+                D3D12_RESOURCE_STATE_COMMON,
+                texFlags,
+                1,
+                clearValuePtr));
+
+            // UAV
+            Direct3DUtil::CreateTexture2DUAV(data.CoatBuffer[i], data.UavDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::COAT));
+            // SRV
+            Direct3DUtil::CreateTexture2DSRV(data.CoatBuffer[i], data.SrvDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::COAT));
+        }
+    }
+
     // Triangle differential geometry
     {
         for (int i = 0; i < 2; i++)
@@ -245,24 +268,8 @@ void GBuffer::Update(GBufferData& gbufferData)
 {
     const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
 
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::BASE_COLOR_UAV,
+    gbufferData.GBufferPass.SetGBufferUavDescTableGpuHeapIdx(
         gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::BASE_COLOR));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::NORMAL_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::NORMAL));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::METALLIC_ROUGHNESS_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::METALLIC_ROUGHNESS));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::MOTION_VECTOR_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::MOTION_VECTOR));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::EMISSIVE_COLOR_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::EMISSIVE_COLOR));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::IOR_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::IOR));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::DEPTH_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::DEPTH));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::TRI_DIFF_GEO_A_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRI_DIFF_GEO_A));
-    gbufferData.GBufferPass.SetGpuDescriptor(GBufferRT::SHADER_IN_GPU_DESC::TRI_DIFF_GEO_B_UAV,
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::TRI_DIFF_GEO_B));
 }
 
 void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
@@ -285,6 +292,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
         renderGraph.RegisterResource(data.MetallicRoughness[i].Resource(), data.MetallicRoughness[i].ID());
         renderGraph.RegisterResource(data.BaseColor[i].Resource(), data.BaseColor[i].ID());
         renderGraph.RegisterResource(data.IORBuffer[i].Resource(), data.IORBuffer[i].ID());
+        renderGraph.RegisterResource(data.CoatBuffer[i].Resource(), data.CoatBuffer[i].ID());
         renderGraph.RegisterResource(data.TriDiffGeo_A[i].Resource(), data.TriDiffGeo_A[i].ID());
         renderGraph.RegisterResource(data.TriDiffGeo_B[i].Resource(), data.TriDiffGeo_B[i].ID());
     }
@@ -315,5 +323,6 @@ void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerDa
     renderGraph.AddOutput(data.GBufferPassHandle, data.MotionVec.ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.EmissiveColor.ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.IORBuffer[outIdx].ID(), gbufferOutState);
+    renderGraph.AddOutput(data.GBufferPassHandle, data.CoatBuffer[outIdx].ID(), gbufferOutState);
     renderGraph.AddOutput(data.GBufferPassHandle, data.Depth[outIdx].ID(), depthBuffOutState);
 }

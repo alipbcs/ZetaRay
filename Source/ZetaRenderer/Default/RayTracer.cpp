@@ -536,6 +536,10 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
+                gbuffData.CoatBuffer[1 - outIdx].ID(),
+                D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
                 gbuffData.TriDiffGeo_A[1 - outIdx].ID(),
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
@@ -566,6 +570,10 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
 
             renderGraph.AddInput(handles[i],
                 gbuffData.IORBuffer[outIdx].ID(),
+                D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+
+            renderGraph.AddInput(handles[i],
+                gbuffData.CoatBuffer[outIdx].ID(),
                 D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
             renderGraph.AddInput(handles[i],
