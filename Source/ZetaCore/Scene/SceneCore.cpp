@@ -83,7 +83,7 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
     m_matBuffer.ResizeAdditionalMaterials(1);
 
     Material defaultMat;
-    m_matBuffer.Add(defaultMat, DEFAULT_MATERIAL_IDX);
+    m_matBuffer.Add(DEFAULT_MATERIAL_ID, defaultMat);
 
     ParamVariant animation;
     animation.InitBool("Scene", "Animation", "Pause",
@@ -331,7 +331,7 @@ void SceneCore::AddMeshes(SmallVector<Asset::Mesh>&& meshes, SmallVector<Vertex>
         ReleaseSRWLockExclusive(&m_meshLock);
 }
 
-uint32_t SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
+void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
 {
     Material mat;
     mat.SetBaseColorFactor(matDesc.BaseColorFactor);
@@ -348,12 +348,10 @@ uint32_t SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
     if (lock)
         AcquireSRWLockExclusive(&m_matLock);
 
-    auto idx = m_matBuffer.Add(mat);
+    m_matBuffer.Add(matDesc.ID, mat);
 
     if (lock)
         ReleaseSRWLockExclusive(&m_matLock);
-
-    return idx;
 }
 
 void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asset::DDSImage> ddsImages,
@@ -423,17 +421,17 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         }
     }
 
-    // Add this material to GPU material buffer, which offsets into descriptor tables above.
-    // Offset by one to account for default material at slot 0.
-    m_matBuffer.Add(mat, matDesc.Index + 1);
+    // Add this material to GPU material buffer. Contained texture indices offset into 
+    // descriptor tables above.
+    m_matBuffer.Add(matDesc.ID, mat);
 
     if (lock)
         ReleaseSRWLockExclusive(&m_matLock);
 }
 
-void SceneCore::UpdateMaterial(const Material& newMat, int matIdx)
+void SceneCore::UpdateMaterial(uint32 ID, const Material& newMat)
 {
-    m_matBuffer.Update(newMat, matIdx);
+    m_matBuffer.Update(ID, newMat);
 }
 
 void SceneCore::ResizeAdditionalMaterials(uint32_t num)
@@ -444,7 +442,7 @@ void SceneCore::ResizeAdditionalMaterials(uint32_t num)
 void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
 {
     const uint64_t meshID = instance.MeshIdx == -1 ? INVALID_MESH :
-        MeshID(instance.MeshIdx, instance.MeshPrimIdx);
+        MeshID(instance.SceneID, instance.MeshIdx, instance.MeshPrimIdx);
 
     if (lock)
         AcquireSRWLockExclusive(&m_instanceLock);
@@ -484,18 +482,17 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
 
     // Update instance "dictionary"
     {
-        Assert(m_IDtoTreePos.find(instance.ID) == nullptr, "instance with id %llu already exists.", instance.ID);
+        Assert(!m_IDtoTreePos.find(instance.ID), "instance with id %llu already exists.", instance.ID);
         m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
         // Adjust tree positions of shifted instances
         for (int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
         {
             uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
-            TreePos* p = m_IDtoTreePos.find(insID);
-            Assert(p, "instance with ID %llu was not found in the scene graph.", insID);
+            auto pos = m_IDtoTreePos.find(insID);
 
             // Shift the tree poistion to right
-            p->Offset++;
+            pos.value()->Offset++;
         }
     }
 

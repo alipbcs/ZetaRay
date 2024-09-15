@@ -100,4 +100,10 @@ namespace ZetaRay::Util
 
         return -1;
     }
+
+    ZetaInline uint32_t XXH3_64_To_32(uint64_t hash)
+    {
+        // Ref: https://github.com/Cyan4973/xxHash/issues/453
+        return hash & 0xffffffff;
+    }
 }

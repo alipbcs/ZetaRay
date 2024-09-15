@@ -6,11 +6,13 @@
 #include "../App/Filesystem.h"
 #include "../Core/Material.h"
 #include "../Model/Mesh.h"
+#include "../Scene/SceneCommon.h"
 
 namespace ZetaRay::Model::glTF::Asset
 {
     struct Mesh
     {
+        uint32_t SceneID;
         int glTFMaterialIdx;
         int MeshIdx;
         int MeshPrimIdx;
@@ -31,6 +33,7 @@ namespace ZetaRay::Model::glTF::Asset
     struct InstanceDesc
     {
         Math::AffineTransformation LocalTransform;
+        uint32_t SceneID;
         uint64_t ID;
         uint64_t ParentID;
         int MeshIdx;
@@ -55,7 +58,7 @@ namespace ZetaRay::Model::glTF::Asset
             AlphaCutoff(0.5f),
             AlphaMode(Material::ALPHA_MODE::OPAQUE_),
             DoubleSided(false),
-            Index(-1),
+            ID(Scene::DEFAULT_MATERIAL_ID),
             BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
             EmissiveFactor(0.0f, 0.0f, 0.0f),
             EmissiveStrength(1.0f),
@@ -78,8 +81,8 @@ namespace ZetaRay::Model::glTF::Asset
         float Transmission;
 
         float AlphaCutoff;
-        // Unique index of each material in the glTF scene
-        int Index;
+        // Unique ID of each material
+        uint32_t ID;
         Material::ALPHA_MODE AlphaMode;
         bool DoubleSided;
     };

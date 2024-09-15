@@ -14,7 +14,7 @@ const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(uint64_t id)
     std::shared_lock<std::shared_mutex> lock(m_uploadHeapMtx);
     auto buff = m_uploadHeapBuffs.find(id);
     if(buff)
-        return *buff;
+        return *buff.value();
 
     return nullptr;
 }
@@ -40,11 +40,11 @@ void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const Up
 const Buffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
     std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
-    auto* it = m_defaultHeapBuffs.find(id);
+    auto it = m_defaultHeapBuffs.find(id);
     if (!it)
         return nullptr;
 
-    return *it;
+    return *it.value();
 }
 
 const Buffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
@@ -82,8 +82,8 @@ void SharedShaderResources::RemoveDefaultHeapBuffer(std::string_view id, const B
 const DescriptorTable* SharedShaderResources::GetDescriptorTable(uint64_t id)
 {
     std::shared_lock<std::shared_mutex> lock(m_descTableMtx);
-    if (auto it = m_descTables.find(id); it != nullptr)
-        return *it;
+    if (auto it = m_descTables.find(id); it)
+        return *it.value();
 
     return nullptr;
 }

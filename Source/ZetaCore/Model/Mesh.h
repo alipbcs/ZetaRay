@@ -25,10 +25,10 @@ namespace ZetaRay::Model
             uint32_t vtxBuffStartOffset,
             uint32_t idxBuffStartOffset,
             uint32_t numIndices,
-            uint32_t matIdx)
+            uint32_t matID)
             : m_numVertices((uint32_t)vertices.size()),
             m_numIndices(numIndices),
-            m_materialIdx(matIdx),
+            m_materialID(matID),
             m_vtxBuffStartOffset(vtxBuffStartOffset),
             m_idxBuffStartOffset(idxBuffStartOffset)
         {
@@ -41,7 +41,7 @@ namespace ZetaRay::Model
 
         uint32_t m_vtxBuffStartOffset;
         uint32_t m_idxBuffStartOffset;
-        uint32_t m_materialIdx;
+        uint32_t m_materialID;
         uint32_t m_numVertices;
         uint32_t m_numIndices;
         //Math::AABB m_AABB;

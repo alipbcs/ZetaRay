@@ -67,16 +67,7 @@ namespace ZetaRay::Util
 
         // Returns NULL if an element with the given key is not found.
         // Note: in contrast to find(), find_entry() returns NULL only when the table is empty.
-        ValueType* find(KeyType key) const
-        {
-            Entry* e = find_entry(key);
-            if (e && e->Key == key)
-                return &e->Val;
-
-            return nullptr;
-        }
-
-        Util::Optional<ValueType*> find2(KeyType key) const
+        Util::Optional<ValueType*> find(KeyType key) const
         {
             Entry* e = find_entry(key);
             if (e && e->Key == key)

@@ -85,7 +85,7 @@ namespace
 
     struct ThreadContext
     {
-        uint64_t SceneID;
+        uint32_t SceneID;
         const App::Filesystem::Path& Path;
         cgltf_data* Model;
         int NumMeshWorkers;
@@ -253,7 +253,7 @@ namespace
         }
     }
 
-    void ProcessMeshes(const cgltf_data& model, uint64_t sceneID, size_t offset, size_t size,
+    void ProcessMeshes(const cgltf_data& model, uint32_t sceneID, size_t offset, size_t size,
         MutableSpan<Vertex> vertices, std::atomic_uint32_t& vertexCounter,
         MutableSpan<uint32_t> indices, std::atomic_uint32_t& idxCounter,
         MutableSpan<Mesh> meshes, std::atomic_uint32_t& meshCounter,
@@ -375,6 +375,7 @@ namespace
 
                 meshes[currMeshPrimOffset++] = Mesh
                     {
+                        .SceneID = sceneID,
                         .glTFMaterialIdx = prim.material ? (int)(prim.material - model.materials) : -1,
                         .MeshIdx = (int)meshIdx,
                         .MeshPrimIdx = primIdx,
@@ -394,7 +395,7 @@ namespace
                     if ((emissiveFactDot1 > 0 || prim.material->has_emissive_strength || 
                         prim.material->emissive_texture.texture))
                     {
-                        const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
+                        const uint64_t meshID = Scene::MeshID(sceneID, (int)meshIdx, primIdx);
 
                         emissivesPrims[workerBaseEmissiveOffset + numEmissiveMeshPrims++] = EmissiveMeshPrim
                             {
@@ -415,7 +416,7 @@ namespace
         emissivePrimCount = numEmissiveMeshPrims;
     }
 
-    void LoadDDSImages(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
+    void LoadDDSImages(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
         size_t offset, size_t size, MutableSpan<DDSImage> ddsImages)
     {
         UploadHeapArena arena(64 * 1024 * 1024);
@@ -442,11 +443,13 @@ namespace
                 {
                     if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
                     {
-                        LOG_UI_WARNING("Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n", p.Get());
+                        LOG_UI_WARNING(
+                            "Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n", 
+                            p.Get());
                         continue;
                     }
-                    else
-                        Check(false, "Error while loading DDS texture in path %s: %d", p.Get(), err);
+                    
+                    Check(false, "Error while loading DDS texture in path %s: %d", p.Get(), err);
                 }
 
                 ddsImages[m] = DDSImage{ .T = ZetaMove(tex), .ID = id };
@@ -454,7 +457,7 @@ namespace
         }
     }
 
-    void ProcessMaterials(uint64_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
+    void ProcessMaterials(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
         int offset, int size, const MutableSpan<DDSImage> ddsImages)
     {
         auto getAlphaMode = [](cgltf_alpha_mode m)
@@ -481,7 +484,7 @@ namespace
             Check(mat.has_pbr_metallic_roughness, "material is not supported.");
 
             glTF::Asset::MaterialDesc desc;
-            desc.Index = m;
+            desc.ID = Scene::MaterialID(sceneID, m);
             desc.AlphaMode = getAlphaMode(mat.alpha_mode);
             desc.AlphaCutoff = (float)mat.alpha_cutoff;
             desc.DoubleSided = mat.double_sided;
@@ -579,7 +582,7 @@ namespace
 
                 if (meshPrim.material)
                 {
-                    const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
+                    const uint64_t meshID = Scene::MeshID(context.SceneID, (int)meshIdx, primIdx);
                     const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, 
                         [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
@@ -630,7 +633,7 @@ namespace
 
                 if (meshPrim.material)
                 {
-                    const uint64_t meshID = SceneCore::MeshID((int)meshIdx, primIdx);
+                    const uint64_t meshID = Scene::MeshID(context.SceneID, (int)meshIdx, primIdx);
                     const auto idx = BinarySearch(Span(context.EmissiveMeshPrims), meshID, 
                         [](const EmissiveMeshPrim& p) {return p.MeshID; });
 
@@ -642,11 +645,11 @@ namespace
 
                         const auto& meshPrimInfo = context.EmissiveMeshPrims[idx];
 
-                        // + 1 is to skip over default material
-                        const Material* mat = scene.GetMaterial(meshPrimInfo.MaterialIdx + 1).value();
+                        const uint32_t matID = Scene::MaterialID(context.SceneID, meshPrimInfo.MaterialIdx);
+                        const Material* mat = scene.GetMaterial(matID).value();
 
                         const int nodeIdx = (int)(&node - context.Model->nodes);
-                        const uint64_t currInstanceID = SceneCore::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
+                        const uint64_t currInstanceID = Scene::InstanceID(context.SceneID, nodeIdx, meshIdx, primIdx);
 
                         // Add emissive instance
                         context.EmissiveInstances[emissiveMeshIdx++] = EmissiveInstance
@@ -705,7 +708,7 @@ namespace
         Assert(rtEmissiveTriIdx == context.NumEmissiveTris, "these must match.");
     }
 
-    void ProcessNodeSubtree(const cgltf_node& node, uint64_t sceneID, const cgltf_data& model, 
+    void ProcessNodeSubtree(const cgltf_node& node, uint32_t sceneID, const cgltf_data& model,
         uint64_t parentId)
     {
         uint64_t currInstanceID = SceneCore::ROOT_ID;
@@ -718,7 +721,8 @@ namespace
             v_float4x4 vM = load4x4(M);
             auto det = store(det3x3(vM));
             //Check(fabsf(det.x) > 1e-6f, "Transformation matrix with a zero determinant is invalid.");
-            Check(det.x > 0.0f, "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
+            Check(det.x > 0.0f, 
+                "Transformation matrices that change the orientation (e.g. negative scaling) are not supported.");
 
             // Column-major storage to row-major storage
             vM = transpose(vM);
@@ -759,12 +763,16 @@ namespace
         {
             if (node.has_scale)
             {
-                Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, "Negative scale factors are not supported.");
+                Check(node.scale[0] > 0 && node.scale[1] > 0 && node.scale[2] > 0, 
+                    "Negative scale factors are not supported.");
                 transform.Scale = float3((float)node.scale[0], (float)node.scale[1], (float)node.scale[2]);
             }
 
             if (node.has_translation)
-                transform.Translation = float3((float)node.translation[0], (float)node.translation[1], (float)-node.translation[2]);
+            {
+                transform.Translation = float3((float)node.translation[0], (float)node.translation[1], 
+                    (float)-node.translation[2]);
+            }
 
             if (node.has_rotation)
             {
@@ -823,7 +831,7 @@ namespace
                     RT_AS_SUBGROUP::NON_EMISSIVE;
 
                 // Parent-child relationships will be w.r.t. the last mesh primitive
-                currInstanceID = SceneCore::InstanceID(sceneID, nodeIdx, meshIdx, primIdx);
+                currInstanceID = Scene::InstanceID(sceneID, nodeIdx, meshIdx, primIdx);
 
                 const bool isOpaque = meshPrim.material && meshPrim.material->alpha_mode != cgltf_alpha_mode_opaque ?
                     false :
@@ -831,6 +839,7 @@ namespace
 
                 glTF::Asset::InstanceDesc desc{
                     .LocalTransform = transform,
+                    .SceneID = sceneID,
                     .ID = currInstanceID,
                     .ParentID = parentId,
                     .MeshIdx = meshIdx,
@@ -845,10 +854,11 @@ namespace
         }
         else
         {
-            currInstanceID = SceneCore::InstanceID(sceneID, nodeIdx, -1, -1);
+            currInstanceID = Scene::InstanceID(sceneID, nodeIdx, -1, -1);
 
             glTF::Asset::InstanceDesc desc{
                 .LocalTransform = transform,
+                    .SceneID = sceneID,
                     .ID = currInstanceID,
                     .ParentID = parentId,
                     .MeshIdx = -1,
@@ -867,7 +877,7 @@ namespace
         }
     }
 
-    void ProcessNodes(const cgltf_data& model, uint64_t sceneID)
+    void ProcessNodes(const cgltf_data& model, uint32_t sceneID)
     {
         for (size_t i = 0; i < model.scene->nodes_count; i++)
         {
@@ -955,7 +965,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
     Check(model->scene, "no scene found in glTF file: %s.", pathToglTF.GetView());
-    const uint64_t sceneID = XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length());
+    const uint32_t sceneID = XXH3_64_To_32(XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length()));
     SceneCore& scene = App::GetScene();
 
     // All the unique textures that need to be loaded from disk
@@ -1160,11 +1170,4 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     // with tasks that are not related to loading glTF.
     App::FlushWorkerThreadPool();
     waitObj.Wait();
-
-    //// Transfer ownership of mesh buffers.
-    //scene.AddMeshes(ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
-    //// Transfer ownership of emissives.
-    //scene.AddEmissives(ZetaMove(emissiveInstances), ZetaMove(rtEmissives));
-
-    //cgltf_free(model);
 }

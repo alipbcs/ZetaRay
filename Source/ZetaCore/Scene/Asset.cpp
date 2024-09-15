@@ -26,6 +26,7 @@ TexSRVDescriptorTable::TexSRVDescriptorTable(const uint32_t descTableSize)
     m_numMasks(descTableSize >> 6)
 {
     Assert(Math::IsPow2(descTableSize), "descriptor table size must be a power of two.");
+    Assert(descTableSize < MAX_NUM_DESCRIPTORS, "desc. table size exceeded maximum allowed.");
 }
 
 void TexSRVDescriptorTable::Init(uint64_t id)
@@ -39,28 +40,30 @@ void TexSRVDescriptorTable::Init(uint64_t id)
 
 uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
 {
-    // If the texture already exists, just increase the ref count and return it
-    if (auto it = m_cache.find(id); it != nullptr)
+    // If texture already exists, just increase the ref count and return it
+    if (auto it = m_cache.find(id); it)
     {
-        const uint32_t offset = it->DescTableOffset;
+        const uint32_t offset = it.value()->DescTableOffset;
         Assert(offset < m_descTableSize, "invalid offset.");
-        it->RefCount++;
+        it.value()->RefCount++;
 
         return offset;
     }
 
     Assert(tex.IsInitialized(), "Texture hasn't been initialized.");
 
-    // Find the first free slot in the table
-    DWORD freeSlot = DWORD(-1);
+    // Find first free slot in table
+    uint32_t freeSlot = UINT32_MAX;
     int i = 0;
+
     for (; i < (int)m_numMasks; i++)
     {
-        if (_BitScanForward64(&freeSlot, ~m_inUseBitset[i]))
+        freeSlot = (uint32)_tzcnt_u64(~m_inUseBitset[i]);
+        if (freeSlot != 64)
             break;
     }
 
-    Assert(freeSlot != DWORD(-1), "No free slot found");
+    Assert(freeSlot != UINT32_MAX, "No free slot was found.");
     m_inUseBitset[i] |= (1llu << freeSlot);    // Set the slot to occupied
 
     freeSlot += i * 64;        // Each uint64_t covers 64 slots
@@ -110,34 +113,26 @@ void TexSRVDescriptorTable::Clear()
 // MaterialBuffer
 //--------------------------------------------------------------------------------------
 
-uint32_t MaterialBuffer::Add(Material& mat)
-{
-    uint32_t idx = (uint32_t)m_materials.size() - 1;
-    Add(mat, idx);
-
-    return idx;
-}
-
-void MaterialBuffer::Add(Material& mat, uint32_t idx)
+void MaterialBuffer::Add(uint32_t ID, const Material& mat)
 {
     // Find first free slot in buffer (i.e. first-fit)
-    DWORD freeIdx = DWORD(-1);
+    uint32 freeIdx = UINT32_MAX;
     int i = 0;
+
     for (; i < NUM_MASKS; i++)
     {
-        if (_BitScanForward64(&freeIdx, ~m_inUseBitset[i]))
+        freeIdx = (uint32)_tzcnt_u64(~m_inUseBitset[i]);
+        if (freeIdx != 64)
             break;
     }
 
-    Assert(freeIdx != -1, "No free slot found.");
+    Assert(freeIdx != UINT32_MAX, "No free slot was found.");
     m_inUseBitset[i] |= (1llu << freeIdx);        // Set the slot to occupied
 
     freeIdx += i << 6;        // Each uint64_t covers 64 slots
     Assert(freeIdx < MAX_NUM_MATERIALS, "Invalid table index.");
 
-    // Set offset in input material
-    mat.SetGpuBufferIndex(freeIdx);
-    m_materials[idx] = mat;
+    m_materials[ID] = Entry{ .Mat = mat, .GpuBufferIdx = freeIdx };
 }
 
 void MaterialBuffer::UploadToGPU()
@@ -148,10 +143,11 @@ void MaterialBuffer::UploadToGPU()
         SmallVector<Material, FrameAllocator> buffer;
         buffer.resize(m_materials.size());
 
-        for(auto& mat : m_materials)
+        // Convert hash table to array
+        for (auto it = m_materials.begin_it(); it < m_materials.end_it(); it = m_materials.next_it(it))
         {
-            const uint32_t indexInBuffer = mat.GpuBufferIndex();
-            buffer[indexInBuffer] = mat;
+            const uint32_t bufferIndex = it->Val.GpuBufferIdx;
+            buffer[bufferIndex] = it->Val.Mat;
         }
 
         auto& renderer = App::GetRenderer();
@@ -164,18 +160,20 @@ void MaterialBuffer::UploadToGPU()
         r.InsertOrAssignDefaultHeapBuffer(GlobalResource::MATERIAL_BUFFER, m_buffer);
     }
     // Update a single material
-    else if (m_staleIdx != -1)
+    else if (m_staleID != UINT32_MAX)
     {
-        GpuMemory::UploadToDefaultHeapBuffer(m_buffer, sizeof(Material),
-            &m_materials[m_staleIdx], sizeof(Material) * m_staleIdx);
+        auto* entry = m_materials.find(m_staleID).value();
 
-        m_staleIdx = -1;
+        GpuMemory::UploadToDefaultHeapBuffer(m_buffer, sizeof(Material),
+            &entry->Mat, sizeof(Material) * entry->GpuBufferIdx);
+
+        m_staleID = UINT32_MAX;
     }
 }
 
 void MaterialBuffer::ResizeAdditionalMaterials(uint32_t num)
 {
-    m_materials.resize(m_materials.size() + num);
+    m_materials.resize(m_materials.size() + num, true);
 }
 
 void MaterialBuffer::Clear()
@@ -195,10 +193,10 @@ uint32_t MeshContainer::Add(SmallVector<Core::Vertex>&& vertices, SmallVector<ui
     const uint32_t idxOffset = (uint32_t)m_indices.size();
 
     const uint32_t meshIdx = (uint32_t)m_meshes.size();
-    const uint64_t meshFromSceneID = SceneCore::MeshID(meshIdx, 0);
+    const uint64_t meshFromSceneID = Scene::MeshID(Scene::DEFAULT_SCENE_ID, meshIdx, 0);
     bool success = m_meshes.try_emplace(meshFromSceneID, vertices, vtxOffset, idxOffset, 
         (uint32_t)indices.size(), matIdx);
-    Check(success, "mesh with given ID (from mesh index %u) already exists.", meshIdx);
+    Check(success, "mesh with ID (from mesh index %u) already exists.", meshIdx);
 
     m_vertices.append_range(vertices.begin(), vertices.end());
     m_indices.append_range(indices.begin(), indices.end());
@@ -216,11 +214,10 @@ void MeshContainer::AddBatch(SmallVector<Model::glTF::Asset::Mesh>&& meshes,
     // Each mesh primitive + material index combo must be unique
     for (auto& mesh : meshes)
     {
-        const uint64_t meshFromSceneID = SceneCore::MeshID(mesh.MeshIdx, mesh.MeshPrimIdx);
+        const uint64_t meshFromSceneID = Scene::MeshID(mesh.SceneID, mesh.MeshIdx, mesh.MeshPrimIdx);
         const uint32_t matFromSceneID = mesh.glTFMaterialIdx != -1 ?
-            // Offset by one to account for default material at slot 0.
-            mesh.glTFMaterialIdx + 1 :
-            SceneCore::DEFAULT_MATERIAL_IDX;
+            Scene::MaterialID(mesh.SceneID, mesh.glTFMaterialIdx) :
+            Scene::DEFAULT_MATERIAL_ID;
 
         bool success = m_meshes.try_emplace(meshFromSceneID, 
             Span(vertices.begin() + mesh.BaseVtxOffset, mesh.NumVertices),
@@ -311,7 +308,7 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& instances,
     for (int i = 0; i < (int)m_instances.size(); i++)
     {
         const uint64_t currID = m_instances[i].InstanceID;
-        const uint32_t idx = *idToIdxMap.find2(currID).value();
+        const uint32_t idx = *idToIdxMap.find(currID).value();
 
         memcpy(&m_trisCpu[currNumTris], 
             &tris[instances[idx].BaseTriOffset],

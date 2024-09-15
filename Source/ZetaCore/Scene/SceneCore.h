@@ -50,6 +50,12 @@ namespace ZetaRay::Scene
         bool UpdateFlag;
     };
 
+    struct RT_AS_Info
+    {
+        uint32_t GeometryIndex;
+        uint32_t InstanceID;
+    };
+
     // 7        6     5         4       3     2     1     0
     //  meshmode    update    build   opaque     instance
     ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update, bool isOpaque)
@@ -66,12 +72,33 @@ namespace ZetaRay::Scene
             .UpdateFlag = bool((f >> 5) & 0x1) };
     }
 
-    struct RT_AS_Info
+    ZetaInline uint64_t InstanceID(uint32_t sceneID, int nodeIdx, int mesh, int meshPrim)
     {
-        uint32_t GeometryIndex;
-        uint32_t InstanceID;
-    };
+        StackStr(str, n, "instance_%u_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
+        uint64_t instanceFromSceneID = XXH3_64bits(str, n);
 
+        return instanceFromSceneID;
+    }
+
+    ZetaInline uint32_t MaterialID(uint32_t sceneID, int matIdx)
+    {
+        StackStr(str, n, "mesh_%u_%d", sceneID, matIdx);
+        uint64_t meshFromSceneID = XXH3_64bits(str, n);
+
+        return Util::XXH3_64_To_32(meshFromSceneID);
+    }
+
+    ZetaInline uint64_t MeshID(uint32_t sceneID, int meshIdx, int meshPrimIdx)
+    {
+        StackStr(str, n, "mesh_%u_%d_%d", sceneID, meshIdx, meshPrimIdx);
+        uint64_t meshFromSceneID = XXH3_64bits(str, n);
+
+        return meshFromSceneID;
+    }
+}
+
+namespace ZetaRay::Scene
+{
     class SceneCore
     {
         friend struct RT::StaticBLAS;
@@ -79,23 +106,6 @@ namespace ZetaRay::Scene
 
     public:
         static constexpr uint64_t ROOT_ID = UINT64_MAX;
-        static constexpr uint32_t DEFAULT_MATERIAL_IDX = 0;
-
-        static ZetaInline uint64_t InstanceID(uint64_t sceneID, int nodeIdx, int mesh, int meshPrim)
-        {
-            StackStr(str, n, "instance_%llu_%d_%d_%d", sceneID, nodeIdx, mesh, meshPrim);
-            uint64_t instanceFromSceneID = XXH3_64bits(str, n);
-
-            return instanceFromSceneID;
-        }
-
-        static ZetaInline uint64_t MeshID(int meshIdx, int meshPrimIdx)
-        {
-            StackStr(str, n, "mesh_%d_%d", meshIdx, meshPrimIdx);
-            uint64_t meshFromSceneID = XXH3_64bits(str, n);
-
-            return meshFromSceneID;
-        }
 
         SceneCore();
         ~SceneCore() = default;
@@ -132,14 +142,14 @@ namespace ZetaRay::Scene
         //
         // Material
         //
-        uint32_t AddMaterial(const Model::glTF::Asset::MaterialDesc& mat, bool lock = true);
+        void AddMaterial(const Model::glTF::Asset::MaterialDesc& mat, bool lock = true);
         void AddMaterial(const Model::glTF::Asset::MaterialDesc& mat,
             Util::MutableSpan<Model::glTF::Asset::DDSImage> ddsImages, bool lock = true);
-        ZetaInline Util::Optional<const Material*> GetMaterial(uint32_t idx) const
+        ZetaInline Util::Optional<const Material*> GetMaterial(uint32_t ID, uint32_t* bufferIdx = nullptr) const
         {
-            return m_matBuffer.Get(idx);
+            return m_matBuffer.Get(ID, bufferIdx);
         }
-        void UpdateMaterial(const Material& newMat, int matIdx);
+        void UpdateMaterial(uint32 ID, const Material& newMat);
         void ResizeAdditionalMaterials(uint32_t num);
 
         ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.GPUDesciptorHeapIndex(); }
@@ -205,7 +215,7 @@ namespace ZetaRay::Scene
         //
         // Misc
         //
-        ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
+        //ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
         ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
         ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
         ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
@@ -289,7 +299,7 @@ namespace ZetaRay::Scene
         {
             auto pos = m_IDtoTreePos.find(id);
             if (pos)
-                return *pos;
+                return *pos.value();
 
             return {};
         }
@@ -327,7 +337,7 @@ namespace ZetaRay::Scene
         //
         // BVH
         //
-        Math::BVH m_bvh;
+        //Math::BVH m_bvh;
         bool m_rebuildBVHFlag = false;
 
         //

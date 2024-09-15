@@ -51,7 +51,7 @@ namespace ZetaRay::Scene::Internal
             uint32_t RefCount = 0;
         };
 
-        static constexpr int MAX_NUM_DESCRIPTORS = 1024;
+        static constexpr int MAX_NUM_DESCRIPTORS = 4096;
         static constexpr int MAX_NUM_MASKS = MAX_NUM_DESCRIPTORS >> 6;
         static_assert(MAX_NUM_MASKS * 64 == MAX_NUM_DESCRIPTORS, "these must match.");
 
@@ -76,34 +76,47 @@ namespace ZetaRay::Scene::Internal
         MaterialBuffer& operator=(const MaterialBuffer&) = delete;
 
         void Clear();
-        uint32_t Add(Material& mat);
-        void Add(Material& mat, uint32_t idx);
-        void Update(const Material& mat, int idx)
+        void Add(uint32_t ID, const Material& mat);
+        void Update(uint32_t ID, const Material& mat)
         {
-            Assert(idx < m_materials.size(), "Invalid material index.");
-            m_materials[idx] = mat;
-            m_staleIdx = idx;
+            auto it = m_materials.find(ID);
+            it.value()->Mat = mat;
+            m_staleID = ID;
         }
         void UploadToGPU();
         void ResizeAdditionalMaterials(uint32_t num);
 
-        ZetaInline Util::Optional<const Material*> Get(uint32_t idx) const
+        ZetaInline Util::Optional<const Material*> Get(uint32_t ID, uint32* bufferIdx = nullptr) const
         {
-            if(idx >= m_materials.size())
-                return {};
+            auto it = m_materials.find(ID);
+            if (it)
+            {
+                auto* entry = it.value();
 
-            return &m_materials[idx];
+                if (bufferIdx)
+                    *bufferIdx = entry->GpuBufferIdx;
+
+                return &entry->Mat;
+            }
+
+            return {};
         }
 
     private:
-        static constexpr int MAX_NUM_MATERIALS = 2048;
+        struct Entry
+        {
+            Material Mat;
+            uint32_t GpuBufferIdx;
+        };
+
+        static constexpr int MAX_NUM_MATERIALS = 4096;
         static constexpr int NUM_MASKS = MAX_NUM_MATERIALS >> 6;
         static_assert(NUM_MASKS * 64 == MAX_NUM_MATERIALS, "these must match.");
         uint64_t m_inUseBitset[NUM_MASKS] = { 0 };
 
         Core::GpuMemory::Buffer m_buffer;
-        Util::SmallVector<Material> m_materials;
-        int m_staleIdx = -1;
+        Util::HashTable<Entry, uint32_t> m_materials;
+        uint32 m_staleID = UINT32_MAX;
     };
 
     //--------------------------------------------------------------------------------------
@@ -112,9 +125,10 @@ namespace ZetaRay::Scene::Internal
 
     struct MeshContainer
     {
-        uint32_t Add(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices, 
+        uint32_t Add(Util::SmallVector<Core::Vertex>&& vertices, Util::SmallVector<uint32_t>&& indices,
             uint32_t matIdx);
-        void AddBatch(Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, Util::SmallVector<Core::Vertex>&& vertices,
+        void AddBatch(Util::SmallVector<Model::glTF::Asset::Mesh>&& meshes, 
+            Util::SmallVector<Core::Vertex>&& vertices,
             Util::SmallVector<uint32_t>&& indices);
         void Reserve(size_t numVertices, size_t numIndices);
         void RebuildBuffers();
@@ -123,9 +137,9 @@ namespace ZetaRay::Scene::Internal
         // Note: not thread safe for reading and writing at the same time
         ZetaInline Util::Optional<const Model::TriangleMesh*> GetMesh(uint64_t id) const
         {
-            auto mesh = m_meshes.find(id);
-            if (mesh)
-                return mesh;
+            auto it = m_meshes.find(id);
+            if (it)
+                return it.value();
 
             return {};
         }
@@ -162,11 +176,11 @@ namespace ZetaRay::Scene::Internal
         ZetaInline Util::MutableSpan<RT::EmissiveTriangle> Triagnles() { return m_trisCpu; }
         ZetaInline bool HasStaleMaterials() const { return m_staleNumTris > 0; }
         ZetaInline bool TransformedToWorldSpace() const { return m_trisGpu.IsInitialized(); }
-        ZetaInline Util::Optional<Instance*> FindInstance(uint64_t ID)
+        ZetaInline Util::Optional<const Instance*> FindInstance(uint64_t ID)
         {
-            auto* it = m_idToIdxMap.find(ID);
+            auto it = m_idToIdxMap.find(ID);
             if (it)
-                return &m_instances[*it];
+                return &m_instances[*it.value()];
 
             return {};
         }

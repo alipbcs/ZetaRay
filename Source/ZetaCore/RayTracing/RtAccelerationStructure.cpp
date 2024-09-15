@@ -675,7 +675,8 @@ void TLAS::BuildFrameMeshInstanceData()
             return;
 
         const TriangleMesh* mesh = scene.GetMesh(currTreeLevel.m_meshIDs[levelIdx]).value();
-        const Material* mat = scene.GetMaterial(mesh->m_materialIdx).value();
+        uint32 matBufferIdx = UINT32_MAX;
+        const Material* mat = scene.GetMaterial(mesh->m_materialID, &matBufferIdx).value();
 
         const EmissiveInstance* emissiveInstance = sceneHasEmissives && 
             (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE) ?
@@ -697,8 +698,8 @@ void TLAS::BuildFrameMeshInstanceData()
         float4a s;
         decomposeSRT(vM, s, r, t);
 
-        Assert(mat->GpuBufferIndex() < UINT16_MAX, "Material index exceeded maximum allowed.");
-        m_frameInstanceData[currInstance].MatIdx = (uint16_t)mat->GpuBufferIndex();
+        Assert(matBufferIdx < UINT16_MAX, "Material index exceeded maximum allowed.");
+        m_frameInstanceData[currInstance].MatIdx = (uint16_t)matBufferIdx;
         m_frameInstanceData[currInstance].BaseVtxOffset = mesh->m_vtxBuffStartOffset;
         m_frameInstanceData[currInstance].BaseIdxOffset = mesh->m_idxBuffStartOffset;
         m_frameInstanceData[currInstance].Rotation = unorm4::FromNormalized(r);

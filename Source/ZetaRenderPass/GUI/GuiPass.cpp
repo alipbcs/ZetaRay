@@ -1096,7 +1096,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
     auto& scene = App::GetScene();
     const auto meshID = scene.GetInstanceMeshID(pickedID);
     const auto& mesh = *scene.GetMesh(meshID).value();
-    Material mat = *scene.GetMaterial(mesh.m_materialIdx).value();
+    Material mat = *scene.GetMaterial(mesh.m_materialID).value();
     bool modified = false;
     constexpr ImVec4 texturedCol = ImVec4(0.9587256, 0.76055556, 0.704035435, 1);
 
@@ -1303,7 +1303,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
     }
 
     if (modified)
-        scene.UpdateMaterial(mat, mesh.m_materialIdx);
+        scene.UpdateMaterial(mesh.m_materialID, mat);
 
     // Defer update to when user has stopped editing
     if (m_pendingEmissiveUpdate && (colorEditFinished || strEditFinished))
