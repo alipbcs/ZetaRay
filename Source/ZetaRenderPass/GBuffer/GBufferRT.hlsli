@@ -184,7 +184,7 @@ namespace GBufferRT
         float normalScale = mat.GetNormalScale();
         float metallic = mat.Metallic() ? 1.0f : 0.0f;
         float alphaCutoff = mat.GetAlphaCutoff();
-        float roughness = mat.GetRoughnessFactor();
+        float roughness = mat.GetSpecularRoughness();
         float3 shadingNormal = geoNormal;
 
         const uint32_t baseColorTex = mat.GetBaseColorTex();
@@ -264,7 +264,7 @@ namespace GBufferRT
 
         // encode metalness along with some other stuff
         bool transmissive = mat.Transmissive();
-        float ior = mat.GetIOR();
+        float ior = mat.GetSpecularIOR();
         float trDepth = transmissive ? (float)mat.GetTransmissionDepth() : 0;
         float subsurface = mat.ThinWalled() ? (float)mat.GetSubsurface() : 0;
         float encoded = GBuffer::EncodeMetallic(metallic, transmissive, emissiveColor, 

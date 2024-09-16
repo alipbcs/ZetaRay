@@ -338,12 +338,12 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
     mat.SetEmissiveFactor(matDesc.EmissiveFactor);
     mat.SetNormalScale(matDesc.NormalScale);
     mat.SetMetallic(matDesc.MetallicFactor);
-    mat.SetRoughnessFactor(matDesc.RoughnessFactor);
+    mat.SetSpecularRoughness(matDesc.RoughnessFactor);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
     mat.SetAlphaCutoff(matDesc.AlphaCutoff);
     mat.SetTransmission(matDesc.Transmission);
-    mat.SetIOR(matDesc.IOR);
+    mat.SetSpecularIOR(matDesc.IOR);
 
     if (lock)
         AcquireSRWLockExclusive(&m_matLock);
@@ -363,12 +363,12 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     mat.SetEmissiveStrength(matDesc.EmissiveStrength);
     mat.SetNormalScale(matDesc.NormalScale);
     mat.SetMetallic(matDesc.MetallicFactor);
-    mat.SetRoughnessFactor(matDesc.RoughnessFactor);
+    mat.SetSpecularRoughness(matDesc.RoughnessFactor);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
     mat.SetAlphaCutoff(matDesc.AlphaCutoff);
     mat.SetTransmission(matDesc.Transmission);
-    mat.SetIOR(matDesc.IOR);
+    mat.SetSpecularIOR(matDesc.IOR);
 
     auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
         MutableSpan<DDSImage> ddsImages)

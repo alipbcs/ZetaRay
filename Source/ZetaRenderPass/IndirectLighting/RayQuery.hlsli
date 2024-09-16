@@ -463,9 +463,9 @@ namespace ReSTIR_RT
 
         float3 baseColor = mat.GetBaseColorFactor();
         float metallic = mat.Metallic() ? 1.0f : 0.0f;
-        float roughness = mat.GetRoughnessFactor();
+        float roughness = mat.GetSpecularRoughness();
         bool tr = mat.Transmissive();
-        eta = mat.GetIOR();
+        eta = mat.GetSpecularIOR();
         half trDepth = tr ? mat.GetTransmissionDepth() : 0;
 
         const uint32_t baseColorTex = mat.GetBaseColorTex();

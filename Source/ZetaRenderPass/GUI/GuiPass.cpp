@@ -1136,8 +1136,8 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
     if (ImGui::TreeNode("Specular"))
     {
-        float roughness = mat.GetRoughnessFactor();
-        float ior = mat.GetIOR();
+        float roughness = mat.GetSpecularRoughness();
+        float ior = mat.GetSpecularIOR();
         const bool mrTextured = mat.GetMetallicRoughnessTex() != Material::INVALID_ID;
 
         if (mrTextured)
@@ -1145,7 +1145,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f, "%.2f"))
         {
-            mat.SetRoughnessFactor(roughness);
+            mat.SetSpecularRoughness(roughness);
             modified = true;
         }
 
@@ -1154,7 +1154,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         if (ImGui::SliderFloat("IOR", &ior, MIN_IOR, MAX_IOR, "%.2f"))
         {
-            mat.SetIOR(ior);
+            mat.SetSpecularIOR(ior);
             modified = true;
         }
 
@@ -1222,6 +1222,40 @@ void GuiPass::MaterialTab(uint64 pickedID)
         ImGui::TreePop();
     }
     
+    if (ImGui::TreeNode("Coat"))
+    {
+        float weight = mat.GetCoatWeight();
+        float3 color = mat.GetCoatColor();
+        float roughness = mat.GetCoatRoughness();
+        float ior = mat.GetCoatIOR();
+
+        if (ImGui::SliderFloat("Weight", &weight, 0.0f, 1.0f, "%.2f"))
+        {
+            mat.SetCoatWeight(weight);
+            modified = true;
+        }
+
+        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&color), ImGuiColorEditFlags_Float))
+        {
+            mat.SetCoatColor(color);
+            modified = true;
+        }
+
+        if (ImGui::SliderFloat("Roughness", &roughness, 0.0f, 1.0f, "%.2f"))
+        {
+            mat.SetCoatRoughness(roughness);
+            modified = true;
+        }
+
+        if (ImGui::SliderFloat("IOR", &ior, MIN_IOR, MAX_IOR, "%.2f"))
+        {
+            mat.SetCoatIOR(ior);
+            modified = true;
+        }
+
+        ImGui::TreePop();
+    }
+
     float3 emissiveFactor = mat.GetEmissiveFactor();
     float emissiveStrength = HalfToFloat(mat.GetEmissiveStrength().x);
     bool colorEditFinished = false;

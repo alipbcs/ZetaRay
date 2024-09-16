@@ -87,7 +87,7 @@ namespace ZetaRay
                 PackedA = emissiveFactorRGB8 & 0xffffff;
                 PackedA |= (doubleSided << DoubleSidedBit);
                 PackedA |= ((emissiveStr.x & 0xf) << 28);
-                PackedB = emissiveTex | ((emissiveStr.x >> 4) << Material::NUM_TEXTURE_BITS);
+                PackedB = emissiveTex | (uint32_t(emissiveStr.x) << Material::NUM_TEXTURE_BITS);
             }
 #endif
 
@@ -104,9 +104,9 @@ namespace ZetaRay
 
             // Initially, triangle index within the mesh, then changed to tri ID
             uint32_t ID;
-            // [0 - 23]: Emissive factor, [24 - 27]: flags, [28-31]: 1st 4 bits of strength
+            // [0 - 24): Emissive factor, [24 - 32): flags
             uint32_t PackedA;
-            // [0 - 19]: Texture, [20 - 31]: Last 8 bits of strength
+            // [0 - 16): Texture, [16 - 32): strength
             uint32_t PackedB;
 
             EMISSIVE_UV_TYPE UV0;
@@ -120,12 +120,11 @@ namespace ZetaRay
 
             half_ GetStrength() CONST
             {
-                uint32_t str = PackedA >> 28;
-                str = str | ((PackedB >> Material::NUM_TEXTURE_BITS) << 4);
+                uint16_t str = uint16_t(PackedB >> Material::NUM_TEXTURE_BITS);
 #ifdef __cplusplus
-                return Math::half::asfloat16((uint16_t)str);
+                return Math::half::asfloat16(str);
 #else
-                return asfloat16((uint16_t)str);
+                return asfloat16(str);
 #endif
             }
 
@@ -268,10 +267,8 @@ namespace ZetaRay
 
             ZetaInline void SetStrength(Math::half newStrength)
             {
-                PackedA = PackedA & (Material::LOWER_28_BITS_MASK);
-                PackedA |= ((newStrength.x & 0xf) << 28);
-                PackedB = PackedB & Material::TEXTURE_MASK;
-                PackedB |= (newStrength.x >> 4) << Material::NUM_TEXTURE_BITS;
+                PackedB = (PackedB & Material::TEXTURE_MASK) | 
+                    (uint32_t(newStrength.x) << Material::NUM_TEXTURE_BITS);
             }
 
             ZetaInline void SetEmissiveFactor(uint32_t newFactorRGB8)
