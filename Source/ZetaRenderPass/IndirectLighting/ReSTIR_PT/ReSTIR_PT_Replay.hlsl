@@ -31,7 +31,7 @@ StructuredBuffer<Material> g_materials : register(t4);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-ReSTIR_Util::Globals InitGlobals()
+ReSTIR_Util::Globals InitGlobals(bool transmissive)
 {
     ReSTIR_Util::Globals globals;
     globals.bvh = g_bvh;
@@ -39,24 +39,22 @@ ReSTIR_Util::Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
-    globals.maxGlossyBounces_NonTr = (uint16_t)((g_local.Packed >> 4) & 0xf);
-    globals.maxGlossyBounces_Tr = (uint16_t)((g_local.Packed >> 8) & 0xf);
-    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    uint maxNonTrBounces = g_local.Packed & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
+        (uint16_t)maxNonTrBounces;
 
     return globals;
 }
 
 OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin, 
-    float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
-    bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
+    float2 lensSample, float3 prevPos, GBuffer::Flags prevFlags, float prevRoughness, 
     RPT_Util::Reconnection rc_curr, ReSTIR_Util::Globals globals)
 {
     float eta_curr = ETA_AIR;
     float eta_next = DEFAULT_ETA_MAT;
 
-    if(prevTransmissive)
+    if(prevFlags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -71,12 +69,32 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
 
     GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float4 baseColor = prevSubsurface ? g_prevBaseColor[prevPosSS] : 
+    const float4 baseColor = prevFlags.subsurface ? g_prevBaseColor[prevPosSS] : 
         float4(g_prevBaseColor[prevPosSS].rgb, 0);
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(prevFlags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[prevPosSS].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo = normalize(origin - prevPos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor.rgb, eta_curr, eta_next, prevTransmissive, prevTrDepthGt0, (half)baseColor.a);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevFlags.metallic, 
+        prevRoughness, baseColor.rgb, eta_curr, eta_next, prevFlags.transmissive, 
+        prevFlags.trDepthGt0, (half)baseColor.a, coat_weight, coat_color,
+        coat_roughness, coat_ior);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -152,10 +170,28 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
         eta_next = GBuffer::DecodeIOR(ior);
     }
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags_n.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[samplePosSS].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
         mr_n.y, baseColor_n.rgb, ETA_AIR, eta_next, flags_n.transmissive, flags_n.trDepthGt0,
-        (half)baseColor_n.a);
+        (half)baseColor_n.a, coat_weight, coat_color, coat_roughness, coat_ior);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -180,17 +216,16 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
 }
 
 OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, float3 pos, 
-    float3 normal, bool metallic, float roughness, bool transmissive, bool trDepthGt0, 
-    bool subsurface, Reconnection rc, Globals globals)
+    float3 normal, GBuffer::Flags flags, float roughness, Reconnection rc, Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float4 baseColor = subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
+    const float4 baseColor = flags.subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
 
     float eta_curr = ETA_AIR;
     float eta_next = DEFAULT_ETA_MAT;
 
-    if(transmissive)
+    if(flags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -199,9 +234,28 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
         eta_next = GBuffer::DecodeIOR(ior);
     }
 
+    float coat_weight = 0;
+    float3 coat_color = 1.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[DTid.xy].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor.rgb, eta_curr, eta_next, transmissive, trDepthGt0, (half)baseColor.a);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, 
+        roughness, baseColor.rgb, eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, 
+        (half)baseColor.a, coat_weight, coat_color, coat_roughness, coat_ior);
 
     GBUFFER_TRI_DIFF_GEO_A g_triA = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::TRI_DIFF_GEO_A];
@@ -349,11 +403,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBuffer::Flags flags_n = GBuffer::DecodeMetallic(mr_n.x);
 
     // No temporal history
-    if(flags_n.emissive || abs(mr_n.y - mr.y) > 0.3)
+    if(flags_n.emissive || 
+        (abs(mr_n.y - mr.y) > 0.3) ||
+        (flags_n.transmissive != flags.transmissive))
         return;
 #endif
 
-    ReSTIR_Util::Globals globals = InitGlobals();
+    ReSTIR_Util::Globals globals = InitGlobals(flags.transmissive);
 
     // Replay temporal reservoir's path
 #if defined (TEMPORAL_TO_CURRENT)
@@ -372,12 +428,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.PrevReservoir_A_DescHeapIdx + 6);
 
         OffsetPathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
-            pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
-            flags.subsurface, r_prev.rc, globals);
+            pos, normal, flags, mr.y, r_prev.rc, globals);
 
         ctx_ntc.Write(swizzledDTid, g_local.RBufferA_NtC_DescHeapIdx, 
             g_local.RBufferA_NtC_DescHeapIdx + 1,
             g_local.RBufferA_NtC_DescHeapIdx + 2, 
+            g_local.RBufferA_NtC_DescHeapIdx + 3, 
             r_prev.rc.IsCase3());
     }
 
@@ -406,12 +462,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 6);
 
         OffsetPathContext ctx_ntc = ReplayInCurrent(swizzledDTid, origin, lensSample, 
-            pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
-            flags.subsurface, r_spatial.rc, globals);
+            pos, normal, flags, mr.y, r_spatial.rc, globals);
 
         ctx_ntc.Write(swizzledDTid, g_local.RBufferA_NtC_DescHeapIdx, 
             g_local.RBufferA_NtC_DescHeapIdx + 1,
             g_local.RBufferA_NtC_DescHeapIdx + 2, 
+            g_local.RBufferA_NtC_DescHeapIdx + 3, 
             r_spatial.rc.IsCase3());
     }
 
@@ -431,12 +487,12 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 6);
 
         OffsetPathContext ctx_ctn = ReplayCurrentInTemporalDomain(prevPixel, origin_n, 
-            lensSample_n, pos_n, flags_n.metallic, mr_n.y, flags_n.transmissive, flags_n.trDepthGt0, 
-            flags_n.subsurface, r_curr.rc, globals);
+            lensSample_n, pos_n, flags_n, mr_n.y, r_curr.rc, globals);
 
         ctx_ctn.Write(swizzledDTid, g_local.RBufferA_CtN_DescHeapIdx, 
             g_local.RBufferA_CtN_DescHeapIdx + 1,
             g_local.RBufferA_CtN_DescHeapIdx + 2, 
+            g_local.RBufferA_CtN_DescHeapIdx + 3, 
             r_curr.rc.IsCase3());
     }
 
@@ -469,6 +525,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         ctx_ctn.Write(swizzledDTid, g_local.RBufferA_CtN_DescHeapIdx, 
             g_local.RBufferA_CtN_DescHeapIdx + 1,
             g_local.RBufferA_CtN_DescHeapIdx + 2, 
+            g_local.RBufferA_CtN_DescHeapIdx + 3, 
             r_curr.rc.IsCase3());
     }
 #endif

@@ -490,9 +490,14 @@ namespace ReSTIR_RT
         // TODO surrounding medium is assumed to be always air
         float eta_next = eta_curr == ETA_AIR ? eta : ETA_AIR;
         half subsurface = mat.ThinWalled() ? (half)mat.GetSubsurface() : 0;
+        float coat_weight = mat.GetCoatWeight();
+        float3 coat_color = mat.GetCoatColor();
+        float coat_roughness = mat.GetCoatRoughness();
+        float coat_ior = mat.GetCoatIOR();
 
         surface = BSDF::ShadingData::Init(hitInfo.normal, wo, metallic >= MIN_METALNESS_METAL, 
-            roughness, baseColor, eta_curr, eta_next, tr, trDepth, subsurface);
+            roughness, baseColor, eta_curr, eta_next, tr, trDepth, subsurface,
+            coat_weight, coat_color, coat_roughness, coat_ior);
 
         return true;
     }

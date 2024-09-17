@@ -5,7 +5,6 @@
 #include "StaticTextureSamplers.hlsli"
 #include "Volumetric.hlsli"
 #include "RT.hlsli"
-#include "GBuffers.hlsli"
 #include "BSDF.hlsli"
 
 namespace Light
@@ -139,38 +138,41 @@ namespace Light
 
     float3 Le_Sun(float3 pos, ConstantBuffer<cbFrameConstants> g_frame)
     {
-        const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
+        const float3 sigma_t_rayleigh = g_frame.RayleighSigmaSColor * 
+            g_frame.RayleighSigmaSScale;
         const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
-        const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
+        const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * 
+            g_frame.OzoneSigmaAScale;
 
         float3 temp = pos;
         temp.y += g_frame.PlanetRadius;
     
-        const float t = Volume::IntersectRayAtmosphere(g_frame.PlanetRadius + g_frame.AtmosphereAltitude, 
-            temp, -g_frame.SunDir);
-        const float3 tr = Volume::EstimateTransmittance(g_frame.PlanetRadius, temp, -g_frame.SunDir, t,
-            sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
+        const float t = Volume::IntersectRayAtmosphere(
+            g_frame.PlanetRadius + g_frame.AtmosphereAltitude, temp, -g_frame.SunDir);
+        const float3 tr = Volume::EstimateTransmittance(g_frame.PlanetRadius, temp, 
+            -g_frame.SunDir, t, sigma_t_rayleigh, sigma_t_mie, sigma_t_ozone, 6);
 
         return tr * g_frame.SunIlluminance;
     }
 
-    float3 Le_Sky(float3 wi, uint skyViewDescHeapOffset, SamplerState s = g_samPointWrap)
+    float3 Le_Sky(float3 wi, uint skyViewDescHeapOffset)
     {
         const float2 thetaPhi = Math::SphericalFromCartesian(wi);
         float2 uv = float2(thetaPhi.y * ONE_OVER_2_PI, thetaPhi.x * ONE_OVER_PI);
 
         // Inverse non-linear map
         const float sn = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
-        uv.y = (thetaPhi.x - PI_OVER_2) * 0.5f;
+        uv.y = mad(0.5f, thetaPhi.x, -PI_OVER_4);
         uv.y = 0.5f + sn * sqrt(abs(uv.y) * ONE_OVER_PI);
 
-        Texture2D<float3> g_envMap = ResourceDescriptorHeap[skyViewDescHeapOffset];
-        const float3 le = g_envMap.SampleLevel(s, uv, 0.0f).rgb;
+        Texture2D<float4> g_envMap = ResourceDescriptorHeap[skyViewDescHeapOffset];
+        // Linear sampler prevents banding artifacts
+        const float3 le = g_envMap.SampleLevel(g_samLinearWrap, uv, 0.0f).rgb;
 
         return le;
     }
 
-    // Assumes area light is diffuse.
+    // Assumes area light is diffuse
     float3 Le_EmissiveTriangle(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset, 
         SamplerState s = g_samPointWrap)
     {
@@ -178,7 +180,7 @@ namespace Light
         const float emissiveStrength = (float)tri.GetStrength();
         float3 le = emissiveFactor * emissiveStrength;
 
-        if (Math::Luminance(le) < 1e-5)
+        if (Math::Luminance(le) == 0)
             return 0.0;
 
         uint32_t emissiveTex = tri.GetTex();
@@ -196,25 +198,28 @@ namespace Light
 
     struct SunSample
     {
+        static SunSample Init()
+        {
+            SunSample ret;
+            ret.f = 0;
+            ret.wi = 0;
+            ret.pdf = 0;
+
+            return ret;
+        }
+
         static SunSample get(float3 sunDir, float sunCosAngularRadius, float3 normal, 
             BSDF::ShadingData surface, inout RNG rng)
         {
-            SunSample ret;
+            SunSample ret = SunSample::Init();
 
-            // Essentially a mirror, no point in light sampling
-            if(surface.specular && surface.metallic)
-            {
-                float3 wi = reflect(-surface.wo, normal);
-                surface.SetWi_Refl(wi, normal);
-                ret.f = BSDF::Unified(surface).f;
-                ret.wi = wi;
-                ret.pdf = 1.0f;
-
+            // Light hits the backside and surfaces isn't transmissive
+            const float ndotSunDir = dot(sunDir, normal);
+            if(ndotSunDir < 0 && !surface.Transmissive())
                 return ret;
-            }
 
             // Light sampling - since sun is a very small area light, area sampling 
-            // should be fine unless the surface is specular
+            // should be fine
             float pdf_light;
             float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), 
                 sunCosAngularRadius, pdf_light);
@@ -224,85 +229,10 @@ namespace Light
             Math::revisedONB(sunDir, T, B);
             float3 wi_light = mad(sampleLocal.x, T, mad(sampleLocal.y, B, sampleLocal.z * sunDir));
 
-            if(!surface.specular || (surface.ThinWalled() && (dot(wi_light, normal) < 0)))
-            {
-                surface.SetWi(wi_light, normal);
-                ret.f = BSDF::Unified(surface).f;
-                ret.wi = wi_light;
-                ret.pdf = pdf_light;
-
-                return ret;
-            }
-
-            // At this point, we know the surface is specular
-
-            // Use the refracted direction only if light hits the backside and surface
-            // is transmissive (thin walled was handled above)
-            if(dot(sunDir, normal) < 0)
-            {
-                if(surface.specTr)
-                {
-                    float3 wi = refract(-surface.wo, normal, 1 / surface.eta);
-                    surface.SetWi_Tr(wi, normal);
-                    ret.f = BSDF::DielectricSpecularTr(surface);
-                    ret.wi = wi;
-                    ret.pdf = 1;
-
-                    return ret;
-                }
-
-                // Sun hit the backside and surface isn't transmissive
-                ret.f = 0;
-                // Doesn't matter as f = 0
-                ret.wi = sunDir;
-                ret.pdf = 0;
-
-                return ret;
-            }
-
-            // Specular dielectric and sun hits the front side
-
-            float3 wi_refl = reflect(-surface.wo, normal);
-            bool insideCone = dot(wi_refl, sunDir) >= sunCosAngularRadius;
-
-            if(!insideCone)
-            {
-                surface.SetWi_Refl(wi_light, normal);
-                ret.f = BSDF::Unified(surface).f;
-                ret.wi = wi_light;
-                ret.pdf = pdf_light;
-
-                return ret;
-            }
-
-            // Streaming RIS -- light sample and mirror reflection are both viable
-
-            // Feed light sample
-            surface.SetWi_Refl(wi_light, normal);
-            float3 target = BSDF::Unified(surface).f;
-            float targetLum = Math::Luminance(target);
-            // rate of change of reflection vector is twice the rate of change of half vector
-            // 0.99996 = 1.0f - (1.0f - MIN_N_DOT_H_SPECULAR) * 2
-            float w_sum = RT::BalanceHeuristic(pdf_light, dot(wi_light, wi_refl) >= 0.99996, targetLum);
+            surface.SetWi(wi_light, normal);
+            ret.f = BSDF::Unified(surface).f;
             ret.wi = wi_light;
-            ret.f = target;
-
-            // Feed BSDF sample
-            surface.SetWi_Refl(wi_refl, normal);
-            float3 target_bsdf = BSDF::Unified(surface).f * insideCone;
-            float targetLum_bsdf = Math::Luminance(target_bsdf);
-            float w = RT::BalanceHeuristic(1, pdf_light, targetLum_bsdf);
-            w_sum += w;
-
-            if ((w > 0) && (rng.Uniform() < (w / w_sum)))
-            {
-                ret.wi = wi_refl;
-                ret.f = target_bsdf;
-                targetLum = targetLum_bsdf;
-            }
-
-            // TODO pdf calculation seems wrong, all pdfs should be in area measure
-            ret.pdf = w_sum == 0 ? 0 : targetLum / w_sum;
+            ret.pdf = pdf_light;
 
             return ret;
         }

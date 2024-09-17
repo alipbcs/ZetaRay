@@ -142,6 +142,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RBUFFER_A = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT RBUFFER_B = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT RBUFFER_C = DXGI_FORMAT_R32G32B32A32_UINT;
+            static constexpr DXGI_FORMAT RBUFFER_D = DXGI_FORMAT_R16_UINT;
             static constexpr DXGI_FORMAT TARGET = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
@@ -215,15 +216,19 @@ namespace ZetaRay::RenderPass
             RBUFFER_A_CtN_SRV,
             RBUFFER_B_CtN_SRV,
             RBUFFER_C_CtN_SRV,
+            RBUFFER_D_CtN_SRV,
             RBUFFER_A_CtN_UAV,
             RBUFFER_B_CtN_UAV,
             RBUFFER_C_CtN_UAV,
+            RBUFFER_D_CtN_UAV,
             RBUFFER_A_NtC_SRV,
             RBUFFER_B_NtC_SRV,
             RBUFFER_C_NtC_SRV,
+            RBUFFER_D_NtC_SRV,
             RBUFFER_A_NtC_UAV,
             RBUFFER_B_NtC_UAV,
             RBUFFER_C_NtC_UAV,
+            RBUFFER_D_NtC_UAV,
             //
             THREAD_MAP_CtN_SRV,
             THREAD_MAP_CtN_UAV,
@@ -246,9 +251,8 @@ namespace ZetaRay::RenderPass
             static constexpr int M_MAX_SPATIAL = 6;
             static constexpr int DNSR_TSPP_DIFFUSE = 32;
             static constexpr int DNSR_TSPP_SPECULAR = 20;
-            static constexpr int MAX_DIFFUSE_BOUNCES = 3;
-            static constexpr int MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE = 2;
-            static constexpr int MAX_GLOSSY_BOUNCES_TRANSMISSIVE = 4;
+            static constexpr int MAX_NON_TR_BOUNCES = 2;
+            static constexpr int MAX_GLOSSY_TR_BOUNCES = 3;
             static constexpr bool RUSSIAN_ROULETTE = true;
             static constexpr bool STOCHASTIC_MULTI_BOUNCE = true;
             static constexpr bool BOILING_SUPPRESSION = false;
@@ -347,11 +351,12 @@ namespace ZetaRay::RenderPass
 
         struct RBuffer
         {
-            static constexpr int NUM = 3;
+            static constexpr int NUM = 4;
 
             Core::GpuMemory::Texture A;
             Core::GpuMemory::Texture B;
             Core::GpuMemory::Texture C;
+            Core::GpuMemory::Texture D;
         };
 
         struct DenoiserCache
@@ -374,9 +379,8 @@ namespace ZetaRay::RenderPass
             Util::Span<ID3D12Resource*> prevReservoirs);
 
         // param callbacks
-        void MaxDiffuseBouncesCallback(const Support::ParamVariant& p);
-        void MaxGlossyBouncesCallback(const Support::ParamVariant& p);
-        void MaxTransmissionBouncesCallback(const Support::ParamVariant& p);
+        void MaxNonTrBouncesCallback(const Support::ParamVariant& p);
+        void MaxGlossyTrBouncesCallback(const Support::ParamVariant& p);
         void StochasticMultibounceCallback(const Support::ParamVariant& p);
         void RussianRouletteCallback(const Support::ParamVariant& p);
         void TemporalResamplingCallback(const Support::ParamVariant& p);

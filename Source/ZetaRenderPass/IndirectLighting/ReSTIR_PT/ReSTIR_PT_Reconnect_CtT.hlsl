@@ -27,7 +27,7 @@ StructuredBuffer<Material> g_materials : register(t4);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-ReSTIR_Util::Globals InitGlobals()
+ReSTIR_Util::Globals InitGlobals(bool transmissive)
 {
     ReSTIR_Util::Globals globals;
     globals.bvh = g_bvh;
@@ -35,25 +35,23 @@ ReSTIR_Util::Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
-    globals.maxGlossyBounces_NonTr = (uint16_t)((g_local.Packed >> 4) & 0xf);
-    globals.maxGlossyBounces_Tr = (uint16_t)((g_local.Packed >> 8) & 0xf);
-    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    uint maxNonTrBounces = g_local.Packed & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
+        (uint16_t)maxNonTrBounces;
 
     return globals;
 }
 
 // Shift base path in current pixel's domain to offset path in temporal domain
 OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
-    float2 lensSample, float3 prevPos, bool prevMetallic, float prevRoughness, 
-    bool prevTransmissive, bool prevTrDepthGt0, bool prevSubsurface, 
+    float2 lensSample, float3 prevPos, GBuffer::Flags prevFlags, float prevRoughness,
     Reconnection rc_curr, Globals globals)
 {
     float eta_curr = ETA_AIR;
     float eta_next = DEFAULT_ETA_MAT;
 
-    if(prevTransmissive)
+    if(prevFlags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -68,12 +66,32 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
 
     GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float4 baseColor = prevSubsurface ? g_prevBaseColor[prevPosSS] :
+    const float4 baseColor = prevFlags.subsurface ? g_prevBaseColor[prevPosSS] :
         float4(g_prevBaseColor[prevPosSS].rgb, 0);
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(prevFlags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[DTid.xy].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo = normalize(origin - prevPos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevMetallic, prevRoughness, 
-        baseColor.rgb, eta_curr, eta_next, prevTransmissive, prevTrDepthGt0, (half)baseColor.w);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, prevFlags.metallic, 
+        prevRoughness, baseColor.rgb, eta_curr, eta_next, prevFlags.transmissive, 
+        prevFlags.trDepthGt0, (half)baseColor.w, coat_weight, coat_color, 
+        coat_roughness, coat_ior);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -102,7 +120,8 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, prevPos, normal, eta_next, surface, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, g_frame, globals);
+        g_local.RBufferA_CtN_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
+        g_frame, globals);
 }
 
 //--------------------------------------------------------------------------------------
@@ -215,7 +234,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
     // No temporal history
-    if(prevFlags.emissive || (abs(prevMR.y - mr.y) > 0.3))
+    if(prevFlags.emissive || 
+        (abs(prevMR.y - mr.y) > 0.3) || 
+        (prevFlags.transmissive != flags.transmissive))
         return;
 
     Reservoir r_curr = Reservoir::Load_NonReconnection<RWTexture2D<uint4>, 
@@ -235,10 +256,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        Globals globals = InitGlobals();
+        Globals globals = InitGlobals(flags.transmissive);
         OffsetPath shift = ShiftCurrentToTemporal(swizzledDTid, prevPixel, origin_t, 
-            lensSample_t, prevPos, prevFlags.metallic, prevMR.y, prevFlags.transmissive, 
-            prevFlags.trDepthGt0, prevFlags.subsurface, r_curr.rc, globals);
+            lensSample_t, prevPos, prevFlags, prevMR.y, r_curr.rc, globals);
         float target_prev = Math::Luminance(shift.target);
 
         if(target_prev > 0)

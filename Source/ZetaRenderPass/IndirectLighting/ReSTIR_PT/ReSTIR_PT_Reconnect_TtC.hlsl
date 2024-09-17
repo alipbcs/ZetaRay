@@ -27,7 +27,7 @@ StructuredBuffer<Material> g_materials : register(t4);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-Globals InitGlobals()
+Globals InitGlobals(bool transmissive)
 {
     Globals globals;
     globals.bvh = g_bvh;
@@ -35,27 +35,27 @@ Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
-    globals.maxGlossyBounces_NonTr = (uint16_t)((g_local.Packed >> 4) & 0xf);
-    globals.maxGlossyBounces_Tr = (uint16_t)((g_local.Packed >> 8) & 0xf);
-    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    uint maxNonTrBounces = g_local.Packed & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
+        (uint16_t)maxNonTrBounces;
 
     return globals;
 }
 
 // Shift base path in temporal domain to offset path in current pixel's domain
 OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
-    float3 pos, float3 normal, bool metallic, float roughness, bool transmissive, 
-    bool trDepthGt0, bool subsurface, Reconnection rc_prev, Globals globals)
+    float3 pos, float3 normal, GBuffer::Flags flags, float roughness, Reconnection rc_prev, 
+    Globals globals)
 {
     GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::BASE_COLOR];
-    const float4 baseColor = subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
+    const float4 baseColor = flags.subsurface ? g_baseColor[DTid] : 
+        float4(g_baseColor[DTid].rgb, 0);
 
     float eta_next = DEFAULT_ETA_MAT;
 
-    if(transmissive)
+    if(flags.transmissive)
     {
         GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::IOR];
@@ -64,9 +64,28 @@ OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
         eta_next = GBuffer::DecodeIOR(ior);
     }
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[DTid].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, metallic, roughness, 
-        baseColor.rgb, ETA_AIR, eta_next, transmissive, trDepthGt0, (half)baseColor.w);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, 
+        roughness, baseColor.rgb, ETA_AIR, eta_next, flags.transmissive, flags.trDepthGt0, 
+        (half)baseColor.w, coat_weight, coat_color, coat_roughness, coat_ior);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -95,7 +114,8 @@ OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_next, 
         surface, rd, triDiffs, rc_prev, g_local.RBufferA_NtC_DescHeapIdx, 
         g_local.RBufferA_NtC_DescHeapIdx + 1, g_local.RBufferA_NtC_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, g_frame, globals);
+        g_local.RBufferA_NtC_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
+        g_frame, globals);
 }
 
 //--------------------------------------------------------------------------------------
@@ -237,7 +257,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
 
     // Skip if not on the same surface
-    if(prevFlags.emissive || abs(prevMR.y - mr.y) > 0.3)
+    if(prevFlags.emissive || 
+        abs(prevMR.y - mr.y) > 0.3 || 
+        (prevFlags.transmissive != flags.transmissive))
     {
         if(!IS_CB_FLAG_SET(CB_IND_FLAGS::SPATIAL_RESAMPLE))
         {
@@ -252,7 +274,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         Texture2D<float2> >(prevPixel, g_local.PrevReservoir_A_DescHeapIdx, 
         g_local.PrevReservoir_A_DescHeapIdx + 1);
 
-    Globals globals = InitGlobals();
+    Globals globals = InitGlobals(flags.transmissive);
     const uint16_t M_new = r_curr.M + r_prev.M;
 
     // Temporal history can't be shifted for reuse
@@ -286,8 +308,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Shift temporal path to current pixel and resample
     OffsetPath shift = ShiftTemporalToCurrent(swizzledDTid, origin, lensSample,
-        pos, normal, flags.metallic, mr.y, flags.transmissive, flags.trDepthGt0, 
-        flags.subsurface, r_prev.rc, globals);
+        pos, normal, flags, mr.y, r_prev.rc, globals);
 
     bool changed = false;
 

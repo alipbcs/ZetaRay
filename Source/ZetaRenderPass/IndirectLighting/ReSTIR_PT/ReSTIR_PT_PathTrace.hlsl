@@ -52,7 +52,7 @@ struct PrevHit
     BSDF::LOBE lobe;
 };
 
-ReSTIR_Util::Globals InitGlobals()
+ReSTIR_Util::Globals InitGlobals(bool transmissive)
 {
     ReSTIR_Util::Globals globals;
     globals.bvh = g_bvh;
@@ -60,11 +60,10 @@ ReSTIR_Util::Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
-    globals.maxGlossyBounces_NonTr = (uint16_t)((g_local.Packed >> 4) & 0xf);
-    globals.maxGlossyBounces_Tr = (uint16_t)((g_local.Packed >> 8) & 0xf);
-    globals.maxNumBounces = max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    uint maxNonTrBounces = g_local.Packed & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
+        (uint16_t)maxNonTrBounces;
 
 #if NEE_EMISSIVE == 1
     globals.emissives = g_emissives;
@@ -81,7 +80,7 @@ void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t,
     uint seed_nee, inout Reconnection rc)
 {
     // Possibly update reconnection vertex (Case 2)
-    const float alpha_lobe_direct = BSDF::LobeAlpha(surface.alpha, ls.lobe);
+    const float alpha_lobe_direct = BSDF::LobeAlpha(surface, ls.lobe);
 
     if(rc.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe_direct, 
         0, pos, prevHit.lobe, ls.lobe, g_local.Alpha_min))
@@ -141,7 +140,10 @@ void EstimateDirectAndUpdateRC(int16 pathVertex, float3 pos, Hit hitInfo,
         }
 
         // Light sampling
-        if(!surface.specular)
+        const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+            (!surface.Coated() || surface.CoatSpecular());
+
+        if(!specular)
         {
             const uint seed_nee = rngNEE.State;
             DirectLightingEstimate ls = RPT_Util::NEE_Emissive(pos, hitInfo.normal, 
@@ -200,7 +202,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     li = 0.0;
     int16 bounce = 0;
     float3 throughput = bsdfSample.bsdfOverPdf;
-    PrevHit prevHit = PrevHit::Init(BSDF::LobeAlpha(surface.alpha, bsdfSample.lobe), 
+    PrevHit prevHit = PrevHit::Init(BSDF::LobeAlpha(surface, bsdfSample.lobe), 
         bsdfSample.lobe, bsdfSample.wi, bsdfSample.pdf);
 
     // If ray was refracted, current IOR changes to that of hit material, otherwise
@@ -210,7 +212,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     float3 throughput_k = 1;
     // Note: skip the first bounce for a milder impacet. May have to change in the future.
     // bool anyGlossyBounces = bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R;
-    bool anyGlossyBounces = false;
+    // bool anyGlossyBounces = false;
     bool inTranslucentMedium = eta_curr != ETA_AIR;
     SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
 
@@ -254,8 +256,8 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
            break;
         }
 
-        if(IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION) && anyGlossyBounces)
-            surface.Regularize();
+        // if(IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION) && anyGlossyBounces)
+        //     surface.Regularize();
 
         // Update vertex
         pos = newPos;
@@ -309,13 +311,9 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 #if NEE_EMISSIVE == 0
         // Sample BSDF to generate new direction
         bsdfSample = BSDF::BSDFSample::Init();
-        bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
 
-        if(bounce < globals.maxDiffuseBounces)
+        if(bounce < globals.maxNumBounces)
             bsdfSample = BSDF::SampleBSDF(normal, surface, rngReplay);
-        else if(sampleNonDiffuse)
-            bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rngReplay);
 #endif
 
         // Terminate early as extending this path won't contribute anything
@@ -323,7 +321,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
             break;
 
         // With x_k as reconnection vertex, now we know w_k towards the non-light vertex after it
-        const float alpha_lobe = BSDF::LobeAlpha(surface.alpha, bsdfSample.lobe);
+        const float alpha_lobe = BSDF::LobeAlpha(surface, bsdfSample.lobe);
 
         // Possibly update reconnection vertex (x_{k + 1} on a non-light vertex)
         if(reconnection.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe, 
@@ -342,7 +340,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         bool transmitted = dot(normal, bsdfSample.wi) < 0;
         throughput *= bsdfSample.bsdfOverPdf;
-        anyGlossyBounces = anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
+        // anyGlossyBounces = anyGlossyBounces || (bsdfSample.lobe != BSDF::LOBE::DIFFUSE_R);
 
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
         inTranslucentMedium = eta_curr != ETA_AIR;
@@ -373,7 +371,7 @@ RPT_Util::Reservoir RIS_InitialCandidates(uint16_t2 DTid, uint16_t2 Gid, float3 
     // For anything else
     RNG rngThread = RNG::Init(state.y);
 
-    Globals globals = InitGlobals();
+    Globals globals = InitGlobals(surface.specTr);
     BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, rngReplay);
     if(dot(bsdfSample.bsdfOverPdf, bsdfSample.bsdfOverPdf) == 0)
     {
@@ -492,9 +490,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         eta_next = GBuffer::DecodeIOR(ior);
     }
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[swizzledDTid].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz, 
-        eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, (half)baseColor.w);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, 
+        baseColor.xyz, eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, (half)baseColor.w,
+        coat_weight, coat_color, coat_roughness, coat_ior);
 
     float3 li;
     RPT_Util::Reservoir r = RIS_InitialCandidates(swizzledDTid, swizzledGid, origin, lensSample,

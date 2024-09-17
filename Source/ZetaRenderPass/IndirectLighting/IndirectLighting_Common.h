@@ -94,9 +94,8 @@ struct cb_ReSTIR_GI
     uint32_t GridDim_z;
  
     uint32_t M_max;
-    uint32_t MaxDiffuseBounces;
-    uint32_t MaxGlossyBounces_NonTr;
-    uint32_t MaxGlossyBounces_Tr;
+    uint32_t MaxNonTrBounces;
+    uint32_t MaxGlossyTrBounces;
     uint32_t TexFilterDescHeapIdx;
 };
 

@@ -278,7 +278,19 @@ namespace RT
         if(denom == 0)
             return 0;
 
-        return (n_1 / denom) * f;
+        return (n_1 * f) / denom;
+    }
+
+    // Returns (n_1 p_1) / (n_1 p_1 + n_2 p_2 + n_3 p_3) * f / p_1
+    template<typename T>
+    T BalanceHeuristic3(float p_1, float p_2, float p_3, T f, float n_1 = 1, float n_2 = 1, 
+        float n_3 = 1)
+    {
+        float denom = n_1 * p_1 + n_2 * p_2 + n_3 * p_3;
+        if(denom == 0)
+            return 0;
+
+        return (n_1 * f) / denom;
     }
 
     // Returns (n_1 p_1)^2 / ((n_1 p_1)^2 + (n_2 p_2)^2) * f / p_1
@@ -291,7 +303,7 @@ namespace RT
         if(denom == 0)
             return 0;
 
-        return ((n_1 * n_1 * p_1) / denom) * f;
+        return ((n_1 * n_1 * p_1 * f) / denom);
     }
 
     struct RayDifferentials

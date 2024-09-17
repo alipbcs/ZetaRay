@@ -69,15 +69,14 @@ namespace RPT_Util
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
 
         // No point in light sampling for specular surfaces
-        const int numLightSamples = surface.specular ? 0 : 1;
+        const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+            (!surface.Coated() || surface.CoatSpecular());
+        const int numLightSamples = specular ? 0 : 1;
 
-        // In the last iteration of path tracing loop, BSDF sampling is just used for direct 
-        // lighting. As a convention, use non-diffuse sampling there. This happens automatically 
-        // as in that iteration, the first if condition below always evaluates to false.
-        if(nextBounce < globals.maxDiffuseBounces)
+        // In the last iteration of path tracing loop, BSDF sampling here is just used for direct 
+        // lighting. Use <= instead of < to cover that case.
+        if(nextBounce <= globals.maxNumBounces)
             bsdfSample = BSDF::SampleBSDF(normal, surface, rng);
-        else
-            bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
 
         const float wiPdf = bsdfSample.pdf;
         const float3 wi = bsdfSample.wi;
@@ -100,18 +99,22 @@ namespace RPT_Util
             lightNormal = dot(lightNormal, lightNormal) == 0 ? 0.0 : lightNormal / twoArea;
             lightNormal = emissive.IsDoubleSided() && (dot(-wi, lightNormal) < 0) ? 
                 -lightNormal : lightNormal;
+            float lightPdf = 0;
 
-            const float lightSourcePdf = numLightSamples > 0 ?
-                globals.aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig : 
-                0;
-            const float lightPdf = twoArea > 0 ? lightSourcePdf * (2.0f / twoArea) : 0;
+            if(!specular)
+            {
+                const float lightSourcePdf = numLightSamples > 0 ?
+                    globals.aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig : 
+                    0;
+                lightPdf = twoArea > 0 ? lightSourcePdf * (2.0f / twoArea) : 0;
+            }
 
             // Solid angle measure to area measure
             float dwdA = saturate(dot(lightNormal, -wi)) / (hitInfo.t * hitInfo.t);
             float wiPdf_area = wiPdf * dwdA;
             float3 ld = le * f * dwdA;
 
-            ret.ld = surface.specular ? (wiPdf_area > 0 ? ld / wiPdf_area : 0) : 
+            ret.ld = specular ? (wiPdf_area > 0 ? ld / wiPdf_area : 0) : 
                 RT::PowerHeuristic(wiPdf_area, lightPdf, ld);
             ret.le = le;
             ret.wi = wi;
@@ -127,10 +130,7 @@ namespace RPT_Util
         }
 
         // Last iteration -- set bsdfSample = null so that we early exit from path tracing loop
-        const bool sampleNonDiffuse = (nextBounce < globals.maxGlossyBounces_NonTr) ||
-            (surface.specTr && (nextBounce < globals.maxGlossyBounces_Tr));
-
-        if((nextBounce >= globals.maxDiffuseBounces) && !sampleNonDiffuse)
+        if(nextBounce >= globals.maxNumBounces)
             bsdfSample.bsdfOverPdf = 0;
 
         return ret;
@@ -194,9 +194,7 @@ namespace RPT_Util
             float bsdfPdf = 0;
             if(dot(ld, ld) > 0)
             {
-                bsdfPdf = nextBounce < globals.maxDiffuseBounces ? 
-                    BSDF::BSDFSamplerPdf(normal, surface, wi, rng) :
-                    BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi);
+                bsdfPdf = BSDF::BSDFSamplerPdf(normal, surface, wi, rng);
                 bsdfPdf *= dwdA;
             }
 
@@ -236,8 +234,7 @@ namespace RPT_Util
 
     ReSTIR_Util::DirectLightingEstimate EvalDirect_Emissive_Case2(float3 pos, float3 normal, 
         BSDF::ShadingData surface, float3 wi, float3 le, float dwdA, float lightPdf, 
-        BSDF::LOBE lobe, int16 bounce, uint16 maxDiffuseBounces, inout RNG rngReplay, 
-        inout RNG rngNEE)
+        BSDF::LOBE lobe, int16 bounce, inout RNG rngReplay, inout RNG rngNEE)
     {
         surface.SetWi(wi, normal);
         float3 ld = le * BSDF::Unified(surface).f * dwdA;
@@ -250,9 +247,7 @@ namespace RPT_Util
         {
             rngNEE.Uniform4D();
 
-            float bsdfPdf = bounce < maxDiffuseBounces ? 
-                BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE) :
-                BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi);
+            float bsdfPdf = BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE);
             float bsdfPdf_area = bsdfPdf * dwdA;
 
             ret.ld = RT::PowerHeuristic(lightPdf, bsdfPdf_area, ld);
@@ -261,15 +256,12 @@ namespace RPT_Util
         }
         else
         {
-            BSDF::BSDFSamplerEval eval;
+            BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, rngReplay);
 
-            if(bounce < maxDiffuseBounces)
-                eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, rngReplay);
-            else
-                eval = BSDF::EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, rngReplay);
-
+            const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+                (!surface.Coated() || surface.CoatSpecular());
             float bsdfPdf_area = eval.pdf * dwdA;
-            ret.ld = surface.specular ? (bsdfPdf_area > 0 ? ld / bsdfPdf_area : 0) : 
+            ret.ld = specular ? (bsdfPdf_area > 0 ? ld / bsdfPdf_area : 0) : 
                 RT::PowerHeuristic(bsdfPdf_area, lightPdf, ld);
             ret.pdf_solidAngle = eval.pdf;
         }
@@ -280,8 +272,7 @@ namespace RPT_Util
     ReSTIR_Util::DirectLightingEstimate EvalDirect_Emissive_Case3(float3 pos, float3 normal, 
         BSDF::ShadingData surface, float3 wi, float t, float3 le, float3 lightNormal, 
         float lightPdf, uint lightID, bool twoSided, BSDF::LOBE lobe, int16 bounce, 
-        uint16 maxDiffuseBounces, RaytracingAccelerationStructure g_bvh, inout RNG rngReplay, 
-        inout RNG rngNEE)
+        RaytracingAccelerationStructure g_bvh, inout RNG rngReplay, inout RNG rngNEE)
     {
         float wiDotLightNormal = dot(lightNormal, -wi);
         float dwdA = abs(wiDotLightNormal) / (t * t);
@@ -305,9 +296,7 @@ namespace RPT_Util
         {
             rngNEE.Uniform4D();
 
-            float bsdfPdf = bounce < maxDiffuseBounces ? 
-                BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE) :
-                BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi);
+            float bsdfPdf = BSDF::BSDFSamplerPdf(normal, surface, wi, rngNEE);
             float bsdfPdf_area = bsdfPdf * dwdA;
 
             ret.ld = RT::PowerHeuristic(lightPdf, bsdfPdf_area, ld);
@@ -316,15 +305,12 @@ namespace RPT_Util
         }
         else
         {
-            BSDF::BSDFSamplerEval eval;
+            BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, rngReplay);
 
-            if(bounce < maxDiffuseBounces)
-                eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, rngReplay);
-            else
-                eval = BSDF::EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, rngReplay);
-
+            const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+                (!surface.Coated() || surface.CoatSpecular());
             float bsdfPdf_area = eval.pdf * dwdA;
-            ret.ld = surface.specular ? (bsdfPdf_area > 0 ? ld / bsdfPdf_area : 0) : 
+            ret.ld = specular ? (bsdfPdf_area > 0 ? ld / bsdfPdf_area : 0) : 
                 RT::PowerHeuristic(bsdfPdf_area, lightPdf, ld);
             ret.pdf_solidAngle = bsdfPdf_area;
         }

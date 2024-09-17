@@ -158,9 +158,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
             eta_next = GBuffer::DecodeIOR(ior);
         }
 
+        float coat_weight = 0;
+        float3 coat_color = 1.0f;
+        float coat_roughness = 0;
+        float coat_ior = DEFAULT_ETA_COAT;
+
+        if(flags.coated)
+        {
+            GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+                GBUFFER_OFFSET::COAT];
+            uint3 packed = g_coat[DTid.xy].xyz;
+
+            GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+            coat_weight = coat.weight;
+            coat_color = coat.color;
+            coat_roughness = coat.roughness;
+            coat_ior = coat.ior;
+        }
+
         const float3 wo = normalize(origin - pos);
         BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, mr.y, baseColor.xyz,
-            eta_curr, eta_next, flags.transmissive, 0, (half)baseColor.w);
+            eta_curr, eta_next, flags.transmissive, 0, (half)baseColor.w,
+            coat_weight, coat_color, coat_roughness, coat_ior);
 
         color += SunDirectLighting(DTid.xy, pos, normal, surface);
     }

@@ -27,7 +27,7 @@ StructuredBuffer<Material> g_materials : register(t4);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-ReSTIR_Util::Globals InitGlobals()
+ReSTIR_Util::Globals InitGlobals(bool transmissive)
 {
     ReSTIR_Util::Globals globals;
     globals.bvh = g_bvh;
@@ -35,11 +35,10 @@ ReSTIR_Util::Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.Packed & 0xf);
-    globals.maxGlossyBounces_NonTr = (uint16_t)((g_local.Packed >> 4) & 0xf);
-    globals.maxGlossyBounces_Tr = (uint16_t)((g_local.Packed >> 8) & 0xf);
-    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    uint maxNonTrBounces = g_local.Packed & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
+        (uint16_t)maxNonTrBounces;
 
     return globals;
 }
@@ -90,10 +89,28 @@ OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, Reconnection rc_
         eta_next = GBuffer::DecodeIOR(ior);
     }
 
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags_n.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[DTid.xy].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
     const float3 wo_n = normalize(origin_n - pos_n);
     BSDF::ShadingData surface_n = BSDF::ShadingData::Init(normal_n, wo_n, flags_n.metallic, 
         mr_n.y, baseColor_n.rgb, ETA_AIR, eta_next, flags_n.transmissive, flags_n.trDepthGt0,
-        (half)baseColor_n.a);
+        (half)baseColor_n.a, coat_weight, coat_color, coat_roughness, coat_ior);
 
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
@@ -122,7 +139,8 @@ OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, Reconnection rc_
     return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos_n, normal_n, eta_next, surface_n, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
-        g_local.Alpha_min, regularization, g_frame, globals);
+        g_local.RBufferA_CtN_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
+        g_frame, globals);
 }
 
 //--------------------------------------------------------------------------------------
@@ -193,7 +211,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
 
-        Globals globals = InitGlobals();
+        Globals globals = InitGlobals(flags.transmissive);
         OffsetPath shift = ShiftCurrentToSpatial(swizzledDTid, samplePos, r_curr.rc, globals);
         float target_spatial = Math::Luminance(shift.target);
 

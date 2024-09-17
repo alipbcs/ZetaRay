@@ -12,8 +12,10 @@ namespace RGI_Util
     {
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
 
-        // No point in light sampling for specular surfaces
-        const int numLightSamples = surface.specular ? 0 : NumLightSamples;
+        // Skip light sampling for specular surfaces
+        const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+            (!surface.Coated() || surface.CoatSpecular());
+        const int numLightSamples = specular ? 0 : NumLightSamples;
 
         // BSDF sampling
         {

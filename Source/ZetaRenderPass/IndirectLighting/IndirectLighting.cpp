@@ -144,12 +144,10 @@ void IndirectLighting::Init(INTEGRATOR method)
     m_cbRGI.M_max = DefaultParamVals::M_MAX;
     m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min =
         DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
-    m_cbRGI.MaxDiffuseBounces = DefaultParamVals::MAX_DIFFUSE_BOUNCES;
-    m_cbRGI.MaxGlossyBounces_NonTr = DefaultParamVals::MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE;
-    m_cbRGI.MaxGlossyBounces_Tr = DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Reuse.Packed = DefaultParamVals::MAX_DIFFUSE_BOUNCES |
-        (DefaultParamVals::MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE << 4) |
-        (DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE << 8) |
+    m_cbRGI.MaxNonTrBounces = DefaultParamVals::MAX_NON_TR_BOUNCES;
+    m_cbRGI.MaxGlossyTrBounces = DefaultParamVals::MAX_GLOSSY_TR_BOUNCES;
+    m_cbRPT_PathTrace.Packed = m_cbRPT_Reuse.Packed = DefaultParamVals::MAX_NON_TR_BOUNCES |
+        (DefaultParamVals::MAX_GLOSSY_TR_BOUNCES << 4) |
         (DefaultParamVals::M_MAX << 16);
     m_cbRPT_PathTrace.TexFilterDescHeapIdx = EnumToSamplerIdx(DefaultParamVals::TEX_FILTER);
     m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Reuse.TexFilterDescHeapIdx = m_cbRPT_PathTrace.TexFilterDescHeapIdx;
@@ -170,21 +168,15 @@ void IndirectLighting::Init(INTEGRATOR method)
     App::AddParam(rr);
 
     ParamVariant maxDiffuseBounces;
-    maxDiffuseBounces.InitInt("Renderer", "Indirect Lighting", "Max Diffuse Bounces",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxDiffuseBouncesCallback),
-        DefaultParamVals::MAX_DIFFUSE_BOUNCES, 1, 8, 1, "Path Sampling");
+    maxDiffuseBounces.InitInt("Renderer", "Indirect Lighting", "Max Non Tr. Bounces",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxNonTrBouncesCallback),
+        DefaultParamVals::MAX_NON_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxDiffuseBounces);
 
-    ParamVariant maxGlossyBounces;
-    maxGlossyBounces.InitInt("Renderer", "Indirect Lighting", "Max Glossy Bounces",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxGlossyBouncesCallback),
-        DefaultParamVals::MAX_GLOSSY_BOUNCES_NON_TRANSMISSIVE, 1, 8, 1, "Path Sampling");
-    App::AddParam(maxGlossyBounces);
-
     ParamVariant maxTransmissionBounces;
-    maxTransmissionBounces.InitInt("Renderer", "Indirect Lighting", "Max Glossy Bounces (Transmissive)",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxTransmissionBouncesCallback),
-        DefaultParamVals::MAX_GLOSSY_BOUNCES_TRANSMISSIVE, 1, 8, 1, "Path Sampling");
+    maxTransmissionBounces.InitInt("Renderer", "Indirect Lighting", "Max Glossy Tr. Bounces",
+        fastdelegate::MakeDelegate(this, &IndirectLighting::MaxGlossyTrBouncesCallback),
+        DefaultParamVals::MAX_GLOSSY_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxTransmissionBounces);
 
     ParamVariant pathRegularization;
@@ -586,11 +578,13 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         barriers[0] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].A.Resource());
         barriers[1] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].B.Resource());
         barriers[2] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].C.Resource());
+        barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].D.Resource());
 
         // NtC replay buffers into SRV
-        barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
-        barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
-        barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
+        barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
+        barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
+        barriers[6] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
+        barriers[7] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].D.Resource());
 
         computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
     }
@@ -717,6 +711,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
                 barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].A.Resource()));
                 barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].B.Resource()));
                 barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].C.Resource()));
+                barriers.push_back(TextureBarrier_SrvToUavWithSync(m_rbuffer[i].D.Resource()));
             }
 
             // Thread maps into UAV
@@ -848,11 +843,13 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             barriers[0] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].A.Resource());
             barriers[1] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].B.Resource());
             barriers[2] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].C.Resource());
+            barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::CtN].D.Resource());
 
             // NtC
-            barriers[3] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
-            barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
-            barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
+            barriers[4] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].A.Resource());
+            barriers[5] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].B.Resource());
+            barriers[6] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].C.Resource());
+            barriers[7] = TextureBarrier_UavToSrvWithSync(m_rbuffer[(int)SHIFT::NtC].D.Resource());
 
             computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
@@ -986,6 +983,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].A.Resource()));
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].B.Resource()));
                 textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].C.Resource()));
+                textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_rbuffer[i].D.Resource()));
             }
 
             // Thread maps into UAV
@@ -1097,6 +1095,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         list.PushTex2D(ResourceFormats_RPT::RBUFFER_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
         list.PushTex2D(ResourceFormats_RPT::RBUFFER_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
         list.PushTex2D(ResourceFormats_RPT::RBUFFER_C, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        list.PushTex2D(ResourceFormats_RPT::RBUFFER_D, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     }
 
     list.End();
@@ -1192,6 +1191,8 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         RBuffer::NUM * 2 == (int)DESC_TABLE_RPT::RBUFFER_B_NtC_UAV);
     static_assert((int)(DESC_TABLE_RPT::RBUFFER_C_CtN_UAV) +
         RBuffer::NUM * 2 == (int)DESC_TABLE_RPT::RBUFFER_C_NtC_UAV);
+    static_assert((int)(DESC_TABLE_RPT::RBUFFER_D_CtN_UAV) +
+        RBuffer::NUM * 2 == (int)DESC_TABLE_RPT::RBUFFER_D_NtC_UAV);
 
     for (int i = 0; i < (int)SHIFT::COUNT; i++)
     {
@@ -1215,6 +1216,12 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
             allocs[currRes++],
             (int)DESC_TABLE_RPT::RBUFFER_C_CtN_SRV,
             (int)DESC_TABLE_RPT::RBUFFER_C_CtN_UAV,
+            descOffset, layout);
+        func(m_rbuffer[i].D, ResourceFormats_RPT::RBUFFER_D,
+            "RPT_RBuffer", i, i == (int)SHIFT::CtN ? "D_CtN" : "D_NtC",
+            allocs[currRes++],
+            (int)DESC_TABLE_RPT::RBUFFER_D_CtN_SRV,
+            (int)DESC_TABLE_RPT::RBUFFER_D_CtN_UAV,
             descOffset, layout);
     }
 
@@ -1311,6 +1318,7 @@ void IndirectLighting::ReleaseReSTIR_PT()
         m_rbuffer[i].A.Reset();
         m_rbuffer[i].B.Reset();
         m_rbuffer[i].C.Reset();
+        m_rbuffer[i].D.Reset();
 
         m_threadMap[i].Reset();
     }
@@ -1561,30 +1569,21 @@ void IndirectLighting::ResetIntegrator(bool resetAllResources, bool skipNonResou
     m_currTemporalIdx = 0;
 }
 
-void IndirectLighting::MaxDiffuseBouncesCallback(const Support::ParamVariant& p)
+void IndirectLighting::MaxNonTrBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
-    m_cbRGI.MaxDiffuseBounces = newVal;
+    m_cbRGI.MaxNonTrBounces = newVal;
     m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf;
     m_cbRPT_PathTrace.Packed |= newVal;
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
-void IndirectLighting::MaxGlossyBouncesCallback(const Support::ParamVariant& p)
+void IndirectLighting::MaxGlossyTrBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
-    m_cbRGI.MaxGlossyBounces_NonTr = newVal;
+    m_cbRGI.MaxGlossyTrBounces = newVal;
     m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf0;
     m_cbRPT_PathTrace.Packed |= (newVal << 4);
-    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
-}
-
-void IndirectLighting::MaxTransmissionBouncesCallback(const Support::ParamVariant& p)
-{
-    const auto newVal = (uint16_t)p.GetInt().m_value;
-    m_cbRGI.MaxGlossyBounces_Tr = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf00;
-    m_cbRPT_PathTrace.Packed |= (newVal << 8);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 

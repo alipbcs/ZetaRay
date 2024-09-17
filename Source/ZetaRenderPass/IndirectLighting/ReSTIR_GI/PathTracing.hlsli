@@ -71,16 +71,11 @@ namespace ReSTIR_RT
             }
 
             bsdfSample = BSDF::BSDFSample::Init();
-            bool sampleNonDiffuse = (bounce < globals.maxGlossyBounces_NonTr) ||
-                (surface.specTr && (bounce < globals.maxGlossyBounces_Tr));
-
-            if(bounce < globals.maxDiffuseBounces)
+            if(bounce < globals.maxNumBounces)
                 bsdfSample = BSDF::SampleBSDF(normal, surface, rngThread);
-            else if(sampleNonDiffuse)
-                bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rngThread);
 
             // Terminate early as extending this path won't contribute to incident radiance
-            if(Math::Luminance(bsdfSample.bsdfOverPdf) < 1e-6)
+            if(Math::Luminance(bsdfSample.bsdfOverPdf) == 0)
                 break;
 
             // Trace a ray to find next path vertex

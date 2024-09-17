@@ -191,7 +191,7 @@ RDI_Util::Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal
     {
         float2 prevUV;
 
-        if(!surface.specular || target.Empty())
+        if(!surface.GlossSpecular() || target.Empty())
         {
             GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
                 GBUFFER_OFFSET::MOTION_VECTOR];

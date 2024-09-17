@@ -5,6 +5,8 @@
 #define CURRENT_TO_TEMPORAL
 #endif
 
+#define COMPACTION_ONLY 0
+
 static const uint16_t2 GroupDim = uint16_t2(RESTIR_PT_SORT_GROUP_DIM_X, RESTIR_PT_SORT_GROUP_DIM_Y);
 
 //--------------------------------------------------------------------------------------
@@ -218,25 +220,37 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     }
 
     bool4 kEq2;
+#if COMPACTION_ONLY == 1
+    bool4 kGe3;
+#else
     bool4 kEq3;
     bool4 kEq4;
     bool4 kGe5;
+#endif
 
     [unroll]
     for(int i = 0; i < 4; i++)
     {
         kEq2[i] = !skip[i] && (r_x[i].rc.k == 2);
+#if COMPACTION_ONLY == 1
+        kGe3[i] = !skip[i] && ((r_x[i].rc.k >= 3) || edgeCase[i]);
+#else
         kEq3[i] = !skip[i] && (r_x[i].rc.k == 3);
         kEq4[i] = !skip[i] && (r_x[i].rc.k == 4);
         kGe5[i] = !skip[i] && ((r_x[i].rc.k >= 5) || edgeCase[i]);
+#endif
     }
 
     const uint16_t wavekEq2Count = (uint16_t)WaveActiveSum(dot(1, kEq2));
+#if COMPACTION_ONLY == 1
+    const uint16_t wavekGe3Count = (uint16_t)WaveActiveSum(dot(1, kGe3));
+#else
     const uint16_t wavekEq3Count = (uint16_t)WaveActiveSum(dot(1, kEq3));
     const uint16_t wavekEq4Count = (uint16_t)WaveActiveSum(dot(1, kEq4));
     const uint16_t wavekGe5Count = (uint16_t)WaveActiveSum(dot(1, kGe5));
+#endif
     const uint16_t waveSkipCount = (uint16_t)WaveActiveSum(dot(1, skip));
-    const uint16_t4 allCounts = uint16_t4(wavekEq2Count, wavekEq3Count, wavekEq4Count, wavekGe5Count);
+    // const uint16_t4 allCounts = uint16_t4(wavekEq2Count, wavekEq3Count, wavekEq4Count, wavekGe5Count);
 
     uint4 waveOffsets;
     uint skipOffset;
@@ -244,9 +258,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     if(WaveGetLaneIndex() == 0)
     {
         InterlockedAdd(g_count.x, wavekEq2Count, waveOffsets.x);
+#if COMPACTION_ONLY == 1
+        InterlockedAdd(g_count.y, wavekGe3Count, waveOffsets.y);
+#else
         InterlockedAdd(g_count.y, wavekEq3Count, waveOffsets.y);
         InterlockedAdd(g_count.z, wavekEq4Count, waveOffsets.z);
         InterlockedAdd(g_count.w, wavekGe5Count, waveOffsets.w);
+#endif
         InterlockedAdd(g_skip, waveSkipCount, skipOffset);
     }
 
@@ -256,15 +274,24 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     skipOffset = WaveReadLaneAt(skipOffset, 0);
 
     const uint kEq2BaseOffset = waveOffsets.x;
+#if COMPACTION_ONLY == 1
+    const uint kGe3BaseOffset = g_count.x + waveOffsets.y;
+    const uint skipBaseOffset = g_count.x + g_count.y + skipOffset;
+#else
     const uint kEq3BaseOffset = g_count.x + waveOffsets.y;
     const uint kEq4BaseOffset = g_count.x + g_count.y + waveOffsets.z;
     const uint kGe5BaseOffset = g_count.x + g_count.y + g_count.z + waveOffsets.w;
     const uint skipBaseOffset = g_count.x + g_count.y + g_count.z + g_count.w + skipOffset;
+#endif
 
     uint lanekEq2Idx = WavePrefixSum(dot(1, kEq2));
+#if COMPACTION_ONLY == 1
+    uint lanekGe3Idx = WavePrefixSum(dot(1, kGe3));
+#else
     uint lanekEq3Idx = WavePrefixSum(dot(1, kEq3));
     uint lanekEq4Idx = WavePrefixSum(dot(1, kEq4));
     uint lanekGe5Idx = WavePrefixSum(dot(1, kGe5));
+#endif
     uint laneSkipIdx = WavePrefixSum(dot(1, skip));
 
     // One-to-one mapping for the very last thread group
@@ -290,6 +317,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
             uint2 mappedGTid = GroupIndexToGTid(kEq2BaseOffset + lanekEq2Idx + prefixSumIn2x2);
             WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
         }
+#if COMPACTION_ONLY == 1
+        else if(kGe3[i])
+        {
+            uint prefixSumIn2x2 = 0;
+            for(int j = 0; j < i; j++)
+                prefixSumIn2x2 += kGe3[j];
+
+            uint2 mappedGTid = GroupIndexToGTid(kGe3BaseOffset + lanekGe3Idx + prefixSumIn2x2);
+            WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
+        }
+#else
         else if(kEq3[i])
         {
             uint prefixSumIn2x2 = 0;
@@ -317,6 +355,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
             uint2 mappedGTid = GroupIndexToGTid(kGe5BaseOffset + lanekGe5Idx + prefixSumIn2x2);
             WriteOutput(Gid.xy, dtID[i], mappedGTid, result[i]);
         }
+#endif
         else if(skip[i])
         {
             uint prefixSumIn2x2 = 0;

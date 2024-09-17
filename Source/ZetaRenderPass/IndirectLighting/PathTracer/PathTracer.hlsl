@@ -31,7 +31,7 @@ StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t7);
 // Utility Functions
 //--------------------------------------------------------------------------------------
 
-ReSTIR_Util::Globals InitGlobals()
+ReSTIR_Util::Globals InitGlobals(bool transmissive)
 {
     ReSTIR_Util::Globals globals;
     globals.bvh = g_bvh;
@@ -39,18 +39,15 @@ ReSTIR_Util::Globals InitGlobals()
     globals.vertices = g_vertices;
     globals.indices = g_indices;
     globals.materials = g_materials;
-    globals.maxDiffuseBounces = (uint16_t)(g_local.MaxDiffuseBounces);
-    globals.maxGlossyBounces_NonTr = (uint16_t)(g_local.MaxGlossyBounces_NonTr);
-    globals.maxGlossyBounces_Tr = (uint16_t)(g_local.MaxGlossyBounces_Tr);
-    globals.maxNumBounces = (uint16_t)max(globals.maxDiffuseBounces, 
-        max(globals.maxGlossyBounces_NonTr, globals.maxGlossyBounces_Tr));
+    globals.maxNumBounces = transmissive ? (uint16_t)g_local.MaxGlossyTrBounces :
+        (uint16_t)g_local.MaxNonTrBounces;
     globals.russianRoulette = IS_CB_FLAG_SET(CB_IND_FLAGS::RUSSIAN_ROULETTE);
 
 #if NEE_EMISSIVE == 1
     globals.emissives = g_emissives;
     globals.sampleSets = g_sampleSets;
     globals.aliasTable = g_aliasTable;
-    globals.sampleSetSize =(uint16_t)(g_local.SampleSetSize_NumSampleSets & 0xffff);
+    globals.sampleSetSize = (uint16_t)(g_local.SampleSetSize_NumSampleSets & 0xffff);
 #endif
 
     return globals;
@@ -192,7 +189,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     // Per-thread RNG
     RNG rngThread = RNG::Init(uint2(swizzledDTid.x ^ 511, swizzledDTid.y ^ 31), g_frame.FrameNum);
 
-    ReSTIR_Util::Globals globals = InitGlobals();
+    ReSTIR_Util::Globals globals = InitGlobals(flags.transmissive);
 
     float3 li = EstimateIndirectLighting(swizzledDTid, origin, lensSample, pos, 
         normal, eta_next, surface, globals, rngThread, rngGroup);

@@ -19,9 +19,6 @@ namespace ReSTIR_Util
         StructuredBuffer<RT::PresampledEmissiveTriangle> sampleSets;
         StructuredBuffer<RT::EmissiveLumenAliasTableEntry> aliasTable;
         StructuredBuffer<RT::VoxelSample> lvg;
-        uint16 maxDiffuseBounces;
-        uint16 maxGlossyBounces_NonTr;
-        uint16 maxGlossyBounces_Tr;
         uint16 maxNumBounces;
         uint16 sampleSetSize;
         uint16_t3 gridDim;
