@@ -335,15 +335,21 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
 {
     Material mat;
     mat.SetBaseColorFactor(matDesc.BaseColorFactor);
-    mat.SetEmissiveFactor(matDesc.EmissiveFactor);
-    mat.SetNormalScale(matDesc.NormalScale);
     mat.SetMetallic(matDesc.MetallicFactor);
-    mat.SetSpecularRoughness(matDesc.RoughnessFactor);
+    mat.SetSpecularRoughness(matDesc.SpecularRoughnessFactor);
+    mat.SetSpecularIOR(matDesc.SpecularIOR);
+    mat.SetTransmission(matDesc.TransmissionWeight);
+    mat.SetSubsurface(matDesc.SubsurfaceWeight);
+    mat.SetCoatWeight(matDesc.CoatWeight);
+    mat.SetCoatColor(matDesc.CoatColor);
+    mat.SetCoatRoughness(matDesc.CoatRoughness);
+    mat.SetCoatIOR(matDesc.CoatIOR);
+    mat.SetEmissiveFactor(matDesc.EmissiveFactor);
+    mat.SetEmissiveStrength(matDesc.EmissiveStrength);
+    mat.SetNormalScale(matDesc.NormalScale);
+    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
-    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
-    mat.SetTransmission(matDesc.Transmission);
-    mat.SetSpecularIOR(matDesc.IOR);
 
     if (lock)
         AcquireSRWLockExclusive(&m_matLock);
@@ -359,16 +365,21 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
 {
     Material mat;
     mat.SetBaseColorFactor(matDesc.BaseColorFactor);
+    mat.SetMetallic(matDesc.MetallicFactor);
+    mat.SetSpecularRoughness(matDesc.SpecularRoughnessFactor);
+    mat.SetSpecularIOR(matDesc.SpecularIOR);
+    mat.SetTransmission(matDesc.TransmissionWeight);
+    mat.SetSubsurface(matDesc.SubsurfaceWeight);
+    mat.SetCoatWeight(matDesc.CoatWeight);
+    mat.SetCoatColor(matDesc.CoatColor);
+    mat.SetCoatRoughness(matDesc.CoatRoughness);
+    mat.SetCoatIOR(matDesc.CoatIOR);
     mat.SetEmissiveFactor(matDesc.EmissiveFactor);
     mat.SetEmissiveStrength(matDesc.EmissiveStrength);
     mat.SetNormalScale(matDesc.NormalScale);
-    mat.SetMetallic(matDesc.MetallicFactor);
-    mat.SetSpecularRoughness(matDesc.RoughnessFactor);
+    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
-    mat.SetAlphaCutoff(matDesc.AlphaCutoff);
-    mat.SetTransmission(matDesc.Transmission);
-    mat.SetSpecularIOR(matDesc.IOR);
 
     auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
         MutableSpan<DDSImage> ddsImages)

@@ -47,44 +47,38 @@ namespace ZetaRay::Model::glTF::Asset
     {
         static constexpr uint64_t INVALID_PATH = UINT64_MAX;
 
-        MaterialDesc()
-            : BaseColorTexPath(INVALID_PATH),
-            MetallicRoughnessTexPath(INVALID_PATH),
-            NormalTexPath(INVALID_PATH),
-            EmissiveTexPath(INVALID_PATH),
-            MetallicFactor(1.0f),
-            RoughnessFactor(1.0f),
-            NormalScale(1.0f),
-            AlphaCutoff(0.5f),
-            AlphaMode(Material::ALPHA_MODE::OPAQUE_),
-            DoubleSided(false),
-            ID(Scene::DEFAULT_MATERIAL_ID),
-            BaseColorFactor(1.0f, 1.0f, 1.0f, 1.0f),
-            EmissiveFactor(0.0f, 0.0f, 0.0f),
-            EmissiveStrength(1.0f),
-            IOR(DEFAULT_ETA_MAT),
-            Transmission(0.0f)
-        {}
+        uint64_t BaseColorTexPath = INVALID_PATH;
+        uint64_t MetallicRoughnessTexPath = INVALID_PATH;
+        uint64_t NormalTexPath = INVALID_PATH;
+        uint64_t EmissiveTexPath = INVALID_PATH;
 
-        uint64_t BaseColorTexPath;
-        uint64_t MetallicRoughnessTexPath;
-        uint64_t NormalTexPath;
-        uint64_t EmissiveTexPath;
-
-        Math::float4 BaseColorFactor;
-        Math::float3 EmissiveFactor;
-        float EmissiveStrength;
-        float MetallicFactor;
-        float RoughnessFactor;
-        float NormalScale;
-        float IOR;
-        float Transmission;
-
-        float AlphaCutoff;
+        // Base
+        Math::float4 BaseColorFactor = Math::float4(1.0f);
+        float MetallicFactor = 1.0f;
+        // Specular
+        float SpecularRoughnessFactor = 1.0f;
+        float SpecularIOR = DEFAULT_ETA_MAT;
+        // Transmission
+        float TransmissionWeight = 0.0f;
+        Math::float3 TransmissionColor = Math::float3(1.0f);
+        float TransmissionDepth = 0.0f;
+        // Subsurface
+        float SubsurfaceWeight = 0.0f;
+        // Coat
+        float CoatWeight = 0.0f;
+        Math::float3 CoatColor = Math::float3(0.8f);
+        float CoatRoughness = 0.0f;
+        float CoatIOR = DEFAULT_ETA_COAT;
+        // Emission
+        float EmissiveStrength = 1.0f;
+        Math::float3 EmissiveFactor = Math::float3(0.0f);
+        // Geometry
+        float NormalScale = 1.0f;
+        float AlphaCutoff = 0.5f;
+        Material::ALPHA_MODE AlphaMode = Material::ALPHA_MODE::OPAQUE_;
+        bool DoubleSided = false;
         // Unique ID of each material
-        uint32_t ID;
-        Material::ALPHA_MODE AlphaMode;
-        bool DoubleSided;
+        uint32_t ID = Scene::DEFAULT_MATERIAL_ID;
     };
 
     struct alignas(64) DDSImage

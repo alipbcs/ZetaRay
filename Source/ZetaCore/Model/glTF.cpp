@@ -535,7 +535,7 @@ namespace
                 }
 
                 desc.MetallicFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
-                desc.RoughnessFactor = (float)mat.pbr_metallic_roughness.roughness_factor;
+                desc.SpecularRoughnessFactor = (float)mat.pbr_metallic_roughness.roughness_factor;
             }
 
             // Emissive map
@@ -559,10 +559,14 @@ namespace
             }
 
             if (mat.has_ior)
-                desc.IOR = mat.ior.ior;
-
+                desc.SpecularIOR = mat.ior.ior;
             if (mat.has_transmission)
-                desc.Transmission = mat.transmission.transmission_factor;
+                desc.TransmissionWeight = mat.transmission.transmission_factor;
+            if (mat.has_clearcoat)
+            {
+                desc.CoatWeight = mat.clearcoat.clearcoat_factor;
+                desc.CoatRoughness = mat.clearcoat.clearcoat_roughness_factor;
+            }
 
             SceneCore& scene = App::GetScene();
             scene.AddMaterial(desc, ddsImages, false);
