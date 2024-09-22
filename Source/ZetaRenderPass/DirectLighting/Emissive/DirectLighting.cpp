@@ -473,8 +473,8 @@ void DirectLighting::ReloadSpatioTemporal()
         (int)SHADER::SPATIO_TEMPORAL;
 
     m_psoLib.Reload(i, m_rootSigObj.Get(), m_preSampling ?
-        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal_WPS.hlsl" :
-        "DirectLighting\\Emissive\\ReSTIR_DI_SpatioTemporal.hlsl");
+        "DirectLighting\\Emissive\\ReSTIR_DI_Emissive_WPS.hlsl" :
+        "DirectLighting\\Emissive\\ReSTIR_DI_Emissive.hlsl");
 }
 
 void DirectLighting::ReloadDnsrTemporal()

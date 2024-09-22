@@ -18,7 +18,7 @@ void PostProcessor::Init(const RenderSettings& settings, PostProcessData& data)
     data.AutoExposurePass.Init();
     data.DisplayPass.Init();
     data.GuiPass.Init();
-    data.CompositingPass.Init(settings.SkyIllumination);
+    data.CompositingPass.Init();
 
     UpdateWndDependentDescriptors(settings, data);
 }
@@ -97,24 +97,24 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 
     if (rtData.RtAS.IsReady())
     {
-        // Sky DI
-        if (settings.SkyIllumination)
-        {
-            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI,
-                rtData.WndConstDescTable.GPUDesciptorHeapIndex(
-                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
-        }
-
         // Sun shadow
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex(
                 (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
 
+        // Emissive DI
         if (App::GetScene().NumEmissiveInstances())
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex(
                     (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
+        }
+        // Sky DI
+        else
+        {
+            data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI,
+                rtData.WndConstDescTable.GPUDesciptorHeapIndex(
+                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
         }
 
         // Indirect lighting
@@ -310,19 +310,18 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
                 rtData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED).ID(),
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
-            // Sky DI
-            if (settings.SkyIllumination)
-            {
-                renderGraph.AddInput(data.CompositingHandle,
-                    rtData.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID(),
-                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-            }
-
             // Emissive DI
             if (App::GetScene().NumEmissiveInstances())
             {
                 renderGraph.AddInput(data.CompositingHandle,
                     rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+                    D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
+            }
+            // Sky DI
+            else
+            {
+                renderGraph.AddInput(data.CompositingHandle,
+                    rtData.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID(),
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
 

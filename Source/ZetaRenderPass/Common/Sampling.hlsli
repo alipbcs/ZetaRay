@@ -199,14 +199,14 @@ namespace Sampling
     {
         const float phi = TWO_PI * u.y;
 
-        const float cosTheta = 1.0f - u.x + u.x * cosThetaMax;
+        const float cosTheta = saturate((1.0f - u.x) + u.x * cosThetaMax);
         const float sinTheta = sqrt(1.0f - cosTheta * cosTheta);
 
         const float x = cos(phi) * sinTheta;
         const float y = sin(phi) * sinTheta;
         const float z = cosTheta;
 
-        pdf = ONE_OVER_2_PI * rcp(1.0f - cosThetaMax);
+        pdf = ONE_OVER_2_PI / (1.0f - cosThetaMax);
 
         return float3(x, y, z);
     }

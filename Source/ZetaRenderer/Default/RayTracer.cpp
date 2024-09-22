@@ -47,18 +47,7 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
             data.ConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
     }
 
-    {
-        data.PreLightingPass.Init();
-    }
-
-    if (settings.SkyIllumination)
-    {
-        data.SkyDI_Pass.Init();
-
-        const Texture& denoised = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
-        Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
-    }
+    data.PreLightingPass.Init();
 
     {
         data.IndirecLightingPass.Init(settings.Indirect);
@@ -84,9 +73,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
                 (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
     }
 
-    {
-        data.PreLightingPass.OnWindowResized();
-    }
+    data.PreLightingPass.OnWindowResized();
 
     if (App::GetScene().NumEmissiveInstances())
     {
@@ -104,7 +91,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 
         const Texture& t = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
         CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
     }
 
     {
@@ -133,20 +120,13 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
     else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
         data.SkyPass.SetInscatteringEnablement(false);
 
-    if (settings.SkyIllumination && !data.SkyDI_Pass.IsInitialized())
+    if (numEmissives == 0 && !data.SkyDI_Pass.IsInitialized())
     {
         data.SkyDI_Pass.Init();
 
-        const Texture& skyDIDnsrTex = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
-        CreateTexture2DSRV(skyDIDnsrTex, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI_DENOISED));
-    }
-    else if (!settings.SkyIllumination && data.SkyDI_Pass.IsInitialized())
-    {
-        uint64_t id = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED).ID();
-        renderGraph.RemoveResource(id);
-
-        data.SkyDI_Pass.Reset();
+        const Texture& skyDIOutTex = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
+        CreateTexture2DSRV(skyDIOutTex, data.WndConstDescTable.CPUHandle(
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
     }
 
     data.RtAS.BuildStaticBLASTransforms();
@@ -350,7 +330,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
     }
 
     // Sky DI
-    if (settings.SkyIllumination && tlasReady)
+    if (!hasEmissives && tlasReady)
     {
         fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(
             &data.SkyDI_Pass, &SkyDI::Render);
@@ -409,7 +389,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
     if ((numEmissives > 0) && (!settings.LightPresampling || presampledSetsBuiltOnce))
         handles.push_back(data.DirecLightingHandle);
 
-    if(settings.SkyIllumination)
+    if(numEmissives == 0)
         handles.push_back(data.SkyDI_Handle);
 
     if (numEmissives)
@@ -622,7 +602,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
     }
 
     // Sky DI
-    if (settings.SkyIllumination && tlasReady)
+    if (numEmissives == 0 && tlasReady)
     {
         // Denoised output
         renderGraph.AddOutput(data.SkyDI_Handle,

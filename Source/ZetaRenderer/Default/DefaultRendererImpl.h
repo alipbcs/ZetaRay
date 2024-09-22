@@ -66,7 +66,6 @@ namespace ZetaRay::DefaultRenderer
     struct alignas(64) RenderSettings
     {
         bool Inscattering = false;
-        bool SkyIllumination = false;
         AA AntiAliasing = DEFAULT_AA;
         RenderPass::IndirectLighting::INTEGRATOR Indirect = RenderPass::IndirectLighting::INTEGRATOR::ReSTIR_GI;
 
@@ -197,7 +196,7 @@ namespace ZetaRay::DefaultRenderer
         // Descrtiptors
         enum class DESC_TABLE_WND_SIZE_CONST
         {
-            SKY_DI_DENOISED,
+            SKY_DI,
             DIRECT_LIGHITNG_DENOISED,
             SUN_SHADOW_DENOISED,
             INDIRECT_DENOISED,
@@ -228,6 +227,7 @@ namespace ZetaRay::DefaultRenderer
         RayTracerData m_raytracerData;
 
         AA PendingAA = DEFAULT_AA;
+        bool m_sunMoved = false;
     };
 }
 

@@ -64,7 +64,7 @@ namespace ZetaRay
         uint32_t NumFramesCameraStatic;
         uint32_t CameraStatic;
         uint32_t Accumulate;
-        uint32_t pad1;
+        uint32_t SunMoved;
 
         float CameraRayUVGradsScale;
         float MipBias;

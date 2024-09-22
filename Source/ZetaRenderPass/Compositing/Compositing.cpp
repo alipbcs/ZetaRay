@@ -27,7 +27,7 @@ Compositing::Compositing()
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 }
 
-void Compositing::Init(bool skyIllum)
+void Compositing::Init()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -45,8 +45,8 @@ void Compositing::Init(bool skyIllum)
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 
     memset(&m_cbComposit, 0, sizeof(m_cbComposit));
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, true);
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, skyIllum);
+    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, false);
+    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, true);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
@@ -57,6 +57,12 @@ void Compositing::Init(bool skyIllum)
         fastdelegate::MakeDelegate(this, &Compositing::DirectSunCallback),
         IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
     App::AddParam(p0);
+
+    ParamVariant p1;
+    p1.InitBool("Renderer", "Compositing", "Direct (Sky)",
+        fastdelegate::MakeDelegate(this, &Compositing::DirectSkyCallback),
+        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI));
+    App::AddParam(p1);
 
     ParamVariant p6;
     p6.InitBool("Renderer", "Compositing", "Indirect", 
@@ -181,6 +187,11 @@ void Compositing::FireflyFilterCallback(const Support::ParamVariant& p)
 void Compositing::DirectSunCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
+}
+
+void Compositing::DirectSkyCallback(const Support::ParamVariant& p)
+{
+    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, p.GetBool());
 }
 
 void Compositing::IndirectCallback(const Support::ParamVariant& p)

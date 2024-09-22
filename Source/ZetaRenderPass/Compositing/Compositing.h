@@ -45,7 +45,7 @@ namespace ZetaRay::RenderPass
         Compositing();
         ~Compositing() = default;
 
-        void Init(bool skyIllum);
+        void Init();
         void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
         void SetSkyIllumEnablement(bool enable);
         void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }
@@ -125,6 +125,7 @@ namespace ZetaRay::RenderPass
         // param callbacks
         void FireflyFilterCallback(const Support::ParamVariant& p);
         void DirectSunCallback(const Support::ParamVariant& p);
+        void DirectSkyCallback(const Support::ParamVariant& p);
         void IndirectCallback(const Support::ParamVariant& p);
         void DirectEmissiveCallback(const Support::ParamVariant& p);
         void VisualizeLVGCallback(const Support::ParamVariant& p);

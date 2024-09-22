@@ -97,6 +97,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
     frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
         frameConsts.NumFramesCameraStatic + 1 : 0;
     frameConsts.CameraStatic = cameraStatic;
+    frameConsts.SunMoved = g_data->m_sunMoved;
+    g_data->m_sunMoved = false;
 
     frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
     frameConsts.OneDivNumEmissiveTriangles = 1.0f / frameConsts.NumEmissiveTriangles;
@@ -164,6 +166,7 @@ namespace ZetaRay::DefaultRenderer
         float pitch = p.GetUnitDir().m_pitch;
         float yaw = p.GetUnitDir().m_yaw;
         g_data->m_frameConstants.SunDir = -Math::SphericalToCartesian(pitch, yaw);
+        g_data->m_sunMoved = true;
     }
 
     void SetSunLux(const ParamVariant& p)
@@ -175,6 +178,7 @@ namespace ZetaRay::DefaultRenderer
     {
         auto r = DegreesToRadians(0.5f * p.GetFloat().m_value);
         g_data->m_frameConstants.SunCosAngularRadius = cosf(r);
+        g_data->m_sunMoved = true;
     }
 
     void SetRayleighSigmaSColor(const ParamVariant& p)
@@ -210,12 +214,6 @@ namespace ZetaRay::DefaultRenderer
     void SetgForPhaseHG(const ParamVariant& p)
     {
         g_data->m_frameConstants.g = p.GetFloat().m_value;
-    }
-
-    void SetSkyDI(const ParamVariant& p)
-    {
-        g_data->m_settings.SkyIllumination = p.GetBool();
-        g_data->m_postProcessorData.CompositingPass.SetSkyIllumEnablement(g_data->m_settings.SkyIllumination);
     }
 
     void SetAccumulation(const ParamVariant& p)
@@ -396,12 +394,6 @@ namespace ZetaRay::DefaultRenderer
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAA),
                 AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
             App::AddParam(p);
-
-            ParamVariant p0;
-            p0.InitBool("Renderer", "Compositing", "Direct (Sky)", 
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSkyDI),
-                g_data->m_settings.SkyIllumination);
-            App::AddParam(p0);
 
             ParamVariant p1;
             p1.InitBool("Renderer", "Compositing", "Accumulate", 

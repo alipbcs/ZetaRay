@@ -541,11 +541,6 @@ namespace BSDF
             return ret;
         }
 
-        static bool IsSpecular(float roughness)
-        {
-            return roughness <= MAX_ROUGHNESS_SPECULAR;
-        }
-
         static ShadingData Init(float3 shadingNormal, float3 wo, bool metallic, float roughness, 
             float3 baseColor, float eta_curr = ETA_AIR, float eta_next = DEFAULT_ETA_MAT, 
             bool specTr = false, half transmissionDepth = 0, half subsurface = 0,
