@@ -71,7 +71,7 @@ namespace RGI_Util
         rd.UpdateRays(primaryPos, primaryNormal, bsdfSample.wi, primarySurface.wo, triDiffs, 
             dpdx, dpdy, dot(bsdfSample.wi, primaryNormal) < 0, primarySurface.eta);
 
-        ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(primaryPos, primaryNormal, 
+        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(primaryPos, primaryNormal, 
             bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
             globals.indices, primarySurface.Transmissive());
 
@@ -261,7 +261,7 @@ namespace RGI_Util
         // BVH should be used.
         if(testVisibility && targetLum_prev > 1e-5)
         {
-            if(!ReSTIR_RT::Visibility_Segment(candidate.posW, wi, t, candidate.normal, 
+            if(!RtRayQuery::Visibility_Segment(candidate.posW, wi, t, candidate.normal, 
                 r_curr.ID, g_bvh, surface_prev.Transmissive()))
             {
                 return 0;
@@ -346,7 +346,7 @@ namespace RGI_Util
         // Target at current pixel with temporal reservoir's sample
         if(targetLum_curr > 1e-6)
         {
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.Transmissive()))
+            if(RtRayQuery::Visibility_Segment(posW, wi, t, normal, r_prev.ID, g_bvh, surface.Transmissive()))
             {
                 PartialReadReservoir_ReuseRest(candidate.posSS, prevReservoir_C_DescHeapIdx, r_prev);
 
@@ -422,7 +422,7 @@ namespace RGI_Util
             if(targetLum_curr < 1e-5f)
                 continue;
 
-            if(ReSTIR_RT::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.Transmissive()))
+            if(RtRayQuery::Visibility_Segment(posW, wi, t, normal, r_prev[i].ID, g_bvh, surface.Transmissive()))
             {
                 PartialReadReservoir_ReuseRest(candidate[i].posSS, prevReservoir_C_DescHeapIdx, r_prev[i]);
 

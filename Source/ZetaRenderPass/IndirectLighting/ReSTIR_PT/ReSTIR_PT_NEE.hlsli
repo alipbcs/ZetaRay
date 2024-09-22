@@ -53,7 +53,7 @@ namespace RPT_Util
             }
 
             if(dot(ls.ld, ls.ld) > 0)
-                ls.ld *= ReSTIR_RT::Visibility_Ray(pos, ls.wi, normal, g_bvh, surface.Transmissive());
+                ls.ld *= RtRayQuery::Visibility_Ray(pos, ls.wi, normal, g_bvh, surface.Transmissive());
 
             return ls;
         }
@@ -64,7 +64,7 @@ namespace RPT_Util
     ReSTIR_Util::DirectLightingEstimate NEE_Bsdf(float3 pos, float3 normal, 
         BSDF::ShadingData surface, int nextBounce, ReSTIR_Util::Globals globals, 
         uint emissiveMapsDescHeapOffset, out BSDF::BSDFSample bsdfSample, 
-        out ReSTIR_RT::Hit_Emissive hitInfo, inout RNG rng)
+        out RtRayQuery::Hit_Emissive hitInfo, inout RNG rng)
     {
         ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
 
@@ -83,7 +83,7 @@ namespace RPT_Util
         const float3 f = bsdfSample.f;
 
         // Check if closest hit is a light source
-        hitInfo = ReSTIR_RT::Hit_Emissive::FindClosest(pos, normal, wi, globals.bvh, 
+        hitInfo = RtRayQuery::Hit_Emissive::FindClosest(pos, normal, wi, globals.bvh, 
             globals.frameMeshData, surface.Transmissive());
 
         if (hitInfo.HitWasEmissive())
@@ -187,7 +187,7 @@ namespace RPT_Util
                 
             if (dot(ld, ld) > 0)
             {
-                ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
+                ld *= RtRayQuery::Visibility_Segment(pos, wi, t, normal, lightID, 
                     globals.bvh, surface.Transmissive());
             }
 
@@ -227,7 +227,7 @@ namespace RPT_Util
         ret.pdf_solidAngle = eval.pdf;
 
         if(TestVisibility && (dot(ret.ld, ret.ld) > 0))
-            ret.ld *= ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive());
+            ret.ld *= RtRayQuery::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive());
 
         return ret;
     }
@@ -284,7 +284,7 @@ namespace RPT_Util
 
         if(dot(ld, ld) > 0)
         {
-            ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
+            ld *= RtRayQuery::Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
                 surface.Transmissive());
         }
 

@@ -7,7 +7,7 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
-using namespace ReSTIR_RT;
+using namespace RtRayQuery;
 using namespace ReSTIR_Util;
 using namespace RPT_Util;
 
@@ -235,7 +235,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
             g_vertices, g_indices, surface.Transmissive());
 #else
         // Use the same BSDF ray used for direct lighting at previous path vertex
-        ReSTIR_RT::Hit hitInfo = nextHit.ToHitInfo(bsdfSample.wi, g_frameMeshData, 
+        RtRayQuery::Hit hitInfo = nextHit.ToHitInfo(bsdfSample.wi, g_frameMeshData, 
             g_vertices, g_indices);
 #endif
 
@@ -250,7 +250,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
 
         // Fetch material at new vertex
         float eta_next;
-        if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, g_materials, g_frame, eta_curr, 
+        if(!RtRayQuery::GetMaterialData(-bsdfSample.wi, g_materials, g_frame, eta_curr, 
             rd.uv_grads, hitInfo, surface, eta_next, samp))
         {
            break;

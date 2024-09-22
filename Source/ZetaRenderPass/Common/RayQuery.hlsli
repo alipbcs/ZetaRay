@@ -1,16 +1,16 @@
-#ifndef RESTIR_RT_H
-#define RESTIR_RT_H
+#ifndef RAY_QUERY_H
+#define RAY_QUERY_H
 
-#include "../Common/RT.hlsli"
-#include "../Common/Common.hlsli"
-#include "../Common/FrameConstants.h"
-#include "../Common/StaticTextureSamplers.hlsli"
-#include "../Common/BSDF.hlsli"
+#include "RT.hlsli"
+#include "Common.hlsli"
+#include "FrameConstants.h"
+#include "StaticTextureSamplers.hlsli"
+#include "BSDF.hlsli"
 
 #define T_MIN_REFL_RAY 1e-6
 #define T_MIN_TR_RAY 5e-5
 
-namespace ReSTIR_RT
+namespace RtRayQuery
 {
     struct Hit
     {
@@ -309,13 +309,9 @@ namespace ReSTIR_RT
         ray.TMax = FLT_MAX;
         ray.Direction = wi;
         
-        // initialize
         rayQuery.TraceRayInline(g_bvh, RAY_FLAG_NONE, RT_AS_SUBGROUP::ALL, ray);
-        
-        // traversal
         rayQuery.Proceed();
 
-        // light source is occluded
         if (rayQuery.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
             return false;
 
@@ -441,7 +437,7 @@ namespace ReSTIR_RT
     template<typename TexSampler>
     bool GetMaterialData(float3 wo, StructuredBuffer<Material> g_materials, 
         ConstantBuffer<cbFrameConstants> g_frame, float eta_curr, float4 uv_grads, 
-        inout ReSTIR_RT::Hit hitInfo, out BSDF::ShadingData surface, out float eta,
+        inout Hit hitInfo, out BSDF::ShadingData surface, out float eta,
         SamplerState samp, TexSampler ts)
     {
         const Material mat = g_materials[hitInfo.matIdx];
@@ -504,7 +500,7 @@ namespace ReSTIR_RT
 
     bool GetMaterialData(float3 wo, StructuredBuffer<Material> g_materials, 
         ConstantBuffer<cbFrameConstants> g_frame, float eta_curr, float4 uv_grads, 
-        inout ReSTIR_RT::Hit hitInfo, out BSDF::ShadingData surface, out float eta,
+        inout Hit hitInfo, out BSDF::ShadingData surface, out float eta,
         SamplerState samp)
     {
         AnisotropicSampler as;

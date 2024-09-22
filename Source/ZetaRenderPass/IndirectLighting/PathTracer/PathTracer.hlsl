@@ -8,7 +8,7 @@
 
 #define THREAD_GROUP_SWIZZLING 1
 
-using namespace ReSTIR_RT;
+using namespace RtRayQuery;
 
 //--------------------------------------------------------------------------------------
 // Root Signature

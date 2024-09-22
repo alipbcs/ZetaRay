@@ -8,7 +8,7 @@
 namespace ReSTIR_RT
 {
     float3 PathTrace(float3 pos, float3 normal, float ior, uint sampleSetIdx, 
-        BSDF::BSDFSample bsdfSample, ReSTIR_RT::Hit hitInfo, RT::RayDifferentials rd,
+        BSDF::BSDFSample bsdfSample, RtRayQuery::Hit hitInfo, RT::RayDifferentials rd,
         ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals,
         SamplerState samp, inout RNG rngThread, inout RNG rngGroup)
     {
@@ -28,7 +28,7 @@ namespace ReSTIR_RT
 
             BSDF::ShadingData surface;
             float eta_next;
-            if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, eta_curr, 
+            if(!RtRayQuery::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, eta_curr, 
                 rd.uv_grads, hitInfo, surface, eta_next, samp))
             {
                 break;
@@ -79,7 +79,7 @@ namespace ReSTIR_RT
                 break;
 
             // Trace a ray to find next path vertex
-            hitInfo = ReSTIR_RT::Hit::FindClosest<false>(pos, normal, bsdfSample.wi, globals.bvh, 
+            hitInfo = RtRayQuery::Hit::FindClosest<false>(pos, normal, bsdfSample.wi, globals.bvh, 
                 globals.frameMeshData, globals.vertices, globals.indices, 
                 surface.Transmissive());
 

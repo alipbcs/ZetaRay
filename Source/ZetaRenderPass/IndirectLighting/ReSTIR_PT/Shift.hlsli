@@ -387,7 +387,7 @@ namespace RPT_Util
 
         while(true)
         {
-            ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<false>(ctx.pos, ctx.normal, 
+            RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<false>(ctx.pos, ctx.normal, 
                 bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
                 globals.indices, ctx.surface.Transmissive());
 
@@ -404,7 +404,7 @@ namespace RPT_Util
             ctx.rd.dpdx_dpdy(newPos, hitInfo.normal, dpdx, dpdy);
             ctx.rd.ComputeUVDifferentials(dpdx, dpdy, hitInfo.triDiffs.dpdu, hitInfo.triDiffs.dpdv);
 
-            if(!ReSTIR_RT::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, ctx.eta_curr, 
+            if(!RtRayQuery::GetMaterialData(-bsdfSample.wi, globals.materials, g_frame, ctx.eta_curr, 
                 ctx.rd.uv_grads, hitInfo, ctx.surface, ctx.eta_next, samp))
             {
                 // Not invertible
@@ -500,7 +500,7 @@ namespace RPT_Util
         if(dot(eval.bsdfOverPdf, eval.bsdfOverPdf) == 0)
             return ret;
 
-        ReSTIR_RT::Hit hitInfo = ReSTIR_RT::Hit::FindClosest<true>(y_k_min_1, normal_k_min_1, 
+        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(y_k_min_1, normal_k_min_1, 
             w_k_min_1, globals.bvh, globals.frameMeshData, globals.vertices, globals.indices, 
             surface.Transmissive());
 
@@ -517,8 +517,8 @@ namespace RPT_Util
         eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
         const bool inTranslucentMedium = eta_curr != ETA_AIR;
 
-        ReSTIR_RT::IsotropicSampler is;
-        if(!ReSTIR_RT::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
+        RtRayQuery::IsotropicSampler is;
+        if(!RtRayQuery::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
             rd.uv_grads, hitInfo, surface, eta_next, g_samLinearWrap, is))
         {
             // Not invertible

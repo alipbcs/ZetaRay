@@ -4,7 +4,6 @@ set(RP_IND_LIGHTING_SRC
     ${RP_IND_LIGHTING_DIR}/IndirectLighting.h
     ${RP_IND_LIGHTING_DIR}/IndirectLighting_Common.h
     ${RP_IND_LIGHTING_DIR}/NEE.hlsli
-    ${RP_IND_LIGHTING_DIR}/RayQuery.hlsli
     ${RP_IND_LIGHTING_DIR}/PathTracer/Variants/PathTracer_WoPS.hlsl
     ${RP_IND_LIGHTING_DIR}/PathTracer/Variants/PathTracer_WPS.hlsl
     ${RP_IND_LIGHTING_DIR}/PathTracer/Params.hlsli

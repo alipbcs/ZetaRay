@@ -11,7 +11,6 @@
 
 #define THREAD_GROUP_SWIZZLING 0
 
-using namespace ReSTIR_RT;
 using namespace ReSTIR_Util;
 using namespace RPT_Util;
 

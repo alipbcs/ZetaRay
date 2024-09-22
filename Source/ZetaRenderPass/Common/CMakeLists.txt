@@ -8,6 +8,7 @@ set(RP_COMMON_SRC
     ${RP_COMMON_DIR}/GBuffers.hlsli
     ${RP_COMMON_DIR}/LightSource.hlsli
     ${RP_COMMON_DIR}/LightVoxelGrid.hlsli
+    ${RP_COMMON_DIR}/RayQuery.hlsli
     ${RP_COMMON_DIR}/RT.hlsli
     ${RP_COMMON_DIR}/Sampling.hlsli
     ${RP_COMMON_DIR}/SH.hlsli

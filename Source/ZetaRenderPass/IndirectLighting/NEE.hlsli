@@ -3,7 +3,7 @@
 
 #include "../Common/GBuffers.hlsli"
 #include "../Common/LightVoxelGrid.hlsli"
-#include "RayQuery.hlsli"
+#include "../Common/RayQuery.hlsli"
 #include "../Common/BSDFSampling.hlsli"
 
 namespace ReSTIR_Util
@@ -110,7 +110,7 @@ namespace ReSTIR_Util
 
         if(TestVisibility)
         {
-            if (!ReSTIR_RT::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive()))
+            if (!RtRayQuery::Visibility_Ray(pos, wi, normal, g_bvh, surface.Transmissive()))
                 return ret;
         }
 
@@ -146,7 +146,7 @@ namespace ReSTIR_Util
         if(TestVisibility)
         {
             if(dot(ret.ld, ret.ld) > 0)
-                ret.ld *= ReSTIR_RT::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.Transmissive());
+                ret.ld *= RtRayQuery::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.Transmissive());
         }
 
         return ret;
@@ -201,7 +201,7 @@ namespace ReSTIR_Util
                     
                 if (Math::Luminance(ld) > 1e-6)
                 {
-                    ld *= ReSTIR_RT::Visibility_Segment(pos, wi, t, normal, lightID, 
+                    ld *= RtRayQuery::Visibility_Segment(pos, wi, t, normal, lightID, 
                         globals.bvh, surface.Transmissive());
                 }
 
