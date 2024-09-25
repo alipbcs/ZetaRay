@@ -9,6 +9,25 @@
 
 namespace RDI_Util
 {
+    struct TemporalCandidate
+    {
+        static TemporalCandidate Init()
+        {
+            TemporalCandidate ret;
+            ret.valid = false;
+            ret.lightIdx = UINT32_MAX;
+        
+            return ret;
+        }
+
+        BSDF::ShadingData surface;
+        float3 pos;
+        float3 normal;
+        int16_t2 posSS;
+        uint lightIdx;
+        bool valid;
+    };
+
     bool PlaneHeuristic(float3 samplePos, float3 currNormal, float3 currPos, float linearDepth,
         float tolerance = MAX_PLANE_DIST_REUSE)
     {
@@ -18,139 +37,120 @@ namespace RDI_Util
         return weight;
     }
 
-    TemporalCandidate FindTemporalCandidates(uint2 DTid, float3 pos, float3 normal, float t_primary, 
-        float roughness, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, inout RNG rng)
+    TemporalCandidate FindTemporalCandidate(uint2 DTid, float3 pos, float3 normal, float z_view, 
+        float roughness, BSDF::ShadingData surface, float2 prevUV, ConstantBuffer<cbFrameConstants> g_frame, 
+        inout RNG rng)
     {
         TemporalCandidate candidate = RDI_Util::TemporalCandidate::Init();
 
         if (any(prevUV < 0.0f.xx) || any(prevUV > 1.0f.xx))
             return candidate;
 
-        GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
-            GBUFFER_OFFSET::DEPTH];
-        GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
-            GBUFFER_OFFSET::NORMAL];
-        GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-        GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::IOR];
-
         const float2 renderDim = float2(g_frame.RenderWidth, g_frame.RenderHeight);
         const int2 prevPixel = prevUV * renderDim;
-        const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
+
+        GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+        const float2 prevMR = g_prevMR[prevPixel];
+        GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
+
+        if(prevFlags.invalid || 
+            prevFlags.emissive || 
+            (abs(prevMR.y - roughness) > MAX_ROUGHNESS_DIFF_REUSE) || 
+            (prevFlags.metallic != surface.metallic) ||
+            (prevFlags.transmissive != surface.specTr))
+            return candidate;
+
+        float2 prevLensSample = 0;
+        float3 prevOrigin = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
             g_frame.PrevViewInv._m23);
-
-        for(int i = 0; i < NUM_TEMPORAL_SEARCH_ITER; i++)
+        if(g_frame.DoF)
         {
-            const float theta = rng.Uniform() * TWO_PI;
-            const float sinTheta = sin(theta);
-            const float cosTheta = cos(theta);
-            const int2 samplePosSS = prevPixel + (i > 0) * TEMPORAL_SEARCH_RADIUS * float2(sinTheta, cosTheta);
-
-            if(samplePosSS.x >= renderDim.x || samplePosSS.y >= renderDim.y)
-                continue;
-
-            const float2 prevMR = g_prevMR[samplePosSS];
-            GBuffer::Flags prevFlags = GBuffer::DecodeMetallic(prevMR.x);
-
-            if(prevFlags.invalid || prevFlags.emissive)
-                continue;
-
-            float prevDepth = g_prevDepth[samplePosSS];
-            float2 lensSample = 0;
-            float3 origin = prevCameraPos;
-            if(g_frame.DoF)
-            {
-                RNG rngDoF = RNG::Init(RNG::PCG3d(samplePosSS.xyx).zy, g_frame.FrameNum - 1);
-                lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
-                lensSample *= g_frame.LensRadius;
-            }
-
-            float3 prevPos = Math::WorldPosFromScreenSpace2(samplePosSS, renderDim, prevDepth, 
-                g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
-                g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
-                g_frame.DoF, lensSample, g_frame.FocusDepth, origin);
-
-            float tolerance = MAX_PLANE_DIST_REUSE * (g_frame.DoF ? 10 : 1);
-            if(!RDI_Util::PlaneHeuristic(prevPos, normal, pos, prevDepth, tolerance))
-                continue;
-
-            // normal heuristic
-            const float2 prevNormalEncoded = g_prevNormal[samplePosSS];
-            const float3 prevNormal = Math::DecodeUnitVector(prevNormalEncoded);
-            const float normalSimilarity = dot(prevNormal, normal);
-            
-            // roughness heuristic
-            const bool roughnessSimilarity = abs(prevMR.y - roughness) < MAX_ROUGHNESS_DIFF_REUSE;
-
-            candidate.valid = g_frame.DoF ? true : 
-                normalSimilarity >= MIN_NORMAL_SIMILARITY_REUSE && roughnessSimilarity;
-
-            if(candidate.valid)
-            {
-                float prevEta_mat = DEFAULT_ETA_MAT;
-
-                if(prevFlags.transmissive)
-                {
-                    float ior = g_prevIOR[samplePosSS];
-                    prevEta_mat = GBuffer::DecodeIOR(ior);
-                }
-
-                candidate.posSS = (int16_t2)samplePosSS;
-                candidate.pos = prevPos;
-                candidate.normal = prevNormal;
-                candidate.metallic = prevFlags.metallic;
-                candidate.roughness = prevMR.y;
-                candidate.transmissive = prevFlags.transmissive;
-                candidate.eta_next = prevEta_mat;
-
-                break;
-            }
+            RNG rngDoF = RNG::Init(RNG::PCG3d(prevPixel.xyx).zy, g_frame.FrameNum - 1);
+            prevLensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
+            prevLensSample *= g_frame.LensRadius;
         }
+
+        GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+            GBUFFER_OFFSET::DEPTH];
+        const float prevViewDepth = g_prevDepth[prevPixel];
+        const float3 prevPos = Math::WorldPosFromScreenSpace2(prevPixel, renderDim, prevViewDepth, 
+            g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
+            g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
+            g_frame.DoF, prevLensSample, g_frame.FocusDepth, prevOrigin);
+
+        if(!RDI_Util::PlaneHeuristic(prevPos, normal, pos, prevViewDepth, 0.01))
+            return candidate;
+
+        GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+            GBUFFER_OFFSET::NORMAL];
+        const float3 prevNormal = Math::DecodeUnitVector(g_prevNormal[prevPixel]);
+            
+        float prevEta_next = DEFAULT_ETA_MAT;
+
+        if(prevFlags.transmissive)
+        {
+            GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                GBUFFER_OFFSET::IOR];
+
+            float ior = g_prevIOR[prevPixel];
+            prevEta_next = GBuffer::DecodeIOR(ior);
+        }
+
+        GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_OFFSET::BASE_COLOR];
+        const float4 prevBaseColor = prevFlags.subsurface ? g_prevBaseColor[prevPixel] :
+            float4(g_prevBaseColor[prevPixel].rgb, 0);
+
+        float prev_coat_weight = 0;
+        float3 prev_coat_color = 0.0f;
+        float prev_coat_roughness = 0;
+        float prev_coat_ior = DEFAULT_ETA_COAT;
+
+        if(prevFlags.coated)
+        {
+            GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                GBUFFER_OFFSET::COAT];
+            uint3 packed = g_coat[prevPixel].xyz;
+
+            GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+            prev_coat_weight = coat.weight;
+            prev_coat_color = coat.color;
+            prev_coat_roughness = coat.roughness;
+            prev_coat_ior = coat.ior;
+        }
+
+        const float3 wo = normalize(prevOrigin - prevPos);
+        candidate.surface = BSDF::ShadingData::Init(prevNormal, wo, prevFlags.metallic, 
+            prevMR.y, prevBaseColor.rgb, ETA_AIR, prevEta_next, prevFlags.transmissive, 
+            prevFlags.trDepthGt0, (half)prevBaseColor.w, prev_coat_weight, prev_coat_color, 
+            prev_coat_roughness, prev_coat_ior);
+        candidate.posSS = (int16_t2)prevPixel;
+        candidate.pos = prevPos;
+        candidate.normal = prevNormal;
+        candidate.valid = true;
 
         return candidate;
     }
 
     float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, 
-        uint2 posSS, float3 prevPos, float3 prevNormal, bool prevMetallic, float prevRoughness, 
-        bool prevTransmissive, float prevEta_mat, ConstantBuffer<cbFrameConstants> g_frame,
-        RaytracingAccelerationStructure g_bvh, out BSDF::ShadingData prevSurface)
+        TemporalCandidate candidate, ConstantBuffer<cbFrameConstants> g_frame,
+        RaytracingAccelerationStructure g_bvh)
     {
-        GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::BASE_COLOR];
-
-        const float3 prevBaseColor = g_prevBaseColor[posSS].rgb;
-        float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
-            g_frame.PrevViewInv._m23);
-        if(g_frame.DoF)
-        {
-            RNG rngDoF = RNG::Init(RNG::PCG3d(posSS.xyx).zy, g_frame.FrameNum - 1);
-            float2 lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
-            lensSample *= g_frame.LensRadius;
-
-            prevCameraPos += mad(lensSample.x, g_frame.PrevView[0].xyz, 
-                lensSample.y * g_frame.PrevView[1].xyz);
-        }
-
-        const float3 prevWo = normalize(prevCameraPos - prevPos);
-
-        prevSurface = BSDF::ShadingData::Init(prevNormal, prevWo, prevMetallic, prevRoughness,
-            prevBaseColor, ETA_AIR, prevEta_mat, prevTransmissive);
-
-        const float t = length(lightPos - prevPos);
-        const float3 wi = (lightPos - prevPos) / t;
-        prevSurface.SetWi(wi, prevNormal);
+        const float t = length(lightPos - candidate.pos);
+        const float3 wi = (lightPos - candidate.pos) / t;
+        candidate.surface.SetWi(wi, candidate.normal);
 
         float cosThetaPrime = saturate(dot(lightNormal, -wi));
         cosThetaPrime = dot(lightNormal, lightNormal) == 0 ? 1 : cosThetaPrime;
         const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
 
-        const float3 targetAtPrev = le * BSDF::Unified(prevSurface).f * dwdA;
+        const float3 targetAtPrev = le * BSDF::Unified(candidate.surface).f * dwdA;
         float targetLumAtPrev = Math::Luminance(targetAtPrev);
 
         // should use previous frame's bvh
-        targetLumAtPrev *= VisibilityApproximate(g_bvh, prevPos, wi, t, prevNormal, lightID, 
-            prevSurface.Transmissive());
+        targetLumAtPrev *= RtRayQuery::Visibility_Segment(candidate.pos, wi, t, candidate.normal, 
+            lightID, g_bvh, candidate.surface.Transmissive());
 
         return targetLumAtPrev;
     }
@@ -163,8 +163,11 @@ namespace RDI_Util
 
         surface.SetWi(prevEmissive.wi, normal);
         float3 target = le * BSDF::Unified(surface).f * dwdA;
-        target *= VisibilityApproximate(g_bvh, pos, prevEmissive.wi, prevEmissive.t, normal, 
-            prevEmissive.ID, surface.Transmissive());
+        if(dot(target, target) > 0)
+        {
+            target *= RtRayQuery::Visibility_Segment(pos, prevEmissive.wi, prevEmissive.t, normal, 
+                prevEmissive.ID, g_bvh, surface.Transmissive());
+        }
 
         return target;
     }
@@ -183,18 +186,15 @@ namespace RDI_Util
         {
             float targetLumAtPrev = 0.0f;
 
-            if(Math::Luminance(r.Le) > 1e-6)
+            if(dot(r.Le, r.Le) > 0)
             {
-                BSDF::ShadingData prevSurface;
                 targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, 
-                    target.lightNormal, target.lightID, candidate.posSS, candidate.pos, 
-                    candidate.normal, candidate.metallic, candidate.roughness, 
-                    candidate.transmissive, candidate.eta_next, g_frame, 
-                    g_bvh, prevSurface);
+                    target.lightNormal, target.lightID, candidate, g_frame, g_bvh);
             }
 
             const float p_curr = (float)r.M * Math::Luminance(target.p_hat);
-            const float m_curr = p_curr / max(p_curr + (float)prevM * targetLumAtPrev, 1e-6);
+            const float denom = p_curr + (float)prevM * targetLumAtPrev;
+            const float m_curr = denom > 0 ? p_curr / denom : 0;
             r.w_sum *= m_curr;
         }
 
@@ -212,13 +212,14 @@ namespace RDI_Util
             const float targetLumAtCurr = Math::Luminance(currTarget);
 
             // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
-            if(targetLumAtCurr > 1e-6)
+            if(targetLumAtCurr > 0)
             {
                 const float w_sum_prev = PartialReadReservoir_WSum(candidate.posSS, prevReservoir_B_DescHeapIdx);
                 const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
                 // balance heuristic
                 const float p_prev = (float)prev.M * targetLumAtPrev;
-                const float m_prev = p_prev / max(p_prev + (float)r.M * targetLumAtCurr, 1e-6);
+                const float denom = p_prev + (float)r.M * targetLumAtCurr;
+                const float m_prev = denom > 0 ? p_prev / denom : 0;
                 const float w_prev = m_prev * targetLumAtCurr * prev.W;
 
                 if(r.Update(w_prev, prev.Le, prev.LightIdx, prev.Bary, rng))
@@ -282,10 +283,11 @@ namespace RDI_Util
         float3 sampleOrigin[MAX_NUM_SPATIAL_SAMPLES];
         int16_t2 samplePosSS[MAX_NUM_SPATIAL_SAMPLES];
         uint sampleLightIdx[MAX_NUM_SPATIAL_SAMPLES];
+        bool sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
         float sampleRoughness[MAX_NUM_SPATIAL_SAMPLES];
-        uint16 sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
-        uint16 sampleTr[MAX_NUM_SPATIAL_SAMPLES];
-        float sampleEta_mat[MAX_NUM_SPATIAL_SAMPLES];
+        bool sampleTr[MAX_NUM_SPATIAL_SAMPLES];
+        bool sampleSubsurf[MAX_NUM_SPATIAL_SAMPLES];
+        bool sampleCoated[MAX_NUM_SPATIAL_SAMPLES];
         uint16_t k = 0;
         const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
             g_frame.PrevViewInv._m23);
@@ -338,13 +340,8 @@ namespace RDI_Util
                 sampleMetallic[k] = flags_i.metallic;
                 sampleRoughness[k] = mr_i.y;
                 sampleTr[k] = flags_i.transmissive;
-                sampleEta_mat[k] = DEFAULT_ETA_MAT;
-
-                if(flags_i.transmissive)
-                {
-                    float ior = g_prevIOR[posSS_i];
-                    sampleEta_mat[k] = GBuffer::DecodeIOR(ior);
-                }
+                sampleSubsurf[k] = flags_i.subsurface;
+                sampleCoated[k] = flags_i.coated;
 
                 k++;
             }
@@ -355,12 +352,40 @@ namespace RDI_Util
         for (int i = 0; i < k; i++)
         {
             const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
-            const float3 sampleBaseColor = g_prevBaseColor[samplePosSS[i]].rgb;
+            const float4 sampleBaseColor = sampleSubsurf[i] ? g_prevBaseColor[samplePosSS[i]] :
+                float4(g_prevBaseColor[samplePosSS[i]].rgb, 0);
+
+            float sampleEta_next = DEFAULT_ETA_MAT;
+
+            if(sampleTr[i])
+            {
+                float ior = g_prevIOR[samplePosSS[i]];
+                sampleEta_next = GBuffer::DecodeIOR(ior);
+            }
+
+            float sample_coat_weight = 0;
+            float3 sample_coat_color = 0.0f;
+            float sample_coat_roughness = 0;
+            float sample_coat_ior = DEFAULT_ETA_COAT;
+
+            if(sampleCoated[i])
+            {
+                GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                    GBUFFER_OFFSET::COAT];
+                uint3 packed = g_coat[samplePosSS[i]].xyz;
+
+                GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+                sample_coat_weight = coat.weight;
+                sample_coat_color = coat.color;
+                sample_coat_roughness = coat.roughness;
+                sample_coat_ior = coat.ior;
+            }
 
             const float3 wo_i = normalize(sampleOrigin[i] - samplePos[i]);
             BSDF::ShadingData surface_i = BSDF::ShadingData::Init(sampleNormal, wo_i,
-                sampleMetallic[i], sampleRoughness[i], sampleBaseColor, ETA_AIR,
-                sampleEta_mat[i], sampleTr[i]);
+                sampleMetallic[i], sampleRoughness[i], sampleBaseColor.xyz, ETA_AIR,
+                sampleEta_next, sampleTr[i], false, (half)sampleBaseColor.w, sample_coat_weight, 
+                sample_coat_color, sample_coat_roughness, sample_coat_ior);
 
             Reservoir neighbor = PartialReadReservoir_ReuseRest(samplePosSS[i],
                 prevReservoir_A_DescHeapIdx,

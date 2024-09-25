@@ -158,19 +158,19 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         float alphaSq = surface.alpha * surface.alpha;
         if(flags.metallic)
         {
-            if(surface.specular)
+            if(surface.GlossSpecular())
             {
                 f_s = (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
             }
             else
             {
                 float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_GGX_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
+                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
                 f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
             }
         }
         else
-            f_s = BSDF::EvalGGXMicrofacetBRDF(surface, fr);
+            f_s = BSDF::EvalGloss(surface, fr);
 
         float3 Li_d = r.Lo * f_d * r.W;
         float3 Li_s = r.Lo * f_s * r.W;

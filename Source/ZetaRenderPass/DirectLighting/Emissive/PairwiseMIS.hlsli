@@ -71,8 +71,8 @@ namespace RDI_Util
 
                 if(dot(currTarget, currTarget) > 0)
                 {
-                    currTarget *= VisibilityApproximate(g_bvh, pos_c, emissive_i.wi, emissive_i.t, normal_c, 
-                        emissive_i.ID, surface_c.Transmissive());
+                    currTarget *= RtRayQuery::Visibility_Segment(pos_c, emissive_i.wi, emissive_i.t, normal_c, 
+                        emissive_i.ID, g_bvh, surface_c.Transmissive());
                 }
 
                 const float targetLum = Math::Luminance(currTarget);
@@ -93,8 +93,8 @@ namespace RDI_Util
 
                 if(dot(brdfCosTheta_i, brdfCosTheta_i) > 0)
                 {
-                    brdfCosTheta_i *= VisibilityApproximate(g_bvh, pos_i, wi_i, t_i, normal_i, 
-                        target_c.lightID, surface_i.Transmissive());
+                    brdfCosTheta_i *= RtRayQuery::Visibility_Segment(pos_i, wi_i, t_i, normal_i, 
+                        target_c.lightID, g_bvh, surface_i.Transmissive());
                 }
                 
                 Update_m_c(r_c, r_i, target_c, brdfCosTheta_i, wi_i, t_i);
