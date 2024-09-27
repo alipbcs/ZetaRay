@@ -306,6 +306,9 @@ namespace ZetaRay::Core::GpuMemory
         D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
         D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
+        ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_RESOURCE_STATES initialState, uint32_t flags = 0,
+        uint16_t mipLevels = 1, D3D12_CLEAR_VALUE* clearVal = nullptr);
+    Texture GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0,
         uint16_t mipLevels = 1, D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,

@@ -1208,6 +1208,40 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
+Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, 
+    DXGI_FORMAT format, ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_RESOURCE_STATES initialState, 
+    uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+{
+    Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
+    Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
+    Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
+    Assert(((flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET) & (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)) == 0,
+        "Texures can't be used as both Render Target and Depth Stencil.");
+    Assert(((flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL) & (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)) == 0,
+        "A Depth-Stencil texture can't be used for unordered access.");
+
+    D3D12_RESOURCE_FLAGS resFlags = D3D12_RESOURCE_FLAG_NONE;
+
+    if (flags & TEXTURE_FLAGS::ALLOW_DEPTH_STENCIL)
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_DEPTH_STENCIL & ~D3D12_RESOURCE_FLAG_NONE);
+    if (flags & TEXTURE_FLAGS::ALLOW_RENDER_TARGET)
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_RENDER_TARGET & ~D3D12_RESOURCE_FLAG_NONE);
+    if (flags & TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS)
+        resFlags |= (D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS & ~D3D12_RESOURCE_FLAG_NONE);
+
+    D3D12_RESOURCE_DESC desc = Direct3DUtil::Tex2D(format, width, height, 1, mipLevels, resFlags);
+    ID3D12Resource* texture;
+    auto* device = App::GetRenderer().GetDevice();
+    CheckHR(device->CreatePlacedResource(heap,
+        offsetInBytes,
+        &desc,
+        initialState,
+        clearVal,
+        IID_PPV_ARGS(&texture)));
+
+    return Texture(name, texture, RESOURCE_HEAP_TYPE::PLACED);
+}
+
 Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height,
     DXGI_FORMAT format, ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_BARRIER_LAYOUT initialLayout,
     uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
