@@ -12,7 +12,7 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
 
 ## Highlight Features
 
- - ReSTIR DI for many-light sampling from emissive meshes and sky [[4](#references)]. Sampling efficiency is increased by
+ - ReSTIR DI for many-light sampling from emissive meshes, sun, and sky [[4](#references)]. Sampling efficiency is increased by
    - Power sampling using the alias method
    - A world-space voxel grid with stochastic light reservoirs per voxel [[5](#references)]
  - Indirect lighting methods include:
@@ -20,7 +20,7 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
     2. ReSTIR GI [[1](#references)]: A variant of ReSTIR effective for diffuse and moderately glossy surfaces, but less effective for highly glossy surfaces.
     3. ReSTIR PT [[6](#references)]: A more advanced variant of ReSTIR with significantly better quality for highly glossy surfaces compared to ReSTIR GI.
  - Ray differentials for texture MIP selection
- - Physically-based BSDF with roughness, metallic mask, normal, and emissive maps
+ - Physically-based surface shading model inspired by OpenPBR [[7](#references)]
  - Single scattering sky and atmosphere [[2, 3](#references)]
  - Render graph for automatic resource barrier placement and multi-threaded GPU command list recording and submission ([more details below](#render-graph))
  - AMD FSR2 upscaling
@@ -30,6 +30,7 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
    - KHR_materials_emissive_strength
    - KHR_materials_ior
    - KHR_materials_transmission
+   - KHR_materials_clearcoat
 
 ### Render Graph
 
@@ -137,10 +138,11 @@ dynamic direct lighting," *ACM Transactions on Graphics*, 2020.
 
 [**6**] D. Lin, M. Kettunen, B. Bitterli, J. Pantaleoni, C. Yuksel and C. Wyman, "Generalized Resampled Importance Sampling: Foundations of ReSTIR," *ACM Transactions on Graphics*, 2022.
 
+[**7**] OpenPBR Surface, [https://github.com/AcademySoftwareFoundation/OpenPBR](https://github.com/AcademySoftwareFoundation/OpenPBR)
+
 ## External Libraries
 
 - [AMD FSR 2](https://github.com/GPUOpen-Effects/FidelityFX-FSR2)
-- [AMD FidelityFX Denoiser](https://github.com/GPUOpen-Effects/FidelityFX-Denoiser)
 - [cgltf](https://github.com/jkuhlmann/cgltf)
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [doctest](https://github.com/doctest/doctest)
