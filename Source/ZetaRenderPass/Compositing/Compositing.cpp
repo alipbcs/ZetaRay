@@ -45,18 +45,11 @@ void Compositing::Init()
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 
     memset(&m_cbComposit, 0, sizeof(m_cbComposit));
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, false);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, true);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
     CreateCompositTexure();
-
-    ParamVariant p0;
-    p0.InitBool("Renderer", "Compositing", "Direct (Sun)", 
-        fastdelegate::MakeDelegate(this, &Compositing::DirectSunCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI));
-    App::AddParam(p0);
 
     ParamVariant p1;
     p1.InitBool("Renderer", "Compositing", "Direct (Sky)",
@@ -182,11 +175,6 @@ void Compositing::SetSkyIllumEnablement(bool b)
 void Compositing::FireflyFilterCallback(const Support::ParamVariant& p)
 {
     m_filterFirefly = p.GetBool();
-}
-
-void Compositing::DirectSunCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SUN_DI, p.GetBool());
 }
 
 void Compositing::DirectSkyCallback(const Support::ParamVariant& p)

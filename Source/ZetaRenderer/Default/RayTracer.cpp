@@ -26,14 +26,6 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
     data.ConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
         (int)RayTracerData::DESC_TABLE_CONST::COUNT);
 
-    // Sun shadow
-    data.SunShadowPass.Init();
-
-    Direct3DUtil::CreateTexture2DSRV(data.SunShadowPass.GetOutput(
-        SunShadow::SHADER_OUT_RES::DENOISED),
-        data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
-
     // Inscattering + sku-view lut
     data.SkyPass.Init(RayTracerData::SKY_LUT_WIDTH, RayTracerData::SKY_LUT_HEIGHT, 
         settings.Inscattering);
@@ -55,23 +47,13 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
         const Texture& denoised = data.IndirecLightingPass.GetOutput(
             IndirectLighting::SHADER_OUT_RES::DENOISED);
         Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
     }
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data)
 {
     // GPU is flushed after resize, safe to reuse descriptors
-
-    if (data.SunShadowPass.IsInitialized())
-    {
-        data.SunShadowPass.OnWindowResized();
-
-        CreateTexture2DSRV(data.SunShadowPass.GetOutput(
-            SunShadow::SHADER_OUT_RES::DENOISED),
-            data.WndConstDescTable.CPUHandle(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
-    }
 
     data.PreLightingPass.OnWindowResized();
 
@@ -82,7 +64,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
         const Texture& t = data.DirecLightingPass.GetOutput(
             DirectLighting::SHADER_OUT_RES::DENOISED);
         CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
     }
 
     if (data.SkyDI_Pass.IsInitialized())
@@ -100,7 +82,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
         const Texture& denoised = data.IndirecLightingPass.GetOutput(
             IndirectLighting::SHADER_OUT_RES::DENOISED);
         CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
     }
 }
 
@@ -143,7 +125,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 
             const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED);
             CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
+                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
 
             data.DirecLightingPass.SetLightPresamplingParams(settings.LightPresampling,
                 Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
@@ -201,19 +183,6 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
         renderGraph.RegisterResource(tlas.Resource(), tlas.ID(), 
             D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE,
             false);
-    }
-
-    // Sun shadow
-    if (tlasReady)
-    {
-        fastdelegate::FastDelegate1<CommandList&> dlg = fastdelegate::MakeDelegate(
-            &data.SunShadowPass, &SunShadow::Render);
-        data.SunShadowHandle = renderGraph.RegisterRenderPass("SunShadow", 
-            RENDER_NODE_TYPE::COMPUTE, dlg);
-
-        Texture& denoised = const_cast<Texture&>(data.SunShadowPass.GetOutput(
-            SunShadow::SHADER_OUT_RES::DENOISED));
-        renderGraph.RegisterResource(denoised.Resource(), denoised.ID());
     }
 
     if (hasEmissives)
@@ -568,36 +537,6 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         // Outputs
         renderGraph.AddOutput(data.IndirecLightingHandle,
             data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
-            D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
-    }
-
-    // Sun shadow
-    if (tlasReady)
-    {
-        // Rt AS
-        renderGraph.AddInput(data.SunShadowHandle,
-            tlasID,
-            D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
-
-        // Make sure it runs post gbuffer
-        renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.Depth[outIdx].ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-        renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.Depth[1 - outIdx].ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-        renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.Normal[outIdx].ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-        renderGraph.AddInput(data.SunShadowHandle,
-            gbuffData.MotionVec.ID(),
-            D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
-
-        renderGraph.AddOutput(data.SunShadowHandle,
-            data.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED).ID(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 

@@ -11,7 +11,6 @@ add_subdirectory(GUI)
 add_subdirectory(IndirectLighting)
 add_subdirectory(PreLighting)
 add_subdirectory(Sky)
-add_subdirectory(SunShadow)
 add_subdirectory(TAA)
 
 set(RENDERPASS_SRC 
@@ -27,7 +26,6 @@ set(RENDERPASS_SRC
     ${RP_IND_LIGHTING_SRC} 
     ${RP_PRE_LIGHTING_SRC} 
     ${RP_SKY_SRC} 
-    ${RP_SUN_SRC} 
     ${RP_TAA_SRC})
         
 file(GLOB_RECURSE ALL_SHADERS "${ZETA_RENDER_PASS_DIR}/*.hlsl")

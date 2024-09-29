@@ -5,7 +5,6 @@
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
 #include <GBuffer/GBufferRT.h>
-#include <SunShadow/SunShadow.h>
 #include <Compositing/Compositing.h>
 #include <TAA/TAA.h>
 #include <AutoExposure/AutoExposure.h>
@@ -172,9 +171,6 @@ namespace ZetaRay::DefaultRenderer
         // Render Passes
         Core::RenderNodeHandle RtASBuildHandle;
 
-        RenderPass::SunShadow SunShadowPass;
-        Core::RenderNodeHandle SunShadowHandle;
-
         RenderPass::SkyDI SkyDI_Pass;
         Core::RenderNodeHandle SkyDI_Handle;
 
@@ -197,9 +193,8 @@ namespace ZetaRay::DefaultRenderer
         enum class DESC_TABLE_WND_SIZE_CONST
         {
             SKY_DI,
-            DIRECT_LIGHITNG_DENOISED,
-            SUN_SHADOW_DENOISED,
-            INDIRECT_DENOISED,
+            EMISSIVE_DI,
+            INDIRECT,
             COUNT
         };
 

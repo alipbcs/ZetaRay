@@ -30,7 +30,6 @@ namespace ZetaRay::RenderPass
         {
             SKY_DI,
             INSCATTERING,
-            SUN_SHADOW,
             EMISSIVE_DI,
             INDIRECT,
             COUNT
@@ -70,9 +69,6 @@ namespace ZetaRay::RenderPass
             {
             case SHADER_IN_GPU_DESC::INSCATTERING:
                 m_cbComposit.InscatteringDescHeapIdx = descHeapIdx;
-                return;
-            case SHADER_IN_GPU_DESC::SUN_SHADOW:
-                m_cbComposit.SunShadowDescHeapIdx = descHeapIdx;
                 return;
             case SHADER_IN_GPU_DESC::SKY_DI:
                 m_cbComposit.SkyDIDescHeapIdx = descHeapIdx;

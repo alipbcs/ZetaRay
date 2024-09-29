@@ -97,17 +97,12 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
 
     if (rtData.RtAS.IsReady())
     {
-        // Sun shadow
-        data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SUN_SHADOW,
-            rtData.WndConstDescTable.GPUDesciptorHeapIndex(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SUN_SHADOW_DENOISED));
-
         // Emissive DI
         if (App::GetScene().NumEmissiveInstances())
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI,
                 rtData.WndConstDescTable.GPUDesciptorHeapIndex(
-                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::DIRECT_LIGHITNG_DENOISED));
+                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
         }
         // Sky DI
         else
@@ -120,7 +115,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
         // Indirect lighting
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT,
             rtData.WndConstDescTable.GPUDesciptorHeapIndex(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT_DENOISED));
+                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
 
         if (settings.Inscattering)
         {
@@ -305,11 +300,6 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 
         if (tlasReady)
         {
-            // Sun shadow
-            renderGraph.AddInput(data.CompositingHandle,
-                rtData.SunShadowPass.GetOutput(SunShadow::SHADER_OUT_RES::DENOISED).ID(),
-                D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
-
             // Emissive DI
             if (App::GetScene().NumEmissiveInstances())
             {
