@@ -191,7 +191,7 @@ TEST_SUITE("HashTable")
         CHECK(table.empty());
         CHECK(table.size() == 0);
         CHECK(table.load_factor() == 0.0f);
-        CHECK(table.find(1) == nullptr);
+        CHECK(!table.find(1));
         CHECK(table.bucket_count() == 8);
 
         CHECK(table.try_emplace(0, 100));
@@ -208,14 +208,14 @@ TEST_SUITE("HashTable")
         CHECK(oldSize == newSize);
         CHECK(oldLoad == newLoad);
 
-        auto* entry = table.find(2);
+        auto entry = table.find(2);
         CHECK(entry);
-        CHECK(*entry == 102);
+        CHECK(*entry.value() == 102);
 
         table.insert_or_assign(0, 200);
         CHECK(newSize == table.size());
-        entry = table.find(0);
-        CHECK(*entry == 200);
+        auto* entry2 = table.find(0).value();
+        CHECK(*entry2 == 200);
     }
 
     TEST_CASE("Relocation")
@@ -242,7 +242,7 @@ TEST_SUITE("HashTable")
 
         for (int i = 0; i < 8; i++)
         {
-            auto* entry = table.find(i);
+            auto* entry = table.find(i).value();
             CHECK(*entry == 100 + i);
         }
     }
@@ -307,15 +307,15 @@ TEST_SUITE("HashTable")
 
         auto numErased = table.erase(3 + 8);
         CHECK(numErased == 1);
-        auto* entry = table.find(3 + 8);
+        auto entry = table.find(3 + 8);
         CHECK(!entry);
         numErased = table.erase(10);
         CHECK(numErased == 0);
 
         // Probing with tombstones in between
-        entry = table.find(3 + 8 * 2);
-        CHECK(entry);
-        CHECK(*entry == 105);
+        auto entry2 = table.find(3 + 8 * 2);
+        CHECK(entry2);
+        CHECK(*entry2.value() == 105);
 
         // Erase shouldn't change the size
         CHECK(table.size() == 3);
