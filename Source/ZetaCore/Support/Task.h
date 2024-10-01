@@ -13,7 +13,7 @@ namespace ZetaRay::Support
     enum class TASK_PRIORITY
     {
         NORMAL,
-        BACKGRUND
+        BACKGROUND
     };
 
     //--------------------------------------------------------------------------------------

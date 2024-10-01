@@ -114,9 +114,9 @@ namespace dbg
 
             moduleBase = SymGetModuleBase(process, frame.AddrPC.Offset);
 
-            char moduelBuff[MAX_PATH];
-            if (moduleBase && GetModuleFileNameA((HINSTANCE)moduleBase, moduelBuff, MAX_PATH))
-                f.module = basename(moduelBuff);
+            char moduleBuff[MAX_PATH];
+            if (moduleBase && GetModuleFileNameA((HINSTANCE)moduleBase, moduleBuff, MAX_PATH))
+                f.module = basename(moduleBuff);
             else
                 f.module = "Unknown Module";
 

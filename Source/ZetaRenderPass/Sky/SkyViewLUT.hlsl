@@ -22,10 +22,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     const uint2 textureDim = uint2(g_local.LutWidth, g_local.LutHeight);
     if (DTid.x >= g_local.LutWidth || DTid.y >= g_local.LutHeight)
         return;
-    
+
     float phi = ((float) DTid.x / (float) g_local.LutWidth);
     phi *= TWO_PI;
-    
+
     float v = ((float) DTid.y / (float) g_local.LutHeight);
 
 #if NON_LINEAR_LATITUDE == 1
@@ -46,8 +46,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     const float3 sigma_s_rayleigh = g_frame.RayleighSigmaSColor * g_frame.RayleighSigmaSScale;
     const float sigma_t_mie = g_frame.MieSigmaA + g_frame.MieSigmaS;
     const float3 sigma_t_ozone = g_frame.OzoneSigmaAColor * g_frame.OzoneSigmaAScale;
-    
-    // Place the camera slighly above the ground to avoid artifacts
+
+    // Place the camera slightly above the ground to avoid artifacts
     float3 rayOrigin = float3(0.0f, g_frame.PlanetRadius + 0.2f, 0.0f);
 
     // In-scattered lighting
@@ -55,9 +55,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
         g_frame.AtmosphereAltitude, g_frame.g, sigma_s_rayleigh, g_frame.MieSigmaS, 
         sigma_t_mie, sigma_t_ozone, 32);
     Ls *= g_frame.SunIlluminance;
-    
+
     RWTexture2D<float4> g_out = ResourceDescriptorHeap[g_local.LutDescHeapIdx];
-    
+
     // R11G11B10 doesn't have a sign bit
     g_out[DTid.xy].xyz = max(0.0f, Ls);
 }

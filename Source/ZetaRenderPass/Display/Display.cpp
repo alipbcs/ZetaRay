@@ -152,7 +152,7 @@ void DisplayPass::Render(CommandList& cmdList)
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
     directCmdList.SetPipelineState(m_psoLib.GetPSO((int)DISPLAY_SHADER::DISPLAY));
 
-    m_cbLocal.LUTDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::TONEMAPPER_LUT_SRV);
+    m_cbLocal.LUTDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::TONEMAPPER_LUT_SRV);
     m_cbLocal.InputDescHeapIdx = m_compositedSrvDescHeapIdx;
     m_rootSig.SetRootConstants(0, sizeof(cbDisplayPass) / sizeof(DWORD), &m_cbLocal);
     m_rootSig.End(directCmdList);
@@ -164,7 +164,7 @@ void DisplayPass::Render(CommandList& cmdList)
         Assert(fence != UINT64_MAX, "Invalid fence value.");
 
         // Wait on a background thread for GPU to finish copying to readback buffer
-        Task t("WaitForGBuffer", TASK_PRIORITY::BACKGRUND, [this, fence]()
+        Task t("WaitForGBuffer", TASK_PRIORITY::BACKGROUND, [this, fence]()
             {
                 //HANDLE fenceEvent = CreateEventA(nullptr, false, false, nullptr);
                 //CheckWin32(fenceEvent);
@@ -279,7 +279,7 @@ void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
         cmdList.ResourceBarrier(syncDrawAndLayoutToRead);
 
         cbSobel cb;
-        cb.MaskDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::PICK_MASK_SRV);
+        cb.MaskDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::PICK_MASK_SRV);
         cb.Wireframe = m_wireframe;
 
         m_rootSig.SetRootConstants(0, sizeof(cbSobel) / sizeof(uint32), &cb);

@@ -92,15 +92,15 @@ void TAA::Render(CommandList& cmdList)
 
     auto& renderer = App::GetRenderer();
     auto& gpuTimer = renderer.GetGpuTimer();
-    const int outIdx = renderer.GlobaIdxForDoubleBufferedResources();
+    const int outIdx = renderer.GlobalIdxForDoubleBufferedResources();
     const uint32_t w = renderer.GetRenderWidth();
     const uint32_t h = renderer.GetRenderWidth();
 
     Assert(m_inputDesc[(int)SHADER_IN_DESC::SIGNAL] > 0, "Input SRV hasn't been set.");
     m_localCB.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::SIGNAL];
-    m_localCB.PrevOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? 
+    m_localCB.PrevOutputDescHeapIdx = m_descTable.GPUDescriptorHeapIndex() + (outIdx == 0 ? 
         (int)DESC_TABLE::TEX_A_SRV : (int)DESC_TABLE::TEX_B_SRV);
-    m_localCB.CurrOutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex() + (outIdx == 0 ? 
+    m_localCB.CurrOutputDescHeapIdx = m_descTable.GPUDescriptorHeapIndex() + (outIdx == 0 ? 
         (int)DESC_TABLE::TEX_B_UAV : (int)DESC_TABLE::TEX_A_UAV);
     m_localCB.TemporalIsValid = m_isTemporalTexValid;
 

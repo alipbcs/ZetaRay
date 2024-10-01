@@ -65,7 +65,7 @@ namespace ZetaRay::Math
             _mm_shuffle_ps(vTemp2, vTemp3, 0xdd));
     }
 
-    // Tranposes the 3x3 submatrix in vM, sets the last element of each row to M[2][3] and
+    // Transposes the 3x3 submatrix in vM, sets the last element of each row to M[2][3] and
     // the last row itself to (0, 0, 0, 1).
     ZetaInline v_float4x4 __vectorcall transpose3x3(const v_float4x4 vM)
     {
@@ -602,10 +602,10 @@ namespace ZetaRay::Math
         // 
         // Given the Singular value decompoistion of A = U E V^T, columns of U are the orthonormal transformation
         // of standard basis vectors (i.e. R), diagonal elements of E their lengths (scale factors) and rows 
-        // of V^T are the standard basis vectors (whoose transforms are the columns of U -- AV = UE). While singular 
+        // of V^T are the standard basis vectors (whose transforms are the columns of U -- AV = UE). While singular 
         // values are unique, U & V aren't, but in this case knowing the singular values is enough.
         // 
-        // To compute the singular values, compute the eigenvalues of M^T M, whoose square roots are the singular 
+        // To compute the singular values, compute the eigenvalues of M^T M, whose square roots are the singular 
         // values and therefore the scale factors. Now that we know S, R can solved for as follows:
         //
         //        RS = R * S
@@ -663,7 +663,7 @@ namespace ZetaRay::Math
         const __m128 vOne = _mm_set1_ps(1.0f);
         vM3x3.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);    // M[3] = (0, 0, 0, 1)
 
-        // For "row" matrices, sqaure roots of eigenvalues of MM^T are the singular values
+        // For "row" matrices, square roots of eigenvalues of MM^T are the singular values
         // M M^T = (SR)(SR)^T = S R R^T S^T = S S^T = S^2
         const v_float4x4 vM3x3T = transpose3x3(vM3x3);
         const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
@@ -693,7 +693,7 @@ namespace ZetaRay::Math
     {
         v_float4x4 vM = identity();
 
-        // Builds a coordiante system uvw, where w is aligned with the camera direction
+        // Builds a coordinate system uvw, where w is aligned with the camera direction
         __m128 vCamPos = _mm_load_ps(reinterpret_cast<float*>(&cameraPos));
         __m128 vFocus = _mm_load_ps(reinterpret_cast<float*>(&focus));
         __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&up));
@@ -722,7 +722,7 @@ namespace ZetaRay::Math
     {
         v_float4x4 vM = identity();
 
-        // Builds a coordiante system uvw, where w is aligned with the camera direction
+        // Builds a coordinate system uvw, where w is aligned with the camera direction
         __m128 vCamPos = _mm_load_ps(reinterpret_cast<float*>(&cameraPos));
         __m128 vUp = _mm_load_ps(reinterpret_cast<float*>(&up));
         __m128 vW = _mm_load_ps(reinterpret_cast<float*>(&viewDir));

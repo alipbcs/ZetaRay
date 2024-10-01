@@ -1102,7 +1102,7 @@ void FSR2Pass::Reset()
         g_fsr2Data->m_dll.Free();
 
         // make sure GPU is finished with related resources before deleting the data
-        Task t("DestructWithGuard for FSR2 context", TASK_PRIORITY::BACKGRUND, [res = g_fsr2Data]()
+        Task t("DestructWithGuard for FSR2 context", TASK_PRIORITY::BACKGROUND, [res = g_fsr2Data]()
             {
                 ComPtr<ID3D12Fence> fenceDirect;
                 ComPtr<ID3D12Fence> fenceCompute;

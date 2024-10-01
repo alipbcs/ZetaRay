@@ -13,7 +13,7 @@ namespace ZetaRay::Core
 {
     struct DescriptorTable;
 
-    // Allows sharing buffers (in upload and default heaps), descriptor tables, and other reosurces 
+    // Allows sharing buffers (in upload and default heaps), descriptor tables, and other resources 
     // that are shared between various shaders. Access is synchronized.
     class SharedShaderResources
     {
@@ -27,8 +27,8 @@ namespace ZetaRay::Core
         // Upload heap buffers
         const GpuMemory::UploadHeapBuffer* GetUploadHeapBuffer(uint64_t id);
         const GpuMemory::UploadHeapBuffer* GetUploadHeapBuffer(std::string_view id);
-        void InsertOrAssingUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buffer);
-        void InsertOrAssingUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buffer);
+        void InsertOrAssignUploadHeapBuffer(uint64_t, const GpuMemory::UploadHeapBuffer& buffer);
+        void InsertOrAssignUploadHeapBuffer(std::string_view id, GpuMemory::UploadHeapBuffer& buffer);
 
         // Default heap buffers
         const GpuMemory::Buffer* GetDefaultHeapBuffer(uint64_t id);
@@ -41,8 +41,8 @@ namespace ZetaRay::Core
         // Descriptor tables
         const DescriptorTable* GetDescriptorTable(uint64_t id);
         const DescriptorTable* GetDescriptorTable(std::string_view id);
-        void InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& table);
-        void InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& table);
+        void InsertOrAssignDescriptorTable(uint64_t id, const DescriptorTable& table);
+        void InsertOrAssignDescriptorTable(std::string_view id, const DescriptorTable& table);
 
     private:
         Util::HashTable<const DescriptorTable*> m_descTables;
@@ -51,6 +51,6 @@ namespace ZetaRay::Core
 
         std::shared_mutex m_descTableMtx;
         std::shared_mutex m_uploadHeapMtx;
-        std::shared_mutex m_defaulHeapMtx;
+        std::shared_mutex m_defaultHeapMtx;
     };
 }

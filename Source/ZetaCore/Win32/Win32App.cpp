@@ -508,7 +508,7 @@ namespace ZetaRay::AppImpl
         g_app->m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
         Direct3DUtil::CreateTexture2DSRV(g_app->m_imguiFontTex, g_app->m_fontTexSRV.CPUHandle(0));
 
-        const uint32_t gpuDescHeapIdx = g_app->m_fontTexSRV.GPUDesciptorHeapIndex(0);
+        const uint32_t gpuDescHeapIdx = g_app->m_fontTexSRV.GPUDescriptorHeapIndex(0);
         static_assert(sizeof(gpuDescHeapIdx) <= sizeof(io.UserData), "overflow");
         memcpy(&io.UserData, &gpuDescHeapIdx, sizeof(gpuDescHeapIdx));
 
@@ -1723,7 +1723,7 @@ namespace ZetaRay
 
     void App::SubmitBackground(Task&& t)
     {
-        Assert(t.GetPriority() == TASK_PRIORITY::BACKGRUND, 
+        Assert(t.GetPriority() == TASK_PRIORITY::BACKGROUND, 
             "Normal-priority task is not allowed to be executed on the background thread pool.");
         g_app->m_backgroundThreadPool.Enqueue(ZetaMove(t));
     }
@@ -1958,7 +1958,7 @@ namespace ZetaRay
         const size_t n = Math::Min(data.size() - 1, (size_t)AppData::CLIPBOARD_LEN - 1);
         memcpy(g_app->m_clipboard, data.data(), data.size());
 
-        Task t("Clipboard", TASK_PRIORITY::BACKGRUND, [str = g_app->m_clipboard, n, hwnd = g_app->m_hwnd]()
+        Task t("Clipboard", TASK_PRIORITY::BACKGROUND, [str = g_app->m_clipboard, n, hwnd = g_app->m_hwnd]()
             {
                 auto h = GlobalAlloc(GMEM_MOVEABLE, n + 1);
                 void* dst = GlobalLock(h);

@@ -107,7 +107,7 @@ void AutoExposure::Render(CommandList& cmdList)
     m_cbHist.MinLum = m_minLum;
     m_cbHist.LumRange = m_maxLum - m_minLum;
     m_cbHist.InputDescHeapIdx = m_inputDesc[(int)SHADER_IN_DESC::COMPOSITED];
-    m_cbHist.ExposureDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((uint32_t)DESC_TABLE::EXPOSURE_UAV);
+    m_cbHist.ExposureDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((uint32_t)DESC_TABLE::EXPOSURE_UAV);
 
     m_rootSig.SetRootUAV(2, m_hist.GpuVA());
     m_rootSig.SetRootConstants(0, sizeof(cbAutoExposureHist) / sizeof(DWORD), &m_cbHist);

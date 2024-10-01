@@ -296,7 +296,7 @@ namespace ZetaRay::Core::GpuMemory
         bool forceSeparateUploadBuffer = false);
     void UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, void* data, 
         uint32_t destOffsetInBytes = 0);
-    ResourceHeap GetResourceHeap(uint64_t sizeInBytes, uint64_t alignemnt = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+    ResourceHeap GetResourceHeap(uint64_t sizeInBytes, uint64_t alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
         bool createZeroed = false);
     void ReleaseDefaultHeapBuffer(Buffer& buffer);
     void ReleaseTexture(Texture& textue);

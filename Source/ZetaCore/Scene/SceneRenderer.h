@@ -14,7 +14,7 @@ namespace ZetaRay::Core
 
 namespace ZetaRay::Scene::GlobalResource
 {
-    inline static constexpr const char* MATERIAL_BUFFER = "MaterailBuffer";
+    inline static constexpr const char* MATERIAL_BUFFER = "MaterialBuffer";
     inline static constexpr const char* BASE_COLOR_DESCRIPTOR_TABLE = "BaseColorDescTable";
     inline static constexpr const char* NORMAL_DESCRIPTOR_TABLE = "NormalDescTable";
     inline static constexpr const char* METALLIC_ROUGHNESS_DESCRIPTOR_TABLE = "MRDescTable";

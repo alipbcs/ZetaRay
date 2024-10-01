@@ -274,7 +274,7 @@ void main(uint3 DTid : SV_DispatchThreadID)
         g_frame.DoF, lensSample, g_frame.FocusDepth, rayPayload.t, rayPayload.dpdu, 
         rayPayload.dpdv, g_frame);
 
-    // Instead of hit distance, save view z for slighly faster position reconstruction
+    // Instead of hit distance, save view z for slightly faster position reconstruction
     float3 pos = mad(rayPayload.t, rayDir, rayOrigin);
     float3 posV = mul(g_frame.CurrView, float4(pos, 1.0f));
     float z = g_frame.DoF ? rayPayload.t : posV.z;

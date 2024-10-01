@@ -173,7 +173,7 @@ void RendererCore::Shutdown()
         m_backBuffers[i].Reset(false, false);
 
     // Make sure all GPU resources (texture, buffers, etc) are manually released,
-    // as they normally call the GPU memmory subsystem upon destruction, which
+    // as they normally call the GPU memory subsystem upon destruction, which
     // is deleted after this point.
     m_gpuTimer.Shutdown();
 

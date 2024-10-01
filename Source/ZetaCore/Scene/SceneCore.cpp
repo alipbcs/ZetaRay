@@ -292,7 +292,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 void SceneCore::Shutdown()
 {
     // Make sure all GPU resources (texture, buffers, etc) are manually released,
-    // as they normally call the GPU memmory subsystem upon destruction, which
+    // as they normally call the GPU memory subsystem upon destruction, which
     // is deleted at that point.
     m_matBuffer.Clear();
     m_baseColorDescTable.Clear();
@@ -502,13 +502,13 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
             uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
             auto pos = m_IDtoTreePos.find(insID);
 
-            // Shift the tree poistion to right
+            // Shift tree position to right
             pos.value()->Offset++;
         }
     }
 
     /*
-    // cache the meshe IDs that are emissive
+    // cache emissive mesh IDs
     if (instance.RtInstanceMask & RT_AS_SUBGROUP::EMISSIVE)
     {
         Assert(!instance.Lumen.empty(), "Emissive instances require precomputed per-triangle power");
@@ -790,9 +790,9 @@ void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllo
             const __m128 vScaleInt = lerp(vScale1, vScale2, interpolatedT);
 
             // Translation
-            const __m128 vTranlate1 = loadFloat3(k1.Transform.Translation);
-            const __m128 vTranlate2 = loadFloat3(k2.Transform.Translation);
-            const __m128 vTranslateInt = lerp(vTranlate1, vTranlate2, interpolatedT);
+            const __m128 vTranslate1 = loadFloat3(k1.Transform.Translation);
+            const __m128 vTranslate2 = loadFloat3(k2.Transform.Translation);
+            const __m128 vTranslateInt = lerp(vTranslate1, vTranslate2, interpolatedT);
 
             // Rotation
             const __m128 vRot1 = loadFloat4(k1.Transform.Rotation);

@@ -49,18 +49,18 @@ namespace ZetaRay::Util
         HashTable(const HashTable&) = delete;
         HashTable& operator=(const HashTable&) = delete;
 
-        // "accoutForMaxLoad": A common use case is when the maximum number of 
+        // "accountForMaxLoad": A common use case is when the maximum number of 
         // elements is known, so resize is used to allocate all the necessary storage 
         // once. But this doesn't account for load factor, as when size approaches 
         // "n", another allocation takes place so that load factor stays below maximum.
         // When accounting for this, table should be resized to ceil(n / max_load_factor).
-        void resize(size_t n, bool accoutForMaxLoad = false)
+        void resize(size_t n, bool accountForMaxLoad = false)
         {
             if (n <= bucket_count()) // also covers when n == 0
                 return;
 
             n = Math::Max(n, MIN_NUM_BUCKETS);
-            n = accoutForMaxLoad ? Math::Ceil(n / MAX_LOAD) : n;
+            n = accountForMaxLoad ? Math::Ceil(n / MAX_LOAD) : n;
             n = Math::NextPow2(n);  // n > #buckets, so the next power of two will also respect the max load factor
             relocate(n);
         }
@@ -406,7 +406,7 @@ namespace ZetaRay::Util
         static constexpr KeyType NULL_KEY = KeyType(-1);
         static constexpr KeyType TOMBSTONE_KEY = KeyType(-2);
 
-        Entry* m_beg = nullptr;        // Pointer to the begining of memory block
+        Entry* m_beg = nullptr;        // Pointer to the beginning of memory block
         Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
 #if defined(__clang__)

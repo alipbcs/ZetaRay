@@ -567,7 +567,7 @@ namespace RGI_Util
             const float2 currUV = (DTid + 0.5f) / renderDim;
             const float2 prevSurfaceUV = currUV - motionVec;
             float2 prevUV = prevSurfaceUV;
-            float3 relfectedPos = r.pos;
+            float3 reflectedPos = r.pos;
 
             TemporalSamples<2> candidate = RGI_Util::FindTemporalCandidate<2>(DTid, pos, normal, 
                 z_view, roughness, surface.specTr, prevUV, g_frame, rngThread);

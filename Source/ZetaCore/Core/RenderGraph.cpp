@@ -759,22 +759,22 @@ void RenderGraph::InsertResourceBarriers()
 
             const bool skipBarrier = ((1 << i++) & node.OutputMask);
 
-            const size_t ouputFrameResIdx = FindFrameResource(currOutputRes.ResID);
-            Assert(ouputFrameResIdx != size_t(-1), "Resource %llu was not found.", currOutputRes.ResID);
-            const D3D12_RESOURCE_STATES outputResState = m_frameResources[ouputFrameResIdx].State;
+            const size_t outputFrameResIdx = FindFrameResource(currOutputRes.ResID);
+            Assert(outputFrameResIdx != size_t(-1), "Resource %llu was not found.", currOutputRes.ResID);
+            const D3D12_RESOURCE_STATES outputResState = m_frameResources[outputFrameResIdx].State;
 
-            if (!skipBarrier && !(m_frameResources[ouputFrameResIdx].State & currOutputRes.ExpectedState))
+            if (!skipBarrier && !(m_frameResources[outputFrameResIdx].State & currOutputRes.ExpectedState))
             {
                 // Unsupported resourceAfter should've been caught earlier
                 node.HasUnsupportedBarrier = node.HasUnsupportedBarrier || 
                     (isAsyncCompute && (outputResState & Constants::INVALID_COMPUTE_STATES));
-                node.Barriers.push_back(TransitionBarrier(m_frameResources[ouputFrameResIdx].Res,
+                node.Barriers.push_back(TransitionBarrier(m_frameResources[outputFrameResIdx].Res,
                     outputResState,
                     currOutputRes.ExpectedState));
             }
 
             // Update the resource state
-            m_frameResources[ouputFrameResIdx].State = currOutputRes.ExpectedState;
+            m_frameResources[outputFrameResIdx].State = currOutputRes.ExpectedState;
         }
     }
 

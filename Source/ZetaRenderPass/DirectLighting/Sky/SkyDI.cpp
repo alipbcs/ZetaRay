@@ -223,11 +223,11 @@ void SkyDI::Render(CommandList& cmdList)
         auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_A_UAV : 
             DESC_TABLE::RESERVOIR_0_A_UAV;
 
-        m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-        m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-        // m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
-        // m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
-        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::FINAL_UAV);;
+        m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
+        m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
+        // m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
+        // m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
+        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);;
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
         m_rootSig.End(computeCmdList);
@@ -267,12 +267,12 @@ void SkyDI::Render(CommandList& cmdList)
             auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
                 DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
 
-            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
-            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDiffuseIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavSpecularIdx);
+            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
+            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
+            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
+            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavDiffuseIdx);
+            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavSpecularIdx);
             SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::CACHE_VALID, m_isDnsrTemporalCacheValid);
 
             m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrTemporal) / sizeof(DWORD), &m_cbDnsrTemporal);
@@ -308,10 +308,10 @@ void SkyDI::Render(CommandList& cmdList)
             auto spatialSrvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : 
                 DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
 
-            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)spatialSrvDiffuseIdx);
-            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)spatialSrvSpecularIdx);
-            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::FINAL_UAV);
+            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)spatialSrvDiffuseIdx);
+            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)spatialSrvSpecularIdx);
+            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);
             m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
             m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
             m_cbDnsrSpatial.NumGroupsInTile = SKY_DI_DNSR_SPATIAL_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;

@@ -152,10 +152,10 @@ namespace ZetaRay::Scene
         void UpdateMaterial(uint32 ID, const Material& newMat);
         void ResizeAdditionalMaterials(uint32_t num);
 
-        ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.GPUDesciptorHeapIndex(); }
-        ZetaInline uint32_t GetNormalMapsDescHeapOffset() const { return m_normalDescTable.GPUDesciptorHeapIndex(); }
-        ZetaInline uint32_t GetMetallicRougnessMapsDescHeapOffset() const { return m_metallicRoughnessDescTable.GPUDesciptorHeapIndex(); }
-        ZetaInline uint32_t GetEmissiveMapsDescHeapOffset() const { return m_emissiveDescTable.GPUDesciptorHeapIndex(); }
+        ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.GPUDescriptorHeapIndex(); }
+        ZetaInline uint32_t GetNormalMapsDescHeapOffset() const { return m_normalDescTable.GPUDescriptorHeapIndex(); }
+        ZetaInline uint32_t GetMetallicRougnessMapsDescHeapOffset() const { return m_metallicRoughnessDescTable.GPUDescriptorHeapIndex(); }
+        ZetaInline uint32_t GetEmissiveMapsDescHeapOffset() const { return m_emissiveDescTable.GPUDescriptorHeapIndex(); }
 
         //
         // Instance

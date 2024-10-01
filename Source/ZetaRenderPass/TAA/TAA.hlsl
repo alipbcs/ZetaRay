@@ -173,7 +173,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     std /= (numNeighbors - 1.0f);
     std = sqrt(std);
 
-    // form a confidene interval for the distrubution of color around the current pixel
+    // form a confidene interval for the distribution of color around the current pixel
     const float3 clippedHistory = ClipAABB(mean - std, mean + std, history);
 
     // inverse-luminance filtering
@@ -182,7 +182,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID)
     float3 result = (currWeight * reconstructed + histWeight * clippedHistory) / (currWeight + histWeight);
 
     // TODO on rare occasions, result can be NaN. figure out what's causing it
-    // temporay solution in the meantime -- NaN propagation is avoided at least
+    // temporary solution in the meantime -- NaN propagation is avoided at least
     result = any(isnan(result)) ? reconstructed : result;
 
     g_antiAliased[DTid.xy].rgb = result;

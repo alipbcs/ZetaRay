@@ -49,7 +49,7 @@ void Compositing::Init()
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
-    CreateCompositTexure();
+    CreateCompositTexture();
 
     ParamVariant p1;
     p1.InitBool("Renderer", "Compositing", "Direct (Sky)",
@@ -86,7 +86,7 @@ void Compositing::Init()
 
 void Compositing::OnWindowResized()
 {
-    CreateCompositTexure();
+    CreateCompositTexture();
 }
 
 void Compositing::Render(CommandList& cmdList)
@@ -117,7 +117,7 @@ void Compositing::Render(CommandList& cmdList)
             Assert(m_cbComposit.DepthMappingExp > 0.0f, "Invalid voxel grid depth mapping exponent");
         }
 
-        m_cbComposit.OutputUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
+        m_cbComposit.OutputUAVDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(cbCompositing) / sizeof(DWORD), &m_cbComposit);
         m_rootSig.End(computeCmdList);
@@ -140,7 +140,7 @@ void Compositing::Render(CommandList& cmdList)
         computeCmdList.UAVBarrier(m_compositTex.Resource());
 
         cbFireflyFilter cb;
-        cb.CompositedUAVDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
+        cb.CompositedUAVDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::LIGHT_ACCUM_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(cbFireflyFilter) / sizeof(DWORD), &cb);
         m_rootSig.End(computeCmdList);
@@ -153,7 +153,7 @@ void Compositing::Render(CommandList& cmdList)
     }
 }
 
-void Compositing::CreateCompositTexure()
+void Compositing::CreateCompositTexture()
 {
     auto& renderer = App::GetRenderer();
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);

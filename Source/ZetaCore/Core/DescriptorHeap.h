@@ -20,7 +20,7 @@ namespace ZetaRay::Core
         void Release(DescriptorTable&& descTable);
         void Recycle();
 
-        ZetaInline bool IsShaderVisible() const { return m_isShaderVisisble; }
+        ZetaInline bool IsShaderVisible() const { return m_isShaderVisible; }
         ZetaInline uint32_t GetDescriptorSize() const { return m_descriptorSize; }
         ZetaInline uint32_t GetNumFreeDescriptors() const { return m_freeDescCount; }
         ZetaInline uint64_t GetBaseGpuHandle() const { return m_baseGPUHandle.ptr; }
@@ -91,7 +91,7 @@ namespace ZetaRay::Core
         ComPtr<ID3D12DescriptorHeap> m_heap;
         D3D12_CPU_DESCRIPTOR_HANDLE m_baseCPUHandle;
         D3D12_GPU_DESCRIPTOR_HANDLE m_baseGPUHandle;
-        bool m_isShaderVisisble;
+        bool m_isShaderVisible;
         ComPtr<ID3D12Fence> m_fence;
         uint64_t m_nextFenceVal = 1;
         uint32_t m_descriptorSize = 0;
@@ -147,7 +147,7 @@ namespace ZetaRay::Core
         ZetaInline uint32_t GetNumDescriptors() const { return m_numDescriptors; };
 
         // Offset to the beginning of this desc. table in the GPU descriptor heap
-        ZetaInline uint32_t GPUDesciptorHeapIndex(uint32_t offset = 0) const
+        ZetaInline uint32_t GPUDescriptorHeapIndex(uint32_t offset = 0) const
         {
             Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
             Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");

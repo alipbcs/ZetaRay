@@ -135,7 +135,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
         {
             auto& readback = data.PreLightingPass.GetLumenReadbackBuffer();
             data.EmissiveAliasTable.Update(&readback);
-            data.EmissiveAliasTable.SetRelaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
+            data.EmissiveAliasTable.SetReleaseBuffersDlg(data.PreLightingPass.GetReleaseBuffersDlg());
         }
     }
 }
@@ -243,7 +243,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
             //    using the alias table starting from next frame (2 - one frame of delay)
             // 
             // In conclusion, when light presampling is enabled, shaders that depend on it 
-            // shouldn't execure in frame 1 .
+            // shouldn't execute in frame 1.
             const bool presampledSetsBuiltOnce = frame > 1;
 
             if (!settings.LightPresampling || presampledSetsBuiltOnce)
@@ -315,7 +315,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
 void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& data, 
     const GBufferData& gbuffData, RenderGraph& renderGraph)
 {
-    const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+    const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
     const bool tlasReady = data.RtAS.IsReady();
     const auto tlasID = tlasReady ? data.RtAS.GetTLAS().ID() : GpuMemory::INVALID_ID;
     const auto numEmissives = App::GetScene().NumEmissiveInstances();
@@ -381,7 +381,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                 D3D12_RESOURCE_STATE_COPY_DEST);
         }
         // Tri lumen buffer was recomputed last frame, but the results weren't ready yet. Now
-        // in this frame, alias table pass has no dependecies, but prelighting should run
+        // in this frame, alias table pass has no dependencies, but prelighting should run
         // after it so the new alias table is used as early as possible for presampling.
         else if (settings.LightPresampling && data.EmissiveAliasTable.HasPendingRender())
         {
@@ -418,7 +418,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                     data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             }
-            // Lighting passes shoud rung after light-presampling pass
+            // Lighting passes should run after light presampling pass
             else if(settings.LightPresampling && presampledSetsBuiltOnce)
             {
                 const uint32_t presampled = data.PreLightingPass.GePresampledSets().ID();

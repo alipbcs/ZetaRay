@@ -105,7 +105,7 @@ namespace ZetaRay::Core
         ZetaInline int GetVSyncInterval() const { return m_vsyncInterval; }
 
         ZetaInline Util::Span<D3D12_STATIC_SAMPLER_DESC> GetStaticSamplers() { return m_staticSamplers; };
-        ZetaInline int GlobaIdxForDoubleBufferedResources() const { return m_globalDoubleBuffIdx; }
+        ZetaInline int GlobalIdxForDoubleBufferedResources() const { return m_globalDoubleBuffIdx; }
 
     private:
         void ResizeBackBuffers(HWND hwnd);

@@ -338,7 +338,7 @@ int BVH::Find(uint64_t instanceID, const Math::AABB& queryBox, int& nodeIdx)
             float rightOverlapVolume = m_nodes[node.RightChild].IsLeaf() ? FLT_MAX : 
                 Right.Extents.x * Right.Extents.y * Right.Extents.z;
 
-            // Larger overlap with the right subtree, descend throught that first
+            // Larger overlap with the right subtree, descend through that first
             if (leftOverlapVolume <= rightOverlapVolume)
             {
                 stack[++currStackIdx] = currNodeIdx + 1;
@@ -588,13 +588,13 @@ uint64_t BVH::CastRay(v_Ray& vRay)
             const bool hitRightChild = Math::intersectRayVsAABB(vRay, vDirRcp, vDirIsPos, vIsParallel, vRightBox, rightT);
 
             int sortedByT[2] = { currNode + 1, node.RightChild };
-            const int numChilds = hitLeftChild + hitRightChild;
+            const int numChildren = hitLeftChild + hitRightChild;
 
             // Make sure subtree closer to camera is searched first
-            if (numChilds == 2 && leftT < rightT)
+            if (numChildren == 2 && leftT < rightT)
                 std::swap(sortedByT[0], sortedByT[1]);
 
-            for (int c = 0; c < numChilds; c++)
+            for (int c = 0; c < numChildren; c++)
             {
                 // No need to search this subtree as earlier hits are necessarily closer to camera
                 if(sortedByT[c] < minT)

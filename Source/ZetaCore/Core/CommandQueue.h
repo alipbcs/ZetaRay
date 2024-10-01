@@ -21,7 +21,7 @@ namespace ZetaRay::Core
         ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
         CommandList* GetCommandList();
 
-        // Returns the command allocator for future resuse (once the specified fence value
+        // Returns the command allocator for future reuse (once the specified fence value
         // has passed on this command queue)
         void ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAlloc, uint64_t fenceValueToWaitFor);
 

@@ -25,13 +25,13 @@ const UploadHeapBuffer* SharedShaderResources::GetUploadHeapBuffer(std::string_v
     return GetUploadHeapBuffer(h);
 }
 
-void SharedShaderResources::InsertOrAssingUploadHeapBuffer(std::string_view id, UploadHeapBuffer& buf)
+void SharedShaderResources::InsertOrAssignUploadHeapBuffer(std::string_view id, UploadHeapBuffer& buf)
 {
     uint64_t h = XXH3_64bits(id.data(), id.size());
-    InsertOrAssingUploadHeapBuffer(h, buf);
+    InsertOrAssignUploadHeapBuffer(h, buf);
 }
 
-void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const UploadHeapBuffer& buf)
+void SharedShaderResources::InsertOrAssignUploadHeapBuffer(uint64_t id, const UploadHeapBuffer& buf)
 {
     std::unique_lock<std::shared_mutex> lock(m_uploadHeapMtx);
     m_uploadHeapBuffs[id] = &buf;
@@ -39,7 +39,7 @@ void SharedShaderResources::InsertOrAssingUploadHeapBuffer(uint64_t id, const Up
 
 const Buffer* SharedShaderResources::GetDefaultHeapBuffer(uint64_t id)
 {
-    std::shared_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    std::shared_lock<std::shared_mutex> lock(m_defaultHeapMtx);
     auto it = m_defaultHeapBuffs.find(id);
     if (!it)
         return nullptr;
@@ -55,7 +55,7 @@ const Buffer* SharedShaderResources::GetDefaultHeapBuffer(std::string_view id)
 
 void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(uint64_t id, const Buffer& buf)
 {
-    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    std::unique_lock<std::shared_mutex> lock(m_defaultHeapMtx);
     m_defaultHeapBuffs[id] = &buf;
 }
 
@@ -67,7 +67,7 @@ void SharedShaderResources::InsertOrAssignDefaultHeapBuffer(std::string_view id,
 
 void SharedShaderResources::RemoveDefaultHeapBuffer(uint64_t id, const Buffer& buf)
 {
-    std::unique_lock<std::shared_mutex> lock(m_defaulHeapMtx);
+    std::unique_lock<std::shared_mutex> lock(m_defaultHeapMtx);
     auto numDeleted = m_defaultHeapBuffs.erase(id);
     Assert(numDeleted == 1, "Buffer with ID %llu was not found.", id);
 }
@@ -94,14 +94,14 @@ const DescriptorTable* SharedShaderResources::GetDescriptorTable(std::string_vie
     return GetDescriptorTable(h);
 }
 
-void SharedShaderResources::InsertOrAssingDescriptorTable(uint64_t id, const DescriptorTable& t)
+void SharedShaderResources::InsertOrAssignDescriptorTable(uint64_t id, const DescriptorTable& t)
 {
     std::unique_lock<std::shared_mutex> lock(m_descTableMtx);
     m_descTables[id] = &t;
 }
 
-void SharedShaderResources::InsertOrAssingDescriptorTable(std::string_view id, const DescriptorTable& t)
+void SharedShaderResources::InsertOrAssignDescriptorTable(std::string_view id, const DescriptorTable& t)
 {
     uint64_t h = XXH3_64bits(id.data(), id.size());
-    InsertOrAssingDescriptorTable(h, t);
+    InsertOrAssignDescriptorTable(h, t);
 }

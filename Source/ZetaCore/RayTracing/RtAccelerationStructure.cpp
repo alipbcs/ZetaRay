@@ -52,7 +52,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
     SmallVector<D3D12_RAYTRACING_GEOMETRY_DESC, App::FrameAllocator> meshDescs;
     meshDescs.resize(scene.m_numStaticInstances);
 
-    constexpr int transfromMatSize = sizeof(BLASTransform);
+    constexpr int transformMatSize = sizeof(BLASTransform);
     const auto sceneVBGpuVa = scene.GetMeshVB().GpuVA();
     const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
     const D3D12_GPU_VIRTUAL_ADDRESS transformGpuVa = m_perMeshTransform.GpuVA();
@@ -83,7 +83,7 @@ void StaticBLAS::Rebuild(ComputeCmdList& cmdList)
                     D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
                 // Elements are tightly packed as size of each element is a multiple of required alignment
                 meshDescs[currInstance].Triangles.Transform3x4 = transformGpuVa + 
-                    currInstance * transfromMatSize;
+                    currInstance * transformMatSize;
                 meshDescs[currInstance].Triangles.IndexFormat = DXGI_FORMAT_R32_UINT;
                 meshDescs[currInstance].Triangles.VertexFormat = DXGI_FORMAT_R32G32B32_FLOAT;
                 meshDescs[currInstance].Triangles.IndexCount = mesh->m_numIndices;

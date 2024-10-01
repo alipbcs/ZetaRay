@@ -98,9 +98,9 @@ namespace
 
             if (rootBitMap & rootCBVBitMap)
             {
-                auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
-                if (defautlHeapBuff)
-                    ctx.SetRootConstantBufferView(nextParam, defautlHeapBuff->GpuVA());
+                auto* defaultHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+                if (defaultHeapBuff)
+                    ctx.SetRootConstantBufferView(nextParam, defaultHeapBuff->GpuVA());
                 else
                 {
                     auto* uploadHeapBuff = shared.GetUploadHeapBuffer(globals[nextParam]);
@@ -112,9 +112,9 @@ namespace
             }
             else if (rootBitMap & rootSRVBitMap)
             {
-                auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
-                if (defautlHeapBuff)
-                    ctx.SetRootShaderResourceView(nextParam, defautlHeapBuff->GpuVA());
+                auto* defaultHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+                if (defaultHeapBuff)
+                    ctx.SetRootShaderResourceView(nextParam, defaultHeapBuff->GpuVA());
                 else
                 {
                     auto* uploadHeapBuff = shared.GetUploadHeapBuffer(globals[nextParam]);
@@ -127,9 +127,9 @@ namespace
             else if (rootBitMap & rootUAVBitMap)
             {
                 // UAV must be a default heap buffer
-                auto* defautlHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
-                if (defautlHeapBuff)
-                    ctx.SetRootUnorderedAccessView(nextParam, defautlHeapBuff->GpuVA());
+                auto* defaultHeapBuff = shared.GetDefaultHeapBuffer(globals[nextParam]);
+                if (defaultHeapBuff)
+                    ctx.SetRootUnorderedAccessView(nextParam, defaultHeapBuff->GpuVA());
                 else
                     Assert(optionalBitMap & (1 << nextParam), "Global resource in parameter %d was not found.", nextParam);
             }
@@ -173,10 +173,10 @@ void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t r
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -200,10 +200,10 @@ void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -227,10 +227,10 @@ void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root paramerter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
     m_params[rootIdx].ShaderVisibility = visibility;

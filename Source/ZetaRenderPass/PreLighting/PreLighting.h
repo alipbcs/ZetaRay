@@ -113,7 +113,7 @@ namespace ZetaRay::RenderPass
             Assert((int)i < (int)SHADER_OUT_RES::COUNT, "out-of-bound access.");
             return m_aliasTable;
         }
-        ZetaInline void SetRelaseBuffersDlg(fastdelegate::FastDelegate0<> dlg) { m_releaseDlg = dlg; }
+        ZetaInline void SetReleaseBuffersDlg(fastdelegate::FastDelegate0<> dlg) { m_releaseDlg = dlg; }
         ZetaInline bool HasPendingRender() { return m_fence != UINT64_MAX; }
 
         void Update(Core::GpuMemory::ReadbackHeapBuffer* readback);

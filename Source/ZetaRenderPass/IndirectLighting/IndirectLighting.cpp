@@ -241,7 +241,7 @@ void IndirectLighting::RenderPathTracer(Core::ComputeCmdList& computeCmdList)
 
     Assert(!m_preSampling || m_cbRGI.SampleSetSize_NumSampleSets, "Presampled set params haven't been set.");
 
-    m_cbRGI.FinalOrColorAUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
+    m_cbRGI.FinalOrColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
     m_rootSig.SetRootConstants(0, sizeof(m_cbRGI) / sizeof(DWORD), &m_cbRGI);
     m_rootSig.End(computeCmdList);
 
@@ -314,17 +314,17 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         auto uavBIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RGI::RESERVOIR_1_B_UAV : DESC_TABLE_RGI::RESERVOIR_0_B_UAV;
         auto uavCIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RGI::RESERVOIR_1_C_UAV : DESC_TABLE_RGI::RESERVOIR_0_C_UAV;
 
-        m_cbRGI.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-        m_cbRGI.PrevReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-        m_cbRGI.PrevReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvCIdx);
-        m_cbRGI.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-        m_cbRGI.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
-        m_cbRGI.CurrReservoir_C_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavCIdx);
+        m_cbRGI.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
+        m_cbRGI.PrevReservoir_B_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvBIdx);
+        m_cbRGI.PrevReservoir_C_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvCIdx);
+        m_cbRGI.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
+        m_cbRGI.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavBIdx);
+        m_cbRGI.CurrReservoir_C_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavCIdx);
 
         m_cbRGI.FinalOrColorAUavDescHeapIdx = IS_CB_FLAG_SET(m_cbRGI, CB_IND_FLAGS::DENOISE) ?
-            m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_UAV) :
-            m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
-        m_cbRGI.ColorBUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_UAV);
+            m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_UAV) :
+            m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
+        m_cbRGI.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_UAV);
 
         if (m_useLVG)
         {
@@ -381,12 +381,12 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
             DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
 
-        m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_SRV);
-        m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_SRV);
-        m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-        m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-        m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDiffuseIdx);
-        m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavSpecularIdx);
+        m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_SRV);
+        m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_SRV);
+        m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
+        m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
+        m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavDiffuseIdx);
+        m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavSpecularIdx);
         m_cbDnsrTemporal.IsTemporalCacheValid = m_isDnsrTemporalCacheValid;
         m_cbDnsrTemporal.PrevReservoir_A_DescHeapIdx = m_cbRGI.PrevReservoir_A_DescHeapIdx;
 
@@ -424,10 +424,10 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV :
             DESC_TABLE_RGI::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
 
-        m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-        m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-        m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_SRV);
-        m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
+        m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
+        m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
+        m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_SRV);
+        m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
         m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
         m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
         m_cbDnsrSpatial.NumGroupsInTile = INDIRECT_DNSR_SPATIAL_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
@@ -467,7 +467,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         cb.DispatchDimX = dispatchDimX;
         cb.DispatchDimY = dispatchDimY;
         cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx;
-        cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
+        cb.MapDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
         cb.Flags = m_cbRPT_Reuse.Flags;
 
         m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
@@ -502,7 +502,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         cb.DispatchDimX = dispatchDimX;
         cb.DispatchDimY = dispatchDimY;
         cb.Reservoir_A_DescHeapIdx = m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx;
-        cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
+        cb.MapDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
         cb.Flags = m_cbRPT_Reuse.Flags;
 
         m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
@@ -532,9 +532,9 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
 
-        m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
             (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV);
-        m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+        m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
             (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
@@ -565,9 +565,9 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
     }
 
     // Set SRVs for replay buffers
-    m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV);
-    m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::RBUFFER_A_NtC_SRV);
 
     // r-buffers into SRV
@@ -671,7 +671,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
 
             cb_ReSTIR_PT_SpatialSearch cb;
             cb.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
-            cb.OutputDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV);
+            cb.OutputDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV);
             cb.Flags = m_cbRPT_Reuse.Flags;
             cb.Final = m_cbRPT_Reuse.Final;
 
@@ -745,7 +745,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             cb.DispatchDimX = dispatchDimX;
             cb.DispatchDimY = dispatchDimY;
             cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.Reservoir_A_DescHeapIdx;
-            cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
+            cb.MapDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_CtN_UAV);
             cb.Flags = m_cbRPT_Reuse.Flags;
 
             m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
@@ -771,8 +771,8 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             cb.DispatchDimX = dispatchDimX;
             cb.DispatchDimY = dispatchDimY;
             cb.Reservoir_A_DescHeapIdx = m_cbRPT_Reuse.Reservoir_A_DescHeapIdx;
-            cb.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
-            cb.MapDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
+            cb.SpatialNeighborHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
+            cb.MapDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::THREAD_MAP_NtC_UAV);
             cb.Flags = m_cbRPT_Reuse.Flags;
 
             m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
@@ -803,9 +803,9 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
             const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
 
-            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
                 (int)DESC_TABLE_RPT::RBUFFER_A_CtN_UAV);
-            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
                 (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
 
             m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
@@ -854,9 +854,9 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
 
             // Set SRVs for replay buffers
-            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+            m_cbRPT_Reuse.RBufferA_CtN_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
                 (int)DESC_TABLE_RPT::RBUFFER_A_CtN_SRV);
-            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+            m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
                 (int)DESC_TABLE_RPT::RBUFFER_A_NtC_SRV);
         }
 
@@ -1007,7 +1007,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
             "Presampled set params haven't been set.");
 
         m_cbRPT_PathTrace.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
-        m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
+        m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_PathTrace) / sizeof(DWORD), &m_cbRPT_PathTrace);
         m_rootSig.End(computeCmdList);
@@ -1027,7 +1027,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
     {
         // Since reservoir descriptors were allocated consecutively, filling just
         // the heap index for A is enough
-        m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
+        m_cbRPT_Reuse.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
         m_cbRPT_Reuse.Reservoir_A_DescHeapIdx = m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx;
 
         ReSTIR_PT_Temporal(computeCmdList, currReservoirs);
@@ -1229,15 +1229,15 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
     Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE_RPT::FINAL_UAV));
 
     // Following never change, so can be set only once
-    m_cbRPT_PathTrace.TargetDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::TARGET_UAV);
-    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_PathTrace.TargetDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::TARGET_UAV);
+    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::THREAD_MAP_NtC_SRV);
-    m_cbRPT_PathTrace.Final = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE_RPT::FINAL_UAV);
-    m_cbRPT_Reuse.ThreadMap_CtN_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_PathTrace.Final = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::FINAL_UAV);
+    m_cbRPT_Reuse.ThreadMap_CtN_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::THREAD_MAP_CtN_SRV);
-    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.ThreadMap_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::THREAD_MAP_NtC_SRV);
-    m_cbRPT_Reuse.SpatialNeighborHeapIdx = m_descTable.GPUDesciptorHeapIndex(
+    m_cbRPT_Reuse.SpatialNeighborHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
     m_cbRPT_Reuse.TargetDescHeapIdx = m_cbRPT_PathTrace.TargetDescHeapIdx;
     m_cbRPT_Reuse.Final = m_cbRPT_PathTrace.Final;

@@ -254,7 +254,7 @@ void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig,
     else
     {
         // Wait on a background thread for GPU
-        Task t("WaitForGpu", TASK_PRIORITY::BACKGRUND, [oldPSO]()
+        Task t("WaitForGpu", TASK_PRIORITY::BACKGROUND, [oldPSO]()
             {
                 auto& renderer = App::GetRenderer();
 

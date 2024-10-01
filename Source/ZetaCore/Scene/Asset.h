@@ -34,7 +34,7 @@ namespace ZetaRay::Scene::Internal
         // the disk. "id" is hash of the texture path.
         uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id);
         void Recycle(uint64_t completedFenceVal);
-        ZetaInline uint32_t GPUDesciptorHeapIndex() const { return m_descTable.GPUDesciptorHeapIndex(); }
+        ZetaInline uint32_t GPUDescriptorHeapIndex() const { return m_descTable.GPUDescriptorHeapIndex(); }
 
     private:
         struct ToBeFreedTexture

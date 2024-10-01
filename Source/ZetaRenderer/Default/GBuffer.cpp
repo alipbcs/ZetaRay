@@ -266,10 +266,10 @@ void GBuffer::OnWindowSizeChanged(const RenderSettings& settings, GBufferData& d
 
 void GBuffer::Update(GBufferData& gbufferData)
 {
-    const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+    const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
 
     gbufferData.GBufferPass.SetGBufferUavDescTableGpuHeapIdx(
-        gbufferData.UavDescTable[outIdx].GPUDesciptorHeapIndex(GBufferData::GBUFFER::BASE_COLOR));
+        gbufferData.UavDescTable[outIdx].GPUDescriptorHeapIndex(GBufferData::GBUFFER::BASE_COLOR));
 }
 
 void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
@@ -304,7 +304,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
 void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
     RenderGraph& renderGraph)
 {
-    const int outIdx = App::GetRenderer().GlobaIdxForDoubleBufferedResources();
+    const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
 
     const bool tlasReady = rayTracerData.RtAS.IsReady();
     if (!tlasReady)

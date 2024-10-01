@@ -129,7 +129,7 @@ namespace ZetaRay::Math
     // Returns whether the given AABB and plane intersect. Both must be in the same coordinate system
     ZetaInline bool __vectorcall intersectAABBvsPlane(const v_AABB vAABB, const __m128 vPlane)
     {
-        // Seperating-axis theorem, use the plane Normal as the axis
+        // Separating-axis theorem, use the plane Normal as the axis
         __m128 vProjLengthAlongAxis = _mm_dp_ps(vAABB.vExtents, abs(vPlane), 0xf);
         __m128 vDistFromPlane = distFromPlane(vAABB.vCenter, vPlane);
         __m128 vIntersects = _mm_cmpge_ps(vProjLengthAlongAxis, vDistFromPlane);
@@ -142,7 +142,7 @@ namespace ZetaRay::Math
     // Assumes plane normals of the frustum are already normalized.
     ZetaInline COLLISION_TYPE __vectorcall instersectFrustumVsAABB(const v_ViewFrustum vFrustum, const v_AABB vBox)
     {
-        // Seperating-axis theorem, use the plane Normal as the axis
+        // Separating-axis theorem, use the plane Normal as the axis
 
         __m128 vEx = _mm_shuffle_ps(vBox.vExtents, vBox.vExtents, V_SHUFFLE_XYZW(0, 0, 0, 0));
         __m128 vEy = _mm_shuffle_ps(vBox.vExtents, vBox.vExtents, V_SHUFFLE_XYZW(1, 1, 1, 1));
@@ -181,7 +181,7 @@ namespace ZetaRay::Math
         vCenterDistFromPlane = _mm256_fmadd_ps(vCz256, vFrustum.vN_z, vCenterDistFromPlane);
         vCenterDistFromPlane = _mm256_add_ps(vFrustum.vd, vCenterDistFromPlane);
 
-        // AABB is (at least partially) in the poistive half space of the plane. It may or may not intersect the plane
+        // AABB is (at least partially) in the positive half space of the plane. It may or may not intersect the plane
         __m256 vIntersects1 = _mm256_cmp_ps(vCenterDistFromPlane, _mm256_setzero_ps(), _CMP_GE_OQ);
         // AABB intersects the plane
         __m256 vIntersects2 = _mm256_cmp_ps(vLargestProjLengthAlongAxis, abs(vCenterDistFromPlane), _CMP_GE_OQ);
@@ -197,7 +197,7 @@ namespace ZetaRay::Math
 
     // Returns whether given ray and AABB intersect
     // When a given Ray is tested against multiple AABBs, a few values that only depend 
-    // on that ray can be precomputed to avoid unneccesary recomputations
+    // on that ray can be precomputed to avoid unnecessary recomputation
     ZetaInline bool __vectorcall intersectRayVsAABB(const v_Ray vRay, const __m128 vDirRcp,
         const __m128 vDirIsPos, const __m128 vParallelToAxes, const v_AABB& vBox, float& t)
     {
@@ -325,8 +325,8 @@ namespace ZetaRay::Math
         vRes = _mm_fmadd_ps(_mm_shuffle_ps(vr, vr, V_SHUFFLE_XYZW(2, 2, 2, 0)), vRow2, vRes);
 
         vRes = _mm_div_ps(vRes, vDet);
-        __m128 vRayTriParralel = _mm_cmpge_ps(abs(vDet), _mm_set1_ps(FLT_EPSILON));
-        int rayTriParralel = _mm_movemask_ps(vRayTriParralel);
+        __m128 vRayTriParallel = _mm_cmpge_ps(abs(vDet), _mm_set1_ps(FLT_EPSILON));
+        int rayTriParallel = _mm_movemask_ps(vRayTriParallel);
 
         float4a q = store(vRes);
         t = q.z;
@@ -339,7 +339,7 @@ namespace ZetaRay::Math
         // positive determinat means the ray hit the  triangle's frontface while negative
         // means ray hit the backfacing side
 
-        return insideTri && triBehindRay && (rayTriParralel & 0xf);
+        return insideTri && triBehindRay && (rayTriParallel & 0xf);
     }
 
     // Ref: J. Arvo, "Transforming axis-aligned bounding boxes," Graphics Gems, 1990.
@@ -349,7 +349,7 @@ namespace ZetaRay::Math
         v_AABB newAABB;
         newAABB.vCenter = mul(M, aabb.vCenter);
 
-        // Extents.w = 0, so tranlation doesn't apply
+        // Extents.w = 0, so translation doesn't apply
         const __m128 vX = _mm_shuffle_ps(aabb.vExtents, aabb.vExtents, V_SHUFFLE_XYZW(0, 0, 0, 0));
         newAABB.vExtents = _mm_mul_ps(vX, abs(M.vRow[0]));
 
@@ -365,7 +365,7 @@ namespace ZetaRay::Math
     // Transforms given view frustum with a transformation matrix
     ZetaInline v_ViewFrustum __vectorcall transform(const v_float4x4 M, const v_ViewFrustum& vFrustum)
     {
-        // In general, planes need to be transformed with the inverse-tranpose of a given transformation M
+        // In general, planes need to be transformed with the inverse-transpose of a given transformation M
         // (due to the normal vector). For view-to-world transformation, we know that it only consists
         // of rotations and translations, therefore:
         //        M = R * T
@@ -374,7 +374,7 @@ namespace ZetaRay::Math
         //        M = (T^-1 * R^T)^T    (rotation matrix is orthogonal, so R^-1 == R^T)
         //        M = R * (T^-1)^T
         // 
-        // In summary, inverse-tranpose of M is the same as M except for the 4th column being:
+        // In summary, inverse-transpose of M is the same as M except for the 4th column being:
         //        [M.row0.Tv, M.row1.Tv, M.row2.Tv, 1]^T
         // 
         // with Tv = (-T.x, -T.y, -T.z)

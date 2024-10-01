@@ -300,7 +300,7 @@ namespace RPT_Util
             float bsdfPdf_area = bsdfPdf * dwdA;
 
             ret.ld = RT::PowerHeuristic(lightPdf, bsdfPdf_area, ld);
-            // Jacobian of shit simplifies to 1.0 when light sampling is used
+            // Jacobian of shift simplifies to 1.0 when light sampling is used
             ret.pdf_solidAngle = 1.0f;
         }
         else

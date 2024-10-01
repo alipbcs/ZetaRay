@@ -202,7 +202,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
 
     // Handle an edge case where for thread groups at the right and bottom 
     // image boundaries, valid threads may end up outside the screen and 
-    // erroneously skippped in the subsequent passes
+    // erroneously skipped in the subsequent passes
     const bool againstEdge = (Gid.x == (g_local.DispatchDimX - 1)) ||
         (Gid.y == (g_local.DispatchDimY - 1));
     bool4 edgeCase = false;

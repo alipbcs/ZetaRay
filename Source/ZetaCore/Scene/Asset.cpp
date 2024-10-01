@@ -35,7 +35,7 @@ void TexSRVDescriptorTable::Init(uint64_t id)
     Assert(!m_descTable.IsEmpty(), "Allocating descriptors from the GPU descriptor heap failed.");
 
     auto& s = App::GetRenderer().GetSharedShaderResources();
-    s.InsertOrAssingDescriptorTable(id, m_descTable);
+    s.InsertOrAssignDescriptorTable(id, m_descTable);
 }
 
 uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)

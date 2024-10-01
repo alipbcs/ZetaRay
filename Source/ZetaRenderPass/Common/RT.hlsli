@@ -443,7 +443,7 @@ namespace RT
 
         void ComputeUVDifferentials(float3 dpdx, float3 dpdy, float3 dpdu, float3 dpdv)
         {
-            // determinat of square matrix A^T A
+            // determinant of square matrix A^T A
             float dpduDotdpdu = dot(dpdu, dpdu);
             float dpdvDotdpdv = dot(dpdv, dpdv);
             float dpduDotdpdv = dot(dpdu, dpdv);

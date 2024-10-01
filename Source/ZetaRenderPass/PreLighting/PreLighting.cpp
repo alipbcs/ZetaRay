@@ -238,7 +238,7 @@ void PreLighting::Update()
         {
             const uint32_t sizeInBytes = m_currNumTris * sizeof(float);
 
-            // GPU buffer conatining lumen estimates per triangle
+            // GPU buffer containing lumen estimates per triangle
             m_lumen = GpuMemory::GetDefaultHeapBuffer("TriLumen",
                 sizeInBytes,
                 D3D12_RESOURCE_STATE_COMMON,
@@ -495,7 +495,7 @@ void EmissiveTriangleAliasTable::Render(CommandList& cmdList)
         return;
     }
 
-    // Try to use frame allocator first, if it failes (allocation size exceeded per-frame max),
+    // Try to use frame allocator first, if it fails (allocation size exceeded per-frame max),
     // use malloc instead
     SmallVector<RT::EmissiveLumenAliasTableEntry, App::OneTimeFrameAllocatorWithFallback> table;
     table.resize(m_currNumTris);

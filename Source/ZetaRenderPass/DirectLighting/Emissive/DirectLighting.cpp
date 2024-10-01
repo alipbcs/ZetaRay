@@ -242,15 +242,15 @@ void DirectLighting::Render(CommandList& cmdList)
             auto uavAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_A_UAV : DESC_TABLE::RESERVOIR_0_A_UAV;
             auto uavBIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_B_UAV : DESC_TABLE::RESERVOIR_0_B_UAV;
 
-            m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvAIdx);
-            m_cbSpatioTemporal.PrevReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvBIdx);
-            m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavAIdx);
-            m_cbSpatioTemporal.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavBIdx);
+            m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
+            m_cbSpatioTemporal.PrevReservoir_B_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvBIdx);
+            m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
+            m_cbSpatioTemporal.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavBIdx);
         }
 
-        m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
-        m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
-        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
+        m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
+        m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
+        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
         m_rootSig.End(computeCmdList);
@@ -291,12 +291,12 @@ void DirectLighting::Render(CommandList& cmdList)
             auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
                 DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
 
-            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
-            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavDiffuseIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)uavSpecularIdx);
+            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
+            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
+            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
+            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavDiffuseIdx);
+            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavSpecularIdx);
             m_cbDnsrTemporal.IsTemporalCacheValid = m_isDnsrTemporalCacheValid;
 
             m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrTemporal) / sizeof(DWORD), &m_cbDnsrTemporal);
@@ -332,10 +332,10 @@ void DirectLighting::Render(CommandList& cmdList)
             auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV :
                 DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
 
-            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
+            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
+            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
+            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
+            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
             m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
             m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
             m_cbDnsrSpatial.NumGroupsInTile = RESTIR_DI_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;

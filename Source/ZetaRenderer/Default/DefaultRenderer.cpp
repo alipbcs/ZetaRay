@@ -31,7 +31,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
     const GBufferData& gbuffData, const RayTracerData& rtData)
 {
     auto& renderer = App::GetRenderer();
-    const int currIdx = renderer.GlobaIdxForDoubleBufferedResources();
+    const int currIdx = renderer.GlobalIdxForDoubleBufferedResources();
 
     frameConsts.FrameNum = (uint32_t)App::GetTimer().GetTotalFrameCount();
     frameConsts.dt = (float)App::GetTimer().GetElapsedTime();
@@ -79,11 +79,11 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
     frameConsts.CurrViewProj = store(vVP);
 
     // Frame g-buffer SRV descriptor table
-    frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDesciptorHeapIndex();
-    frameConsts.PrevGBufferDescHeapOffset = gbuffData.SrvDescTable[1 - currIdx].GPUDesciptorHeapIndex();
+    frameConsts.CurrGBufferDescHeapOffset = gbuffData.SrvDescTable[currIdx].GPUDescriptorHeapIndex();
+    frameConsts.PrevGBufferDescHeapOffset = gbuffData.SrvDescTable[1 - currIdx].GPUDescriptorHeapIndex();
 
     // Sky-view LUT SRV
-    frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDesciptorHeapIndex(
+    frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDescriptorHeapIndex(
         (int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
     float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, 

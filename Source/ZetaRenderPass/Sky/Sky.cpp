@@ -183,7 +183,7 @@ void Sky::CreateSkyviewLUT()
 
     device->CreateUnorderedAccessView(m_lut.Resource(), nullptr, &uavDesc, 
         m_descTable.CPUHandle((int)DESC_TABLE::SKY_LUT_UAV));
-    m_localCB.LutDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::SKY_LUT_UAV);
+    m_localCB.LutDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::SKY_LUT_UAV);
 }
 
 void Sky::CreateVoxelGrid()
@@ -205,7 +205,7 @@ void Sky::CreateVoxelGrid()
 
     device->CreateUnorderedAccessView(m_voxelGrid.Resource(), nullptr, &uavDesc, 
         m_descTable.CPUHandle((int)DESC_TABLE::VOXEL_GRID_UAV));
-    m_localCB.VoxelGridDescHeapIdx = m_descTable.GPUDesciptorHeapIndex((int)DESC_TABLE::VOXEL_GRID_UAV);    
+    m_localCB.VoxelGridDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::VOXEL_GRID_UAV);    
 }
 
 void Sky::DepthMapExpCallback(const ParamVariant& p)

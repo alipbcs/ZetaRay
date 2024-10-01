@@ -212,7 +212,7 @@ void Camera::Update(const Motion& m)
 #if 0
         // Shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
         // Jitter is relative to unit pixel offset -- [-0.5, -0.5] x [+0.5, +0.5]
-        // NDC is relative to [-1, -1] x [+1, +1], therfore multiply by 2
+        // NDC is relative to [-1, -1] x [+1, +1], therefore multiply by 2
         float2 projOffset = m_currJitter * float2(m_pixelSampleAreaWidth, m_pixelSampleAreaHeight) * float2(2.0f, -2.0f);
 
         m_proj.m[2].x = projOffset.x;

@@ -104,7 +104,7 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
     Assert(numDescriptors >= m_blockSize, "invalid #descriptors of %u for block size of %u", numDescriptors, m_blockSize);
 
     m_totalHeapSize = numDescriptors;
-    m_isShaderVisisble = isShaderVisible;
+    m_isShaderVisible = isShaderVisible;
 
     D3D12_DESCRIPTOR_HEAP_DESC desc;
     desc.Type = heapType;
@@ -229,7 +229,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 
     D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{ .ptr = m_baseCPUHandle.ptr + heapOffset * m_descriptorSize };
 
-    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_isShaderVisisble ?
+    D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_isShaderVisible ?
         D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGPUHandle.ptr + heapOffset * m_descriptorSize } :
         D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = 0 };
 
@@ -256,7 +256,7 @@ void DescriptorHeap::Recycle()
         return;
 
     // TODO Is it necessary to signal the compute queue?
-    if(m_isShaderVisisble)
+    if(m_isShaderVisible)
         App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal++);
 
     const uint64_t completedFenceVal = m_fence->GetCompletedValue();
@@ -269,7 +269,7 @@ void DescriptorHeap::Recycle()
         Assert(numDescs < m_totalHeapSize, "invalid #descs");
 
         // Not safe to release just yet
-        if (m_isShaderVisisble && completedFenceVal < releaseFence)
+        if (m_isShaderVisible && completedFenceVal < releaseFence)
         {
             currPending++;
             continue;

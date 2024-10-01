@@ -47,7 +47,7 @@ float Visibility(float3 pos, float3 wi)
         RAY_FLAG_SKIP_CLOSEST_HIT_SHADER |
         RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES |
         RAY_FLAG_CULL_NON_OPAQUE> rayQuery;
-        
+
     RayDesc ray;
     ray.Origin = pos;
     ray.TMin = 0.0f;
@@ -69,13 +69,13 @@ void ComputeVoxelData(in float3 pos, in float3 sigma_t_rayleigh, in float sigma_
     pos.y += g_frame.PlanetRadius;
     const float altitude = Volume::Altitude(pos, g_frame.PlanetRadius);
     density = Volume::AtmosphereDensity(altitude);
-        
+
     const float posToAtmosphereDist = Volume::IntersectRayAtmosphere(
         g_frame.PlanetRadius + g_frame.AtmosphereAltitude, pos, -g_frame.SunDir);
     LoTranmittance = Volume::EstimateTransmittance(g_frame.PlanetRadius, pos, 
         -g_frame.SunDir, posToAtmosphereDist, sigma_t_rayleigh, sigma_t_mie, 
         sigma_t_ozone, 8);
-        
+
     pos.y -= g_frame.PlanetRadius;
     const float isSunVisibleFromPos = Visibility(pos, -g_frame.SunDir);
     LoTranmittance *= isSunVisibleFromPos;
@@ -87,16 +87,16 @@ void Integrate(float3 rayDir, float ds, float3 sigma_s_rayleigh, float sigma_s_m
 {
     const float3 sliceDensity = density * ds;
     const float3 opticalThickness = WavePrefixSum(sliceDensity) + sliceDensity;
-    
+
     // transmittance from beginning of this wave to position of this lane
     waveStartToPosTr = exp(-(sigma_s_rayleigh * opticalThickness.x +
             sigma_t_mie * opticalThickness.y +
             sigma_t_ozone * opticalThickness.z));
-    
+
     const float3 common = waveStartToPosTr * LoTranmittance * ds;    
     const float3 sliceLsRayleigh = common * density.x;
     const float3 sliceLsMie = common * density.y;
-    
+
     const float3 LsRayleigh = WavePrefixSum(sliceLsRayleigh) + sliceLsRayleigh;
     const float3 LsMie = WavePrefixSum(sliceLsMie) + sliceLsMie;
 
@@ -104,7 +104,7 @@ void Integrate(float3 rayDir, float ds, float3 sigma_s_rayleigh, float sigma_s_m
     const float cosTheta = dot(g_frame.SunDir, -rayDir);
     const float phaseRayleigh = Volume::RayleighPhaseFunction(cosTheta);
     const float phaseMie = Volume::SchlickPhaseFunction(cosTheta, g_frame.g);
-    
+
     Ls = LsRayleigh * sigma_s_rayleigh * phaseRayleigh + LsMie * sigma_s_mie * phaseMie;
 }
 
@@ -132,8 +132,8 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
 
     const float3 rayDirVS = normalize(dirV);
     const float3 rayDirWS = normalize(dirW);
-    
-    // exponentially distrubted slices along the frustum-aligned voxel grid depth
+
+    // exponentially distributed slices along the frustum-aligned voxel grid depth
     // 
     // |--------|------------|------------------|-------------------------|
     // |  Voxel |   Voxel    |      Voxel       |          Voxel          | ...
@@ -187,7 +187,7 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
     float3 totalTr = 1.0f;
     float3 prevLs = 0.0f;
 
-    // Account for inscattering and transmittance from eariler waves.
+    // Account for inscattering and transmittance from earlier waves.
     // Transmittance from wave start to each voxel is already accounted for.
     for (uint wave = 0; wave < waveIdx; wave++)
     {
@@ -196,7 +196,7 @@ void main(uint Gidx : SV_GroupIndex, uint3 Gid : SV_GroupID)
     }
 
     Ls = Ls * totalTr + prevLs;
-    
+
     RWTexture3D<half4> g_voxelGrid = ResourceDescriptorHeap[g_local.VoxelGridDescHeapIdx];    
 
     // R11G11B10 doesn't have a sign bit

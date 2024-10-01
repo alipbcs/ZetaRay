@@ -305,7 +305,7 @@ namespace RPT_Util
             // ShadingData
             uint16_t2 e2 = Math::EncodeOct32(this.surface.wo);
             uint wo = e2.x | (uint(e2.y) << 16);
-            // Note: needed so that BSDF evaulation at x_{k - 1} uses the right
+            // Note: needed so that BSDF evaluation at x_{k - 1} uses the right
             // transmission tint
             bool hasVolumetricInterior = surface.trDepth > 0;
             uint flags = (uint)surface.metallic | 

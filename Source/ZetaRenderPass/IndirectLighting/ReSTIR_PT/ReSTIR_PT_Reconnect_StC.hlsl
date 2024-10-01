@@ -117,7 +117,7 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
         g_frame, globals);
 }
 
-// Copies reservoir data along with the reconnection found after temporal resue (if any)
+// Copies reservoir data along with the reconnection found after temporal reuse (if any)
 // to next frame's reservoir
 void CopyToNextFrame(uint2 DTid, Reservoir r_curr)
 {

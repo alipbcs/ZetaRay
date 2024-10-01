@@ -133,7 +133,7 @@ namespace BSDF
     }
 
     // ndotwi: Cosine of angle between incident vector and normal
-    // eta = eta_i / eta_t (eta_i is IOR of incident medium and eta_t IOR of trasnmitted medium)
+    // eta = eta_i / eta_t (eta_i is IOR of incident medium and eta_t IOR of transmitted medium)
     float Fresnel_Dielectric(float ndotwi, float eta)
     {
         float sinTheta_iSq = saturate(mad(-ndotwi, ndotwi, 1.0f));
@@ -668,7 +668,7 @@ namespace BSDF
             float ndotwi_n = dot(shadingNormal, wi);
             this.reflection = ndotwi_n >= 0;
 
-            // For relfection:
+            // For reflection:
             //    wh = normalize(wi + wo)
             // For transmission: 
             //  - wh = normalize(eta * wi + wo),    eta > 1
@@ -951,7 +951,7 @@ namespace BSDF
         // Note that: 
         //  - refract(w, n, eta) requires w.n > 0 and ||n|| = 1. Here it's assumed 
         //    n.wo > 0, so this is always true.
-        //  - For sampling, trasnmitted direction is known (wo) and the goal is to sample 
+        //  - For sampling, transmitted direction is known (wo) and the goal is to sample 
         //    incident direction (wi). Therefore, refract() should be called with inputs
         //    for the reverse direction -- eta = 1 / eta.
 

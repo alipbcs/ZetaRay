@@ -81,7 +81,7 @@ namespace Volume
         return max(0, 1 - abs(altitude - 25.0f) / 15.0f);
     }
 
-    // Altitude shouldbe in km
+    // Altitude should be in km
     float3 AtmosphereDensity(float altitude)
     {
         return float3(DensityRayleigh(altitude), DensityMie(altitude), DensityOzone(altitude));

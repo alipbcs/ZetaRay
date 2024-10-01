@@ -453,7 +453,7 @@ namespace ZetaRay::Util
 
         void* relocate(size_t n)
         {
-            // Allocate memory to accomodate the new size
+            // Allocate memory to accommodate the new size
             void* mem = m_allocator.AllocateAligned(n * sizeof(T), alignof(T));
             const size_t oldSize = size();
 
@@ -598,7 +598,7 @@ namespace ZetaRay::Util
                 if (currCapacity > 0 && !has_inline_storage())
                     m_allocator.FreeAligned(m_beg, currCapacity * sizeof(T), alignof(T));
 
-                // Allocate memory to accomodate new size
+                // Allocate memory to accommodate new size
                 void* mem = m_allocator.AllocateAligned(newSize * sizeof(T), alignof(T));
 
                 // Adjust the pointers
@@ -723,7 +723,7 @@ namespace ZetaRay::Util
             this->copy_from(other);
         }
         // Note: Currently, copy assignment doesn't change the allocator. Furthermore, 
-        // the existing memory is retained if it can accomodate the new size. May need
+        // the existing memory is retained if it can accommodate the new size. May need
         // to change in the future.
         SmallVector& operator=(const SmallVector& other)
         {

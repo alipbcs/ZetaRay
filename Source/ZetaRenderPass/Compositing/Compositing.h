@@ -116,7 +116,7 @@ namespace ZetaRay::RenderPass
             "FireflyFilter_cs.cso"
         };
 
-        void CreateCompositTexure();
+        void CreateCompositTexture();
 
         // param callbacks
         void FireflyFilterCallback(const Support::ParamVariant& p);

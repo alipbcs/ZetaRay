@@ -95,7 +95,7 @@ namespace ZetaRay::Math
             };
             */
 
-            // For leafs
+            // For leaves
             int Base;
             int Count;
 

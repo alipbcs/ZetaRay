@@ -222,7 +222,7 @@ void TaskSet::TopologicalSort()
             rootMask |= (1llu << i);
     }
 
-    // In each itertation, points to remaining elements that have an indegree of zero
+    // In each iteration, points to remaining elements that have an indegree of zero
     uint32_t currMask = rootMask;
     size_t currIdx = 0;
     int sorted[MAX_NUM_TASKS];

@@ -59,7 +59,7 @@ void GenerateRasterDepth::Render(ComputeCmdList& computeCmdList)
         D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE,
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
-    const uint32_t descHeapIdx = m_descTable.GPUDesciptorHeapIndex();
+    const uint32_t descHeapIdx = m_descTable.GPUDescriptorHeapIndex();
 
     m_rootSig.SetRootConstants(0, 1, &descHeapIdx);
     m_rootSig.End(computeCmdList);

@@ -242,7 +242,7 @@ void ThreadPool::WorkerThread()
         const int taskHandle = task.GetSignalHandle();
 
         // Block if this task has unfinished dependencies
-        if(task.GetPriority() != TASK_PRIORITY::BACKGRUND)
+        if(task.GetPriority() != TASK_PRIORITY::BACKGROUND)
             App::WaitForAdjacentHeadNodes(taskHandle);
 
 #if ENABLE_TIMINGS && LOG_TASK_TIMINGS
@@ -264,7 +264,7 @@ void ThreadPool::WorkerThread()
 #endif
 
         // Signal dependent tasks that this task has finished
-        if (task.GetPriority() != TASK_PRIORITY::BACKGRUND)
+        if (task.GetPriority() != TASK_PRIORITY::BACKGROUND)
         {
             auto adjacencies = task.GetAdjacencies();
             if (adjacencies.size() > 0)

@@ -854,7 +854,7 @@ void GuiPass::CameraTab()
 
     constexpr int plotFlags = ImPlotFlags_NoMenus | ImPlotFlags_NoBoxSelect | ImPlotFlags_NoMouseText | ImPlotFlags_Equal;
 
-    if (ImPlot::BeginPlot("Camera Coodinate System", ImVec2(250.0f, 250.0f), plotFlags))
+    if (ImPlot::BeginPlot("Camera Coordinate System", ImVec2(250.0f, 250.0f), plotFlags))
     {
         const float3 pos = camera.GetPos();
         constexpr int axisFlags = ImPlotAxisFlags_Lock | ImPlotAxisFlags_NoHighlight;

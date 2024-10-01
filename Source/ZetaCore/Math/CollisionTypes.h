@@ -55,7 +55,7 @@ namespace ZetaRay::Math
             vExtents = _mm_loadu_ps(reinterpret_cast<const float*>(&aabb) + 3);
 
             vExtents = _mm_insert_ps(vExtents, vCenter, 0xc8);
-            // Make sure the 4th element is 1.0f so that tranlation transforms apply
+            // Make sure the 4th element is 1.0f so that translation transforms apply
             vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
         }
         void __vectorcall Reset(const float3& center, const float3& extents)
@@ -73,7 +73,7 @@ namespace ZetaRay::Math
         {
             const __m128 vOneDivTwo = _mm_set1_ps(0.5f);
             vCenter = _mm_mul_ps(_mm_add_ps(vMaxPoint, vMinPoint), vOneDivTwo);
-            // Make sure the 4th element is 1.0f so that tranlation transforms apply
+            // Make sure the 4th element is 1.0f so that translation transforms apply
             vCenter = _mm_insert_ps(vCenter, _mm_set1_ps(1.0f), 0x30);
 
             vExtents = _mm_mul_ps(_mm_sub_ps(vMaxPoint, vMinPoint), vOneDivTwo);

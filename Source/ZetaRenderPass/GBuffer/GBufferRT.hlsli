@@ -12,10 +12,10 @@ namespace GBufferRT
         bool thinLens, float2 lensSample, float focusDepth, float t, float3 dpdu, 
         float3 dpdv, ConstantBuffer<cbFrameConstants> g_frame)
     {
-        // 1. Form auxilary rays offset one pixel to right and above of camera ray (r_x and r_y).
+        // 1. Form auxiliary rays offset one pixel to right and above of camera ray (r_x and r_y).
         // 2. Form tangent plane at hit point (P).
         // 3. Approximae surface around hit point using a first-order approximation at P. Hit 
-        //    points for auxilary rays can be solved for using the ray-plane intersection 
+        //    points for auxiliary rays can be solved for using the ray-plane intersection 
         //    algorithm (denote by p_x and p_y).
         // 4. Each triangle can be described as a parametric surface p = f(u, v). Since triangle 
         //    is planar, the first-order approximation is exact:
@@ -23,7 +23,7 @@ namespace GBufferRT
         // 5. Since dpdu and dpdv for the hit triangle are known, by replacing p_x and p_y for p' 
         //    in above, ddx(uv) and ddy(uv) can be approximated by solving the linear system.
 
-        // determinat of square matrix A^T A
+        // determinant of square matrix A^T A
         float dpduDotdpdu = dot(dpdu, dpdu);
         float dpdvDotdpdv = dot(dpdv, dpdv);
         float dpduDotdpdv = dot(dpdu, dpdv);
