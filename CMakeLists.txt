@@ -13,7 +13,7 @@ project(ZetaRay
     LANGUAGES CXX
     DESCRIPTION "A Physically-Based Real-Time Renderer in Direct3D 12")
 
-option(BUILD_TESTS "Build unit tests" ON)
+option(BUILD_TESTS "Build unit tests" OFF)
 option(BUILD_TOOLS "Build tools" ON)
 option(COMPILE_SHADERS_WITH_DEBUG "Additionally compile shaders with debug information included" OFF)
 
