@@ -7,7 +7,8 @@ SamplerState g_samPointClamp : register(s2);
 SamplerState g_samLinearWrap : register(s3);
 SamplerState g_samLinearClamp : register(s4);
 SamplerState g_samAnisotropicWrap : register(s5);
-SamplerState g_samAnisotropicWrap_4x : register(s6);
-SamplerState g_samImgUi : register(s7);
+SamplerState g_samAnisotropicWrap_2x : register(s6);
+SamplerState g_samAnisotropicWrap_4x : register(s7);
+SamplerState g_samImgUi : register(s8);
 
 #endif

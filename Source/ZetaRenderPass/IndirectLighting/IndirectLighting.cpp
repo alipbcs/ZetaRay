@@ -24,9 +24,11 @@ namespace
         if (f == TEXTURE_FILTER::MIP0)
             return 0;
         if (f == TEXTURE_FILTER::TRI_LINEAR)
-            return 4;
-        if (f == TEXTURE_FILTER::ANISOTROPIC_4X)
+            return 3;
+        if (f == TEXTURE_FILTER::ANISOTROPIC_2X)
             return 6;
+        if (f == TEXTURE_FILTER::ANISOTROPIC_4X)
+            return 7;
 
         return 5;
     }

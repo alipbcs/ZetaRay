@@ -467,20 +467,11 @@ void RendererCore::InitStaticSamplers()
     pointWrap.RegisterSpace = 0;
     pointWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    D3D12_STATIC_SAMPLER_DESC pointClamp;
-    pointClamp.Filter = D3D12_FILTER_MIN_MAG_MIP_POINT;
+    D3D12_STATIC_SAMPLER_DESC pointClamp = pointWrap;
     pointClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     pointClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     pointClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    pointClamp.MipLODBias = 0;
-    pointClamp.MaxAnisotropy = 0;
-    pointClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
-    pointClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-    pointClamp.MinLOD = 0.0f;
-    pointClamp.MaxLOD = D3D12_FLOAT32_MAX;
     pointClamp.ShaderRegister = 2;
-    pointClamp.RegisterSpace = 0;
-    pointClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC linearWrap;
     linearWrap.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -497,20 +488,11 @@ void RendererCore::InitStaticSamplers()
     linearWrap.RegisterSpace = 0;
     linearWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    D3D12_STATIC_SAMPLER_DESC linearClamp;
-    linearClamp.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
+    D3D12_STATIC_SAMPLER_DESC linearClamp = linearWrap;
     linearClamp.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     linearClamp.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
     linearClamp.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    linearClamp.MipLODBias = 0;
-    linearClamp.MaxAnisotropy = 0;
-    linearClamp.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
-    linearClamp.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-    linearClamp.MinLOD = 0.0f;
-    linearClamp.MaxLOD = D3D12_FLOAT32_MAX;
     linearClamp.ShaderRegister = 4;
-    linearClamp.RegisterSpace = 0;
-    linearClamp.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
     D3D12_STATIC_SAMPLER_DESC anisotropicWrap;
     anisotropicWrap.Filter = D3D12_FILTER_ANISOTROPIC;
@@ -527,20 +509,13 @@ void RendererCore::InitStaticSamplers()
     anisotropicWrap.RegisterSpace = 0;
     anisotropicWrap.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
 
-    D3D12_STATIC_SAMPLER_DESC anisotropicWrap4x;
-    anisotropicWrap4x.Filter = D3D12_FILTER_ANISOTROPIC;
-    anisotropicWrap4x.AddressU = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    anisotropicWrap4x.AddressV = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    anisotropicWrap4x.AddressW = D3D12_TEXTURE_ADDRESS_MODE_WRAP;
-    anisotropicWrap4x.MipLODBias = 0;
+    D3D12_STATIC_SAMPLER_DESC anisotropicWrap2x = anisotropicWrap;
+    anisotropicWrap2x.MaxAnisotropy = 2;
+    anisotropicWrap2x.ShaderRegister = 6;
+
+    D3D12_STATIC_SAMPLER_DESC anisotropicWrap4x = anisotropicWrap;
     anisotropicWrap4x.MaxAnisotropy = 4;
-    anisotropicWrap4x.ComparisonFunc = D3D12_COMPARISON_FUNC_NONE;
-    anisotropicWrap4x.BorderColor = D3D12_STATIC_BORDER_COLOR_OPAQUE_WHITE;
-    anisotropicWrap4x.MinLOD = 0.0f;
-    anisotropicWrap4x.MaxLOD = D3D12_FLOAT32_MAX;
-    anisotropicWrap4x.ShaderRegister = 6;
-    anisotropicWrap4x.RegisterSpace = 0;
-    anisotropicWrap4x.ShaderVisibility = D3D12_SHADER_VISIBILITY_ALL;
+    anisotropicWrap4x.ShaderRegister = 7;
 
     D3D12_STATIC_SAMPLER_DESC imguiSampler;
     imguiSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
@@ -553,7 +528,7 @@ void RendererCore::InitStaticSamplers()
     imguiSampler.BorderColor = D3D12_STATIC_BORDER_COLOR_TRANSPARENT_BLACK;
     imguiSampler.MinLOD = 0.0f;
     imguiSampler.MaxLOD = 0.0f;
-    imguiSampler.ShaderRegister = 7;
+    imguiSampler.ShaderRegister = 8;
     imguiSampler.RegisterSpace = 0;
     imguiSampler.ShaderVisibility = D3D12_SHADER_VISIBILITY_PIXEL;
 
@@ -563,8 +538,9 @@ void RendererCore::InitStaticSamplers()
     m_staticSamplers[3] = linearWrap;
     m_staticSamplers[4] = linearClamp;
     m_staticSamplers[5] = anisotropicWrap;
-    m_staticSamplers[6] = anisotropicWrap4x;
-    m_staticSamplers[7] = imguiSampler;
+    m_staticSamplers[6] = anisotropicWrap2x;
+    m_staticSamplers[7] = anisotropicWrap4x;
+    m_staticSamplers[8] = imguiSampler;
 
     D3D12_DESCRIPTOR_HEAP_DESC desc;
     desc.Type = D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER;
@@ -586,7 +562,6 @@ void RendererCore::InitStaticSamplers()
         samplerDescs[i].AddressV = m_staticSamplers[i].AddressV;
         samplerDescs[i].AddressW = m_staticSamplers[i].AddressW;
         samplerDescs[i].MipLODBias = m_staticSamplers[i].MipLODBias;
-        samplerDescs[i].MaxAnisotropy = m_staticSamplers[i].MaxAnisotropy;
         samplerDescs[i].MaxAnisotropy = m_staticSamplers[i].MaxAnisotropy;
         samplerDescs[i].ComparisonFunc = m_staticSamplers[i].ComparisonFunc;
         samplerDescs[i].MinLOD = m_staticSamplers[i].MinLOD;
