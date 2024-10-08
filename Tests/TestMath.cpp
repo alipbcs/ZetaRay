@@ -326,7 +326,7 @@ TEST_CASE("MergingAABBs")
     AABB box = store(vMergedBox);
     AABB box2 = store(vBox1);
 
-    INFO("merging any AAABB with a default-initalized should result in the former AABB");
+    INFO("Merging any AABB with a default-initialized AABB should result in the former.");
     bool centerEq = fabsf(box.Center.x - box2.Center.x) < 1e-6 &&
         fabsf(box.Center.y - box2.Center.y) < 1e-6 &&
         fabsf(box.Center.z - box2.Center.z) < 1e-6;

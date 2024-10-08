@@ -50,7 +50,7 @@ namespace ZetaRay
         static const uint32_t LOWER_24_BITS_MASK = 0xffffff;
         static const uint32_t UPPER_8_BITS_MASK = 0xff000000;
         static const uint32_t UPPER_16_BITS_MASK = 0xffff0000;
-        // Exlucdes bits [16-24)
+        // Excludes bits [16-24)
         static const uint32_t ONES_COMP_BITS_16_24 = 0xff00ffff;
 
 #ifdef __cplusplus

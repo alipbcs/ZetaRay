@@ -249,7 +249,7 @@ TEST_SUITE("HashTable")
 
     TEST_CASE("Clear")
     {
-        int desctructorCounter = 0;
+        int destructorCounter = 0;
 
         struct Temp
         {
@@ -271,15 +271,15 @@ TEST_SUITE("HashTable")
         {
             HashTable<Temp> table(8);
 
-            table.try_emplace(0, 1.0f, &desctructorCounter);
-            table.try_emplace(1, 2.0f, &desctructorCounter);
+            table.try_emplace(0, 1.0f, &destructorCounter);
+            table.try_emplace(1, 2.0f, &destructorCounter);
             CHECK(table.size() == 2);
 
             const auto oldBucketCount = table.bucket_count();
             table.clear();
-            CHECK(desctructorCounter == 2);
+            CHECK(destructorCounter == 2);
             table.clear();
-            CHECK(desctructorCounter == 2);
+            CHECK(destructorCounter == 2);
             CHECK(table.size() == 0);
             CHECK(table.bucket_count() == oldBucketCount);
         }
@@ -287,12 +287,12 @@ TEST_SUITE("HashTable")
         {
             HashTable<Temp> table(8);
 
-            table.try_emplace(0, 1.0f, &desctructorCounter);
-            table.try_emplace(1, 2.0f, &desctructorCounter);
-            table.try_emplace(2, 3.0f, &desctructorCounter);
+            table.try_emplace(0, 1.0f, &destructorCounter);
+            table.try_emplace(1, 2.0f, &destructorCounter);
+            table.try_emplace(2, 3.0f, &destructorCounter);
         }
 
-        CHECK(desctructorCounter == 5);
+        CHECK(destructorCounter == 5);
     }
 
     TEST_CASE("Erase")
@@ -337,7 +337,7 @@ TEST_SUITE("HashTable")
         table[1] = 101;
         table[2] = 102;
         table[3] = 103;
-        // We've had 4 inserts, one of which should resue: 3 + 4 - 1 = 6
+        // We've had 4 inserts, one of which should reuse: 3 + 4 - 1 = 6
         CHECK(table.size() == 6);
 
         table.erase(0);
@@ -345,7 +345,7 @@ TEST_SUITE("HashTable")
         table.erase(2);
         CHECK(table.size() == 6);
 
-        // Insert new entris to force resize
+        // Insert new entries to force resize
         table[6] = 106;
         auto oldLoad = table.load_factor();
         CHECK(table.size() == 7);
