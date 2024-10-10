@@ -120,6 +120,7 @@ namespace ZetaRay::DefaultRenderer
         Core::GpuMemory::Texture Depth[2];
         Core::GpuMemory::Texture TriDiffGeo_A[2];
         Core::GpuMemory::Texture TriDiffGeo_B[2];
+        Core::GpuMemory::ResourceHeap ResHeap;
 
         Core::DescriptorTable SrvDescTable[2];
         Core::DescriptorTable UavDescTable[2];

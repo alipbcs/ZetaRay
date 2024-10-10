@@ -19,8 +19,10 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data)
 {
     for (int i = 0; i < 2; i++)
     {
-        data.SrvDescTable[i] = App::GetRenderer().GetGpuDescriptorHeap().Allocate(GBufferData::COUNT);
-        data.UavDescTable[i] = App::GetRenderer().GetGpuDescriptorHeap().Allocate(GBufferData::COUNT);
+        data.SrvDescTable[i] = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
+            GBufferData::COUNT);
+        data.UavDescTable[i] = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
+            GBufferData::COUNT);
     }
 
     CreateGBuffers(data);
@@ -30,17 +32,56 @@ void GBuffer::Init(const RenderSettings& settings, GBufferData& data)
 
 void GBuffer::CreateGBuffers(GBufferData& data)
 {
-    auto* device = App::GetRenderer().GetDevice();
-    const int width = App::GetRenderer().GetRenderWidth();
-    const int height = App::GetRenderer().GetRenderHeight();
+    auto& renderer = App::GetRenderer();
+    const int width = renderer.GetRenderWidth();
+    const int height = renderer.GetRenderHeight();
 
     const auto texFlags = TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
     const auto texFlagsDepth = TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS;
-
-    D3D12_CLEAR_VALUE* clearValuePtr = nullptr;
-    D3D12_CLEAR_VALUE* clearValuePtrDepth = nullptr;
-
     const D3D12_RESOURCE_STATES depthInitState = D3D12_RESOURCE_STATE_COMMON;
+
+    const auto emissiveColFormat = App::GetRenderer().IsRGBESupported() ?
+        DXGI_FORMAT_R9G9B9E5_SHAREDEXP :
+        DXGI_FORMAT_R11G11B10_FLOAT;
+
+    // Except emissive and motion vector, everything is double-buffered
+    constexpr int N = 2 * (GBufferData::COUNT - 2) + 2;
+    PlacedResourceList<N> list;
+
+    // Base color
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::BASE_COLOR], width, height, texFlags);
+    // Normal
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::NORMAL], width, height, texFlags);
+    // Metallic-roughness
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::METALLIC_ROUGHNESS], width, height, texFlags);
+    // Motion vector
+    list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::MOTION_VECTOR], width, height, texFlags);
+    // Emissive color
+    list.PushTex2D(emissiveColFormat, width, height, texFlags);
+    // IOR
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::IOR], width, height, texFlags);
+    // Coat
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::COAT], width, height, texFlags);
+    // Triangle differential geometry - A
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_A], width, height, texFlags);
+    // Triangle differential geometry - B
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_B], width, height, texFlags);
+    // Depth
+    for (int i = 0; i < 2; i++)
+        list.PushTex2D(GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::DEPTH], width, height, texFlags);
+
+    list.End();
+
+    data.ResHeap = GpuMemory::GetResourceHeap(list.Size());
+    auto allocs = list.AllocInfos();
+    int currRes = 0;
 
     // Base color
     {
@@ -48,18 +89,20 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "GBuffer_BaseColor_%d", i);
 
-            data.BaseColor[i] = ZetaMove(GpuMemory::GetTexture2D(name,
+            data.BaseColor[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::BASE_COLOR],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
-            Direct3DUtil::CreateTexture2DUAV(data.BaseColor[i], data.UavDescTable[i].CPUHandle(GBufferData::GBUFFER::BASE_COLOR));
+            Direct3DUtil::CreateTexture2DUAV(data.BaseColor[i], data.UavDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::BASE_COLOR));
             // SRV
-            Direct3DUtil::CreateTexture2DSRV(data.BaseColor[i], data.SrvDescTable[i].CPUHandle(GBufferData::GBUFFER::BASE_COLOR));
+            Direct3DUtil::CreateTexture2DSRV(data.BaseColor[i], data.SrvDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::BASE_COLOR));
         }
     }
 
@@ -69,18 +112,20 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "GBuffer_Normal_%d", i);
 
-            data.Normal[i] = ZetaMove(GpuMemory::GetTexture2D(name, 
+            data.Normal[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::NORMAL],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
-            Direct3DUtil::CreateTexture2DUAV(data.Normal[i], data.UavDescTable[i].CPUHandle(GBufferData::GBUFFER::NORMAL));
+            Direct3DUtil::CreateTexture2DUAV(data.Normal[i], data.UavDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::NORMAL));
             // SRV
-            Direct3DUtil::CreateTexture2DSRV(data.Normal[i], data.SrvDescTable[i].CPUHandle(GBufferData::GBUFFER::NORMAL));
+            Direct3DUtil::CreateTexture2DSRV(data.Normal[i], data.SrvDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::NORMAL));
         }
     }
 
@@ -90,13 +135,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "GBuffer_MR_%d", i);
 
-            data.MetallicRoughness[i] = ZetaMove(GpuMemory::GetTexture2D(name, 
+            data.MetallicRoughness[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::METALLIC_ROUGHNESS],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
             Direct3DUtil::CreateTexture2DUAV(data.MetallicRoughness[i], data.UavDescTable[i].CPUHandle(
@@ -109,42 +154,46 @@ void GBuffer::CreateGBuffers(GBufferData& data)
 
     // Motion vector
     {
-        data.MotionVec = ZetaMove(GpuMemory::GetTexture2D("GBuffer_MV", 
+        data.MotionVec = ZetaMove(GpuMemory::GetPlacedTexture2D("GBuffer_MV",
             width, height,
             GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::MOTION_VECTOR],
+            data.ResHeap.Heap(),
+            allocs[currRes++].Offset,
             D3D12_RESOURCE_STATE_COMMON,
-            texFlags,
-            1,
-            clearValuePtr));
+            texFlags));
 
         //UAV
-        Direct3DUtil::CreateTexture2DUAV(data.MotionVec, data.UavDescTable[0].CPUHandle(GBufferData::GBUFFER::MOTION_VECTOR));
-        Direct3DUtil::CreateTexture2DUAV(data.MotionVec, data.UavDescTable[1].CPUHandle(GBufferData::GBUFFER::MOTION_VECTOR));
+        Direct3DUtil::CreateTexture2DUAV(data.MotionVec, data.UavDescTable[0].CPUHandle(
+            GBufferData::GBUFFER::MOTION_VECTOR));
+        Direct3DUtil::CreateTexture2DUAV(data.MotionVec, data.UavDescTable[1].CPUHandle(
+            GBufferData::GBUFFER::MOTION_VECTOR));
         // SRV
-        Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SrvDescTable[0].CPUHandle(GBufferData::GBUFFER::MOTION_VECTOR));
-        Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::MOTION_VECTOR));
+        Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SrvDescTable[0].CPUHandle(
+            GBufferData::GBUFFER::MOTION_VECTOR));
+        Direct3DUtil::CreateTexture2DSRV(data.MotionVec, data.SrvDescTable[1].CPUHandle(
+            GBufferData::GBUFFER::MOTION_VECTOR));
     }
 
     // Emissive color
     {
-        const auto format = App::GetRenderer().IsRGBESupported() ?
-            DXGI_FORMAT_R9G9B9E5_SHAREDEXP :
-            DXGI_FORMAT_R11G11B10_FLOAT;
-
-        data.EmissiveColor = ZetaMove(GpuMemory::GetTexture2D("GBuffer_Emissive", 
+        data.EmissiveColor = ZetaMove(GpuMemory::GetPlacedTexture2D("GBuffer_Emissive",
             width, height,
-            format,
+            emissiveColFormat,
+            data.ResHeap.Heap(),
+            allocs[currRes++].Offset,
             D3D12_RESOURCE_STATE_COMMON,
-            texFlags,
-            1,
-            clearValuePtr));
+            texFlags));
 
         //UAV
-        Direct3DUtil::CreateTexture2DUAV(data.EmissiveColor, data.UavDescTable[0].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
-        Direct3DUtil::CreateTexture2DUAV(data.EmissiveColor, data.UavDescTable[1].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
+        Direct3DUtil::CreateTexture2DUAV(data.EmissiveColor, data.UavDescTable[0].CPUHandle(
+            GBufferData::GBUFFER::EMISSIVE_COLOR));
+        Direct3DUtil::CreateTexture2DUAV(data.EmissiveColor, data.UavDescTable[1].CPUHandle(
+            GBufferData::GBUFFER::EMISSIVE_COLOR));
         // SRV
-        Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[0].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
-        Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[1].CPUHandle(GBufferData::GBUFFER::EMISSIVE_COLOR));
+        Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[0].CPUHandle(
+            GBufferData::GBUFFER::EMISSIVE_COLOR));
+        Direct3DUtil::CreateTexture2DSRV(data.EmissiveColor, data.SrvDescTable[1].CPUHandle(
+            GBufferData::GBUFFER::EMISSIVE_COLOR));
     }
 
     // IOR
@@ -153,13 +202,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "GBuffer_IOR_%d", i);
 
-            data.IORBuffer[i] = ZetaMove(GpuMemory::GetTexture2D(name,
+            data.IORBuffer[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::IOR],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
             Direct3DUtil::CreateTexture2DUAV(data.IORBuffer[i], data.UavDescTable[i].CPUHandle(
@@ -167,7 +216,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
             // SRV
             Direct3DUtil::CreateTexture2DSRV(data.IORBuffer[i], data.SrvDescTable[i].CPUHandle(
                 GBufferData::GBUFFER::IOR));
-        }    
+        }
     }
 
     // Coat
@@ -176,13 +225,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "GBuffer_Coat_%d", i);
 
-            data.CoatBuffer[i] = ZetaMove(GpuMemory::GetTexture2D(name,
+            data.CoatBuffer[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::COAT],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
             Direct3DUtil::CreateTexture2DUAV(data.CoatBuffer[i], data.UavDescTable[i].CPUHandle(
@@ -199,13 +248,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(nameA, nA, "TriDiffGeoA_%d", i);
 
-            data.TriDiffGeo_A[i] = ZetaMove(GpuMemory::GetTexture2D(nameA,
+            data.TriDiffGeo_A[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(nameA,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_A],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
             Direct3DUtil::CreateTexture2DUAV(data.TriDiffGeo_A[i],
@@ -219,13 +268,13 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(nameA, nA, "TriDiffGeoB_%d", i);
 
-            data.TriDiffGeo_B[i] = ZetaMove(GpuMemory::GetTexture2D(nameA,
+            data.TriDiffGeo_B[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(nameA,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::TRI_DIFF_GEO_B],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 D3D12_RESOURCE_STATE_COMMON,
-                texFlags,
-                1,
-                clearValuePtr));
+                texFlags));
 
             // UAV
             Direct3DUtil::CreateTexture2DUAV(data.TriDiffGeo_B[i],
@@ -242,18 +291,20 @@ void GBuffer::CreateGBuffers(GBufferData& data)
         {
             StackStr(name, n, "Depth_%d", i);
 
-            data.Depth[i] = ZetaMove(GpuMemory::GetTexture2D(name, 
+            data.Depth[i] = ZetaMove(GpuMemory::GetPlacedTexture2D(name,
                 width, height,
                 GBufferData::GBUFFER_FORMAT[GBufferData::GBUFFER::DEPTH],
+                data.ResHeap.Heap(),
+                allocs[currRes++].Offset,
                 depthInitState,
-                texFlagsDepth,
-                1,
-                clearValuePtrDepth));
+                texFlagsDepth));
 
             // UAV
-            Direct3DUtil::CreateTexture2DUAV(data.Depth[i], data.UavDescTable[i].CPUHandle(GBufferData::GBUFFER::DEPTH));
+            Direct3DUtil::CreateTexture2DUAV(data.Depth[i], data.UavDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::DEPTH));
             // SRV
-            Direct3DUtil::CreateTexture2DSRV(data.Depth[i], data.SrvDescTable[i].CPUHandle(GBufferData::GBUFFER::DEPTH), 
+            Direct3DUtil::CreateTexture2DSRV(data.Depth[i], data.SrvDescTable[i].CPUHandle(
+                GBufferData::GBUFFER::DEPTH),
                 DXGI_FORMAT_R32_FLOAT);
         }
     }
@@ -301,7 +352,7 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
     renderGraph.RegisterResource(data.EmissiveColor.Resource(), data.EmissiveColor.ID());
 }
 
-void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
+void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData,
     RenderGraph& renderGraph)
 {
     const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
