@@ -51,7 +51,7 @@ namespace ZetaRay::RenderPass
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
             Assert(i == SHADER_OUT_RES::DENOISED, "Invalid shader output.");
-            return m_denoised;
+            return m_final;
         }
         void Render(Core::CommandList& cmdList);
 
@@ -119,6 +119,8 @@ namespace ZetaRay::RenderPass
 
         struct Reservoir
         {
+            static constexpr int NUM = 2;
+
             // Texture2D<uint4>: ((Li.g << 16 | Li.r), (M << 16 | Li.b), (bary.y << 16 | bary.x), W)
             Core::GpuMemory::Texture ReservoirA;
             // Texture2D<uint>: (lightIdx)
@@ -152,10 +154,11 @@ namespace ZetaRay::RenderPass
 
         Core::DescriptorTable m_descTable;
         Reservoir m_temporalReservoir[2];
+        Core::GpuMemory::ResourceHeap m_resHeap;
         Core::GpuMemory::Texture m_colorA;
         Core::GpuMemory::Texture m_colorB;
         DenoiserCache m_dnsrCache[2];
-        Core::GpuMemory::Texture m_denoised;
+        Core::GpuMemory::Texture m_final;
 
         int m_currTemporalIdx = 0;
         bool m_isTemporalReservoirValid = false;

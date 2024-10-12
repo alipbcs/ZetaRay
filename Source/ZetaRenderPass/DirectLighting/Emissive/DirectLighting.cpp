@@ -102,11 +102,11 @@ void DirectLighting::Init()
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
     m_cbSpatioTemporal.StochasticSpatial = true;
     m_cbSpatioTemporal.ExtraSamplesDisocclusion = true;
-    m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
-    m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
-    m_cbSpatioTemporal.Denoise = m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
-    m_cbDnsrSpatial.FilterDiffuse = true;
-    m_cbDnsrSpatial.FilterSpecular = true;
+    //m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
+    //m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
+    //m_cbSpatioTemporal.Denoise = m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
+    //m_cbDnsrSpatial.FilterDiffuse = true;
+    //m_cbDnsrSpatial.FilterSpecular = true;
 
     ParamVariant doTemporal;
     doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
@@ -124,11 +124,11 @@ void DirectLighting::Init()
         m_cbSpatioTemporal.M_max, 1, 30, 1);
     App::AddParam(maxTemporalM);
 
-    ParamVariant denoise;
-    denoise.InitBool("Renderer", "Direct Lighting", "Denoise",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DenoiseCallback), 
-        m_cbDnsrTemporal.Denoise, "Denoise");
-    App::AddParam(denoise);
+    //ParamVariant denoise;
+    //denoise.InitBool("Renderer", "Direct Lighting", "Denoise",
+    //    fastdelegate::MakeDelegate(this, &DirectLighting::DenoiseCallback), 
+    //    m_cbDnsrTemporal.Denoise, "Denoise");
+    //App::AddParam(denoise);
 
     ParamVariant extraDissocclusion;
     extraDissocclusion.InitBool("Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
@@ -142,29 +142,29 @@ void DirectLighting::Init()
         m_cbSpatioTemporal.StochasticSpatial);
     App::AddParam(stochasticSpatial);
 
-    ParamVariant tsppDiffuse;
-    tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::TsppDiffuseCallback),
-        m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1, "Denoise");
-    App::AddParam(tsppDiffuse);
+    //ParamVariant tsppDiffuse;
+    //tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
+    //    fastdelegate::MakeDelegate(this, &DirectLighting::TsppDiffuseCallback),
+    //    m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1, "Denoise");
+    //App::AddParam(tsppDiffuse);
 
-    ParamVariant tsppSpecular;
-    tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::TsppSpecularCallback),
-        m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1, "Denoise");
-    App::AddParam(tsppSpecular);
+    //ParamVariant tsppSpecular;
+    //tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
+    //    fastdelegate::MakeDelegate(this, &DirectLighting::TsppSpecularCallback),
+    //    m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1, "Denoise");
+    //App::AddParam(tsppSpecular);
 
-    ParamVariant dnsrSpatialFilterDiffuse;
-    dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), 
-        m_cbDnsrSpatial.FilterDiffuse, "Denoise");
-    App::AddParam(dnsrSpatialFilterDiffuse);
+    //ParamVariant dnsrSpatialFilterDiffuse;
+    //dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
+    //    fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), 
+    //    m_cbDnsrSpatial.FilterDiffuse, "Denoise");
+    //App::AddParam(dnsrSpatialFilterDiffuse);
 
-    ParamVariant dnsrSpatialFilterSpecular;
-    dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Specular)",
-        fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterSpecularCallback), 
-        m_cbDnsrSpatial.FilterSpecular, "Denoise");
-    App::AddParam(dnsrSpatialFilterSpecular);
+    //ParamVariant dnsrSpatialFilterSpecular;
+    //dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Specular)",
+    //    fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterSpecularCallback), 
+    //    m_cbDnsrSpatial.FilterSpecular, "Denoise");
+    //App::AddParam(dnsrSpatialFilterSpecular);
 
     App::AddShaderReloadHandler("ReSTIR_DI", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
     //App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
@@ -359,55 +359,110 @@ void DirectLighting::Render(CommandList& cmdList)
 void DirectLighting::CreateOutputs()
 {
     auto& renderer = App::GetRenderer();
+    const auto w = renderer.GetRenderWidth();
+    const auto h = renderer.GetRenderHeight();
 
-    auto func = [&renderer, this](Texture& tex, DXGI_FORMAT format, const char* name,
-        DESC_TABLE srv, DESC_TABLE uav)
-    {
-        tex = GpuMemory::GetTexture2D(name,
-            renderer.GetRenderWidth(), renderer.GetRenderHeight(),
-            format,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    auto func = [this, w, h](Texture& tex, DXGI_FORMAT format, const char* name,
+        const D3D12_RESOURCE_ALLOCATION_INFO1& allocInfo,
+        DESC_TABLE srv, DESC_TABLE uav, D3D12_BARRIER_LAYOUT layout)
+        {
+            tex = GpuMemory::GetPlacedTexture2D(name, w, h, format,
+                m_resHeap.Heap(), allocInfo.Offset, layout,
+                TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
             Direct3DUtil::CreateTexture2DSRV(tex, m_descTable.CPUHandle((int)srv));
             Direct3DUtil::CreateTexture2DUAV(tex, m_descTable.CPUHandle((int)uav));
         };
 
+    //constexpr int N = 2 * Reservoir::NUM + 2 + 4 + 1;
+    constexpr int N = 2 * Reservoir::NUM + 1;
+    PlacedResourceList<N> list;
+
+    // reservoirs
+    for (int i = 0; i < 2; i++)
+    {
+        list.PushTex2D(ResourceFormats::RESERVOIR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+        list.PushTex2D(ResourceFormats::RESERVOIR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    }
+    
+    // denoiser
+    //list.PushTex2D(ResourceFormats::COLOR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    //list.PushTex2D(ResourceFormats::COLOR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+
+    //for (int i = 0; i < 2; i++)
+    //{
+    //    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    //    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    //}
+
+    // final
+    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+
+    list.End();
+
+    m_resHeap = GpuMemory::GetResourceHeap(list.Size());
+    auto allocs = list.AllocInfos();
+    int currRes = 0;
+
     // reservoirs
     {
-        func(m_temporalReservoir[0].ReservoirA, ResourceFormats::RESERVOIR_A, "RDI_Reservoir_0_A",
-            DESC_TABLE::RESERVOIR_0_A_SRV, DESC_TABLE::RESERVOIR_0_A_UAV);
-        func(m_temporalReservoir[0].ReservoirB, ResourceFormats::RESERVOIR_B, "RDI_Reservoir_0_B",
-            DESC_TABLE::RESERVOIR_0_B_SRV, DESC_TABLE::RESERVOIR_0_B_UAV);
-        func(m_temporalReservoir[1].ReservoirA, ResourceFormats::RESERVOIR_A, "RDI_Reservoir_1_A",
-            DESC_TABLE::RESERVOIR_1_A_SRV, DESC_TABLE::RESERVOIR_1_A_UAV);
-        func(m_temporalReservoir[1].ReservoirB, ResourceFormats::RESERVOIR_B, "RDI_Reservoir_1_B",
-            DESC_TABLE::RESERVOIR_1_B_SRV, DESC_TABLE::RESERVOIR_1_B_UAV);
+        constexpr D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+
+        func(m_temporalReservoir[0].ReservoirA, ResourceFormats::RESERVOIR_A,
+            "RDI_Reservoir_0_A", allocs[currRes++],
+            DESC_TABLE::RESERVOIR_0_A_SRV, DESC_TABLE::RESERVOIR_0_A_UAV,
+            layout);
+        func(m_temporalReservoir[0].ReservoirB, ResourceFormats::RESERVOIR_B,
+            "RDI_Reservoir_0_B", allocs[currRes++],
+            DESC_TABLE::RESERVOIR_0_B_SRV, DESC_TABLE::RESERVOIR_0_B_UAV,
+            layout);
+        func(m_temporalReservoir[1].ReservoirA, ResourceFormats::RESERVOIR_A,
+            "RDI_Reservoir_1_A", allocs[currRes++],
+            DESC_TABLE::RESERVOIR_1_A_SRV, DESC_TABLE::RESERVOIR_1_A_UAV,
+            layout);
+        func(m_temporalReservoir[1].ReservoirB, ResourceFormats::RESERVOIR_B,
+            "RDI_Reservoir_1_B", allocs[currRes++],
+            DESC_TABLE::RESERVOIR_1_B_SRV, DESC_TABLE::RESERVOIR_1_B_UAV,
+            layout);
     }
 
     {
-        func(m_colorA, ResourceFormats::COLOR_A, "RDI_COLOR_A", DESC_TABLE::COLOR_A_SRV, DESC_TABLE::COLOR_A_UAV);
-        func(m_colorB, ResourceFormats::COLOR_B, "RDI_COLOR_B", DESC_TABLE::COLOR_B_SRV, DESC_TABLE::COLOR_B_UAV);
+        //constexpr D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+
+        //func(m_colorA, ResourceFormats::COLOR_A, "RDI_COLOR_A", allocs[currRes++], 
+        //    DESC_TABLE::COLOR_A_SRV, DESC_TABLE::COLOR_A_UAV, layout);
+        //func(m_colorB, ResourceFormats::COLOR_B, "RDI_COLOR_B", allocs[currRes++], 
+        //    DESC_TABLE::COLOR_B_SRV, DESC_TABLE::COLOR_B_UAV, layout);
     }
 
     // denoiser
     {
-        func(m_dnsrCache[0].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, "ReSTIR_DI_DNSR_Diffuse_0",
-            DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV);
-        func(m_dnsrCache[1].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, "ReSTIR_DI_DNSR_Diffuse_1",
-            DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV);
-        func(m_dnsrCache[0].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, "ReSTIR_DI_DNSR_Specular_0",
-            DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV);
-        func(m_dnsrCache[1].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, "ReSTIR_DI_DNSR_Specular_1",
-            DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV);
+        //constexpr D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
 
-        m_denoised = GpuMemory::GetTexture2D("ReSTIR_DI_Denoised",
-            renderer.GetRenderWidth(), renderer.GetRenderHeight(),
+        //func(m_dnsrCache[0].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, 
+        //    "RDI_DNSR_Diffuse_0", allocs[currRes++], 
+        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
+        //    layout);
+        //func(m_dnsrCache[1].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, 
+        //    "RDI_DNSR_Diffuse_1", allocs[currRes++],
+        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV,
+        //    layout);
+        //func(m_dnsrCache[0].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, 
+        //    "RDI_DNSR_Specular_0", allocs[currRes++],
+        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV,
+        //    layout);
+        //func(m_dnsrCache[1].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, 
+        //    "RDI_DNSR_Specular_1", allocs[currRes++],
+        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV,
+        //    layout);
+
+        m_final = GpuMemory::GetPlacedTexture2D("RDI_Final", w, h,
             ResourceFormats::DNSR_TEMPORAL_CACHE,
+            m_resHeap.Heap(), allocs[currRes++].Offset,
             D3D12_RESOURCE_STATE_COMMON,
             TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-        Direct3DUtil::CreateTexture2DUAV(m_denoised, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
+        Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
     }
 }
 
@@ -477,14 +532,14 @@ void DirectLighting::ReloadSpatioTemporal()
         "DirectLighting\\Emissive\\ReSTIR_DI_Emissive.hlsl");
 }
 
-void DirectLighting::ReloadDnsrTemporal()
-{
-    const int i = (int)SHADER::DNSR_TEMPORAL;
-    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl");
-}
-
-void DirectLighting::ReloadDnsrSpatial()
-{
-    const int i = (int)SHADER::DNSR_SPATIAL;
-    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl");
-}
+//void DirectLighting::ReloadDnsrTemporal()
+//{
+//    const int i = (int)SHADER::DNSR_TEMPORAL;
+//    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl");
+//}
+//
+//void DirectLighting::ReloadDnsrSpatial()
+//{
+//    const int i = (int)SHADER::DNSR_SPATIAL;
+//    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl");
+//}
