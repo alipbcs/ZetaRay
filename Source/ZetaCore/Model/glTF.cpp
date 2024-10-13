@@ -117,7 +117,8 @@ namespace
         const int numTotalBytes = (int)subsets.size() * sizeof(EmissiveMeshPrim);
         const int numSimdBytes = numTotalBytes >> 5;
         const int numRemainingBytes = numTotalBytes & 31;
-        int numToSetManually = numRemainingBytes > 0 ? Math::CeilUnsignedIntDiv(numRemainingBytes, (int)sizeof(EmissiveMeshPrim)) : 0;
+        int numToSetManually = numRemainingBytes > 0 ? Math::CeilUnsignedIntDiv(numRemainingBytes, 
+            (int)sizeof(EmissiveMeshPrim)) : 0;
 
         uintptr_t ptr = reinterpret_cast<uintptr_t>(subsets.data());
         __m256i vVal = _mm256_set1_epi64x(Scene::INVALID_MESH);
@@ -143,7 +144,8 @@ namespace
         Check(accessor.stride == sizeof(float3), "Invalid stride for POSITION attribute.");
 
         const cgltf_buffer& buffer = *bufferView.buffer;
-        const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
+        const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(
+            buffer.data) + bufferView.offset + accessor.offset);
 
         for (size_t i = 0; i < accessor.count; i++)
         {
@@ -165,7 +167,8 @@ namespace
         Check(accessor.stride == sizeof(float3), "Invalid stride for NORMAL attribute.");
 
         const cgltf_buffer& buffer = *bufferView.buffer;
-        const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
+        const float3* start = reinterpret_cast<float3*>(reinterpret_cast<uintptr_t>(
+            buffer.data) + bufferView.offset + accessor.offset);
 
         for (size_t i = 0; i < accessor.count; i++)
         {
@@ -187,7 +190,8 @@ namespace
         Check(accessor.stride == sizeof(float2), "Invalid stride for TEXCOORD_0 attribute.");
 
         const cgltf_buffer& buffer = *bufferView.buffer;
-        const float2* start = reinterpret_cast<float2*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
+        const float2* start = reinterpret_cast<float2*>(reinterpret_cast<uintptr_t>(
+            buffer.data) + bufferView.offset + accessor.offset);
 
         for (size_t i = 0; i < accessor.count; i++)
         {
@@ -206,7 +210,8 @@ namespace
         const cgltf_buffer_view& bufferView = *accessor.buffer_view;
 
         const cgltf_buffer& buffer = *bufferView.buffer;
-        const float4* start = reinterpret_cast<float4*>(reinterpret_cast<uintptr_t>(buffer.data) + bufferView.offset + accessor.offset);
+        const float4* start = reinterpret_cast<float4*>(reinterpret_cast<uintptr_t>(
+            buffer.data) + bufferView.offset + accessor.offset);
 
         for (size_t i = 0; i < accessor.count; i++)
         {
@@ -481,7 +486,7 @@ namespace
         for (int m = offset; m != offset + size; m++)
         {
             const auto& mat = model.materials[m];
-            Check(mat.has_pbr_metallic_roughness, "material is not supported.");
+            Check(mat.has_pbr_metallic_roughness, "Material is not supported.");
 
             glTF::Asset::MaterialDesc desc;
             desc.ID = Scene::MaterialID(sceneID, m);
@@ -527,7 +532,8 @@ namespace
                 const cgltf_texture_view& metallicRoughnessView = mat.pbr_metallic_roughness.metallic_roughness_texture;
                 if (metallicRoughnessView.texture)
                 {
-                    Check(metallicRoughnessView.texture->image, "textureView doesn't point to any image.");
+                    Check(metallicRoughnessView.texture->image, 
+                        "textureView doesn't point to any image.");
 
                     Filesystem::Path p(modelDir.GetView());
                     p.Append(metallicRoughnessView.texture->image->uri);
@@ -809,12 +815,12 @@ namespace
 
         // Workaround for nodes without a name
         const int nodeIdx = (int)(&node - model.nodes);
-        Assert(nodeIdx < model.nodes_count, "invalid node index.");
+        Assert(nodeIdx < model.nodes_count, "Invalid node index.");
 
         if (node.mesh)
         {
             const int meshIdx = (int)(node.mesh - model.meshes);
-            Assert(meshIdx < model.meshes_count, "invalid mesh index.");
+            Assert(meshIdx < model.meshes_count, "Invalid mesh index.");
 
             // A separate instance for each primitive
             for (int primIdx = 0; primIdx < node.mesh->primitives_count; primIdx++)
@@ -962,13 +968,13 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     //Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
     // Load buffers
-    Check(model->buffers_count == 1, "invalid number of buffers");
+    Check(model->buffers_count == 1, "Invalid number of buffers");
     Filesystem::Path bufferPath(pathToglTF.GetView());
     bufferPath.Directory();
     bufferPath.Append(model->buffers[0].uri);
     Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
-    Check(model->scene, "no scene found in glTF file: %s.", pathToglTF.GetView());
+    Check(model->scene, "No scene found in glTF file: %s.", pathToglTF.GetView());
     const uint32_t sceneID = XXH3_64_To_32(XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length()));
     SceneCore& scene = App::GetScene();
 

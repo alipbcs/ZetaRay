@@ -151,16 +151,20 @@ RootSignature::RootSignature(int nCBV, int nSRV, int nUAV, int nGlobs, int nCons
     m_numGlobals(nGlobs),
     m_numRootConstants(nConsts)
 {
-    Assert((nCBV + nSRV + nUAV) * 2 + nConsts <= 64, "A maximum of 64 DWORDS can be present at root signature.");
-    Assert(nCBV + nSRV + nUAV + (nConsts > 0 ? 1 : 0) <= MAX_NUM_PARAMS, "Number of root parameters can't exceed MAX_NUM_PARAMS");
-    Assert(nConsts <= MAX_NUM_ROOT_CONSTANTS, "Number of root constants can't exceed MAX_NUM_ROOT_CONSTANTS");
+    Assert((nCBV + nSRV + nUAV) * 2 + nConsts <= 64, 
+        "A maximum of 64 DWORDS can be present at root signature.");
+    Assert(nCBV + nSRV + nUAV + (nConsts > 0 ? 1 : 0) <= MAX_NUM_PARAMS, 
+        "Number of root parameters can't exceed MAX_NUM_PARAMS.");
+    Assert(nConsts <= MAX_NUM_ROOT_CONSTANTS, 
+        "Number of root constants can't exceed MAX_NUM_ROOT_CONSTANTS.");
 }
 
 void RootSignature::InitAsConstants(uint32_t rootIdx, uint32_t numDwords, uint32_t registerNum,
     uint32_t registerSpace, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert(m_numRootConstants == numDwords, "Given number of root constants doesn't match m_numRootConstants");
+    Assert(m_numRootConstants == numDwords, 
+        "Given number of root constants doesn't match m_numRootConstants.");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_32BIT_CONSTANTS;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -173,10 +177,10 @@ void RootSignature::InitAsCBV(uint32_t rootIdx, uint32_t registerNum, uint32_t r
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as CBV.");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as SRV.");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as UAV.");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as Global.");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_CBV;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -200,10 +204,10 @@ void RootSignature::InitAsBufferSRV(uint32_t rootIdx, uint32_t registerNum, uint
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as CBV.");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as SRV.");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as UAV.");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as Global.");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_SRV;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -227,10 +231,10 @@ void RootSignature::InitAsBufferUAV(uint32_t rootIdx, uint32_t registerNum, uint
     D3D12_ROOT_DESCRIPTOR_FLAGS flags, const char* id, bool isOptional, D3D12_SHADER_VISIBILITY visibility)
 {
     Assert(rootIdx < m_numParams, "Root index %d is out of bounds.", rootIdx);
-    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as CBV");
-    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as SRV");
-    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "root parameter was already set as UAV");
-    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "root parameter was already set as Global");
+    Assert((m_rootCBVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as CBV.");
+    Assert((m_rootSRVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as SRV.");
+    Assert((m_rootUAVBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as UAV.");
+    Assert((m_globalsBitMap & (1 << rootIdx)) == 0, "Root parameter was already set as Global.");
 
     m_params[rootIdx].ParameterType = D3D12_ROOT_PARAMETER_TYPE_UAV;
     m_params[rootIdx].ShaderVisibility = visibility;
@@ -262,11 +266,13 @@ void RootSignature::Finalize(const char* name, ComPtr<ID3D12RootSignature>& root
     rootSigDesc.Desc_1_1.Flags = flags;
 
     ComPtr<ID3DBlob> pOutBlob, pErrorBlob;
-    HRESULT hr = D3D12SerializeVersionedRootSignature(&rootSigDesc, pOutBlob.GetAddressOf(), pErrorBlob.GetAddressOf());
+    HRESULT hr = D3D12SerializeVersionedRootSignature(&rootSigDesc, pOutBlob.GetAddressOf(), 
+        pErrorBlob.GetAddressOf());
 
     if (FAILED(hr))
     {
-        const char* error = pErrorBlob ? (const char* )pErrorBlob->GetBufferPointer() : "Unknown error.";
+        const char* error = pErrorBlob ? (const char* )pErrorBlob->GetBufferPointer() : 
+            "Unknown error.";
         Check(false, "D3D12SerializeVersionedRootSignature() failed: %s", error);
     }
 
@@ -300,7 +306,7 @@ void RootSignature::Begin()
 
 void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, const void* data)
 {
-    Assert(offset + num <= m_numRootConstants, "out-of-bound write.");
+    Assert(offset + num <= m_numRootConstants, "Out-of-bound write.");
     memcpy(&m_rootConstants[offset], data, sizeof(uint32_t) * num);
 
     m_modifiedBitMap |= (1 << m_rootConstantsIdx);
@@ -308,8 +314,10 @@ void RootSignature::SetRootConstants(uint32_t offset, uint32_t num, const void* 
 
 void RootSignature::SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
-    Assert((1 << rootIdx) & m_rootCBVBitMap, "root parameter %u was not set as root CBV", rootIdx);
-    Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
+    Assert((1 << rootIdx) & m_rootCBVBitMap, "Root parameter %u was not set as root CBV.", 
+        rootIdx);
+    Assert(!((1 << rootIdx) & m_globalsBitMap), "Root parameter %u was set as global.", 
+        rootIdx);
 
     m_rootDescriptors[rootIdx] = va;
     m_modifiedBitMap |= (1 << rootIdx);
@@ -317,8 +325,10 @@ void RootSignature::SetRootCBV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 
 void RootSignature::SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
-    Assert((1 << rootIdx) & m_rootSRVBitMap, "root parameter %u was not set as root SRV", rootIdx);
-    Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
+    Assert((1 << rootIdx) & m_rootSRVBitMap, "Root parameter %u was not set as root SRV.", 
+        rootIdx);
+    Assert(!((1 << rootIdx) & m_globalsBitMap), "Root parameter %u was set as global.", 
+        rootIdx);
 
     m_rootDescriptors[rootIdx] = va;
     m_modifiedBitMap |= (1 << rootIdx);
@@ -326,8 +336,10 @@ void RootSignature::SetRootSRV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 
 void RootSignature::SetRootUAV(uint32_t rootIdx, D3D12_GPU_VIRTUAL_ADDRESS va)
 {
-    Assert((1 << rootIdx) & m_rootUAVBitMap, "root parameter %u was not set as root UAV", rootIdx);
-    Assert(!((1 << rootIdx) & m_globalsBitMap), "root parameter %u was set as global.", rootIdx);
+    Assert((1 << rootIdx) & m_rootUAVBitMap, "Root parameter %u was not set as root UAV.", 
+        rootIdx);
+    Assert(!((1 << rootIdx) & m_globalsBitMap), "Root parameter %u was set as global.", 
+        rootIdx);
 
     m_rootDescriptors[rootIdx] = va;
     m_modifiedBitMap |= (1 << rootIdx);

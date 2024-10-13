@@ -33,7 +33,7 @@ namespace ZetaRay::Support
 
         ZetaInline MemoryBlock& GetAndInitIfEmpty(int i)
         {
-            Assert(i >= 0 && i < NUM_BLOCKS, "invalid block index.");
+            Assert(i >= 0 && i < NUM_BLOCKS, "Invalid block index.");
 
             if (!m_blocks[i].Start)
             {

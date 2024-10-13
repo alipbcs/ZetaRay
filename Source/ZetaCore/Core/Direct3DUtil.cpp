@@ -1050,7 +1050,8 @@ LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
     if (res != LOAD_DDS_RESULT::SUCCESS)
         return res;
 
-    FillSubresourceData(header, subresources, bitData, bitSize, width, height, depth, mipCount, format);
+    FillSubresourceData(header, subresources, bitData, bitSize, width, height, 
+        depth, mipCount, format);
 
     return LOAD_DDS_RESULT::SUCCESS;
 }

@@ -44,15 +44,19 @@ namespace
         }
 
         // Works by:
-        // 1. Allocates an intermediate upload heap buffer whose size is calculated by GetCopyableFootprints
+        // 1. Allocates an intermediate upload heap buffer whose size is calculated by 
+        //    GetCopyableFootprints()
         // 2. Maps the intermediate buffer
-        // 3. Copies all the subresources to the upload heap buffer
-        // 4. Records a CopyTextureRegion call to default heap texture for each subresource on the command list
-        void UploadTexture(UploadHeapArena& arena, ID3D12Resource* texture, Span<D3D12_SUBRESOURCE_DATA> subResData,
-            int firstSubresourceIndex = 0, D3D12_RESOURCE_STATES postCopyState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
+        // 3. Copies all subresources to upload heap buffer
+        // 4. Records a CopyTextureRegion call to default heap texture for each subresource on 
+        //    the command list
+        void UploadTexture(UploadHeapArena& arena, ID3D12Resource* texture, 
+            Span<D3D12_SUBRESOURCE_DATA> subResData,
+            int firstSubresourceIndex = 0, 
+            D3D12_RESOURCE_STATES postCopyState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
         {
-            Assert(m_inBeginEndBlock, "not in begin-end block.");
-            Assert(texture, "texture was NULL");
+            Assert(m_inBeginEndBlock, "Not in begin-end block.");
+            Assert(texture, "Texture was NULL.");
 
             if (!m_directCmdList)
             {
@@ -63,41 +67,46 @@ namespace
             }
 
             constexpr int MAX_NUM_SUBRESOURCES = 13;
-            Assert(MAX_NUM_SUBRESOURCES >= subResData.size(), "MAX_NUM_SUBRESOURCES is too small.");
+            Assert(MAX_NUM_SUBRESOURCES >= subResData.size(), 
+                "MAX_NUM_SUBRESOURCES is too small.");
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout[MAX_NUM_SUBRESOURCES];
             UINT subresNumRows[MAX_NUM_SUBRESOURCES];
             UINT64 subresRowSize[MAX_NUM_SUBRESOURCES];
 
             const auto destDesc = texture->GetDesc();
-            Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "this function is for uploading textures.");
+            Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, 
+                "This function is for uploading textures.");
 
-            // Required size of an intermediate buffer that is to be used to initialize this resource
+            // Required size of an intermediate buffer that is to be used to initialize 
+            // this resource
             UINT64 totalSize;
             auto* device = App::GetRenderer().GetDevice();
-            device->GetCopyableFootprints(&destDesc,            // resource description
-                firstSubresourceIndex,                          // index of the first subresource
-                (uint32_t)subResData.size(),                    // number of subresources
-                0,                                              // offset to the resource
-                subresLayout,                                   // description and placement of each subresource
-                subresNumRows,                                  // number of rows for each subresource
-                subresRowSize,                                  // unpadded size of a row of each subresource
-                &totalSize);                                    // total size
+            device->GetCopyableFootprints(&destDesc,   // resource description
+                firstSubresourceIndex,                 // index of the first subresource
+                (uint32_t)subResData.size(),           // number of subresources
+                0,                                     // offset to the resource
+                subresLayout,                          // description and placement of each subresource
+                subresNumRows,                         // number of rows for each subresource
+                subresRowSize,                         // unpadded size of a row of each subresource
+                &totalSize);
 
             const auto uploadBuffer = arena.SubAllocate((uint32_t)totalSize);
 
-            CopyTextureFromUploadBuffer(uploadBuffer.Res, uploadBuffer.Mapped, uploadBuffer.Offset,
-                texture, (uint32_t)subResData.size(), firstSubresourceIndex, subResData, subresLayout,
-                subresNumRows, subresRowSize, postCopyState);
+            CopyTextureFromUploadBuffer(uploadBuffer.Res, uploadBuffer.Mapped, 
+                uploadBuffer.Offset, texture, (uint32_t)subResData.size(), 
+                firstSubresourceIndex, subResData, subresLayout, subresNumRows, 
+                subresRowSize, postCopyState);
 
             m_hasWorkThisFrame = true;
         }
 
-        void UploadTexture(ID3D12Resource* texture, Span<D3D12_SUBRESOURCE_DATA> subResData, int firstSubresourceIndex = 0,
+        void UploadTexture(ID3D12Resource* texture, Span<D3D12_SUBRESOURCE_DATA> subResData, 
+            int firstSubresourceIndex = 0,
             D3D12_RESOURCE_STATES postCopyState = D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE)
         {
-            Assert(m_inBeginEndBlock, "not in begin-end block.");
-            Assert(texture, "texture was NULL");
+            Assert(m_inBeginEndBlock, "Not in begin-end block.");
+            Assert(texture, "Texture was NULL.");
 
             if (!m_directCmdList)
             {
@@ -108,31 +117,34 @@ namespace
             }
 
             constexpr int MAX_NUM_SUBRESOURCES = 12;
-            Assert(MAX_NUM_SUBRESOURCES >= subResData.size(), "MAX_NUM_SUBRESOURCES is too small");
+            Assert(MAX_NUM_SUBRESOURCES >= subResData.size(), 
+                "MAX_NUM_SUBRESOURCES is too small.");
 
             D3D12_PLACED_SUBRESOURCE_FOOTPRINT subresLayout[MAX_NUM_SUBRESOURCES];
             UINT subresNumRows[MAX_NUM_SUBRESOURCES];
             UINT64 subresRowSize[MAX_NUM_SUBRESOURCES];
 
             const auto destDesc = texture->GetDesc();
-            Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, "This function is for uploading textures.");
+            Assert(destDesc.Dimension != D3D12_RESOURCE_DIMENSION_BUFFER, 
+                "This function is for uploading textures.");
 
             auto* device = App::GetRenderer().GetDevice();
             UINT64 totalSize;
-            device->GetCopyableFootprints(&destDesc,            // resource description
-                firstSubresourceIndex,                          // index of the first subresource
-                (uint32_t)subResData.size(),                    // number of subresources
-                0,                                              // offset to the resource
-                subresLayout,                                   // description and placement of each subresource
-                subresNumRows,                                  // number of rows for each subresource
-                subresRowSize,                                  // unpadded size of a row of each subresource
-                &totalSize);                                    // total size
+            device->GetCopyableFootprints(&destDesc,    // resource description
+                firstSubresourceIndex,                  // index of the first subresource
+                (uint32_t)subResData.size(),            // number of subresources
+                0,                                      // offset to the resource
+                subresLayout,                           // description and placement of each subresource
+                subresNumRows,                          // number of rows for each subresource
+                subresRowSize,                          // unpadded size of a row of each subresource
+                &totalSize);
 
             UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer((uint32_t)totalSize);
 
-            CopyTextureFromUploadBuffer(uploadBuffer.Resource(), uploadBuffer.MappedMemory(), uploadBuffer.Offset(),
-                texture, (uint32_t)subResData.size(), firstSubresourceIndex, subResData, subresLayout,
-                subresNumRows, subresRowSize, postCopyState);
+            CopyTextureFromUploadBuffer(uploadBuffer.Resource(), 
+                uploadBuffer.MappedMemory(), uploadBuffer.Offset(), texture, 
+                (uint32_t)subResData.size(), firstSubresourceIndex, subResData, 
+                subresLayout, subresNumRows, subresRowSize, postCopyState);
 
             // Preserve the upload buffer for as long as GPU is using it 
             m_scratchResources.push_back(ZetaMove(uploadBuffer));
@@ -140,10 +152,11 @@ namespace
             m_hasWorkThisFrame = true;
         }
 
-        void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, uint32_t destOffset = 0, bool forceSeparate = false)
+        void UploadBuffer(ID3D12Resource* buffer, void* data, uint32_t sizeInBytes, 
+            uint32_t destOffset = 0, bool forceSeparate = false)
         {
-            Assert(m_inBeginEndBlock, "not in begin-end block.");
-            Assert(buffer, "buffer was NULL");
+            Assert(m_inBeginEndBlock, "Not in begin-end block.");
+            Assert(buffer, "Buffer was NULL.");
 
             if (!m_directCmdList)
             {
@@ -153,13 +166,13 @@ namespace
 #endif
             }
 
-            // Note: GetCopyableFootprints() returns the padded size for a standalone resource, here
-            // we might be suballocating from a larger buffer.
+            // Note: GetCopyableFootprints() returns the padded size for a standalone 
+            // resource, here we might be suballocating from a larger buffer.
             UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer(sizeInBytes, 4, forceSeparate);
             uploadBuffer.Copy(0, sizeInBytes, data);
 
-            // Note: can't use CopyResource() since the UploadHeap might not have the exact same size 
-            // as the destination resource due to subresource allocations.
+            // Note: can't use CopyResource() since the UploadHeap might not have the 
+            // exact same size as the destination resource due to subresource allocations.
 
             m_directCmdList->CopyBufferRegion(buffer,
                 destOffset,
@@ -173,9 +186,10 @@ namespace
             m_hasWorkThisFrame = true;
         }
 
-        void UploadTexture(ID3D12Resource* dstResource, uint8_t* pixels, D3D12_RESOURCE_STATES postCopyState)
+        void UploadTexture(ID3D12Resource* dstResource, uint8_t* pixels, 
+            D3D12_RESOURCE_STATES postCopyState)
         {
-            Assert(m_inBeginEndBlock, "not in begin-end block.");
+            Assert(m_inBeginEndBlock, "Not in begin-end block.");
 
             if (!m_directCmdList)
             {
@@ -186,11 +200,13 @@ namespace
             }
 
             const auto desc = dstResource->GetDesc();
-            Assert(desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, "this function is for uploading 2D textures.");
+            Assert(desc.Dimension == D3D12_RESOURCE_DIMENSION_TEXTURE2D, 
+                "This function is for uploading 2D textures.");
 
             const uint32_t numBytesPerPixel = (uint32_t)Direct3DUtil::BitsPerPixel(desc.Format) >> 3;
             const UINT rowSizeInBytes = (uint32_t)desc.Width * numBytesPerPixel;
-            const UINT rowPitch = Math::AlignUp(rowSizeInBytes, (uint32_t)D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+            const UINT rowPitch = Math::AlignUp(rowSizeInBytes, 
+                (uint32_t)D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
             const UINT uploadSize = desc.Height * rowPitch;
 
             UploadHeapBuffer uploadBuffer = GpuMemory::GetUploadHeapBuffer(uploadSize);
@@ -213,12 +229,16 @@ namespace
             dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
             dstLocation.SubresourceIndex = 0;
 
-            m_directCmdList->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, nullptr);
+            m_directCmdList->CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, 
+                nullptr);
 
             if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST)
-                m_directCmdList->ResourceBarrier(dstResource, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
+            {
+                m_directCmdList->ResourceBarrier(dstResource, D3D12_RESOURCE_STATE_COPY_DEST, 
+                    postCopyState);
+            }
 
-            // preserve the upload buffer for as long as GPU is using it 
+            // Preserve the upload buffer for as long as GPU is using it 
             m_scratchResources.push_back(ZetaMove(uploadBuffer));
 
             m_hasWorkThisFrame = true;
@@ -228,7 +248,7 @@ namespace
         // No more uploads can happen after this call until Begin is called again.
         uint64_t End()
         {
-            Assert(m_inBeginEndBlock, "not in begin-end block.");
+            Assert(m_inBeginEndBlock, "Not in begin-end block.");
             uint64_t ret = 0;
 
             if (m_hasWorkThisFrame)
@@ -250,10 +270,11 @@ namespace
         }
 
     private:
-        void CopyTextureFromUploadBuffer(ID3D12Resource* uploadBuffer, void* mapped, uint32_t uploadBuffOffsetInBytes,
-            ID3D12Resource* texture, int numSubresources, int firstSubresourceIndex,
-            Span<D3D12_SUBRESOURCE_DATA> subResData, Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> subresLayout,
-            Span<UINT> subresNumRows, Span<UINT64> subresRowSize, D3D12_RESOURCE_STATES postCopyState)
+        void CopyTextureFromUploadBuffer(ID3D12Resource* uploadBuffer, void* mapped, 
+            uint32_t uploadBuffOffsetInBytes, ID3D12Resource* texture, int numSubresources, 
+            int firstSubresourceIndex, Span<D3D12_SUBRESOURCE_DATA> subResData, 
+            Span<D3D12_PLACED_SUBRESOURCE_FOOTPRINT> subresLayout, Span<UINT> subresNumRows, 
+            Span<UINT64> subresRowSize, D3D12_RESOURCE_STATES postCopyState)
         {
             // Notes:
             // 
@@ -261,8 +282,9 @@ namespace
             //   subresRowSize[i]: #bytes to copy for each row (unpadded)
             //   subresLayout[i].Footprint.RowPitch: padded size in bytes of each row
             //
-            // 2. As buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded size. Using subresRowSize[0] as
-            // the copy size could lead to access violations since size of the data pointed to by subresData is probably smaller
+            // 2. As buffers have a 64 KB alignment, GetCopyableFootprints() returns the padded 
+            //    size. Using subresRowSize[0] as the copy size could lead to access violations 
+            //    since size of the data pointed to by subresData is probably smaller.
 
             // For each subresource in destination
             for (int i = 0; i < numSubresources; i++)
@@ -273,7 +295,8 @@ namespace
                 // For each slice of that subresource
                 for (int slice = 0; slice < (int)subresLayout[i].Footprint.Depth; slice++)
                 {
-                    const uintptr_t sourceSubres = reinterpret_cast<uintptr_t>(subResData[i].pData) + subResData[i].SlicePitch * slice;
+                    const uintptr_t sourceSubres = reinterpret_cast<uintptr_t>(
+                        subResData[i].pData) + subResData[i].SlicePitch * slice;
 
                     // For each row of that subresource slice
                     for (int row = 0; row < (int)subresNumRows[i]; row++)
@@ -311,7 +334,10 @@ namespace
             }
 
             if (postCopyState != D3D12_RESOURCE_STATE_COPY_DEST)
-                m_directCmdList->ResourceBarrier(texture, D3D12_RESOURCE_STATE_COPY_DEST, postCopyState);
+            {
+                m_directCmdList->ResourceBarrier(texture, D3D12_RESOURCE_STATE_COPY_DEST, 
+                    postCopyState);
+            }
         }
 
         // Scratch resources need to stay alive while GPU is using them
@@ -365,7 +391,8 @@ namespace
 
     ZetaInline int GetThreadIndex(Span<uint32_t> threadIDs)
     {
-        const uint32_t tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+        const uint32_t tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
+            std::this_thread::get_id());
 
         int ret = -1;
         __m256i vKey = _mm256_set1_epi32(tid);
@@ -383,7 +410,7 @@ namespace
             }
         }
 
-        Assert(ret != -1, "thread index was not found.");
+        Assert(ret != -1, "Thread index was not found.");
 
         return ret;
     }
@@ -395,7 +422,8 @@ namespace
 // UploadHeapBuffer
 //--------------------------------------------------------------------------------------
 
-UploadHeapBuffer::UploadHeapBuffer(ID3D12Resource* r, void* mapped, const Support::OffsetAllocator::Allocation& alloc)
+UploadHeapBuffer::UploadHeapBuffer(ID3D12Resource* r, void* mapped, 
+    const Support::OffsetAllocator::Allocation& alloc)
     : m_resource(r),
     m_mappedMemory(mapped),
     m_allocation(alloc)
@@ -408,8 +436,8 @@ UploadHeapBuffer::~UploadHeapBuffer()
 
 UploadHeapBuffer::UploadHeapBuffer(UploadHeapBuffer&& other)
     : m_resource(other.m_resource),
-    m_allocation(other.m_allocation),
-    m_mappedMemory(other.m_mappedMemory)
+    m_mappedMemory(other.m_mappedMemory),
+    m_allocation(other.m_allocation)
 {
     other.m_resource = nullptr;
     other.m_mappedMemory = nullptr;
@@ -424,8 +452,8 @@ UploadHeapBuffer& UploadHeapBuffer::operator=(UploadHeapBuffer&& other)
     Reset();
 
     m_resource = other.m_resource;
-    m_allocation = other.m_allocation;
     m_mappedMemory = other.m_mappedMemory;
+    m_allocation = other.m_allocation;
 
     other.m_resource = nullptr;
     other.m_mappedMemory = nullptr;
@@ -446,8 +474,10 @@ void UploadHeapBuffer::Reset()
 
 void UploadHeapBuffer::Copy(uint32_t offset, uint32_t numBytesToCopy, void* data)
 {
-    Assert(offset + numBytesToCopy <= m_allocation.Size, "Copy destination region was out-of-bound.");
-    memcpy(reinterpret_cast<uint8_t*>(m_mappedMemory) + m_allocation.Offset + offset, data, numBytesToCopy);
+    Assert(offset + numBytesToCopy <= m_allocation.Size, 
+        "Copy destination region was out-of-bound.");
+    memcpy(reinterpret_cast<uint8_t*>(m_mappedMemory) + m_allocation.Offset + offset, 
+        data, numBytesToCopy);
 }
 
 //--------------------------------------------------------------------------------------
@@ -505,11 +535,11 @@ UploadHeapArena::Allocation UploadHeapArena::SubAllocate(uint32_t size, uint32_t
     SET_D3D_OBJ_NAME(res, "UploadHeapArena");
 
     // From MS docs:
-    // "Resources on D3D12_HEAP_TYPE_UPLOAD heaps can be persistently mapped, meaning Map can be called 
-    // once, immediately after resource creation. Unmap never needs to be called, but the address returned 
-    // from Map must no longer be used after the last reference to the resource is released. When using 
-    // persistent map, the application must ensure the CPU finishes writing data into memory before the GPU 
-    // executes a command list that reads the memory."
+    // "Resources on D3D12_HEAP_TYPE_UPLOAD heaps can be persistently mapped, meaning Map 
+    // can be called once, immediately after resource creation. Unmap never needs to be called, 
+    // but the address returned from Map must no longer be used after the last reference to the 
+    // resource is released. When using persistent map, the application must ensure the CPU finishes 
+    // writing data into memory before the GPU executes a command list that reads the memory."
     void* mapped;
     CheckHR(res->Map(0, nullptr, &mapped));
 
@@ -541,8 +571,8 @@ Buffer::~Buffer()
 }
 
 Buffer::Buffer(Buffer&& other)
-    : m_ID(other.m_ID),
-    m_resource(other.m_resource),
+    : m_resource(other.m_resource),
+    m_ID(other.m_ID),
     m_heapType(other.m_heapType)
 {
     other.m_resource = nullptr;
@@ -575,7 +605,8 @@ void Buffer::Reset(bool waitForGpu)
         else
         {
             auto newRefCount = m_resource->Release();
-            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", 
+                newRefCount);
         }
     }
 
@@ -597,8 +628,8 @@ ReadbackHeapBuffer::~ReadbackHeapBuffer()
 }
 
 ReadbackHeapBuffer::ReadbackHeapBuffer(ReadbackHeapBuffer&& other)
-    : m_mappedMemory(std::exchange(other.m_mappedMemory, nullptr)),
-    m_resource(std::exchange(other.m_resource, nullptr))
+    : m_resource(std::exchange(other.m_resource, nullptr)),
+    m_mappedMemory(std::exchange(other.m_mappedMemory, nullptr))
 {}
 
 ReadbackHeapBuffer& ReadbackHeapBuffer::operator=(ReadbackHeapBuffer&& other)
@@ -625,7 +656,8 @@ void ReadbackHeapBuffer::Reset(bool waitForGpu)
         else
         {
             auto newRefCount = m_resource->Release();
-            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+            Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", 
+                newRefCount);
         }
     }
 
@@ -703,7 +735,8 @@ void Texture::Reset(bool waitForGpu, bool checkRefCount)
         else
         {
             auto newRefCount = m_resource->Release();
-            Assert(!checkRefCount || newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+            Assert(!checkRefCount || newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", 
+                newRefCount);
         }
     }
 
@@ -760,13 +793,14 @@ void GpuMemory::Init()
     Assert(!g_data, "attempting to double initialize.");
     g_data = new GpuMemoryImplData;
 
-    g_data->m_uploadHeapAllocator.Init(GpuMemoryImplData::UPLOAD_HEAP_SIZE, GpuMemoryImplData::MAX_NUM_UPLOAD_HEAP_ALLOCS);
+    g_data->m_uploadHeapAllocator.Init(GpuMemoryImplData::UPLOAD_HEAP_SIZE, 
+        GpuMemoryImplData::MAX_NUM_UPLOAD_HEAP_ALLOCS);
 
     D3D12_HEAP_PROPERTIES uploadHeap = Direct3DUtil::UploadHeapProp();
-    D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(GpuMemoryImplData::UPLOAD_HEAP_SIZE);
+    D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(
+        GpuMemoryImplData::UPLOAD_HEAP_SIZE);
 
     auto* device = App::GetRenderer().GetDevice();
-
     CheckHR(device->CreateCommittedResource(&uploadHeap,
         D3D12_HEAP_FLAG_CREATE_NOT_ZEROED,
         &bufferDesc,
@@ -777,8 +811,10 @@ void GpuMemory::Init()
     SET_D3D_OBJ_NAME(g_data->m_uploadHeap, "UploadHeap");
     CheckHR(g_data->m_uploadHeap->Map(0, nullptr, &g_data->m_uploadHeapMapped));
 
-    CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(g_data->m_fenceDirect.GetAddressOf())));
-    CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(g_data->m_fenceCompute.GetAddressOf())));
+    CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(
+        g_data->m_fenceDirect.GetAddressOf())));
+    CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(
+        g_data->m_fenceCompute.GetAddressOf())));
 
     auto workerThreadIDs = App::GetWorkerThreadIDs();
 
@@ -830,7 +866,8 @@ void GpuMemory::Recycle()
         const auto* first = std::partition(g_data->m_toRelease.begin(), g_data->m_toRelease.end(),
             [completedFenceValDir, completedFenceValCompute](const GpuMemoryImplData::PendingResource& res)
             {
-                return res.ReleaseFence > completedFenceValDir || res.ReleaseFence > completedFenceValCompute;
+                return res.ReleaseFence > completedFenceValDir || 
+                    res.ReleaseFence > completedFenceValCompute;
             });
 
         const auto numToDelete = g_data->m_toRelease.end() - first;
@@ -869,13 +906,15 @@ void GpuMemory::Recycle()
                 for (auto& r : ToDelete)
                 {
                     Assert(r.Res, "unexpected - attempting to release null resource.");
-                    Assert(!r.IsUploadHeapBuffer(), "unexpected - small upload heap buffers shouldn't be released on a background thread.");
+                    Assert(!r.IsUploadHeapBuffer(), 
+                        "unexpected - small upload heap buffers shouldn't be released on a background thread.");
 
                     if (r.MappedMemory)
                         static_cast<ID3D12Resource*>(r.Res)->Unmap(0, nullptr);
 
                     auto newRefCount = r.Res->Release();
-                    Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", newRefCount);
+                    Assert(newRefCount == 0, "unexpected ref count -- expected 0, actual %u.", 
+                        newRefCount);
                 }
             });
 
@@ -903,7 +942,8 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 
         if (alloc.IsEmpty())
         {
-            StackStr(msg, n, "Failed to allocate %u MB from the shared upload heap - creating a separate allocation...",
+            StackStr(msg, n, 
+                "Failed to allocate %u MB from the shared upload heap - creating a separate allocation...",
                 sizeInBytes / (1024 * 1024));
             App::Log(msg, LogMessage::MsgType::WARNING);
 
@@ -917,7 +957,8 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
     else
     {
         D3D12_HEAP_PROPERTIES uploadHeap = Direct3DUtil::UploadHeapProp();
-        const uint32_t alignedSize = Math::AlignUp(sizeInBytes, (uint32_t)D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
+        const uint32_t alignedSize = Math::AlignUp(sizeInBytes, 
+            (uint32_t)D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT);
         D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(alignedSize);
 
         auto* device = App::GetRenderer().GetDevice();
@@ -943,7 +984,7 @@ UploadHeapBuffer GpuMemory::GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t a
 
 void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer)
 {
-    Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
+    Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
 
     AcquireSRWLockExclusive(&g_data->m_pendingResourceLock);
 
@@ -958,7 +999,7 @@ void GpuMemory::ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer)
 
 void GpuMemory::ReleaseUploadHeapArena(UploadHeapArena& arena)
 {
-    Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
+    Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
 
     auto blocks = arena.Blocks();
 
@@ -969,7 +1010,7 @@ void GpuMemory::ReleaseUploadHeapArena(UploadHeapArena& arena)
 
     for (auto& block : blocks)
     {
-        Assert(block.Mapped, "mapped memory can't be null.");
+        Assert(block.Mapped, "Mapped memory can't be NULL.");
 
         g_data->m_toRelease.emplace_back(
             GpuMemoryImplData::PendingResource{ .Res = block.Res,
@@ -1001,8 +1042,9 @@ ReadbackHeapBuffer GpuMemory::GetReadbackHeapBuffer(uint32_t sizeInBytes)
 
 void GpuMemory::ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer)
 {
-    Assert(g_data, "releasing GPU resources when GPU memory system has shut down.");
-    Assert(buffer.IsInitialized() || !buffer.IsMapped(), "non-null mapped memory for null resource.");
+    Assert(g_data, "Releasing GPU resources when GPU memory system has shut down.");
+    Assert(buffer.IsInitialized() || !buffer.IsMapped(), 
+        "Non-null mapped memory for null resource.");
 
     AcquireSRWLockExclusive(&g_data->m_pendingResourceLock);
 
@@ -1017,7 +1059,8 @@ void GpuMemory::ReleaseReadbackHeapBuffer(ReadbackHeapBuffer& buffer)
 Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
     D3D12_RESOURCE_STATES initState, bool allowUAV, bool initToZero)
 {
-    const D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+    const D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
+        D3D12_RESOURCE_FLAG_NONE;
 
     const D3D12_HEAP_PROPERTIES heapDesc = Direct3DUtil::DefaultHeapProp();
     const D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(sizeInBytes, f);
@@ -1041,7 +1084,8 @@ Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
 Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
     bool isRtAs, bool allowUAV, bool initToZero)
 {
-    D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : D3D12_RESOURCE_FLAG_NONE;
+    D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
+        D3D12_RESOURCE_FLAG_NONE;
     if (isRtAs)
         f |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
 
@@ -1108,23 +1152,21 @@ void GpuMemory::UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes,
     void* data, uint32_t destOffsetInBytes)
 {
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, destOffsetInBytes);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 
+        destOffsetInBytes);
 }
 
-ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignment, bool createZeroed)
+ResourceHeap GpuMemory::GetResourceHeap(uint64_t sizeInBytes, uint64_t alignment, 
+    bool createZeroed)
 {
-    D3D12_HEAP_PROPERTIES defaultHeap = Direct3DUtil::DefaultHeapProp();
-    D3D12_RESOURCE_DESC bufferDesc = Direct3DUtil::BufferResourceDesc(sizeInBytes);
-
-    auto* device = App::GetRenderer().GetDevice();
-
     D3D12_HEAP_DESC heapDesc;
     heapDesc.SizeInBytes = Math::AlignUp(sizeInBytes, alignment);
     heapDesc.Alignment = alignment;
-    heapDesc.Properties = defaultHeap;
+    heapDesc.Properties = Direct3DUtil::DefaultHeapProp();
     heapDesc.Flags = !createZeroed ? D3D12_HEAP_FLAG_CREATE_NOT_ZEROED : D3D12_HEAP_FLAG_NONE;
 
     ID3D12Heap* heap;
+    auto* device = App::GetRenderer().GetDevice();
     CheckHR(device->CreateHeap(&heapDesc, IID_PPV_ARGS(&heap)));
 
     return ResourceHeap(heap);
@@ -1380,7 +1422,8 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
     return errCode;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, UploadHeapArena& arena)
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, 
+    UploadHeapArena& arena)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
     std::unique_ptr<uint8_t[]> ddsData;        // must remain alive until copied to upload heap
@@ -1433,8 +1476,8 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, 
     return errCode;
 }
 
-Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
-    D3D12_RESOURCE_STATES postCopyState, uint8_t* pixels, uint32_t flags)
+Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, 
+    DXGI_FORMAT format, D3D12_RESOURCE_STATES postCopyState, uint8_t* pixels, uint32_t flags)
 {
     Texture t = GetTexture2D(name, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, flags);
 

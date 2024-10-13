@@ -168,7 +168,7 @@ void Filesystem::Path::Extension(Util::MutableSpan<char> buff, size_t* outStrLen
     }
 
     size_t s = beg + len - 1 - curr;
-    Check(buff.size() >= s + 1, "provided buffer is too small");
+    Check(buff.size() >= s + 1, "Provided buffer is too small.");
 
     if (s > 1)
         memcpy(buff.data(), curr + 1, s);
@@ -209,7 +209,7 @@ void Filesystem::Path::ConvertToForwardSlashes()
 
 void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL,");
 
     HANDLE h = CreateFileA(path,
         GENERIC_READ,
@@ -218,17 +218,20 @@ void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData)
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL, nullptr);
 
-    Check(h, "CreateFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(h, "CreateFile() for path %s failed with following error code: %d.", path, 
+        GetLastError());
 
     LARGE_INTEGER s;
     bool success = GetFileSizeEx(h, &s);
-    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d.", 
+        path, GetLastError());
 
     fileData.resize(s.QuadPart);
     DWORD numRead;
     success = ReadFile(h, fileData.data(), (DWORD)s.QuadPart, &numRead, nullptr);
 
-    Check(success, "ReadFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "ReadFile() for path %s failed with following error code: %d.", 
+        path, GetLastError());
     Check(numRead == (DWORD)s.QuadPart,
         "ReadFile(): read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
 
@@ -237,7 +240,7 @@ void Filesystem::LoadFromFile(const char* path, Vector<uint8_t>& fileData)
 
 void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAllocator>& fileData)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     HANDLE h = CreateFileA(path,
         GENERIC_READ,
@@ -246,26 +249,29 @@ void Filesystem::LoadFromFile(const char* path, Vector<uint8_t, Support::ArenaAl
         OPEN_EXISTING,
         FILE_ATTRIBUTE_NORMAL, nullptr);
 
-    Check(h, "CreateFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(h, "CreateFile() for path %s failed with following error code: %d.", 
+        path, GetLastError());
 
     LARGE_INTEGER s;
     bool success = GetFileSizeEx(h, &s);
-    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "GetFileSizeEx() for path %s failed with following error code: %d.", 
+        path, GetLastError());
 
     fileData.resize(s.QuadPart);
     DWORD numRead;
     success = ReadFile(h, fileData.data(), (DWORD)s.QuadPart, &numRead, nullptr);
 
-    Check(success, "ReadFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "ReadFile() for path %s failed with following error code: %d.", 
+        path, GetLastError());
     Check(numRead == (DWORD)s.QuadPart,
-        "ReadFile(): read %u bytes, requested size: %u", numRead, (DWORD)s.QuadPart);
+        "ReadFile(): read %u bytes, requested size: %u.", numRead, (DWORD)s.QuadPart);
 
     CloseHandle(h);
 }
 
 void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInBytes)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     HANDLE h = CreateFileA(path,
         GENERIC_WRITE,
@@ -280,30 +286,33 @@ void Filesystem::WriteToFile(const char* path, uint8_t* data, uint32_t sizeInByt
         auto e = GetLastError();
 
         // overwrite is fine
-        Check(e == ERROR_ALREADY_EXISTS, "CreateFile() for path %s failed with following error code: %d", path, e);
+        Check(e == ERROR_ALREADY_EXISTS, 
+            "CreateFile() for path %s failed with following error code: %d", path, e);
     }
 
     DWORD numWritten;
     bool success = WriteFile(h, data, sizeInBytes, &numWritten, nullptr);
 
-    Check(success, "WriteFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "WriteFile() for path %s failed with following error code: %d.", 
+        path, GetLastError());
     Check(numWritten == (DWORD)sizeInBytes,
-        "WriteFile(): wrote %u bytes, requested size: %llu", numWritten, sizeInBytes);
+        "WriteFile(): wrote %u bytes, requested size: %llu.", numWritten, sizeInBytes);
 
     CloseHandle(h);
 }
 
 void Filesystem::RemoveFile(const char* path)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     bool success = DeleteFileA(path);
-    Check(success, "DeleteFile() for path %s failed with following error code: %d", path, GetLastError());
+    Check(success, "DeleteFile() for path %s failed with following error code: %d.", 
+        path, GetLastError());
 }
 
 bool Filesystem::Exists(const char* path)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     WIN32_FIND_DATAA findData;
     HANDLE h = FindFirstFileA(path, &findData);
@@ -314,7 +323,8 @@ bool Filesystem::Exists(const char* path)
         if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND)
             return false;
 
-        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d", path, e);
+        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d.", 
+            path, e);
     }
 
     FindClose(h);
@@ -324,7 +334,7 @@ bool Filesystem::Exists(const char* path)
 
 size_t Filesystem::GetFileSize(const char* path)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     HANDLE h = CreateFileA(path,
         GENERIC_READ,
@@ -342,7 +352,8 @@ size_t Filesystem::GetFileSize(const char* path)
             return size_t(-1);
         }
 
-        Check(false, "CreateFile() for path %s failed with following error code: %d", path, e);
+        Check(false, "CreateFile() for path %s failed with following error code: %d.", 
+            path, e);
     }
 
     LARGE_INTEGER s;
@@ -366,7 +377,7 @@ void Filesystem::CreateDirectoryIfNotExists(const char* path)
                     One or more intermediate directories do not exist.\n", path)
             }
             else
-                Check(false, "Failed to create directory in path %s\n", path);
+                Check(false, "Failed to create directory in path %s.\n", path);
         }
     }
 }
@@ -377,7 +388,7 @@ bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite)
     if (!ret)
     {
         auto err = GetLastError();
-        Check(err == ERROR_FILE_EXISTS, "CopyFile() failed with error code: %d\n", err);
+        Check(err == ERROR_FILE_EXISTS, "CopyFile() failed with error code: %d\n.", err);
 
         return false;
     }
@@ -387,7 +398,7 @@ bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite)
 
 bool Filesystem::IsDirectory(const char* path)
 {
-    Assert(path, "given path was NULL");
+    Assert(path, "Given path was NULL.");
 
     auto ret = GetFileAttributesA(path);
 
@@ -395,7 +406,7 @@ bool Filesystem::IsDirectory(const char* path)
     {
         auto err = GetLastError();
         auto validCodes = ERROR_FILE_NOT_FOUND;
-        Check(err & validCodes, "GetFileAttributesA() failed with error %d\n", err);
+        Check(err & validCodes, "GetFileAttributesA() failed with error %d\n.", err);
 
         return false;
     }

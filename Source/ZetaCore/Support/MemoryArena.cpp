@@ -8,8 +8,7 @@ using namespace ZetaRay::Support;
 
 MemoryArena::MemoryArena(size_t blockSize)
     : m_blockSize(blockSize)
-{
-}
+{}
 
 MemoryArena::MemoryArena(MemoryArena&& other)
     : m_blockSize(other.m_blockSize)
@@ -23,7 +22,7 @@ MemoryArena::MemoryArena(MemoryArena&& other)
 
 MemoryArena& MemoryArena::operator=(MemoryArena&& other)
 {
-    Check(m_blockSize == other.m_blockSize, "these MemoryArenas are incompatible.");
+    Check(m_blockSize == other.m_blockSize, "These MemoryArenas are incompatible.");
 
     m_blocks.swap(other.m_blocks);
     other.m_blocks.free_memory();
@@ -65,12 +64,14 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
 
     MemoryBlock memBlock(blockSize);
 
-    const uintptr_t ret = Math::AlignUp(reinterpret_cast<uintptr_t>(memBlock.Start), alignment);
+    const uintptr_t ret = Math::AlignUp(reinterpret_cast<uintptr_t>(memBlock.Start), 
+        alignment);
     memBlock.Offset = ret - reinterpret_cast<uintptr_t>(memBlock.Start);
     memBlock.Offset += size;
-    Assert(memBlock.Offset <= memBlock.Size, "offset must be <= size");
+    Assert(memBlock.Offset <= memBlock.Size, "Offset must be <= size.");
 
-    // Push the newly added block to the front, so it's searched before others for future allocations
+    // Push the newly added block to the front, so it's searched before others 
+    // for future allocations
     m_blocks.push_front(ZetaMove(memBlock));
 
     return reinterpret_cast<void*>(ret);

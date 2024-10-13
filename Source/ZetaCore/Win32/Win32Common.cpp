@@ -12,7 +12,8 @@ int Common::WideToCharStr(const wchar_t* wideStr, MutableSpan<char> str)
     int size = WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, nullptr, 0, nullptr, nullptr);
     Assert(str.size() > size, "buffer overflow");
 
-    WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, str.data(), Math::Min(size, (int)str.size()), nullptr, nullptr);
+    WideCharToMultiByte(CP_UTF8, 0, wideStr, -1, str.data(), Math::Min(size, 
+        (int)str.size()), nullptr, nullptr);
 
     return size;
 }

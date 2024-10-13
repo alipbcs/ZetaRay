@@ -15,14 +15,13 @@ DescriptorTable::DescriptorTable(D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
     uint32_t descSize,
     DescriptorHeap* heap,
     uint32_t internalVal)
-    : m_baseCpuHandle(cpuHandle),
+    : m_descHeap(heap),
+    m_baseCpuHandle(cpuHandle),
     m_baseGpuHandle(gpuHandle),
     m_numDescriptors(numDesc),
-    m_descHeap(heap),
     m_descriptorSize(descSize),
     m_internal(internalVal)
-{
-}
+{}
 
 DescriptorTable::~DescriptorTable()
 {
@@ -30,17 +29,17 @@ DescriptorTable::~DescriptorTable()
 }
 
 DescriptorTable::DescriptorTable(DescriptorTable&& other)
-    : m_baseCpuHandle(other.m_baseCpuHandle),
+    : m_descHeap(other.m_descHeap),
+    m_baseCpuHandle(other.m_baseCpuHandle),
     m_baseGpuHandle(other.m_baseGpuHandle),
     m_numDescriptors(other.m_numDescriptors),
-    m_descHeap(other.m_descHeap),
     m_descriptorSize(other.m_descriptorSize),
     m_internal(other.m_internal)
 {
+    other.m_descHeap = nullptr;
     other.m_baseCpuHandle.ptr = 0;
     other.m_baseGpuHandle.ptr = 0;
     other.m_numDescriptors = 0;
-    other.m_descHeap = nullptr;
     other.m_descriptorSize = 0;
     other.m_internal = UINT32_MAX;
 }
@@ -50,10 +49,10 @@ DescriptorTable& DescriptorTable::operator=(DescriptorTable&& other)
     if (this == &other)
         return *this;
 
+    std::swap(m_descHeap, other.m_descHeap);
     std::swap(m_baseCpuHandle, other.m_baseCpuHandle);
     std::swap(m_baseGpuHandle, other.m_baseGpuHandle);
     std::swap(m_numDescriptors, other.m_numDescriptors);
-    std::swap(m_descHeap, other.m_descHeap);
     std::swap(m_descriptorSize, other.m_descriptorSize);
     std::swap(m_internal, other.m_internal);
 
@@ -66,10 +65,10 @@ void DescriptorTable::Reset()
     if (m_baseCpuHandle.ptr)
         m_descHeap->Release(ZetaMove(*this));
 
+    m_descHeap = nullptr;
     m_baseCpuHandle.ptr = 0;
     m_baseGpuHandle.ptr = 0;
     m_numDescriptors = 0;
-    m_descHeap = nullptr;
     m_descriptorSize = 0;
     m_internal = UINT32_MAX;
 }
@@ -86,22 +85,24 @@ DescriptorHeap::DescriptorHeap(uint32_t blockSize)
     : m_blockSize(blockSize)
 #endif
 {
-    Assert(Math::IsPow2(blockSize), "block size must be a power of two.");
+    Assert(Math::IsPow2(blockSize), "Block size must be a power of two.");
 
     // Initialize blocks
     for (uint32_t i = 0; i < MAX_NUM_LISTS; i++)
         m_heads[i].Head = UINT32_MAX;
 }
 
-void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, bool isShaderVisible)
+void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescriptors, 
+    bool isShaderVisible)
 {
     Assert(!isShaderVisible || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
-        "Shader-visible heap type must be D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV");
+        "Shader-visible heap type must be D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV.");
 
     Assert(!isShaderVisible || numDescriptors <= 1'000'000,
         "GPU resource heap can't contain more than 1'000'000 elements");
 
-    Assert(numDescriptors >= m_blockSize, "invalid #descriptors of %u for block size of %u", numDescriptors, m_blockSize);
+    Assert(numDescriptors >= m_blockSize, "Invalid #descriptors of %u for block size of %u.", 
+        numDescriptors, m_blockSize);
 
     m_totalHeapSize = numDescriptors;
     m_isShaderVisible = isShaderVisible;
@@ -109,7 +110,8 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
     D3D12_DESCRIPTOR_HEAP_DESC desc;
     desc.Type = heapType;
     desc.NumDescriptors = numDescriptors;
-    desc.Flags = isShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
+    desc.Flags = isShaderVisible ? D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE : 
+        D3D12_DESCRIPTOR_HEAP_FLAG_NONE;
     desc.NodeMask = 0;
 
     auto* device = App::GetRenderer().GetDevice();
@@ -127,7 +129,7 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
 
 bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
 {
-    Assert(m_heads[listIdx].Entries.empty(), "this linked list must be empty.");
+    Assert(m_heads[listIdx].Entries.empty(), "This linked list must be empty.");
 
     uint32_t nextHeapIdx = m_nextHeapIdx;
     uint32_t blockSize = m_blockSize;
@@ -152,7 +154,8 @@ bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
     for (int i = 0; i < (int)blockSize; i += descTableSize)
     {
         Entry e{ .HeapOffset = nextHeapIdx + i,
-            .Next = (currEntry != numDescTablesInBlock - 1) ? (uint32_t)(currEntry + 1) : UINT32_MAX };
+            .Next = (currEntry != numDescTablesInBlock - 1) ? 
+            (uint32_t)(currEntry + 1) : UINT32_MAX };
 
         m_heads[listIdx].Entries[currEntry++] = e;
     }
@@ -166,7 +169,7 @@ bool DescriptorHeap::AllocateNewBlock(uint32_t listIdx)
 
 DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 {
-    Assert(count && count <= m_totalHeapSize, "invalid allocation count.");
+    Assert(count && count <= m_totalHeapSize, "Invalid allocation count.");
     uint32_t heapOffset;
     uint32_t arrayOffset;
 
@@ -174,7 +177,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 
     if (count > m_blockSize)
     {
-        Assert(m_nextHeapIdx + count < m_totalHeapSize, "out of free space in descriptor heap.");
+        Assert(m_nextHeapIdx + count < m_totalHeapSize, "Out of free space in descriptor heap.");
 
         heapOffset = m_nextHeapIdx;
         arrayOffset = UINT32_MAX;
@@ -185,7 +188,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
     else
     {
         uint32_t listIdx = ListIndexFromDescTableSize(count);
-        Assert(listIdx < m_numLists, "invalid list index.");
+        Assert(listIdx < m_numLists, "Unvalid list index.");
 
         bool success = true;
 
@@ -206,7 +209,7 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
             while (m_heads[listIdx].Head == UINT32_MAX)
             {
                 listIdx++;
-                Assert(listIdx < m_numLists, "out of free space in the descriptor heap.");
+                Assert(listIdx < m_numLists, "Out of free space in the descriptor heap.");
             }
         }
 
@@ -227,7 +230,8 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 
     ReleaseSRWLockExclusive(&m_lock);
 
-    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{ .ptr = m_baseCPUHandle.ptr + heapOffset * m_descriptorSize };
+    D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle{ .ptr = 
+        m_baseCPUHandle.ptr + heapOffset * m_descriptorSize };
 
     D3D12_GPU_DESCRIPTOR_HANDLE gpuHandle = m_isShaderVisible ?
         D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGPUHandle.ptr + heapOffset * m_descriptorSize } :
@@ -243,7 +247,8 @@ DescriptorTable DescriptorHeap::Allocate(uint32_t count)
 
 void DescriptorHeap::Release(DescriptorTable&& table)
 {
-    const uint32_t offset = (uint32_t)((table.m_baseCpuHandle.ptr - m_baseCPUHandle.ptr) / m_descriptorSize);
+    const uint32_t offset = 
+        (uint32_t)((table.m_baseCpuHandle.ptr - m_baseCPUHandle.ptr) / m_descriptorSize);
 
     AcquireSRWLockExclusive(&m_lock);
     m_pending.emplace_back(m_nextFenceVal, offset, table.m_numDescriptors, table.m_internal);
@@ -290,7 +295,8 @@ void DescriptorHeap::Recycle()
             if (internalVal != UINT32_MAX && internalVal < m_heads[listIdx].Entries.size() &&
                 m_heads[listIdx].Entries[internalVal].HeapOffset == offset)
             {
-                Assert(m_heads[listIdx].Entries[internalVal].Next == UINT32_MAX, "these must match.");
+                Assert(m_heads[listIdx].Entries[internalVal].Next == UINT32_MAX, 
+                    "These must match.");
 
                 m_heads[listIdx].Entries[internalVal] = e;
                 m_heads[listIdx].Head = internalVal;

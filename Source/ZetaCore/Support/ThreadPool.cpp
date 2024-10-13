@@ -140,7 +140,8 @@ void ThreadPool::Enqueue(TaskSet&& ts)
     const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
-    bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], std::make_move_iterator(tasks.data()), tasks.size());
+    bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], 
+        std::make_move_iterator(tasks.data()), tasks.size());
     Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 }
 
@@ -149,7 +150,8 @@ void ThreadPool::PumpUntilEmpty()
     const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
-    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
+        std::this_thread::get_id());
     Task task;
 
 #if ENABLE_TIMINGS
@@ -198,7 +200,8 @@ void ThreadPool::PumpUntilEmpty()
 
 bool ThreadPool::TryFlush()
 {
-    const bool success = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
+    const bool success = m_numTasksFinished.load(std::memory_order_acquire) == 
+        m_numTasksToFinishTarget.load(std::memory_order_acquire);
     if (!success)
     {
         PumpUntilEmpty();
@@ -217,7 +220,8 @@ void ThreadPool::WorkerThread()
 {
     while (!m_start.load(std::memory_order_acquire));
 
-    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
+        std::this_thread::get_id());
     LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
 
     const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));

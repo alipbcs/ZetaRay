@@ -41,7 +41,8 @@ void DeviceObjects::InitializeAdapter()
 #endif
 
     IDXGIAdapter* dxgiAdapter;
-    CheckHR(m_dxgiFactory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, IID_PPV_ARGS(&dxgiAdapter)));
+    CheckHR(m_dxgiFactory->EnumAdapterByGpuPreference(0, DXGI_GPU_PREFERENCE_HIGH_PERFORMANCE, 
+        IID_PPV_ARGS(&dxgiAdapter)));
     CheckHR(dxgiAdapter->QueryInterface(IID_PPV_ARGS(m_dxgiAdapter.GetAddressOf())));
     dxgiAdapter->Release();
 
@@ -55,7 +56,8 @@ void DeviceObjects::CreateDevice()
 {
     ID3D12Device* device;
 
-    CheckHR(D3D12CreateDevice(m_dxgiAdapter.Get(), D3D_FEATURE_LEVEL_12_2, IID_PPV_ARGS(&device)));
+    CheckHR(D3D12CreateDevice(m_dxgiAdapter.Get(), D3D_FEATURE_LEVEL_12_2, 
+        IID_PPV_ARGS(&device)));
     CheckHR(device->QueryInterface(IID_PPV_ARGS(m_device.GetAddressOf())));
     device->Release();
 
@@ -92,48 +94,57 @@ void DeviceObjects::CreateDevice()
 
     // Hardware-accelerated RT
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature;
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, &feature, sizeof(feature)));
-    Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, "Raytracing Tier 1.1 is not supported.");
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, 
+        &feature, sizeof(feature)));
+    Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, 
+        "Raytracing Tier 1.1 is not supported.");
 
     // Shader model 6.6
     D3D12_FEATURE_DATA_SHADER_MODEL sm;
     sm.HighestShaderModel = D3D_SHADER_MODEL::D3D_SHADER_MODEL_6_6;
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &sm, sizeof(sm)));
-    Check(sm.HighestShaderModel == D3D_SHADER_MODEL::D3D_SHADER_MODEL_6_6, "Shader Model 6.6 is not supported.");
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_SHADER_MODEL, &sm, 
+        sizeof(sm)));
+    Check(sm.HighestShaderModel == D3D_SHADER_MODEL::D3D_SHADER_MODEL_6_6, 
+        "Shader Model 6.6 is not supported.");
 
     // Tearing
-    CheckHR(m_dxgiFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, &m_tearingSupport, sizeof(DXGI_FEATURE)));
+    CheckHR(m_dxgiFactory->CheckFeatureSupport(DXGI_FEATURE_PRESENT_ALLOW_TEARING, 
+        &m_tearingSupport, sizeof(DXGI_FEATURE)));
     if (m_tearingSupport)
         m_swapChainFlags |= DXGI_SWAP_CHAIN_FLAG_ALLOW_TEARING;
 
     // fp16
     D3D12_FEATURE_DATA_D3D12_OPTIONS4 options4;
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS4, &options4, sizeof(options4)));
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS4, 
+        &options4, sizeof(options4)));
     Check(options4.Native16BitShaderOpsSupported, "Native fp16 is not supported.");
 
     // Wave intrinsics
     D3D12_FEATURE_DATA_D3D12_OPTIONS1 options1;
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, &options1, sizeof(options1)));
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS1, 
+        &options1, sizeof(options1)));
     Check(options1.WaveOps, "Wave intrinsics are not supported.");
     Check(options1.WaveLaneCountMin >= 32, "Wave lane count of at least 32 is required.");
 
     // Enhanced barriers
     D3D12_FEATURE_DATA_D3D12_OPTIONS12 options12{};
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, &options12, sizeof(options12)));
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS12, 
+        &options12, sizeof(options12)));
     Check(options12.EnhancedBarriersSupported, "Enhanced barriers are not supported.");
 
     // RGBE support
     D3D12_FEATURE_DATA_FORMAT_SUPPORT formatSupport{};
     formatSupport.Format = DXGI_FORMAT_R9G9B9E5_SHAREDEXP;
-    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, &formatSupport, sizeof(formatSupport)));
+    CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_FORMAT_SUPPORT, 
+        &formatSupport, sizeof(formatSupport)));
 
     if (formatSupport.Support1 & D3D12_FORMAT_SUPPORT1_TYPED_UNORDERED_ACCESS_VIEW
         & D3D12_FORMAT_SUPPORT1_SHADER_LOAD)
         m_rgbeSupport = true;
 }
 
-void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, int h, int numBuffers,
-    DXGI_FORMAT format, int maxLatency)
+void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, 
+    int h, int numBuffers, DXGI_FORMAT format, int maxLatency)
 {
     DXGI_SWAP_CHAIN_DESC1 desc{};
     desc.Width = w;
@@ -150,7 +161,8 @@ void DeviceObjects::CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, 
     desc.Flags = m_swapChainFlags;
 
     IDXGISwapChain1* swapChain;
-    CheckHR(m_dxgiFactory->CreateSwapChainForHwnd(directQueue, hwnd, &desc, nullptr, nullptr, &swapChain));
+    CheckHR(m_dxgiFactory->CreateSwapChainForHwnd(directQueue, hwnd, &desc, 
+        nullptr, nullptr, &swapChain));
     CheckHR(swapChain->QueryInterface(IID_PPV_ARGS(m_dxgiSwapChain.GetAddressOf())));
     swapChain->Release();
 

@@ -82,8 +82,7 @@ namespace ZetaRay::Support
 
         ArenaAllocator(const ArenaAllocator& other)
             : m_allocator(other.m_allocator)
-        {
-        }
+        {}
 
         ArenaAllocator& operator=(const ArenaAllocator& other)
         {

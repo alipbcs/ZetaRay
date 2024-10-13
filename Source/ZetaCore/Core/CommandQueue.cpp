@@ -18,7 +18,8 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type)
     queueDesc.Type = type;
     queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
     CheckHR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_cmdQueue.GetAddressOf())));
-    CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(m_fence.GetAddressOf())));
+    CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, 
+        IID_PPV_ARGS(m_fence.GetAddressOf())));
 
     m_event = CreateEventA(nullptr, false, false, nullptr);
     CheckWin32(m_event);
@@ -105,7 +106,8 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator()
     return cmdAlloc;
 }
 
-void CommandQueue::ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAllocator, uint64_t fenceValueToWaitFor)
+void CommandQueue::ReleaseCommandAllocator(ID3D12CommandAllocator* cmdAllocator, 
+    uint64_t fenceValueToWaitFor)
 {
     std::unique_lock lock(m_poolMtx);
     m_cmdAllocPool.push_back(ReleasedCmdAlloc{ 

@@ -113,7 +113,8 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
             m_backBuffers[i].Reset(false, false);
         }
 
-        m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
+        m_deviceObjs.ResizeSwapChain(m_displayWidth, m_displayHeight, 
+            Constants::MAX_SWAPCHAIN_FRAME_LATENCY);
     }
     else
     {
@@ -134,7 +135,8 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
         CheckHR(m_deviceObjs.m_dxgiSwapChain->GetBuffer(i, IID_PPV_ARGS(&backbuff)));
 
         StackStr(buff, n, "Backbuffer_%d", i);
-        m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff), RESOURCE_HEAP_TYPE::COMMITTED));
+        m_backBuffers[i] = ZetaMove(Texture(buff, ZetaMove(backbuff), 
+            RESOURCE_HEAP_TYPE::COMMITTED));
     }
 
     for (int i = 0; i < Constants::NUM_BACK_BUFFERS; i++)
@@ -143,7 +145,8 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
         desc.Format = Constants::BACK_BUFFER_FORMAT;
         desc.ViewDimension = D3D12_RTV_DIMENSION_TEXTURE2D;
 
-        m_deviceObjs.m_device->CreateRenderTargetView(m_backBuffers[i].Resource(), &desc, m_backbuffDescTable.CPUHandle(i));
+        m_deviceObjs.m_device->CreateRenderTargetView(m_backBuffers[i].Resource(), 
+            &desc, m_backbuffDescTable.CPUHandle(i));
     }
 
     m_displayViewport.TopLeftX = 0.0f;

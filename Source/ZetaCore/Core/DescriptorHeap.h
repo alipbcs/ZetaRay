@@ -9,7 +9,7 @@ namespace ZetaRay::Core
 
     struct DescriptorHeap
     {
-        DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE);
+        explicit DescriptorHeap(uint32_t BlockSize = MAX_BLOCK_SIZE);
         ~DescriptorHeap() = default;
 
         DescriptorHeap(const DescriptorHeap&) = delete;
@@ -30,7 +30,7 @@ namespace ZetaRay::Core
     private:
         static const uint32_t MAX_BLOCK_SIZE = 1024;
         static const uint32_t MAX_NUM_LISTS = 11;
-        static_assert(1 << (MAX_NUM_LISTS - 1) == MAX_BLOCK_SIZE, "these must match.");
+        static_assert(1 << (MAX_NUM_LISTS - 1) == MAX_BLOCK_SIZE, "These must match.");
 
         struct PendingDescTable
         {
@@ -133,13 +133,13 @@ namespace ZetaRay::Core
 
         ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE CPUHandle(uint32_t offset) const
         {
-            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds.");
             return D3D12_CPU_DESCRIPTOR_HANDLE{ .ptr = m_baseCpuHandle.ptr + offset * m_descriptorSize };
         }
 
         ZetaInline D3D12_GPU_DESCRIPTOR_HANDLE GPUHandle(uint32_t offset) const
         {
-            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds.");
             Assert(m_descHeap->IsShaderVisible(), "This descriptor doesn't belong to a shader-visible heap.");
             return D3D12_GPU_DESCRIPTOR_HANDLE{ .ptr = m_baseGpuHandle.ptr + offset * m_descriptorSize };
         }
@@ -150,7 +150,7 @@ namespace ZetaRay::Core
         ZetaInline uint32_t GPUDescriptorHeapIndex(uint32_t offset = 0) const
         {
             Assert(m_descHeap->IsShaderVisible(), "Descriptor table is not shader-visible.");
-            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds");
+            Assert(offset < m_numDescriptors, "Descriptor offset is out of bounds.");
             uint32_t idx = (uint32_t)((m_baseGpuHandle.ptr - m_descHeap->GetBaseGpuHandle()) / m_descriptorSize);
 
             return idx + offset;

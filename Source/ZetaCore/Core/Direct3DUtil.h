@@ -598,17 +598,20 @@ namespace ZetaRay::Core::Direct3DUtil
         UINT stride, UINT numElements);
     void CreateRawBufferUAV(const GpuMemory::Buffer& buff, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle,
         UINT stride, UINT numElements);
-    void CreateTexture2DSRV(ID3D12Resource* t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);
-    void CreateTexture2DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);
-    void CreateTexture3DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        float minLODClamp = 0.0f, UINT mostDetailedMip = 0, UINT planeSlice = 0);
-    void CreateTexture2DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        UINT mipSlice = 0, UINT planeSlice = 0);
-    void CreateTexture3DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        UINT mipSlice = 0, UINT numSlices = 0, UINT firstSliceIdx = 0);
-
-    void CreateRTV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN,
-        UINT mipSlice = 0, UINT planeSlice = 0);
+    void CreateTexture2DSRV(ID3D12Resource* t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, float minLODClamp = 0.0f, 
+        UINT mostDetailedMip = 0, UINT planeSlice = 0);
+    void CreateTexture2DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, float minLODClamp = 0.0f, 
+        UINT mostDetailedMip = 0, UINT planeSlice = 0);
+    void CreateTexture3DSRV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, float minLODClamp = 0.0f, UINT mostDetailedMip = 0, 
+        UINT planeSlice = 0);
+    void CreateTexture2DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, UINT mipSlice = 0, UINT planeSlice = 0);
+    void CreateTexture3DUAV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, UINT mipSlice = 0, UINT numSlices = 0, 
+        UINT firstSliceIdx = 0);
+    void CreateRTV(const GpuMemory::Texture& t, D3D12_CPU_DESCRIPTOR_HANDLE cpuHandle, 
+        DXGI_FORMAT f = DXGI_FORMAT_UNKNOWN, UINT mipSlice = 0, UINT planeSlice = 0);
 }

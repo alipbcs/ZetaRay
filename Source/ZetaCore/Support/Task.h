@@ -109,7 +109,8 @@ namespace ZetaRay::Support
         TaskHandle EmplaceTask(const char* name, Util::Function&& f)
         {
             Assert(!m_isFinalized, "Calling AddTask() on an unfinalized TaskSet is not allowed.");
-            Assert(m_currSize < MAX_NUM_TASKS, "Current implementation doesn't support more than %d tasks.", MAX_NUM_TASKS);
+            Assert(m_currSize < MAX_NUM_TASKS, 
+                "Current implementation doesn't support more than %d tasks.", MAX_NUM_TASKS);
 
             // TaskSet is not needed for background tasks
             m_tasks[m_currSize++].Reset(name, TASK_PRIORITY::NORMAL, ZetaMove(f));

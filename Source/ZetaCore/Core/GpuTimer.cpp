@@ -48,7 +48,8 @@ Span<GpuTimer::Timing> GpuTimer::GetFrameTimings()
     if (App::GetTimer().GetTotalFrameCount() < 2)
         return Span(reinterpret_cast<Timing*>(NULL), 0);
 
-    return Span(m_timings[Constants::NUM_BACK_BUFFERS].data(), m_queryCounts[Constants::NUM_BACK_BUFFERS]);
+    return Span(m_timings[Constants::NUM_BACK_BUFFERS].data(), 
+        m_queryCounts[Constants::NUM_BACK_BUFFERS]);
 }
 
 void GpuTimer::BeginFrame()
@@ -61,7 +62,8 @@ void GpuTimer::BeginFrame()
         // At this point, previous frame's queries have been submitted
         m_fenceVals[m_currFrameIdx] = m_nextFenceVal;
         // Advance the frame index
-        m_currFrameIdx = m_currFrameIdx < Constants::NUM_BACK_BUFFERS - 1 ? m_currFrameIdx + 1 : 0;
+        m_currFrameIdx = m_currFrameIdx < Constants::NUM_BACK_BUFFERS - 1 ? 
+            m_currFrameIdx + 1 : 0;
 
         App::GetRenderer().SignalDirectQueue(m_fence.Get(), m_nextFenceVal++);
 
@@ -75,14 +77,16 @@ void GpuTimer::BeginFrame()
             if (completed < m_fenceVals[m_nextCompletedFrameIdx])
                 break;
 
-            m_nextCompletedFrameIdx = m_nextCompletedFrameIdx < Constants::NUM_BACK_BUFFERS - 1 ? m_nextCompletedFrameIdx + 1 : 0;
+            m_nextCompletedFrameIdx = m_nextCompletedFrameIdx < Constants::NUM_BACK_BUFFERS - 1 ? 
+                m_nextCompletedFrameIdx + 1 : 0;
             newData = true;
         } while (m_nextCompletedFrameIdx != oldNextCompletedFrameIdx);
 
         if (newData)
         {
             // Undo the last add
-            const int lastCompletedFrameIdx = m_nextCompletedFrameIdx > 0 ? m_nextCompletedFrameIdx - 1 : Constants::NUM_BACK_BUFFERS - 1;
+            const int lastCompletedFrameIdx = m_nextCompletedFrameIdx > 0 ? 
+                m_nextCompletedFrameIdx - 1 : Constants::NUM_BACK_BUFFERS - 1;
 
             m_readbackBuff.Map();
             uint8_t* data = reinterpret_cast<uint8_t*>(m_readbackBuff.MappedMemory());
@@ -95,7 +99,8 @@ void GpuTimer::BeginFrame()
                 memcpy(&beg, currPtr, sizeof(uint64_t));
                 memcpy(&end, currPtr + sizeof(uint64_t), sizeof(uint64_t));
 
-                uint64_t freq = m_timings[lastCompletedFrameIdx][i].ExecutionQueue == D3D12_COMMAND_LIST_TYPE_DIRECT ?
+                uint64_t freq = 
+                    m_timings[lastCompletedFrameIdx][i].ExecutionQueue == D3D12_COMMAND_LIST_TYPE_DIRECT ?
                     m_directQueueFreq : m_computeQueueFreq;
                 m_timings[lastCompletedFrameIdx][i].Delta = (end - beg) / (double)freq;
             }
@@ -105,7 +110,8 @@ void GpuTimer::BeginFrame()
             if (m_queryCounts[lastCompletedFrameIdx])
             {
                 m_timings[Constants::NUM_BACK_BUFFERS].clear();
-                m_timings[Constants::NUM_BACK_BUFFERS].append_range(m_timings[lastCompletedFrameIdx].begin(),
+                m_timings[Constants::NUM_BACK_BUFFERS].append_range(
+                    m_timings[lastCompletedFrameIdx].begin(),
                     m_timings[lastCompletedFrameIdx].end(), true);
             }
 
@@ -120,7 +126,7 @@ void GpuTimer::BeginFrame()
 uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name)
 {
     const uint32_t queryIdx = m_frameQueryCount.fetch_add(1, std::memory_order_relaxed);
-    Assert(queryIdx < MAX_NUM_QUERIES, "number of queries exceeded maximum allowed.");
+    Assert(queryIdx < MAX_NUM_QUERIES, "Number of queries exceeded maximum allowed.");
 
     const auto n = Math::Min(Timing::MAX_NAME_LENGTH - 1, (int)strlen(name));
     memcpy(&m_timings[m_currFrameIdx][queryIdx].Name, name, n);
@@ -129,7 +135,7 @@ uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name)
     m_timings[m_currFrameIdx][queryIdx].ExecutionQueue = cmdList.GetType();
 
     const uint32_t heapIdx = MAX_NUM_QUERIES * 2 * m_currFrameIdx + queryIdx * 2;
-    Assert((heapIdx & 0x1) == 0, "invalid query index.");
+    Assert((heapIdx & 0x1) == 0, "Invalid query index.");
     cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, heapIdx);
 
     return heapIdx;
@@ -137,16 +143,19 @@ uint32_t GpuTimer::BeginQuery(ComputeCmdList& cmdList, const char* name)
 
 void GpuTimer::EndQuery(ComputeCmdList& cmdList, uint32_t begHeapIdx)
 {
-    Assert(((begHeapIdx & 0x1) == 0) && (begHeapIdx >= MAX_NUM_QUERIES * 2 * m_currFrameIdx), "invalid query index.");
+    Assert(((begHeapIdx & 0x1) == 0) && (begHeapIdx >= MAX_NUM_QUERIES * 2 * m_currFrameIdx), 
+        "Invalid query index.");
     const uint32_t endHeapIdx = begHeapIdx + 1;
-    Assert(endHeapIdx < MAX_NUM_QUERIES * 2 * Constants::NUM_BACK_BUFFERS, "invalid query index.");
+    Assert(endHeapIdx < MAX_NUM_QUERIES * 2 * Constants::NUM_BACK_BUFFERS, 
+        "Invalid query index.");
 
     cmdList.EndQuery(m_queryHeap.Get(), D3D12_QUERY_TYPE_TIMESTAMP, endHeapIdx);
 }
 
 void GpuTimer::EndFrame(ComputeCmdList& cmdList)
 {
-    Assert(!m_readbackBuff.IsMapped(), "Readback buffer shouldn't be mapped while in use by the GPU.");
+    Assert(!m_readbackBuff.IsMapped(), 
+        "Readback buffer shouldn't be mapped while in use by the GPU.");
     const int queryCount = m_frameQueryCount.load(std::memory_order_acquire);
     m_queryCounts[m_currFrameIdx] = queryCount;
 
@@ -169,4 +178,3 @@ void GpuTimer::EndFrame(ComputeCmdList& cmdList)
 
     m_frameQueryCount.store(0, std::memory_order_relaxed);
 }
-

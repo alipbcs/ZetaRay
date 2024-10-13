@@ -40,7 +40,8 @@ namespace ZetaRay::Support
 
         bool AreAllTasksFinished()
         {
-            const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == m_numTasksToFinishTarget.load(std::memory_order_acquire);
+            const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == 
+                m_numTasksToFinishTarget.load(std::memory_order_acquire);
             return isEmpty;
         }
 
