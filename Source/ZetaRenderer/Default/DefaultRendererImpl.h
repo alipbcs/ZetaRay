@@ -1,7 +1,6 @@
 #pragma once
 
 #include <Scene/SceneCore.h>
-#include <Core/RendererCore.h>
 #include <Core/RenderGraph.h>
 #include <Common/FrameConstants.h>
 #include <GBuffer/GBufferRT.h>

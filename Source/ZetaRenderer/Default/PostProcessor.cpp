@@ -1,6 +1,4 @@
 #include "DefaultRendererImpl.h"
-#include <App/App.h>
-#include <RayTracing/RtAccelerationStructure.h>
 
 using namespace ZetaRay::Math;
 using namespace ZetaRay::RenderPass;

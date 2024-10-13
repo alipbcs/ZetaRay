@@ -1,7 +1,4 @@
 #include "DefaultRendererImpl.h"
-#include <Core/CommandList.h>
-#include <Core/SharedShaderResources.h>
-#include <App/App.h>
 #include <App/Timer.h>
 
 using namespace ZetaRay::Math;

@@ -1,5 +1,4 @@
 #include "Sky.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneCore.h>
 #include <Support/Param.h>

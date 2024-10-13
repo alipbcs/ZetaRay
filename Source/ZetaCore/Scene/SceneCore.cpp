@@ -2,7 +2,6 @@
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Quaternion.h"
 #include "../Math/Color.h"
-#include "../RayTracing/RtCommon.h"
 #include "../Support/Task.h"
 #include "Camera.h"
 #include <App/Timer.h>

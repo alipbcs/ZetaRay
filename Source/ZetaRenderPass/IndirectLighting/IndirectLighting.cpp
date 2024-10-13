@@ -1,8 +1,6 @@
 #include "IndirectLighting.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Core/SharedShaderResources.h>
-#include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <Scene/SceneCore.h>
 #include <Support/Task.h>

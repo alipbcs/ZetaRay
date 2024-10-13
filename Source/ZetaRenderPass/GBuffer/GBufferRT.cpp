@@ -1,10 +1,7 @@
 #include "GBufferRT.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
-#include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <App/Filesystem.h>
-#include <Utility/SmallVector.h>
 #include <Scene/SceneCore.h>
 
 using namespace ZetaRay::Core;

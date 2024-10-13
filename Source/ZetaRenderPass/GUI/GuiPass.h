@@ -2,9 +2,7 @@
 
 #include "../RenderPass.h"
 #include <Core/GpuMemory.h>
-#include <Core/DescriptorHeap.h>
 #include <Core/GpuTimer.h>
-#include <Support/MemoryArena.h>
 #include "GuiPass_Common.h"
 
 namespace ZetaRay::Core

@@ -1,7 +1,6 @@
 #include "RootSignature.h"
 #include "RendererCore.h"
 #include "CommandList.h"
-#include "GpuMemory.h"
 #include "SharedShaderResources.h"
 #include <xxHash/xxhash.h>
 

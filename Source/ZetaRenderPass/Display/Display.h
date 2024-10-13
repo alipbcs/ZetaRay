@@ -2,7 +2,6 @@
 
 #include "../RenderPass.h"
 #include <Core/GpuMemory.h>
-#include <Core/DescriptorHeap.h>
 #include <Scene/SceneCommon.h>
 #include "Display_Common.h"
 

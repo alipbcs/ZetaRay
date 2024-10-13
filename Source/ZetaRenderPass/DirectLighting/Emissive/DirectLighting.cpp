@@ -1,9 +1,7 @@
 #include "DirectLighting.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
-#include <Scene/SceneCore.h>
 #include <Support/Task.h>
 
 using namespace ZetaRay;

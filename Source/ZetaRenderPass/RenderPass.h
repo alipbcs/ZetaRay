@@ -2,6 +2,7 @@
 
 #include <Core/PipelineStateLibrary.h>
 #include <Core/RootSignature.h>
+#include <Core/RendererCore.h>
 
 namespace ZetaRay::RenderPass
 {

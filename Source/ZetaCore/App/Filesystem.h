@@ -2,7 +2,6 @@
 
 #include "../Utility/Span.h"
 #include "../Support/MemoryArena.h"
-#include "App.h"
 
 namespace ZetaRay::App::Filesystem
 {

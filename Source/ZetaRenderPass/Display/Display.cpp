@@ -1,8 +1,6 @@
 #include "Display.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Core/RenderGraph.h>
-#include <Scene/SceneRenderer.h>
 #include <Scene/SceneCore.h>
 #include <Scene/Camera.h>
 #include <Support/Param.h>

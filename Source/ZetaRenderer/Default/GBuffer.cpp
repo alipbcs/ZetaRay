@@ -1,6 +1,4 @@
 #include "DefaultRendererImpl.h"
-#include <Core/CommandList.h>
-#include <App/App.h>
 
 using namespace ZetaRay::Math;
 using namespace ZetaRay::Model;

@@ -1,7 +1,6 @@
 #pragma once
 
 #include "../Utility/Span.h"
-#include <string.h>
 
 namespace ZetaRay::App::Common
 {

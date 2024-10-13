@@ -1,9 +1,7 @@
 #include "Asset.h"
 #include "../Core/RendererCore.h"
 #include "../Core/SharedShaderResources.h"
-#include "SceneRenderer.h"
 #include "SceneCore.h"
-#include "../Utility/Utility.h"
 #include "../App/Log.h"
 #include "../App/Timer.h"
 #include <algorithm>

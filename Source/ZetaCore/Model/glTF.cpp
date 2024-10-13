@@ -4,7 +4,6 @@
 #include "../Math/Quaternion.h"
 #include "../Scene/SceneCore.h"
 #include "../Support/Task.h"
-#include "../Core/RendererCore.h"
 #include "../App/Log.h"
 #include "../Utility/Utility.h"
 #include <algorithm>

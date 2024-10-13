@@ -1,7 +1,4 @@
 #include "GuiPass.h"
-#include <Math/Vector.h>
-#include <Math/Color.h>
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Support/Param.h>
 #include <Support/Stat.h>

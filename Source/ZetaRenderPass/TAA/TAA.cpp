@@ -1,5 +1,4 @@
 #include "TAA.h"
-#include <Core/RendererCore.h>
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
