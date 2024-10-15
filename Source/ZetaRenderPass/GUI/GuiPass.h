@@ -24,6 +24,7 @@ namespace ZetaRay::RenderPass
         ~GuiPass() = default;
 
         void Init();
+        void OnWindowResized();
         void SetCPUDescriptor(int i, D3D12_CPU_DESCRIPTOR_HANDLE h)
         {
             Assert(i < SHADER_IN_CPU_DESC::COUNT, "out-of-bound access.");
@@ -66,16 +67,17 @@ namespace ZetaRay::RenderPass
         Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
 
         int m_currShader = -1;
-        static constexpr float m_dbgWndWidthPct = 0.21f;
-        static constexpr float m_dbgWndHeightPct = 1.0f;
-        int m_logWndWidth = 0;
-        static constexpr float m_logWndHeightPct = 0.21f;
+        float m_dbgWndWidthPct = 0.21f;
+        float m_dbgWndHeightPct = 1.0f;
+        int m_headerWndWidth = 0;
+        float m_logWndHeightPct = 0.21f;
         static constexpr float m_headerWndHeightPct = 0.02f;
         static constexpr float m_frameHistWidthPct = 0.9f;
         bool m_firstTime = true;
         bool m_closeLogsTab = false;
         int m_prevNumLogs = 0;
         bool m_pendingEmissiveUpdate = false;
+        bool m_appWndSizeChanged = false;
 
         Util::SmallVector<App::LogMessage> m_logs;
     };

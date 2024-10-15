@@ -336,6 +336,11 @@ void GuiPass::Init()
     }
 }
 
+void GuiPass::OnWindowResized()
+{
+    m_appWndSizeChanged = true;
+}
+
 void GuiPass::UpdateBuffers()
 {
     ImDrawData* draw_data = ImGui::GetDrawData();
@@ -398,6 +403,9 @@ void GuiPass::Render(CommandList& cmdList)
 
     RenderSettings();
     RenderMainHeader();
+    m_firstTime = false;
+    m_appWndSizeChanged = false;
+
     ImGui::Render();
     UpdateBuffers();
 
@@ -502,67 +510,79 @@ void GuiPass::Render(CommandList& cmdList)
 }
 
 void GuiPass::RenderSettings()
-{
+{ 
     const int displayWidth = App::GetRenderer().GetDisplayWidth();
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
+
     // Round to nearest
     const int wndSizeX = (int)std::fmaf((float)displayWidth, m_dbgWndWidthPct, 0.5f);
     const int wndSizeY = (int)std::fmaf((float)displayHeight, m_dbgWndHeightPct, 0.5f);
     const int wndPosX = displayWidth - wndSizeX;
+    m_headerWndWidth = wndPosX;
 
-    ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar | ImGuiWindowFlags_NoMove);
-    ImGui::SetWindowPos(ImVec2((float)wndPosX, 0.0f), ImGuiCond_Once);
-    ImGui::SetWindowSize(ImVec2((float)wndSizeX, (float)wndSizeY), ImGuiCond_Once);
+    ImGui::SetNextWindowPos(ImVec2((float)wndPosX, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2((float)wndSizeX, (float)wndSizeY), ImGuiCond_Always);
+    // Hide resize grip
+    ImGui::PushStyleColor(ImGuiCol_ResizeGrip, 0);
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, 0);
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, 0);
 
-    m_logWndWidth = displayWidth - wndSizeX;
-
-    if (ImGui::CollapsingHeader(ICON_FA_INFO "  Info", ImGuiTreeNodeFlags_None))
+    if (ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar |
+        ImGuiWindowFlags_NoMove))
     {
-        InfoTab();
-        ImGui::Text("");
-    }
+        m_dbgWndWidthPct = ImGui::GetWindowWidth() / (float)displayWidth;
+        m_dbgWndHeightPct = !ImGui::IsWindowCollapsed() ? ImGui::GetWindowHeight() / (float)displayHeight :
+            m_dbgWndHeightPct;
 
-    if (ImGui::CollapsingHeader(ICON_FA_CAMERA "  Camera", ImGuiTreeNodeFlags_None))
-    {
-        CameraTab();
-        ImGui::Text("");
-    }
-
-    if (ImGui::CollapsingHeader(ICON_FA_WRENCH "  Settings", ImGuiTreeNodeFlags_DefaultOpen))
-    {
-        ParameterTab();
-        ImGui::Text("");
-    }
-
-    const uint64 pickedID = App::GetScene().GetPickedInstance();
-    if (pickedID != Scene::INVALID_INSTANCE)
-    {
-        if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material", ImGuiTreeNodeFlags_DefaultOpen))
+        if (ImGui::CollapsingHeader(ICON_FA_INFO "  Info", ImGuiTreeNodeFlags_None))
         {
-            MaterialTab(pickedID);
+            InfoTab();
             ImGui::Text("");
         }
+
+        if (ImGui::CollapsingHeader(ICON_FA_CAMERA "  Camera", ImGuiTreeNodeFlags_None))
+        {
+            CameraTab();
+            ImGui::Text("");
+        }
+
+        if (ImGui::CollapsingHeader(ICON_FA_WRENCH "  Settings", ImGuiTreeNodeFlags_DefaultOpen))
+        {
+            ParameterTab();
+            ImGui::Text("");
+        }
+
+        const uint64 pickedID = App::GetScene().GetPickedInstance();
+        if (pickedID != Scene::INVALID_INSTANCE)
+        {
+            if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                MaterialTab(pickedID);
+                ImGui::Text("");
+            }
+        }
+
+        //if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
+        //{
+        //    if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None))
+        //    {
+        //        ShowStyles();
+        //        ImGui::EndTabBar();
+        //    }
+
+        //    ImGui::Text("");
+        //}
+
+        if (ImGui::CollapsingHeader(ICON_FA_ROTATE_RIGHT "  Shader Hot-Reload", ImGuiTreeNodeFlags_None))
+        {
+            ShaderReloadTab();
+            ImGui::Text("");
+        }
+
+        RenderProfiler();
     }
 
-    //if (ImGui::CollapsingHeader("Style", ImGuiTreeNodeFlags_None))
-    //{
-    //    if (ImGui::BeginTabBar("##tabs", ImGuiTabBarFlags_None))
-    //    {
-    //        ShowStyles();
-    //        ImGui::EndTabBar();
-    //    }
-
-    //    ImGui::Text("");
-    //}
-
-    if (ImGui::CollapsingHeader(ICON_FA_ROTATE_RIGHT "  Shader Hot-Reload", ImGuiTreeNodeFlags_None))
-    {
-        ShaderReloadTab();
-        ImGui::Text("");
-    }
-
-    RenderProfiler();
-
+    ImGui::PopStyleColor(3);
     ImGui::End();
 }
 
@@ -658,16 +678,22 @@ void GuiPass::RenderLogWindow()
 {
     ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.014286487, 0.014286487, 0.0142864870, 0.995f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
+    // Hide resize grip
+    ImGui::PushStyleColor(ImGuiCol_ResizeGrip, 0);
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, 0);
+    ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, 0);
 
-    const float h_prev = ImGui::GetWindowSize().y;
+    const int displayWidth = App::GetRenderer().GetDisplayWidth();
+    const int displayHeight = App::GetRenderer().GetDisplayHeight();
+
+    const float headerWndHeight = ImGui::GetWindowSize().y;
+    const int wndSizeY = (int)std::fmaf((float)displayHeight, m_logWndHeightPct, 0.5f);
+    ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, (float)wndSizeY), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(0, headerWndHeight), ImGuiCond_Always);
 
     ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
-    const int displayHeight = App::GetRenderer().GetDisplayHeight();
-    const int wndSizeY = (int)std::fmaf((float)displayHeight, m_logWndHeightPct, 0.5f);
-
-    ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndSizeY), ImGuiCond_Once);
-    ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
+    m_logWndHeightPct = ImGui::GetWindowHeight() / (float)displayHeight;
 
     ImGui::Text("#Items: %d\t", (int)m_logs.size());
     ImGui::SameLine();
@@ -696,7 +722,7 @@ void GuiPass::RenderLogWindow()
     }
 
     ImGui::PopStyleVar();
-    ImGui::PopStyleColor();
+    ImGui::PopStyleColor(4);
 
     if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY())
         ImGui::SetScrollHereY(1.0f);
@@ -710,28 +736,30 @@ void GuiPass::RenderMainHeader()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImGui::PushStyleColor(ImGuiCol_Tab, style.Colors[ImGuiCol_WindowBg]);
-    ImGui::PushStyleColor(ImGuiCol_TabActive, ImVec4(0.0295568369f, 0.0295568369f, 0.0295568369f, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_TabHovered, ImVec4(0.05098039215f, 0.05490196078f, 0.05490196078f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TabActive, 
+        ImVec4(0.0295568369f, 0.0295568369f, 0.0295568369f, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_TabHovered, 
+        ImVec4(0.05098039215f, 0.05490196078f, 0.05490196078f, 1.0f));
 
     ImGui::PushStyleVar(ImGuiStyleVar_ItemInnerSpacing, ImVec2(15, style.ItemInnerSpacing.y));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowRounding, 1.5f);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
 
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
     const int wndHeight = (int)std::fmaf(m_headerWndHeightPct, (float)displayHeight, 0.5f);
 
+    ImGui::SetNextWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, (float)wndHeight), ImGuiCond_Always);
+
     ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | 
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
-
-    ImGui::SetWindowPos(ImVec2(0.0f, 0.0f), ImGuiCond_Always);
-    ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndHeight), ImGuiCond_Always);
 
     ImGui::Text("        ");
     ImGui::SameLine();
     ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
 
     auto flags = m_closeLogsTab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
-    const bool showMainWnd = ImGui::BeginTabItem(ICON_FA_DISPLAY "        Main        ", nullptr, flags);
+    const bool showMainWnd = ImGui::BeginTabItem(ICON_FA_DISPLAY "        Main        ", 
+        nullptr, flags);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNone))
     {
         ImGui::PopStyleVar();
@@ -740,37 +768,33 @@ void GuiPass::RenderMainHeader()
     }
 
     if(showMainWnd)
-    {
-        ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, (float)wndHeight), ImGuiCond_Always);
         ImGui::EndTabItem();
-    }
 
     const bool renderGraphTab = ImGui::BeginTabItem(ICON_FA_SHARE_NODES "        Render Graph        ");
 
     if (ImGui::IsItemHovered())
     {
         ImGui::PopStyleVar();
-        ImGui::SetTooltip("Render Graph Visualization (Use RMB for Panning).");
+        ImGui::SetTooltip("Render Graph Visualization (Use RMB for panning).");
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
     }
 
     if(renderGraphTab)
     {
-        const float h_prev = ImGui::GetWindowHeight();
+        const float headerWndHeight = ImGui::GetWindowHeight();
+
+        ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, displayHeight - headerWndHeight), 
+            ImGuiCond_Once);
+        ImGui::SetNextWindowPos(ImVec2(0, headerWndHeight), ImGuiCond_Always);
 
         ImGui::Begin(" ", nullptr, ImGuiWindowFlags_NoMove);
-
-        ImGui::SetWindowSize(ImVec2((float)m_logWndWidth, displayHeight - h_prev), ImGuiCond_Once);
-        ImGui::SetWindowPos(ImVec2(0, h_prev), ImGuiCond_Always);
-
         App::GetScene().DebugDrawRenderGraph();
-
         ImGui::End();
 
         ImGui::EndTabItem();
     }
 
-    // Append the latest log messages
+    // Append new log messages
     auto frameLogs = App::GetFrameLogs().Variable();
     m_prevNumLogs = (int)m_logs.size();
     m_logs.append_range(frameLogs.begin(), frameLogs.end());
@@ -798,11 +822,9 @@ void GuiPass::RenderMainHeader()
     ImGui::EndTabBar();
 
     ImGui::PopStyleColor(3);
-    ImGui::PopStyleVar(3);
+    ImGui::PopStyleVar(2);
 
     ImGui::End();
-
-    m_firstTime = false;
 }
 
 void GuiPass::InfoTab()

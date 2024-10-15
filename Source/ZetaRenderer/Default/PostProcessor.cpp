@@ -79,6 +79,7 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
     const RayTracerData& rtData)
 {
     data.CompositingPass.OnWindowResized();
+    data.GuiPass.OnWindowResized();
 
     if (settings.AntiAliasing == AA::TAA)
         data.TaaPass.OnWindowResized();
