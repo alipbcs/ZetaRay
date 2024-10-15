@@ -266,7 +266,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
     }
 
     // Register backbuffer
-    const Texture& backbuff = App::GetRenderer().GetCurrBackBuffer();
+    const Texture& backbuff = App::GetRenderer().GetCurrentBackBuffer();
     renderGraph.RegisterResource(const_cast<Texture&>(backbuff).Resource(), backbuff.ID());
 
     // Dummy resource
@@ -458,7 +458,7 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 
     // Backbuffer
     renderGraph.AddOutput(data.DisplayHandle,
-        App::GetRenderer().GetCurrBackBuffer().ID(),
+        App::GetRenderer().GetCurrentBackBuffer().ID(),
         D3D12_RESOURCE_STATE_RENDER_TARGET);
 
     // For GUI Pass
@@ -472,6 +472,6 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
         D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
     renderGraph.AddOutput(data.GuiHandle,
-        App::GetRenderer().GetCurrBackBuffer().ID(),
+        App::GetRenderer().GetCurrentBackBuffer().ID(),
         D3D12_RESOURCE_STATE_RENDER_TARGET);
 }

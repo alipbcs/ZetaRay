@@ -48,7 +48,8 @@ namespace ZetaRay::Core
         ZetaInline uint16_t GetDisplayHeight() const { return m_displayHeight; }
         ZetaInline float GetAspectRatio() const { return (float)m_renderWidth / m_renderHeight; }
         ZetaInline int GetCurrentBackBufferIndex() const { return m_currBackBuffIdx; }
-        ZetaInline GpuMemory::Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
+        ZetaInline const GpuMemory::Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
+        ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
         ZetaInline SharedShaderResources& GetSharedShaderResources() { return *m_sharedShaderRes; }
         ZetaInline DescriptorHeap& GetGpuDescriptorHeap() { return m_cbvSrvUavDescHeapGpu; };
@@ -96,8 +97,6 @@ namespace ZetaRay::Core
         ZetaInline D3D12_RECT GetDisplayScissor() const { return m_displayScissor; }
         ZetaInline D3D12_VIEWPORT GetRenderViewport() const { return m_renderViewport; }
         ZetaInline D3D12_RECT GetRenderScissor() const { return m_renderScissor; }
-        ZetaInline const GpuMemory::Texture& GetCurrBackBuffer() const { return m_backBuffers[m_currBackBuffIdx]; }
-        ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
         ZetaInline bool IsRGBESupported() const { return m_deviceObjs.m_rgbeSupport; };
         ZetaInline bool IsTearingSupported() const { return m_vsyncInterval == 0 && m_deviceObjs.m_tearingSupport; };

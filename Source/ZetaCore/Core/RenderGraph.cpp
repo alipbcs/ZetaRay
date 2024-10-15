@@ -779,7 +779,7 @@ void RenderGraph::InsertResourceBarriers()
     }
 
     // Temporary solution; assumes that "someone" will transition backbuffer to Present state
-    int idx = FindFrameResource(App::GetRenderer().GetCurrBackBuffer().ID());
+    int idx = FindFrameResource(App::GetRenderer().GetCurrentBackBuffer().ID());
     //Assert(idx != -1, "Current backbuffer was not found in frame resources");
     if(idx != -1)
         m_frameResources[idx].State = D3D12_RESOURCE_STATE_PRESENT;

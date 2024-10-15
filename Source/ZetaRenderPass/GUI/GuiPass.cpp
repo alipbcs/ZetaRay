@@ -494,7 +494,7 @@ void GuiPass::Render(CommandList& cmdList)
     gpuTimer.EndQuery(directCmdList, queryIdx);
 
     // HACK this is the last RenderPass, transition to PRESENT can be done here
-    directCmdList.ResourceBarrier(renderer.GetCurrentBackBuffer().Resource(),
+    directCmdList.ResourceBarrier(const_cast<Texture&>(renderer.GetCurrentBackBuffer()).Resource(),
         D3D12_RESOURCE_STATE_RENDER_TARGET,
         D3D12_RESOURCE_STATE_PRESENT);
 
