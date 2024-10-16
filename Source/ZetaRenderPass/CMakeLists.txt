@@ -44,6 +44,7 @@ endif()
 
 # build ZetaRenderPass as a static library
 add_library(ZetaRenderPass STATIC ${RENDERPASS_SRC})
+add_dependencies(ZetaRenderPass CompileShaders)
 target_include_directories(ZetaRenderPass PUBLIC "${ZETA_CORE_DIR}" 
     PRIVATE "${EXTERNAL_DIR}" "${ZETA_RENDER_PASS_DIR}" "${EXTERNAL_DIR}/ImGui" AFTER)
 set_target_properties(ZetaRenderPass PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
