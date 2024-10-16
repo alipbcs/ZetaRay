@@ -75,8 +75,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
 
     GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-    const float2 mr = g_metallicRoughness[DTid.xy];
-    GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
+    GBuffer::Flags flags = GBuffer::DecodeMetallic(g_metallicRoughness[DTid.xy].x);
 
     RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
     

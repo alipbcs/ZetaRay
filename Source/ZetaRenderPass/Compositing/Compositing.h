@@ -119,13 +119,12 @@ namespace ZetaRay::RenderPass
 
         // param callbacks
         void FireflyFilterCallback(const Support::ParamVariant& p);
-        void DirectSunCallback(const Support::ParamVariant& p);
         void DirectSkyCallback(const Support::ParamVariant& p);
         void IndirectCallback(const Support::ParamVariant& p);
         void DirectEmissiveCallback(const Support::ParamVariant& p);
         void VisualizeLVGCallback(const Support::ParamVariant& p);
         // shader reload
-        void ReloadCompsiting();
+        void ReloadCompositing();
 
         Core::GpuMemory::Texture m_compositTex;
         Core::DescriptorTable m_descTable;

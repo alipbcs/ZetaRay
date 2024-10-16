@@ -80,7 +80,7 @@ void Compositing::Init()
         false);
     App::AddParam(p10);
 
-    App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompsiting));
+    App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompositing));
 }
 
 void Compositing::OnWindowResized()
@@ -196,7 +196,7 @@ void Compositing::VisualizeLVGCallback(const Support::ParamVariant& p)
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::VISUALIZE_LVG, p.GetBool());
 }
 
-void Compositing::ReloadCompsiting()
+void Compositing::ReloadCompositing()
 {
     const int i = (int)SHADER::COMPOSIT;
     m_psoLib.Reload(0, m_rootSigObj.Get(), "Compositing\\Compositing.hlsl");
