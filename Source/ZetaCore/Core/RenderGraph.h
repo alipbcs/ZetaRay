@@ -7,6 +7,7 @@
 namespace ZetaRay::Support
 {
     struct TaskSet;
+    struct WaitObject;
 }
 
 namespace ZetaRay::Core
@@ -110,6 +111,10 @@ namespace ZetaRay::Core
 
         // GPU completion fence for given render node. It must've already been submitted.
         uint64_t GetCompletionFence(RenderNodeHandle h);
+        // GPU completion fence for this frame.
+        uint64_t GetFrameCompletionFence();
+
+        void SetFrameSubmissionWaitObj(Support::WaitObject& waitObj);
 
     private:
         static constexpr uint16_t INVALID_NODE_HANDLE = UINT16_MAX;
@@ -324,5 +329,6 @@ namespace ZetaRay::Core
         Util::SmallVector<AggregateRenderNode, App::FrameAllocator> m_aggregateNodes;
         Util::SmallVector<ComputeCmdList*, Support::SystemAllocator, 4> m_mergedCmdLists;
         int m_numPassesLastTimeDrawn = -1;
+        Support::WaitObject* m_submissionWaitObj = nullptr;
     };
 }

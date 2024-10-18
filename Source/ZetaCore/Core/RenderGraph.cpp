@@ -529,14 +529,20 @@ void RenderGraph::BuildTaskGraph(Support::TaskSet& ts)
                         }
                     }
                 }
+
+                if (m_submissionWaitObj && aggregateNode.IsLast)
+                {
+                    m_submissionWaitObj->Notify();
+                    m_submissionWaitObj = nullptr;
+                }
             });
     }
 
-    for (int i = 0; i < m_aggregateNodes.size() - 1; i++)
+    for (int i = 0; i < (int)m_aggregateNodes.size() - 1; i++)
     {
         const int currBatchIdx = m_aggregateNodes[i].BatchIdx;
 
-        for (int j = i + 1; j < m_aggregateNodes.size(); j++)
+        for (int j = i + 1; j < (int)m_aggregateNodes.size(); j++)
         {
             const int nextBatchIdx = m_aggregateNodes[j].BatchIdx;
 
@@ -1018,6 +1024,19 @@ uint64_t RenderGraph::GetCompletionFence(RenderNodeHandle h)
     //Assert(fence != -1, "render node hasn't been submitted yet.");
 
     return fence;
+}
+
+void RenderGraph::SetFrameSubmissionWaitObj(Support::WaitObject& waitObj)
+{
+    m_submissionWaitObj = &waitObj;
+}
+
+uint64_t RenderGraph::GetFrameCompletionFence()
+{
+    Assert(!m_inBeginEndBlock, "Invalid call.");
+    Assert(!m_inPreRegister, "Invalid call.");
+
+    return m_aggregateNodes.back().CompletionFence;
 }
 
 void RenderGraph::DebugDrawGraph()

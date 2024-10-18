@@ -237,6 +237,7 @@ namespace ZetaRay::Scene
             m_pickedInstance.store(instanceID, std::memory_order_relaxed);
         }
         ZetaInline uint64 GetPickedInstance() { return m_pickedInstance.load(std::memory_order_relaxed); }
+        ZetaInline void CaptureScreen() { m_rendererInterface.CaptureScreen(); }
 
     private:
         static constexpr uint32_t BASE_COLOR_DESC_TABLE_SIZE = 256;

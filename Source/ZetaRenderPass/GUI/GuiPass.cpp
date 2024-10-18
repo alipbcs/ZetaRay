@@ -365,7 +365,8 @@ void GuiPass::UpdateBuffers()
     for (int n = 0; n < draw_data->CmdListsCount; n++)
     {
         const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        fr.VertexBuffer.Copy(offset, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert), cmd_list->VtxBuffer.Data);
+        fr.VertexBuffer.Copy(offset, cmd_list->VtxBuffer.Size * sizeof(ImDrawVert), 
+            cmd_list->VtxBuffer.Data);
         offset += cmd_list->VtxBuffer.Size * sizeof(ImDrawVert);
     }
 
@@ -382,7 +383,8 @@ void GuiPass::UpdateBuffers()
     for (int n = 0; n < draw_data->CmdListsCount; n++)
     {
         const ImDrawList* cmd_list = draw_data->CmdLists[n];
-        fr.IndexBuffer.Copy(offset, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx), cmd_list->IdxBuffer.Data);
+        fr.IndexBuffer.Copy(offset, cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx), 
+            cmd_list->IdxBuffer.Data);
         offset += cmd_list->IdxBuffer.Size * sizeof(ImDrawIdx);
     }
 }
@@ -392,7 +394,7 @@ void GuiPass::Render(CommandList& cmdList)
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
     GraphicsCmdList& directCmdList = static_cast<GraphicsCmdList&>(cmdList);
 
-    auto& renderer = App::GetRenderer(); 
+    auto& renderer = App::GetRenderer();
     auto& gpuTimer = renderer.GetGpuTimer();
 
     directCmdList.PIXBeginEvent("ImGui");
@@ -401,8 +403,12 @@ void GuiPass::Render(CommandList& cmdList)
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
     directCmdList.SetPipelineState(m_psoLib.GetPSO(0));
 
-    RenderSettings();
-    RenderMainHeader();
+    if (!m_hideUI)
+    {
+        RenderSettings();
+        RenderMainHeader();
+    }
+    RenderToolbar();
     m_firstTime = false;
     m_appWndSizeChanged = false;
 
@@ -417,7 +423,8 @@ void GuiPass::Render(CommandList& cmdList)
 
     // Setup desired DX state
     // Setup orthographic projection matrix into our constant buffer
-    // Our visible imgui space lies from draw_data->DisplayPos (top left) to draw_data->DisplayPos+data_data->DisplaySize (bottom right).
+    // Our visible imgui space lies from draw_data->DisplayPos (top left) to 
+    // draw_data->DisplayPos+data_data->DisplaySize (bottom right).
     cbGuiPass cb;
 
     {
@@ -602,44 +609,44 @@ void GuiPass::RenderProfiler()
         Span<Support::Stat> stats = App::GetStats().Variable();
 
         auto func = [](Stat& s)
-        {
-            switch (s.GetType())
             {
-            case Stat::ST_TYPE::ST_INT:
-                ImGui::Text("\t%s: %d", s.GetName(), s.GetInt());
+                switch (s.GetType())
+                {
+                case Stat::ST_TYPE::ST_INT:
+                    ImGui::Text("\t%s: %d", s.GetName(), s.GetInt());
+                    break;
+
+                case Stat::ST_TYPE::ST_UINT:
+                    ImGui::Text("\t%s: %u", s.GetName(), s.GetUInt());
+                    break;
+
+                case Stat::ST_TYPE::ST_FLOAT:
+                    ImGui::Text("\t%s: %.2f", s.GetName(), s.GetFloat());
+                    break;
+
+                case Stat::ST_TYPE::ST_UINT64:
+                    ImGui::Text("\t%s: %llu", s.GetName(), s.GetUInt64());
+                    break;
+
+                case Stat::ST_TYPE::ST_RATIO:
+                {
+                    uint32_t num;
+                    uint32_t total;
+                    s.GetRatio(num, total);
+
+                    ImGui::Text("\t%s: %u/%u", s.GetName(), num, total);
+                }
                 break;
 
-            case Stat::ST_TYPE::ST_UINT:
-                ImGui::Text("\t%s: %u", s.GetName(), s.GetUInt());
-                break;
-
-            case Stat::ST_TYPE::ST_FLOAT:
-                ImGui::Text("\t%s: %.2f", s.GetName(), s.GetFloat());
-                break;
-
-            case Stat::ST_TYPE::ST_UINT64:
-                ImGui::Text("\t%s: %llu", s.GetName(), s.GetUInt64());
-                break;
-
-            case Stat::ST_TYPE::ST_RATIO:
-            {
-                uint32_t num;
-                uint32_t total;
-                s.GetRatio(num, total);
-
-                ImGui::Text("\t%s: %u/%u", s.GetName(), num, total);
-            }
-            break;
-
-            default:
-                break;
-            }
-        };
+                default:
+                    break;
+                }
+            };
 
         for (auto s : stats)
             func(s);
 
-        ImGui::Text(""); 
+        ImGui::Text("");
     }
 
     if (ImGui::CollapsingHeader(ICON_FA_CLOCK "  GPU Timings", ImGuiTreeNodeFlags_DefaultOpen))
@@ -683,23 +690,21 @@ void GuiPass::RenderLogWindow()
     ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, 0);
     ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, 0);
 
-    const int displayWidth = App::GetRenderer().GetDisplayWidth();
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
-
-    const float headerWndHeight = ImGui::GetWindowSize().y;
     const int wndSizeY = (int)std::fmaf((float)displayHeight, m_logWndHeightPct, 0.5f);
     ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, (float)wndSizeY), ImGuiCond_Always);
-    ImGui::SetNextWindowPos(ImVec2(0, headerWndHeight), ImGuiCond_Always);
+    ImGui::SetNextWindowPos(ImVec2(0, (float)m_headerWndHeight), ImGuiCond_Always);
 
     ImGui::Begin("Logs", nullptr, ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoMove);
 
     m_logWndHeightPct = ImGui::GetWindowHeight() / (float)displayHeight;
 
-    ImGui::Text("#Items: %d\t", (int)m_logs.size());
+    auto& frameLogs = App::GetLogs().View();
+    ImGui::Text("#Items: %d\t", (int)frameLogs.size());
     ImGui::SameLine();
 
     if (ImGui::Button(ICON_FA_TRASH_CAN "  Clear"))
-        m_logs.clear();
+        frameLogs.clear();
 
     ImGui::SameLine();
 
@@ -710,13 +715,10 @@ void GuiPass::RenderLogWindow()
 
     ImGui::BeginChild("scrolling", ImVec2(0, 0), false, ImGuiChildFlags_AlwaysUseWindowPadding);
 
-    char* buf;
-    char* buf_end;
-
     // TODO consider using ImGuiListClipper
-    for (auto& msg : m_logs)
+    for (auto& msg : frameLogs)
     {
-        ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) : 
+        ImVec4 color = msg.Type == App::LogMessage::INFO ? ImVec4(0.3f, 0.4f, 0.5f, 1.0f) :
             ImVec4(0.4f, 0.2f, 0.2f, 1.0f);
         ImGui::TextColored(color, msg.Msg);
     }
@@ -753,6 +755,8 @@ void GuiPass::RenderMainHeader()
     ImGui::Begin("Main", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar | 
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize);
 
+    m_headerWndHeight = (int)ImGui::GetWindowHeight();
+
     ImGui::Text("        ");
     ImGui::SameLine();
     ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
@@ -767,7 +771,7 @@ void GuiPass::RenderMainHeader()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
     }
 
-    if(showMainWnd)
+    if (showMainWnd)
         ImGui::EndTabItem();
 
     const bool renderGraphTab = ImGui::BeginTabItem(ICON_FA_SHARE_NODES "        Render Graph        ");
@@ -779,11 +783,11 @@ void GuiPass::RenderMainHeader()
         ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(0, style.WindowPadding.y));
     }
 
-    if(renderGraphTab)
+    if (renderGraphTab)
     {
         const float headerWndHeight = ImGui::GetWindowHeight();
 
-        ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, displayHeight - headerWndHeight), 
+        ImGui::SetNextWindowSize(ImVec2((float)m_headerWndWidth, displayHeight - headerWndHeight),
             ImGuiCond_Once);
         ImGui::SetNextWindowPos(ImVec2(0, headerWndHeight), ImGuiCond_Always);
 
@@ -794,25 +798,22 @@ void GuiPass::RenderMainHeader()
         ImGui::EndTabItem();
     }
 
-    // Append new log messages
-    auto frameLogs = App::GetFrameLogs().Variable();
-    m_prevNumLogs = (int)m_logs.size();
-    m_logs.append_range(frameLogs.begin(), frameLogs.end());
+    //auto frameLogs = App::GetFrameLogs().Variable();
 
-    flags = ImGuiTabItemFlags_None;
-    if (!m_firstTime && m_logs.size() != m_prevNumLogs)
-    {
-        for (int i = m_prevNumLogs; i < (int)m_logs.size(); i++)
-        {
-            if (m_logs[i].Type == App::LogMessage::WARNING)
-            {
-                flags = ImGuiTabItemFlags_SetSelected;
-                break;
-            }
-        }
-    }
+    //flags = ImGuiTabItemFlags_None;
+    //if (!m_firstTime && frameLogs.size() != m_prevNumLogs)
+    //{
+    //    for (int i = m_prevNumLogs; i < (int)frameLogs.size(); i++)
+    //    {
+    //        if (frameLogs[i].Type == App::LogMessage::WARNING)
+    //        {
+    //            flags = ImGuiTabItemFlags_SetSelected;
+    //            break;
+    //        }
+    //    }
+    //}
 
-    if(ImGui::BeginTabItem(ICON_FA_TERMINAL "        Logs        ", nullptr, flags))
+    if (ImGui::BeginTabItem(ICON_FA_TERMINAL "        Logs        ", nullptr, flags))
     {
         m_closeLogsTab = false;
         RenderLogWindow();
@@ -820,6 +821,39 @@ void GuiPass::RenderMainHeader()
     }
 
     ImGui::EndTabBar();
+
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
+
+    ImGui::End();
+}
+
+void GuiPass::RenderToolbar()
+{
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImGui::PushStyleColor(ImGuiCol_Button,
+        ImVec4(0.07521219013259, 0.07521219013259, 0.07521219013259, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+        ImVec4(0.0630100295, 0.168269396, 0.45078584552, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+        ImVec4(0.029556837, 0.029556837, 0.029556837, 1.0f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
+
+    ImGui::SetNextWindowPos(ImVec2((float)5.0f, m_headerWndHeight + 10.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(60.0f, 150.0f), ImGuiCond_Always);
+
+    ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
+
+    const char* icon = !m_hideUI ? ICON_FA_TOGGLE_ON "##1" : ICON_FA_TOGGLE_OFF "##1";
+    if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)))
+        m_hideUI = !m_hideUI;
+    ImGui::SetItemTooltip("Show/Hide UI");
+
+    if (ImGui::Button(ICON_FA_CAMERA_RETRO "##2", ImVec2(40.0f, 40.0f)))
+        App::GetScene().CaptureScreen();
+    ImGui::SetItemTooltip("Take Screenshot");
 
     ImGui::PopStyleColor(3);
     ImGui::PopStyleVar(2);
@@ -1021,7 +1055,7 @@ void GuiPass::GpuTimingsTab()
         m_cachedTimings.clear();
         m_cachedTimings.append_range(timings.begin(), timings.end());
 
-        if(m_cachedTimings.size() > 0)
+        if (m_cachedTimings.size() > 0)
         {
             std::sort(m_cachedTimings.begin(), m_cachedTimings.begin() + m_cachedTimings.size(),
                 [](const GpuTimer::Timing& t0, const GpuTimer::Timing& t1)
@@ -1091,7 +1125,7 @@ void GuiPass::ShaderReloadTab()
             if (ImGui::Selectable(handler.Name, selected))
                 m_currShader = i;
 
-            if(selected)
+            if (selected)
                 ImGui::SetItemDefaultFocus();
 
             i++;
@@ -1100,7 +1134,7 @@ void GuiPass::ShaderReloadTab()
         ImGui::EndCombo();
     }
 
-    if(m_currShader == -1)
+    if (m_currShader == -1)
         ImGui::BeginDisabled();
 
     if (ImGui::Button("Reload"))
@@ -1240,7 +1274,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
 
         ImGui::TreePop();
     }
-    
+
     if (ImGui::TreeNode("Coat"))
     {
         float weight = mat.GetCoatWeight();
@@ -1296,7 +1330,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
         if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&emissiveFactor), ImGuiColorEditFlags_Float))
         {
             float3 diff = oldColor - emissiveFactor;
-            
+
             // Avoid spamming update when difference is close to zero
             if (diff.dot(diff) > 1e-5)
             {
@@ -1333,7 +1367,7 @@ void GuiPass::MaterialTab(uint64 pickedID)
     {
         bool doubleSided = mat.DoubleSided();
         bool thinWalled = mat.ThinWalled();
-        
+
         if (ImGui::Checkbox("Double Sided", &doubleSided))
         {
             mat.SetDoubleSided(doubleSided);

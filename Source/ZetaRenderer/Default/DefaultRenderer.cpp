@@ -616,6 +616,11 @@ namespace ZetaRay::DefaultRenderer
     {
         g_data->m_postProcessorData.DisplayPass.ClearPick();
     }
+
+    void CaptureScreen()
+    {
+        g_data->m_postProcessorData.DisplayPass.CaptureScreen();
+    }
 }
 
 //--------------------------------------------------------------------------------------
@@ -640,6 +645,7 @@ Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface()
     rndIntrf.SceneModified = &DefaultRenderer::SceneModified;
     rndIntrf.Pick = &DefaultRenderer::Pick;
     rndIntrf.ClearPick = &DefaultRenderer::ClearPick;
+    rndIntrf.CaptureScreen = &DefaultRenderer::CaptureScreen;
 
     return rndIntrf;
 }

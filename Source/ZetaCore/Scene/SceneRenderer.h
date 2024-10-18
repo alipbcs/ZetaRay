@@ -43,6 +43,7 @@ namespace ZetaRay::Scene::Renderer
     using fp_SceneModified = void(*)();
     using fp_Pick = void(*)(uint16 screenPosX, uint16 screenPosY);
     using fp_ClearPick = void(*)();
+    using fp_CaptureScreen = void(*)();
 
     struct Interface
     {
@@ -57,5 +58,6 @@ namespace ZetaRay::Scene::Renderer
         fp_SceneModified SceneModified;
         fp_Pick Pick;
         fp_ClearPick ClearPick;
+        fp_CaptureScreen CaptureScreen;
     };
 }

@@ -168,7 +168,7 @@ namespace ZetaRay::App
     void UnlockStdOut();
 
     void Log(const char* msg, LogMessage::MsgType t);
-    Util::RSynchronizedVariable<Util::Span<App::LogMessage>> GetFrameLogs();
+    Util::RWSynchronizedView<Util::Vector<App::LogMessage, Support::SystemAllocator>> GetLogs();
     // Note: not thread safe.
     void CopyToClipboard(Util::StrView data);
 

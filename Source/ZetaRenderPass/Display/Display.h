@@ -76,6 +76,7 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::ReadbackHeapBuffer* readback,
             fastdelegate::FastDelegate0<> dlg);
         void ClearPick();
+        void CaptureScreen();
         void Render(Core::CommandList& cmdList);
 
     private:
@@ -121,6 +122,7 @@ namespace ZetaRay::RenderPass
         void DrawPicked(Core::GraphicsCmdList& cmdList);
         void CreatePSOs();
         void ReadbackPickIdx();
+        void ReadbackScreenCapture();
 
         // parameter callbacks
         void DisplayOptionCallback(const Support::ParamVariant& p);
@@ -136,13 +138,17 @@ namespace ZetaRay::RenderPass
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescs[(int)SHADER_IN_CPU_DESC::COUNT] = { 0 };
         cbDisplayPass m_cbLocal;
         uint32_t m_compositedSrvDescHeapIdx = UINT32_MAX;
+        Core::DescriptorTable m_rtvDescTable;
         // Picking data
         int m_producerHandle = -1;
         Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
         std::atomic_uint64_t m_pickID = Scene::INVALID_INSTANCE;
         fastdelegate::FastDelegate0<> m_pickDlg;
         Core::GpuMemory::Texture m_pickMask;
-        Core::DescriptorTable m_rtvDescTable;
         bool m_wireframe = false;
+        // Screen capture data
+        Core::GpuMemory::ReadbackHeapBuffer m_screenCaptureReadback;
+        D3D12_SUBRESOURCE_FOOTPRINT m_backBufferFoorprint;
+        bool m_captureScreen = false;
     };
 }

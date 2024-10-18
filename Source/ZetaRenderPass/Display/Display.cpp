@@ -6,6 +6,17 @@
 #include <Support/Param.h>
 #include <Support/Task.h>
 #include <Math/MatrixFuncs.h>
+#include <App/Log.h>
+
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wmissing-field-initializers"
+#endif
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include <stb/stb_image_write.h>
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
 using namespace ZetaRay::RenderPass;
 using namespace ZetaRay::Core;
@@ -133,6 +144,39 @@ void DisplayPass::ClearPick()
     App::RemoveParam("Renderer", "Display", "Wireframe");
 }
 
+void DisplayPass::CaptureScreen()
+{
+    Assert(!m_captureScreen, "Duplicate call.");
+
+    auto& renderer = App::GetRenderer();
+    auto* device = renderer.GetDevice();
+    auto& backBuffer = renderer.GetCurrentBackBuffer();
+    auto desc = backBuffer.Desc();
+
+    UINT64 totalResourceSize = 0;
+    UINT64 rowSizeInBytes = 0;
+    UINT rowCount = 0;
+    device->GetCopyableFootprints(&desc, 0, 1, 0, nullptr,
+        &rowCount, &rowSizeInBytes, &totalResourceSize);
+
+    // From MS docs: "... a Texture2D resource has a width of 32 and bytes per pixel of 4,
+    // then pRowSizeInBytes returns 128. pRowSizeInBytes should not be confused with row pitch, 
+    // as examining pLayouts and getting the row pitch from that will give you 256 as it is 
+    // aligned to D3D12_TEXTURE_DATA_PITCH_ALIGNMENT."
+    const uint32_t rowPitch = (uint32_t)Math::AlignUp(rowSizeInBytes, 
+        (uint64_t)D3D12_TEXTURE_DATA_PITCH_ALIGNMENT);
+    const uint32_t sizeInBytes = rowPitch * desc.Height;
+    m_screenCaptureReadback = GpuMemory::GetReadbackHeapBuffer(sizeInBytes);
+
+    m_backBufferFoorprint.Format = desc.Format;
+    m_backBufferFoorprint.Width = (UINT)desc.Width;
+    m_backBufferFoorprint.Height = (UINT)desc.Height;
+    m_backBufferFoorprint.Depth = 1;
+    m_backBufferFoorprint.RowPitch = rowPitch;
+
+    m_captureScreen = true;
+}
+
 void DisplayPass::Render(CommandList& cmdList)
 {
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
@@ -190,6 +234,49 @@ void DisplayPass::Render(CommandList& cmdList)
 
     if (m_pickID.load(std::memory_order_relaxed) != Scene::INVALID_INSTANCE)
         DrawPicked(directCmdList);
+
+    if (m_captureScreen)
+    {
+        ID3D12Resource* backbuffer = const_cast<Texture&>(App::GetRenderer().GetCurrentBackBuffer()).Resource();
+        directCmdList.ResourceBarrier(backbuffer,
+            D3D12_RESOURCE_STATE_RENDER_TARGET,
+            D3D12_RESOURCE_STATE_COPY_SOURCE);
+
+        D3D12_TEXTURE_COPY_LOCATION srcLocation = {};
+        srcLocation.pResource = backbuffer;
+        srcLocation.Type = D3D12_TEXTURE_COPY_TYPE_SUBRESOURCE_INDEX;
+        srcLocation.SubresourceIndex = 0;
+
+        D3D12_TEXTURE_COPY_LOCATION dstLocation = {};
+        dstLocation.pResource = m_screenCaptureReadback.Resource();
+        dstLocation.Type = D3D12_TEXTURE_COPY_TYPE_PLACED_FOOTPRINT;
+        dstLocation.PlacedFootprint.Footprint = m_backBufferFoorprint;
+
+        // Copy the texture
+        directCmdList.CopyTextureRegion(&dstLocation, 0, 0, 0, &srcLocation, nullptr);
+
+        directCmdList.ResourceBarrier(backbuffer,
+            D3D12_RESOURCE_STATE_COPY_SOURCE,
+            D3D12_RESOURCE_STATE_RENDER_TARGET);
+
+        // Wait on a background thread for GPU to finish copying to readback buffer
+        Task t("WaitForCapture", TASK_PRIORITY::BACKGROUND, [this]()
+            {
+                WaitObject waitObj;
+                App::GetScene().GetRenderGraph()->SetFrameSubmissionWaitObj(waitObj);
+                waitObj.Wait();
+
+                const uint64_t fence = App::GetScene().GetRenderGraph()->GetFrameCompletionFence();
+                Assert(fence != UINT64_MAX, "Invalid fence value.");
+
+                App::GetRenderer().WaitForDirectQueueFenceCPU(fence);
+                ReadbackScreenCapture();
+            });
+
+        App::SubmitBackground(ZetaMove(t));
+
+        m_captureScreen = false;
+    }
 
     gpuTimer.EndQuery(directCmdList, queryIdx);
     directCmdList.PIXEndEvent();
@@ -404,6 +491,31 @@ void DisplayPass::ReadbackPickIdx()
             m_wireframe);
         App::AddParam(p);
     }
+}
+
+void DisplayPass::ReadbackScreenCapture()
+{
+    Assert(m_screenCaptureReadback.IsInitialized(), "Readback buffer hasn't been initialized.");
+
+    m_screenCaptureReadback.Map();
+    uint32_t* data = reinterpret_cast<uint32_t*>(m_screenCaptureReadback.MappedMemory());
+
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    StackStr(currTime, N1, "%u_%u_%u_%u_%u_%u", st.wYear, st.wMonth, st.wDay, 
+        st.wHour, st.wMinute, st.wSecond);
+
+    uint32_t hash = Util::XXH3_64_To_32(XXH3_64bits(currTime, N1));
+    StackStr(filename, N2, "capture_%u.png", hash);
+
+    int res = stbi_write_png(filename, m_backBufferFoorprint.Width, m_backBufferFoorprint.Height,
+        4, data, m_backBufferFoorprint.RowPitch);
+    Check(res != 0, "stbi_write_png() failed.");
+
+    m_screenCaptureReadback.Unmap();
+    m_screenCaptureReadback.Reset(false);
+
+    LOG_UI_INFO("Screenshot saved to: %s.\n", filename);
 }
 
 void DisplayPass::DisplayOptionCallback(const ParamVariant& p)

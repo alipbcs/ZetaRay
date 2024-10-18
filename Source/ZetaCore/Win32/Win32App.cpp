@@ -208,7 +208,7 @@ namespace
         TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
         std::atomic_int32_t m_currTaskSignalIdx = 0;
         Motion m_frameMotion;
-        SmallVector<LogMessage, FrameAllocator> m_frameLogs;
+        SmallVector<LogMessage> m_frameLogs;
         char m_clipboard[CLIPBOARD_LEN];
         bool m_isInitialized = false;
         bool m_issueResize = false;
@@ -1562,8 +1562,6 @@ namespace ZetaRay
                 for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
                     g_app->m_frameMemoryContext.m_threadFrameAllocIndices[i] = -1;
                 g_app->m_frameMemory.Reset();        // set the offset to 0, essentially releasing the memory
-
-                g_app->m_frameLogs.free_memory();
             }
 
             g_app->m_renderer.BeginFrame();
@@ -1945,9 +1943,9 @@ namespace ZetaRay
         ReleaseSRWLockExclusive(&g_app->m_logLock);
     }
 
-    Util::RSynchronizedVariable<Util::Span<App::LogMessage>> App::GetFrameLogs()
+    Util::RWSynchronizedView<Vector<App::LogMessage, SystemAllocator>> App::GetLogs()
     {
-        return RSynchronizedVariable<Span<LogMessage>>(g_app->m_frameLogs, g_app->m_logLock);;
+        return RWSynchronizedView<Vector<LogMessage>>(g_app->m_frameLogs, g_app->m_logLock);;
     }
     
     void App::CopyToClipboard(StrView data)

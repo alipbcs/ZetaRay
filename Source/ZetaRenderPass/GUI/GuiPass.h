@@ -38,6 +38,7 @@ namespace ZetaRay::RenderPass
         void RenderProfiler();
         void RenderLogWindow();
         void RenderMainHeader();
+        void RenderToolbar();
         void InfoTab();
         void CameraTab();
         void ParameterTab();
@@ -70,15 +71,14 @@ namespace ZetaRay::RenderPass
         float m_dbgWndWidthPct = 0.21f;
         float m_dbgWndHeightPct = 1.0f;
         int m_headerWndWidth = 0;
+        int m_headerWndHeight = 0;
         float m_logWndHeightPct = 0.21f;
         static constexpr float m_headerWndHeightPct = 0.02f;
         static constexpr float m_frameHistWidthPct = 0.9f;
         bool m_firstTime = true;
         bool m_closeLogsTab = false;
-        int m_prevNumLogs = 0;
         bool m_pendingEmissiveUpdate = false;
         bool m_appWndSizeChanged = false;
-
-        Util::SmallVector<App::LogMessage> m_logs;
+        bool m_hideUI = false;
     };
 }
