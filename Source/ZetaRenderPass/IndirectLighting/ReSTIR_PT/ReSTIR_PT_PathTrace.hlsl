@@ -434,10 +434,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
         swizzledGid);
 #else
-    const uint16_t2 swizzledDTid = DTid.xy;
-    const uint16_t2 swizzledGid = Gid.xy;
+    const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
+    const uint16_t2 swizzledGid = (uint16_t2)Gid.xy;
 #endif
-    
+
     if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)
         return;
 

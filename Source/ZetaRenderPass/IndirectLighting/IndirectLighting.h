@@ -405,8 +405,7 @@ namespace ZetaRay::RenderPass
         void ReloadRPT_PathTrace();
         void ReloadRPT_Temporal();
         void ReloadRPT_Spatial();
-        //void ReloadDnsrTemporal();
-        //void ReloadDnsrSpatial();
+        void ReloadRPT_SpatialSearch();
 
         Core::DescriptorTable m_descTable;
         Core::GpuMemory::ResourceHeap m_resHeap;

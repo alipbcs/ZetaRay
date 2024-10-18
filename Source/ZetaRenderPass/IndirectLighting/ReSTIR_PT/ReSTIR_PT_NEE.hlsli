@@ -312,6 +312,7 @@ namespace RPT_Util
             float bsdfPdf_area = eval.pdf * dwdA;
             ret.ld = specular ? (bsdfPdf_area > 0 ? ld / bsdfPdf_area : 0) : 
                 RT::PowerHeuristic(bsdfPdf_area, lightPdf, ld);
+            // = BSDF sampling PDF (solid angle measure) times geometry term
             ret.pdf_solidAngle = bsdfPdf_area;
         }
 

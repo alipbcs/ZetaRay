@@ -1,8 +1,11 @@
 #include "../IndirectLighting_Common.h"
 #include "Util.hlsli"
+#include "SampleSet.hlsli"
 
 #define THREAD_GROUP_SWIZZLING 1
 #define SPATIAL_SEARCH_RADIUS 15
+
+using namespace RPT_Util;
 
 //--------------------------------------------------------------------------------------
 // Root Signature
@@ -18,26 +21,6 @@ ConstantBuffer<cb_ReSTIR_PT_SpatialSearch> g_local : register(b1);
 int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, float roughness,
     bool transmissive, float viewDepth, float radius, inout RNG rng)
 {
-    static const half2 k_samples[16] =
-    {
-        half2(-0.899423, 0.365076),
-        half2(-0.744442, -0.124006),
-        half2(-0.229714, 0.245876),
-        half2(-0.545186, 0.741148),
-        half2(-0.156274, -0.336366),
-        half2(0.468400, 0.348798),
-        half2(0.035776, 0.606928),
-        half2(-0.208966, 0.904852),
-        half2(-0.491070, -0.484810),
-        half2(0.162490, -0.081156),
-        half2(0.232062, -0.851382),
-        half2(0.641310, -0.162124),
-        half2(0.320798, 0.922460),
-        half2(0.959086, 0.263642),
-        half2(0.531136, -0.519002),
-        half2(-0.223014, -0.774740)
-    };
-
     GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::NORMAL];
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
@@ -56,7 +39,7 @@ int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, f
     [loop]
     for (uint i = 0; i < 3; i++)
     {
-        float2 sampleUV = k_samples[(offset + i) & 15];
+        const float2 sampleUV = k_samples[(offset + i) & (SAMPLE_SET_SIZE - 1)];
         float2 rotated = float2(
             dot(sampleUV, float2(cosTheta, -sinTheta)),
             dot(sampleUV, float2(sinTheta, cosTheta)));
@@ -153,13 +136,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum + passIdx)).xy, g_frame.FrameNum);
     const uint16_t scale = (uint16_t)1;
 
-    int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, flags.metallic, mr.y, 
-        flags.transmissive, viewDepth, SPATIAL_SEARCH_RADIUS * scale, rng);
+    const int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, flags.metallic, 
+        mr.y, flags.transmissive, viewDepth, SPATIAL_SEARCH_RADIUS * scale, rng);
 
-    RWTexture2D<uint2> g_out = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];
     // [-R_max, +R_max]
     int2 mapped = neighbor - (int2)swizzledDTid;
-    // [0, 2 * R_max]
+    // [SPATIAL_NEIGHBOR_OFFSET - R_max, SPATIAL_NEIGHBOR_OFFSET + R_max]
     mapped = neighbor.x == UINT16_MAX ? UINT8_MAX : mapped + RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
+
+    // Note: SPATIAL_NEIGHBOR_OFFSET must be >= R_max as output texture is unsigned
+    RWTexture2D<uint2> g_out = ResourceDescriptorHeap[g_local.OutputDescHeapIdx];
     g_out[swizzledDTid] = mapped;
 }

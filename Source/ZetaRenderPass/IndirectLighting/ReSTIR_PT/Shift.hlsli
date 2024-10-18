@@ -495,7 +495,7 @@ namespace RPT_Util
 
         // Evaluate f / p at x_{k - 1}
         BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal_k_min_1, surface, w_k_min_1, 
-                rc.lobe_k_min_1, rngReplay);
+            rc.lobe_k_min_1, rngReplay);
 
         if(dot(eval.bsdfOverPdf, eval.bsdfOverPdf) == 0)
             return ret;
@@ -525,8 +525,8 @@ namespace RPT_Util
             return ret;
         }
 
-        if(regularization && anyGlossyBounces)
-            surface.Regularize();
+        // if(regularization && anyGlossyBounces)
+        //     surface.Regularize();
 
         // Account for transmittance from y_{k - 1} to x_k
         if(inTranslucentMedium && (surface.trDepth > 0))
@@ -681,17 +681,6 @@ namespace RPT_Util
 
         // Number of bounces to reach y_{k - 1}, where zero means case 1 or case 2
         const int16 numBounces = rc.k - (int16)2;
-        BSDF::BSDFSample bsdfSample;
-
-        if(numBounces > 0)
-        {
-            bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, ctx.rngReplay);
-
-            if(dot(bsdfSample.bsdfOverPdf, bsdfSample.bsdfOverPdf) == 0)
-                return RPT_Util::OffsetPath::Init();
-        }
-        else
-            bsdfSample.wi = rc.x_k - ctx.pos;
 
         // Initialize ray differentials given the primary hit triangle. This is only
         // needed when replay is not used - replayed paths load path context (including ray 
@@ -704,32 +693,26 @@ namespace RPT_Util
             ctx.rd.ComputeUVDifferentials(dpdx, dpdy, triDiffs.dpdu, triDiffs.dpdv);
 
             float eta = ior;  // = eta_i / eta_t = ior / ETA_AIR
-            ctx.rd.UpdateRays(ctx.pos, ctx.normal, bsdfSample.wi, ctx.surface.wo, 
-                triDiffs, dpdx, dpdy, dot(bsdfSample.wi, ctx.normal) < 0, eta);
+            float3 wi = normalize(rc.x_k - ctx.pos);
+            ctx.rd.UpdateRays(ctx.pos, ctx.normal, wi, ctx.surface.wo, 
+                triDiffs, dpdx, dpdy, dot(wi, ctx.normal) < 0, eta);
         }
-
-        if(numBounces > 0)
+        else
         {
-            int16 bounce = 0;
             ctx = OffsetPathContext::Load(DTid, rbufferASrv, rbufferBSrv, rbufferCSrv, 
                 rbufferDSrv, rc.IsCase3());
 
+            if(dot(ctx.throughput, ctx.throughput) == 0)
+                return RPT_Util::OffsetPath::Init();
+
             // Advance rng of path context to what it would be after replay
-            while(true)
+            for(int bounce = 0; bounce < numBounces; bounce++)
             {
-                bounce++;
-
-                if(bounce >= numBounces)
-                    break;
-
                 ctx.rngReplay.Uniform4D();
                 ctx.rngReplay.Uniform4D();
                 ctx.rngReplay.Uniform();
             }
         }
-
-        if(dot(ctx.throughput, ctx.throughput) == 0)
-            return RPT_Util::OffsetPath::Init();
 
         RNG rngNEE = RNG::Init(rc.seed_nee);
 

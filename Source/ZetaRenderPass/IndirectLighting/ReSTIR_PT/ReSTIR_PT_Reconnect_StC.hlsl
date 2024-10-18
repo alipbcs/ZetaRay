@@ -313,9 +313,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     r_curr.W = targetLum > 0 ? r_curr.w_sum / targetLum : 0;
     r_curr.M = M_new;
 
-    const float alpha = 0.45;
-    float runningDeriv = alpha * (r_curr.w_sum - prevWSum) + (1 - alpha) * prevDeriv;
-
     if(IS_CB_FLAG_SET(CB_IND_FLAGS::BOILING_SUPPRESSION))
     {
         waveSum += WaveActiveSum(r_curr.w_sum);
@@ -343,5 +340,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     float3 li = r_curr.target * r_curr.W;
     RPT_Util::DebugColor(r_curr.rc, g_local.Packed, li);
-    RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final, g_frame, false);
+    RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final,
+         g_frame, false);
 }

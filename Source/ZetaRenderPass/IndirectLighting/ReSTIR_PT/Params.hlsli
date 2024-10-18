@@ -22,6 +22,7 @@
 #define MAX_PLANE_DIST_REUSE 0.005
 #define MAX_ROUGHNESS_DIFF_REUSE 0.175f
 #define MIN_NORMAL_SIMILARITY_SPATIAL_REUSE 0.5f  // ~60 degrees
+#define MAX_ROUGHNESS_DIFF_TEMPORAL_REUSE 0.3f
 #define MAX_ROUGHNESS_DIFF_SPATIAL_REUSE 0.1f
 
 // w_sum growing rapidly is a strong sign of uncontrolled spatial correlations

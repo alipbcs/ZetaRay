@@ -87,7 +87,7 @@ OffsetPath ShiftTemporalToCurrent(uint2 DTid, float3 origin, float2 lensSample,
         (half)baseColor.w, coat_weight, coat_color, coat_roughness, coat_ior);
 
     Math::TriDifferentials triDiffs;
-    RT::RayDifferentials rd;
+    RT::RayDifferentials rd = RT::RayDifferentials::Init();
 
     if(rc_prev.k == 2)
     {
@@ -257,7 +257,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Skip if not on the same surface
     if(prevFlags.emissive || 
-        abs(prevMR.y - mr.y) > 0.3 || 
+        abs(prevMR.y - mr.y) > MAX_ROUGHNESS_DIFF_TEMPORAL_REUSE || 
         (prevFlags.transmissive != flags.transmissive))
     {
         if(!IS_CB_FLAG_SET(CB_IND_FLAGS::SPATIAL_RESAMPLE))
@@ -285,7 +285,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         r_curr.M = M_new;
 
         uint16_t M_max = uint16_t((g_local.Packed >> 16) & 0xf);
-        r_curr.WriteReservoirData(swizzledDTid, g_local.Reservoir_A_DescHeapIdx,
+        r_curr.WriteReservoirData2(swizzledDTid, g_local.Reservoir_A_DescHeapIdx,
             g_local.Reservoir_A_DescHeapIdx + 1, M_max);
 
         if(!IS_CB_FLAG_SET(CB_IND_FLAGS::SPATIAL_RESAMPLE))
@@ -311,7 +311,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     bool changed = false;
 
-    // RIS weight becomes zero when target = 0
+    // RIS weight becomes zero when target = 0, in which case only M needs to be
+    // updated
     if(Math::Luminance(shift.target) > 1e-5)
     {
         RNG rng = RNG::Init(swizzledDTid.yx, g_frame.FrameNum + 31);
@@ -361,6 +362,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     {
         float3 li = r_curr.target * r_curr.W;
         RPT_Util::DebugColor(r_curr.rc, g_local.Packed, li);
-        RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final, g_frame, false);
+        RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final, 
+            g_frame, false);
     }
 }

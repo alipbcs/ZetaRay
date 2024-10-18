@@ -345,6 +345,19 @@ namespace RPT_Util
             g_outB[DTid] = float2(this.w_sum, this.W);
         }
 
+        // Skips w_sum
+        void WriteReservoirData2(uint2 DTid, uint outputAIdx, uint outputBIdx, uint M_max)
+        {
+            RWTexture2D<uint4> g_outA = ResourceDescriptorHeap[outputAIdx];
+            RWTexture2D<float2> g_outB = ResourceDescriptorHeap[outputBIdx];
+
+            uint k = this.rc.Empty() ? this.rc.k : max(this.rc.k, 2) - 2;
+            uint m = min(this.M, M_max);
+
+            g_outA[DTid].x = k | (m << 4);
+            g_outB[DTid].y = this.W;
+        }
+
         void WriteWSum(uint2 DTid, uint outputBIdx)
         {
             RWTexture2D<float2> g_outB = ResourceDescriptorHeap[outputBIdx];

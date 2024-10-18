@@ -234,7 +234,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // No temporal history
     if(prevFlags.emissive || 
-        (abs(prevMR.y - mr.y) > 0.3) || 
+        (abs(prevMR.y - mr.y) > MAX_ROUGHNESS_DIFF_TEMPORAL_REUSE) || 
         (prevFlags.transmissive != flags.transmissive))
         return;
 
@@ -260,13 +260,15 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             lensSample_t, prevPos, prevFlags, prevMR.y, r_curr.rc, globals);
         float target_prev = Math::Luminance(shift.target);
 
+        // When target_prev = 0, ris weight works out to be existing w_sum, so
+        // write to memory can be skipped
         if(target_prev > 0)
         {
             float targetLum_curr = r_curr.W > 0 ? r_curr.w_sum / r_curr.W : 0;
             float jacobian = shift.partialJacobian / r_curr.rc.partialJacobian;
             float m_curr = targetLum_curr / (targetLum_curr + r_prev.M * target_prev * jacobian);
             r_curr.w_sum *= m_curr;
-        
+
             r_curr.WriteWSum(swizzledDTid, g_local.Reservoir_A_DescHeapIdx + 1);
         }
     }

@@ -1245,9 +1245,14 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
     // Add ReSTIR PT parameters and shader reload handlers
     if (!skipNonResources)
     {
-        App::AddShaderReloadHandler("ReSTIR_PT_PathTrace", fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_PathTrace));
-        App::AddShaderReloadHandler("ReSTIR_PT_Temporal", fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Temporal));
-        App::AddShaderReloadHandler("ReSTIR_PT_Spatial", fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Spatial));
+        App::AddShaderReloadHandler("ReSTIR_PT_PathTrace", 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_PathTrace));
+        App::AddShaderReloadHandler("ReSTIR_PT_Temporal", 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Temporal));
+        App::AddShaderReloadHandler("ReSTIR_PT_Spatial", 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Spatial));
+        App::AddShaderReloadHandler("ReSTIR_PT_SpatialSearch", 
+            fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_SpatialSearch));
 
         ParamVariant alphaMin;
         alphaMin.InitFloat("Renderer", "Indirect Lighting", "Alpha_min",
@@ -1331,6 +1336,7 @@ void IndirectLighting::ReleaseReSTIR_PT()
     App::RemoveShaderReloadHandler("ReSTIR_PT_PathTrace");
     App::RemoveShaderReloadHandler("ReSTIR_PT_Temporal");
     App::RemoveShaderReloadHandler("ReSTIR_PT_Spatial");
+    App::RemoveShaderReloadHandler("ReSTIR_PT_SpatialSearch");
 
     App::RemoveParam("Renderer", "Indirect Lighting", "Alpha_min");
     App::RemoveParam("Renderer", "Indirect Lighting", "Debug View");
@@ -1885,5 +1891,12 @@ void IndirectLighting::ReloadRPT_Spatial()
     m_psoLib.Reload(i, m_rootSigObj.Get(), p, false);
 
     waitObj.Wait();
+}
+
+void IndirectLighting::ReloadRPT_SpatialSearch()
+{
+    const int i = (int)SHADER::ReSTIR_PT_SPATIAL_SEARCH;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), 
+        "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_SpatialSearch.hlsl");
 }
 
