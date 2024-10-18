@@ -1206,7 +1206,7 @@ namespace ZetaRay::AppImpl
             // This is required to restore cursor when transitioning from e.g resize borders to client area.
             if (LOWORD(lParam) == HTCLIENT && ImGui_UpdateMouseCursor())
                 return 1;
-            return 0;
+            return DefWindowProc(hWnd, message, wParam, lParam);
 
         case WM_DESTROY:
             AppImpl::OnDestroy();
