@@ -223,6 +223,7 @@ namespace ZetaRay::DefaultRenderer
 
         AA PendingAA = DEFAULT_AA;
         bool m_sunMoved = false;
+        bool m_sceneChanged = false;
     };
 }
 

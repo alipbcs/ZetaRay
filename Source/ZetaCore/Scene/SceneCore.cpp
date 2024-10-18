@@ -442,6 +442,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
 void SceneCore::UpdateMaterial(uint32 ID, const Material& newMat)
 {
     m_matBuffer.Update(ID, newMat);
+    m_rendererInterface.SceneModified();
 }
 
 void SceneCore::ResizeAdditionalMaterials(uint32_t num)
@@ -630,6 +631,7 @@ void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissi
 void SceneCore::UpdateEmissive(uint64_t instanceID, const float3& emissiveFactor, float strength)
 {
     m_emissives.Update(instanceID, emissiveFactor, strength);
+    m_rendererInterface.SceneModified();
 }
 
 // Currently, not needed

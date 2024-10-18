@@ -92,13 +92,15 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
         frameConsts.CurrViewInv.m[2].z);
     float3 delta_pos = prevCameraPos - frameConsts.CameraPos;
     float3 delta_dir = prevViewDir - currViewDir;
-    const bool cameraStatic = (delta_pos.dot(delta_pos) < FLT_EPSILON) &&
+    bool cameraStatic = (delta_pos.dot(delta_pos) < FLT_EPSILON) &&
         (delta_dir.dot(delta_dir) < FLT_EPSILON);
+    cameraStatic = cameraStatic && !g_data->m_sunMoved && !g_data->m_sceneChanged;
     frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
         frameConsts.NumFramesCameraStatic + 1 : 0;
     frameConsts.CameraStatic = cameraStatic;
     frameConsts.SunMoved = g_data->m_sunMoved;
     g_data->m_sunMoved = false;
+    g_data->m_sceneChanged = false;
 
     frameConsts.NumEmissiveTriangles = (uint32_t)App::GetScene().NumEmissiveTriangles();
     frameConsts.OneDivNumEmissiveTriangles = 1.0f / frameConsts.NumEmissiveTriangles;
@@ -172,6 +174,7 @@ namespace ZetaRay::DefaultRenderer
     void SetSunLux(const ParamVariant& p)
     {
         g_data->m_frameConstants.SunIlluminance = p.GetFloat().m_value;
+        g_data->m_sunMoved = true;
     }
 
     void SetSunAngularDiameter(const ParamVariant& p)
@@ -184,36 +187,43 @@ namespace ZetaRay::DefaultRenderer
     void SetRayleighSigmaSColor(const ParamVariant& p)
     {
         g_data->m_frameConstants.RayleighSigmaSColor = p.GetFloat3().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetRayleighSigmaSScale(const ParamVariant& p)
     {
         g_data->m_frameConstants.RayleighSigmaSScale = p.GetFloat().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetMieSigmaS(const ParamVariant& p)
     {
         g_data->m_frameConstants.MieSigmaS = p.GetFloat().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetMieSigmaA(const ParamVariant& p)
     {
         g_data->m_frameConstants.MieSigmaA = p.GetFloat().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetOzoneSigmaAColor(const ParamVariant& p)
     {
         g_data->m_frameConstants.OzoneSigmaAColor = p.GetColor().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetOzoneSigmaAScale(const ParamVariant& p)
     {
         g_data->m_frameConstants.OzoneSigmaAScale = p.GetFloat().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetgForPhaseHG(const ParamVariant& p)
     {
         g_data->m_frameConstants.g = p.GetFloat().m_value;
+        g_data->m_sceneChanged = true;
     }
 
     void SetAccumulation(const ParamVariant& p)
@@ -305,6 +315,7 @@ namespace ZetaRay::DefaultRenderer
     void SetLensType(const Support::ParamVariant& p)
     {
         g_data->m_frameConstants.DoF = p.GetEnum().m_curr;
+        g_data->m_sceneChanged = true;
     }
 }
 
@@ -591,6 +602,11 @@ namespace ZetaRay::DefaultRenderer
         return g_data->m_raytracerData.RtAS.GetTLAS().IsInitialized();
     }
 
+    void SceneModified()
+    {
+        g_data->m_sceneChanged = true;
+    }
+
     void Pick(uint16 screenPosX, uint16 screenPosY)
     {
         g_data->m_gbuffData.GBufferPass.PickPixel(screenPosX, screenPosY);
@@ -621,6 +637,7 @@ Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface()
     rndIntrf.GetRenderGraph = &DefaultRenderer::GetRenderGraph;
     rndIntrf.DebugDrawRenderGraph = &DefaultRenderer::DebugDrawRenderGraph;
     rndIntrf.IsRTASBuilt = &DefaultRenderer::IsRTASBuilt;
+    rndIntrf.SceneModified = &DefaultRenderer::SceneModified;
     rndIntrf.Pick = &DefaultRenderer::Pick;
     rndIntrf.ClearPick = &DefaultRenderer::ClearPick;
 

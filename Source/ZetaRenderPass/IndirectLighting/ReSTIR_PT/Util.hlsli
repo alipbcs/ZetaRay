@@ -148,7 +148,7 @@ namespace RPT_Util
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[outDescHeapIdx];
         li = any(isnan(li)) ? 0 : li;
 
-        if(g_frame.Accumulate && g_frame.CameraStatic)
+        if(g_frame.Accumulate && g_frame.CameraStatic && g_frame.NumFramesCameraStatic > 1)
         {
             float3 prev = g_final[DTid].rgb;
             g_final[DTid].rgb = prev + li;

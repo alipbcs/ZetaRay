@@ -311,7 +311,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         ld = any(isnan(ld)) ? 0 : ld;
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
-        if(g_frame.Accumulate && g_frame.CameraStatic)
+        if(g_frame.Accumulate && g_frame.CameraStatic && g_frame.NumFramesCameraStatic > 1)
         {
             float3 prev = g_final[swizzledDTid].rgb;
             g_final[swizzledDTid].rgb = prev + ld;
