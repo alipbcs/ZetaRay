@@ -22,7 +22,7 @@ namespace RPT_Util
         
         bool Update(float weight, float3 target, Reconnection rc, inout RNG rng)
         {
-            if(isnan(weight))
+            if(isnan(weight) || isinf(weight))
                 return false;
 
             this.M += 1;

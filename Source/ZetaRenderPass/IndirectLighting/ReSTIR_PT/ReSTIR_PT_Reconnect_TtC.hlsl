@@ -309,18 +309,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     OffsetPath shift = ShiftTemporalToCurrent(swizzledDTid, origin, lensSample,
         pos, normal, flags, mr.y, r_prev.rc, globals);
 
+    float targetLum_curr = Math::Luminance(shift.target);
+    float jacobian = r_prev.rc.partialJacobian > 0 ? 
+        shift.partialJacobian / r_prev.rc.partialJacobian : 0;
     bool changed = false;
 
     // RIS weight becomes zero when target = 0, in which case only M needs to be
     // updated
-    if(Math::Luminance(shift.target) > 1e-5)
+    if(targetLum_curr > 1e-5 && jacobian > 1e-5)
     {
         RNG rng = RNG::Init(swizzledDTid.yx, g_frame.FrameNum + 31);
 
         float targetLum_prev = r_prev.W > 0 ? r_prev.w_sum / r_prev.W : 0;
-        float targetLum_curr = Math::Luminance(shift.target);
-        float jacobian = shift.partialJacobian / r_prev.rc.partialJacobian;
-
         // Jacobian term in numerator cancels out with the same term in w_prev
         float numerator = r_prev.M * targetLum_prev;
         float denom = numerator / jacobian + targetLum_curr;

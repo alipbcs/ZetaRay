@@ -285,13 +285,14 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         pos, normal, flags, mr.y, r_spatial.rc, globals);
 
     float targetLum_curr = Math::Luminance(shift.target);
-    float targetLum_spatial = r_spatial.w_sum / r_spatial.W;
-    float jacobian = shift.partialJacobian / r_spatial.rc.partialJacobian;
+    float targetLum_spatial = r_spatial.W > 0 ? r_spatial.w_sum / r_spatial.W : 0;
+    float jacobian = r_spatial.rc.partialJacobian > 0 ? 
+        shift.partialJacobian / r_spatial.rc.partialJacobian : 0;
 
     bool changed = false;
-    
+
     // RIS weight becomes zero when target = 0
-    if(targetLum_curr > 1e-5)
+    if(targetLum_curr > 1e-5 && jacobian > 1e-5 && jacobian < 100)
     {
         RNG rng = RNG::Init(RNG::PCG3d(swizzledDTid.xyy).xz, g_frame.FrameNum + 511);
 

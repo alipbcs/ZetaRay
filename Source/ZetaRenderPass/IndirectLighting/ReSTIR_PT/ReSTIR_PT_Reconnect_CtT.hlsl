@@ -265,7 +265,8 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         if(target_prev > 0)
         {
             float targetLum_curr = r_curr.W > 0 ? r_curr.w_sum / r_curr.W : 0;
-            float jacobian = shift.partialJacobian / r_curr.rc.partialJacobian;
+            float jacobian = r_curr.rc.partialJacobian > 0 ? 
+                shift.partialJacobian / r_curr.rc.partialJacobian : 0;
             float m_curr = targetLum_curr / (targetLum_curr + r_prev.M * target_prev * jacobian);
             r_curr.w_sum *= m_curr;
 

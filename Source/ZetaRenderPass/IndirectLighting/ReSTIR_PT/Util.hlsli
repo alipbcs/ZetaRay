@@ -57,7 +57,7 @@ namespace RPT_Util
 
     void SuppressOutlierReservoirs(float waveAvgExclusive, inout RPT_Util::Reservoir r)
     {
-        if(r.w_sum > 30 * waveAvgExclusive)
+        if(r.w_sum > 50 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;
