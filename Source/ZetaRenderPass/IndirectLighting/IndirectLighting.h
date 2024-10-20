@@ -421,7 +421,7 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::Texture m_final;
 
         int m_currTemporalIdx = 0;
-        int m_numSpatialPasses = 0;
+        int m_numSpatialPasses = 1;
         bool m_isTemporalReservoirValid = false;
         bool m_isDnsrTemporalCacheValid = false;
         bool m_doTemporalResampling = true;

@@ -160,6 +160,7 @@ void IndirectLighting::Init(INTEGRATOR method)
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::SORT_TEMPORAL, true);
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_TEMPORAL, true);
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL, true);
 
     ParamVariant rr;
     rr.InitBool("Renderer", "Indirect Lighting", "Russian Roulette",
@@ -1279,7 +1280,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
 
         ParamVariant sortSpatial;
         sortSpatial.InitBool("Renderer", "Indirect Lighting", "Sort (Spatial)",
-            fastdelegate::MakeDelegate(this, &IndirectLighting::SortSpatialCallback), false, "Reuse");
+            fastdelegate::MakeDelegate(this, &IndirectLighting::SortSpatialCallback), true, "Reuse");
         App::AddParam(sortSpatial);
 
         ParamVariant doTemporal;
