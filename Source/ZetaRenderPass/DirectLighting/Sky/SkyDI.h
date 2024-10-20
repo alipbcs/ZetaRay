@@ -99,7 +99,7 @@ namespace ZetaRay::RenderPass
         struct DefaultParamVals
         {
             static constexpr int M_MAX_SKY = 15;
-            static constexpr int M_MAX_SUN = 5;
+            static constexpr int M_MAX_SUN = 3;
             // Use half-vector copy for anything lower
             static constexpr float ROUGHNESS_MIN = 0.35;
             static constexpr int DNSRTspp_Diffuse = 16;
