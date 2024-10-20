@@ -239,7 +239,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         g_frame.DoF, lensSample_t, g_frame.FocusDepth, origin_t);
 
     // Skip if not on the same surface
-    if(!RPT_Util::PlaneHeuristic(prevPos, normal, pos, z_view, 0.01))
+    if(!RPT_Util::PlaneHeuristic(prevPos, normal, pos, z_view, MAX_PLANE_DIST_REUSE))
     {
         if(!IS_CB_FLAG_SET(CB_IND_FLAGS::SPATIAL_RESAMPLE))
         {

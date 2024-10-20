@@ -41,6 +41,24 @@ namespace ZetaRay::Scene
 
     struct RT_Flags
     {
+        static RT_Flags Decode(uint8_t f)
+        {
+            return RT_Flags{
+                .MeshMode = (Model::RT_MESH_MODE)(f >> 6),
+                .InstanceMask = (uint8_t)(f & 0x7),
+                .IsOpaque = bool((f >> 3) & 0x1),
+                .RebuildFlag = bool((f >> 4) & 0x1),
+                .UpdateFlag = bool((f >> 5) & 0x1) };
+        }
+
+        // 7        6     5         4       3     2     1     0
+        //  meshmode    update    build   opaque     instance
+        static uint8_t Encode(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild,
+            uint8_t update, bool isOpaque)
+        {
+            return ((uint8_t)m << 6) | instanceMask | (isOpaque << 3) | (rebuild << 4) | (update << 5);
+        }
+
         Model::RT_MESH_MODE MeshMode;
         // Note: Instance masks are specified per instance here, but in DXR can 
         // only be applied per TLAS instance.
@@ -55,22 +73,6 @@ namespace ZetaRay::Scene
         uint32_t GeometryIndex;
         uint32_t InstanceID;
     };
-
-    // 7        6     5         4       3     2     1     0
-    //  meshmode    update    build   opaque     instance
-    ZetaInline uint8_t SetRtFlags(Model::RT_MESH_MODE m, uint8_t instanceMask, uint8_t rebuild, uint8_t update, bool isOpaque)
-    {
-        return ((uint8_t)m << 6) | instanceMask | (isOpaque << 3) | (rebuild << 4) | (update << 5);
-    }
-    ZetaInline RT_Flags GetRtFlags(uint8_t f)
-    {
-        return RT_Flags{
-            .MeshMode = (Model::RT_MESH_MODE)(f >> 6),
-            .InstanceMask = (uint8_t)(f & 0x7),
-            .IsOpaque = bool((f >> 3) & 0x1),
-            .RebuildFlag = bool((f >> 4) & 0x1),
-            .UpdateFlag = bool((f >> 5) & 0x1) };
-    }
 
     ZetaInline uint64_t InstanceID(uint32_t sceneID, int nodeIdx, int mesh, int meshPrim)
     {
@@ -135,7 +137,13 @@ namespace ZetaRay::Scene
         {
             return m_meshes.GetMesh(id);
         }
+        ZetaInline Util::Optional<const Model::TriangleMesh*> GetInstanceMesh(uint64_t id) const
+        {
+            const TreePos& p = FindTreePosFromID(id).value();
+            const uint64_t meshID = m_sceneGraph[p.Level].m_meshIDs[p.Offset];
 
+            return m_meshes.GetMesh(meshID);
+        }
         ZetaInline const Core::GpuMemory::Buffer& GetMeshVB() { return m_meshes.GetVB(); }
         ZetaInline const Core::GpuMemory::Buffer& GetMeshIB() { return m_meshes.GetIB(); }
 
@@ -163,9 +171,9 @@ namespace ZetaRay::Scene
         void AddInstance(Model::glTF::Asset::InstanceDesc& instance, bool lock = true);
         ZetaInline Util::Optional<const Math::float4x3*> GetPrevToWorld(uint64_t id) const
         {
-            const auto idx = Util::BinarySearch(Util::Span(m_prevToWorlds), id, [](const PrevToWorld& p) {return p.ID; });
-            if (idx != -1)
-                return &m_prevToWorlds[idx].W;
+            auto it = m_prevToWorlds.find(id);
+            if (it)
+                return it.value();
 
             return {};
         }
@@ -173,6 +181,20 @@ namespace ZetaRay::Scene
         {
             const TreePos& p = FindTreePosFromID(id).value();
             return m_sceneGraph[p.Level].m_toWorlds[p.Offset];
+        }
+        ZetaInline Math::AffineTransformation GetLocalTransform(uint64_t id) const
+        {
+            auto it = m_worldTransformUpdates.find(id);
+            if (it)
+                return *it.value();
+
+            return Math::AffineTransformation::GetIdentity();
+        }
+        ZetaInline const Math::AABB& GetAABB(uint64_t id) const
+        {
+            const TreePos& p = FindTreePosFromID(id).value();
+            const uint64_t meshID = m_sceneGraph[p.Level].m_meshIDs[p.Offset];
+            return m_meshes.GetMesh(meshID).value()->m_AABB;
         }
         ZetaInline uint64_t GetInstanceMeshID(uint64_t id) const
         {
@@ -187,12 +209,14 @@ namespace ZetaRay::Scene
         ZetaInline RT_Flags GetInstanceRtFlags(uint64_t id) const
         {
             const TreePos& p = FindTreePosFromID(id).value();
-            return Scene::GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
+            return RT_Flags::Decode(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
         }
         ZetaInline uint64_t GetIDFromRtMeshIdx(uint32 idx) const
         {
             return m_rtMeshInstanceIdxToID[idx];
         }
+        void TransformInstance(uint64_t id, const Math::float3& tr, const Math::float3x3& rotation,
+            const Math::float3& scale);
         void ReserveInstances(int height, int num);
 
         //
@@ -219,7 +243,6 @@ namespace ZetaRay::Scene
         ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
         ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
         ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
-        ZetaInline Util::Span<uint64_t> GetViewFrustumInstances() { return m_viewFrustumInstances; }
         ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
         ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
 
@@ -281,12 +304,6 @@ namespace ZetaRay::Scene
             Util::SmallVector<RT_AS_Info> m_rtASInfo;
         };
 
-        struct PrevToWorld
-        {
-            Math::float4x3 W;
-            uint64_t ID;
-        };
-
         // Offset into "m_keyframes" array
         struct AnimationMetadata
         {
@@ -306,12 +323,17 @@ namespace ZetaRay::Scene
             return {};
         }
 
-        uint32_t InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t parentIdx, Math::AffineTransformation& localTransform,
-            uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
-        void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
+        uint32_t InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t parentIdx, 
+            Math::AffineTransformation& localTransform, uint64_t meshID, 
+            Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
+        void InitWorldTransformations();
+        void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, 
+            App::FrameAllocator>& toUpdateInstances);
         void RebuildBVH();
         void UpdateAnimations(float t, Util::Vector<AnimationUpdate, App::FrameAllocator>& animVec);
         void UpdateLocalTransforms(Util::Span<AnimationUpdate> animVec);
+        bool ConvertInstanceDynamic(uint64_t instanceID);
+        void ConvertSubTreeDynamic(uint32_t treeLevel, Range r);
 
         // Maps instance ID to tree position
         Util::HashTable<TreePos> m_IDtoTreePos;
@@ -319,7 +341,7 @@ namespace ZetaRay::Scene
         Util::SmallVector<uint64> m_rtMeshInstanceIdxToID;
         Util::SmallVector<TreeLevel, Support::SystemAllocator, 3> m_sceneGraph;
         // Previous frame's world transformation
-        Util::SmallVector<PrevToWorld> m_prevToWorlds;
+        Util::HashTable<Math::float4x3> m_prevToWorlds;
         std::atomic_uint64_t m_pickedInstance = Scene::INVALID_INSTANCE;
         bool m_isPaused = false;
 
@@ -330,22 +352,27 @@ namespace ZetaRay::Scene
         uint32_t m_numDynamicInstances = 0;
         uint32_t m_numOpaqueInstances = 0;
         uint32_t m_numNonOpaqueInstances = 0;
-        bool m_hasNewStaticInstances = false;
-        bool m_hasNewDynamicInstances = false;
         bool m_meshBufferStale = false;
         bool m_dynamicInstanceNeedUpdate = false;
         bool m_rtAsInfoStale = true;
+        Util::SmallVector<uint64_t, Support::SystemAllocator, 3> m_pendingRtMeshModeSwitch;
+        Util::HashTable<uint64_t> m_instanceUpdates;
+        
+        struct TransformUpdate
+        {
+            Math::float3 Tr;
+            Math::float3x3 Rotation;
+            Math::float3 Scale;
+        };
+        
+        Util::HashTable<TransformUpdate> m_tempWorldTransformUpdates;
+        Util::HashTable<Math::AffineTransformation> m_worldTransformUpdates;
 
         //
         // BVH
         //
         //Math::BVH m_bvh;
         bool m_rebuildBVHFlag = false;
-
-        //
-        // Instances
-        //
-        Util::SmallVector<uint64_t, App::FrameAllocator> m_viewFrustumInstances;
 
         //
         // Assets

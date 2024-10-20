@@ -1,7 +1,6 @@
 #include "SceneCore.h"
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Quaternion.h"
-#include "../Math/Color.h"
 #include "../Support/Task.h"
 #include "Camera.h"
 #include <App/Timer.h>
@@ -103,14 +102,19 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
     auto updateWorldTransforms = sceneTS.EmplaceTask("Scene::UpdateWorldTransform", [this]()
         {
-            SmallVector<BVH::BVHUpdateInput, App::FrameAllocator> toUpdateInstances;
+            if (m_rebuildBVHFlag)
+                InitWorldTransformations();
 
             if (m_animate)
             {
                 SmallVector<AnimationUpdate, App::FrameAllocator> animUpdates;
                 UpdateAnimations((float)App::GetTimer().GetTotalTime(), animUpdates);
                 UpdateLocalTransforms(animUpdates);
+            }
 
+            if (!m_instanceUpdates.empty())
+            {
+                SmallVector<BVH::BVHUpdateInput, App::FrameAllocator> toUpdateInstances;
                 UpdateWorldTransformations(toUpdateInstances);
             }
 
@@ -130,6 +134,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
             else if (!toUpdateInstances.empty())
                 m_bvh.Update(toUpdateInstances);
 #endif
+            m_rebuildBVHFlag = false;
         });
 
     TaskSet::TaskHandle setRtAsInfo = TaskSet::INVALID_TASK_HANDLE;
@@ -148,7 +153,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
                     for (size_t i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
                     {
-                        const Scene::RT_Flags flags = Scene::GetRtFlags(currTreeLevel.m_rtFlags[i]);
+                        const Scene::RT_Flags flags = RT_Flags::Decode(currTreeLevel.m_rtFlags[i]);
 
                         if (flags.MeshMode == RT_MESH_MODE::STATIC)
                         {
@@ -179,7 +184,9 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
             const Camera& camera = App::GetCamera();
             m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_viewFrustumInstances);
 
-            App::AddFrameStat("Scene", "FrustumCulled", (uint32_t)(m_IDtoTreePos.size() - m_viewFrustumInstances.size()), (uint32_t)m_IDtoTreePos.size());
+            App::AddFrameStat("Scene", "FrustumCulled", 
+                (uint32_t)(m_IDtoTreePos.size() - m_viewFrustumInstances.size()), 
+                (uint32_t)m_IDtoTreePos.size());
         });
 
     sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
@@ -204,7 +211,6 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
             constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
             size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
             size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
-            uint32_t workerEmissiveCount[MAX_NUM_EMISSIVE_WORKERS];
 
             const int numEmissiveWorkers = (int)SubdivideRangeWithMin(numInstances,
                 MAX_NUM_EMISSIVE_WORKERS,
@@ -466,15 +472,11 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         if (instance.RtMeshMode == RT_MESH_MODE::STATIC)
         {
             m_numStaticInstances++;
-            m_hasNewStaticInstances = true;
             m_numOpaqueInstances += instance.IsOpaque;
             m_numNonOpaqueInstances += !instance.IsOpaque;
         }
         else
-        {
-            m_hasNewDynamicInstances = true;
             m_numDynamicInstances++;
-        }
     }
 
     uint32_t treeLevel = 1;
@@ -549,7 +551,7 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
 
         // Resize for one additional entry
         vec.resize(vec.size() + 1);
-        // Shift existing element with index >= insertIdx to right by one
+        // Shift existing elements with index >= insertIdx to right by one
         memmove(vec.data() + insertIdx + 1, vec.data() + insertIdx, numToMove * sizeof(T));
 
         // Construct the new entry in-place
@@ -567,7 +569,7 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
         currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
     rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
     // Set rebuild flag to true when there's new any instance
-    auto flags = SetRtFlags(rtMeshMode, rtInstanceMask, 1, 0, isOpaque);
+    auto flags = RT_Flags::Encode(rtMeshMode, rtInstanceMask, 1, 0, isOpaque);
     rearrange(currLevel.m_rtFlags, insertIdx, flags);
     rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
@@ -583,7 +585,7 @@ void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float
 {
 #ifndef NDEBUG
     TreePos& p = FindTreePosFromID(id).value();
-    Assert(GetRtFlags(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC,
+    Assert(RT_Flags::Decode(m_sceneGraph[p.Level].m_rtFlags[p.Offset]).MeshMode != RT_MESH_MODE::STATIC,
         "Static instances can't be animated.");
 #endif
 
@@ -611,12 +613,25 @@ void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float
     m_keyframes.append_range(keyframes.begin(), keyframes.end());
 }
 
+void SceneCore::TransformInstance(uint64_t id, const float3& tr, const float3x3& rotation,
+    const float3& scale)
+{
+    m_tempWorldTransformUpdates[id] = TransformUpdate{ .Tr = tr, .Rotation = rotation, .Scale = scale };
+
+    ConvertInstanceDynamic(id);
+    // Updates if instance already exists
+    m_instanceUpdates[id] = App::GetTimer().GetTotalFrameCount();
+
+    m_rendererInterface.SceneModified();
+}
+
 void SceneCore::ReserveInstances(int height, int num)
 {
     // +1 for root
     m_sceneGraph.reserve(height + 1);
-    m_prevToWorlds.reserve(num);
+    m_prevToWorlds.resize(num, true);
     m_IDtoTreePos.resize(num, true);
+    m_worldTransformUpdates.resize(Min(num, 32), true);
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissiveInstances,
@@ -675,78 +690,200 @@ void SceneCore::RebuildBVH()
 }
 #endif
 
-void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances)
+void SceneCore::InitWorldTransformations()
 {
-    m_prevToWorlds.clear();
-    const int numLevels = (int)m_sceneGraph.size();
+    const float4x3 I = float4x3(store(identity()));
 
-    SmallVector<EmissiveInstance, App::FrameAllocator> modifiedEmissives;
-
-    for (int level = 0; level < numLevels - 1; ++level)
+    // No parent transformation for first level
+    for (size_t i = 0; i < m_sceneGraph[1].m_localTransforms.size(); i++)
     {
-        for (int i = 0; i < m_sceneGraph[level].m_subtreeRanges.size(); i++)
+        AffineTransformation& tr = m_sceneGraph[1].m_localTransforms[i];
+        v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
+        const uint64_t ID = m_sceneGraph[1].m_IDs[i];
+
+        // Set prev = new for 1st frame
+        m_sceneGraph[1].m_toWorlds[i] = float4x3(store(vLocal));
+        m_prevToWorlds[ID] = m_sceneGraph[1].m_toWorlds[i];
+    }
+
+    const size_t numLevels = m_sceneGraph.size();
+
+    for (size_t level = 1; level < numLevels - 1; ++level)
+    {
+        for (size_t i = 0; i < m_sceneGraph[level].m_subtreeRanges.size(); i++)
         {
-            v_float4x4 vParentTransform = load4x3(m_sceneGraph[level].m_toWorlds[i]);
+            const v_float4x4 vParentTr = load4x3(m_sceneGraph[level].m_toWorlds[i]);
+            const float4x3 P = float4x3(store(vParentTr));
             const auto& range = m_sceneGraph[level].m_subtreeRanges[i];
 
-            for (int j = range.Base; j < range.Base + range.Count; j++)
+            for (size_t j = range.Base; j < range.Base + range.Count; j++)
             {
                 AffineTransformation& tr = m_sceneGraph[level + 1].m_localTransforms[j];
                 v_float4x4 vLocal = affineTransformation(tr.Scale, tr.Rotation, tr.Translation);
-                v_float4x4 newW = mul(vLocal, vParentTransform);
-                v_float4x4 prevW = load4x3(m_sceneGraph[level + 1].m_toWorlds[j]);
+                // Bottom up transformation hierarchy
+                v_float4x4 newW = mul(vLocal, vParentTr);
+                const uint64_t ID = m_sceneGraph[level + 1].m_IDs[j];
 
-                if (!m_rebuildBVHFlag && !equal(newW, prevW))
-                {
-                    const uint64_t ID = m_sceneGraph[level + 1].m_IDs[j];
-
-                    // CPU BVH is currently not needed
-#if 0
-                    const uint64_t meshID = m_sceneGraph[level + 1].m_meshIDs[j];
-                    const TriangleMesh* mesh = m_meshes.GetMesh(meshID).value();
-                    v_AABB vOldBox(mesh->m_AABB);
-                    vOldBox = transform(prevW, vOldBox);
-                    v_AABB vNewBox = transform(newW, vOldBox);
-
-                    toUpdateInstances.emplace_back(BVH::BVHUpdateInput{
-                        .OldBox = store(vOldBox),
-                        .NewBox = store(vNewBox),
-                        .ID = ID });
-#endif
-                    RT_Flags f = GetRtFlags(m_sceneGraph[level + 1].m_rtFlags[j]);
-                    Assert(f.MeshMode != RT_MESH_MODE::STATIC, "Transformation of static meshes can't change.");
-                    Assert(!f.RebuildFlag, "Rebuild & update flags can't be set at the same time.");
-
-                    m_sceneGraph[level + 1].m_rtFlags[j] = SetRtFlags(f.MeshMode, f.InstanceMask, 0, 1, f.IsOpaque);
-
-                    //auto emissive = m_emissives.FindEmissive(ID);
-                    //if (emissive)
-                    //    modifiedEmissives.push_back(*emissive.value());
-                }
-
+                // Set prev = new for 1st frame
                 m_sceneGraph[level + 1].m_toWorlds[j] = float4x3(store(newW));
+                m_prevToWorlds[ID] = m_sceneGraph[level + 1].m_toWorlds[j];
+            }
+        }
+    }
+}
 
-                m_prevToWorlds.emplace_back(PrevToWorld{
-                    .W = m_sceneGraph[level + 1].m_toWorlds[j],
-                    .ID = m_sceneGraph[level + 1].m_IDs[j] });
+void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances)
+{
+    struct Entry
+    {
+        v_float4x4 W;
+        uint32_t TreeLevel;
+        uint32_t Base;
+        uint32_t Count;
+    };
+
+    SmallVector<Entry, App::FrameAllocator, 10> stack;
+    const auto currFrame = App::GetTimer().GetTotalFrameCount();
+
+    // Can't append while iterating
+    SmallVector<uint64, App::FrameAllocator, 3> toAppend;
+
+    for (auto it = m_instanceUpdates.begin_it(); it != m_instanceUpdates.end_it(); 
+        it = m_instanceUpdates.next_it(it))
+    {
+        const auto instance = it->Key;
+        const auto frame = it->Val;
+        const TreePos& p = FindTreePosFromID(instance).value();
+
+        // -1 -> update was added at the tail end of last frame
+        if (frame < currFrame - 1)
+        {
+            // Mesh hasn't moved, just update previous transformation
+            m_prevToWorlds[instance] = m_sceneGraph[p.Level].m_toWorlds[p.Offset];
+            continue;
+        }
+
+        // Grab current to world transformation
+        const float4x3& prevW = m_sceneGraph[p.Level].m_toWorlds[p.Offset];
+        v_float4x4 vW = load4x3(prevW);
+
+        float4a t;
+        float4a r;
+        float4a s;
+        decomposeSRT(vW, s, r, t);
+
+        Assert(r.w <= 1 && r.w >= -1, "");
+
+        Assert(!isnan(r.x) && !isnan(r.y) && !isnan(r.z) && !isnan(r.w), "");
+
+        // Apply the update
+        auto& delta = m_tempWorldTransformUpdates[instance];
+        float3 newTr = delta.Tr + t.xyz();
+        float3 newScale = delta.Scale * s.xyz();
+
+        v_float4x4 vR = rotationMatFromQuat(load(r));
+        v_float4x4 vNewR = load3x3(delta.Rotation);
+        vR = mul(vR, vNewR);
+
+        v_float4x4 vNewWorld = affineTransformation(vR, newScale, newTr);
+
+        float3x3 R = float3x3(store(vNewR));
+        Assert(fabsf(R.m[0].length() - 1) < 1e-5, "");
+        Assert(fabsf(R.m[1].length() - 1) < 1e-5, "");
+        Assert(fabsf(R.m[2].length() - 1) < 1e-5, "");
+
+        // Update previous & current transformations
+        m_prevToWorlds[instance] = prevW;
+        m_sceneGraph[p.Level].m_toWorlds[p.Offset] = float4x3(store(vNewWorld));
+        
+        // Add subtree to stack
+        if (const auto range = m_sceneGraph[p.Level].m_subtreeRanges[p.Offset]; range.Count)
+        {
+            stack.push_back(Entry{ .W = vNewWorld,
+                .TreeLevel = p.Level, 
+                .Base = range.Base, 
+                .Count = range.Count });
+        }
+
+        // Remember transformation update for future
+        if (auto existingIt = m_worldTransformUpdates.find(instance); existingIt)
+        {
+            auto& curr = *existingIt.value();
+            curr.Translation += delta.Tr;
+            curr.Scale *= delta.Scale;
+
+            v_float4x4 vCurrR = rotationMatFromQuat(loadFloat4(curr.Rotation));
+            vCurrR = mul(vCurrR, vNewR);
+            curr.Rotation = quaternionFromRotationMat1(vCurrR);
+
+            Assert(!isnan(curr.Rotation.x) && !isnan(curr.Rotation.y) && !isnan(curr.Rotation.z) && !isnan(curr.Rotation.w), "");
+
+        }
+        else
+        {
+            AffineTransformation tr;
+            tr.Translation = delta.Tr;
+            tr.Scale = delta.Scale;
+            tr.Rotation = quaternionFromRotationMat1(vNewR);
+
+            m_worldTransformUpdates[instance] = tr;
+        }
+    }
+
+    while (!stack.empty())
+    {
+        Entry e = stack.back();
+        stack.pop_back();
+        auto& currLevel = m_sceneGraph[e.TreeLevel + 1];
+
+        for (size_t j = e.Base; j < e.Base + e.Count; j++)
+        {
+            Assert(RT_Flags::Decode(currLevel.m_rtFlags[j]).MeshMode ==
+                RT_MESH_MODE::DYNAMIC_NO_REBUILD, "Invalid scene graph.");
+
+            const uint64_t ID = m_sceneGraph[e.TreeLevel + 1].m_IDs[j];
+            toAppend.push_back(ID);
+
+            AffineTransformation& local = currLevel.m_localTransforms[j];
+            v_float4x4 vLocal = affineTransformation(local.Scale, local.Rotation, local.Translation);
+            v_float4x4 vNewWorld = mul(vLocal, e.W);
+
+            // If instance has had updates, apply them
+            if (auto updateIt = m_worldTransformUpdates.find(ID); updateIt)
+            {
+                float4a t;
+                float4a s;
+                v_float4x4 vR = decomposeSRT(vNewWorld, s, t);
+
+                AffineTransformation& existing = *updateIt.value();
+                float3 newTr = existing.Translation + t.xyz();
+                float3 newScale = existing.Scale * s.xyz();
+
+                v_float4x4 vRotUpdate = rotationMatFromQuat(loadFloat4(existing.Rotation));
+                vR = mul(vR, vRotUpdate);
+
+                vNewWorld = affineTransformation(vR, newScale, newTr);
+            }
+
+            // Update previous & current transformations
+            m_prevToWorlds[ID] = currLevel.m_toWorlds[j];
+            currLevel.m_toWorlds[j] = float4x3(store(vNewWorld));
+
+            // Add subtree to stack
+            if (const auto& subtree = currLevel.m_subtreeRanges[j]; subtree.Count)
+            {
+                stack.push_back(Entry{ .W = vNewWorld,
+                    .TreeLevel = e.TreeLevel + 2,
+                    .Base = subtree.Base,
+                    .Count = subtree.Count });
             }
         }
     }
 
-    std::sort(m_prevToWorlds.begin(), m_prevToWorlds.end(),
-        [](const PrevToWorld& lhs, const PrevToWorld& rhs)
-        {
-            return lhs.ID < rhs.ID;
-        });
-
-    // TODO implement animated emissives
-#if 0
-    if (!modifiedEmissives.empty())
-    {
-        m_staleEmissives = true;
-        UpdateEmissives(modifiedEmissives);
-    }
-#endif
+    m_tempWorldTransformUpdates.clear();
+    
+    for(auto id : toAppend)
+        m_instanceUpdates[id] = App::GetTimer().GetTotalFrameCount() - 1;
 }
 
 void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllocator>& animVec)
@@ -826,41 +963,51 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdate> animVec)
     }
 }
 
-// TODO following is untested
-/*
-void SceneCore::UpdateEmissives(MutableSpan<EmissiveInstance> instances)
+bool SceneCore::ConvertInstanceDynamic(uint64_t instanceID)
 {
-    auto emissvies = m_emissives.Instances();
-    auto tris = m_emissives.EmissiveTriagnles();
-    auto initPos = m_emissives.InitialTriVtxPos();
-    uint32_t minTriIdx = UINT32_MAX;
-    uint32_t maxTriIdx = 0;
+    const TreePos& p = FindTreePosFromID(instanceID).value();
+    const auto currFlags = RT_Flags::Decode(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
 
-    for (auto ID : m_toUpdateEmissives)
+    if (currFlags.MeshMode == RT_MESH_MODE::STATIC)
     {
-        auto e = *m_emissives.FindEmissive(ID).value();
-        const v_float4x4 vW = load4x3(GetToWorld(ID));
+        m_sceneGraph[p.Level].m_rtFlags[p.Offset] = RT_Flags::Encode(
+            RT_MESH_MODE::DYNAMIC_NO_REBUILD,
+            currFlags.InstanceMask, 1, 0, currFlags.IsOpaque);
 
-        for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
-        {
-            __m128 vV0 = loadFloat3(initPos[t].Vtx0);
-            __m128 vV1 = loadFloat3(initPos[t].Vtx1);
-            __m128 vV2 = loadFloat3(initPos[t].Vtx2);
+        m_pendingRtMeshModeSwitch.push_back(instanceID);
+        m_numStaticInstances--;
+        m_numDynamicInstances++;
 
-            vV0 = mul(vW, vV0);
-            vV1 = mul(vW, vV1);
-            vV2 = mul(vW, vV2);
+        auto subtree = m_sceneGraph[p.Level].m_subtreeRanges[p.Offset];
+        if (subtree.Count)
+            ConvertSubTreeDynamic(p.Level + 1, subtree);
 
-            tris[t].StoreVertices(vV0, vV1, vV2);
-        }
-
-        minTriIdx = Math::Min(minTriIdx, e.BaseTriOffset);
-        maxTriIdx = Math::Max(maxTriIdx, e.BaseTriOffset + e.NumTriangles);
+        return true;
     }
 
-    m_emissives.UpdateEmissiveBuffer(minTriIdx, maxTriIdx);
+    return false;
 }
-*/
+
+void SceneCore::ConvertSubTreeDynamic(uint32_t treeLevel, Range r)
+{
+    for (size_t i = r.Base; i < r.Base + r.Count; i++)
+    {
+        auto rtFlags = RT_Flags::Decode(m_sceneGraph[treeLevel].m_rtFlags[i]);
+        if (rtFlags.MeshMode != Model::RT_MESH_MODE::DYNAMIC_NO_REBUILD)
+        {
+            m_sceneGraph[treeLevel].m_rtFlags[i] = RT_Flags::Encode(
+                Model::RT_MESH_MODE::DYNAMIC_NO_REBUILD,
+                rtFlags.InstanceMask, 1, 0, rtFlags.IsOpaque);
+
+            m_pendingRtMeshModeSwitch.push_back(m_sceneGraph[treeLevel].m_IDs[i]);
+            m_numStaticInstances--;
+            m_numDynamicInstances++;
+        }
+
+        if (m_sceneGraph[treeLevel].m_subtreeRanges[i].Count > 0)
+            ConvertSubTreeDynamic(treeLevel + 1, m_sceneGraph[treeLevel].m_subtreeRanges[i]);
+    }
+}
 
 void SceneCore::AnimateCallback(const ParamVariant& p)
 {

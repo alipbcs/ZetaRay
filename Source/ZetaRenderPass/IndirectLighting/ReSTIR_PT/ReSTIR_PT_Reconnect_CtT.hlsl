@@ -224,7 +224,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         g_frame.DoF, lensSample_t, g_frame.FocusDepth, origin_t);
 
     // No temporal history
-    if(!RPT_Util::PlaneHeuristic(prevPos, normal, pos, z_view, 0.01))
+    if(!RPT_Util::PlaneHeuristic(prevPos, normal, pos, z_view, MAX_PLANE_DIST_REUSE))
         return;
 
     GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +

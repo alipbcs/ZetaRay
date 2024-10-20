@@ -36,10 +36,13 @@ namespace ZetaRay::Core::GpuMemory
     template<int N = 1>
     struct PlacedResourceList
     {
-        void PushBuffer(uint32_t sizeInBytes, bool allowUAV)
+        void PushBuffer(uint32_t sizeInBytes, bool allowUAV, bool isRtAs)
         {
             D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
                 D3D12_RESOURCE_FLAG_NONE;
+            if (isRtAs)
+                f |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
+
             D3D12_RESOURCE_DESC1 desc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
             m_descs.push_back(desc);
 
@@ -289,9 +292,16 @@ namespace ZetaRay::Core::GpuMemory
     Buffer GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
         bool isRtAs, bool allowUAV, bool initToZero = false);
     Buffer GetPlacedHeapBuffer(const char* name, uint32_t sizeInBytes,
-        ID3D12Heap* heap, uint64_t offsetInBytes, bool allowUAV);
+        ID3D12Heap* heap, uint64_t offsetInBytes, bool allowUAV, bool isRtAs);
     Buffer GetDefaultHeapBufferAndInit(const char* name,
         uint32_t sizeInBytes,
+        bool allowUAV, 
+        void* data,
+        bool forceSeparateUploadBuffer = false);    
+    Buffer GetPlacedHeapBufferAndInit(const char* name,
+        uint32_t sizeInBytes,
+        ID3D12Heap* heap,
+        uint64_t offsetInBytes,
         bool allowUAV, 
         void* data,
         bool forceSeparateUploadBuffer = false);

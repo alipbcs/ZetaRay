@@ -108,8 +108,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
             (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
     }
 
-    data.RtAS.BuildStaticBLASTransforms();
-    data.RtAS.BuildFrameMeshInstanceData();
+    data.RtAS.Update();
 
     data.PreLightingPass.Update();
 

@@ -70,10 +70,13 @@ namespace ZetaRay::Support
             m_completionFlag.store(true, std::memory_order_release);
             m_completionFlag.notify_one();
         }
-
         void Wait()
         {
-            m_completionFlag.wait(false, std::memory_order_relaxed);
+            m_completionFlag.wait(false, std::memory_order_acquire);
+        }
+        void Reset()
+        {
+            m_completionFlag.store(false, std::memory_order_release);
         }
 
     private:

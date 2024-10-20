@@ -1109,10 +1109,12 @@ Buffer GpuMemory::GetDefaultHeapBuffer(const char* name, uint32_t sizeInBytes,
 }
 
 Buffer GpuMemory::GetPlacedHeapBuffer(const char* name, uint32_t sizeInBytes, ID3D12Heap* heap,
-    uint64_t offsetInBytes, bool allowUAV)
+    uint64_t offsetInBytes, bool allowUAV, bool isRtAs)
 {
-    const D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
+    D3D12_RESOURCE_FLAGS f = allowUAV ? D3D12_RESOURCE_FLAG_ALLOW_UNORDERED_ACCESS : 
         D3D12_RESOURCE_FLAG_NONE;
+    if (isRtAs)
+        f |= D3D12_RESOURCE_FLAG_RAYTRACING_ACCELERATION_STRUCTURE;
     const D3D12_RESOURCE_DESC1 bufferDesc = Direct3DUtil::BufferResourceDesc1(sizeInBytes, f);
 
     auto* device = App::GetRenderer().GetDevice();
@@ -1140,6 +1142,23 @@ Buffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInB
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
     g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 0, 
+        forceSeparateUploadBuffer);
+
+    return buffer;
+}
+
+Buffer GpuMemory::GetPlacedHeapBufferAndInit(const char* name, uint32_t sizeInBytes, ID3D12Heap* heap, 
+    uint64_t offsetInBytes, bool allowUAV, void* data, bool forceSeparateUploadBuffer)
+{
+    auto buffer = GpuMemory::GetPlacedHeapBuffer(name,
+        sizeInBytes,
+        heap,
+        offsetInBytes,
+        allowUAV,
+        false);
+
+    const int idx = GetThreadIndex(g_data->m_threadIDs);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 0,
         forceSeparateUploadBuffer);
 
     return buffer;

@@ -3,6 +3,7 @@
 #include "../Core/GpuMemory.h"
 #include "RtCommon.h"
 #include "../Scene/SceneCommon.h"
+#include "../Support/Task.h"
 
 namespace ZetaRay::Core
 {
@@ -10,20 +11,14 @@ namespace ZetaRay::Core
     class ComputeCmdList;
 }
 
+namespace ZetaRay::Util
+{
+    template<typename T>
+    struct Span;
+}
+
 namespace ZetaRay::RT
 {
-    struct BLASTransform
-    {
-        float M[3][4];
-    };
-
-    struct DynamicBlasBuildItem
-    {
-        D3D12_RAYTRACING_GEOMETRY_DESC GeoDesc;
-        uint32_t* BlasBufferOffset;
-        uint32_t ScratchBufferOffset;
-    };
-
     //--------------------------------------------------------------------------------------
     // Static BLAS
     //--------------------------------------------------------------------------------------
@@ -33,37 +28,27 @@ namespace ZetaRay::RT
         void Rebuild(Core::ComputeCmdList& cmdList);
         void DoCompaction(Core::ComputeCmdList& cmdList);
         void CompactionCompletedCallback();
-        void FillMeshTransformBufferForBuild();
-        void Clear();
+        void FillMeshTransformBufferForBuild(ID3D12Heap* heap = nullptr, 
+            uint32_t heapOffsetInBytes = 0);
 
         Core::GpuMemory::Buffer m_buffer;
         Core::GpuMemory::Buffer m_bufferCompacted;
         Core::GpuMemory::Buffer m_scratch;
+        Core::GpuMemory::ResourceHeap m_resHeap;
 
-        uint32_t m_compactionInfoStartOffset;
         Core::GpuMemory::ReadbackHeapBuffer m_postBuildInfoReadback;
 
         // 3x4 affine transformation matrix for each triangle mesh
         Core::GpuMemory::Buffer m_perMeshTransform;
-    };
 
-    //--------------------------------------------------------------------------------------
-    // Dynamic BLAS
-    //--------------------------------------------------------------------------------------
+        // Cache the results as it's expensive to compute
+        D3D12_RAYTRACING_ACCELERATION_STRUCTURE_PREBUILD_INFO m_prebuildInfo = {};
 
-    struct DynamicBLAS
-    {
-        DynamicBLAS() = default;
-        DynamicBLAS(uint64_t insID, uint64_t meshID)
-            : m_instanceID(insID),
-            m_meshID(meshID)
-        {}
-
-        DynamicBlasBuildItem Rebuild();
-
-        uint64_t m_instanceID = Scene::INVALID_INSTANCE;
-        uint64_t m_meshID = Scene::INVALID_MESH;
-        uint32_t m_blasBufferOffset = 0;
+        std::atomic_bool m_compactionCompleted = false;
+        std::atomic_bool m_heapAllocated = false;
+        bool m_heapAllocationInProgress = false;
+        uint32_t m_BLASHeapOffsetInBytes = UINT32_MAX;
+        uint32_t m_scratchHeapOffsetInBytes = UINT32_MAX;
     };
 
     //--------------------------------------------------------------------------------------
@@ -72,30 +57,75 @@ namespace ZetaRay::RT
 
     struct TLAS
     {
+        void Update();
         void Render(Core::CommandList& cmdList);
-        void BuildFrameMeshInstanceData();
-        void BuildStaticBLASTransforms();
-        const Core::GpuMemory::Buffer& GetTLAS() const { return m_tlasBuffer;  };
-        bool IsReady() const { return m_ready; };
+        ZetaInline const Core::GpuMemory::Buffer& GetTLAS() const { return m_tlasBuffer;  };
+        ZetaInline bool IsReady() const { return m_ready; };
 
     private:
-        void RebuildTLAS(Core::ComputeCmdList& cmdList);
-        void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
+        struct ArenaPage
+        {
+            Core::GpuMemory::Buffer Page;
+            uint32_t CurrOffset;
+        };
+
+        struct DynamicBLAS
+        {
+            int PageIdx;
+            uint32_t PageOffset;
+            uint32_t TreeLevel;
+            uint32_t LevelIdx;
+            uint32_t InstanceID;
+        };
+
+        enum class UPDATE_TYPE
+        {
+            NONE,
+            STATIC_TO_DYNAMIC,
+            STATIC_BLAS_COMPACTED,
+            INSTANCE_TRANSFORM
+        };
+
+        static constexpr uint32_t DEFAULT_BLAS_ARENA_SIZE = 4 * 1024 * 1024;
+
+        // Frame mesh instances
+        void FillMeshInstanceData(uint64_t instanceID, uint64_t meshID, const Math::float4x3& M,
+            uint32_t emissiveTriOffset, bool staticMesh, uint32_t currInstance);
+        void RebuildFrameMeshInstanceData();
+        void UpdateFrameMeshInstances_StaticToDynamic();
+        void UpdateFrameMeshInstances_NewTransform();
+
+        // BLASes
+        void BuildDynamicBLASes(Core::ComputeCmdList& cmdList);
         void RebuildOrUpdateBLASes(Core::ComputeCmdList& cmdList);
-        void RebuildDynamicBLASes(Core::ComputeCmdList& cmdList);
+
+        // TLAS instances
+        void UpdateTLASInstances(Core::ComputeCmdList& cmdList);
+        void RebuildTLASInstances(Core::ComputeCmdList& cmdList);
+        void UpdateTLASInstances_StaticCompacted(Core::ComputeCmdList& cmdList);
+        void UpdateTLASInstances_NewTransform(Core::ComputeCmdList& cmdList);
+
+        void RebuildTLAS(Core::ComputeCmdList& cmdList);
 
         StaticBLAS m_staticBLAS;
-        Core::GpuMemory::Buffer m_dynamicBlasBuffer;
-        Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
-
         Core::GpuMemory::Buffer m_framesMeshInstances;
         Core::GpuMemory::Buffer m_tlasBuffer;
         Core::GpuMemory::Buffer m_scratchBuffer;
-        Core::GpuMemory::Buffer m_tlasInstanceBuff;
+        Core::GpuMemory::Buffer m_tlasInstanceBuffer;
+
+        // Dynamic BLAS
+        Util::SmallVector<ArenaPage> m_dynamicBLASArenas;
+        Util::SmallVector<DynamicBLAS> m_dynamicBLASes;
 
         Util::SmallVector<RT::MeshInstance> m_frameInstanceData;
+        Util::SmallVector<D3D12_RAYTRACING_INSTANCE_DESC, Support::SystemAllocator, 1> m_tlasInstances;
 
-        uint32_t m_staticBLASrebuiltFrame = UINT32_MAX;
+        Support::WaitObject m_waitObj;
+        std::atomic_bool m_compactionInfoReady = false;
+        bool m_staticBLASCompacted = false;
+        bool m_rebuildDynamicBLASes = true;
+        UPDATE_TYPE m_updateType = UPDATE_TYPE::NONE;
+
         bool m_ready = false;
     };
 }
