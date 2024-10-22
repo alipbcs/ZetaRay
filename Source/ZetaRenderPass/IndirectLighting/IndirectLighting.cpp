@@ -1101,7 +1101,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
 
     list.End();
 
-    m_resHeap = GpuMemory::GetResourceHeap(list.Size());
+    m_resHeap = GpuMemory::GetResourceHeap(list.TotalSizeInBytes());
     auto allocs = list.AllocInfos();
     int currRes = 0;
     const auto initState0 = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS;
@@ -1382,7 +1382,7 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
 
     list.End();
 
-    m_resHeap = GpuMemory::GetResourceHeap(list.Size());
+    m_resHeap = GpuMemory::GetResourceHeap(list.TotalSizeInBytes());
     auto allocs = list.AllocInfos();
     int currRes = 0;
 

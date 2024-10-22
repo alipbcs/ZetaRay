@@ -398,7 +398,7 @@ void DirectLighting::CreateOutputs()
 
     list.End();
 
-    m_resHeap = GpuMemory::GetResourceHeap(list.Size());
+    m_resHeap = GpuMemory::GetResourceHeap(list.TotalSizeInBytes());
     auto allocs = list.AllocInfos();
     int currRes = 0;
 

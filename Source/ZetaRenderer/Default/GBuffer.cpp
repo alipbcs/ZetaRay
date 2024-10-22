@@ -77,7 +77,7 @@ void GBuffer::CreateGBuffers(GBufferData& data)
 
     list.End();
 
-    data.ResHeap = GpuMemory::GetResourceHeap(list.Size());
+    data.ResHeap = GpuMemory::GetResourceHeap(list.TotalSizeInBytes());
     auto allocs = list.AllocInfos();
     int currRes = 0;
 

@@ -66,7 +66,7 @@ namespace ZetaRay::Core::GpuMemory
             D3D12_RESOURCE_ALLOCATION_INFO info = Direct3DUtil::AllocationInfo(m_descs, m_infos);
             m_size = info.SizeInBytes;
         }
-        ZetaInline uint64_t Size() const { return m_size; }
+        ZetaInline uint64_t TotalSizeInBytes() const { return m_size; }
         ZetaInline Util::Span<D3D12_RESOURCE_ALLOCATION_INFO1> AllocInfos() const { return m_infos; }
 
     private:
@@ -255,6 +255,7 @@ namespace ZetaRay::Core::GpuMemory
         ResourceHeap& operator=(ResourceHeap&&);
 
         void Reset();
+        ZetaInline bool IsInitialized() const { return m_heap; }
         ZetaInline ID3D12Heap* Heap()
         {
             Assert(m_heap, "Heap hasn't been initialized.");
