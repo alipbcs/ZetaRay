@@ -107,19 +107,22 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
 
     if (!frameConstsBuff.IsInitialized())
     {
-        constexpr uint32_t sizeInBytes = Math::AlignUp((uint32_t)sizeof(cbFrameConstants), 
-            (uint32_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
+        constexpr size_t sizeInBytes = AlignUp(sizeof(cbFrameConstants), 
+            (size_t)D3D12_CONSTANT_BUFFER_DATA_PLACEMENT_ALIGNMENT);
 
         frameConstsBuff = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::FRAME_CONSTANTS_BUFFER,
-            sizeInBytes,
+            (uint32_t)sizeInBytes,
             false,
-            &frameConsts);
+            MemoryRegion{.Data = &frameConsts, .SizeInBytes = sizeof(cbFrameConstants) });
 
         renderer.GetSharedShaderResources().InsertOrAssignDefaultHeapBuffer(GlobalResource::FRAME_CONSTANTS_BUFFER,
             frameConstsBuff);
     }
     else
-        GpuMemory::UploadToDefaultHeapBuffer(frameConstsBuff, (uint32_t)sizeof(cbFrameConstants), &frameConsts);
+    {
+        GpuMemory::UploadToDefaultHeapBuffer(frameConstsBuff, (uint32_t)sizeof(cbFrameConstants), 
+            MemoryRegion{ .Data = &frameConsts, .SizeInBytes = sizeof(cbFrameConstants) });
+    }
 }
 
 //--------------------------------------------------------------------------------------

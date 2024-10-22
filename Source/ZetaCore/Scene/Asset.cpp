@@ -149,10 +149,11 @@ void MaterialBuffer::UploadToGPU()
         }
 
         auto& renderer = App::GetRenderer();
+        const size_t sizeInBytes = buffer.size() * sizeof(Material);
         m_buffer = GpuMemory::GetDefaultHeapBufferAndInit("MaterialBuffer",
-            (uint32_t)(buffer.size() * sizeof(Material)),
+            (uint32_t)sizeInBytes,
             false,
-            buffer.data());
+            MemoryRegion{.Data = buffer.data(), .SizeInBytes = sizeInBytes });
 
         auto& r = renderer.GetSharedShaderResources();
         r.InsertOrAssignDefaultHeapBuffer(GlobalResource::MATERIAL_BUFFER, m_buffer);
@@ -163,7 +164,8 @@ void MaterialBuffer::UploadToGPU()
         auto* entry = m_materials.find(m_staleID).value();
 
         GpuMemory::UploadToDefaultHeapBuffer(m_buffer, sizeof(Material),
-            &entry->Mat, sizeof(Material) * entry->GpuBufferIdx);
+            MemoryRegion{.Data = &entry->Mat, .SizeInBytes = sizeof(Material)}, 
+            sizeof(Material) * entry->GpuBufferIdx);
 
         m_staleID = UINT32_MAX;
     }
@@ -250,12 +252,24 @@ void MeshContainer::RebuildBuffers()
     Assert(m_indices.size() > 0, "index buffer is empty");
 
     const uint32_t vbSizeInBytes = sizeof(Vertex) * (uint32_t)m_vertices.size();
-    m_vertexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, 
-        vbSizeInBytes, false, m_vertices.data(), true);
-
     const uint32_t ibSizeInBytes = sizeof(uint32_t) * (uint32_t)m_indices.size();
-    m_indexBuffer = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER, 
-        ibSizeInBytes, false, m_indices.data(), true);
+
+    PlacedResourceList<2> list;
+    list.PushBuffer(vbSizeInBytes, false, false);
+    list.PushBuffer(ibSizeInBytes, false, false);
+    list.End();
+
+    m_heap = GpuMemory::GetResourceHeap(list.TotalSizeInBytes());
+    ID3D12Heap* heap = m_heap.Heap();
+    auto allocs = list.AllocInfos();
+
+    m_vertexBuffer = GpuMemory::GetPlacedHeapBufferAndInit(GlobalResource::SCENE_VERTEX_BUFFER, 
+        vbSizeInBytes, heap, allocs[0].Offset, false, 
+        MemoryRegion{ .Data = m_vertices.data(), .SizeInBytes = vbSizeInBytes }, true);
+
+    m_indexBuffer = GpuMemory::GetPlacedHeapBufferAndInit(GlobalResource::SCENE_INDEX_BUFFER,
+        ibSizeInBytes, heap, allocs[1].Offset, false, 
+        MemoryRegion{ .Data = m_indices.data(), .SizeInBytes = ibSizeInBytes }, true);
 
     auto& r = App::GetRenderer().GetSharedShaderResources();
     r.InsertOrAssignDefaultHeapBuffer(GlobalResource::SCENE_VERTEX_BUFFER, m_vertexBuffer);
@@ -269,6 +283,7 @@ void MeshContainer::Clear()
 {
     m_vertexBuffer.Reset(false);
     m_indexBuffer.Reset(false);
+    m_heap.Reset();
 }
 
 //--------------------------------------------------------------------------------------
@@ -333,8 +348,8 @@ void EmissiveBuffer::UploadToGPU()
         const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_trisCpu.size();
         m_trisGpu = GpuMemory::GetDefaultHeapBufferAndInit(GlobalResource::EMISSIVE_TRIANGLE_BUFFER,
             (uint32)sizeInBytes,
-            false, 
-            m_trisCpu.data());
+            false,
+            MemoryRegion{ .Data = m_trisCpu.data(), .SizeInBytes = sizeInBytes });
 
         auto& r = App::GetRenderer().GetSharedShaderResources();
         r.InsertOrAssignDefaultHeapBuffer(GlobalResource::EMISSIVE_TRIANGLE_BUFFER, m_trisGpu);
@@ -345,8 +360,10 @@ void EmissiveBuffer::UploadToGPU()
         const size_t numMbytes = sizeof(RT::EmissiveTriangle) * m_staleNumTris / (1024 * 1024);
         LOG_UI_INFO("Uploading %d emissive triangles (%d MB)...", m_staleNumTris, numMbytes);
 
-        GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, sizeof(RT::EmissiveTriangle) * m_staleNumTris,
-            &m_trisCpu[m_staleBaseOffset], m_staleBaseOffset * sizeof(RT::EmissiveTriangle));
+        const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_staleNumTris;
+        GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, sizeInBytes,
+            MemoryRegion{ .Data = &m_trisCpu[m_staleBaseOffset], .SizeInBytes = sizeInBytes },
+            m_staleBaseOffset * sizeof(RT::EmissiveTriangle));
 
         m_staleNumTris = 0;
         m_staleBaseOffset = UINT32_MAX;

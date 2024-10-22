@@ -280,7 +280,8 @@ namespace ZetaRay::Core::GpuMemory
     // Assumes GPU synchronization has been performed
     void Shutdown();
 
-    UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, bool forceSeparate = false);
+    UploadHeapBuffer GetUploadHeapBuffer(uint32_t sizeInBytes, uint32_t alignment = 4, 
+        bool forceSeparate = false);
     void ReleaseUploadHeapBuffer(UploadHeapBuffer& buffer);
     void ReleaseUploadHeapArena(UploadHeapArena& arena);
 
@@ -296,18 +297,19 @@ namespace ZetaRay::Core::GpuMemory
     Buffer GetDefaultHeapBufferAndInit(const char* name,
         uint32_t sizeInBytes,
         bool allowUAV, 
-        void* data,
+        Util::MemoryRegion initData,
         bool forceSeparateUploadBuffer = false);    
     Buffer GetPlacedHeapBufferAndInit(const char* name,
         uint32_t sizeInBytes,
         ID3D12Heap* heap,
         uint64_t offsetInBytes,
-        bool allowUAV, 
-        void* data,
+        bool allowUAV,
+        Util::MemoryRegion initData,
         bool forceSeparateUploadBuffer = false);
-    void UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, void* data, 
-        uint32_t destOffsetInBytes = 0);
-    ResourceHeap GetResourceHeap(uint64_t sizeInBytes, uint64_t alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
+    void UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, 
+        Util::MemoryRegion sourceData, uint32_t destOffsetInBytes = 0);
+    ResourceHeap GetResourceHeap(uint64_t sizeInBytes, 
+        uint64_t alignment = D3D12_DEFAULT_RESOURCE_PLACEMENT_ALIGNMENT,
         bool createZeroed = false);
     void ReleaseDefaultHeapBuffer(Buffer& buffer);
     void ReleaseTexture(Texture& textue);
@@ -329,9 +331,12 @@ namespace ZetaRay::Core::GpuMemory
         DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
         uint32_t flags = 0, uint16_t mipLevels = 1);
 
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, UploadHeapArena& arena);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
+        Texture& t);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
+        Texture& t, UploadHeapArena& arena);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, 
+        Texture& t);
     Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0);
 }

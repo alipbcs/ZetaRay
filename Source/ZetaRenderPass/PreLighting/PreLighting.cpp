@@ -206,10 +206,11 @@ void PreLighting::Init()
         samples[i].y = Halton(i + 1, 3);
     }
 
+    const size_t sizeInBytes = ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI * sizeof(float2);
     m_halton = GpuMemory::GetDefaultHeapBufferAndInit("Halton",
-        ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI * sizeof(float2),
+        (uint32)sizeInBytes,
         false,
-        samples);
+        MemoryRegion{ .Data = samples, .SizeInBytes = sizeInBytes });
 }
 
 void PreLighting::Update()

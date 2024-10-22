@@ -530,14 +530,20 @@ namespace
 
         if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
         {
-            Assert(resDesc->usage != FFX_RESOURCE_USAGE_RENDERTARGET, "Buffers can't be used as render targets.");
+            Assert(resDesc->usage != FFX_RESOURCE_USAGE_RENDERTARGET, 
+                "Buffers can't be used as render targets.");
 
             if (resDesc->initData)
+            {
                 g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBufferAndInit(resName,
-                    state, allowUAV, resDesc->initData);
+                    state, allowUAV, 
+                    MemoryRegion{.Data = resDesc->initData, .SizeInBytes = resDesc->initDataSize });
+            }
             else
-                g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBuffer(resName, resDesc->initDataSize,
-                    state, allowUAV);
+            {
+                g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBuffer(resName, 
+                    resDesc->initDataSize, state, allowUAV);
+            }
 
             outResource->internalIndex = resDesc->id;
         }

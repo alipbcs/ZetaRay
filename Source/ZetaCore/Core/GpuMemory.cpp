@@ -1132,8 +1132,10 @@ Buffer GpuMemory::GetPlacedHeapBuffer(const char* name, uint32_t sizeInBytes, ID
 }
 
 Buffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInBytes, 
-    bool allowUAV, void* data, bool forceSeparateUploadBuffer)
+    bool allowUAV, MemoryRegion initData, bool forceSeparateUploadBuffer)
 {
+    Assert(initData.SizeInBytes <= sizeInBytes, "Size of initialization data exceeded resource size.");
+
     auto buffer = GpuMemory::GetDefaultHeapBuffer(name,
         sizeInBytes,
         D3D12_RESOURCE_STATE_COMMON,
@@ -1141,15 +1143,18 @@ Buffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInB
         false);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 0, 
-        forceSeparateUploadBuffer);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), initData.Data, 
+        (uint32)initData.SizeInBytes, 0, forceSeparateUploadBuffer);
 
     return buffer;
 }
 
-Buffer GpuMemory::GetPlacedHeapBufferAndInit(const char* name, uint32_t sizeInBytes, ID3D12Heap* heap, 
-    uint64_t offsetInBytes, bool allowUAV, void* data, bool forceSeparateUploadBuffer)
+Buffer GpuMemory::GetPlacedHeapBufferAndInit(const char* name, uint32_t sizeInBytes, 
+    ID3D12Heap* heap, uint64_t offsetInBytes, bool allowUAV, MemoryRegion initData, 
+    bool forceSeparateUploadBuffer)
 {
+    Assert(initData.SizeInBytes <= sizeInBytes, "Size of initialization data exceeded resource size.");
+
     auto buffer = GpuMemory::GetPlacedHeapBuffer(name,
         sizeInBytes,
         heap,
@@ -1158,17 +1163,19 @@ Buffer GpuMemory::GetPlacedHeapBufferAndInit(const char* name, uint32_t sizeInBy
         false);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 0,
-        forceSeparateUploadBuffer);
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), initData.Data,
+        (uint32)initData.SizeInBytes, 0, forceSeparateUploadBuffer);
 
     return buffer;
 }
 
 void GpuMemory::UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes, 
-    void* data, uint32_t destOffsetInBytes)
+    MemoryRegion sourceData, uint32_t destOffsetInBytes)
 {
+    Assert(sourceData.SizeInBytes >= sizeInBytes, "Out-of-bound memory access of source data.");
+
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), data, sizeInBytes, 
+    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), sourceData.Data, sizeInBytes,
         destOffsetInBytes);
 }
 

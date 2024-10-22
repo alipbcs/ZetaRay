@@ -186,4 +186,10 @@ namespace ZetaRay::Util
         const char* m_ptr;
         size_t m_size;
     };
+
+    struct MemoryRegion
+    {
+        void* Data;
+        size_t SizeInBytes;
+    };
 }

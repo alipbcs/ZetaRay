@@ -154,6 +154,7 @@ namespace ZetaRay::Scene::Internal
 
         Core::GpuMemory::Buffer m_vertexBuffer;
         Core::GpuMemory::Buffer m_indexBuffer;
+        Core::GpuMemory::ResourceHeap m_heap;
     };
 
     //--------------------------------------------------------------------------------------
