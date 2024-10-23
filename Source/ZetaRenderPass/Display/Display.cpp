@@ -298,8 +298,8 @@ void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
         v_float4x4 vView = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
         v_float4x4 vProj = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
         v_float4x4 vVP = mul(vView, vProj);
-        v_float4x4 vW = load4x3(toWorld);
-        v_float4x4 vWVP = mul(vW, vVP);
+        v_float4x4 vW2 = load4x3(toWorld);
+        v_float4x4 vWVP = mul(vW2, vVP);
         float4x4a wvp = store(vWVP);
 
         cbDrawPicked cb;
@@ -477,6 +477,9 @@ void DisplayPass::ReadbackPickIdx()
 
     m_readback->Unmap();
     m_readback = nullptr;
+
+    if (rtMeshIdx == UINT32_MAX)
+        return;
 
     auto id = App::GetScene().GetIDFromRtMeshIdx(rtMeshIdx);
     m_pickID.store(id, std::memory_order_relaxed);
