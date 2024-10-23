@@ -134,18 +134,19 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
     TaskSet::TaskHandle setRtAsInfo = TaskSet::INVALID_TASK_HANDLE;
 
+    // RT-AS info is needed to compute unique hash for emissives
     if (m_rtAsInfoStale)
     {
         setRtAsInfo = sceneTS.EmplaceTask("Scene::UpdateRtAsInfo", [this]()
             {
                 // Following must exactly match the iteration order of StaticBLAS::Rebuild().
-                int currInstance = 0;
+                uint32_t currInstance = 0;
 
-                for (int treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
+                for (size_t treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
                 {
                     auto& currTreeLevel = m_sceneGraph[treeLevelIdx];
 
-                    for (int i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
+                    for (size_t i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
                     {
                         const Scene::RT_Flags flags = Scene::GetRtFlags(currTreeLevel.m_rtFlags[i]);
 
@@ -156,7 +157,7 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                                 continue;
 
                             currTreeLevel.m_rtASInfo[i] = RT_AS_Info{
-                                .GeometryIndex = uint32_t(currInstance),
+                                .GeometryIndex = currInstance,
                                 .InstanceID = 0 };
 
                             currInstance++;
@@ -417,7 +418,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
         {
             addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", 
                 m_metallicRoughnessDescTable, tableOffset, ddsImages);
-            
+
             mat.SetMetallicRoughnessTex(tableOffset);
         }
     }
@@ -476,8 +477,8 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         }
     }
 
-    int treeLevel = 1;
-    int parentIdx = 0;
+    uint32_t treeLevel = 1;
+    uint32_t parentIdx = 0;
 
     // Get parent's index from the hashmap
     if (instance.ParentID != ROOT_ID)
@@ -488,7 +489,7 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         parentIdx = p.Offset;
     }
 
-    const int insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
+    const uint32_t insertIdx = InsertAtLevel(instance.ID, treeLevel, parentIdx, instance.LocalTransform, meshID,
         instance.RtMeshMode, instance.RtInstanceMask, instance.IsOpaque);
 
     // Update instance "dictionary"
@@ -497,7 +498,7 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         m_IDtoTreePos.insert_or_assign(instance.ID, TreePos{ .Level = treeLevel, .Offset = insertIdx });
 
         // Adjust tree positions of shifted instances
-        for (int i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
+        for (size_t i = insertIdx + 1; i < m_sceneGraph[treeLevel].m_IDs.size(); i++)
         {
             uint64_t insID = m_sceneGraph[treeLevel].m_IDs[i];
             auto pos = m_IDtoTreePos.find(insID);
@@ -522,10 +523,11 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         ReleaseSRWLockExclusive(&m_instanceLock);
 }
 
-int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTransformation& localTransform,
-    uint64_t meshID, RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque)
+uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t parentIdx, 
+    AffineTransformation& localTransform, uint64_t meshID, RT_MESH_MODE rtMeshMode, 
+    uint8_t rtInstanceMask, bool isOpaque)
 {
-    m_sceneGraph.resize(Math::Max(treeLevel + 1, (int)m_sceneGraph.size()));
+    m_sceneGraph.resize(Max(treeLevel + 1, (uint32_t)m_sceneGraph.size()));
 
     //while (m_sceneGraph.size() <= treeLevel)
     //    m_sceneGraph.emplace_back(TreeLevel());
@@ -535,29 +537,33 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     auto& parentRange = parentLevel.m_subtreeRanges[parentIdx];
 
     // Insert position is right next to parent's rightmost child
-    const int insertIdx = parentRange.Base + parentRange.Count;
+    const uint32_t insertIdx = parentRange.Base + parentRange.Count;
 
-    // Increment parent's child count
+    // Increment parent's #children
     parentRange.Count++;
 
-    // Append it to end, then keep swapping it back until it's at insertIdx
-    auto rearrange = []<typename T, typename... Args> requires std::is_swappable<T>::value
-        (Vector<T>& vec, int insertIdx, Args&&... args)
+    auto rearrange = []<typename T, typename... Args> requires std::is_trivially_copyable_v<T>
+        (Vector<T>& vec, uint32_t insertIdx, Args&&... args)
     {
-        vec.emplace_back(T(ZetaForward(args)...));
+        const size_t numToMove = vec.size() - insertIdx;
 
-        for (int i = (int)vec.size() - 1; i != insertIdx; --i)
-            std::swap(vec[i], vec[i - 1]);
+        // Resize for one additional entry
+        vec.resize(vec.size() + 1);
+        // Shift existing element with index >= insertIdx to right by one
+        memmove(vec.data() + insertIdx + 1, vec.data() + insertIdx, numToMove * sizeof(T));
+
+        // Construct the new entry in-place
+        new (vec.data() + insertIdx) T(ZetaForward(args)...);
     };
 
     float4x3 I = float4x3(store(identity()));
 
-    Assert(insertIdx <= currLevel.m_IDs.size(), "Insertion index for instance is out-of-bounds.");
+    Assert(insertIdx <= currLevel.m_IDs.size(), "Out-of-bounds insertion index.");
     rearrange(currLevel.m_IDs, insertIdx, id);
     rearrange(currLevel.m_localTransforms, insertIdx, localTransform);
     rearrange(currLevel.m_toWorlds, insertIdx, I);
     rearrange(currLevel.m_meshIDs, insertIdx, meshID);
-    const int newBase = currLevel.m_subtreeRanges.empty() ? 0 : 
+    const uint32_t newBase = currLevel.m_subtreeRanges.empty() ? 0 :
         currLevel.m_subtreeRanges.back().Base + currLevel.m_subtreeRanges.back().Count;
     rearrange(currLevel.m_subtreeRanges, insertIdx, newBase, 0);
     // Set rebuild flag to true when there's new any instance
@@ -566,7 +572,7 @@ int SceneCore::InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, AffineTr
     rearrange(currLevel.m_rtASInfo, insertIdx, RT_AS_Info());
 
     // Shift base offset of parent's right siblings to right by one
-    for (int siblingIdx = parentIdx + 1; siblingIdx != parentLevel.m_subtreeRanges.size(); siblingIdx++)
+    for (size_t siblingIdx = parentIdx + 1; siblingIdx != parentLevel.m_subtreeRanges.size(); siblingIdx++)
         parentLevel.m_subtreeRanges[siblingIdx].Base++;
 
     return insertIdx;

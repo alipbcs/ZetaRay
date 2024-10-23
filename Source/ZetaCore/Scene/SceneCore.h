@@ -247,8 +247,8 @@ namespace ZetaRay::Scene
 
         struct TreePos
         {
-            int Level;
-            int Offset;
+            uint32_t Level;
+            uint32_t Offset;
         };
 
         struct AnimationUpdate
@@ -260,13 +260,13 @@ namespace ZetaRay::Scene
         struct Range
         {
             Range() = default;
-            Range(int b, int c)
+            Range(uint32_t b, uint32_t c)
                 : Base(b),
                 Count(c)
             {}
 
-            int Base;
-            int Count;
+            uint32_t Base;
+            uint32_t Count;
         };
 
         struct TreeLevel
@@ -277,6 +277,7 @@ namespace ZetaRay::Scene
             Util::SmallVector<uint64_t> m_meshIDs;
             Util::SmallVector<Range> m_subtreeRanges;
             Util::SmallVector<uint8_t> m_rtFlags;
+            // (Also) filled in by TLAS::RebuildTLASInstances()
             Util::SmallVector<RT_AS_Info> m_rtASInfo;
         };
 
@@ -305,7 +306,7 @@ namespace ZetaRay::Scene
             return {};
         }
 
-        int InsertAtLevel(uint64_t id, int treeLevel, int parentIdx, Math::AffineTransformation& localTransform,
+        uint32_t InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t parentIdx, Math::AffineTransformation& localTransform,
             uint64_t meshID, Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
         void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, App::FrameAllocator>& toUpdateInstances);
         void RebuildBVH();
