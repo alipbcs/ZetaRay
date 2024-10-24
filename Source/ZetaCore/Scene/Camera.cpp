@@ -227,6 +227,8 @@ void Camera::UpdateProj()
 
     vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ);
     m_proj = store(vP);
+    vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ, m_farZNonInfinite);
+    m_projNonInfinite = store(vP);
 
     m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
 }

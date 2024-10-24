@@ -183,8 +183,10 @@ namespace ZetaRay::Math
         //      0  1  2              0  4  8
         // M =  4  5  6     -->  M = 1  5  9
         //      8  9  10             2  6  10
-        const __m128 vTemp0 = _mm_shuffle_ps(M.vRow[0], M.vRow[1], V_SHUFFLE_XYZW(0, 1, 0, 1));    // 0  1  4  5
-        const __m128 vTemp1 = _mm_shuffle_ps(M.vRow[0], M.vRow[1], V_SHUFFLE_XYZW(2, 0, 2, 0));    // 2  _  6  _
+        const __m128 vTemp0 = _mm_shuffle_ps(M.vRow[0], M.vRow[1], 
+            V_SHUFFLE_XYZW(0, 1, 0, 1));    // 0  1  4  5
+        const __m128 vTemp1 = _mm_shuffle_ps(M.vRow[0], M.vRow[1], 
+            V_SHUFFLE_XYZW(2, 0, 2, 0));    // 2  _  6  _
 
         // for 3x3 matrix M = [u, v, w] where u,v,w are columns vectors, M^(-1) is given by
         // M = [a b c]^T
@@ -689,6 +691,46 @@ namespace ZetaRay::Math
 #endif
     }
 
+    ZetaInline v_float4x4 __vectorcall inverseAndDecomposeSRT(const v_float4x4 vM, float4a& s,
+        float4a& r, float4a& t)
+    {
+        __m128 vT = vM.vRow[3];
+        const __m128 vZero = _mm_setzero_ps();
+        vT = _mm_blend_ps(vT, vZero, V_BLEND_XYZW(0, 0, 0, 1));
+        t = store(vT);
+
+        v_float4x4 vM3x3 = vM;
+        const __m128 vOne = _mm_set1_ps(1.0f);
+        vM3x3.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);    // M[3] = (0, 0, 0, 1)
+
+        // For "row" matrices, square roots of eigenvalues of MM^T are the singular values
+        // M M^T = (SR)(SR)^T = S R R^T S^T = S S^T = S^2
+        const v_float4x4 vM3x3T = transpose3x3(vM3x3);
+        const v_float4x4 vMxMT = mul(vM3x3, vM3x3T);
+
+        // Eigenvalues of diagonal matrices are the diagonal entries
+        __m128 vS = _mm_blend_ps(vMxMT.vRow[0], vMxMT.vRow[1], V_BLEND_XYZW(0, 1, 0, 0)); // (s_x^2, s_y^2, _, 0)
+        vS = _mm_blend_ps(vS, vMxMT.vRow[2], V_BLEND_XYZW(0, 0, 1, 0));                   // (s_x^2, s_y^2, s_z^2, 0)
+        vS = _mm_blend_ps(vS, vOne, V_BLEND_XYZW(0, 0, 0, 1));                            // (s_x^2, s_y^2, s_z^2, 1)
+
+        // Singular values are the square roots of eigenvalues
+        vS = _mm_sqrt_ps(vS);
+        s = store(vS);
+
+        // R = S^-1 * SR
+        const __m128 vInvSDiag = _mm_div_ps(vOne, vS);
+        const v_float4x4 vSinv = scale(vInvSDiag);
+        const v_float4x4 vR = mul(vSinv, vM3x3);
+        r = quaternionFromRotationMat1(vR);
+
+        v_float4x4 vInv = mul(transpose(vR), vSinv);
+        vInv.vRow[3] = mul(vInv, negate(vT));
+        // Set entry (3, 3) to 1
+        vInv.vRow[3] = _mm_insert_ps(vInv.vRow[3], vOne, 0x30);
+
+        return vInv;
+    }
+
     ZetaInline v_float4x4 __vectorcall lookAtLH(float4a cameraPos, float4a focus, float4a up)
     {
         v_float4x4 vM = identity();
@@ -770,6 +812,24 @@ namespace ZetaRay::Math
         float t = 1.0f / tanf(0.5f * vFOV);
 
         __m128 vTemp = _mm_setr_ps(t / aspectRatio, t, 0.0f, nearZ);
+        const __m128 vOne = _mm_set1_ps(1.0f);
+        P.vRow[0] = _mm_insert_ps(vTemp, vTemp, 0xe);
+        P.vRow[1] = _mm_insert_ps(vTemp, vTemp, 0xd);
+        P.vRow[2] = _mm_insert_ps(vTemp, vOne, 0x33);
+        P.vRow[3] = _mm_insert_ps(vTemp, vTemp, 0xeb);
+
+        return P;
+    }
+
+    ZetaInline v_float4x4 __vectorcall perspectiveReverseZ(float aspectRatio, float vFOV, float nearZ,
+        float farZ)
+    {
+        v_float4x4 P;
+
+        float t = 1.0f / tanf(0.5f * vFOV);
+        float q = nearZ / (farZ - nearZ);
+
+        __m128 vTemp = _mm_setr_ps(t / aspectRatio, t, -nearZ / (farZ - nearZ), q * farZ);
         const __m128 vOne = _mm_set1_ps(1.0f);
         P.vRow[0] = _mm_insert_ps(vTemp, vTemp, 0xe);
         P.vRow[1] = _mm_insert_ps(vTemp, vTemp, 0xd);

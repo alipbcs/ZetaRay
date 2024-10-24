@@ -17,9 +17,15 @@ External/*
 !External/concurrentqueue
 !External/FastDelegate
 !External/FSR2
-!External/ImGui/imconfig.h
 !External/stb
 !External/json
+!External/ImGui
+External/ImGui/imgui_*
+External/ImGui/imnodes*
+External/ImGui/implot*
+External/ImGui/imstb*
+External/ImGui/imgui.h
+External/ImGui/imgui.cpp
 
 # misc
 docs/

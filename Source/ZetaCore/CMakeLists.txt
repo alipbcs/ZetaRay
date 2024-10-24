@@ -38,7 +38,8 @@ set(IMGUI_SRC "${IMGUI_DIR}/imgui.cpp"
     "${IMGUI_DIR}/imgui_widgets.cpp"
     "${IMGUI_DIR}/imnodes.cpp"
     "${IMGUI_DIR}/implot.cpp"
-    "${IMGUI_DIR}/implot_items.cpp")
+    "${IMGUI_DIR}/implot_items.cpp"
+    "${IMGUI_DIR}/ImGuizmo.cpp")
 
 # natvis
 set(NATVIS_SRC "${TOOLS_DIR}/Natvis/Container.natvis"

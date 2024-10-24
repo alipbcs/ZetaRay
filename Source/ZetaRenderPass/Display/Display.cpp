@@ -313,7 +313,7 @@ void DisplayPass::DrawPicked(GraphicsCmdList& cmdList)
 
         const Camera& cam = App::GetCamera();
         v_float4x4 vView = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
-        v_float4x4 vProj = load4x4(const_cast<float4x4a&>(cam.GetCurrProj()));
+        v_float4x4 vProj = load4x4(const_cast<float4x4a&>(cam.GetProj()));
         v_float4x4 vVP = mul(vView, vProj);
         v_float4x4 vW2 = load4x3(toWorld);
         v_float4x4 vWVP = mul(vW2, vVP);

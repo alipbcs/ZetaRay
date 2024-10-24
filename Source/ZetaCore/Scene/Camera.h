@@ -39,7 +39,8 @@ namespace ZetaRay::Scene
 
         const Math::float4x4a& GetCurrView() const { return m_view; }
         const Math::float4x4a& GetViewInv() const { return m_viewInv; }
-        const Math::float4x4a& GetCurrProj() const { return m_proj; }
+        const Math::float4x4a& GetProj() const { return m_proj; }
+        const Math::float4x4a& GetProjNonInfiniteFarZ() const { return m_projNonInfinite; }
         const Math::float3 GetPos() const { return Math::float3(m_posW.x, m_posW.y, m_posW.z); }
         float GetAspectRatio() const { return m_aspectRatio; }
         float GetFOV() const { return m_FOV; }
@@ -77,6 +78,7 @@ namespace ZetaRay::Scene
         Math::float4x4a m_view;
         Math::float4x4a m_viewInv;
         Math::float4x4a m_proj;
+        Math::float4x4a m_projNonInfinite;
         Math::float4a m_posW;
         Math::float4a m_initialVelocity = Math::float4a(0.0f);
         Math::float2 m_initialAngularVelocity = Math::float2(0.0f);
@@ -91,6 +93,7 @@ namespace ZetaRay::Scene
         float m_aspectRatio;
         float m_nearZ;
         float m_farZ;
+        float m_farZNonInfinite = 100.0f;
         float m_tanHalfFOV;
         float m_pixelSpreadAngle;
         // - Focal point: point where incident rays that are parallel to the optical axis 
