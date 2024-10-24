@@ -122,8 +122,8 @@ struct ImGuiContext;
 
 namespace ZetaRay::Math
 {
+    struct float3;
     struct alignas(16) float4x4a;
-    struct AffineTransformation2;
 }
 
 namespace IMGUIZMO_NAMESPACE
@@ -157,26 +157,7 @@ namespace IMGUIZMO_NAMESPACE
    // gizmo is rendered with gray half transparent color when disabled
    IMGUI_API void Enable(bool enable);
 
-   // helper functions for manualy editing translation/rotation/scale with an input float
-   // translation, rotation and scale float points to 3 floats each
-   // Angles are in degrees (more suitable for human editing)
-   // example:
-   // float matrixTranslation[3], matrixRotation[3], matrixScale[3];
-   // ImGuizmo::DecomposeMatrixToComponents(gizmoMatrix.m16, matrixTranslation, matrixRotation, matrixScale);
-   // ImGui::InputFloat3("Tr", matrixTranslation, 3);
-   // ImGui::InputFloat3("Rt", matrixRotation, 3);
-   // ImGui::InputFloat3("Sc", matrixScale, 3);
-   // ImGuizmo::RecomposeMatrixFromComponents(matrixTranslation, matrixRotation, matrixScale, gizmoMatrix.m16);
-   //
-   // These functions have some numerical stability issues for now. Use with caution.
-   IMGUI_API void DecomposeMatrixToComponents(const float* matrix, float* translation, 
-       float* rotation, float* scale);
-   IMGUI_API void RecomposeMatrixFromComponents(const float* translation, const float* rotation, 
-       const float* scale, float* matrix);
-
    IMGUI_API void SetRect(float x, float y, float width, float height);
-   // default is false
-   IMGUI_API void SetOrthographic(bool isOrthographic);
 
    // call it when you want a gizmo
    // Needs view and projection matrices. 
@@ -218,9 +199,10 @@ namespace IMGUIZMO_NAMESPACE
       WORLD
    };
 
-   IMGUI_API void Manipulate(OPERATION operation, MODE mode, ZetaRay::Math::float4x4a& matrix,
-       ZetaRay::Math::AffineTransformation2& delta, const float* snap = nullptr,
-       const float* localBounds = nullptr, const float* boundsSnap = nullptr);
+   IMGUI_API bool Manipulate(OPERATION operation, MODE mode, ZetaRay::Math::float4x4a& matrix,
+       ZetaRay::Math::float3& dt, ZetaRay::Math::float4x4a& dr, ZetaRay::Math::float3& ds, 
+       const float* snap = nullptr, const float* localBounds = nullptr, 
+       const float* boundsSnap = nullptr);
 
    IMGUI_API void SetAlternativeWindow(ImGuiWindow* window);
   

@@ -261,16 +261,12 @@ namespace ZetaRay::Math
 
     ZetaInline v_float4x4 __vectorcall rotate(const __m128 vN, float angle)
     {
-        v_float4x4 vR;
-
         const float c = cosf(angle);
         const float s = sinf(angle);
 
         const __m128 vC = _mm_set1_ps(c);
         const __m128 v1subC = _mm_set1_ps(1.0f - c);
         const __m128 vS = _mm_set1_ps(s);
-        //__m128 vN = _mm_castpd_ps(_mm_load_sd(reinterpret_cast<double*>(&n)));
-        //vN = _mm_insert_ps(vN, _mm_load_ss(&n.z), 0x20);
 
         __m128 vYZX = _mm_shuffle_ps(vN, vN, V_SHUFFLE_XYZW(1, 2, 0, 0));
         __m128 vTemp0 = _mm_mul_ps(vN, vN);
@@ -278,7 +274,6 @@ namespace ZetaRay::Math
         __m128 vTemp1 = _mm_mul_ps(vN, vYZX);
         vTemp1 = _mm_mul_ps(vTemp1, v1subC);    // ((1 - c)xy, (1 - c)yz, (1 - c)xz)
         __m128 vTemp2 = _mm_mul_ps(vN, vS);     // (sx, sy, sz)
-
         __m128 vTemp3 = _mm_shuffle_ps(vTemp2, vTemp2, V_SHUFFLE_XYZW(2, 0, 1, 0));
 
         vTemp2 = _mm_sub_ps(vTemp1, vTemp3);    // ((1 - c)xy - sz, (1 - c)yz - sx, (1 - c)xz - sy)
@@ -286,8 +281,11 @@ namespace ZetaRay::Math
         vTemp0 = _mm_add_ps(vTemp0, vC);        // (c + (1 - c)x^2, c + (1 - c)y^2, c + (1 - c)z^2)
         vTemp1 = _mm_add_ps(vC, v1subC);
 
-        vR.vRow[0] = _mm_insert_ps(_mm_shuffle_ps(vTemp3, vTemp2, V_SHUFFLE_XYZW(0, 0, 2, 2)), vTemp0, 0x8);
-        vR.vRow[1] = _mm_insert_ps(_mm_shuffle_ps(vTemp2, vTemp3, V_SHUFFLE_XYZW(0, 0, 1, 1)), vTemp0, 0x58);
+        v_float4x4 vR;
+        vR.vRow[0] = _mm_insert_ps(_mm_shuffle_ps(vTemp3, vTemp2, V_SHUFFLE_XYZW(0, 0, 2, 2)), 
+            vTemp0, 0x8);
+        vR.vRow[1] = _mm_insert_ps(_mm_shuffle_ps(vTemp2, vTemp3, V_SHUFFLE_XYZW(0, 0, 1, 1)), 
+            vTemp0, 0x58);
         vR.vRow[2] = _mm_insert_ps(_mm_insert_ps(vTemp0, vTemp3, 0x8a), vTemp2, 0x58);
         vR.vRow[3] = _mm_insert_ps(vTemp1, vTemp1, 0x7);
 
@@ -407,97 +405,6 @@ namespace ZetaRay::Math
         return vR;
     }
 
-    // Ported from DirectXMath (under MIT License).
-    ZetaInline __m128 __vectorcall quaternionFromRotationMat(const v_float4x4 vM)
-    {
-        __m128 r0 = vM.vRow[0];  // (r00, r01, r02, 0)
-        __m128 r1 = vM.vRow[1];  // (r10, r11, r12, 0)
-        __m128 r2 = vM.vRow[2];  // (r20, r21, r22, 0)
-
-        // (r00, r00, r00, r00)
-        __m128 r00 = _mm_permute_ps(r0, _MM_SHUFFLE(0, 0, 0, 0));
-        // (r11, r11, r11, r11)
-        __m128 r11 = _mm_permute_ps(r1, _MM_SHUFFLE(1, 1, 1, 1));
-        // (r22, r22, r22, r22)
-        __m128 r22 = _mm_permute_ps(r2, _MM_SHUFFLE(2, 2, 2, 2));
-
-        // x^2 >= y^2 equivalent to r11 - r00 <= 0
-        // (r11 - r00, r11 - r00, r11 - r00, r11 - r00)
-        __m128 r11mr00 = _mm_sub_ps(r11, r00);
-        __m128 x2gey2 = _mm_cmple_ps(r11mr00, _mm_setzero_ps());
-
-        // z^2 >= w^2 equivalent to r11 + r00 <= 0
-        // (r11 + r00, r11 + r00, r11 + r00, r11 + r00)
-        __m128 r11pr00 = _mm_add_ps(r11, r00);
-        __m128 z2gew2 = _mm_cmple_ps(r11pr00, _mm_setzero_ps());
-
-        // x^2 + y^2 >= z^2 + w^2 equivalent to r22 <= 0
-        __m128 x2py2gez2pw2 = _mm_cmple_ps(r22, _mm_setzero_ps());
-
-        // (4*x^2, 4*y^2, 4*z^2, 4*w^2)
-        __m128 XMPMMP = _mm_setr_ps(+1.0f, -1.0f, -1.0f, +1.0f);
-        __m128 XMMPMP = _mm_setr_ps(-1.0f, +1.0f, -1.0f, +1.0f);
-        __m128 XMMMPP = _mm_setr_ps(-1.0f, -1.0f, +1.0f, +1.0f);
-
-        __m128 t0 = _mm_fmadd_ps(XMPMMP, r00, _mm_set1_ps(1.0f));
-        __m128 t1 = _mm_mul_ps(XMMPMP, r11);
-        __m128 t2 = _mm_fmadd_ps(XMMMPP, r22, t0);
-        __m128 x2y2z2w2 = _mm_add_ps(t1, t2);
-
-        // (r01, r02, r12, r11)
-        t0 = _mm_shuffle_ps(r0, r1, _MM_SHUFFLE(1, 2, 2, 1));
-        // (r10, r10, r20, r21)
-        t1 = _mm_shuffle_ps(r1, r2, _MM_SHUFFLE(1, 0, 0, 0));
-        // (r10, r20, r21, r10)
-        t1 = _mm_permute_ps(t1, _MM_SHUFFLE(1, 3, 2, 0));
-        // (4*x*y, 4*x*z, 4*y*z, unused)
-        __m128 xyxzyz = _mm_add_ps(t0, t1);
-
-        // (r21, r20, r10, r10)
-        t0 = _mm_shuffle_ps(r2, r1, _MM_SHUFFLE(0, 0, 0, 1));
-        // (r12, r12, r02, r01)
-        t1 = _mm_shuffle_ps(r1, r0, _MM_SHUFFLE(1, 2, 2, 2));
-        // (r12, r02, r01, r12)
-        t1 = _mm_permute_ps(t1, _MM_SHUFFLE(1, 3, 2, 0));
-        // (4*x*w, 4*y*w, 4*z*w, unused)
-        __m128 xwywzw = _mm_sub_ps(t0, t1);
-        xwywzw = _mm_mul_ps(XMMPMP, xwywzw);
-
-        // (4*x^2, 4*y^2, 4*x*y, unused)
-        t0 = _mm_shuffle_ps(x2y2z2w2, xyxzyz, _MM_SHUFFLE(0, 0, 1, 0));
-        // (4*z^2, 4*w^2, 4*z*w, unused)
-        t1 = _mm_shuffle_ps(x2y2z2w2, xwywzw, _MM_SHUFFLE(0, 2, 3, 2));
-        // (4*x*z, 4*y*z, 4*x*w, 4*y*w)
-        t2 = _mm_shuffle_ps(xyxzyz, xwywzw, _MM_SHUFFLE(1, 0, 2, 1));
-
-        // (4*x*x, 4*x*y, 4*x*z, 4*x*w)
-        __m128 tensor0 = _mm_shuffle_ps(t0, t2, _MM_SHUFFLE(2, 0, 2, 0));
-        // (4*y*x, 4*y*y, 4*y*z, 4*y*w)
-        __m128 tensor1 = _mm_shuffle_ps(t0, t2, _MM_SHUFFLE(3, 1, 1, 2));
-        // (4*z*x, 4*z*y, 4*z*z, 4*z*w)
-        __m128 tensor2 = _mm_shuffle_ps(t2, t1, _MM_SHUFFLE(2, 0, 1, 0));
-        // (4*w*x, 4*w*y, 4*w*z, 4*w*w)
-        __m128 tensor3 = _mm_shuffle_ps(t2, t1, _MM_SHUFFLE(1, 2, 3, 2));
-
-        // Select the row of the tensor-product matrix that has the largest
-        // magnitude.
-        t0 = _mm_and_ps(x2gey2, tensor0);
-        t1 = _mm_andnot_ps(x2gey2, tensor1);
-        t0 = _mm_or_ps(t0, t1);
-        t1 = _mm_and_ps(z2gew2, tensor2);
-        t2 = _mm_andnot_ps(z2gew2, tensor3);
-        t1 = _mm_or_ps(t1, t2);
-        t0 = _mm_and_ps(x2py2gez2pw2, t0);
-        t1 = _mm_andnot_ps(x2py2gez2pw2, t1);
-        t2 = _mm_or_ps(t0, t1);
-
-        // Normalize the row.  No division by zero is possible because the
-        // quaternion is unit-length (and the row is a nonzero multiple of
-        // the quaternion).
-        t0 = normalize(t2);
-        return t0;
-    }
-
     // Ref: https://math.stackexchange.com/questions/893984/conversion-of-rotation-matrix-to-quaternion
     // "Converting a Rotation Matrix to a Quaternion", Mike Day, Insomniac Games.
     ZetaInline float4 __vectorcall quaternionFromRotationMat1(const v_float4x4 vM)
@@ -520,9 +427,11 @@ namespace ZetaRay::Math
         q[3] = float4(row1.z - row2.y, row2.x - row0.z, row0.y - row1.x, t[3]);
 
         int i = (row2.z >= 0) * (2 + (row0.x >= -row1.y)) + (row2.z < 0) * (row1.y >= row0.x);
-        float4 q_i = q[i];
         float t_i = t[i];
+        float4 q_i = q[i];
         q_i *= 0.5f / sqrtf(t_i);
+        // Helps with accumulation of floating-point errors
+        q_i.normalize();
 
         return q_i;
     }
@@ -551,10 +460,9 @@ namespace ZetaRay::Math
             _mm_blend_ps(vT, vOne, V_BLEND_XYZW(0, 0, 0, 1)));
     }
 
-    ZetaInline v_float4x4 __vectorcall affineTransformation(float3& s, float4& q, float3& t)
+    ZetaInline v_float4x4 __vectorcall affineTransformation(const v_float4x4 vR, float3& s, float3& t)
     {
         v_float4x4 vSRT;
-        v_float4x4 vR = rotationMatFromQuat(loadFloat4(q));
 
         // Since scale matrix is diagonal, matrix multiplication has a simple form
         const __m128 vS = loadFloat3(s);    // vS[3] = 0
@@ -569,6 +477,12 @@ namespace ZetaRay::Math
         vSRT.vRow[3] = _mm_blend_ps(vSRT.vRow[3], vOne, V_BLEND_XYZW(0, 0, 0, 1));
 
         return vSRT;
+    }
+
+    ZetaInline v_float4x4 __vectorcall affineTransformation(float3& s, float4& q, float3& t)
+    {
+        v_float4x4 vR = rotationMatFromQuat(loadFloat4(q));
+        return affineTransformation(vR, s, t);
     }
 
     ZetaInline v_float4x4 __vectorcall affineTransformation(const __m128 vS, const __m128 vQ, const __m128 vT)
@@ -652,7 +566,7 @@ namespace ZetaRay::Math
     }
 
     // Note: doesn't support negative scaling
-    ZetaInline void __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& r, float4a& t)
+    ZetaInline v_float4x4 __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& t)
     {
         // Refer to notes in decomposeTRS for explanation
 
@@ -683,6 +597,13 @@ namespace ZetaRay::Math
         const __m128 vInvSDiag = _mm_div_ps(vOne, vS);
         const v_float4x4 vSinv = scale(vInvSDiag);
         const v_float4x4 vR = mul(vSinv, vM3x3);
+
+        return vR;
+    }
+
+    ZetaInline void __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& r, float4a& t)
+    {
+        const v_float4x4 vR = decomposeSRT(vM, s, t);
 #if 0
         const __m128 vQ = quaternionFromRotationMat(vR);
         r = store(vQ);
@@ -865,6 +786,19 @@ namespace ZetaRay::Math
         vM.vRow[1] = _mm_load_ps(reinterpret_cast<float*>(&M.m[1]));
         vM.vRow[2] = _mm_load_ps(reinterpret_cast<float*>(&M.m[2]));
         vM.vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&M.m[3]));
+
+        return vM;
+    }
+
+    ZetaInline v_float4x4 __vectorcall load3x3(float3x3 M)
+    {
+        v_float4x4 vM;
+        float4x4a temp(M);
+
+        vM.vRow[0] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[0]));
+        vM.vRow[1] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[1]));
+        vM.vRow[2] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[2]));
+        vM.vRow[3] = _mm_load_ps(reinterpret_cast<float*>(&temp.m[3]));
 
         return vM;
     }

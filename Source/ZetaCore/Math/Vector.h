@@ -110,7 +110,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float3& operator-=(const float3& other)
         {
             x -= other.x;
@@ -119,7 +118,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float3& operator*=(float3 f)
         {
             x *= f.x;
@@ -128,7 +126,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float3& operator*=(float f)
         {
             x *= f;
@@ -136,6 +133,14 @@ namespace ZetaRay::Math
             z *= f;
 
             return *this;
+        }
+        constexpr float2 xy() const
+        {
+            return float2(x, y);
+        }
+        constexpr float2 yz() const
+        {
+            return float2(y, z);
         }
 
         float length() const
@@ -148,7 +153,7 @@ namespace ZetaRay::Math
             return x * other.x + y * other.y + z * other.z;
         }
 
-        constexpr float3 cross(const float3 other)
+        constexpr float3 cross(const float3 other) const
         {
             return float3(y * other.z - z * other.y, z * other.x - x * other.z, x * other.y - y * other.x);
         }
@@ -209,7 +214,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float4& operator-=(const float4& other)
         {
             x -= other.x;
@@ -219,7 +223,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float4& operator*=(float4 f)
         {
             x *= f.x;
@@ -229,7 +232,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float4& operator*=(float f)
         {
             x *= f;
@@ -239,8 +241,28 @@ namespace ZetaRay::Math
 
             return *this;
         }
+        constexpr float2 xy() const
+        {
+            return float2(x, y);
+        }
+        constexpr float2 yz() const
+        {
+            return float2(y, z);
+        }
+        constexpr float2 zw() const
+        {
+            return float2(z, w);
+        }
+        constexpr float3 xyz() const
+        {
+            return float3(x, y, z);
+        }
+        constexpr float3 yzw() const
+        {
+            return float3(y, z, w);
+        }
 
-        float length()
+        float length() const
         {
             __m128 vV = _mm_loadu_ps(&this->x);
             __m128 vLength = _mm_dp_ps(vV, vV, 0xff);
@@ -249,7 +271,7 @@ namespace ZetaRay::Math
             return _mm_cvtss_f32(vLength);
         }
 
-        constexpr float dot(const float4& other)
+        constexpr float dot(const float4& other) const
         {
             return x * other.x + y * other.y + z * other.z + w * other.w;
         }
@@ -257,8 +279,7 @@ namespace ZetaRay::Math
         void normalize()
         {
             float norm = length();
-            if (norm <= FLT_EPSILON)
-                return;
+            Assert(norm > 1e-7, "Divide-by-zero.");
             float oneDivNorm = 1.0f / norm;
 
             x *= oneDivNorm;
@@ -300,6 +321,26 @@ namespace ZetaRay::Math
             z(f.z),
             w(w)
         {}
+        constexpr float2 xy() const
+        {
+            return float2(x, y);
+        }
+        constexpr float2 yz() const
+        {
+            return float2(y, z);
+        }
+        constexpr float2 zw() const
+        {
+            return float2(z, w);
+        }
+        constexpr float3 xyz() const
+        {
+            return float3(x, y, z);
+        }
+        constexpr float3 yzw() const
+        {
+            return float3(y, z, w);
+        }
 
         float x;
         float y;

@@ -6,6 +6,7 @@
 namespace ZetaRay::Math
 {
     struct float4x4a;
+    struct float3x3;
 
     //--------------------------------------------------------------------------------------
     // Matrix types
@@ -80,6 +81,7 @@ namespace ZetaRay::Math
             m[2] = float4a(M.m[2], 0.0f);
             m[3] = float4a(M.m[3], 1.0f);
         }
+        explicit float4x4a(const float3x3& M);
 
         float4a m[4];
     };
@@ -133,6 +135,14 @@ namespace ZetaRay::Math
         m[0] = float4(M.m[0].x, M.m[1].x, M.m[2].x, M.m[3].x);
         m[1] = float4(M.m[0].y, M.m[1].y, M.m[2].y, M.m[3].y);
         m[2] = float4(M.m[0].z, M.m[1].z, M.m[2].z, M.m[3].z);
+    }
+
+    inline float4x4a::float4x4a(const float3x3& M)
+    {
+        m[0] = float4(M.m[0].x, M.m[0].y, M.m[0].z, 0);
+        m[1] = float4(M.m[1].x, M.m[1].y, M.m[1].z, 0);
+        m[2] = float4(M.m[2].x, M.m[2].y, M.m[2].z, 0);
+        m[3] = float4(0, 0, 0, 1);
     }
 
     struct AffineTransformation

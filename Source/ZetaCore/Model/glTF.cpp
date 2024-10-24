@@ -738,23 +738,23 @@ namespace
             M = store(vM);
 
             // To apply the transformation matrix M = [u v w] from the RHS coordinate system (+Y up) 
-            // to vector x in the LHS system (+Y up), let C denote the change-of-basis transformation 
-            // matrix from the latter to former. The transformation of x (denote by x') is given by
+            // to some vector x in the LHS system (+Y up), let C denote the change-of-basis transformation 
+            // matrix from the latter to the former. The transformation of x (denote by x') is given by
             //
-            //        x' = C^-1 * M * C * x.
+            //      x' = C^-1 M C x.
             // 
             // Replacing C in above
             //
-            //           | 1  0  0 |             | 1  0  0 |
-            //      x' = | 0  1  0 | * [u v w] * | 0  1  0 |
-            //           | 0  0 -1 |             | 0  0 -1 |
+            //           | 1  0  0 |         | 1  0  0 |
+            //      x' = | 0  1  0 | [u v w] | 0  1  0 | x
+            //           | 0  0 -1 |         | 0  0 -1 |
             //
             //           | 1  0  0 |
-            //         = | 0  1  0 | * [u v -w]
+            //         = | 0  1  0 | [u v -w] x
             //           | 0  0 -1 |
             //
             //           |  u_1  v_1  -w_1 |
-            //         = |  u_2  v_2  -w_2 |
+            //         = |  u_2  v_2  -w_2 | x
             //           | -u_3 -v_3   w_3 |
             //
             M.m[0].z *= -1.0f;

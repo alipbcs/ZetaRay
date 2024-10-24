@@ -5,7 +5,8 @@
 
 namespace ZetaRay::Math
 {
-    // Returns a roations quaternion that can be used to rotate about axis n by angle theta
+    // Returns a roations quaternion that can be used to rotate about axis n by angle theta. n
+    // is assumed to be normalized.
     ZetaInline __m128 __vectorcall rotationQuaternion(float3 n, float theta)
     {
         const float s = sinf(0.5f * theta);
@@ -50,7 +51,7 @@ namespace ZetaRay::Math
         axis.normalize();
     }
 
-    // Multiplies two given quaternions
+    // Multiplies two quaternions
     ZetaInline __m128 __vectorcall mulQuat(const __m128 vP, const __m128 vQ)
     {
         // p = (p1, p2, p3, p4)

@@ -361,8 +361,8 @@ void EmissiveBuffer::UploadToGPU()
         LOG_UI_INFO("Uploading %d emissive triangles (%d MB)...", m_staleNumTris, numMbytes);
 
         const size_t sizeInBytes = sizeof(RT::EmissiveTriangle) * m_staleNumTris;
-        GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, sizeInBytes,
-            MemoryRegion{ .Data = &m_trisCpu[m_staleBaseOffset], .SizeInBytes = sizeInBytes },
+        GpuMemory::UploadToDefaultHeapBuffer(m_trisGpu, (uint32)sizeInBytes,
+            MemoryRegion{ .Data = &m_trisCpu[m_staleBaseOffset], .SizeInBytes = (uint32)sizeInBytes },
             m_staleBaseOffset * sizeof(RT::EmissiveTriangle));
 
         m_staleNumTris = 0;

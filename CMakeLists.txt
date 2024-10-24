@@ -11,7 +11,7 @@ include("${CMAKE_INCLUDE_DIR}/SetupDXC.cmake")
 
 project(ZetaRay
     LANGUAGES CXX
-    DESCRIPTION "A Physically-Based Real-Time Renderer in Direct3D 12")
+    DESCRIPTION "Real-time Direct3D 12 path tracer")
 
 option(BUILD_TESTS "Build unit tests" OFF)
 option(BUILD_TOOLS "Build tools" ON)
@@ -82,7 +82,8 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(-Wno-missing-braces)
     add_compile_options(-Wno-unused-local-typedef)
     add_compile_options(-Wno-unused-function)
-    
+    add_compile_options(-Wno-unused-private-field)
+
     # Echo the currently compiled filename
     if (${CMAKE_CXX_SIMULATE_ID} STREQUAL MSVC)
         set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /showFilenames")

@@ -10,6 +10,11 @@ namespace ZetaRay::Core
     class CommandList;
 }
 
+namespace ZetaRay::Model
+{
+    struct TriangleMesh;
+}
+
 namespace ZetaRay::RenderPass
 {
     struct GuiPass final : public RenderPassBase<1>
@@ -34,17 +39,23 @@ namespace ZetaRay::RenderPass
 
     private:
         void UpdateBuffers();
-        void RenderSettings();
+        void RenderUI();
+        void RenderSettings(uint64 pickedID, const Model::TriangleMesh& mesh, 
+            const Math::float4x4a& W);
         void RenderProfiler();
         void RenderLogWindow();
         void RenderMainHeader();
-        void RenderToolbar();
+        void RenderToolbar(uint64 pickedID);
+        void RenderGizmo(uint64_t pickedID, const Model::TriangleMesh& mesh, 
+            const Math::float4x4a& W);
         void InfoTab();
         void CameraTab();
         void ParameterTab();
         void GpuTimingsTab();
         void ShaderReloadTab();
-        void MaterialTab(uint64 pickedID);
+        void PickedMaterial(uint64 pickedID);
+        void PickedWorldTransform(uint64 pickedID, const Model::TriangleMesh& mesh, 
+            const Math::float4x4a& W);
 
         static constexpr int NUM_CBV = 0;
         static constexpr int NUM_SRV = 0;
@@ -80,5 +91,24 @@ namespace ZetaRay::RenderPass
         bool m_pendingEmissiveUpdate = false;
         bool m_appWndSizeChanged = false;
         bool m_hideUI = false;
+
+        enum class ROTATION_MODE
+        {
+            AXIS_ANGLE,
+            QUATERNION
+        };
+
+        enum class TRANSFORMATION
+        {
+            LOCAL,
+            WORLD
+        };
+
+        ROTATION_MODE m_rotationMode = ROTATION_MODE::AXIS_ANGLE;
+        TRANSFORMATION m_transform = TRANSFORMATION::LOCAL;
+
+        // ImGuizmo::TRANSLATE
+        uint32_t m_currGizmoOperation = 7;
+        //ImGuizmo::MODE m_currGizmoMode = ImGuizmo::WORLD;
     };
 }

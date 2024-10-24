@@ -458,9 +458,8 @@ TEST_CASE("QuaternionFromRotationMat")
     vAxis = normalize(vAxis);
 
     v_float4x4 vR = rotate(vAxis, PI / 6);
-    __m128 vQ = quaternionFromRotationMat(vR);
-    float4a result= store(vQ);
-
+    float4 result = quaternionFromRotationMat1(vR);
+    
     CHECK(fabsf(result.x - 0.0691723f) <= FLT_EPSILON);
     CHECK(fabsf(result.y - 0.1383446f) <= FLT_EPSILON);
     CHECK(fabsf(result.z - 0.2075168f) <= FLT_EPSILON);

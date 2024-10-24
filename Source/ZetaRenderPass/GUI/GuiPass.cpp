@@ -6,9 +6,12 @@
 #include <Scene/Camera.h>
 #include <App/Timer.h>
 #include <Utility/SynchronizedView.h>
+#include <Math/CollisionFuncs.h>
+#include <Math/Quaternion.h>
 
 #include <ImGui/imgui.h>
 #include <ImGui/implot.h>
+#include <ImGui/ImGuizmo.h>
 #include <algorithm>
 
 #include "../Assets/Font/IconsFontAwesome6.h"
@@ -22,6 +25,7 @@ using namespace ZetaRay::Math;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Scene;
+using namespace ZetaRay::Model;
 
 namespace
 {
@@ -334,6 +338,10 @@ void GuiPass::Init()
 
         m_psoLib.CompileGraphicsPSO(0, psoDesc, m_rootSigObj.Get(), COMPILED_VS[0], COMPILED_PS[0]);
     }
+
+    auto* ctx = ImGui::GetCurrentContext();
+    ImGuizmo::SetImGuiContext(ctx);
+    ImGuizmo::AllowAxisFlip(false);
 }
 
 void GuiPass::OnWindowResized()
@@ -389,6 +397,36 @@ void GuiPass::UpdateBuffers()
     }
 }
 
+void GuiPass::RenderUI()
+{
+    ImGuizmo::BeginFrame();
+
+    SceneCore& scene = App::GetScene();
+    const uint64_t pickedID = App::GetScene().GetPickedInstance();
+
+    if (!m_hideUI)
+    {
+        TriangleMesh instanceMesh;
+        float4x4a W;
+
+        if (pickedID != Scene::INVALID_INSTANCE)
+        {
+            W = float4x4a(scene.GetToWorld(pickedID));
+            instanceMesh = *scene.GetInstanceMesh(pickedID).value();
+
+            RenderGizmo(pickedID, instanceMesh, W);
+        }
+
+        RenderSettings(pickedID, instanceMesh, W);
+        RenderMainHeader();        
+    }
+
+    RenderToolbar(pickedID);
+
+    m_firstTime = false;
+    m_appWndSizeChanged = false;
+}
+
 void GuiPass::Render(CommandList& cmdList)
 {
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
@@ -403,14 +441,7 @@ void GuiPass::Render(CommandList& cmdList)
     directCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
     directCmdList.SetPipelineState(m_psoLib.GetPSO(0));
 
-    if (!m_hideUI)
-    {
-        RenderSettings();
-        RenderMainHeader();
-    }
-    RenderToolbar();
-    m_firstTime = false;
-    m_appWndSizeChanged = false;
+    RenderUI();
 
     ImGui::Render();
     UpdateBuffers();
@@ -516,7 +547,7 @@ void GuiPass::Render(CommandList& cmdList)
     directCmdList.PIXEndEvent();
 }
 
-void GuiPass::RenderSettings()
+void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const float4x4a& W)
 { 
     const int displayWidth = App::GetRenderer().GetDisplayWidth();
     const int displayHeight = App::GetRenderer().GetDisplayHeight();
@@ -530,9 +561,11 @@ void GuiPass::RenderSettings()
     ImGui::SetNextWindowPos(ImVec2((float)wndPosX, 0.0f), ImGuiCond_Always);
     ImGui::SetNextWindowSize(ImVec2((float)wndSizeX, (float)wndSizeY), ImGuiCond_Always);
     // Hide resize grip
+    ImGuiStyle& style = ImGui::GetStyle();
     ImGui::PushStyleColor(ImGuiCol_ResizeGrip, 0);
     ImGui::PushStyleColor(ImGuiCol_ResizeGripHovered, 0);
     ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, 0);
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, style.WindowPadding.y));
 
     if (ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar |
         ImGuiWindowFlags_NoMove))
@@ -559,12 +592,17 @@ void GuiPass::RenderSettings()
             ImGui::Text("");
         }
 
-        const uint64 pickedID = App::GetScene().GetPickedInstance();
         if (pickedID != Scene::INVALID_INSTANCE)
         {
+            if (ImGui::CollapsingHeader(ICON_FA_CUBE "  Object", ImGuiTreeNodeFlags_DefaultOpen))
+            {
+                PickedWorldTransform(pickedID, mesh, W);
+                ImGui::Text("");
+            }
+
             if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material", ImGuiTreeNodeFlags_DefaultOpen))
             {
-                MaterialTab(pickedID);
+                PickedMaterial(pickedID);
                 ImGui::Text("");
             }
         }
@@ -589,6 +627,7 @@ void GuiPass::RenderSettings()
         RenderProfiler();
     }
 
+    ImGui::PopStyleVar();
     ImGui::PopStyleColor(3);
     ImGui::End();
 }
@@ -828,37 +867,124 @@ void GuiPass::RenderMainHeader()
     ImGui::End();
 }
 
-void GuiPass::RenderToolbar()
+void GuiPass::RenderToolbar(uint64_t pickedID)
 {
     ImGuiStyle& style = ImGui::GetStyle();
-    ImGui::PushStyleColor(ImGuiCol_Button,
-        ImVec4(0.07521219013259, 0.07521219013259, 0.07521219013259, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+        ImVec4(0.09521219013259, 0.09521219013259, 0.09521219013259, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
         ImVec4(0.0630100295, 0.168269396, 0.45078584552, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-        ImVec4(0.029556837, 0.029556837, 0.029556837, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button,
+        ImVec4(0.039556837, 0.039556837, 0.039556837, 0.87f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
 
     ImGui::SetNextWindowPos(ImVec2((float)5.0f, m_headerWndHeight + 10.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(60.0f, 150.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(60.0f, 220.0f), ImGuiCond_Always);
 
     ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
         ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
 
+    ImGui::PopStyleVar();
+    
     const char* icon = !m_hideUI ? ICON_FA_TOGGLE_ON "##1" : ICON_FA_TOGGLE_OFF "##1";
     if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)))
         m_hideUI = !m_hideUI;
     ImGui::SetItemTooltip("Show/Hide UI");
 
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 2));
+
     if (ImGui::Button(ICON_FA_CAMERA_RETRO "##2", ImVec2(40.0f, 40.0f)))
         App::GetScene().CaptureScreen();
     ImGui::SetItemTooltip("Take Screenshot");
 
+    ImGui::PopStyleVar();
+
+    if (!m_hideUI)
+    {
+        const bool hasPick = pickedID != Scene::INVALID_INSTANCE;
+        const bool wasTranslation = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::TRANSLATE);
+        const bool wasRotation = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::ROTATE);
+        const bool wasScale = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::SCALE);
+
+        if (wasTranslation)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_UP_DOWN_LEFT_RIGHT "##3", ImVec2(40.0f, 40.0f)))
+            m_currGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+        ImGui::SetItemTooltip("Move (G)");
+
+        if (wasTranslation)
+            ImGui::PopStyleColor();
+
+        if (wasRotation)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_ARROWS_ROTATE "##4", ImVec2(40.0f, 40.0f)))
+            m_currGizmoOperation = ImGuizmo::OPERATION::ROTATE;
+        ImGui::SetItemTooltip("Rotate (R)");
+
+        if (wasRotation)
+            ImGui::PopStyleColor();
+
+        if (wasScale)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_ARROW_UP_RIGHT_FROM_SQUARE "##5", ImVec2(40.0f, 40.0f)))
+            m_currGizmoOperation = ImGuizmo::OPERATION::SCALE;
+        ImGui::SetItemTooltip("Scale (S)");
+
+        if (wasScale)
+            ImGui::PopStyleColor();
+    }
+
     ImGui::PopStyleColor(3);
-    ImGui::PopStyleVar(2);
+    ImGui::PopStyleVar();
 
     ImGui::End();
+}
+
+void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const float4x4a& W)
+{
+    if (!ImGuizmo::IsUsingAny())
+    {
+        const auto& camera = App::GetCamera();
+        auto& frustum = camera.GetCameraFrustumViewSpace();
+        auto viewInv = camera.GetViewInv();
+
+        // Transform view frustum from view space into world space
+        v_float4x4 vViewInv = load4x4(const_cast<float4x4a&>(viewInv));
+        v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(frustum));
+        vFrustum = transform(vViewInv, vFrustum);
+
+        v_float4x4 vW = load4x4(W);
+        v_AABB vBox(mesh.m_AABB);
+        vBox = transform(vW, vBox);
+
+        // Avoid drawing the gizmo if picked instance is outside the frustum
+        if (instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
+            return;
+    }
+
+    ImGuiIO& io = ImGui::GetIO();
+    ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
+
+    if (ImGui::IsKeyPressed(ImGuiKey_G))
+        m_currGizmoOperation = ImGuizmo::TRANSLATE;
+    if (ImGui::IsKeyPressed(ImGuiKey_R))
+        m_currGizmoOperation = ImGuizmo::ROTATE;
+    if (ImGui::IsKeyPressed(ImGuiKey_C))
+        m_currGizmoOperation = ImGuizmo::SCALE;
+
+    float3 dt;
+    float4x4a dr;
+    float3 ds;
+    float4x4a W_new = W;
+    bool modified = ImGuizmo::Manipulate(static_cast<ImGuizmo::OPERATION>(m_currGizmoOperation), 
+        ImGuizmo::WORLD, W_new, dt, dr, ds, nullptr);
+
+    if (modified)
+        App::GetScene().TransformInstance(pickedID, dt, float3x3(dr), ds);
 }
 
 void GuiPass::InfoTab()
@@ -1017,11 +1143,8 @@ void GuiPass::ParameterTab()
 
                             if (subSubgroupLen > 0)
                             {
-                                if (ImGui::TreeNodeEx(currParam_ss.GetSubSubGroup()))
-                                {
-                                    AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
-                                    ImGui::TreePop();
-                                }
+                                ImGui::SeparatorText(currParam_ss.GetSubSubGroup());
+                                AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
                             }
                             else
                                 AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
@@ -1144,7 +1267,218 @@ void GuiPass::ShaderReloadTab()
         ImGui::EndDisabled();
 }
 
-void GuiPass::MaterialTab(uint64 pickedID)
+void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, const float4x4a& W)
+{
+    // Instance info
+    {
+        ImGui::SeparatorText("Info");
+        ImGui::Text(" - ID:");
+        ImGui::SameLine(120);
+        ImGui::Text("%llu", pickedID);
+        ImGui::Text(" - #Vertices:");
+        ImGui::SameLine(120);
+        ImGui::Text("%u", mesh.m_numVertices);
+        ImGui::Text(" - #Triangles:");
+        ImGui::SameLine(120);
+        ImGui::Text("%u", mesh.m_numIndices / 3);
+        ImGui::Text(" - Material ID:");
+        ImGui::SameLine(120);
+        ImGui::Text("%u", mesh.m_materialID);
+        ImGui::Text("");
+    }
+
+    ImGui::SeparatorText("Transformation");
+
+    const bool isLocal = m_transform == TRANSFORMATION::LOCAL;
+    auto& scene = App::GetScene();
+    bool modified = false;
+    AffineTransformation prevTr = AffineTransformation::GetIdentity();
+    AffineTransformation newTr = AffineTransformation::GetIdentity();
+
+    if (isLocal)
+    {
+        prevTr = scene.GetLocalTransform(pickedID);
+        newTr = prevTr;
+    }
+    else
+    {
+        v_float4x4 vW = load4x4(W);
+
+        float4a s;
+        float4a r;
+        float4a t;
+        decomposeSRT(vW, s, r, t);
+
+        newTr.Translation = t.xyz();
+        newTr.Rotation = r;
+        newTr.Scale = s.xyz();
+    }
+
+    auto axis = newTr.Rotation.xyz();
+    float angle_r = newTr.Rotation.w;
+    float angle_d = newTr.Rotation.w;
+    if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE || isLocal)
+    {
+        quaternionToAxisAngle(newTr.Rotation, axis, angle_r);
+        angle_d = RadiansToDegrees(angle_r);
+    }
+
+    // Transformation mode
+    {
+        const char* modes[] = { "Local", "World" };
+        ImGui::Text("");
+        ImGui::SameLine(60);
+        ImGui::Text("Mode");
+        ImGui::SameLine();
+        ImGui::Combo("##20", (int*)&m_transform, modes, ZetaArrayLen(modes));
+    }
+
+    if (!isLocal)
+        ImGui::BeginDisabled();
+
+    ImGui::Text("Translation X");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##0", &newTr.Translation.x, -50.0f, 50.0f, "%.2f"))
+        modified = true;
+
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Y");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##1", &newTr.Translation.y, -10.0f, 20.0f, "%.2f"))
+        modified = true;
+
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Z");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##2", &newTr.Translation.z, -50.0f, 50.0f, "%.2f"))
+        modified = true;
+
+    auto getQuat = [](float3& n, float theta)
+        {
+            n.normalize();
+            theta = Max(theta, 0.01f);
+
+            return float4(n * sinf(0.5f * theta), cosf(0.5f * theta));
+        };
+
+    ImGui::Text("");
+    ImGui::SameLine(27);
+    ImGui::Text("Rotation X");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##4", &axis.x, -1.0f, 1.0f, "%.3f"))
+    {
+        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+            newTr.Rotation = getQuat(axis, angle_r);
+        else
+        {
+            newTr.Rotation = float4(axis, prevTr.Rotation.w);
+            newTr.Rotation.normalize();
+        }
+
+        modified = true;
+    }
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Y");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##5", &axis.y, -1.0f, 1.0f, "%.3f"))
+    {
+        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+            newTr.Rotation = getQuat(axis, angle_r);
+        else
+        {
+            newTr.Rotation = float4(axis, prevTr.Rotation.w);
+            newTr.Rotation.normalize();
+        }
+
+        modified = true;
+    }
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Z");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##6", &axis.z, -1.0f, 1.0f, "%.3f"))
+    {
+        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+            newTr.Rotation = newTr.Rotation = getQuat(axis, angle_r);
+        else
+        {
+            newTr.Rotation = float4(axis, prevTr.Rotation.w);
+            newTr.Rotation.normalize();
+        }
+
+        modified = true;
+    }
+    ImGui::Text("");
+    ImGui::SameLine(84);
+    ImGui::Text("W");
+    ImGui::SameLine();
+    const float range_min = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 0.0f : -1.0f;
+    const float range_max = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 360.0f : 1.0f;
+    float* w = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? &angle_d : &newTr.Rotation.w;
+    if (ImGui::SliderFloat("##7", w, range_min, range_max, "%.3f"))
+    {
+        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+        {
+            angle_r = DegreesToRadians(angle_d);
+            angle_r = Max(angle_r, 0.01f);
+            newTr.Rotation = float4(axis * sinf(0.5f * angle_r), cosf(0.5f * angle_r));
+        }
+        else
+            newTr.Rotation.normalize();
+
+        modified = true;
+    }
+
+    const char* modes[] = { "Axis Angle", "Quaternion (XYZW)" };
+    ImGui::Text("");
+    ImGui::SameLine(60);
+    ImGui::Text("Mode");
+    ImGui::SameLine();
+    ImGui::Combo("##10", (int*)&m_rotationMode, modes, ZetaArrayLen(modes));
+
+    ImGui::Text("");
+    ImGui::SameLine(47);
+    ImGui::Text("Scale X");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##11", &newTr.Scale.x, 1e-4f, 20.0f, "%.3f"))
+        modified = true;
+
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Y");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##12", &newTr.Scale.y, 1e-4f, 20.0f, "%.3f"))
+        modified = true;
+
+    ImGui::Text("");
+    ImGui::SameLine(87);
+    ImGui::Text("Z");
+    ImGui::SameLine();
+    if (ImGui::SliderFloat("##13", &newTr.Scale.z, 1e-4f, 20.0f, "%.3f"))
+        modified = true;
+
+    if (!isLocal)
+        ImGui::EndDisabled();
+
+    if (modified)
+    {
+        v_float4x4 vR_new = rotationMatFromQuat(loadFloat4(newTr.Rotation));
+        v_float4x4 vR_prev = rotationMatFromQuat(loadFloat4(prevTr.Rotation));
+        // Inverse of existing rotation
+        v_float4x4 vR_prev_inv = transpose(vR_prev);
+        vR_new = mul(vR_prev_inv, vR_new);
+        float3x3 R = float3x3(store(vR_new));
+
+        scene.TransformInstance(pickedID, newTr.Translation - prevTr.Translation,
+            R, 
+            newTr.Scale / prevTr.Scale);
+    }
+}
+
+void GuiPass::PickedMaterial(uint64 pickedID)
 {
     auto& scene = App::GetScene();
     const auto meshID = scene.GetInstanceMeshID(pickedID);
