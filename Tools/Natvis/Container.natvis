@@ -27,6 +27,7 @@
         <Expand>
             <Item Name="[capacity]" ExcludeView="simple">m_end - m_beg</Item>
             <Item Name="[num_entries]" ExcludeView="simple">m_numEntries</Item>
+            <Item Name="[num_non_tombstone_entries]" ExcludeView="simple">m_numNonTombstoneEntries</Item>
             <Item Name="[allocator]" ExcludeView="simple">m_allocator</Item>
             <ArrayItems>
                 <Size>m_end - m_beg</Size>

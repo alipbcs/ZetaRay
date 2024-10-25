@@ -200,9 +200,11 @@ TEST_SUITE("HashTable")
         CHECK(table.try_emplace(2, 102));
         CHECK(table.try_emplace(3, 103));
 
+        // One more insertion should trigger relocation
         const auto oldSize = table.size();
         const auto oldLoad = table.load_factor();
         CHECK(!table.try_emplace(3, 103));
+        // Since try_emplace() failed, relocation shouldn't have happened
         const auto newSize = table.size();
         const auto newLoad = table.load_factor();
         CHECK(oldSize == newSize);
@@ -214,6 +216,7 @@ TEST_SUITE("HashTable")
 
         table.insert_or_assign(0, 200);
         CHECK(newSize == table.size());
+        // Check if insert_or_assign() replaced the old value
         auto* entry2 = table.find(0).value();
         CHECK(*entry2 == 200);
     }
@@ -278,6 +281,7 @@ TEST_SUITE("HashTable")
             const auto oldBucketCount = table.bucket_count();
             table.clear();
             CHECK(destructorCounter == 2);
+            // Repeated clear() calls shouldn't double-destruct
             table.clear();
             CHECK(destructorCounter == 2);
             CHECK(table.size() == 0);
@@ -300,6 +304,7 @@ TEST_SUITE("HashTable")
         HashTable<int> table(6);
         CHECK(table.bucket_count() == 8);
 
+        // Following keys map to same bucket
         table[3] = 103;
         table[3 + 8] = 104;
         table[3 + 8 * 2] = 105;
@@ -309,20 +314,25 @@ TEST_SUITE("HashTable")
         CHECK(numErased == 1);
         auto entry = table.find(3 + 8);
         CHECK(!entry);
+
+        // Erase with key that doesn't exist
         numErased = table.erase(10);
         CHECK(numErased == 0);
+        numErased = table.erase(10);
+        CHECK(numErased == 0);
+
+        CHECK(table.size() == 2);
 
         // Probing with tombstones in between
         auto entry2 = table.find(3 + 8 * 2);
         CHECK(entry2);
         CHECK(*entry2.value() == 105);
 
-        // Erase shouldn't change the size
-        CHECK(table.size() == 3);
-
         // Should reuse the removed entry
+        auto oldLoad = table.load_factor();
         table[3 + 8 * 3] = 106;
-        CHECK(table.size() == 3);
+        auto newLoad = table.load_factor();
+        CHECK(oldLoad == newLoad);
 
         // Delete all the entries
         numErased = table.erase(3);
@@ -331,34 +341,32 @@ TEST_SUITE("HashTable")
         CHECK(numErased == 1);
         numErased = table.erase(3 + 8 * 3);
         CHECK(numErased == 1);
-        CHECK(table.size() == 3);
+        CHECK(table.size() == 0);
+        CHECK(table.empty());
 
         table[0] = 100;
         table[1] = 101;
         table[2] = 102;
         table[3] = 103;
-        // We've had 4 inserts, one of which should reuse: 3 + 4 - 1 = 6
-        CHECK(table.size() == 6);
+        CHECK(table.size() == 4);
 
         table.erase(0);
         table.erase(1);
-        table.erase(2);
-        CHECK(table.size() == 6);
+        CHECK(table.size() == 2);
 
         // Insert new entries to force resize
+        oldLoad = table.load_factor();
         table[6] = 106;
-        auto oldLoad = table.load_factor();
-        CHECK(table.size() == 7);
         table[7] = 107;
-        auto newLoad = table.load_factor();
+        newLoad = table.load_factor();
         CHECK(newLoad < oldLoad);
         // Tombstones shouldn't be carried over to new table
-        CHECK(table.size() == 3);
+        CHECK(table.load_factor() == 4.0f / table.bucket_count());
     }
 
     TEST_CASE("Iteration")
     {
-        HashTable<int> table(6);
+        HashTable<int> table(4);
         int i = 0;
 
         for (auto it = table.begin_it(); it < table.end_it(); it = table.next_it(it))
@@ -368,9 +376,9 @@ TEST_SUITE("HashTable")
 
         table.try_emplace(1, 5);
         table.try_emplace(2, 6);
-        table.try_emplace(6, 10);
-
+        table.try_emplace(3, 7);
         i = 0;
+
         for (auto it = table.begin_it(); it < table.end_it(); it = table.next_it(it))
         {
             CHECK(it->Val == it->Key + 4);
@@ -378,5 +386,14 @@ TEST_SUITE("HashTable")
         }
 
         CHECK(i == 3);
+
+        // Iteration should ignore tombstone entries
+        CHECK(table.erase(2) == 1);
+        i = 0;
+
+        for (auto it = table.begin_it(); it < table.end_it(); it = table.next_it(it))
+            i++;
+
+        CHECK(i == 2);
     }
 };

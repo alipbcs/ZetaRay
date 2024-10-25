@@ -89,6 +89,7 @@ namespace ZetaRay::Util
                 {
                     elem->Key = key;
                     new (&elem->Val) ValueType(ZetaForward(args)...);
+                    m_numNonTombstoneEntries++;
 
                     return true;
                 }
@@ -103,6 +104,7 @@ namespace ZetaRay::Util
                 elem->Key = key;
                 new (&elem->Val) ValueType(ZetaForward(args)...);
                 m_numEntries++;
+                m_numNonTombstoneEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
 
                 return true;
@@ -125,6 +127,7 @@ namespace ZetaRay::Util
                 {
                     elem->Key = key;
                     new (&elem->Val) ValueType(val);
+                    m_numNonTombstoneEntries++;
 
                     return *elem;
                 }
@@ -137,6 +140,7 @@ namespace ZetaRay::Util
 
                 elem->Key = key;
                 m_numEntries++;
+                m_numNonTombstoneEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
@@ -158,6 +162,7 @@ namespace ZetaRay::Util
                 {
                     elem->Key = key;
                     new (&elem->Val) ValueType(ZetaForward(val));
+                    m_numNonTombstoneEntries++;
 
                     return *elem;
                 }
@@ -170,6 +175,7 @@ namespace ZetaRay::Util
 
                 elem->Key = key;
                 m_numEntries++;
+                m_numNonTombstoneEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
@@ -181,10 +187,12 @@ namespace ZetaRay::Util
         ZetaInline size_t erase(KeyType key)
         {
             Entry* elem = find_entry(key);
-            if (elem->Key != key)
+            if (!elem || elem->Key != key || elem->Key == TOMBSTONE_KEY)
                 return 0;
 
             elem->Key = TOMBSTONE_KEY;
+            Assert(m_numNonTombstoneEntries >= 1, "Invalid hash table state.");
+            m_numNonTombstoneEntries--;
             if constexpr (!std::is_trivially_destructible_v<ValueType>)
                 elem->~Entry();
 
@@ -196,20 +204,21 @@ namespace ZetaRay::Util
             return m_end - m_beg;
         }
 
+        // Note that tombstone entries count towards #entries
         ZetaInline size_t size() const
         {
-            return m_numEntries;
+            return m_numNonTombstoneEntries;
         }
 
         ZetaInline float load_factor() const
         {
             // Avoid divide-by-zero
-            return empty() ? 0.0f : (float)m_numEntries / bucket_count();
+            return m_numEntries == 0 ? 0.0f : (float)m_numEntries / bucket_count();
         }
 
         ZetaInline bool empty() const
         {
-            return m_numEntries == 0;
+            return m_numNonTombstoneEntries == 0;
         }
 
         void clear()
@@ -224,13 +233,14 @@ namespace ZetaRay::Util
                     i++;
                 }
                 
-                Assert(i == m_numEntries, "Number of cleared entries must match the number of entries.");
+                Assert(i == m_numNonTombstoneEntries, "Number of cleared entries must match the number of entries.");
             }
 
             for (Entry* curr = m_beg; curr != m_end; curr++)
                 curr->Key = NULL_KEY;
 
             m_numEntries = 0;
+            m_numNonTombstoneEntries = 0;
             // Don't free the memory
         }
 
@@ -246,7 +256,7 @@ namespace ZetaRay::Util
                     i++;
                 }
 
-                Assert(i == m_numEntries, "Number of cleared entries must match the number of entries.");
+                Assert(i == m_numNonTombstoneEntries, "Number of cleared entries must match the number of entries.");
             }
 
             // Free the previously allocated memory
@@ -254,6 +264,7 @@ namespace ZetaRay::Util
                 m_allocator.FreeAligned(m_beg, bucket_count() * sizeof(Entry), alignof(Entry));
 
             m_numEntries = 0;
+            m_numNonTombstoneEntries = 0;
             m_beg = nullptr;
             m_end = nullptr;
         }
@@ -263,10 +274,11 @@ namespace ZetaRay::Util
             std::swap(m_beg, other.m_beg);
             std::swap(m_end, other.m_end);
             std::swap(m_numEntries, other.m_numEntries);
+            std::swap(m_numNonTombstoneEntries, other.m_numNonTombstoneEntries);
             std::swap(m_allocator, other.m_allocator);
         }
 
-        ZetaInline ValueType& operator[](KeyType key)
+        ValueType& operator[](KeyType key)
         {
             static_assert(std::is_default_constructible_v<ValueType>, "ValueType must be default-constructible");
             Assert(key != NULL_KEY && key != TOMBSTONE_KEY, "Invalid key.");
@@ -278,6 +290,7 @@ namespace ZetaRay::Util
                 {
                     elem->Key = key;
                     new (&elem->Val) ValueType();
+                    m_numNonTombstoneEntries++;
 
                     return elem->Val;
                 }
@@ -291,6 +304,7 @@ namespace ZetaRay::Util
                 elem->Key = key;
                 new (&elem->Val) ValueType();
                 m_numEntries++;
+                m_numNonTombstoneEntries++;
                 Assert(m_numEntries < bucket_count(), "Load factor should never be 1.0.");
             }
 
@@ -305,7 +319,7 @@ namespace ZetaRay::Util
                 return m_end;
 
             auto it = m_beg;
-            while (it != m_end && it->Key == NULL_KEY)
+            while (it != m_end && (it->Key == NULL_KEY || it->Key == TOMBSTONE_KEY))
                 it++;
 
             return it;
@@ -314,7 +328,7 @@ namespace ZetaRay::Util
         ZetaInline Entry* next_it(Entry* curr)
         {
             Entry* next = curr + 1;
-            while (next != m_end && next->Key == NULL_KEY)
+            while (next != m_end && (next->Key == NULL_KEY || next->Key == TOMBSTONE_KEY))
                 next++;
 
             return next;
@@ -366,6 +380,7 @@ namespace ZetaRay::Util
             m_beg = reinterpret_cast<Entry*>(m_allocator.AllocateAligned(n * sizeof(Entry), alignof(Entry)));
             m_end = m_beg + n;  // Adjust end pointer
             m_numEntries = 0;
+            m_numNonTombstoneEntries = 0;
 
             // Initialize new table
             for (Entry* curr = m_beg; curr != m_beg + n; curr++)
@@ -389,6 +404,8 @@ namespace ZetaRay::Util
                 m_numEntries++;
             }
 
+            m_numNonTombstoneEntries = m_numEntries;
+
             // Destruct previous elements (if necessary)
             if constexpr (!std::is_trivially_destructible_v<Entry>)
             {
@@ -409,6 +426,7 @@ namespace ZetaRay::Util
         Entry* m_beg = nullptr;        // Pointer to the beginning of memory block
         Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
+        size_t m_numNonTombstoneEntries = 0;
 #if defined(__clang__)
         Allocator m_allocator;
 #elif defined(_MSC_VER)
