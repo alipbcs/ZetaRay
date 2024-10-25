@@ -282,9 +282,26 @@ void DisplayPass::Render(CommandList& cmdList)
     directCmdList.PIXEndEvent();
 }
 
-void DisplayPass::DrawPicked(Core::GraphicsCmdList& cmdList)
+void DisplayPass::DrawPicked(GraphicsCmdList& cmdList)
 {
     if (m_pickID == Scene::INVALID_INSTANCE)
+        return;
+
+    const auto& camera = App::GetCamera();
+    auto& frustum = camera.GetCameraFrustumViewSpace();
+    auto viewInv = camera.GetViewInv();
+
+    // Transform view frustum from view space into world space
+    v_float4x4 vM = load4x4(const_cast<float4x4a&>(viewInv));
+    v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(frustum));
+    vFrustum = transform(vM, vFrustum);
+
+    v_AABB vBox(App::GetScene().GetAABB(m_pickID));
+    v_float4x4 vW = load4x3(App::GetScene().GetToWorld(m_pickID));
+    vBox = transform(vW, vBox);
+
+    // Avoid drawing the gizmo if picked instance is outside the frustum
+    if (instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
         return;
 
     // Draw mask
