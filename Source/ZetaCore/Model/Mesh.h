@@ -1,6 +1,6 @@
 #pragma once
 
-//#include "../Math/CollisionFuncs.h"
+#include "../Math/CollisionFuncs.h"
 #include "../Core/Vertex.h"
 #include "../Utility/Span.h"
 
@@ -34,9 +34,9 @@ namespace ZetaRay::Model
         {
             Assert(vertices.size() < UINT_MAX, "Number of vertices exceeded maximum allowed.");
 
-            //Math::v_AABB vBox = Math::compueMeshAABB(vertices.data(), offsetof(Core::Vertex, Position),
-            //    sizeof(Core::Vertex), m_numVertices);
-            //m_AABB = Math::store(vBox);
+            Math::v_AABB vBox = Math::compueMeshAABB(vertices.data(), offsetof(Core::Vertex, Position),
+                sizeof(Core::Vertex), m_numVertices);
+            m_AABB = Math::store(vBox);
         }
 
         uint32_t m_vtxBuffStartOffset;
@@ -44,7 +44,7 @@ namespace ZetaRay::Model
         uint32_t m_materialID;
         uint32_t m_numVertices;
         uint32_t m_numIndices;
-        //Math::AABB m_AABB;
+        Math::AABB m_AABB;
     };
 
     static_assert(std::is_trivially_default_constructible_v<TriangleMesh>);
