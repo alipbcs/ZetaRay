@@ -34,7 +34,7 @@ DirectLighting::DirectLighting()
     // BVH
     m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-        GlobalResource::RT_SCENE_BVH);
+        GlobalResource::RT_SCENE_BVH_CURR);
 
     // emissive triangles
     m_rootSig.InitAsBufferSRV(3, 1, 0,
@@ -55,7 +55,7 @@ DirectLighting::DirectLighting()
     // mesh buffer
     m_rootSig.InitAsBufferSRV(6, 4, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-        GlobalResource::RT_FRAME_MESH_INSTANCES);
+        GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
 }
 
 void DirectLighting::Init()

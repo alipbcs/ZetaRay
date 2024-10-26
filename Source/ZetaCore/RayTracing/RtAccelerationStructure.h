@@ -59,10 +59,12 @@ namespace ZetaRay::RT
     {
         void Update();
         void Render(Core::CommandList& cmdList);
-        ZetaInline const Core::GpuMemory::Buffer& GetTLAS() const { return m_tlasBuffer;  };
+        ZetaInline const Core::GpuMemory::Buffer& GetTLAS() const { return m_tlasBuffer[m_frameIdx];  };
         ZetaInline bool IsReady() const { return m_ready; };
 
     private:
+        static constexpr uint32_t BLAS_ARENA_PAGE_SIZE = 4 * 1024 * 1024;
+
         struct ArenaPage
         {
             Core::GpuMemory::Buffer Page;
@@ -86,8 +88,6 @@ namespace ZetaRay::RT
             INSTANCE_TRANSFORM
         };
 
-        static constexpr uint32_t DEFAULT_BLAS_ARENA_SIZE = 4 * 1024 * 1024;
-
         // Frame mesh instances
         void FillMeshInstanceData(uint64_t instanceID, uint64_t meshID, const Math::float4x3& M,
             uint32_t emissiveTriOffset, bool staticMesh, uint32_t currInstance);
@@ -108,10 +108,12 @@ namespace ZetaRay::RT
         void RebuildTLAS(Core::ComputeCmdList& cmdList);
 
         StaticBLAS m_staticBLAS;
-        Core::GpuMemory::Buffer m_framesMeshInstances;
-        Core::GpuMemory::Buffer m_tlasBuffer;
+        Core::GpuMemory::Buffer m_framesMeshInstances[2];
+        Core::GpuMemory::Buffer m_tlasBuffer[2];
         Core::GpuMemory::Buffer m_scratchBuffer;
         Core::GpuMemory::Buffer m_tlasInstanceBuffer;
+        Core::GpuMemory::ResourceHeap m_tlasResHeap;
+        Core::GpuMemory::ResourceHeap m_meshInstanceResHeap;
 
         // Dynamic BLAS
         Util::SmallVector<ArenaPage> m_dynamicBLASArenas;
@@ -125,6 +127,7 @@ namespace ZetaRay::RT
         bool m_staticBLASCompacted = false;
         bool m_rebuildDynamicBLASes = true;
         UPDATE_TYPE m_updateType = UPDATE_TYPE::NONE;
+        int m_frameIdx = 0;
 
         bool m_ready = false;
     };

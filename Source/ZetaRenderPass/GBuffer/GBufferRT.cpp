@@ -34,12 +34,12 @@ GBufferRT::GBufferRT()
     // BVH
     m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-        GlobalResource::RT_SCENE_BVH);
+        GlobalResource::RT_SCENE_BVH_CURR);
 
     // mesh buffer
     m_rootSig.InitAsBufferSRV(3, 1, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-        GlobalResource::RT_FRAME_MESH_INSTANCES);
+        GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
 
     // scene VB
     m_rootSig.InitAsBufferSRV(4, 2, 0,

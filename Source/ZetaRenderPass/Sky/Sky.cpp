@@ -28,7 +28,7 @@ Sky::Sky()
     // BVH
     m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-        GlobalResource::RT_SCENE_BVH);
+        GlobalResource::RT_SCENE_BVH_CURR);
 }
 
 void Sky::Init(int lutWidth, int lutHeight, bool doInscattering)

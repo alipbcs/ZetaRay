@@ -281,6 +281,11 @@ namespace ZetaRay::Core
             m_cmdList->CopyRaytracingAccelerationStructure(dest, src, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_COMPACT);
         }
 
+        ZetaInline void CopyAccelerationStructure(D3D12_GPU_VIRTUAL_ADDRESS dest, D3D12_GPU_VIRTUAL_ADDRESS src)
+        {
+            m_cmdList->CopyRaytracingAccelerationStructure(dest, src, D3D12_RAYTRACING_ACCELERATION_STRUCTURE_COPY_MODE_CLONE);
+        }
+
         ZetaInline void ExecuteIndirect(ID3D12CommandSignature* cmdSig,
             UINT maxCmdCount,
             ID3D12Resource* argBuffer,

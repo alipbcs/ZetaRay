@@ -49,13 +49,11 @@ IndirectLighting::IndirectLighting()
 
     // BVH
     m_rootSig.InitAsBufferSRV(2, 0, 0,
-        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
-        GlobalResource::RT_SCENE_BVH);
+        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC);
 
     // mesh buffer
     m_rootSig.InitAsBufferSRV(3, 1, 0,
-        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE,
-        GlobalResource::RT_FRAME_MESH_INSTANCES);
+        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC_WHILE_SET_AT_EXECUTE);
 
     // scene VB
     m_rootSig.InitAsBufferSRV(4, 2, 0,
@@ -242,6 +240,14 @@ void IndirectLighting::RenderPathTracer(Core::ComputeCmdList& computeCmdList)
 
     Assert(!m_preSampling || m_cbRGI.SampleSetSize_NumSampleSets, "Presampled set params haven't been set.");
 
+    const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+        GlobalResource::RT_SCENE_BVH_CURR);
+    const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+        GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
+
+    m_rootSig.SetRootSRV(2, bvh->GpuVA());
+    m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
+
     m_cbRGI.FinalOrColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
     m_rootSig.SetRootConstants(0, sizeof(m_cbRGI) / sizeof(DWORD), &m_cbRGI);
     m_rootSig.End(computeCmdList);
@@ -326,6 +332,14 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
             m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_A_UAV) :
             m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::DNSR_FINAL_UAV);
         m_cbRGI.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RGI::COLOR_B_UAV);
+
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_CURR);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
 
         if (m_useLVG)
         {
@@ -538,6 +552,13 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         m_cbRPT_Reuse.RBufferA_NtC_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
             (int)DESC_TABLE_RPT::RBUFFER_A_NtC_UAV);
 
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_PREV);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_PREV);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
         m_rootSig.End(computeCmdList);
 
@@ -556,6 +577,15 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 #endif
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_REPLAY_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_REPLAY_GROUP_DIM_Y);
+
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_CURR);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
+        m_rootSig.End(computeCmdList);
 
         auto sh = emissive ? SHADER::ReSTIR_PT_REPLAY_TtC_E : SHADER::ReSTIR_PT_REPLAY_TtC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
@@ -599,6 +629,13 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_TEMPORAL_GROUP_DIM_Y);
         m_cbRPT_Reuse.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
 
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_PREV);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_PREV);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_Reuse) / sizeof(DWORD), &m_cbRPT_Reuse);
         m_rootSig.End(computeCmdList);
 
@@ -626,6 +663,15 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
 
         const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_PT_TEMPORAL_GROUP_DIM_X);
         const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_PT_TEMPORAL_GROUP_DIM_Y);
+
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_CURR);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
+        m_rootSig.End(computeCmdList);
 
         auto sh = emissive ? SHADER::ReSTIR_PT_RECONNECT_TtC_E : SHADER::ReSTIR_PT_RECONNECT_TtC;
         computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)sh));
@@ -1010,6 +1056,13 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         m_cbRPT_PathTrace.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
         m_cbRPT_PathTrace.Reservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
 
+        const auto& bvh = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_SCENE_BVH_CURR);
+        const auto& meshInstances = renderer.GetSharedShaderResources().GetDefaultHeapBuffer(
+            GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
+
+        m_rootSig.SetRootSRV(2, bvh->GpuVA());
+        m_rootSig.SetRootSRV(3, meshInstances->GpuVA());
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_PathTrace) / sizeof(DWORD), &m_cbRPT_PathTrace);
         m_rootSig.End(computeCmdList);
 

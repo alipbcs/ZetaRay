@@ -24,10 +24,12 @@ namespace ZetaRay::Scene::GlobalResource
     inline static constexpr const char* EMISSIVE_TRIANGLE_ALIAS_TABLE = "EmissiveAliasTable";
     inline static constexpr const char* PRESAMPLED_EMISSIVE_SETS = "PresampledEmissiveTris";
     inline static constexpr const char* LIGHT_VOXEL_GRID = "LVG";
-    inline static constexpr const char* RT_SCENE_BVH = "SceneBVH";
+    inline static constexpr const char* RT_SCENE_BVH_PREV = "PrevSceneBVH";
+    inline static constexpr const char* RT_SCENE_BVH_CURR = "CurrSceneBVH";
     inline static constexpr const char* SCENE_VERTEX_BUFFER = "SceneVB";
     inline static constexpr const char* SCENE_INDEX_BUFFER = "SceneIB";
-    inline static constexpr const char* RT_FRAME_MESH_INSTANCES = "RtFrameMeshInstances";
+    inline static constexpr const char* RT_FRAME_MESH_INSTANCES_PREV = "PrevRtFrameMeshInstances";
+    inline static constexpr const char* RT_FRAME_MESH_INSTANCES_CURR = "CurrRtFrameMeshInstances";
 }
 
 namespace ZetaRay::Scene::Renderer
