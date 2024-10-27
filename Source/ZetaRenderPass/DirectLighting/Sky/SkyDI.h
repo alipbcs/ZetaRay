@@ -18,7 +18,8 @@ namespace ZetaRay::RenderPass
 {
     enum class SKY_DI_SHADER
     {
-        SKY_DI,
+        SKY_DI_TEMPORAL,
+        SKY_DI_SPATIAL,
         COUNT
     };
 
@@ -44,9 +45,9 @@ namespace ZetaRay::RenderPass
 
     private:
         static constexpr int NUM_CBV = 1;
-        static constexpr int NUM_SRV = 1;
+        static constexpr int NUM_SRV = 2;
         static constexpr int NUM_UAV = 0;
-        static constexpr int NUM_GLOBS = 2;
+        static constexpr int NUM_GLOBS = 3;
         static constexpr int NUM_CONSTS = (int)(sizeof(cb_SkyDI) / sizeof(DWORD));
         using SHADER = SKY_DI_SHADER;
 
@@ -55,6 +56,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R8_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32_FLOAT;
+            static constexpr DXGI_FORMAT TARGET = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
 
@@ -73,7 +75,7 @@ namespace ZetaRay::RenderPass
             RESERVOIR_1_A_UAV,
             RESERVOIR_1_B_UAV,
             RESERVOIR_1_C_UAV,
-            //
+            TARGET_UAV,
             FINAL_UAV,
             //
             COUNT
@@ -90,7 +92,8 @@ namespace ZetaRay::RenderPass
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
-            "SkyDI_cs.cso"
+            "SkyDI_Temporal_cs.cso",
+            "SkyDI_Spatial_cs.cso"
         };
 
         struct Reservoir
@@ -103,6 +106,8 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::Texture B;
             // Texture2D<float2>: (w_sum, W)
             Core::GpuMemory::Texture C;
+
+            D3D12_BARRIER_LAYOUT Layout;
         };
 
         void CreateOutputs();
@@ -115,9 +120,11 @@ namespace ZetaRay::RenderPass
 
         // shader reload
         void ReloadTemporalPass();
+        void ReloadSpatialPass();
 
         Reservoir m_reservoir[2];
         Core::GpuMemory::ResourceHeap m_resHeap;
+        Core::GpuMemory::Texture m_target;
         Core::GpuMemory::Texture m_final;
         int m_currTemporalIdx = 0;
         bool m_temporalResampling = true;

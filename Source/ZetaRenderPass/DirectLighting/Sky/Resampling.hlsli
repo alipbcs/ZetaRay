@@ -82,7 +82,7 @@ namespace SkyDI_Util
             g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
             g_frame.DoF, prevLensSample, g_frame.FocusDepth, prevOrigin);
 
-        if(!PlaneHeuristic(prevPos, normal, pos, z_view, 0.01))
+        if(!PlaneHeuristic(prevPos, normal, pos, z_view, MAX_PLANE_DIST_REUSE))
             return candidate;
 
         GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -139,7 +139,8 @@ namespace SkyDI_Util
     void TemporalResample(TemporalCandidate candidate, float3 pos, float3 normal,
         BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, 
         uint prevReservoir_C_DescHeapIdx, float alpha_min, RaytracingAccelerationStructure g_bvh,
-        ConstantBuffer<cbFrameConstants> g_frame, inout Reservoir r, inout RNG rng)
+        RaytracingAccelerationStructure g_bvh_prev, ConstantBuffer<cbFrameConstants> g_frame, 
+        inout Reservoir r, inout RNG rng)
     {
         Reservoir r_prev = Reservoir::Load(candidate.posSS, 
             prevReservoir_A_DescHeapIdx, prevReservoir_B_DescHeapIdx,
@@ -179,7 +180,7 @@ namespace SkyDI_Util
                 if(targetLum_prev > 0)
                 {
                     targetLum_prev *= RtRayQuery::Visibility_Ray(candidate.pos, wi_offset, candidate.normal, 
-                        g_bvh, candidate.surface.Transmissive());
+                        g_bvh_prev, candidate.surface.Transmissive());
                 }
             }
 
@@ -247,8 +248,8 @@ namespace SkyDI_Util
     }
 
     void SpatialResample(uint2 DTid, float3 pos, float3 normal, float z_view, 
-        float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
-        uint prevReservoir_B_DescHeapIdx, uint prevReservoir_C_DescHeapIdx, float alpha_min, 
+        float roughness, BSDF::ShadingData surface, uint reservoir_A_DescHeapIdx, 
+        uint reservoir_B_DescHeapIdx, uint reservoir_C_DescHeapIdx, float alpha_min, 
         RaytracingAccelerationStructure g_bvh, ConstantBuffer<cbFrameConstants> g_frame, 
         inout Reservoir r_c, inout RNG rng)
     {
@@ -272,9 +273,9 @@ namespace SkyDI_Util
             half2(-0.223014, -0.774740)
         };
 
-        GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
             GBUFFER_OFFSET::DEPTH];
-        GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_METALLIC_ROUGHNESS g_mr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
 
         // rotate sample sequence per pixel
@@ -296,8 +297,6 @@ namespace SkyDI_Util
         bool sampleSubsurf[NUM_SPATIAL_SAMPLES];
         bool sampleCoated[NUM_SPATIAL_SAMPLES];
         uint16 k = 0;
-        const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
-            g_frame.PrevViewInv._m23);
 
         [loop]
         for (int i = 0; i < NUM_SPATIAL_SAMPLES; i++)
@@ -311,25 +310,25 @@ namespace SkyDI_Util
 
             if (Math::IsWithinBounds(posSS_i, (int2)renderDim))
             {
-                const float2 mr_i = g_prevMR[posSS_i];
+                const float2 mr_i = g_mr[posSS_i];
                 GBuffer::Flags flags_i = GBuffer::DecodeMetallic(mr_i.x);
 
                 if (flags_i.invalid || flags_i.emissive)
                     continue;
 
-                const float depth_i = g_prevDepth[posSS_i];
+                const float depth_i = g_depth[posSS_i];
                 float2 lensSample = 0;
-                float3 origin_i = prevCameraPos;
+                float3 origin_i = g_frame.CameraPos;
                 if(g_frame.DoF)
                 {
-                    RNG rngDoF = RNG::Init(RNG::PCG3d(posSS_i.xyx).zy, g_frame.FrameNum - 1);
+                    RNG rngDoF = RNG::Init(RNG::PCG3d(posSS_i.xyx).zy, g_frame.FrameNum);
                     lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
                     lensSample *= g_frame.LensRadius;
                 }
 
                 float3 pos_i = Math::WorldPosFromScreenSpace2(posSS_i, renderDim, depth_i, 
-                    g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
-                    g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
+                    g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+                    g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
                     g_frame.DoF, lensSample, g_frame.FocusDepth, origin_i);
 
                 bool valid = PlaneHeuristic(pos_i, normal, pos, z_view);
@@ -355,23 +354,23 @@ namespace SkyDI_Util
 
         for (int i = 0; i < k; i++)
         {
-            GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+            GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
                 GBUFFER_OFFSET::NORMAL];
-            const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
+            const float3 sampleNormal = Math::DecodeUnitVector(g_normal[samplePosSS[i]]);
 
-            GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+            GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
                 GBUFFER_OFFSET::BASE_COLOR];
-            const float4 sampleBaseColor = sampleSubsurf[i] ? g_prevBaseColor[samplePosSS[i]] :
-                float4(g_prevBaseColor[samplePosSS[i]].rgb, 0);
+            const float4 sampleBaseColor = sampleSubsurf[i] ? g_baseColor[samplePosSS[i]] :
+                float4(g_baseColor[samplePosSS[i]].rgb, 0);
 
             float sampleEta_next = DEFAULT_ETA_MAT;
 
             if(sampleTr[i])
             {
-                GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
                     GBUFFER_OFFSET::IOR];
 
-                float ior = g_prevIOR[samplePosSS[i]];
+                float ior = g_ior[samplePosSS[i]];
                 sampleEta_next = GBuffer::DecodeIOR(ior);
             }
 
@@ -382,7 +381,7 @@ namespace SkyDI_Util
 
             if(sampleCoated[i])
             {
-                GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
                     GBUFFER_OFFSET::COAT];
                 uint3 packed = g_coat[samplePosSS[i]].xyz;
 
@@ -400,8 +399,8 @@ namespace SkyDI_Util
                 sample_coat_color, sample_coat_roughness, sample_coat_ior);
 
             Reservoir r_spatial = Reservoir::Load(samplePosSS[i], 
-                prevReservoir_A_DescHeapIdx, prevReservoir_B_DescHeapIdx,
-                prevReservoir_C_DescHeapIdx);
+                reservoir_A_DescHeapIdx, reservoir_B_DescHeapIdx,
+                reservoir_C_DescHeapIdx);
 
             pairwiseMIS.Stream(r_c, pos, normal, surface, r_spatial, samplePos[i], 
                 sampleNormal, surface_i, alpha_min, g_bvh, g_frame, rng);

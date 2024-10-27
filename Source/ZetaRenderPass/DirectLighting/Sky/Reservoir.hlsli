@@ -56,6 +56,12 @@ namespace SkyDI_Util
             return ret;
         }
 
+        void LoadTarget(uint2 DTid, uint uavIdx)
+        {
+            RWTexture2D<float4> g_target = ResourceDescriptorHeap[uavIdx];
+            this.target = g_target[DTid].xyz;
+        }
+
         bool IsValid()
         {
             // return dot(this.wx, this.wx) != 0;
@@ -126,6 +132,13 @@ namespace SkyDI_Util
             }
 
             return false;
+        }
+
+        void WriteTarget(uint2 DTid, uint uavIdx)
+        {
+            RWTexture2D<float4> g_target = ResourceDescriptorHeap[uavIdx];
+            this.target = Math::Sanitize(this.target);
+            g_target[DTid].xyz = this.target;
         }
 
         void Write(uint2 DTid, uint outputAIdx, uint outputBIdx, uint outputCIdx, 

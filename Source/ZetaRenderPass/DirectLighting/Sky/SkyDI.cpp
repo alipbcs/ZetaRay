@@ -32,6 +32,10 @@ SkyDI::SkyDI()
     m_rootSig.InitAsBufferSRV(2, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
         GlobalResource::RT_SCENE_BVH_CURR);
+    // BVH
+    m_rootSig.InitAsBufferSRV(3, 1, 0,
+        D3D12_ROOT_DESCRIPTOR_FLAG_DATA_STATIC,
+        GlobalResource::RT_SCENE_BVH_PREV);
 }
 
 void SkyDI::Init()
@@ -68,12 +72,12 @@ void SkyDI::Init()
     ts.Finalize(&waitObj);
     App::Submit(ZetaMove(ts));
 
-    m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
-    CreateOutputs();
-
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX_SKY | (DefaultParamVals::M_MAX_SUN << 16);
     m_cbSpatioTemporal.Alpha_min = DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
+
+    m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
+    CreateOutputs();
 
     ParamVariant doTemporal;
     doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
@@ -130,44 +134,59 @@ void SkyDI::Render(CommandList& cmdList)
 
     computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
-    // Sky DI
-    {
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_GROUP_DIM_X);
-        const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_GROUP_DIM_Y);
+    const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_GROUP_DIM_X);
+    const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_GROUP_DIM_Y);
 
-        computeCmdList.PIXBeginEvent("SkyDI");
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI");
+    const bool doTemporal = m_isTemporalReservoirValid && m_temporalResampling;
+    const bool doSpatial = doTemporal && m_spatialResampling;
+
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE, doTemporal);
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE, doSpatial);
+
+    m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
+    m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
+    m_cbSpatioTemporal.NumGroupsInTile = SKY_DI_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
+
+    // Initial candidates and temporal
+    {
+        computeCmdList.PIXBeginEvent("SkyDI_Temporal");
+        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_Temporal");
 
         SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, Reservoir::NUM * 2> barriers;
 
-        // transition current temporal reservoir into write state
-        barriers.push_back(TextureBarrier_SrvToUavNoSync(
-            m_reservoir[m_currTemporalIdx].A.Resource()));
-        barriers.push_back(TextureBarrier_SrvToUavNoSync(
-            m_reservoir[m_currTemporalIdx].B.Resource()));
-        barriers.push_back(TextureBarrier_SrvToUavNoSync(
-            m_reservoir[m_currTemporalIdx].C.Resource()));
-
-        // transition previous reservoirs into read state
-        if (m_isTemporalReservoirValid)
+        // Current reservoirs into UAV
+        if (m_reservoir[m_currTemporalIdx].Layout != D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS)
         {
-            barriers.push_back(TextureBarrier_UavToSrvNoSync(
-                m_reservoir[1 - m_currTemporalIdx].A.Resource()));
-            barriers.push_back(TextureBarrier_UavToSrvNoSync(
-                m_reservoir[1 - m_currTemporalIdx].B.Resource()));
-            barriers.push_back(TextureBarrier_UavToSrvNoSync(
-                m_reservoir[1 - m_currTemporalIdx].C.Resource()));
+            barriers.push_back(TextureBarrier_SrvToUavNoSync(
+                m_reservoir[m_currTemporalIdx].A.Resource()));
+            barriers.push_back(TextureBarrier_SrvToUavNoSync(
+                m_reservoir[m_currTemporalIdx].B.Resource()));
+            barriers.push_back(TextureBarrier_SrvToUavNoSync(
+                m_reservoir[m_currTemporalIdx].C.Resource()));
+
+            m_reservoir[m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS;
         }
 
-        computeCmdList.ResourceBarrier(barriers.data(), (UINT)barriers.size());
+        // Temporal reservoirs into SRV
+        if (doTemporal)
+        {
+            if (m_reservoir[1 - m_currTemporalIdx].Layout == 
+                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS)
+            {
+                barriers.push_back(TextureBarrier_UavToSrvNoSync(
+                    m_reservoir[1 - m_currTemporalIdx].A.Resource()));
+                barriers.push_back(TextureBarrier_UavToSrvNoSync(
+                    m_reservoir[1 - m_currTemporalIdx].B.Resource()));
+                barriers.push_back(TextureBarrier_UavToSrvNoSync(
+                    m_reservoir[1 - m_currTemporalIdx].C.Resource()));
 
-        m_cbSpatioTemporal.DispatchDimX = (uint16_t)dispatchDimX;
-        m_cbSpatioTemporal.DispatchDimY = (uint16_t)dispatchDimY;
-        m_cbSpatioTemporal.NumGroupsInTile = SKY_DI_TILE_WIDTH * m_cbSpatioTemporal.DispatchDimY;
-        SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE, 
-            m_temporalResampling && m_isTemporalReservoirValid);
-        SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE, 
-            m_spatialResampling && m_isTemporalReservoirValid);
+                m_reservoir[1 - m_currTemporalIdx].Layout = 
+                    D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+            }
+        }
+
+        if(!barriers.empty())
+            computeCmdList.ResourceBarrier(barriers.data(), (UINT)barriers.size());
 
         auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_0_A_SRV : 
             DESC_TABLE::RESERVOIR_1_A_SRV;
@@ -176,12 +195,42 @@ void SkyDI::Render(CommandList& cmdList)
 
         m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
         m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
-        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);;
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
         m_rootSig.End(computeCmdList);
 
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::SKY_DI));
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::SKY_DI_TEMPORAL));
+        computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
+
+        gpuTimer.EndQuery(computeCmdList, queryIdx);
+        cmdList.PIXEndEvent();
+    }
+
+    // Spatial
+    if (doSpatial)
+    {
+        computeCmdList.PIXBeginEvent("SkyDI_Spatial");
+        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_Spatial");
+
+        D3D12_TEXTURE_BARRIER barriers[Reservoir::NUM];
+
+        // current reservoirs into UAV
+        barriers[0] = TextureBarrier_UavToSrvWithSync(m_reservoir[m_currTemporalIdx].A.Resource());
+        barriers[1] = TextureBarrier_UavToSrvWithSync(m_reservoir[m_currTemporalIdx].B.Resource());
+        barriers[2] = TextureBarrier_UavToSrvWithSync(m_reservoir[m_currTemporalIdx].C.Resource());
+        computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
+
+        m_reservoir[m_currTemporalIdx].Layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+
+        auto srvAIdx = m_currTemporalIdx == 1 ? DESC_TABLE::RESERVOIR_1_A_SRV :
+            DESC_TABLE::RESERVOIR_0_A_SRV;
+
+        m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
+
+        m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
+        m_rootSig.End(computeCmdList);
+
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::SKY_DI_SPATIAL));
         computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
 
         gpuTimer.EndQuery(computeCmdList, queryIdx);
@@ -198,7 +247,7 @@ void SkyDI::CreateOutputs()
     const auto w = renderer.GetRenderWidth();
     const auto h = renderer.GetRenderHeight();
 
-    constexpr int N = 2 * Reservoir::NUM + 1;
+    constexpr int N = 2 * Reservoir::NUM + 1 + 1;
     PlacedResourceList<N> list;
 
     // reservoirs
@@ -209,6 +258,8 @@ void SkyDI::CreateOutputs()
         list.PushTex2D(ResourceFormats::RESERVOIR_C, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     }
 
+    // target
+    list.PushTex2D(ResourceFormats::TARGET, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     // final
     list.PushTex2D(ResourceFormats::FINAL, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
@@ -239,31 +290,49 @@ void SkyDI::CreateOutputs()
     static_assert((int)(DESC_TABLE::RESERVOIR_1_A_UAV) + 1 == (int)DESC_TABLE::RESERVOIR_1_B_UAV);
     static_assert((int)(DESC_TABLE::RESERVOIR_1_A_UAV) + 2 == (int)DESC_TABLE::RESERVOIR_1_C_UAV);
 
+    const D3D12_BARRIER_LAYOUT initLayout[2] = { D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+        m_temporalResampling ?
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE :
+            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS };
+    
     for (int i = 0; i < 2; i++)
     {
-        const auto state = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
         const int descOffset = i * Reservoir::NUM * 2;
+        const auto layout = initLayout[i];
 
         func(m_reservoir[i].A, ResourceFormats::RESERVOIR_A,
             "SkyDI_Reservoir", i, "A", allocs[currRes++],
             (int)DESC_TABLE::RESERVOIR_0_A_SRV, (int)DESC_TABLE::RESERVOIR_0_A_UAV,
-            descOffset, state);
+            descOffset, layout);
         func(m_reservoir[i].B, ResourceFormats::RESERVOIR_B,
             "SkyDI_Reservoir", i, "B", allocs[currRes++],
             (int)DESC_TABLE::RESERVOIR_0_B_SRV, (int)DESC_TABLE::RESERVOIR_0_B_UAV,
-            descOffset, state);
+            descOffset, layout);
         func(m_reservoir[i].C, ResourceFormats::RESERVOIR_C,
             "SkyDI_Reservoir", i, "C", allocs[currRes++],
             (int)DESC_TABLE::RESERVOIR_0_C_SRV, (int)DESC_TABLE::RESERVOIR_0_C_UAV,
-            descOffset, state);
+            descOffset, layout);
+
+        m_reservoir[i].Layout = initLayout[i];
     }
 
+    m_target = GpuMemory::GetPlacedTexture2D("SkyDI_target", w, h, ResourceFormats::TARGET, 
+        m_resHeap.Heap(), allocs[currRes++].Offset,
+        D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS,
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     m_final = GpuMemory::GetPlacedTexture2D("SkyDI_final", w, h, ResourceFormats::FINAL, 
         m_resHeap.Heap(), allocs[currRes++].Offset,
         D3D12_RESOURCE_STATE_COMMON,
         TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
+    Direct3DUtil::CreateTexture2DUAV(m_target, m_descTable.CPUHandle((int)DESC_TABLE::TARGET_UAV));
     Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE::FINAL_UAV));
+
+    // Following never change, so can be set only once
+    m_cbSpatioTemporal.TargetDescHeapIdx = m_descTable.GPUDescriptorHeapIndex(
+        (int)DESC_TABLE::TARGET_UAV);
+    m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((
+        int)DESC_TABLE::FINAL_UAV);
 }
 
 void SkyDI::TemporalResamplingCallback(const Support::ParamVariant& p)
@@ -294,7 +363,7 @@ void SkyDI::AlphaMinCallback(const Support::ParamVariant& p)
 
 void SkyDI::ReloadTemporalPass()
 {
-    const int i = (int)SHADER::SKY_DI;
-    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI.hlsl");
+    const int i = (int)SHADER::SKY_DI_TEMPORAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_Temporal.hlsl");
 }
 

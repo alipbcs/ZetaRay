@@ -11,6 +11,7 @@ using namespace SkyDI_Util;
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_SkyDI> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
+RaytracingAccelerationStructure g_bvh_prev : register(t1);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
@@ -113,7 +114,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
     return r;
 }
 
-Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_view, 
+Reservoir InitialCandidatesAndTemporalReuse(uint2 DTid, float3 pos, float3 normal, float z_view, 
     float roughness, BSDF::ShadingData surface, inout RNG rng)
 {
     Reservoir r = RIS_InitialCandidates(DTid, pos, normal, surface, rng);
@@ -129,7 +130,8 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
                 g_local.PrevReservoir_A_DescHeapIdx, 
                 g_local.PrevReservoir_A_DescHeapIdx + 1,
                 g_local.PrevReservoir_A_DescHeapIdx + 2, 
-                g_local.Alpha_min, g_bvh, g_frame, r, rng);
+                g_local.Alpha_min, g_bvh, g_bvh_prev, 
+                g_frame, r, rng);
         }
 
         const uint M_max = r.lightType == Light::TYPE::SKY ? g_local.M_max & 0xffff : 
@@ -140,14 +142,7 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
             M_max);
 
         if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE))
-        {
-            SpatialResample(DTid, pos, normal, 
-                z_view, roughness, surface, 
-                g_local.PrevReservoir_A_DescHeapIdx, 
-                g_local.PrevReservoir_A_DescHeapIdx + 1, 
-                g_local.PrevReservoir_A_DescHeapIdx + 2, 
-                g_local.Alpha_min, g_bvh, g_frame, r, rng);
-        }
+            r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
     }
 
     return r;
@@ -251,9 +246,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     RNG rng = RNG::Init(RNG::PCG3d(swizzledDTid.yxx).yz, g_frame.FrameNum);
 
-    SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, 
-        mr.y, surface, rng);
+    SkyDI_Util::Reservoir r = InitialCandidatesAndTemporalReuse(swizzledDTid, pos, normal, 
+        z_view, mr.y, surface, rng);
 
+    if(!IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE) || !IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE))
     {
         float3 ld = r.target * r.W;
         ld = any(isnan(ld)) ? 0 : ld;

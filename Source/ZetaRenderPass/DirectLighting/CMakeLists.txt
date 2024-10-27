@@ -7,7 +7,8 @@ set(RP_DI_SRC
     ${RP_SKY_DI_DIR}/Reservoir.hlsli
 	${RP_SKY_DI_DIR}/SkyDI.cpp
     ${RP_SKY_DI_DIR}/SkyDI.h
-    ${RP_SKY_DI_DIR}/SkyDI.hlsl
+    ${RP_SKY_DI_DIR}/SkyDI_Temporal.hlsl
+    ${RP_SKY_DI_DIR}/SkyDI_Spatial.hlsl
     ${RP_SKY_DI_DIR}/SkyDI_Common.h
     ${RP_EMISSIVE_DI_DIR}/DirectLighting.cpp
     ${RP_EMISSIVE_DI_DIR}/DirectLighting.h

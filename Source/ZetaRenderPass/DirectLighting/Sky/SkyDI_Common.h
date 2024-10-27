@@ -19,6 +19,7 @@ struct cb_SkyDI
 {
     uint32_t PrevReservoir_A_DescHeapIdx;
     uint32_t CurrReservoir_A_DescHeapIdx;
+    uint32_t TargetDescHeapIdx;
     uint32_t FinalDescHeapIdx;
 
     float Alpha_min;
