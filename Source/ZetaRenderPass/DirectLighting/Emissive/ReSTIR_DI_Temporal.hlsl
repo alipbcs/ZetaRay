@@ -12,25 +12,24 @@ using namespace RDI_Util;
 //--------------------------------------------------------------------------------------
 
 ConstantBuffer<cbFrameConstants> g_frame : register(b0);
-ConstantBuffer<cb_ReSTIR_DI_SpatioTemporal> g_local : register(b1);
+ConstantBuffer<cb_ReSTIR_DI> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
-StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t1);
-StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t2);
+RaytracingAccelerationStructure g_bvh_prev : register(t1);
+StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t2);
+StructuredBuffer<RT::EmissiveLumenAliasTableEntry> g_aliasTable : register(t3);
 #ifdef USE_PRESAMPLED_SETS 
-StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets : register(t3);
+StructuredBuffer<RT::PresampledEmissiveTriangle> g_sampleSets : register(t4);
 #endif
-StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t4);
+StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t5);
 
 //--------------------------------------------------------------------------------------
 // Helper functions
 //--------------------------------------------------------------------------------------
 
 Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float roughness,
-    BSDF::ShadingData surface, uint sampleSetIdx, int numBsdfCandidates, inout RNG rng, 
-    inout Target target)
+    BSDF::ShadingData surface, uint sampleSetIdx, int numBsdfCandidates, inout RNG rng)
 {
     Reservoir r = Reservoir::Init();
-    float target_dwdA = 0.0f;
 
     // BSDF sampling
     [loop]
@@ -39,64 +38,63 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         // TODO sample full BSDF
         BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
         float3 wi = bsdfSample.wi;
-        float3 f = bsdfSample.f;
         float wiPdf = bsdfSample.pdf;
 
         // check if closest hit is a light source
-        BrdfHitInfo hitInfo;
-        bool hitEmissive = FindClosestHit(pos, normal, wi, g_bvh, g_frameMeshData, 
-            hitInfo, surface.Transmissive());
+        BSDFHitInfo hitInfo = FindClosestHit(pos, normal, wi, g_bvh, g_frameMeshData, 
+            surface.Transmissive());
 
-        RT::EmissiveTriangle emissive;
-        float3 le = 0.0;
         float w_i = 0;
-        float3 lightNormal = 0.0;
-        float dwdA = 0;
-        float3 currTarget = 0.0;
+        float3 le = 0;
+        float3 lightNormal = 0;
+        float3 target = 0;
+        uint emissiveID = UINT32_MAX;
+        bool doubleSided = false;
 
-        if (hitEmissive)
+        if (hitInfo.hit)
         {
-            emissive = g_emissives[hitInfo.emissiveTriIdx];
-            le = Light::Le_EmissiveTriangle(emissive, hitInfo.bary, g_frame.EmissiveMapsDescHeapOffset);
+            RT::EmissiveTriangle emissive = g_emissives[hitInfo.emissiveTriIdx];
+            le = Light::Le_EmissiveTriangle(emissive, hitInfo.bary, 
+                g_frame.EmissiveMapsDescHeapOffset);
 
             const float3 vtx1 = Light::DecodeEmissiveTriV1(emissive);
             const float3 vtx2 = Light::DecodeEmissiveTriV2(emissive);
             lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
             float twoArea = length(lightNormal);
-            lightNormal = dot(lightNormal, lightNormal) == 0 ? 1.0 : lightNormal / twoArea;
+            lightNormal = dot(lightNormal, lightNormal) == 0 ? 0 : lightNormal / twoArea;
             lightNormal = emissive.IsDoubleSided() && dot(-wi, lightNormal) < 0 ? -lightNormal : lightNormal;
+            doubleSided = emissive.IsDoubleSided();
+            emissiveID = emissive.ID;
 
-            // skip backfacing lights
+            // Light is backfacing
             if(dot(-wi, lightNormal) > 0)
             {
                 const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
                 const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
 
                 // solid angle measure to area measure
-                dwdA = saturate(dot(lightNormal, -wi)) / (hitInfo.t * hitInfo.t);
+                float dwdA = saturate(dot(lightNormal, -wi)) / (hitInfo.t * hitInfo.t);
                 wiPdf *= dwdA;
 
-                // Balance heuristic
+                // Balance Heuristic
                 // wiPdf in m_i's numerator and w_i's denominator cancel out
                 const float m_i = 1.0f / max(numBsdfCandidates * wiPdf + NUM_LIGHT_CANDIDATES * lightPdf, 1e-6f);
 
                 // target = Le * BSDF(wi, wo) * |ndotwi|
                 // source = P(wi)
-                currTarget = le * f * dwdA;
-                w_i = m_i * Math::Luminance(currTarget);
+                target = le * bsdfSample.f * dwdA;
+                w_i = m_i * Math::Luminance(target);
             }
         }
 
-        // resample
         if (r.Update(w_i, le, hitInfo.emissiveTriIdx, hitInfo.bary, rng))
         {
-            target.p_hat = currTarget;
-            target.rayT = hitInfo.t;
-            target.lightID = emissive.ID;
-            target.wi = wi;
-            target.lightPos = hitInfo.lightPos;    
-            target.lightNormal = lightNormal;    
-            target.dwdA = dwdA;
+            r.target = target;
+            r.lightID = emissiveID;
+            r.lightPos = hitInfo.lightPos;
+            r.lightNormal = lightNormal;
+            r.doubleSided = doubleSided;
+            r.rayT = hitInfo.t;
         }
     }
 
@@ -118,6 +116,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         const float lightPdf = tri.pdf;
         const uint emissiveIdx = tri.idx;
         const uint lightID = tri.ID;
+        const bool doubleSided = tri.twoSided;
 
         if(tri.twoSided && dot(pos - tri.pos, lightSample.normal) < 0)
             lightSample.normal *= -1;
@@ -129,54 +128,55 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
 
         float3 le = Light::Le_EmissiveTriangle(tri, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
         const float lightPdf = entry.pdf * lightSample.pdf;
-        const uint lightID = tri.ID;
         const uint emissiveIdx = entry.idx;
+        const uint lightID = tri.ID;
+        const bool doubleSided = tri.IsDoubleSided();
 #endif
 
-        float3 currTarget = 0;
-        const float t = length(lightSample.pos - pos);
-        const float3 wi = (lightSample.pos - pos) / t;
-        const float dwdA = saturate(dot(lightSample.normal, -wi)) / (t * t);
+        float3 target = 0;
+        float3 wi = lightSample.pos - pos;
+        const bool isZero = dot(wi, wi) == 0;
+        const float t = isZero ? 0 : length(wi);
+        wi = isZero ? wi : wi / t;
+        const float dwdA = isZero ? 0 : saturate(dot(lightSample.normal, -wi)) / (t * t);
         surface.SetWi(wi, normal);
 
         // skip backfacing lights
         if(dot(lightSample.normal, -wi) > 0)
         {
-            currTarget = le * BSDF::Unified(surface).f * dwdA;
-                
-            if (dot(currTarget, currTarget) > 0)
+            target = le * BSDF::Unified(surface).f * dwdA;
+            if (dot(target, target) > 0)
             {
-                currTarget *= Visibility_Segment(pos, wi, t, normal, lightID, 
-                    g_bvh, surface.Transmissive());
+                target *= Visibility_Segment(pos, wi, t, normal, lightID, g_bvh, 
+                    surface.Transmissive());
             }
         }
 
         // p_d in m_i's numerator and w_i's denominator cancel out
         const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + 
             numBsdfCandidates * BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) * dwdA, 1e-6f);
-        const float w_i = m_i * Math::Luminance(currTarget);
+        const float w_i = m_i * Math::Luminance(target);
 
         if (r.Update(w_i, le, emissiveIdx, lightSample.bary, rng))
         {
-            target.p_hat = currTarget;
-            target.rayT = t;
-            target.lightID = lightID;
-            target.wi = wi;
-            target.lightNormal = lightSample.normal;
-            target.lightPos = lightSample.pos;
-            target.dwdA = dwdA;
+            r.target = target;
+            r.lightID = lightID;
+            r.lightNormal = lightSample.normal;
+            r.lightPos = lightSample.pos;
+            r.doubleSided = doubleSided;
+            r.rayT = t;
         }
     }
 
-    float targetLum = Math::Luminance(target.p_hat);
+    float targetLum = Math::Luminance(r.target);
     r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
 
     return r;
 }
 
 Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_view, 
-    float roughness, uint sampleSetIdx, BSDF::ShadingData surface, inout Target target, 
-    RNG rng_group, RNG rng_thread)
+    float roughness, uint sampleSetIdx, BSDF::ShadingData surface, RNG rng_group,
+    RNG rng_thread)
 {
     // Light sampling is less effective for glossy surfaces or when light source is close to surface
     const int numBsdfCandidates = EXTRA_BSDF_SAMPLE_HIGHLY_GLOSSY && (roughness > 0.06 && roughness < 0.3) ? 
@@ -184,17 +184,17 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
         1;
 
     Reservoir r = RIS_InitialCandidates(DTid, pos, normal, roughness, surface, sampleSetIdx,
-        numBsdfCandidates, rng_thread, target);
+        numBsdfCandidates, rng_thread);
 
     float2 mv = 0;
     bool temporalValid = false;
     TemporalCandidate temporalCandidate;
 
-    if (g_local.TemporalResampling)
+    if (IS_CB_FLAG_SET(CB_RDI_FLAGS::TEMPORAL_RESAMPLE)) 
     {
         float2 prevUV;
 
-        if(!surface.GlossSpecular() || target.Empty())
+        // if(!surface.GlossSpecular())
         {
             GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
                 GBUFFER_OFFSET::MOTION_VECTOR];
@@ -203,49 +203,30 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
             prevUV = currUV - motionVec;
             mv = motionVec;
         }
-        else
-            prevUV = RDI_Util::VirtualMotionReproject(pos, surface.wo, target.rayT, g_frame.PrevViewProj);
+        // else
+        //     prevUV = RDI_Util::VirtualMotionReproject(pos, surface.wo, r.rayT, g_frame.PrevViewProj);
 
         TemporalCandidate temporalCandidate = FindTemporalCandidate(DTid, pos, 
             normal, z_view, roughness, surface, prevUV, g_frame, rng_thread);
-        temporalValid = temporalCandidate.valid;
 
         if (temporalCandidate.valid)
         {
-            temporalCandidate.lightIdx = PartialReadReservoir_ReuseLightIdx(temporalCandidate.posSS, 
-                g_local.PrevReservoir_B_DescHeapIdx);
-
-            TemporalResample1(pos, normal, roughness, z_view, surface,
-                g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
-                temporalCandidate, g_frame, g_emissives, g_bvh, r, rng_thread, target);
+            TemporalResample1(pos, normal, surface, g_local.PrevReservoir_A_DescHeapIdx, 
+                g_local.PrevReservoir_A_DescHeapIdx + 1, temporalCandidate, g_frame, g_emissives, 
+                g_bvh, g_bvh_prev, r, rng_thread);
         }
 
         // Note: Results are improved when spatial doesn't feed into next frame's 
         // temporal reservoirs. May need to revisit in the future.
-        WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
-            g_local.CurrReservoir_B_DescHeapIdx, g_local.M_max);
-    }
+        r.Write(DTid, g_local.CurrReservoir_A_DescHeapIdx,
+            g_local.CurrReservoir_A_DescHeapIdx + 1, (uint16)g_local.M_max);
 
-    if(g_local.SpatialResampling)
-    {
-        bool disoccluded = false;
-        if(g_local.ExtraSamplesDisocclusion)
+        if(IS_CB_FLAG_SET(CB_RDI_FLAGS::SPATIAL_RESAMPLE))
         {
-            disoccluded = !temporalValid && (dot(mv, mv) > 0);
-            // Skip thin geometry such as grass or fences
-            disoccluded = disoccluded && (WaveActiveSum(disoccluded) > 3);
+            bool disoccluded = !temporalCandidate.valid && (dot(mv, mv) > 0);
+            r.target = disoccluded ? -r.target : r.target;
+            r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
         }
-
-        // Since spatial samples are expensive, take extra samples stochastically
-        // per thread group for better coherency
-        int numSamples = !g_local.StochasticSpatial || (rng_group.Uniform() < PROB_EXTRA_SPATIAL_SAMPLES) ? 
-            MIN_NUM_SPATIAL_SAMPLES + NUM_EXTRA_SPATIAL_SAMPLES : 
-            MIN_NUM_SPATIAL_SAMPLES;
-        numSamples = !disoccluded ? numSamples : MAX_NUM_SPATIAL_SAMPLES;
-
-        RDI_Util::SpatialResample(DTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, normal, z_view, 
-            roughness, surface, g_local.PrevReservoir_A_DescHeapIdx, g_local.PrevReservoir_B_DescHeapIdx, 
-            g_frame, g_emissives, g_bvh, r, target, rng_thread);
     }
 
     return r;
@@ -284,7 +265,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if (flags.invalid)
         return;
 
-    if(flags.emissive)
+    if(flags.emissive && !IS_CB_FLAG_SET(CB_RDI_FLAGS::SPATIAL_RESAMPLE))
     {
         GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::EMISSIVE_COLOR];
@@ -310,7 +291,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::DEPTH];
     const float z_view = g_depth[swizzledDTid];
-    
+
     float2 lensSample = 0;
     float3 origin = g_frame.CameraPos;
     if(g_frame.DoF)
@@ -371,13 +352,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     const uint sampleSetIdx = rng_group.UniformUintBounded_Faster(g_local.NumSampleSets);
 
     RNG rng_thread = RNG::Init(swizzledDTid, g_frame.FrameNum);
-    Target target = Target::Init();
 
     Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, mr.y, 
-        sampleSetIdx, surface, target, rng_group, rng_thread);
+        sampleSetIdx, surface, rng_group, rng_thread);
 
+    if(!IS_CB_FLAG_SET(CB_RDI_FLAGS::SPATIAL_RESAMPLE) || !IS_CB_FLAG_SET(CB_RDI_FLAGS::TEMPORAL_RESAMPLE))
     {
-        float3 li = target.p_hat * r.W;
+        float3 li = r.target * r.W;
         li = any(isnan(li)) ? 0 : li;
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 

@@ -19,8 +19,9 @@ namespace ZetaRay::RenderPass
 {
     enum class DIRECT_SHADER
     {
-        SPATIO_TEMPORAL,
-        SPATIO_TEMPORAL_LIGHT_PRESAMPLING,
+        TEMPORAL,
+        TEMPORAL_LIGHT_PRESAMPLING,
+        SPATIAL,
         COUNT
     };
 
@@ -39,7 +40,8 @@ namespace ZetaRay::RenderPass
         void OnWindowResized();
         void SetLightPresamplingParams(bool enabled, int numSampleSets, int sampleSetSize)
         {
-            Assert(!enabled || (numSampleSets > 0 && sampleSetSize > 0), "Presampling is enabled, but the number of sample sets is zero.");
+            Assert(!enabled || (numSampleSets > 0 && sampleSetSize > 0), 
+                "Presampling is enabled, but the number of sample sets is zero.");
 
             m_preSampling = enabled;
             m_cbSpatioTemporal.NumSampleSets = enabled ? (uint16_t)numSampleSets : 0;
@@ -54,16 +56,17 @@ namespace ZetaRay::RenderPass
 
     private:
         static constexpr int NUM_CBV = 1;
-        static constexpr int NUM_SRV = 5;
+        static constexpr int NUM_SRV = 6;
         static constexpr int NUM_UAV = 0;
-        static constexpr int NUM_GLOBS = 6;
-        static constexpr int NUM_CONSTS = (int)(sizeof(cb_ReSTIR_DI_SpatioTemporal) / sizeof(DWORD));
+        static constexpr int NUM_GLOBS = 7;
+        static constexpr int NUM_CONSTS = (int)(sizeof(cb_ReSTIR_DI) / sizeof(DWORD));
         using SHADER = DIRECT_SHADER;
 
         struct ResourceFormats
         {
             static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_UINT;
-            static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R32G32_UINT;
+            static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R32G32_FLOAT;
+            static constexpr DXGI_FORMAT TARGET = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
 
@@ -79,6 +82,7 @@ namespace ZetaRay::RenderPass
             RESERVOIR_1_A_UAV,
             RESERVOIR_1_B_UAV,
             //
+            TARGET_UAV,
             FINAL_UAV,
             //
             COUNT
@@ -90,8 +94,9 @@ namespace ZetaRay::RenderPass
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
-            "ReSTIR_DI_Emissive_cs.cso",
-            "ReSTIR_DI_Emissive_WPS_cs.cso"
+            "ReSTIR_DI_Temporal_cs.cso",
+            "ReSTIR_DI_Temporal_WPS_cs.cso",
+            "ReSTIR_DI_Spatial_cs.cso"
         };
 
         struct Reservoir
@@ -99,9 +104,11 @@ namespace ZetaRay::RenderPass
             static constexpr int NUM = 2;
 
             // Texture2D<uint4>: ((Li.g << 16 | Li.r), (M << 16 | Li.b), (bary.y << 16 | bary.x), W)
-            Core::GpuMemory::Texture ReservoirA;
+            Core::GpuMemory::Texture A;
             // Texture2D<uint>: (lightIdx)
-            Core::GpuMemory::Texture ReservoirB;
+            Core::GpuMemory::Texture B;
+
+            D3D12_BARRIER_LAYOUT Layout;
         };
 
         void CreateOutputs();
@@ -114,19 +121,20 @@ namespace ZetaRay::RenderPass
         void StochasticSpatialCallback(const Support::ParamVariant& p);
 
         // shader reload
-        void ReloadSpatioTemporal();
+        void ReloadTemporal();
 
         Core::DescriptorTable m_descTable;
-        Reservoir m_temporalReservoir[2];
+        Reservoir m_reservoir[2];
         Core::GpuMemory::ResourceHeap m_resHeap;
+        Core::GpuMemory::Texture m_target;
         Core::GpuMemory::Texture m_final;
 
         int m_currTemporalIdx = 0;
         bool m_isTemporalReservoirValid = false;
-        bool m_doTemporalResampling = true;
-        bool m_doSpatialResampling = true;
+        bool m_temporalResampling = true;
+        bool m_spatialResampling = true;
         bool m_preSampling = false;
 
-        cb_ReSTIR_DI_SpatioTemporal m_cbSpatioTemporal;
+        cb_ReSTIR_DI m_cbSpatioTemporal;
     };
 }

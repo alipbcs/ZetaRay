@@ -15,7 +15,6 @@ namespace RDI_Util
         {
             TemporalCandidate ret;
             ret.valid = false;
-            ret.lightIdx = UINT32_MAX;
         
             return ret;
         }
@@ -24,7 +23,6 @@ namespace RDI_Util
         float3 pos;
         float3 normal;
         int16_t2 posSS;
-        uint lightIdx;
         bool valid;
     };
 
@@ -79,7 +77,7 @@ namespace RDI_Util
             g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
             g_frame.DoF, prevLensSample, g_frame.FocusDepth, prevOrigin);
 
-        if(!RDI_Util::PlaneHeuristic(prevPos, normal, pos, prevViewDepth, 0.01))
+        if(!RDI_Util::PlaneHeuristic(prevPos, normal, pos, prevViewDepth, MAX_PLANE_DIST_REUSE))
             return candidate;
 
         GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
@@ -133,141 +131,144 @@ namespace RDI_Util
         return candidate;
     }
 
-    float TargetLumAtTemporalPixel(float3 le, float3 lightPos, float3 lightNormal, uint lightID, 
-        TemporalCandidate candidate, ConstantBuffer<cbFrameConstants> g_frame,
-        RaytracingAccelerationStructure g_bvh)
+    float TargetLumAtTemporalPixel(Reservoir r_curr, TemporalCandidate candidate, 
+        RaytracingAccelerationStructure g_bvh_prev)
     {
-        const float t = length(lightPos - candidate.pos);
-        const float3 wi = (lightPos - candidate.pos) / t;
+        float3 wi = r_curr.lightPos - candidate.pos;
+        const bool isZero = dot(wi, wi) == 0;
+        const float t = isZero ? 0 : length(wi);
+        wi = isZero ? wi : wi / t;
         candidate.surface.SetWi(wi, candidate.normal);
 
+        float3 lightNormal = r_curr.lightNormal;
+        if(r_curr.doubleSided && dot(-wi, lightNormal) < 0)
+            lightNormal *= -1;
+
         float cosThetaPrime = saturate(dot(lightNormal, -wi));
-        cosThetaPrime = dot(lightNormal, lightNormal) == 0 ? 1 : cosThetaPrime;
-        const float dwdA = cosThetaPrime / max(t * t, 1e-6f);
+        const float dwdA = isZero ? 0 : cosThetaPrime / (t * t);
 
-        const float3 targetAtPrev = le * BSDF::Unified(candidate.surface).f * dwdA;
-        float targetLumAtPrev = Math::Luminance(targetAtPrev);
+        const float3 target_prev = r_curr.le * BSDF::Unified(candidate.surface).f * dwdA;
+        float targetLum_prev = Math::Luminance(target_prev);
 
-        // should use previous frame's bvh
-        targetLumAtPrev *= RtRayQuery::Visibility_Segment(candidate.pos, wi, t, candidate.normal, 
-            lightID, g_bvh, candidate.surface.Transmissive());
-
-        return targetLumAtPrev;
-    }
-
-    float3 TargetAtCurrentPixel(float3 le, float3 pos, float3 normal, BSDF::ShadingData surface, 
-        RaytracingAccelerationStructure g_bvh, inout EmissiveData prevEmissive, out float dwdA)
-    {
-        prevEmissive.SetSurfacePos(pos);
-        dwdA = prevEmissive.dWdA();
-
-        surface.SetWi(prevEmissive.wi, normal);
-        float3 target = le * BSDF::Unified(surface).f * dwdA;
-        if(dot(target, target) > 0)
+        if(targetLum_prev > 0)
         {
-            target *= RtRayQuery::Visibility_Segment(pos, prevEmissive.wi, prevEmissive.t, normal, 
-                prevEmissive.ID, g_bvh, surface.Transmissive());
+            targetLum_prev *= RtRayQuery::Visibility_Segment(candidate.pos, wi, t, candidate.normal, 
+                r_curr.lightID, g_bvh_prev, candidate.surface.Transmissive());
         }
 
-        return target;
+        return targetLum_prev;
     }
 
-    void TemporalResample1(float3 pos, float3 normal, float roughness, float z_view, 
-        BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, 
+    void TemporalResample1(float3 pos, float3 normal, BSDF::ShadingData surface, 
+        uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, 
         TemporalCandidate candidate, ConstantBuffer<cbFrameConstants> g_frame, 
         StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
-        RaytracingAccelerationStructure g_bvh, inout Reservoir r, inout RNG rng, 
-        inout Target target)
+        RaytracingAccelerationStructure g_bvh, RaytracingAccelerationStructure g_bvh_prev,
+        inout Reservoir r_curr, inout RNG rng)
     {
-        const half prevM = PartialReadReservoir_M(candidate.posSS, prevReservoir_A_DescHeapIdx);
-        const half newM = r.M + prevM;
+        Reservoir r_prev = Reservoir::Load(candidate.posSS,
+            prevReservoir_A_DescHeapIdx, prevReservoir_B_DescHeapIdx);
+        const uint16 newM = r_curr.M + r_prev.M;
 
-        if(r.w_sum != 0)
+        // Shift from current pixel to temporal
+        if(r_curr.w_sum != 0)
         {
-            float targetLumAtPrev = 0.0f;
+            float targetLum_prev = TargetLumAtTemporalPixel(r_curr, candidate, g_bvh_prev);
 
-            if(dot(r.Le, r.Le) > 0)
-            {
-                targetLumAtPrev = TargetLumAtTemporalPixel(r.Le, target.lightPos, 
-                    target.lightNormal, target.lightID, candidate, g_frame, g_bvh);
-            }
-
-            const float p_curr = (float)r.M * Math::Luminance(target.p_hat);
-            const float denom = p_curr + (float)prevM * targetLumAtPrev;
+            const float p_curr = r_curr.M * Math::Luminance(r_curr.target);
+            const float denom = p_curr + r_prev.M * targetLum_prev;
             const float m_curr = denom > 0 ? p_curr / denom : 0;
-            r.w_sum *= m_curr;
+            r_curr.w_sum *= m_curr;
         }
 
-        if(candidate.lightIdx != UINT32_MAX)
+        // Shift from temporal to current
+        if(r_prev.lightIdx != UINT32_MAX)
         {
-            Reservoir prev = PartialReadReservoir_ReuseRest(candidate.posSS,
-                prevReservoir_A_DescHeapIdx, 
-                candidate.lightIdx);
+            EmissiveData prevEmissive = EmissiveData::Init(r_prev.lightIdx, r_prev.bary, g_emissives);
+            prevEmissive.SetSurfacePos(pos);
+            float dwdA = prevEmissive.dWdA();
 
-            // compute target at current pixel with previous reservoir's sample
-            EmissiveData prevEmissive = EmissiveData::Init(prev, g_emissives);
-            float dwdA;
-            const float3 currTarget = TargetAtCurrentPixel(prev.Le, pos, normal, surface, 
-                g_bvh, prevEmissive, dwdA);
-            const float targetLumAtCurr = Math::Luminance(currTarget);
+            surface.SetWi(prevEmissive.wi, normal);
+            float3 target_curr = r_prev.le * BSDF::Unified(surface).f * dwdA;
 
-            // w_prev becomes zero; then only M needs to be updated, which is done at the end anyway
-            if(targetLumAtCurr > 0)
+            if(dot(target_curr, target_curr) > 0)
             {
-                const float w_sum_prev = PartialReadReservoir_WSum(candidate.posSS, prevReservoir_B_DescHeapIdx);
-                const float targetLumAtPrev = prev.W > 0 ? w_sum_prev / prev.W : 0;
-                // balance heuristic
-                const float p_prev = (float)prev.M * targetLumAtPrev;
-                const float denom = p_prev + (float)r.M * targetLumAtCurr;
-                const float m_prev = denom > 0 ? p_prev / denom : 0;
-                const float w_prev = m_prev * targetLumAtCurr * prev.W;
+                target_curr *= RtRayQuery::Visibility_Segment(pos, prevEmissive.wi, prevEmissive.t, normal, 
+                    prevEmissive.ID, g_bvh, surface.Transmissive());
+            }
 
-                if(r.Update(w_prev, prev.Le, prev.LightIdx, prev.Bary, rng))
-                {
-                    target.p_hat = currTarget;
-                    target.rayT = prevEmissive.t;
-                    target.lightID = prevEmissive.ID;
-                    target.wi = prevEmissive.wi;
-                    target.lightNormal = prevEmissive.lightNormal;
-                    target.lightPos = prevEmissive.lightPos;
-                    target.dwdA = dwdA;
-                }
+            const float targetLum_curr = Math::Luminance(target_curr);
+
+            // w_prev becomes zero and only M needs to be updated, which is done at the end anyway
+            if(targetLum_curr > 0)
+            {
+                const float targetLum_prev = r_prev.W > 0 ? r_prev.w_sum / r_prev.W : 0;
+                // Balance Heuristic
+                const float numerator = r_prev.M * targetLum_prev;
+                const float denom = numerator + r_curr.M * targetLum_curr;
+                const float m_prev = denom > 0 ? numerator / denom : 0;
+                const float w_prev = m_prev * targetLum_curr * r_prev.W;
+
+                if(r_curr.Update(w_prev, r_prev.le, r_prev.lightIdx, r_prev.bary, rng))
+                    r_curr.target = target_curr;
             }
         }
 
-        float targetLum = Math::Luminance(target.p_hat);
-        r.W = targetLum > 0.0 ? r.w_sum / targetLum : 0.0;
-        r.M = newM;
+        float targetLum = Math::Luminance(r_curr.target);
+        r_curr.W = targetLum > 0.0 ? r_curr.w_sum / targetLum : 0.0;
+        r_curr.M = newM;
     }
 
     void SpatialResample(uint2 DTid, int numSamples, float radius, float3 pos, float3 normal, 
-        float z_view, float roughness, BSDF::ShadingData surface, uint prevReservoir_A_DescHeapIdx, 
-        uint prevReservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, 
+        float z_view, float roughness, BSDF::ShadingData surface, uint reservoir_A_DescHeapIdx, 
+        uint reservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, 
         StructuredBuffer<RT::EmissiveTriangle> g_emissives, RaytracingAccelerationStructure g_bvh, 
-        inout Reservoir r, inout Target target, inout RNG rng)
+        inout Reservoir r, inout RNG rng)
     {
-        static const half2 k_hammersley[8] =
+        static const half2 k_samples[32] =
         {
-            half2(0.0, -0.7777777777777778),
-            half2(-0.5, -0.5555555555555556),
-            half2(0.5, -0.33333333333333337),
-            half2(-0.75, -0.11111111111111116),
-            half2(0.25, 0.11111111111111116),
-            half2(-0.25, 0.33333333333333326),
-            half2(0.75, 0.5555555555555556),
-            half2(-0.875, 0.7777777777777777)
+            half2(0.620442, 0.900394),
+            half2(0.444621, 0.939978),
+            half2(0.455839, 0.748007),
+            half2(0.764451, 0.802669),
+            half2(0.670828, 0.696273),
+            half2(0.222218, 0.77409),
+            half2(0.50221, 0.525416),
+            half2(0.362746, 0.651879),
+            half2(0.629943, 0.519856),
+            half2(0.572175, 0.370443),
+            half2(0.347296, 0.420629),
+            half2(0.284706, 0.54219),
+            half2(0.127776, 0.611066),
+            half2(0.882008, 0.65589),
+            half2(0.778418, 0.515129),
+            half2(0.210426, 0.218347),
+            half2(0.0992503, 0.412867),
+            half2(0.334951, 0.269779),
+            half2(0.490129, 0.225641),
+            half2(0.675389, 0.149382),
+            half2(0.803938, 0.345802),
+            half2(0.979837, 0.401849),
+            half2(0.984763, 0.574738),
+            half2(0.218297, 0.355557),
+            half2(0.367467, 0.0574971),
+            half2(0.567781, 0.0132011),
+            half2(0.814379, 0.183564),
+            half2(0.00541991, 0.531187),
+            half2(0.924393, 0.261443),
+            half2(0.287806, 0.952222),
+            half2(0.679866, 0.288912),
+            half2(0.341006, 0.827133)
         };
 
-        GBUFFER_NORMAL g_prevNormal = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_NORMAL g_normal = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
             GBUFFER_OFFSET::NORMAL];
-        GBUFFER_DEPTH g_prevDepth = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset + 
+        GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
             GBUFFER_OFFSET::DEPTH];
-        GBUFFER_METALLIC_ROUGHNESS g_prevMR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_METALLIC_ROUGHNESS g_mr = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::METALLIC_ROUGHNESS];
-        GBUFFER_BASE_COLOR g_prevBaseColor = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+        GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
             GBUFFER_OFFSET::BASE_COLOR];
-        GBUFFER_IOR g_prevIOR = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
-            GBUFFER_OFFSET::IOR];
 
         // rotate sample sequence per pixel
         const float u0 = rng.Uniform();
@@ -282,20 +283,17 @@ namespace RDI_Util
         float3 samplePos[MAX_NUM_SPATIAL_SAMPLES];
         float3 sampleOrigin[MAX_NUM_SPATIAL_SAMPLES];
         int16_t2 samplePosSS[MAX_NUM_SPATIAL_SAMPLES];
-        uint sampleLightIdx[MAX_NUM_SPATIAL_SAMPLES];
         bool sampleMetallic[MAX_NUM_SPATIAL_SAMPLES];
         float sampleRoughness[MAX_NUM_SPATIAL_SAMPLES];
         bool sampleTr[MAX_NUM_SPATIAL_SAMPLES];
         bool sampleSubsurf[MAX_NUM_SPATIAL_SAMPLES];
         bool sampleCoated[MAX_NUM_SPATIAL_SAMPLES];
         uint16_t k = 0;
-        const float3 prevCameraPos = float3(g_frame.PrevViewInv._m03, g_frame.PrevViewInv._m13, 
-            g_frame.PrevViewInv._m23);
 
         [loop]
         for (int i = 0; i < numSamples; i++)
         {
-            float2 sampleUV = k_hammersley[(offset + i) & 7];
+            float2 sampleUV = k_samples[(offset + i) & 31];
             float2 rotated;
             rotated.x = dot(sampleUV, float2(cosTheta, -sinTheta));
             rotated.y = dot(sampleUV, float2(sinTheta, cosTheta));
@@ -304,25 +302,25 @@ namespace RDI_Util
 
             if (Math::IsWithinBounds(posSS_i, renderDim))
             {
-                const float2 mr_i = g_prevMR[posSS_i];
+                const float2 mr_i = g_mr[posSS_i];
                 GBuffer::Flags flags_i = GBuffer::DecodeMetallic(mr_i.x);
 
                 if(flags_i.invalid || flags_i.emissive)
                     continue;
 
-                const float depth_i = g_prevDepth[posSS_i];
+                const float depth_i = g_depth[posSS_i];
                 float2 lensSample = 0;
-                float3 origin_i = prevCameraPos;
+                float3 origin_i = g_frame.CameraPos;
                 if(g_frame.DoF)
                 {
-                    RNG rngDoF = RNG::Init(RNG::PCG3d(posSS_i.xyx).zy, g_frame.FrameNum - 1);
+                    RNG rngDoF = RNG::Init(RNG::PCG3d(posSS_i.xyx).zy, g_frame.FrameNum);
                     lensSample = Sampling::UniformSampleDiskConcentric(rngDoF.Uniform2D());
                     lensSample *= g_frame.LensRadius;
                 }
 
                 float3 pos_i = Math::WorldPosFromScreenSpace2(posSS_i, renderDim, depth_i, 
-                    g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.PrevCameraJitter, 
-                    g_frame.PrevView[0].xyz, g_frame.PrevView[1].xyz, g_frame.PrevView[2].xyz, 
+                    g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrCameraJitter, 
+                    g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, g_frame.CurrView[2].xyz, 
                     g_frame.DoF, lensSample, g_frame.FocusDepth, origin_i);
 
                 bool valid = PlaneHeuristic(pos_i, normal, pos, z_view);
@@ -331,12 +329,9 @@ namespace RDI_Util
                 if (!valid)
                     continue;
 
-                const uint lightIdx_i = PartialReadReservoir_ReuseLightIdx(posSS_i, prevReservoir_B_DescHeapIdx);
-
                 samplePos[k] = pos_i;
                 sampleOrigin[k] = origin_i;
                 samplePosSS[k] = (int16_t2)posSS_i;
-                sampleLightIdx[k] = lightIdx_i;
                 sampleMetallic[k] = flags_i.metallic;
                 sampleRoughness[k] = mr_i.y;
                 sampleTr[k] = flags_i.transmissive;
@@ -351,15 +346,18 @@ namespace RDI_Util
 
         for (int i = 0; i < k; i++)
         {
-            const float3 sampleNormal = Math::DecodeUnitVector(g_prevNormal[samplePosSS[i]]);
-            const float4 sampleBaseColor = sampleSubsurf[i] ? g_prevBaseColor[samplePosSS[i]] :
-                float4(g_prevBaseColor[samplePosSS[i]].rgb, 0);
+            const float3 sampleNormal = Math::DecodeUnitVector(g_normal[samplePosSS[i]]);
+            const float4 sampleBaseColor = sampleSubsurf[i] ? g_baseColor[samplePosSS[i]] :
+                float4(g_baseColor[samplePosSS[i]].rgb, 0);
 
             float sampleEta_next = DEFAULT_ETA_MAT;
 
             if(sampleTr[i])
             {
-                float ior = g_prevIOR[samplePosSS[i]];
+                GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+                    GBUFFER_OFFSET::IOR];
+
+                float ior = g_ior[samplePosSS[i]];
                 sampleEta_next = GBuffer::DecodeIOR(ior);
             }
 
@@ -370,7 +368,7 @@ namespace RDI_Util
 
             if(sampleCoated[i])
             {
-                GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.PrevGBufferDescHeapOffset +
+                GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
                     GBUFFER_OFFSET::COAT];
                 uint3 packed = g_coat[samplePosSS[i]].xyz;
 
@@ -387,17 +385,14 @@ namespace RDI_Util
                 sampleEta_next, sampleTr[i], false, (half)sampleBaseColor.w, sample_coat_weight, 
                 sample_coat_color, sample_coat_roughness, sample_coat_ior);
 
-            Reservoir neighbor = PartialReadReservoir_ReuseRest(samplePosSS[i],
-                prevReservoir_A_DescHeapIdx,
-                sampleLightIdx[i]);
+            Reservoir r_spatial = Reservoir::Load(samplePosSS[i], reservoir_A_DescHeapIdx, 
+                reservoir_B_DescHeapIdx);
 
-            const float neighborWSum = PartialReadReservoir_WSum(samplePosSS[i], prevReservoir_B_DescHeapIdx);
-
-            pairwiseMIS.Stream(r, pos, normal, surface, neighbor, samplePos[i], sampleNormal, 
-                neighborWSum, surface_i, g_emissives, g_bvh, target, rng);
+            pairwiseMIS.Stream(r, pos, normal, surface, r_spatial, samplePos[i], sampleNormal, 
+                surface_i, g_emissives, g_bvh, rng);
         }
 
-        pairwiseMIS.End(r, target, rng);
+        pairwiseMIS.End(r, rng);
         r = pairwiseMIS.r_s;
     }
 }
