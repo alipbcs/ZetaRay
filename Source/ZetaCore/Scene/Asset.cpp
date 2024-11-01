@@ -304,8 +304,8 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& instances,
     HashTable<uint32, uint64, App::FrameAllocator> idToIdxMap;
     idToIdxMap.resize(instances.size(), true);
 
-    for (int i = 0; i < (int)instances.size(); i++)
-        idToIdxMap[instances[i].InstanceID] = i;
+    for (size_t i = 0; i < instances.size(); i++)
+        idToIdxMap[instances[i].InstanceID] = (uint32)i;
 
     // Sort by material - this makes updates simpler and faster
     std::sort(m_instances.begin(), m_instances.end(),
@@ -315,10 +315,11 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& instances,
         });
 
     m_trisCpu.resize(tris.size());
+    m_triInitialPos.resize(tris.size());
     uint32_t currNumTris = 0;
 
     // Shuffle triangles according to new sorted order
-    for (int i = 0; i < (int)m_instances.size(); i++)
+    for (size_t i = 0; i < m_instances.size(); i++)
     {
         const uint64_t currID = m_instances[i].InstanceID;
         const uint32_t idx = *idToIdxMap.find(currID).value();
@@ -331,8 +332,8 @@ void EmissiveBuffer::AddBatch(SmallVector<Asset::EmissiveInstance>&& instances,
         currNumTris += instances[idx].NumTriangles;
     }
 
-    for (int i = 0; i < (int)m_instances.size(); i++)
-        m_idToIdxMap[m_instances[i].InstanceID] = i;
+    for (size_t i = 0; i < m_instances.size(); i++)
+        m_idToIdxMap[m_instances[i].InstanceID] = (uint32)i;
 
     timer.End();
     LOG_UI_INFO("Emissive buffers processed in %u [us].", (uint32_t)timer.DeltaMicro());
@@ -375,7 +376,7 @@ void EmissiveBuffer::Clear()
     m_trisGpu.Reset(false);
 }
 
-void EmissiveBuffer::Update(uint64_t instanceID, const float3& emissiveFactor, float strength)
+void EmissiveBuffer::UpdateMaterial(uint64_t instanceID, const float3& emissiveFactor, float strength)
 {
     auto& instance = *FindInstance(instanceID).value();
     const int modifiedMatIdx = instance.MaterialIdx;
@@ -404,4 +405,12 @@ void EmissiveBuffer::Update(uint64_t instanceID, const float3& emissiveFactor, f
         m_staleNumTris += m_instances[idx].NumTriangles;
         idx++;
     } 
+}
+
+void EmissiveBuffer::UpdateTriPositions(size_t startIdx, size_t endIdx)
+{
+    Assert(endIdx <= m_trisCpu.size(), "Invalid index.");
+
+    m_staleBaseOffset = (uint32)startIdx;
+    m_staleNumTris = (uint32)(endIdx - startIdx);
 }

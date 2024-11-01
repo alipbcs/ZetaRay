@@ -127,7 +127,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
                 Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
         }
 
-        if (App::GetScene().AreEmissivesStale())
+        if (App::GetScene().AreEmissiveMaterialsStale())
         {
             auto& readback = data.PreLightingPass.GetLumenReadbackBuffer();
             data.EmissiveAliasTable.Update(&readback);
@@ -190,7 +190,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
             RENDER_NODE_TYPE::COMPUTE, dlg1);
 
         // Read back emissive lumen buffer and compute alias table on CPU
-        if (App::GetScene().AreEmissivesStale())
+        if (App::GetScene().AreEmissiveMaterialsStale())
         {
             auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
             renderGraph.RegisterResource(const_cast<Buffer&>(triLumenBuff).Resource(), 
@@ -360,7 +360,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
     if (numEmissives)
     {
         // Pre lighting
-        if (App::GetScene().AreEmissivesStale())
+        if (App::GetScene().AreEmissiveMaterialsStale())
         {
             const auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
 
@@ -397,7 +397,8 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         if (tlasReady)
         {
             // Lighting passes should run after alias table when it's recomputed
-            if (!settings.LightPresampling && (App::GetScene().AreEmissivesStale() || data.EmissiveAliasTable.HasPendingRender()))
+            if (!settings.LightPresampling && 
+                (App::GetScene().AreEmissiveMaterialsStale() || data.EmissiveAliasTable.HasPendingRender()))
             {
                 const uint32_t aliasTable = data.EmissiveAliasTable.GetOutput(
                     EmissiveTriangleAliasTable::SHADER_OUT_RES::ALIAS_TABLE).ID();

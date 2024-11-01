@@ -54,7 +54,7 @@ namespace
                 auto& fp = param.GetFloat();
                 float v = fp.m_value;
 
-                auto flags = (int)ImGuiSliderFlags_NoInput;
+                auto flags = (int)ImGuiSliderFlags_None;
                 //if ((fp.m_max - fp.m_min) / Math::Max(fp.m_min, 1e-6f) >= 1000.0f)
                 if (fp.m_stepSize <= 1e-3f)
                     flags |= ImGuiSliderFlags_Logarithmic;
@@ -135,7 +135,7 @@ namespace
         constexpr float arrowLenX = 0.25f;
         constexpr float arrowLenY = 0.25f;
 
-        // rotate and plit
+        // rotate and plot
         auto func = [&](const float3& color)
             {
                 float2 rotMatCol1 = float2(xAxis.x, xAxis.z);
@@ -397,36 +397,6 @@ void GuiPass::UpdateBuffers()
     }
 }
 
-void GuiPass::RenderUI()
-{
-    ImGuizmo::BeginFrame();
-
-    SceneCore& scene = App::GetScene();
-    const uint64_t pickedID = App::GetScene().GetPickedInstance();
-
-    if (!m_hideUI)
-    {
-        TriangleMesh instanceMesh;
-        float4x4a W;
-
-        if (pickedID != Scene::INVALID_INSTANCE)
-        {
-            W = float4x4a(scene.GetToWorld(pickedID));
-            instanceMesh = *scene.GetInstanceMesh(pickedID).value();
-
-            RenderGizmo(pickedID, instanceMesh, W);
-        }
-
-        RenderSettings(pickedID, instanceMesh, W);
-        RenderMainHeader();        
-    }
-
-    RenderToolbar(pickedID);
-
-    m_firstTime = false;
-    m_appWndSizeChanged = false;
-}
-
 void GuiPass::Render(CommandList& cmdList)
 {
     Assert(cmdList.GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast");
@@ -547,6 +517,152 @@ void GuiPass::Render(CommandList& cmdList)
     directCmdList.PIXEndEvent();
 }
 
+void GuiPass::RenderUI()
+{
+    ImGuizmo::BeginFrame();
+
+    SceneCore& scene = App::GetScene();
+    const uint64_t pickedID = App::GetScene().GetPickedInstance();
+
+    RenderToolbar(pickedID);
+
+    if (!m_hideUI)
+    {
+        TriangleMesh instanceMesh;
+        float4x4a W;
+
+        if (pickedID != Scene::INVALID_INSTANCE)
+        {
+            W = float4x4a(scene.GetToWorld(pickedID));
+            instanceMesh = *scene.GetInstanceMesh(pickedID).value();
+
+            if (m_gizmoActive)
+                RenderGizmo(pickedID, instanceMesh, W);
+        }
+
+        RenderSettings(pickedID, instanceMesh, W);
+        RenderMainHeader();
+    }
+
+    m_firstTime = false;
+    m_appWndSizeChanged = false;
+}
+
+void GuiPass::RenderToolbar(uint64_t pickedID)
+{
+    ImGuiStyle& style = ImGui::GetStyle();
+    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
+        ImVec4(0.09521219013259, 0.09521219013259, 0.09521219013259, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
+        ImVec4(0.0630100295, 0.168269396, 0.45078584552, 1.0f));
+    ImGui::PushStyleColor(ImGuiCol_Button,
+        ImVec4(0.039556837, 0.039556837, 0.039556837, 0.87f));
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
+    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
+
+    ImGui::SetNextWindowPos(ImVec2((float)5.0f, m_headerWndHeight + 10.0f), ImGuiCond_Always);
+    ImGui::SetNextWindowSize(ImVec2(60.0f, 250.0f), ImGuiCond_Always);
+
+    ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
+        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
+
+    ImGui::PopStyleVar();
+
+    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
+
+    if (!m_hideUI)
+    {
+        const bool wasGizmoActive = m_gizmoActive;
+
+        if (!wasGizmoActive)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_ARROW_POINTER "##65", ImVec2(40.0f, 40.0f)))
+            m_gizmoActive = !m_gizmoActive;
+        ImGui::SetItemTooltip("Select");
+
+        if (!wasGizmoActive)
+            ImGui::PopStyleColor();
+
+        const bool isTranslation = m_gizmoActive && (m_currGizmoOperation == ImGuizmo::OPERATION::TRANSLATE);
+        const bool isRotation = m_gizmoActive && (m_currGizmoOperation == ImGuizmo::OPERATION::ROTATE);
+        const bool isScale = m_gizmoActive && (m_currGizmoOperation == ImGuizmo::OPERATION::SCALE);
+
+        if (isTranslation)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_UP_DOWN_LEFT_RIGHT "##3", ImVec2(40.0f, 40.0f)))
+        {
+            m_currGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
+            m_gizmoActive = true;
+        }
+        ImGui::SetItemTooltip("Move (G)");
+
+        if (isTranslation)
+            ImGui::PopStyleColor();
+
+        if (isRotation)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        if (ImGui::Button(ICON_FA_ARROWS_ROTATE "##4", ImVec2(40.0f, 40.0f)))
+        {
+            m_currGizmoOperation = ImGuizmo::OPERATION::ROTATE;
+            m_gizmoActive = true;
+        }
+        ImGui::SetItemTooltip("Rotate (R)");
+
+        if (isRotation)
+            ImGui::PopStyleColor();
+
+        if (isScale)
+            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
+
+        ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 2));
+
+        if (ImGui::Button(ICON_FA_ARROW_UP_RIGHT_FROM_SQUARE "##5", ImVec2(40.0f, 40.0f)))
+        {
+            m_currGizmoOperation = ImGuizmo::OPERATION::SCALE;
+            m_gizmoActive = true;
+        }
+        ImGui::SetItemTooltip("Scale (S)");
+
+        if (isScale)
+            ImGui::PopStyleColor();
+
+        ImGui::PopStyleVar();
+
+        if (ImGui::IsKeyPressed(ImGuiKey_G))
+        {
+            m_currGizmoOperation = ImGuizmo::TRANSLATE;
+            m_gizmoActive = true;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_R))
+        {
+            m_currGizmoOperation = ImGuizmo::ROTATE;
+            m_gizmoActive = true;
+        }
+        if (ImGui::IsKeyPressed(ImGuiKey_C))
+        {
+            m_currGizmoOperation = ImGuizmo::SCALE;
+            m_gizmoActive = true;
+        }
+    }
+
+    const char* icon = !m_hideUI ? ICON_FA_TOGGLE_ON "##1" : ICON_FA_TOGGLE_OFF "##1";
+    if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)))
+        m_hideUI = !m_hideUI;
+    ImGui::SetItemTooltip("Show/Hide UI");
+
+    if (ImGui::Button(ICON_FA_CAMERA_RETRO "##2", ImVec2(40.0f, 40.0f)))
+        App::GetScene().CaptureScreen();
+    ImGui::SetItemTooltip("Take Screenshot");
+
+    ImGui::PopStyleColor(3);
+    ImGui::PopStyleVar(2);
+
+    ImGui::End();
+}
+
 void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const float4x4a& W)
 { 
     const int displayWidth = App::GetRenderer().GetDisplayWidth();
@@ -634,7 +750,6 @@ void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const fl
 
 void GuiPass::RenderProfiler()
 {
-    auto& renderer = App::GetRenderer();
     auto& timer = App::GetTimer();
 
     if (ImGui::CollapsingHeader(ICON_FA_CHART_LINE "  Stats", ImGuiTreeNodeFlags_None))
@@ -867,83 +982,6 @@ void GuiPass::RenderMainHeader()
     ImGui::End();
 }
 
-void GuiPass::RenderToolbar(uint64_t pickedID)
-{
-    ImGuiStyle& style = ImGui::GetStyle();
-    ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-        ImVec4(0.09521219013259, 0.09521219013259, 0.09521219013259, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-        ImVec4(0.0630100295, 0.168269396, 0.45078584552, 1.0f));
-    ImGui::PushStyleColor(ImGuiCol_Button,
-        ImVec4(0.039556837, 0.039556837, 0.039556837, 0.87f));
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
-    ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
-
-    ImGui::SetNextWindowPos(ImVec2((float)5.0f, m_headerWndHeight + 10.0f), ImGuiCond_Always);
-    ImGui::SetNextWindowSize(ImVec2(60.0f, 220.0f), ImGuiCond_Always);
-
-    ImGui::Begin("Toolbar", nullptr, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoTitleBar |
-        ImGuiWindowFlags_NoScrollbar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoBackground);
-
-    ImGui::PopStyleVar();
-    
-    const char* icon = !m_hideUI ? ICON_FA_TOGGLE_ON "##1" : ICON_FA_TOGGLE_OFF "##1";
-    if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)))
-        m_hideUI = !m_hideUI;
-    ImGui::SetItemTooltip("Show/Hide UI");
-
-    ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 2));
-
-    if (ImGui::Button(ICON_FA_CAMERA_RETRO "##2", ImVec2(40.0f, 40.0f)))
-        App::GetScene().CaptureScreen();
-    ImGui::SetItemTooltip("Take Screenshot");
-
-    ImGui::PopStyleVar();
-
-    if (!m_hideUI)
-    {
-        const bool hasPick = pickedID != Scene::INVALID_INSTANCE;
-        const bool wasTranslation = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::TRANSLATE);
-        const bool wasRotation = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::ROTATE);
-        const bool wasScale = hasPick && (m_currGizmoOperation == ImGuizmo::OPERATION::SCALE);
-
-        if (wasTranslation)
-            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
-
-        if (ImGui::Button(ICON_FA_UP_DOWN_LEFT_RIGHT "##3", ImVec2(40.0f, 40.0f)))
-            m_currGizmoOperation = ImGuizmo::OPERATION::TRANSLATE;
-        ImGui::SetItemTooltip("Move (G)");
-
-        if (wasTranslation)
-            ImGui::PopStyleColor();
-
-        if (wasRotation)
-            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
-
-        if (ImGui::Button(ICON_FA_ARROWS_ROTATE "##4", ImVec2(40.0f, 40.0f)))
-            m_currGizmoOperation = ImGuizmo::OPERATION::ROTATE;
-        ImGui::SetItemTooltip("Rotate (R)");
-
-        if (wasRotation)
-            ImGui::PopStyleColor();
-
-        if (wasScale)
-            ImGui::PushStyleColor(ImGuiCol_Button, style.Colors[ImGuiCol_ButtonActive]);
-
-        if (ImGui::Button(ICON_FA_ARROW_UP_RIGHT_FROM_SQUARE "##5", ImVec2(40.0f, 40.0f)))
-            m_currGizmoOperation = ImGuizmo::OPERATION::SCALE;
-        ImGui::SetItemTooltip("Scale (S)");
-
-        if (wasScale)
-            ImGui::PopStyleColor();
-    }
-
-    ImGui::PopStyleColor(3);
-    ImGui::PopStyleVar();
-
-    ImGui::End();
-}
-
 void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const float4x4a& W)
 {
     if (!ImGuizmo::IsUsingAny())
@@ -969,13 +1007,6 @@ void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const flo
     ImGuiIO& io = ImGui::GetIO();
     ImGuizmo::SetRect(0, 0, io.DisplaySize.x, io.DisplaySize.y);
 
-    if (ImGui::IsKeyPressed(ImGuiKey_G))
-        m_currGizmoOperation = ImGuizmo::TRANSLATE;
-    if (ImGui::IsKeyPressed(ImGuiKey_R))
-        m_currGizmoOperation = ImGuizmo::ROTATE;
-    if (ImGui::IsKeyPressed(ImGuiKey_C))
-        m_currGizmoOperation = ImGuizmo::SCALE;
-
     float3 dt;
     float4x4a dr;
     float3 ds;
@@ -990,10 +1021,16 @@ void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const flo
 void GuiPass::InfoTab()
 {
     auto& renderer = App::GetRenderer();
-    ImGui::Text(" - Device: %s", renderer.GetDeviceDescription());
-    ImGui::Text(" - Render Resolution: %d x %d", renderer.GetRenderWidth(), 
+    ImGui::Text(" - Device:");
+    ImGui::SameLine(160);
+    ImGui::Text("%s", renderer.GetDeviceDescription());
+    ImGui::Text(" - Render Resolution:");
+    ImGui::SameLine(160);
+    ImGui::Text("%d x %d", renderer.GetRenderWidth(), 
         renderer.GetRenderHeight());
-    ImGui::Text(" - Display Resolution: %d x %d (%u DPI)", renderer.GetDisplayWidth(), 
+    ImGui::Text(" - Display Resolution:");
+    ImGui::SameLine(160);
+    ImGui::Text("%d x %d (%u DPI)", renderer.GetDisplayWidth(), 
         renderer.GetDisplayHeight(), App::GetDPI());
     ImGui::Text("");
     ImGui::Text(" - Controls:");
@@ -1270,8 +1307,8 @@ void GuiPass::ShaderReloadTab()
 void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, const float4x4a& W)
 {
     // Instance info
+    if (ImGui::TreeNodeEx("Info", ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
-        ImGui::SeparatorText("Info");
         ImGui::Text(" - ID:");
         ImGui::SameLine(120);
         ImGui::Text("%llu", pickedID);
@@ -1287,181 +1324,215 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
         ImGui::Text("");
     }
 
-    ImGui::SeparatorText("Transformation");
-
-    const bool isLocal = m_transform == TRANSFORMATION::LOCAL;
-    auto& scene = App::GetScene();
     bool modified = false;
+    auto& scene = App::GetScene();
     AffineTransformation prevTr = AffineTransformation::GetIdentity();
     AffineTransformation newTr = AffineTransformation::GetIdentity();
 
-    if (isLocal)
+    if (ImGui::TreeNodeEx("Transformation", ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
-        prevTr = scene.GetLocalTransform(pickedID);
-        newTr = prevTr;
-    }
-    else
-    {
-        v_float4x4 vW = load4x4(W);
+        const bool isLocal = m_transform == TRANSFORMATION::LOCAL;
 
-        float4a s;
-        float4a r;
-        float4a t;
-        decomposeSRT(vW, s, r, t);
-
-        newTr.Translation = t.xyz();
-        newTr.Rotation = r;
-        newTr.Scale = s.xyz();
-    }
-
-    auto axis = newTr.Rotation.xyz();
-    float angle_r = newTr.Rotation.w;
-    float angle_d = newTr.Rotation.w;
-    if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE || isLocal)
-    {
-        quaternionToAxisAngle(newTr.Rotation, axis, angle_r);
-        angle_d = RadiansToDegrees(angle_r);
-    }
-
-    // Transformation mode
-    {
-        const char* modes[] = { "Local", "World" };
-        ImGui::Text("");
-        ImGui::SameLine(60);
-        ImGui::Text("Mode");
-        ImGui::SameLine();
-        ImGui::Combo("##20", (int*)&m_transform, modes, ZetaArrayLen(modes));
-    }
-
-    if (!isLocal)
-        ImGui::BeginDisabled();
-
-    ImGui::Text("Translation X");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##0", &newTr.Translation.x, -50.0f, 50.0f, "%.2f"))
-        modified = true;
-
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Y");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##1", &newTr.Translation.y, -10.0f, 20.0f, "%.2f"))
-        modified = true;
-
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Z");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##2", &newTr.Translation.z, -50.0f, 50.0f, "%.2f"))
-        modified = true;
-
-    auto getQuat = [](float3& n, float theta)
+        if (isLocal)
         {
-            n.normalize();
-            theta = Max(theta, 0.01f);
-
-            return float4(n * sinf(0.5f * theta), cosf(0.5f * theta));
-        };
-
-    ImGui::Text("");
-    ImGui::SameLine(27);
-    ImGui::Text("Rotation X");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##4", &axis.x, -1.0f, 1.0f, "%.3f"))
-    {
-        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
-            newTr.Rotation = getQuat(axis, angle_r);
-        else
-        {
-            newTr.Rotation = float4(axis, prevTr.Rotation.w);
-            newTr.Rotation.normalize();
-        }
-
-        modified = true;
-    }
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Y");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##5", &axis.y, -1.0f, 1.0f, "%.3f"))
-    {
-        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
-            newTr.Rotation = getQuat(axis, angle_r);
-        else
-        {
-            newTr.Rotation = float4(axis, prevTr.Rotation.w);
-            newTr.Rotation.normalize();
-        }
-
-        modified = true;
-    }
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Z");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##6", &axis.z, -1.0f, 1.0f, "%.3f"))
-    {
-        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
-            newTr.Rotation = newTr.Rotation = getQuat(axis, angle_r);
-        else
-        {
-            newTr.Rotation = float4(axis, prevTr.Rotation.w);
-            newTr.Rotation.normalize();
-        }
-
-        modified = true;
-    }
-    ImGui::Text("");
-    ImGui::SameLine(84);
-    ImGui::Text("W");
-    ImGui::SameLine();
-    const float range_min = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 0.0f : -1.0f;
-    const float range_max = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 360.0f : 1.0f;
-    float* w = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? &angle_d : &newTr.Rotation.w;
-    if (ImGui::SliderFloat("##7", w, range_min, range_max, "%.3f"))
-    {
-        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
-        {
-            angle_r = DegreesToRadians(angle_d);
-            angle_r = Max(angle_r, 0.01f);
-            newTr.Rotation = float4(axis * sinf(0.5f * angle_r), cosf(0.5f * angle_r));
+            prevTr = scene.GetLocalTransform(pickedID);
+            newTr = prevTr;
         }
         else
-            newTr.Rotation.normalize();
+        {
+            v_float4x4 vW = load4x4(W);
 
-        modified = true;
+            float4a s;
+            float4a r;
+            float4a t;
+            decomposeSRT(vW, s, r, t);
+
+            newTr.Translation = t.xyz();
+            newTr.Rotation = r;
+            newTr.Scale = s.xyz();
+        }
+
+        auto axisOrQuatXyz = newTr.Rotation.xyz();
+        float angle_r = newTr.Rotation.w;
+        float angle_d = newTr.Rotation.w;
+        if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+        {
+            quaternionToAxisAngle(newTr.Rotation, axisOrQuatXyz, angle_r);
+            angle_d = RadiansToDegrees(angle_r);
+        }
+
+        // Transformation mode
+        {
+            const char* modes[] = { "Local", "World" };
+            ImGui::Text("");
+            ImGui::SameLine(60);
+            ImGui::Text("Mode");
+            ImGui::SameLine();
+            ImGui::Combo("##20", (int*)&m_transform, modes, ZetaArrayLen(modes));
+        }
+
+        if (!isLocal)
+            ImGui::BeginDisabled();
+
+        // Translation
+        {
+            ImGui::Text("Translation X");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##0", &newTr.Translation.x, -50.0f, 50.0f, "%.2f"))
+                modified = true;
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Y");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##1", &newTr.Translation.y, -15.0f, 15.0f, "%.2f"))
+                modified = true;
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Z");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##2", &newTr.Translation.z, -50.0f, 50.0f, "%.2f"))
+                modified = true;
+        }
+
+        // Rotation
+        {
+            // When angle = 0 or 2 PI, setting axis results in a zero quaternion and would
+            // have the effect of UI change not applying. As a workaround use a small
+            // angle =~ zero.
+            constexpr float MIN_ANGLE = 1e-5f;
+            constexpr float MAX_ANGLE = TWO_PI - 1e-5f;
+
+            auto getQuat = [](float3& n, float theta)
+                {
+                    n.normalize();
+                    theta = Min(theta, MAX_ANGLE);
+                    theta = Max(theta, MIN_ANGLE);
+                    return float4(n * sinf(0.5f * theta), cosf(0.5f * theta));
+                };
+
+            ImGui::Text("");
+            ImGui::SameLine(27);
+            ImGui::Text("Rotation X");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##4", &axisOrQuatXyz.x, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+                    newTr.Rotation = getQuat(axisOrQuatXyz, angle_r);
+                else
+                {
+                    newTr.Rotation = float4(axisOrQuatXyz, prevTr.Rotation.w);
+                    newTr.Rotation.normalize();
+                }
+
+                modified = true;
+            }
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Y");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##5", &axisOrQuatXyz.y, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+                    newTr.Rotation = getQuat(axisOrQuatXyz, angle_r);
+                else
+                {
+                    newTr.Rotation = float4(axisOrQuatXyz, prevTr.Rotation.w);
+                    newTr.Rotation.normalize();
+                }
+
+                modified = true;
+            }
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Z");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##6", &axisOrQuatXyz.z, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+                    newTr.Rotation = newTr.Rotation = getQuat(axisOrQuatXyz, angle_r);
+                else
+                {
+                    newTr.Rotation = float4(axisOrQuatXyz, prevTr.Rotation.w);
+                    newTr.Rotation.normalize();
+                }
+
+                modified = true;
+            }
+
+            ImGui::Text("");
+            ImGui::SameLine(84);
+            ImGui::Text("W");
+            ImGui::SameLine();
+            const float range_min = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 0.0f : -1.0f;
+            const float range_max = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 360.0f : 1.0f;
+            float* w = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? &angle_d : &newTr.Rotation.w;
+            if (ImGui::SliderFloat("##7", w, range_min, range_max, "%.3f", ImGuiSliderFlags_AlwaysClamp))
+            {
+                if (m_rotationMode == ROTATION_MODE::AXIS_ANGLE)
+                {
+                    angle_r = DegreesToRadians(angle_d);
+                    angle_r = Min(angle_r, MAX_ANGLE);
+                    angle_r = Max(angle_r, MIN_ANGLE);
+                    newTr.Rotation = float4(axisOrQuatXyz * sinf(0.5f * angle_r), cosf(0.5f * angle_r));
+                }
+                else
+                    newTr.Rotation.normalize();
+
+                modified = true;
+            }
+
+            const char* modes[] = { "Axis Angle", "Quaternion (XYZW)" };
+            ImGui::Text("");
+            ImGui::SameLine(60);
+            ImGui::Text("Mode");
+            ImGui::SameLine();
+            ImGui::Combo("##10", (int*)&m_rotationMode, modes, ZetaArrayLen(modes));
+        }
+
+        // Scale
+        {
+            // To avoid scale = 0
+            constexpr float MIN_SCALE_RATIO = 1e-3f;
+
+            ImGui::Text("");
+            ImGui::SameLine(47);
+            ImGui::Text("Scale X");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##11", &newTr.Scale.x, MIN_SCALE_RATIO, 20.0f, "%.3f"))
+            {
+                // Clamp from below but not above
+                newTr.Scale.x = Max(MIN_SCALE_RATIO, newTr.Scale.x);
+                modified = true;
+            }
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Y");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##12", &newTr.Scale.y, MIN_SCALE_RATIO, 20.0f, "%.3f"))
+            {
+                newTr.Scale.y = Max(MIN_SCALE_RATIO, newTr.Scale.y);
+                modified = true;
+            }
+
+            ImGui::Text("");
+            ImGui::SameLine(87);
+            ImGui::Text("Z");
+            ImGui::SameLine();
+            if (ImGui::SliderFloat("##13", &newTr.Scale.z, MIN_SCALE_RATIO, 20.0f, "%.3f"))
+            {
+                newTr.Scale.z = Max(MIN_SCALE_RATIO, newTr.Scale.z);
+                modified = true;
+            }
+        }
+
+        if (!isLocal)
+            ImGui::EndDisabled();
     }
-
-    const char* modes[] = { "Axis Angle", "Quaternion (XYZW)" };
-    ImGui::Text("");
-    ImGui::SameLine(60);
-    ImGui::Text("Mode");
-    ImGui::SameLine();
-    ImGui::Combo("##10", (int*)&m_rotationMode, modes, ZetaArrayLen(modes));
-
-    ImGui::Text("");
-    ImGui::SameLine(47);
-    ImGui::Text("Scale X");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##11", &newTr.Scale.x, 1e-4f, 20.0f, "%.3f"))
-        modified = true;
-
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Y");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##12", &newTr.Scale.y, 1e-4f, 20.0f, "%.3f"))
-        modified = true;
-
-    ImGui::Text("");
-    ImGui::SameLine(87);
-    ImGui::Text("Z");
-    ImGui::SameLine();
-    if (ImGui::SliderFloat("##13", &newTr.Scale.z, 1e-4f, 20.0f, "%.3f"))
-        modified = true;
-
-    if (!isLocal)
-        ImGui::EndDisabled();
 
     if (modified)
     {
@@ -1729,7 +1800,7 @@ void GuiPass::PickedMaterial(uint64 pickedID)
     // Defer update to when user has stopped editing
     if (m_pendingEmissiveUpdate && (colorEditFinished || strEditFinished))
     {
-        scene.UpdateEmissive(pickedID, emissiveFactor, emissiveStrength);
+        scene.UpdateEmissiveMaterial(pickedID, emissiveFactor, emissiveStrength);
         m_pendingEmissiveUpdate = false;
     }
 }

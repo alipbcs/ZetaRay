@@ -21,7 +21,7 @@ namespace ZetaRay::Scene::Internal
 
     struct TexSRVDescriptorTable
     {
-        TexSRVDescriptorTable(const uint32_t descTableSize = 1024);
+        explicit TexSRVDescriptorTable(const uint32_t descTableSize = 1024);
         ~TexSRVDescriptorTable() = default;
 
         TexSRVDescriptorTable(const TexSRVDescriptorTable&) = delete;
@@ -163,6 +163,17 @@ namespace ZetaRay::Scene::Internal
 
     struct EmissiveBuffer
     {
+        struct Triangle
+        {
+            // = CommittedPrimitiveIndex(): "...index of the primitive within the geometry 
+            // inside the bottom-level acceleration structure instance..."
+            uint32_t PrimIdx;
+            Math::float3 Vtx0;
+            unorm2_ V0V1;
+            unorm2_ V0V2;
+            half2_ EdgeLengths;
+        };
+
         using Instance = Model::glTF::Asset::EmissiveInstance;
 
         EmissiveBuffer() = default;
@@ -171,12 +182,13 @@ namespace ZetaRay::Scene::Internal
         EmissiveBuffer(const EmissiveBuffer&) = delete;
         EmissiveBuffer& operator=(const EmissiveBuffer&) = delete;
 
+        ZetaInline bool Initialized() const { return m_trisGpu.IsInitialized(); }
         ZetaInline uint32_t NumInstances() const { return (uint32_t)m_instances.size(); }
         ZetaInline uint32_t NumTriangles() const { return (uint32_t)m_trisCpu.size(); }
         ZetaInline Util::Span<Instance> Instances() { return m_instances; }
         ZetaInline Util::MutableSpan<RT::EmissiveTriangle> Triagnles() { return m_trisCpu; }
+        ZetaInline Util::MutableSpan<Triangle> InitialTriPositions() { return m_triInitialPos; }
         ZetaInline bool HasStaleMaterials() const { return m_staleNumTris > 0; }
-        ZetaInline bool TransformedToWorldSpace() const { return m_trisGpu.IsInitialized(); }
         ZetaInline Util::Optional<const Instance*> FindInstance(uint64_t ID)
         {
             auto it = m_idToIdxMap.find(ID);
@@ -188,7 +200,8 @@ namespace ZetaRay::Scene::Internal
 
         // Assumes proper GPU synchronization has been performed
         void Clear();
-        void Update(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
+        void UpdateMaterial(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
+        void UpdateTriPositions(size_t startIdx, size_t endIdx);
         void AddBatch(Util::SmallVector<Instance>&& instances,
             Util::SmallVector<RT::EmissiveTriangle>&& tris);
         void UploadToGPU();
@@ -196,6 +209,7 @@ namespace ZetaRay::Scene::Internal
     private:
         Util::SmallVector<Instance> m_instances;
         Util::SmallVector<RT::EmissiveTriangle> m_trisCpu;
+        Util::SmallVector<Triangle> m_triInitialPos;
         // Maps instance ID to index in m_instances
         Util::HashTable<uint32_t> m_idToIdxMap;
         Core::GpuMemory::Buffer m_trisGpu;

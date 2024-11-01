@@ -226,8 +226,9 @@ namespace ZetaRay::Scene
             Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris, bool lock);
         ZetaInline size_t NumEmissiveInstances() const { return m_emissives.NumInstances(); }
         ZetaInline size_t NumEmissiveTriangles() const { return m_emissives.NumTriangles(); }
-        ZetaInline bool AreEmissivesStale() const { return m_staleEmissives; }
-        void UpdateEmissive(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
+        ZetaInline bool AreEmissivePositionsStale() const { return m_staleEmissivePositions; }
+        ZetaInline bool AreEmissiveMaterialsStale() const { return m_staleEmissiveMats; }
+        void UpdateEmissiveMaterial(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
 
         //
         // Animation
@@ -326,14 +327,16 @@ namespace ZetaRay::Scene
         uint32_t InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t parentIdx, 
             Math::AffineTransformation& localTransform, uint64_t meshID, 
             Model::RT_MESH_MODE rtMeshMode, uint8_t rtInstanceMask, bool isOpaque);
+        void ResetRtAsInfos();
         void InitWorldTransformations();
         void UpdateWorldTransformations(Util::Vector<Math::BVH::BVHUpdateInput, 
             App::FrameAllocator>& toUpdateInstances);
+        void UpdateEmissivePositions();
         void RebuildBVH();
         void UpdateAnimations(float t, Util::Vector<AnimationUpdate, App::FrameAllocator>& animVec);
         void UpdateLocalTransforms(Util::Span<AnimationUpdate> animVec);
-        bool ConvertInstanceDynamic(uint64_t instanceID);
-        void ConvertSubTreeDynamic(uint32_t treeLevel, Range r);
+        bool ConvertInstanceDynamic(uint64_t instanceID, const TreePos& treePos, RT_Flags rtFlags);
+        void ConvertSubtreeDynamic(uint32_t treeLevel, Range r);
 
         // Maps instance ID to tree position
         Util::HashTable<TreePos> m_IDtoTreePos;
@@ -353,8 +356,6 @@ namespace ZetaRay::Scene
         uint32_t m_numOpaqueInstances = 0;
         uint32_t m_numNonOpaqueInstances = 0;
         bool m_meshBufferStale = false;
-        bool m_dynamicInstanceNeedUpdate = false;
-        bool m_rtAsInfoStale = true;
         Util::SmallVector<uint64_t, Support::SystemAllocator, 3> m_pendingRtMeshModeSwitch;
         Util::HashTable<uint64_t> m_instanceUpdates;
         
@@ -389,7 +390,8 @@ namespace ZetaRay::Scene
         //
         Internal::EmissiveBuffer m_emissives;
         Util::SmallVector<uint64_t, App::FrameAllocator> m_toUpdateEmissives;
-        bool m_staleEmissives = false;
+        bool m_staleEmissiveMats = false;
+        bool m_staleEmissivePositions = false;
 
         SRWLOCK m_matLock = SRWLOCK_INIT;
         SRWLOCK m_meshLock = SRWLOCK_INIT;

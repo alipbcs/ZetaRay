@@ -227,7 +227,7 @@ void PreLighting::Update()
     if ((m_useLVG && !isLVGAllocated) || (!m_useLVG && isLVGAllocated))
         ToggleLVG();
 
-    if (App::GetScene().AreEmissivesStale())
+    if (App::GetScene().AreEmissiveMaterialsStale())
     {
         m_estimateLumenThisFrame = true;
         const size_t currLumenBuffLen = m_lumen.IsInitialized() ? 

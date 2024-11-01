@@ -109,6 +109,7 @@ namespace ZetaRay::RenderPass
 
         // ImGuizmo::TRANSLATE
         uint32_t m_currGizmoOperation = 7;
+        bool m_gizmoActive = false;
         //ImGuizmo::MODE m_currGizmoMode = ImGuizmo::WORLD;
     };
 }

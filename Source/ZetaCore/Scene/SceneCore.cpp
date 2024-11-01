@@ -20,7 +20,7 @@ using namespace ZetaRay::App;
 
 namespace
 {
-    uint3 Pcg3d(uint3 v)
+    ZetaInline uint3 Pcg3d(uint3 v)
     {
         v = v * 1664525u + 1013904223u;
         v.x += v.y * v.z;
@@ -118,86 +118,40 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                 UpdateWorldTransformations(toUpdateInstances);
             }
 
-            // TODO BVH is wrong
-#if 0
-            if (m_rebuildBVHFlag)
-            {
-                App::DeltaTimer timer;
-                timer.Start();
-
-                RebuildBVH();
-                m_rebuildBVHFlag = false;
-
-                timer.End();
-                LOG_UI_INFO("BVH built in %u [ms].", (uint32_t)timer.DeltaMilli());
-            }
-            else if (!toUpdateInstances.empty())
-                m_bvh.Update(toUpdateInstances);
-#endif
             m_rebuildBVHFlag = false;
         });
 
-    TaskSet::TaskHandle setRtAsInfo = TaskSet::INVALID_TASK_HANDLE;
-
-    // RT-AS info is needed to compute unique hash for emissives
-    if (m_rtAsInfoStale)
-    {
-        setRtAsInfo = sceneTS.EmplaceTask("Scene::UpdateRtAsInfo", [this]()
-            {
-                // Following must exactly match the iteration order of StaticBLAS::Rebuild().
-                uint32_t currInstance = 0;
-
-                for (size_t treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
-                {
-                    auto& currTreeLevel = m_sceneGraph[treeLevelIdx];
-
-                    for (size_t i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
-                    {
-                        const Scene::RT_Flags flags = RT_Flags::Decode(currTreeLevel.m_rtFlags[i]);
-
-                        if (flags.MeshMode == RT_MESH_MODE::STATIC)
-                        {
-                            const uint64_t meshID = currTreeLevel.m_meshIDs[i];
-                            if (meshID == Scene::INVALID_MESH)
-                                continue;
-
-                            currTreeLevel.m_rtASInfo[i] = RT_AS_Info{
-                                .GeometryIndex = currInstance,
-                                .InstanceID = 0 };
-
-                            currInstance++;
-                        }
-                    }
-                }
-            });
-
-        m_rtAsInfoStale = false;
-    }
-
-#if 0
-    auto frustumCull = sceneTS.EmplaceTask("Scene::FrustumCull", [this]()
-        {
-            //m_frameInstances.clear();
-            m_viewFrustumInstances.free_memory();
-            m_viewFrustumInstances.reserve(m_IDtoTreePos.size());
-
-            const Camera& camera = App::GetCamera();
-            m_bvh.DoFrustumCulling(camera.GetCameraFrustumViewSpace(), camera.GetViewInv(), m_viewFrustumInstances);
-
-            App::AddFrameStat("Scene", "FrustumCulled", 
-                (uint32_t)(m_IDtoTreePos.size() - m_viewFrustumInstances.size()), 
-                (uint32_t)m_IDtoTreePos.size());
-        });
-
-    sceneTS.AddOutgoingEdge(updateWorldTransforms, frustumCull);
-#endif
-
     const uint32_t numInstances = m_emissives.NumInstances();
-    m_staleEmissives = false;
+    m_staleEmissiveMats = m_emissives.HasStaleMaterials() || !m_emissives.Initialized();
+    // Size of m_instanceUpdates may change after async. task above runs, but since it never
+    // goes from > 0 to 0, it doesn't matter
+    m_staleEmissivePositions = m_staleEmissivePositions || !m_emissives.Initialized();
 
-    if (numInstances && (!m_emissives.TransformedToWorldSpace() || m_emissives.HasStaleMaterials()))
+    // When emissives have stale position or material
+    if (numInstances && (m_staleEmissivePositions || m_staleEmissiveMats))
     {
-        m_staleEmissives = true;
+        TaskSet::TaskHandle resetRtAsInfo = TaskSet::INVALID_TASK_HANDLE;
+
+        // NOTE RT-AS info is needed to compute a unique hash for emissives. It is managed
+        // by TLAS, but since that runs later, it's not available for initialization
+        // of emissives. For future frames, TLAS expects the old (stale) RT-AS info 
+        // so it can't be changed here. 
+        // 
+        // TODO In the case of StaticToDynamic, the first UpdateEmissivePositions() call 
+        // uses the wrong InstanceID. Later in the frame, it's updated by TLAS and from 
+        // the second frame on, the correct value is used. Since movement usually lasts 
+        // for more than one frame, it shouldn't be a problem.
+#if 0
+        if (m_staleEmissivePositions)
+#else
+        if (!m_emissives.Initialized())
+#endif
+        {
+            resetRtAsInfo = sceneTS.EmplaceTask("Scene::UpdateRtAsInfo", [this]()
+                {
+                    ResetRtAsInfos();
+                });
+        }
 
         auto upload = sceneTS.EmplaceTask("UploadEmissiveBuffer", [this]()
             {
@@ -205,20 +159,20 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
             });
 
         // Full rebuild of emissive buffer for first time
-        if (!m_emissives.TransformedToWorldSpace())
+        if (!m_emissives.Initialized())
         {
             constexpr size_t MAX_NUM_EMISSIVE_WORKERS = 5;
             constexpr size_t MIN_EMISSIVE_INSTANCES_PER_WORKER = 35;
             size_t threadOffsets[MAX_NUM_EMISSIVE_WORKERS];
             size_t threadSizes[MAX_NUM_EMISSIVE_WORKERS];
 
-            const int numEmissiveWorkers = (int)SubdivideRangeWithMin(numInstances,
+            const size_t numEmissiveWorkers = SubdivideRangeWithMin(numInstances,
                 MAX_NUM_EMISSIVE_WORKERS,
                 threadOffsets,
                 threadSizes,
                 MIN_EMISSIVE_INSTANCES_PER_WORKER);
 
-            for (int i = 0; i < numEmissiveWorkers; i++)
+            for (size_t i = 0; i < numEmissiveWorkers; i++)
             {
                 StackStr(tname, n, "Scene::Emissive_%d", i);
 
@@ -226,46 +180,45 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
                     {
                         auto emissvies = m_emissives.Instances();
                         auto tris = m_emissives.Triagnles();
+                        auto triInitialPos = m_emissives.InitialTriPositions();
                         v_float4x4 I = identity();
 
                         // For every emissive instance, apply world transformation to all of its triangles
-                        for (int instance = (int)offset; instance < (int)offset + (int)size; instance++)
+                        for (size_t instance = offset; instance < offset + size; instance++)
                         {
-                            auto& e = emissvies[instance];
+                            const auto& e = emissvies[instance];
                             const v_float4x4 vW = load4x3(GetToWorld(e.InstanceID));
-
-                            if (equal(vW, I))
-                                continue;
+                            const bool skipTransform = equal(vW, I);
 
                             const auto rtASInfo = GetInstanceRtASInfo(e.InstanceID);
 
-                            for (int t = e.BaseTriOffset; t < (int)e.BaseTriOffset + (int)e.NumTriangles; t++)
+                            for (size_t t = e.BaseTriOffset; t < e.BaseTriOffset + e.NumTriangles; t++)
                             {
-                                __m128 vV0;
-                                __m128 vV1;
-                                __m128 vV2;
-                                tris[t].LoadVertices(vV0, vV1, vV2);
+                                if (!skipTransform)
+                                {
+                                    __m128 vV0;
+                                    __m128 vV1;
+                                    __m128 vV2;
+                                    tris[t].LoadVertices(vV0, vV1, vV2);
 
-                                vV0 = mul(vW, vV0);
-                                vV1 = mul(vW, vV1);
-                                vV2 = mul(vW, vV2);
+                                    triInitialPos[t].Vtx0 = tris[t].Vtx0;
+                                    triInitialPos[t].V0V1 = tris[t].V0V1;
+                                    triInitialPos[t].V0V2 = tris[t].V0V2;
+                                    triInitialPos[t].EdgeLengths = tris[t].EdgeLengths;
+                                    triInitialPos[t].PrimIdx = tris[t].ID;
 
-                                tris[t].StoreVertices(vV0, vV1, vV2);
-#if 0
-                                triPos[t] = EmissiveBuffer::InitialPos{
-                                    .Vtx0 = storeFloat3(vV0),
-                                    .Vtx1 = storeFloat3(vV1),
-                                    .Vtx2 = storeFloat3(vV2)
-                                };
-#endif
+                                    vV0 = mul(vW, vV0);
+                                    vV1 = mul(vW, vV1);
+                                    vV2 = mul(vW, vV2);
+                                    tris[t].StoreVertices(vV0, vV1, vV2);
+                                }
 
-                                // TODO ID initially contains triangle index within each mesh, after
-                                // hashing it below, it's lost and subsequent runs will give wrong results as it
-                                // won't match the computation in rt shaders
-                                const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, rtASInfo.InstanceID,
+                                const uint32_t hash = Pcg3d(uint3(rtASInfo.GeometryIndex, 
+                                    rtASInfo.InstanceID,
                                     tris[t].ID)).x;
 
-                                Assert(!tris[t].IsIDPatched(), "rewriting emissive triangle ID after the first assignment is invalid.");
+                                Assert(!tris[t].IsIDPatched(), 
+                                    "Rewriting emissive triangle ID after the first assignment is invalid.");
                                 tris[t].ResetID(hash);
                             }
                         }
@@ -273,12 +226,24 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
 
                 sceneTS.AddOutgoingEdge(updateWorldTransforms, h);
 
-                if (setRtAsInfo != TaskSet::INVALID_TASK_HANDLE)
-                    sceneTS.AddOutgoingEdge(setRtAsInfo, h);
+                Assert(resetRtAsInfo != TaskSet::INVALID_TASK_HANDLE, "Invalid task handle.");
+                sceneTS.AddOutgoingEdge(resetRtAsInfo, h);
 
                 sceneTS.AddOutgoingEdge(h, upload);
             }
         }
+        else if (m_staleEmissivePositions)
+        {
+            auto h = sceneTS.EmplaceTask("Scene::UpdateEmissivePos", [this]()
+                {
+                    UpdateEmissivePositions();
+                });
+
+            //sceneTS.AddOutgoingEdge(resetRtAsInfo, h);
+            sceneTS.AddOutgoingEdge(h, upload);
+        }
+
+        m_staleEmissivePositions = false;
     }
 
     if (m_meshBufferStale)
@@ -510,15 +475,6 @@ void SceneCore::AddInstance(Asset::InstanceDesc& instance, bool lock)
         }
     }
 
-    /*
-    // cache emissive mesh IDs
-    if (instance.RtInstanceMask & RT_AS_SUBGROUP::EMISSIVE)
-    {
-        Assert(!instance.Lumen.empty(), "Emissive instances require precomputed per-triangle power");
-        m_sceneRenderer.AddEmissiveInstance(instanceID, ZetaMove(instance.Lumen));
-    }
-    */
-
     m_rebuildBVHFlag = true;
 
     if (lock)
@@ -580,6 +536,64 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
     return insertIdx;
 }
 
+void SceneCore::ResetRtAsInfos()
+{
+    // Following must exactly match the iteration order of StaticBLAS::Rebuild().
+    uint32_t currInstance = 0;
+
+    for (size_t treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
+    {
+        auto& currTreeLevel = m_sceneGraph[treeLevelIdx];
+
+        for (size_t i = 0; i < currTreeLevel.m_rtFlags.size(); i++)
+        {
+            const Scene::RT_Flags flags = RT_Flags::Decode(currTreeLevel.m_rtFlags[i]);
+
+            if (flags.MeshMode == RT_MESH_MODE::STATIC)
+            {
+                const uint64_t meshID = currTreeLevel.m_meshIDs[i];
+                if (meshID == Scene::INVALID_MESH)
+                    continue;
+
+                currTreeLevel.m_rtASInfo[i] = RT_AS_Info{
+                    .GeometryIndex = currInstance,
+                    .InstanceID = 0 };
+
+                currInstance++;
+            }
+        }
+    }
+
+    if (m_numDynamicInstances == 0)
+        return;
+
+    currInstance = 0;
+
+    for (size_t treeLevelIdx = 1; treeLevelIdx < m_sceneGraph.size(); treeLevelIdx++)
+    {
+        auto& currTreeLevel = m_sceneGraph[treeLevelIdx];
+        auto& rtFlagVec = currTreeLevel.m_rtFlags;
+
+        for (size_t i = 0; i < rtFlagVec.size(); i++)
+        {
+            const Scene::RT_Flags flags = RT_Flags::Decode(currTreeLevel.m_rtFlags[i]);
+
+            if (flags.MeshMode != RT_MESH_MODE::STATIC)
+            {
+                const uint64_t meshID = currTreeLevel.m_meshIDs[i];
+                if (meshID == Scene::INVALID_MESH)
+                    continue;
+
+                currTreeLevel.m_rtASInfo[i] = RT_AS_Info{
+                    .GeometryIndex = 0,
+                    .InstanceID = m_numStaticInstances + currInstance };
+
+                currInstance++;
+            }
+        }
+    }
+}
+
 void SceneCore::AddAnimation(uint64_t id, MutableSpan<Keyframe> keyframes, float t_start, 
     bool loop, bool isSorted)
 {
@@ -618,7 +632,14 @@ void SceneCore::TransformInstance(uint64_t id, const float3& tr, const float3x3&
 {
     m_tempWorldTransformUpdates[id] = TransformUpdate{ .Tr = tr, .Rotation = rotation, .Scale = scale };
 
-    ConvertInstanceDynamic(id);
+    const auto treePos = FindTreePosFromID(id).value();
+    const auto rtFlags = RT_Flags::Decode(m_sceneGraph[treePos.Level].m_rtFlags[treePos.Offset]);
+
+    m_staleEmissivePositions = m_staleEmissivePositions || 
+        (m_emissives.NumInstances() &&
+        (rtFlags.InstanceMask & RT_AS_SUBGROUP::EMISSIVE));
+
+    ConvertInstanceDynamic(id, treePos, rtFlags);
     // Updates if instance already exists
     m_instanceUpdates[id] = App::GetTimer().GetTotalFrameCount();
 
@@ -649,46 +670,11 @@ void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissi
         ReleaseSRWLockExclusive(&m_emissiveLock);
 }
 
-void SceneCore::UpdateEmissive(uint64_t instanceID, const float3& emissiveFactor, float strength)
+void SceneCore::UpdateEmissiveMaterial(uint64_t instanceID, const float3& emissiveFactor, float strength)
 {
-    m_emissives.Update(instanceID, emissiveFactor, strength);
+    m_emissives.UpdateMaterial(instanceID, emissiveFactor, strength);
     m_rendererInterface.SceneModified();
 }
-
-// Currently, not needed
-#if 0
-void SceneCore::RebuildBVH()
-{
-    SmallVector<BVH::BVHInput, App::FrameAllocator> allInstances;
-    allInstances.reserve(m_IDtoTreePos.size());
-
-    const int numLevels = (int)m_sceneGraph.size();
-    uint32_t currInsIdx = 0;
-
-    for (int level = 1; level < numLevels; ++level)
-    {
-        for (int i = 0; i < m_sceneGraph[level].m_toWorlds.size(); ++i)
-        {
-            // Find the mesh instance
-            const uint64_t meshID = m_sceneGraph[level].m_meshIDs[i];
-            if (meshID == INVALID_MESH)
-                continue;
-
-            const TriangleMesh& mesh = *m_meshes.GetMesh(meshID).value();
-            v_AABB vBox(mesh.m_AABB);
-            v_float4x4 vM = load4x3(m_sceneGraph[level].m_toWorlds[i]);
-
-            // Transform AABB to world space
-            vBox = transform(vM, vBox);
-            const uint64_t insID = m_sceneGraph[level].m_IDs[i];
-
-            allInstances.emplace_back(BVH::BVHInput{ .BoundingBox = store(vBox), .InstanceID = insID });
-        }
-    }
-
-    m_bvh.Build(allInstances);
-}
-#endif
 
 void SceneCore::InitWorldTransformations()
 {
@@ -771,10 +757,6 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
         float4a r;
         float4a s;
         decomposeSRT(vW, s, r, t);
-
-        Assert(r.w <= 1 && r.w >= -1, "");
-
-        Assert(!isnan(r.x) && !isnan(r.y) && !isnan(r.z) && !isnan(r.w), "");
 
         // Apply the update
         auto& delta = m_tempWorldTransformUpdates[instance];
@@ -886,6 +868,54 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
         m_instanceUpdates[id] = App::GetTimer().GetTotalFrameCount() - 1;
 }
 
+void SceneCore::UpdateEmissivePositions()
+{
+    auto tris = m_emissives.Triagnles();
+    auto triInitialPos = m_emissives.InitialTriPositions();
+
+    uint32_t minIdx = (uint32_t)tris.size() - 1;
+    uint32_t maxIdx = 0;
+
+    for (auto it = m_instanceUpdates.begin_it(); it != m_instanceUpdates.end_it();
+        it = m_instanceUpdates.next_it(it))
+    {
+        auto instance = it->Key;
+        const auto& emissiveInstance = *m_emissives.FindInstance(instance).value();
+        const v_float4x4 vW = load4x3(GetToWorld(instance));
+        const auto rtASInfo = GetInstanceRtASInfo(instance);
+
+        for (size_t t = emissiveInstance.BaseTriOffset; 
+            t < emissiveInstance.BaseTriOffset + emissiveInstance.NumTriangles; t++)
+        {
+            EmissiveBuffer::Triangle& initTri = triInitialPos[t];
+
+            __m128 vV0;
+            __m128 vV1;
+            __m128 vV2;
+            RT::EmissiveTriangle::DecodeVertices(initTri.Vtx0, initTri.V0V1, initTri.V0V2,
+                initTri.EdgeLengths,
+                vV0, vV1, vV2);
+
+            vV0 = mul(vW, vV0);
+            vV1 = mul(vW, vV1);
+            vV2 = mul(vW, vV2);
+            tris[t].StoreVertices(vV0, vV1, vV2);
+
+            // Dynamic instances have geometry index = 0
+            const uint32_t hash = Pcg3d(uint3(0,
+                rtASInfo.InstanceID,
+                initTri.PrimIdx)).x;
+            tris[t].ID = hash;
+        }
+
+        minIdx = Min(minIdx, emissiveInstance.BaseTriOffset);
+        maxIdx = Max(maxIdx, emissiveInstance.BaseTriOffset + emissiveInstance.NumTriangles);
+    }
+
+    Assert(minIdx <= maxIdx, "Invalid indices.");
+    m_emissives.UpdateTriPositions(minIdx, maxIdx);
+}
+
 void SceneCore::UpdateAnimations(float t, Vector<AnimationUpdate, App::FrameAllocator>& animVec)
 {
     for (auto& anim : m_animationMetadata)
@@ -963,24 +993,22 @@ void SceneCore::UpdateLocalTransforms(Span<AnimationUpdate> animVec)
     }
 }
 
-bool SceneCore::ConvertInstanceDynamic(uint64_t instanceID)
+bool SceneCore::ConvertInstanceDynamic(uint64_t instanceID, const TreePos& treePos, 
+    RT_Flags rtFlags)
 {
-    const TreePos& p = FindTreePosFromID(instanceID).value();
-    const auto currFlags = RT_Flags::Decode(m_sceneGraph[p.Level].m_rtFlags[p.Offset]);
-
-    if (currFlags.MeshMode == RT_MESH_MODE::STATIC)
+    if (rtFlags.MeshMode == RT_MESH_MODE::STATIC)
     {
-        m_sceneGraph[p.Level].m_rtFlags[p.Offset] = RT_Flags::Encode(
+        m_sceneGraph[treePos.Level].m_rtFlags[treePos.Offset] = RT_Flags::Encode(
             RT_MESH_MODE::DYNAMIC_NO_REBUILD,
-            currFlags.InstanceMask, 1, 0, currFlags.IsOpaque);
+            rtFlags.InstanceMask, 1, 0, rtFlags.IsOpaque);
 
         m_pendingRtMeshModeSwitch.push_back(instanceID);
         m_numStaticInstances--;
         m_numDynamicInstances++;
 
-        auto subtree = m_sceneGraph[p.Level].m_subtreeRanges[p.Offset];
+        auto subtree = m_sceneGraph[treePos.Level].m_subtreeRanges[treePos.Offset];
         if (subtree.Count)
-            ConvertSubTreeDynamic(p.Level + 1, subtree);
+            ConvertSubtreeDynamic(treePos.Level + 1, subtree);
 
         return true;
     }
@@ -988,7 +1016,7 @@ bool SceneCore::ConvertInstanceDynamic(uint64_t instanceID)
     return false;
 }
 
-void SceneCore::ConvertSubTreeDynamic(uint32_t treeLevel, Range r)
+void SceneCore::ConvertSubtreeDynamic(uint32_t treeLevel, Range r)
 {
     for (size_t i = r.Base; i < r.Base + r.Count; i++)
     {
@@ -1005,7 +1033,7 @@ void SceneCore::ConvertSubTreeDynamic(uint32_t treeLevel, Range r)
         }
 
         if (m_sceneGraph[treeLevel].m_subtreeRanges[i].Count > 0)
-            ConvertSubTreeDynamic(treeLevel + 1, m_sceneGraph[treeLevel].m_subtreeRanges[i]);
+            ConvertSubtreeDynamic(treeLevel + 1, m_sceneGraph[treeLevel].m_subtreeRanges[i]);
     }
 }
 

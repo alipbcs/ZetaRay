@@ -197,14 +197,13 @@ namespace ZetaRay
 #endif
             }
 
-            ZetaInline void __vectorcall LoadVertices(__m128& v0, __m128& v1, __m128& v2)
+            ZetaInline static void DecodeVertices(float3_& vtx0, unorm2_& v0v1, unorm2_& v0v2,
+                half2_& edgeLengths, __m128& v0, __m128& v1, __m128& v2)
             {
-                __m128 vOne = _mm_set1_ps(1.0f);
-
-#if ENCODE_EMISSIVE_POS == 1
-
-                alignas(16) int32_t packed[4] = { int32_t(V0V1.x), int32_t(V0V1.y),
-                    int32_t(V0V2.x), int32_t(V0V2.y) };
+                alignas(16) int32_t packed[4] = { int32_t(v0v1.x),
+                    int32_t(v0v1.y),
+                    int32_t(v0v2.x), 
+                    int32_t(v0v2.y) };
 
                 // Decode UNORM-16
                 __m128 vE0E1 = _mm_cvtepi32_ps(_mm_load_si128(reinterpret_cast<__m128i*>(packed)));
@@ -213,11 +212,11 @@ namespace ZetaRay
                 vE0E1 = _mm_fmadd_ps(vE0E1, _mm_set1_ps(2.0f), _mm_set1_ps(-1.0f));
 
                 // Convert length to float
-                __m128i vLengthsHalf = _mm_cvtsi32_si128(EdgeLengths.x | (EdgeLengths.y << 16));
+                __m128i vLengthsHalf = _mm_cvtsi32_si128(edgeLengths.x | (edgeLengths.y << 16));
                 __m128 vLengths = _mm_cvtph_ps(vLengthsHalf);
 
                 // Interpolate
-                __m128 vV0 = Math::loadFloat3(Vtx0);
+                __m128 vV0 = Math::loadFloat3(vtx0);
 
                 __m128 vV1 = Math::decode_octahedral(vE0E1);
                 vV1 = _mm_fmadd_ps(vV1, _mm_broadcastss_ps(vLengths), vV0);
@@ -226,15 +225,28 @@ namespace ZetaRay
                 __m128 vV2 = Math::decode_octahedral(_mm_movehl_ps(vE0E1, vE0E1));
                 vV2 = _mm_fmadd_ps(vV2, _mm_shuffle_ps(vLengths, vLengths, V_SHUFFLE_XYZW(1, 1, 1, 1)), vV0);
                 v2 = vV2;
+
+                // Set v[3] = 1
+                __m128 vOne = _mm_set1_ps(1.0f);
+                v0 = _mm_insert_ps(vV0, vOne, 0x30);
+                v1 = _mm_insert_ps(vV1, vOne, 0x30);
+                v2 = _mm_insert_ps(vV2, vOne, 0x30);
+            }
+
+            ZetaInline void __vectorcall LoadVertices(__m128& v0, __m128& v1, __m128& v2)
+            {
+#if ENCODE_EMISSIVE_POS == 1
+                EmissiveTriangle::DecodeVertices(Vtx0, V0V1, V0V2, EdgeLengths, v0, v1, v2);
 #else
                 __m128 vV0 = Math::loadFloat3(Vtx0);
                 __m128 vV1 = Math::loadFloat3(Vtx1);
                 __m128 vV2 = Math::loadFloat3(Vtx2);
-#endif
                 // Set v[3] = 1
+                __m128 vOne = _mm_set1_ps(1.0f);
                 v0 = _mm_insert_ps(vV0, vOne, 0x30);
                 v1 = _mm_insert_ps(vV1, vOne, 0x30);
                 v2 = _mm_insert_ps(vV2, vOne, 0x30);
+#endif
             }
 
             ZetaInline bool IsIDPatched()
