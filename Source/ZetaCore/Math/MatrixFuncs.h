@@ -550,19 +550,12 @@ namespace ZetaRay::Math
         // Solve for R
         __m128 vInvSDiag = _mm_div_ps(vOne, vS);
         v_float4x4 vSinv = scale(vInvSDiag);
-
         // R = RS * S^-1
         v_float4x4 vR = mul(vM3x3, vSinv);
 
-        // routines below expect "row" matrices.
+        // Other routines expect "row" matrices
         vR = transpose3x3(vR);
-
-#if 0
-        __m128 vQ = quaternionFromRotationMat(vR);
-        r = storeFloat4(vQ);
-#else
         r = quaternionFromRotationMat1(vR);
-#endif
     }
 
     // Note: doesn't support negative scaling
@@ -594,9 +587,18 @@ namespace ZetaRay::Math
         s = store(vS);
 
         // R = S^-1 * SR
-        const __m128 vInvSDiag = _mm_div_ps(vOne, vS);
-        const v_float4x4 vSinv = scale(vInvSDiag);
+        const __m128 vInvS = _mm_div_ps(vOne, vS);
+#if 0
+        const v_float4x4 vSinv = scale(vInvS);
         const v_float4x4 vR = mul(vSinv, vM3x3);
+#else
+        // Since S^-1 is diagonal, matrix multiplication has a simpler form
+        v_float4x4 vR;
+        vR.vRow[0] = _mm_mul_ps(_mm_shuffle_ps(vInvS, vInvS, V_SHUFFLE_XYZW(0, 0, 0, 3)), vM3x3.vRow[0]);
+        vR.vRow[1] = _mm_mul_ps(_mm_shuffle_ps(vInvS, vInvS, V_SHUFFLE_XYZW(1, 1, 1, 3)), vM3x3.vRow[1]);
+        vR.vRow[2] = _mm_mul_ps(_mm_shuffle_ps(vInvS, vInvS, V_SHUFFLE_XYZW(2, 2, 2, 3)), vM3x3.vRow[2]);
+        vR.vRow[3] = _mm_insert_ps(vZero, vOne, 0x30);    // M[3] = (0, 0, 0, 1)
+#endif
 
         return vR;
     }
@@ -604,12 +606,7 @@ namespace ZetaRay::Math
     ZetaInline void __vectorcall decomposeSRT(const v_float4x4 vM, float4a& s, float4a& r, float4a& t)
     {
         const v_float4x4 vR = decomposeSRT(vM, s, t);
-#if 0
-        const __m128 vQ = quaternionFromRotationMat(vR);
-        r = store(vQ);
-#else
         r = quaternionFromRotationMat1(vR);
-#endif
     }
 
     ZetaInline v_float4x4 __vectorcall inverseAndDecomposeSRT(const v_float4x4 vM, float4a& s,
