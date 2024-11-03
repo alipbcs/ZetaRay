@@ -1296,7 +1296,7 @@ namespace ZetaRay::AppImpl
 
         free(buffer);
 
-        g_app->m_processorCoreCount = Math::Min(g_app->m_processorCoreCount, (uint16_t)ZETA_MAX_NUM_THREADS);
+        g_app->m_processorCoreCount = Min(g_app->m_processorCoreCount, (uint16_t)(ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
     }
 
     void SetCameraAcceleration(const ParamVariant& p)
