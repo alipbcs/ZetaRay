@@ -26,8 +26,8 @@ namespace SkyDI_Util
         {
             const float p_i_y_i = r_i.W > 0 ? r_i.w_sum / r_i.W : 0;
             const float p_c_y_i = targetLum;
-            float numerator = r_i.M * p_i_y_i / jacobian;
-            float denom = numerator + ((float)r_c.M / this.k) * p_c_y_i;
+            float numerator = r_i.M * p_i_y_i;
+            float denom = (numerator / jacobian) + ((float)r_c.M / this.k) * p_c_y_i;
             float m_i = denom > 0 ? numerator / denom : 0;
 
             return m_i;
@@ -39,7 +39,7 @@ namespace SkyDI_Util
             const float p_c_y_c = Math::Luminance(r_c.target);
 
             const float numerator = r_i.M * p_i_y_c * jacobian;
-            const float denom = numerator + ((float)r_c.M / this.k) * p_c_y_c * jacobian;
+            const float denom = numerator + ((float)r_c.M / this.k) * p_c_y_c;
             // Note: denom can never be zero, otherwise r_c didn't have a valid sample
             // and this function shouldn't have been called
             this.m_c += 1 - (numerator / denom);
@@ -64,8 +64,8 @@ namespace SkyDI_Util
                     if(r_i.halfVectorCopyShift)
                     {
                         float3 wh_local = r_i.wx;
-                        float3 wh_c = FromTangentFrameToWorld(normal_c, wh_local);
-                        float3 wh_i = FromTangentFrameToWorld(normal_i, wh_local);
+                        float3 wh_c = Math::FromTangentFrameToWorld(normal_c, wh_local);
+                        float3 wh_i = Math::FromTangentFrameToWorld(normal_i, wh_local);
 
                         wi_offset = reflect(-surface_c.wo, wh_c);
                         float whdotwo_i = abs(dot(surface_i.wo, wh_i));
@@ -91,18 +91,19 @@ namespace SkyDI_Util
             }
 
             // Shift center to pixel i
+            float3 target_i_y_c = 0;
+            float jacobian = 1;
+            
             if(r_c.IsValid())
             {
-                float3 target = 0;
                 float3 wi_offset = r_c.wx;
-                float jacobian = 1;
 
                 if(IsShiftInvertible(r_c, surface_i, alpha_min))
                 {
                     if(r_c.halfVectorCopyShift)
                     {
                         float3 wh_local = r_c.wx;
-                        float3 wh_i = FromTangentFrameToWorld(normal_i, wh_local);
+                        float3 wh_i = Math::FromTangentFrameToWorld(normal_i, wh_local);
 
                         wi_offset = reflect(-surface_i.wo, wh_i);
                         float whdotwo_i = abs(dot(surface_i.wo, wh_i));
@@ -114,18 +115,18 @@ namespace SkyDI_Util
                     const float3 le = r_c.lightType == Light::TYPE::SKY ? 
                         Light::Le_Sky(wi_offset, g_frame.EnvMapDescHeapOffset) :
                         Light::Le_Sun(pos_i, g_frame);
-                    target = le * BSDF::Unified(surface_i).f;
+                    target_i_y_c = le * BSDF::Unified(surface_i).f;
 
-                    if(dot(target, target) > 0)
+                    if(dot(target_i_y_c, target_i_y_c) > 0)
                     {
-                        target *= RtRayQuery::Visibility_Ray(pos_i, wi_offset, normal_i, 
+                        target_i_y_c *= RtRayQuery::Visibility_Ray(pos_i, wi_offset, normal_i, 
                             g_bvh, surface_i.Transmissive());
                     }
                 }
-
-                const float targetLum = Math::Luminance(target);
-                Update_m_c(r_c, r_i, targetLum, jacobian);
             }
+
+            const float targetLum = Math::Luminance(target_i_y_c);
+            Update_m_c(r_c, r_i, targetLum, jacobian);
 
             if(r_i.IsValid())
             {

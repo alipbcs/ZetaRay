@@ -118,16 +118,6 @@ namespace RDI_Util
 
         return ret;
     }
-
-    float2 VirtualMotionReproject(float3 pos, float3 wo, float t, float4x4 prevViewProj)
-    {
-        float3 virtualPos = pos - wo * t;
-        float4 virtualPosNDC = mul(prevViewProj, float4(virtualPos, 1.0f));
-        float2 prevUV = Math::UVFromNDC(virtualPosNDC.xy / virtualPosNDC.w);
-
-        return prevUV;
-    }
-
 }
 
 #endif

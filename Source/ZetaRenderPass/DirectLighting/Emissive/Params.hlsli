@@ -9,6 +9,7 @@
 #define MAX_NUM_SPATIAL_SAMPLES 4
 #define SPATIAL_SEARCH_RADIUS 16
 #define APPROXIMATE_EMISSIVE_SHADOW_RAY 1
+#define USE_HALF_VECTOR_COPY_SHIFT 0
 
 // Heuristics for deciding when to reuse between different pixels (temporal or spatial neighbors)
 #define MAX_PLANE_DIST_REUSE 1e-1

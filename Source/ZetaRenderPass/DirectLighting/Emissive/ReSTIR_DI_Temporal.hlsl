@@ -27,24 +27,33 @@ StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t5);
 //--------------------------------------------------------------------------------------
 
 Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float roughness,
-    BSDF::ShadingData surface, uint sampleSetIdx, int numBsdfCandidates, inout RNG rng)
+    BSDF::ShadingData surface, uint sampleSetIdx, int numBsdfSamples, inout RNG rng)
 {
     Reservoir r = Reservoir::Init();
 
+    const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+        (!surface.Coated() || surface.CoatSpecular());
+    const int numLightSamples = !specular ? NUM_LIGHT_CANDIDATES : 0;
+
     // BSDF sampling
     [loop]
-    for (int s_b = 0; s_b < numBsdfCandidates; s_b++)
+    for (int s_b = 0; s_b < numBsdfSamples; s_b++)
     {
-        // TODO sample full BSDF
         BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
         float3 wi = bsdfSample.wi;
         float wiPdf = bsdfSample.pdf;
+#if USE_HALF_VECTOR_COPY_SHIFT == 1
+        // i.e. Glossy reflection or coat with lobe roughness below threshold
+        const bool useHalfVecShift = BSDF::LobeAlpha(surface, bsdfSample.lobe) <= g_local.Alpha_min;
+#else
+        const bool useHalfVecShift = false;
+#endif
 
         // check if closest hit is a light source
         BSDFHitInfo hitInfo = FindClosestHit(pos, normal, wi, g_bvh, g_frameMeshData, 
             surface.Transmissive());
 
-        float w_i = 0;
+        float w_b = 0;
         float3 le = 0;
         float3 lightNormal = 0;
         float3 target = 0;
@@ -78,29 +87,30 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
 
                 // Balance Heuristic
                 // wiPdf in m_i's numerator and w_i's denominator cancel out
-                const float m_i = 1.0f / max(numBsdfCandidates * wiPdf + NUM_LIGHT_CANDIDATES * lightPdf, 1e-6f);
+                const float denom = numBsdfSamples * wiPdf + numLightSamples * lightPdf;
+                const float m_i = 1.0f / denom;
 
                 // target = Le * BSDF(wi, wo) * |ndotwi|
                 // source = P(wi)
                 target = le * bsdfSample.f * dwdA;
-                w_i = m_i * Math::Luminance(target);
+                w_b = m_i * Math::Luminance(target);
             }
         }
 
-        if (r.Update(w_i, le, hitInfo.emissiveTriIdx, hitInfo.bary, rng))
+        if (r.Update(w_b, useHalfVecShift, wi, surface.wo, normal, bsdfSample.lobe, le, 
+            hitInfo.emissiveTriIdx, hitInfo.bary, rng))
         {
             r.target = target;
             r.lightID = emissiveID;
             r.lightPos = hitInfo.lightPos;
             r.lightNormal = lightNormal;
             r.doubleSided = doubleSided;
-            r.rayT = hitInfo.t;
         }
     }
 
     // light sampling
     [loop]
-    for (int s_l = 0; s_l < NUM_LIGHT_CANDIDATES; s_l++)
+    for (int s_l = 0; s_l < numLightSamples; s_l++)
     {
         // sample a light source relative to its power
 #ifdef USE_PRESAMPLED_SETS
@@ -119,7 +129,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         const bool doubleSided = tri.twoSided;
 
         if(tri.twoSided && dot(pos - tri.pos, lightSample.normal) < 0)
-            lightSample.normal *= -1;
+            lightSample.normal = -lightSample.normal;
 #else
         Light::AliasTableSample entry = Light::AliasTableSample::get(g_aliasTable, 
             g_frame.NumEmissiveTriangles, rng);
@@ -153,18 +163,18 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         }
 
         // p_d in m_i's numerator and w_i's denominator cancel out
-        const float m_i = 1.0f / max(NUM_LIGHT_CANDIDATES * lightPdf + 
-            numBsdfCandidates * BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) * dwdA, 1e-6f);
-        const float w_i = m_i * Math::Luminance(target);
+        const float denom = numLightSamples * lightPdf + 
+            numBsdfSamples * BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) * dwdA;
+        const float m_l = denom > 0 ? 1.0f / denom : 0;
+        const float w_l = m_l * Math::Luminance(target);
 
-        if (r.Update(w_i, le, emissiveIdx, lightSample.bary, rng))
+        if (r.Update(w_l, le, emissiveIdx, lightSample.bary, rng))
         {
             r.target = target;
             r.lightID = lightID;
             r.lightNormal = lightSample.normal;
             r.lightPos = lightSample.pos;
             r.doubleSided = doubleSided;
-            r.rayT = t;
         }
     }
 
@@ -179,41 +189,31 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
     RNG rng_thread)
 {
     // Light sampling is less effective for glossy surfaces or when light source is close to surface
-    const int numBsdfCandidates = EXTRA_BSDF_SAMPLE_HIGHLY_GLOSSY && (roughness > 0.06 && roughness < 0.3) ? 
+    const int numBsdfSamples = EXTRA_BSDF_SAMPLE_HIGHLY_GLOSSY && !surface.GlossSpecular() && roughness < 0.3 ? 
         2 : 
         1;
 
     Reservoir r = RIS_InitialCandidates(DTid, pos, normal, roughness, surface, sampleSetIdx,
-        numBsdfCandidates, rng_thread);
-
-    float2 mv = 0;
-    bool temporalValid = false;
-    TemporalCandidate temporalCandidate;
+        numBsdfSamples, rng_thread);
 
     if (IS_CB_FLAG_SET(CB_RDI_FLAGS::TEMPORAL_RESAMPLE)) 
     {
-        float2 prevUV;
-
-        // if(!surface.GlossSpecular())
-        {
-            GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
-                GBUFFER_OFFSET::MOTION_VECTOR];
-            const float2 motionVec = g_motionVector[DTid];
-            const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
-            prevUV = currUV - motionVec;
-            mv = motionVec;
-        }
-        // else
-        //     prevUV = RDI_Util::VirtualMotionReproject(pos, surface.wo, r.rayT, g_frame.PrevViewProj);
+        GBUFFER_MOTION_VECTOR g_motionVector = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
+            GBUFFER_OFFSET::MOTION_VECTOR];
+        float2 motionVec = g_motionVector[DTid];
+        const float2 currUV = (DTid + 0.5f) / float2(g_frame.RenderWidth, g_frame.RenderHeight);
+        float2 prevUV = currUV - motionVec;
 
         TemporalCandidate temporalCandidate = FindTemporalCandidate(DTid, pos, 
             normal, z_view, roughness, surface, prevUV, g_frame, rng_thread);
 
         if (temporalCandidate.valid)
         {
-            TemporalResample1(pos, normal, surface, g_local.PrevReservoir_A_DescHeapIdx, 
-                g_local.PrevReservoir_A_DescHeapIdx + 1, temporalCandidate, g_frame, g_emissives, 
-                g_bvh, g_bvh_prev, r, rng_thread);
+            TemporalResample1(pos, normal, surface, g_local.Alpha_min, 
+                temporalCandidate, g_local.PrevReservoir_A_DescHeapIdx, 
+                g_local.PrevReservoir_A_DescHeapIdx + 1, g_frame, 
+                g_bvh, g_bvh_prev, g_emissives, g_frameMeshData,
+                r, rng_thread);
         }
 
         // Note: Results are improved when spatial doesn't feed into next frame's 
@@ -223,7 +223,7 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
 
         if(IS_CB_FLAG_SET(CB_RDI_FLAGS::SPATIAL_RESAMPLE))
         {
-            bool disoccluded = !temporalCandidate.valid && (dot(mv, mv) > 0);
+            bool disoccluded = !temporalCandidate.valid && (dot(motionVec, motionVec) > 0);
             r.target = disoccluded ? -r.target : r.target;
             r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
         }

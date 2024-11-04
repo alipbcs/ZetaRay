@@ -107,7 +107,8 @@ void SkyDI::Init()
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);
 
-    App::AddShaderReloadHandler("SkyDI", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
+    App::AddShaderReloadHandler("SkyDI (Temporal)", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
+    App::AddShaderReloadHandler("SkyDI (Spatial)", fastdelegate::MakeDelegate(this, &SkyDI::ReloadSpatialPass));
 
     m_isTemporalReservoirValid = false;
 
@@ -367,3 +368,8 @@ void SkyDI::ReloadTemporalPass()
     m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_Temporal.hlsl");
 }
 
+void SkyDI::ReloadSpatialPass()
+{
+    const int i = (int)SHADER::SKY_DI_SPATIAL;
+    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_Spatial.hlsl");
+}

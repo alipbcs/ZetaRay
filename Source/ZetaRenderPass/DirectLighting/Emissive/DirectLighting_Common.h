@@ -25,6 +25,7 @@ struct cb_ReSTIR_DI
     uint32_t TargetDescHeapIdx;
     uint32_t FinalDescHeapIdx;
 
+    float Alpha_min;
     uint32_t Flags;
     uint32_t M_max;
     uint32_t NumSampleSets;

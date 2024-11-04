@@ -91,6 +91,8 @@ namespace ZetaRay::RenderPass
         struct DefaultParamVals
         {
             static constexpr int M_MAX = 20;
+            // Use half-vector copy for anything lower
+            static constexpr float ROUGHNESS_MIN = 0.05;
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
@@ -119,6 +121,7 @@ namespace ZetaRay::RenderPass
         void MaxTemporalMCallback(const Support::ParamVariant& p);
         void ExtraSamplesDisocclusionCallback(const Support::ParamVariant& p);
         void StochasticSpatialCallback(const Support::ParamVariant& p);
+        void AlphaMinCallback(const Support::ParamVariant& p);
 
         // shader reload
         void ReloadTemporal();

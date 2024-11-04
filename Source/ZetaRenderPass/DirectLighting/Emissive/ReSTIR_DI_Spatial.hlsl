@@ -15,6 +15,7 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b0);
 ConstantBuffer<cb_ReSTIR_DI> g_local : register(b1);
 RaytracingAccelerationStructure g_bvh : register(t0);
 StructuredBuffer<RT::EmissiveTriangle> g_emissives : register(t2);
+StructuredBuffer<RT::MeshInstance> g_frameMeshData : register(t5);
 
 //--------------------------------------------------------------------------------------
 // Main
@@ -173,9 +174,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         MIN_NUM_SPATIAL_SAMPLES;
     numSamples = !disoccluded ? numSamples : MAX_NUM_SPATIAL_SAMPLES;
 
-    RDI_Util::SpatialResample(swizzledDTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, normal, z_view, 
-        mr.y, surface, g_local.CurrReservoir_A_DescHeapIdx, g_local.CurrReservoir_A_DescHeapIdx + 1, 
-        g_frame, g_emissives, g_bvh, r, rng_thread);
+    RDI_Util::SpatialResample(swizzledDTid, numSamples, SPATIAL_SEARCH_RADIUS, pos, 
+        normal, z_view, mr.y, surface, g_local.Alpha_min, g_local.CurrReservoir_A_DescHeapIdx, 
+        g_local.CurrReservoir_A_DescHeapIdx + 1, g_frame, g_bvh, g_emissives, g_frameMeshData,
+        r, rng_thread);
 
     float3 li = r.target * r.W;
     li = any(isnan(li)) ? 0 : li;

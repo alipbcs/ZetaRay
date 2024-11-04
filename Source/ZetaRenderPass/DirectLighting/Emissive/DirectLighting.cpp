@@ -97,6 +97,7 @@ void DirectLighting::Init()
 
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
+    m_cbSpatioTemporal.Alpha_min = DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL, true);
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::EXTRA_DISOCCLUSION_SAMPLING, true);
 
@@ -130,6 +131,12 @@ void DirectLighting::Init()
         fastdelegate::MakeDelegate(this, &DirectLighting::StochasticSpatialCallback), 
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL));
     App::AddParam(stochasticSpatial);
+
+    ParamVariant alphaMin;
+    alphaMin.InitFloat("Renderer", "Direct Lighting", "Alpha_min",
+        fastdelegate::MakeDelegate(this, &DirectLighting::AlphaMinCallback),
+        DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
+    App::AddParam(alphaMin);
 
     App::AddShaderReloadHandler("ReSTIR_DI", fastdelegate::MakeDelegate(this, 
         &DirectLighting::ReloadTemporal));
@@ -374,6 +381,12 @@ void DirectLighting::ExtraSamplesDisocclusionCallback(const Support::ParamVarian
 void DirectLighting::StochasticSpatialCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL, p.GetBool());
+}
+
+void DirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
+{
+    float newVal = p.GetFloat().m_value;
+    m_cbSpatioTemporal.Alpha_min = newVal * newVal;
 }
 
 void DirectLighting::ReloadTemporal()

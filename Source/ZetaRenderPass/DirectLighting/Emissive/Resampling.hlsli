@@ -3,8 +3,6 @@
 
 #include "Params.hlsli"
 #include "PairwiseMIS.hlsli"
-#include "../../Common/FrameConstants.h"
-#include "../../Common/Common.hlsli"
 #include "../../Common/GBuffers.hlsli"
 
 namespace RDI_Util
@@ -131,39 +129,156 @@ namespace RDI_Util
         return candidate;
     }
 
-    float TargetLumAtTemporalPixel(Reservoir r_curr, TemporalCandidate candidate, 
-        RaytracingAccelerationStructure g_bvh_prev)
+    float OffsetPathTarget_CtT(Reservoir r_curr, float alpha_min, TemporalCandidate candidate, 
+        float3 wh, ConstantBuffer<cbFrameConstants> g_frame,
+        RaytracingAccelerationStructure g_bvh_prev,
+        StructuredBuffer<RT::EmissiveTriangle> g_emissives,
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData)
     {
-        float3 wi = r_curr.lightPos - candidate.pos;
-        const bool isZero = dot(wi, wi) == 0;
-        const float t = isZero ? 0 : length(wi);
-        wi = isZero ? wi : wi / t;
-        candidate.surface.SetWi(wi, candidate.normal);
+        if(!IsShiftInvertible(r_curr, candidate.surface, alpha_min))
+            return 0;
 
-        float3 lightNormal = r_curr.lightNormal;
-        if(r_curr.doubleSided && dot(-wi, lightNormal) < 0)
-            lightNormal *= -1;
+        float3 target_offset = 0;
+        float3 wi_offset;
+        float t_offset = 0;
+        uint lightID = UINT32_MAX;
 
-        float cosThetaPrime = saturate(dot(lightNormal, -wi));
-        const float dwdA = isZero ? 0 : cosThetaPrime / (t * t);
-
-        const float3 target_prev = r_curr.le * BSDF::Unified(candidate.surface).f * dwdA;
-        float targetLum_prev = Math::Luminance(target_prev);
-
-        if(targetLum_prev > 0)
+#if USE_HALF_VECTOR_COPY_SHIFT == 1
+        if(r_curr.halfVectorCopyShift)
         {
-            targetLum_prev *= RtRayQuery::Visibility_Segment(candidate.pos, wi, t, candidate.normal, 
-                r_curr.lightID, g_bvh_prev, candidate.surface.Transmissive());
+            wi_offset = reflect(-candidate.surface.wo, wh);
+            BSDFHitInfo hitInfo = FindClosestHit(candidate.pos, candidate.normal, wi_offset, g_bvh_prev, 
+                g_frameMeshData, candidate.surface.Transmissive());
+
+            if(!hitInfo.hit)
+                return 0;
+
+            RT::EmissiveTriangle emissive = g_emissives[hitInfo.emissiveTriIdx];
+            float3 le = Light::Le_EmissiveTriangle(emissive, hitInfo.bary, 
+                g_frame.EmissiveMapsDescHeapOffset);
+
+            const float3 vtx1 = Light::DecodeEmissiveTriV1(emissive);
+            const float3 vtx2 = Light::DecodeEmissiveTriV2(emissive);
+            float3 lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
+            float twoArea = length(lightNormal);
+            lightNormal = dot(lightNormal, lightNormal) == 0 ? 0 : lightNormal / twoArea;
+            lightNormal = emissive.IsDoubleSided() && dot(-wi_offset, lightNormal) < 0 ? 
+                -lightNormal : lightNormal;
+
+            if(dot(-wi_offset, lightNormal) > 0)
+            {
+                float dwdA = saturate(dot(lightNormal, -wi_offset)) / (hitInfo.t * hitInfo.t);
+                target_offset = le * dwdA;
+            }
+
+            candidate.surface.SetWi(wi_offset, candidate.normal);
+        }
+        else
+#endif
+        {
+            wi_offset = r_curr.lightPos - candidate.pos;
+            const bool isZero = dot(wi_offset, wi_offset) == 0;
+            t_offset = isZero ? 0 : length(wi_offset);
+            wi_offset = isZero ? wi_offset : wi_offset / t_offset;
+            candidate.surface.SetWi(wi_offset, candidate.normal);
+
+            float3 lightNormal = r_curr.lightNormal;
+            if(r_curr.doubleSided && dot(-wi_offset, lightNormal) < 0)
+                lightNormal = -lightNormal;
+
+            float cosThetaPrime = saturate(dot(lightNormal, -wi_offset));
+            const float dwdA = isZero ? 0 : cosThetaPrime / (t_offset * t_offset);
+            target_offset = r_curr.le * dwdA;
         }
 
-        return targetLum_prev;
+        target_offset *= BSDF::Unified(candidate.surface).f;
+        float targetLum_offset = Math::Luminance(target_offset);
+
+        if(!r_curr.halfVectorCopyShift && targetLum_offset > 0)
+        {
+            targetLum_offset *= RtRayQuery::Visibility_Segment(candidate.pos, wi_offset, t_offset, 
+                candidate.normal, r_curr.lightID, g_bvh_prev, candidate.surface.Transmissive());
+        }
+
+        return targetLum_offset;
+    }
+
+    float3 OffsetPathTarget_TtC(Reservoir r_prev, float3 pos, float3 normal, float alpha_min,
+        BSDF::ShadingData surface, float3 wh, ConstantBuffer<cbFrameConstants> g_frame,
+        RaytracingAccelerationStructure g_bvh,
+        StructuredBuffer<RT::EmissiveTriangle> g_emissives,
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData)
+    {
+        if(!IsShiftInvertible(r_prev, surface, alpha_min))
+            return 0;
+
+        float3 target_offset = 0;
+        float3 wi_offset;
+        float t_offset = 0;
+        uint lightID = UINT32_MAX;
+
+#if USE_HALF_VECTOR_COPY_SHIFT == 1
+        if(r_prev.halfVectorCopyShift)
+        {
+            wi_offset = reflect(-surface.wo, wh);
+
+            BSDFHitInfo hitInfo = FindClosestHit(pos, normal, wi_offset, g_bvh, 
+                g_frameMeshData, surface.Transmissive());
+
+            if(!hitInfo.hit)
+                return 0;
+
+            RT::EmissiveTriangle emissive = g_emissives[hitInfo.emissiveTriIdx];
+            float3 le = Light::Le_EmissiveTriangle(emissive, hitInfo.bary, 
+                g_frame.EmissiveMapsDescHeapOffset);
+
+            const float3 vtx1 = Light::DecodeEmissiveTriV1(emissive);
+            const float3 vtx2 = Light::DecodeEmissiveTriV2(emissive);
+            float3 lightNormal = cross(vtx1 - emissive.Vtx0, vtx2 - emissive.Vtx0);
+            float twoArea = length(lightNormal);
+            lightNormal = dot(lightNormal, lightNormal) == 0 ? 0 : lightNormal / twoArea;
+            lightNormal = emissive.IsDoubleSided() && dot(-wi_offset, lightNormal) < 0 ? 
+                -lightNormal : lightNormal;
+
+            // Light is backfacing
+            if(dot(-wi_offset, lightNormal) > 0)
+            {
+                float dwdA = saturate(dot(lightNormal, -wi_offset)) / (hitInfo.t * hitInfo.t);
+                target_offset = le * dwdA;
+            }
+
+            surface.SetWi(wi_offset, normal);
+        }
+        else
+#endif
+        {
+            EmissiveData prevEmissive = EmissiveData::Init(r_prev.lightIdx, r_prev.bary, g_emissives);
+            prevEmissive.SetSurfacePos(pos);
+            wi_offset = prevEmissive.wi;
+            t_offset = prevEmissive.t;
+            lightID = prevEmissive.ID;
+            float dwdA = prevEmissive.dWdA();
+
+            surface.SetWi(prevEmissive.wi, normal);
+            target_offset = r_prev.le * dwdA;
+        }
+
+        target_offset *= BSDF::Unified(surface).f;
+        if(!r_prev.halfVectorCopyShift && dot(target_offset, target_offset) > 0)
+        {
+            target_offset *= RtRayQuery::Visibility_Segment(pos, wi_offset, t_offset, normal, 
+                lightID, g_bvh, surface.Transmissive());
+        }
+
+        return target_offset;
     }
 
     void TemporalResample1(float3 pos, float3 normal, BSDF::ShadingData surface, 
-        uint prevReservoir_A_DescHeapIdx, uint prevReservoir_B_DescHeapIdx, 
-        TemporalCandidate candidate, ConstantBuffer<cbFrameConstants> g_frame, 
-        StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
+        float alpha_min, TemporalCandidate candidate, uint prevReservoir_A_DescHeapIdx, 
+        uint prevReservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, 
         RaytracingAccelerationStructure g_bvh, RaytracingAccelerationStructure g_bvh_prev,
+        StructuredBuffer<RT::EmissiveTriangle> g_emissives,
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData,
         inout Reservoir r_curr, inout RNG rng)
     {
         Reservoir r_prev = Reservoir::Load(candidate.posSS,
@@ -173,30 +288,31 @@ namespace RDI_Util
         // Shift from current pixel to temporal
         if(r_curr.w_sum != 0)
         {
-            float targetLum_prev = TargetLumAtTemporalPixel(r_curr, candidate, g_bvh_prev);
+            float3 wh_prev = Math::FromTangentFrameToWorld(candidate.normal, r_curr.wh_local);
+            float whdotwo = abs(dot(candidate.surface.wo, wh_prev));
+            float jacobian = r_curr.partialJacobian == 0 ? 0 : whdotwo / r_curr.partialJacobian;
+            jacobian = r_curr.halfVectorCopyShift ? jacobian : 1;
 
-            const float p_curr = r_curr.M * Math::Luminance(r_curr.target);
-            const float denom = p_curr + r_prev.M * targetLum_prev;
-            const float m_curr = denom > 0 ? p_curr / denom : 0;
+            float targetLum_prev = OffsetPathTarget_CtT(r_curr, alpha_min, candidate, wh_prev, 
+                g_frame, g_bvh_prev, g_emissives, g_frameMeshData);
+            const float numerator = r_curr.M * Math::Luminance(r_curr.target);
+            const float denom = numerator + r_prev.M * targetLum_prev * jacobian;
+            const float m_curr = denom > 0 ? numerator / denom : 0;
             r_curr.w_sum *= m_curr;
         }
 
         // Shift from temporal to current
         if(r_prev.lightIdx != UINT32_MAX)
         {
-            EmissiveData prevEmissive = EmissiveData::Init(r_prev.lightIdx, r_prev.bary, g_emissives);
-            prevEmissive.SetSurfacePos(pos);
-            float dwdA = prevEmissive.dWdA();
+            float3 wh_curr = Math::FromTangentFrameToWorld(normal, r_prev.wh_local);
+            float3 wh_prev = Math::FromTangentFrameToWorld(candidate.normal, r_prev.wh_local);
+            float whdotwo_prev = abs(dot(candidate.surface.wo, wh_prev));
+            float whdotwo_curr = abs(dot(surface.wo, wh_curr));
+            float jacobian = whdotwo_prev > 0 ? whdotwo_curr / whdotwo_prev : 0;
+            jacobian = r_prev.halfVectorCopyShift ? jacobian : 1;
 
-            surface.SetWi(prevEmissive.wi, normal);
-            float3 target_curr = r_prev.le * BSDF::Unified(surface).f * dwdA;
-
-            if(dot(target_curr, target_curr) > 0)
-            {
-                target_curr *= RtRayQuery::Visibility_Segment(pos, prevEmissive.wi, prevEmissive.t, normal, 
-                    prevEmissive.ID, g_bvh, surface.Transmissive());
-            }
-
+            const float3 target_curr = OffsetPathTarget_TtC(r_prev, pos, normal, alpha_min, surface,
+                wh_curr, g_frame, g_bvh, g_emissives, g_frameMeshData);
             const float targetLum_curr = Math::Luminance(target_curr);
 
             // w_prev becomes zero and only M needs to be updated, which is done at the end anyway
@@ -205,12 +321,15 @@ namespace RDI_Util
                 const float targetLum_prev = r_prev.W > 0 ? r_prev.w_sum / r_prev.W : 0;
                 // Balance Heuristic
                 const float numerator = r_prev.M * targetLum_prev;
-                const float denom = numerator + r_curr.M * targetLum_curr;
+                const float denom = numerator / jacobian + r_curr.M * targetLum_curr;
                 const float m_prev = denom > 0 ? numerator / denom : 0;
                 const float w_prev = m_prev * targetLum_curr * r_prev.W;
 
-                if(r_curr.Update(w_prev, r_prev.le, r_prev.lightIdx, r_prev.bary, rng))
+                if (r_curr.Update(w_prev, r_prev.halfVectorCopyShift, r_prev.wh_local, whdotwo_curr, 
+                    r_prev.lobe, r_prev.le, r_prev.lightIdx, r_prev.bary, rng))
+                {
                     r_curr.target = target_curr;
+                }
             }
         }
 
@@ -220,9 +339,12 @@ namespace RDI_Util
     }
 
     void SpatialResample(uint2 DTid, int numSamples, float radius, float3 pos, float3 normal, 
-        float z_view, float roughness, BSDF::ShadingData surface, uint reservoir_A_DescHeapIdx, 
-        uint reservoir_B_DescHeapIdx, ConstantBuffer<cbFrameConstants> g_frame, 
-        StructuredBuffer<RT::EmissiveTriangle> g_emissives, RaytracingAccelerationStructure g_bvh, 
+        float z_view, float roughness, BSDF::ShadingData surface, float alpha_min, 
+        uint reservoir_A_DescHeapIdx, uint reservoir_B_DescHeapIdx, 
+        ConstantBuffer<cbFrameConstants> g_frame, 
+        RaytracingAccelerationStructure g_bvh, 
+        StructuredBuffer<RT::EmissiveTriangle> g_emissives, 
+        StructuredBuffer<RT::MeshInstance> g_frameMeshData,
         inout Reservoir r, inout RNG rng)
     {
         static const half2 k_samples[32] =
@@ -389,7 +511,7 @@ namespace RDI_Util
                 reservoir_B_DescHeapIdx);
 
             pairwiseMIS.Stream(r, pos, normal, surface, r_spatial, samplePos[i], sampleNormal, 
-                surface_i, g_emissives, g_bvh, rng);
+                surface_i, alpha_min, g_frame, g_bvh, g_emissives, g_frameMeshData, rng);
         }
 
         pairwiseMIS.End(r, rng);

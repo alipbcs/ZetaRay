@@ -289,6 +289,26 @@ namespace Math
         b2 = float3(b, mad(n.y * a, n.y, s), -n.y);
     }
 
+    float3 WorldToTangentFrame(float3 normal, float3 w)
+    {
+        float3 b1;
+        float3 b2;
+        Math::revisedONB(normal, b1, b2);
+        float3x3 worldToLocal = float3x3(b1, b2, normal);
+
+        return mul(worldToLocal, w);
+    }
+
+    float3 FromTangentFrameToWorld(float3 normal, float3 w_local)
+    {
+        float3 b1;
+        float3 b2;
+        Math::revisedONB(normal, b1, b2);
+        float3x3 localToWorld_T = float3x3(b1, b2, normal);
+
+        return mul(w_local, localToWorld_T);
+    }
+
     // Ref: M. Pharr, W. Jakob, and G. Humphreys, Physically Based Rendering, Morgan Kaufmann, 2016.
     struct TriDifferentials
     {

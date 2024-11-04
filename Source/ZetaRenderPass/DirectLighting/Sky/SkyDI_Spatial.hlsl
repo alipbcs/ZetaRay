@@ -20,10 +20,10 @@ RaytracingAccelerationStructure g_bvh : register(t0);
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(SKY_DI_GROUP_DIM_X, SKY_DI_GROUP_DIM_Y),
+        uint2(SKY_DI_GROUP_DIM_X, SKY_DI_GROUP_DIM_Y),
         g_local.DispatchDimX, 
         SKY_DI_TILE_WIDTH, 
         SKY_DI_LOG2_TILE_WIDTH, 

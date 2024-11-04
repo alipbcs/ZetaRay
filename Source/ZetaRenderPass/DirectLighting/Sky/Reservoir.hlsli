@@ -92,7 +92,7 @@ namespace SkyDI_Util
                 if(halfVecShift)
                 {
                     float3 wh = normalize(wo + wi);
-                    float3 wh_local = WorldToTangentFrame(normal, wh);
+                    float3 wh_local = Math::WorldToTangentFrame(normal, wh);
 
                     this.wx = wh_local;
                     this.partialJacobian = abs(dot(wh, wo));

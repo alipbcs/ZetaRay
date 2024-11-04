@@ -162,10 +162,10 @@ namespace SkyDI_Util
                 if(r.halfVectorCopyShift)
                 {
                     float3 wh_local = r.wx;
-                    float3 wh_t = FromTangentFrameToWorld(candidate.normal, wh_local);
+                    float3 wh_t = Math::FromTangentFrameToWorld(candidate.normal, wh_local);
 
                     wi_offset = reflect(-candidate.surface.wo, wh_t);
-                    jacobian = r.partialJacobian == 0 ? 1 : 
+                    jacobian = r.partialJacobian == 0 ? 0 : 
                         abs(dot(candidate.surface.wo, wh_t)) / r.partialJacobian;
                 }
 
@@ -184,9 +184,8 @@ namespace SkyDI_Util
                 }
             }
 
-            const float p_curr = r.M * Math::Luminance(r.target);
-            float numerator = p_curr;
-            float denom = numerator + r_prev.M * targetLum_prev * jacobian;
+            const float numerator = r.M * Math::Luminance(r.target);
+            const float denom = numerator + r_prev.M * targetLum_prev * jacobian;
             const float m_curr = denom > 0 ? numerator / denom : 0;
             r.w_sum *= m_curr;
         }
@@ -203,8 +202,8 @@ namespace SkyDI_Util
                 if(r_prev.halfVectorCopyShift)
                 {
                     float3 wh_local = r_prev.wx;
-                    float3 wh_c = FromTangentFrameToWorld(normal, wh_local);
-                    float3 wh_t = FromTangentFrameToWorld(candidate.normal, wh_local);
+                    float3 wh_c = Math::FromTangentFrameToWorld(normal, wh_local);
+                    float3 wh_t = Math::FromTangentFrameToWorld(candidate.normal, wh_local);
 
                     wi_offset = reflect(-surface.wo, wh_c);
                     float whdotwo_t = abs(dot(candidate.surface.wo, wh_t));
