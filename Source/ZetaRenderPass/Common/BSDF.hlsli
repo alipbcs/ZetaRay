@@ -167,7 +167,7 @@ namespace BSDF
     float GGX(float ndotwh, float alphaSq)
     {
         float denom = mad(ndotwh * ndotwh, alphaSq - 1.0f, 1.0f);
-        return alphaSq / max(PI * denom * denom, 1e-8);
+        return alphaSq / (PI * denom * denom);
     }
 
     //--------------------------------------------------------------------------------------

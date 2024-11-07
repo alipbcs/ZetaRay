@@ -41,7 +41,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
     {
         BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, rng);
         float3 wi = bsdfSample.wi;
-        float wiPdf = bsdfSample.pdf;
+        float pdf_w = bsdfSample.pdf;
 #if USE_HALF_VECTOR_COPY_SHIFT == 1
         // i.e. Glossy reflection or coat with lobe roughness below threshold
         const bool useHalfVecShift = BSDF::LobeAlpha(surface, bsdfSample.lobe) <= g_local.Alpha_min;
@@ -79,16 +79,19 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
             if(dot(-wi, lightNormal) > 0)
             {
                 const float lightSourcePdf = g_aliasTable[hitInfo.emissiveTriIdx].CachedP_Orig;
-                const float lightPdf = lightSourcePdf * (1.0f / (0.5f * twoArea));
+                const float pdf_light = lightSourcePdf * (1.0f / (0.5f * twoArea));
 
                 // solid angle measure to area measure
-                float dwdA = saturate(dot(lightNormal, -wi)) / (hitInfo.t * hitInfo.t);
-                wiPdf *= dwdA;
+                const float dwdA = saturate(dot(lightNormal, -wi)) / (hitInfo.t * hitInfo.t);
+                pdf_w *= dwdA;
 
                 // Balance Heuristic
-                // wiPdf in m_i's numerator and w_i's denominator cancel out
-                const float denom = numBsdfSamples * wiPdf + numLightSamples * lightPdf;
-                const float m_i = 1.0f / denom;
+                const bool sampleIsSpecular = 
+                    (surface.GlossSpecular() && bsdfSample.lobe == BSDF::LOBE::GLOSSY_R) || 
+                    (surface.CoatSpecular() && bsdfSample.lobe == BSDF::LOBE::COAT);
+                float denom = numBsdfSamples * pdf_w + !sampleIsSpecular * numLightSamples * pdf_light;
+                // pdf_a in m_i's numerator and w_i's denominator cancel out
+                const float m_i = 1.0f / denom; 
 
                 // target = Le * BSDF(wi, wo) * |ndotwi|
                 // source = P(wi)
@@ -123,7 +126,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         lightSample.bary = Math::DecodeUNorm2(tri.bary);
 
         float3 le = tri.le;
-        const float lightPdf = tri.pdf;
+        const float pdf_light = tri.pdf;
         const uint emissiveIdx = tri.idx;
         const uint lightID = tri.ID;
         const bool doubleSided = tri.twoSided;
@@ -137,7 +140,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
         Light::EmissiveTriSample lightSample = Light::EmissiveTriSample::get(pos, tri, rng);
 
         float3 le = Light::Le_EmissiveTriangle(tri, lightSample.bary, g_frame.EmissiveMapsDescHeapOffset);
-        const float lightPdf = entry.pdf * lightSample.pdf;
+        const float pdf_light = entry.pdf * lightSample.pdf;
         const uint emissiveIdx = entry.idx;
         const uint lightID = tri.ID;
         const bool doubleSided = tri.IsDoubleSided();
@@ -162,8 +165,8 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal, float rou
             }
         }
 
-        // p_d in m_i's numerator and w_i's denominator cancel out
-        const float denom = numLightSamples * lightPdf + 
+        // pdf_light in m_i's numerator and w_i's denominator cancel out
+        const float denom = numLightSamples * pdf_light + 
             numBsdfSamples * BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi) * dwdA;
         const float m_l = denom > 0 ? 1.0f / denom : 0;
         const float w_l = m_l * Math::Luminance(target);
