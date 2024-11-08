@@ -19,10 +19,11 @@ using namespace ZetaRay;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
 using namespace ZetaRay::Support;
+using namespace ZetaRay::Math;
 
 namespace
 {
-    static constexpr int MAX_TEX_RES = 4096;
+    static constexpr int DEFAULT_MAX_TEX_RES = 4096;
     static constexpr const char* COMPRESSED_DIR_NAME = "compressed";
 
     namespace TEX_CONV_ARGV_NO_OVERWRITE_SRGB
@@ -61,10 +62,10 @@ namespace
         constexpr int NUM_ARGS = 18;
     }
 
-    static constexpr int MAX_NUM_ARGS = Math::Max(
-        Math::Max(TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS),
-        Math::Max(Math::Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS),
-                  Math::Max(TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS)));
+    static constexpr int MAX_NUM_ARGS = Max(
+        Max(TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS),
+        Max(Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS),
+                  Max(TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS)));
 
     enum TEXTURE_TYPE
     {
@@ -210,8 +211,9 @@ namespace
         return false;
     }
 
-    bool ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, const Filesystem::Path& outDir,
-        Span<int> textureMaps, Span<Filesystem::Path> imagePaths, ID3D11Device* device, bool srgb, bool forceOverwrite)
+    bool ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, 
+        const Filesystem::Path& outDir, Span<int> textureMaps, Span<Filesystem::Path> imagePaths, 
+        ID3D11Device* device, bool srgb, bool forceOverwrite, int maxRes)
     {
         const char* formatStr = srgb ?
             (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
@@ -244,17 +246,19 @@ namespace
             int x;
             int y;
             int comp;
-            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", imgPath.Get(), stbi_failure_reason());
+            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", 
+                imgPath.Get(), stbi_failure_reason());
 
-            int w = Math::Min(x, MAX_TEX_RES);
-            int h = Math::Min(y, MAX_TEX_RES);
+            int w = Min(x, maxRes);
+            int h = Min(y, maxRes);
 
             // Direct3D requires BC image to be multiple of 4 in width & height
-            w = (int)Math::AlignUp(w, 4);
-            h = (int)Math::AlignUp(h, 4);
+            w = (int)AlignUp(w, 4);
+            h = (int)AlignUp(h, 4);
 
             char buff[512];
-            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, outDir.GetView().data(), imgPath.Get());
+            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, 
+                outDir.GetView().data(), imgPath.Get());
             Check(len < sizeof(buff), "buffer is too small.");
 
             wchar_t wideBuff[1024];
@@ -362,13 +366,18 @@ namespace
 
         return true;
     }
+
+    ZetaInline void ReportUsageError()
+    {
+        printf("Usage: BCnCompressglTF <path-to-glTF> [options]\n\nOptions:\n%5s%30s\n%5s%30s\n%18s%23s\n", "-y", "Force overwrite", "-sv", "Skip validation", "-mr <resolution>", "Max output resolution");
+    }
 }
 
 int main(int argc, char* argv[])
 {
-    if (argc < 2 || argc > 4)
+    if (argc < 2 || argc > 5)
     {
-        printf("Usage: BCnCompressglTF <path-to-glTF> [options]\n\nOptions:\n%5s%25s\n%5s%25s\n", "-y", "Force overwrite", "-sv", "Skip validation");
+        ReportUsageError();
         return 0;
     }
 
@@ -381,6 +390,7 @@ int main(int argc, char* argv[])
 
     bool forceOverwrite = false;
     bool validate = true;
+    int maxRes = -1;
 
     for (int i = 2; i < argc; i++)
     {
@@ -388,9 +398,28 @@ int main(int argc, char* argv[])
             forceOverwrite = true;
         else if (strcmp(argv[i], "-sv") == 0)
             validate = false;
+        else if (strcmp(argv[i], "-mr") == 0)
+        {
+            if(i == argc - 1)
+            { 
+                ReportUsageError();
+                return 0;
+            }
+            maxRes = atoi(argv[i + 1]);
+            if(maxRes == 0)
+            {
+                ReportUsageError();
+                return 0;
+            }
+
+            maxRes = Min(maxRes, DEFAULT_MAX_TEX_RES);
+            i++;
+        }
     }
 
-    printf("Compressing textures for %s...\n", argv[1]);
+    maxRes = maxRes == -1 ? DEFAULT_MAX_TEX_RES : maxRes;
+    printf("Compressing textures for %s...\nMaximum output resolution set to %dx%d\n", 
+        argv[1], maxRes, maxRes);
 
     MemoryArena arena(64 * 1024);
 
@@ -506,7 +535,8 @@ int main(int argc, char* argv[])
                     break;
 
                 std::string texPath = data["images"][i]["uri"];
-                printf("WARNING: Following texture is used both as a(n) %s map and a(n) %s map:\n%s\n", n1, n2, texPath.c_str());
+                printf("WARNING: Following texture is used both as a(n) %s map and a(n) %s map:\n%s\n", 
+                    n1, n2, texPath.c_str());
 
                 i = -1;
                 isValid = false;
@@ -550,14 +580,26 @@ int main(int argc, char* argv[])
     outDir.Directory().Append(COMPRESSED_DIR_NAME);
     Filesystem::CreateDirectoryIfNotExists(outDir.Get());
 
-    if (!ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths, device.Get(), true, forceOverwrite))
+    if (!ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths,
+        device.Get(), true, forceOverwrite, maxRes))
+    {
         return 0;
-    if (!ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths, device.Get(), false, forceOverwrite))
+    }
+    if (!ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths,
+        device.Get(), false, forceOverwrite, maxRes))
+    {
         return 0;
-    if (!ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps, imagePaths, device.Get(), false, forceOverwrite))
+    }
+    if (!ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps,
+        imagePaths, device.Get(), false, forceOverwrite, maxRes))
+    {
         return 0;
-    if (!ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths, device.Get(), true, forceOverwrite))
+    }
+    if (!ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths,
+        device.Get(), true, forceOverwrite, maxRes))
+    {
         return 0;
+    }
 
     ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
 
