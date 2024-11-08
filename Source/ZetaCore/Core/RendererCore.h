@@ -3,6 +3,7 @@
 #include "Config.h"
 #include "DescriptorHeap.h"
 #include "GpuTimer.h"
+#include <memory>
 
 namespace ZetaRay::Support
 {

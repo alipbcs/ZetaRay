@@ -1,6 +1,7 @@
 #include "Direct3DUtil.h"
 #include "dds.h"
 #include "RendererCore.h"
+#include "../Support/MemoryArena.h"
 #include <xxHash/xxhash.h>
 
 using namespace ZetaRay;
@@ -8,6 +9,7 @@ using namespace ZetaRay::Util;
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Core::Direct3DUtil;
+using namespace ZetaRay::Support;
 
 #define ISBITMASK( r,g,b,a ) ( ddpf.RBitMask == r && ddpf.GBitMask == g && ddpf.BBitMask == b && ddpf.ABitMask == a )
 
@@ -587,7 +589,7 @@ namespace
             twidth, theight, tdepth, skipMip, subresources));
     }
 
-    LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, std::unique_ptr<uint8_t[]>& ddsData, 
+    LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, ArenaAllocator allocator,
         const DDS_HEADER** header, const uint8_t** bitData, size_t* bitSize)
     {
         Assert(header && bitData && bitSize, "invalid args.");
@@ -633,7 +635,8 @@ namespace
         }
 
         // create enough space for the file data
-        ddsData.reset(new (std::nothrow) uint8_t[fileInfo.EndOfFile.LowPart]);
+        //ddsData.reset(new (std::nothrow) uint8_t[fileInfo.EndOfFile.LowPart]);
+        void* ddsData = allocator.AllocateAligned(fileInfo.EndOfFile.LowPart);
         if (!ddsData)
         {
             CloseHandle(hFile);
@@ -642,7 +645,7 @@ namespace
 
         // read the data in
         DWORD BytesRead = 0;
-        if (!ReadFile(hFile, ddsData.get(), fileInfo.EndOfFile.LowPart, &BytesRead, nullptr))
+        if (!ReadFile(hFile, ddsData, fileInfo.EndOfFile.LowPart, &BytesRead, nullptr))
         {
             CheckWin32(false);
             CloseHandle(hFile);
@@ -656,14 +659,14 @@ namespace
         }
 
         // DDS files always start with the same magic number ("DDS ")
-        uint32_t dwMagicNumber = *reinterpret_cast<const uint32_t*>(ddsData.get());
+        uint32_t dwMagicNumber = *reinterpret_cast<const uint32_t*>(ddsData);
         if (dwMagicNumber != DDS_MAGIC)
         {
             CloseHandle(hFile);
             return LOAD_DDS_RESULT::INVALID_DDS_HEADER;
         }
 
-        auto hdr = reinterpret_cast<const DDS_HEADER*>(ddsData.get() + sizeof(uint32_t));
+        auto hdr = reinterpret_cast<const DDS_HEADER*>(reinterpret_cast<uintptr_t>(ddsData) + sizeof(uint32_t));
 
         // Verify header to validate DDS file
         if (hdr->size != sizeof(DDS_HEADER) || hdr->ddspf.size != sizeof(DDS_PIXELFORMAT))
@@ -690,7 +693,7 @@ namespace
         // setup the pointers in the process request
         *header = hdr;
         ptrdiff_t offset = sizeof(uint32_t) + sizeof(DDS_HEADER) + (bDXT10Header ? sizeof(DDS_HEADER_DXT10) : 0);
-        *bitData = ddsData.get() + offset;
+        *bitData = reinterpret_cast<uint8_t*>(ddsData) + offset;
         *bitSize = fileInfo.EndOfFile.LowPart - offset;
 
         CloseHandle(hFile);
@@ -1031,9 +1034,9 @@ UINT64 Direct3DUtil::GetRequiredIntermediateSize(ID3D12Resource* destinationReso
 }
 
 LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
-    Vector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator>& subresources,
+    Vector<D3D12_SUBRESOURCE_DATA, SystemAllocator>& subresources,
     DXGI_FORMAT& format, 
-    std::unique_ptr<uint8_t[]>& ddsData,
+    ArenaAllocator allocator,
     uint32_t& width, 
     uint32_t& height, 
     uint32_t& depth, 
@@ -1046,7 +1049,7 @@ LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
     const uint8_t* bitData = nullptr;
     size_t bitSize = 0;
 
-    auto res = LoadTextureDataFromFile(path, ddsData, &header, &bitData, &bitSize);
+    auto res = LoadTextureDataFromFile(path, allocator, &header, &bitData, &bitSize);
     if (res != LOAD_DDS_RESULT::SUCCESS)
         return res;
 

@@ -5,7 +5,6 @@
 
 #include "Device.h"
 #include "../App/App.h"
-#include <memory>
 
 namespace ZetaRay::App
 {
@@ -22,6 +21,11 @@ namespace ZetaRay::Core::GpuMemory
 {
     struct Texture;
     struct Buffer;
+}
+
+namespace ZetaRay::Support
+{
+    struct ArenaAllocator;
 }
 
 namespace ZetaRay::Core::Direct3DUtil
@@ -567,7 +571,7 @@ namespace ZetaRay::Core::Direct3DUtil
     LOAD_DDS_RESULT LoadDDSFromFile(const char* path,
         Util::Vector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator>& subresources,
         DXGI_FORMAT& format,
-        std::unique_ptr<uint8_t[]>& ddsData,
+        Support::ArenaAllocator allocator,
         uint32_t& width,
         uint32_t& height,
         uint32_t& depth,

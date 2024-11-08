@@ -3,6 +3,7 @@
 #include "Direct3DUtil.h"
 #include "../Utility/Span.h"
 #include <FastDelegate/FastDelegate.h>
+#include <atomic>
 
 namespace ZetaRay::Support
 {

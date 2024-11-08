@@ -334,7 +334,7 @@ namespace ZetaRay::Core::GpuMemory
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
         Texture& t);
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
-        Texture& t, UploadHeapArena& arena);
+        Texture& t, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, 
         Texture& t);
     Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,

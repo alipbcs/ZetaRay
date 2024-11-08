@@ -1,6 +1,7 @@
 #include "MemoryArena.h"
 
 using namespace ZetaRay::Support;
+using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------
 // MemoryArena
@@ -40,7 +41,7 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
     for (auto& block : m_blocks)
     {
         const uintptr_t start = reinterpret_cast<uintptr_t>(block.Start);
-        const uintptr_t ret = Math::AlignUp(start + block.Offset, alignment);
+        const uintptr_t ret = AlignUp(start + block.Offset, alignment);
         const uintptr_t startOffset = ret - start;
 
         if (startOffset + size < block.Size)
@@ -55,16 +56,16 @@ void* MemoryArena::AllocateAligned(size_t size, size_t alignment)
         }
     }
 
-    size_t blockSize = Math::Max(m_blockSize, size);
+    size_t blockSize = Max(m_blockSize, size);
 
     // Memory allocationss are 16-byte aligned by default -- for larger alignments, at
     // most alignment - 1 extra bytes are required
     if (alignment > 16)
-        blockSize = Math::AlignUp(blockSize + alignment - 1, alignment);
+        blockSize = AlignUp(blockSize + alignment - 1, alignment);
 
     MemoryBlock memBlock(blockSize);
 
-    const uintptr_t ret = Math::AlignUp(reinterpret_cast<uintptr_t>(memBlock.Start), 
+    const uintptr_t ret = AlignUp(reinterpret_cast<uintptr_t>(memBlock.Start), 
         alignment);
     memBlock.Offset = ret - reinterpret_cast<uintptr_t>(memBlock.Start);
     memBlock.Offset += size;

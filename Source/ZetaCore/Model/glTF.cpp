@@ -423,7 +423,10 @@ namespace
     void LoadDDSImages(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
         size_t offset, size_t size, MutableSpan<DDSImage> ddsImages)
     {
-        UploadHeapArena arena(64 * 1024 * 1024);
+        // For loading DDS data from disk
+        MemoryArena memArena(64 * 1024 * 1024);
+        // For uploading texture to GPU 
+        UploadHeapArena heapArena(64 * 1024 * 1024);
 
         char ext[8];
 
@@ -441,7 +444,7 @@ namespace
 
                 const uint64_t id = XXH3_64bits(p.Get(), p.Length());
                 Texture tex;
-                auto err = GpuMemory::GetTexture2DFromDisk(p, tex, arena);
+                auto err = GpuMemory::GetTexture2DFromDisk(p, tex, heapArena, ArenaAllocator(memArena));
 
                 if (err != LOAD_DDS_RESULT::SUCCESS)
                 {

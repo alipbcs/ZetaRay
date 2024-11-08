@@ -1423,14 +1423,14 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
 LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
-    std::unique_ptr<uint8_t[]> ddsData;        // must remain alive until copied to upload heap
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
+    MemoryArena ma;
     const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
-        ddsData, width, height, depth, mipCount);
+        ArenaAllocator(ma), width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1446,17 +1446,16 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
 }
 
 LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, 
-    UploadHeapArena& arena)
+    UploadHeapArena& heapArena, ArenaAllocator allocator)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
-    std::unique_ptr<uint8_t[]> ddsData;        // must remain alive until copied to upload heap
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
     const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
-        ddsData, width, height, depth, mipCount);
+        allocator, width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1466,7 +1465,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
     t = GetTexture2D(fn, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(arena, t.Resource(), subresources);
+    g_data->m_uploaders[idx].UploadTexture(heapArena, t.Resource(), subresources);
 
     return LOAD_DDS_RESULT::SUCCESS;
 }
@@ -1474,14 +1473,14 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
 LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
-    std::unique_ptr<uint8_t[]> ddsData;        // must remain alive until copied to upload heap
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
+    MemoryArena ma;
     const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
-        ddsData, width, height, depth, mipCount);
+        ArenaAllocator(ma), width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;

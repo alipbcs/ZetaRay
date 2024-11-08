@@ -6,6 +6,7 @@
 #include "SceneCommon.h"
 #include "../Utility/Utility.h"
 #include <xxHash/xxhash.h>
+#include <atomic>
 
 namespace ZetaRay::Model
 {

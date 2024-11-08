@@ -9,7 +9,6 @@ namespace ZetaRay::Support
     public:
         explicit MemoryArena(size_t blockSize = 64 * 1024);
         ~MemoryArena() = default;
-
         MemoryArena(MemoryArena&&);
         MemoryArena& operator=(MemoryArena&&);
 
@@ -23,10 +22,10 @@ namespace ZetaRay::Support
         {
             MemoryBlock() = default;
             explicit MemoryBlock(size_t size)
+                : Size(size),
+                Offset(0)
             {
                 Start = malloc(size);
-                Offset = 0;
-                Size = size;
             }
             ~MemoryBlock()
             {
@@ -37,38 +36,35 @@ namespace ZetaRay::Support
                 Offset = 0;
                 Size = 0;
             }
-
             MemoryBlock(MemoryBlock&& rhs)
                 : Start(rhs.Start),
-                Offset(rhs.Offset),
-                Size(rhs.Size)
+                Size(rhs.Size),
+                Offset(rhs.Offset)
             {
                 rhs.Start = nullptr;
                 rhs.Offset = 0;
                 rhs.Size = 0;
             }
-
             MemoryBlock& operator=(MemoryBlock&& rhs)
             {
                 Start = rhs.Start;
-                Offset = rhs.Offset;
                 Size = rhs.Size;
+                Offset = rhs.Offset;
 
                 rhs.Start = nullptr;
-                rhs.Offset = 0;
                 rhs.Size = 0;
+                rhs.Offset = 0;
 
                 return *this;
             }
 
             void* Start;
-            uintptr_t Offset;
             size_t Size;
+            uintptr_t Offset;
         };
 
         const size_t m_blockSize;
         Util::SmallVector<MemoryBlock, SystemAllocator, 8> m_blocks;
-
 #ifndef NDEBUG
         uint32_t m_numAllocs = 0;
 #endif
@@ -79,11 +75,9 @@ namespace ZetaRay::Support
         ArenaAllocator(MemoryArena& ma)
             : m_allocator(&ma)
         {}
-
         ArenaAllocator(const ArenaAllocator& other)
             : m_allocator(other.m_allocator)
         {}
-
         ArenaAllocator& operator=(const ArenaAllocator& other)
         {
             m_allocator = other.m_allocator;
