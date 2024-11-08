@@ -217,7 +217,7 @@ namespace ZetaRay::Scene
         }
         void TransformInstance(uint64_t id, const Math::float3& tr, const Math::float3x3& rotation,
             const Math::float3& scale);
-        void ReserveInstances(int height, int num);
+        void ReserveInstances(Util::Span<int> treeLevels, size_t total);
 
         //
         // Emissive

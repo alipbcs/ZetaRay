@@ -895,6 +895,42 @@ namespace
         }
     }
 
+    void DescendTree(const cgltf_node& node, int height, Vector<int>& treeLevels)
+    {
+        // Some meshes can have multiple mesh primitives, each one is treated as a separate
+        // instance here
+        treeLevels[height] += node.mesh ? (int)node.mesh->primitives_count : 1;
+
+        for (size_t i = 0; i < node.children_count; i++)
+        {
+            const cgltf_node& childNode = *node.children[i];
+            DescendTree(childNode, height + 1, treeLevels);
+        }
+    }
+
+    void PrecomputeNodeHierarchy(const cgltf_data& model, Vector<int>& treeLevels)
+    {
+        // NOTE model.scene->nodes refers to first-level nodes only
+        for (size_t i = 0; i < model.scene->nodes_count; i++)
+        {
+            const cgltf_node& firstLevelNode = *model.scene->nodes[i];
+            treeLevels[0] += firstLevelNode.mesh ? (int)firstLevelNode.mesh->primitives_count : 1;
+        }
+
+        for (size_t i = 0; i < model.scene->nodes_count; i++)
+        {
+            const cgltf_node& firstLevelNode = *model.scene->nodes[i];
+            if (firstLevelNode.children_count)
+            {
+                for (size_t j = 0; j < firstLevelNode.children_count; j++)
+                {
+                    const cgltf_node& childNode = *firstLevelNode.children[j];
+                    DescendTree(childNode, 1, treeLevels);
+                }
+            }
+        }
+    }
+
     int TreeHeight(const cgltf_node& node)
     {
         int height = 0;
@@ -902,7 +938,7 @@ namespace
         for (size_t i = 0; i < node.children_count; i++)
         {
             const cgltf_node& childNode = *node.children[i];
-            height = Math::Max(height, TreeHeight(childNode) + 1);
+            height = Max(height, TreeHeight(childNode) + 1);
         }
 
         return height;
@@ -915,7 +951,7 @@ namespace
         for (size_t i = 0; i < model.scene->nodes_count; i++)
         {
             const cgltf_node& childNode = *model.scene->nodes[i];
-            height = Math::Max(height, TreeHeight(childNode) + 1);
+            height = Max(height, TreeHeight(childNode) + 1);
         }
 
         return height;
@@ -989,6 +1025,16 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
 
     // Height of the node hierarchy
     const int height = ComputeNodeHierarchyHeight(*model);
+    constexpr int DEFAULT_NUM_LEVELS = 10;
+    SmallVector<int, SystemAllocator, DEFAULT_NUM_LEVELS> levels;
+    levels.resize(height, 0);
+
+    // Precompute number of nodes per level
+    PrecomputeNodeHierarchy(*model, levels);
+
+    size_t total = 0;
+    for (size_t i = 0; i < levels.size(); i++)
+        total += levels[i];
 
     // Preallocate
     SmallVector<Core::Vertex> vertices;
@@ -1004,7 +1050,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     emissivePrims.resize(totalNumMeshPrims);
     ResetEmissiveSubsets(emissivePrims);
     scene.ResizeAdditionalMaterials((uint32_t)model->materials_count);
-    scene.ReserveInstances(height, (uint32_t)model->nodes_count);
+    scene.ReserveInstances(levels, total);
 
     // How many meshes are processed by each worker
     constexpr size_t MAX_NUM_MESH_WORKERS = 4;
@@ -1034,7 +1080,6 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     std::atomic_uint32_t currVtxOffset = 0;
     std::atomic_uint32_t currIdxOffset = 0;
     std::atomic_uint32_t currMeshPrimOffset = 0;
-    std::atomic_uint32_t currEmissiveOffset = 0;
 
     ThreadContext tc{ .SceneID = sceneID,
         .Path = pathToglTF,

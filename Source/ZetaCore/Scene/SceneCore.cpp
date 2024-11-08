@@ -485,7 +485,8 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
     AffineTransformation& localTransform, uint64_t meshID, RT_MESH_MODE rtMeshMode, 
     uint8_t rtInstanceMask, bool isOpaque)
 {
-    m_sceneGraph.resize(Max(treeLevel + 1, (uint32_t)m_sceneGraph.size()));
+    Assert(m_sceneGraph.size() > treeLevel, "Scene graph hasn't been preallocated.");
+    //m_sceneGraph.resize(Max(treeLevel + 1, (uint32_t)m_sceneGraph.size()));
 
     //while (m_sceneGraph.size() <= treeLevel)
     //    m_sceneGraph.emplace_back(TreeLevel());
@@ -508,7 +509,8 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
         // Resize for one additional entry
         vec.resize(vec.size() + 1);
         // Shift existing elements with index >= insertIdx to right by one
-        memmove(vec.data() + insertIdx + 1, vec.data() + insertIdx, numToMove * sizeof(T));
+        if (numToMove)
+            memmove(vec.data() + insertIdx + 1, vec.data() + insertIdx, numToMove * sizeof(T));
 
         // Construct the new entry in-place
         new (vec.data() + insertIdx) T(ZetaForward(args)...);
@@ -517,6 +519,7 @@ uint32_t SceneCore::InsertAtLevel(uint64_t id, uint32_t treeLevel, uint32_t pare
     float4x3 I = float4x3(store(identity()));
 
     Assert(insertIdx <= currLevel.m_IDs.size(), "Out-of-bounds insertion index.");
+    Assert(currLevel.m_IDs.capacity() >= currLevel.m_IDs.size() + 1, "Scene graph hasn't been preallocated.");
     rearrange(currLevel.m_IDs, insertIdx, id);
     rearrange(currLevel.m_localTransforms, insertIdx, localTransform);
     rearrange(currLevel.m_toWorlds, insertIdx, I);
@@ -646,13 +649,26 @@ void SceneCore::TransformInstance(uint64_t id, const float3& tr, const float3x3&
     m_rendererInterface.SceneModified();
 }
 
-void SceneCore::ReserveInstances(int height, int num)
+void SceneCore::ReserveInstances(Span<int> treeLevels, size_t total)
 {
+    Assert(treeLevels.size() > 0, "Invalid tree.");
+
     // +1 for root
-    m_sceneGraph.reserve(height + 1);
-    m_prevToWorlds.resize(num, true);
-    m_IDtoTreePos.resize(num, true);
-    m_worldTransformUpdates.resize(Min(num, 32), true);
+    m_sceneGraph.resize(treeLevels.size() + 1);
+    for (size_t i = 0; i < treeLevels.size(); i++)
+    {
+        m_sceneGraph[i + 1].m_IDs.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_localTransforms.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_meshIDs.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_rtASInfo.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_rtFlags.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_subtreeRanges.reserve(treeLevels[i]);
+        m_sceneGraph[i + 1].m_toWorlds.reserve(treeLevels[i]);
+    }
+
+    m_prevToWorlds.resize(total, true);
+    m_IDtoTreePos.resize(total, true);
+    m_worldTransformUpdates.resize(Min(total, 32llu));
 }
 
 void SceneCore::AddEmissives(Util::SmallVector<Asset::EmissiveInstance>&& emissiveInstances,
@@ -797,9 +813,6 @@ void SceneCore::UpdateWorldTransformations(Vector<BVH::BVHUpdateInput, App::Fram
             v_float4x4 vCurrR = rotationMatFromQuat(loadFloat4(curr.Rotation));
             vCurrR = mul(vCurrR, vNewR);
             curr.Rotation = quaternionFromRotationMat1(vCurrR);
-
-            Assert(!isnan(curr.Rotation.x) && !isnan(curr.Rotation.y) && !isnan(curr.Rotation.z) && !isnan(curr.Rotation.w), "");
-
         }
         else
         {
