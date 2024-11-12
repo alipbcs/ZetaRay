@@ -97,11 +97,9 @@ void DescriptorHeap::Init(D3D12_DESCRIPTOR_HEAP_TYPE heapType, uint32_t numDescr
 {
     Assert(!isShaderVisible || heapType == D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
         "Shader-visible heap type must be D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV.");
-
     Assert(!isShaderVisible || numDescriptors <= 1'000'000,
         "GPU resource heap can't contain more than 1'000'000 elements");
-
-    Assert(numDescriptors >= m_blockSize, "Invalid #descriptors of %u for block size of %u.", 
+    Assert(numDescriptors >= m_blockSize, "#descriptors=%u is invalid for block size of %u.", 
         numDescriptors, m_blockSize);
 
     m_totalHeapSize = numDescriptors;

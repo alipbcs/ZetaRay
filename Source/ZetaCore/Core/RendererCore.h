@@ -3,7 +3,8 @@
 #include "Config.h"
 #include "DescriptorHeap.h"
 #include "GpuTimer.h"
-#include <memory>
+#include "CommandQueue.h"
+#include "SharedShaderResources.h"
 
 namespace ZetaRay::Support
 {
@@ -29,9 +30,11 @@ namespace ZetaRay::Core
         RendererCore(const RendererCore&) = delete;
         RendererCore& operator=(const RendererCore&) = delete;
 
-        void Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight);
+        void Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
+            uint16_t displayWidth, uint16_t displayHeight);
         void Shutdown();
-        void OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, uint16_t displayWidth, uint16_t displayHeight);
+        void OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
+            uint16_t displayWidth, uint16_t displayHeight);
         void WaitForSwapChainWaitableObject();
         void BeginFrame();
         void SubmitResourceCopies();
@@ -52,7 +55,7 @@ namespace ZetaRay::Core
         ZetaInline const GpuMemory::Texture& GetCurrentBackBuffer() { return m_backBuffers[m_currBackBuffIdx]; }
         ZetaInline D3D12_CPU_DESCRIPTOR_HANDLE GetCurrBackBufferRTV() const { return m_backbuffDescTable.CPUHandle(m_currBackBuffIdx); }
 
-        ZetaInline SharedShaderResources& GetSharedShaderResources() { return *m_sharedShaderRes; }
+        ZetaInline SharedShaderResources& GetSharedShaderResources() { return m_sharedShaderRes; }
         ZetaInline DescriptorHeap& GetGpuDescriptorHeap() { return m_cbvSrvUavDescHeapGpu; };
         ZetaInline ID3D12DescriptorHeap* GetSamplerDescriptorHeap() { return m_samplerDescHeap.Get(); };
         ZetaInline DescriptorHeap& GetCbvSrvUavDescriptorHeapCpu() { return m_cbvSrvUavDescHeapCpu; };
@@ -73,22 +76,27 @@ namespace ZetaRay::Core
         bool IsDirectQueueFenceComplete(uint64_t fenceValue);
         bool IsComputeQueueFenceComplete(uint64_t fenceValue);
 
-        // Waits (CPU side) for the fence on Direct Queue to reach the specified value (blocking)
+        // Waits (CPU side) for the fence on Direct Queue to reach the 
+        // specified value (blocking)
         void WaitForDirectQueueFenceCPU(uint64_t fenceValue);
         void WaitForDirectQueueFenceCPU2(uint64_t fenceValue, HANDLE e);
 
-        // Waits (CPU side) for the fence on Direct Queue to reach the specified value (blocking)
+        // Waits (CPU side) for the fence on Direct Queue to reach the 
+        // specified value (blocking)
         void WaitForComputeQueueFenceCPU(uint64_t fenceValue);
 
-        // Issues a GPU-side wait on the Compute Queue for the fence on the Direct Queue. Corresponding fence
+        // Issues a GPU-side wait on the Compute Queue for the fence on the 
+        // Direct Queue. Corresponding fence
         // can only be signalled through ExecuteCmdList() calls.
         void WaitForDirectQueueOnComputeQueue(uint64_t v);
 
-        // Issues a GPU-side wait on the Direct Queue for the Fence on the Compute Queue. Corresponding fence
+        // Issues a GPU-side wait on the Direct Queue for the Fence on the 
+        // Compute Queue. Corresponding fence
         // can only be signalled through ExecuteCmdList() calls.
         void WaitForComputeQueueOnDirectQueue(uint64_t v);
 
-        // Issue a GPU-side wait on the Direct/Compute Queue for the Fence on the copy queue. That fence
+        // Issue a GPU-side wait on the Direct/Compute Queue for the Fence 
+        // on the copy queue. That fence
         // can only signalled through ExecuteCmdList() calls.
         //void WaitForCopyQueueOnDirectQueue(uint64_t v);
         //void WaitForCopyQueueOnComputeQueue(uint64_t v);
@@ -113,15 +121,15 @@ namespace ZetaRay::Core
 
         DeviceObjects m_deviceObjs;
 
-        std::unique_ptr<SharedShaderResources> m_sharedShaderRes;
+        SharedShaderResources m_sharedShaderRes;
         DescriptorHeap m_cbvSrvUavDescHeapGpu;
         DescriptorHeap m_cbvSrvUavDescHeapCpu;
         DescriptorHeap m_rtvDescHeap;
         ComPtr<ID3D12DescriptorHeap> m_samplerDescHeap;
         //DescriptorHeap m_dsvDescHeap;
-        std::unique_ptr<CommandQueue> m_directQueue;
-        std::unique_ptr<CommandQueue> m_computeQueue;
-        //std::unique_ptr<CommandQueue> m_copyQueue;
+        CommandQueue m_directQueue;
+        CommandQueue m_computeQueue;
+        //CommandQueue m_copyQueue;
 
         DescriptorTable m_backbuffDescTable;
         DescriptorTable m_depthBuffDescTable;

@@ -1,7 +1,5 @@
 #include "RendererCore.h"
-#include "CommandQueue.h" 
 #include "CommandList.h"
-#include "SharedShaderResources.h"
 #include "Direct3DUtil.h"
 #include "../Support/Task.h"
 #include "../Support/Param.h"
@@ -19,12 +17,13 @@ using namespace ZetaRay::Support;
 RendererCore::RendererCore()
     : m_cbvSrvUavDescHeapGpu(32),
     m_cbvSrvUavDescHeapCpu(32),
-    m_rtvDescHeap(8)
+    m_rtvDescHeap(8),
+    m_directQueue(D3D12_COMMAND_LIST_TYPE_DIRECT),
+    m_computeQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE)
 {}
 
 RendererCore::~RendererCore()
-{
-}
+{}
 
 void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
     uint16_t displayWidth, uint16_t displayHeight)
@@ -61,11 +60,9 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
     //    Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
     //    false);
 
-    m_directQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_DIRECT));
-    m_computeQueue.reset(new(std::nothrow) CommandQueue(D3D12_COMMAND_LIST_TYPE_COMPUTE));
-    //m_copyQueue.reset(new CommandQueue(D3D12_COMMAND_LIST_TYPE_COPY, L"Copy Command-Queue"));
-
-    m_sharedShaderRes.reset(new(std::nothrow) SharedShaderResources);
+    m_directQueue.Init();
+    m_computeQueue.Init();
+    //m_copyQueue.Init();
 
     m_backbuffDescTable = m_rtvDescHeap.Allocate(Constants::NUM_BACK_BUFFERS);
     //m_depthBuffDescTable = m_dsvDescHeap.Allocate(1);
@@ -118,7 +115,7 @@ void RendererCore::ResizeBackBuffers(HWND hwnd)
     }
     else
     {
-        m_deviceObjs.CreateSwapChain(m_directQueue->GetCommandQueue(),
+        m_deviceObjs.CreateSwapChain(m_directQueue.GetCommandQueue(),
             hwnd,
             m_displayWidth, m_displayHeight,
             Constants::NUM_BACK_BUFFERS,
@@ -270,7 +267,7 @@ void RendererCore::EndFrame(TaskSet& endFrameTS)
             // Schedule a Signal command in the queue.
             // Set the fence value for the next frame.
             m_fenceVals[m_currBackBuffIdx] = m_nextFenceVal;
-            CheckHR(m_directQueue->GetCommandQueue()->Signal(m_fence.Get(), m_nextFenceVal++));
+            CheckHR(m_directQueue.GetCommandQueue()->Signal(m_fence.Get(), m_nextFenceVal++));
 
             // Update the back buffer index.
             const uint16_t nextBackBuffidx = (uint16_t)m_deviceObjs.m_dxgiSwapChain->GetCurrentBackBufferIndex();
@@ -320,10 +317,10 @@ uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE
     switch (t)
     {
     case D3D12_COMMAND_LIST_TYPE_DIRECT:
-        CheckHR(m_directQueue->m_cmdQueue->GetTimestampFrequency(&freq));
+        CheckHR(m_directQueue.m_cmdQueue->GetTimestampFrequency(&freq));
         break;
     case D3D12_COMMAND_LIST_TYPE_COMPUTE:
-        CheckHR(m_computeQueue->m_cmdQueue->GetTimestampFrequency(&freq));
+        CheckHR(m_computeQueue.m_cmdQueue->GetTimestampFrequency(&freq));
         break;
     default:
         break;
@@ -334,7 +331,7 @@ uint64_t RendererCore::GetCommandQueueTimeStampFrequency(D3D12_COMMAND_LIST_TYPE
 
 GraphicsCmdList* RendererCore::GetGraphicsCmdList()
 {
-    CommandList* ctx = m_directQueue->GetCommandList();
+    CommandList* ctx = m_directQueue.GetCommandList();
     Assert(ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT, "Invalid downcast.");
 
     return static_cast<GraphicsCmdList*>(ctx);
@@ -342,7 +339,7 @@ GraphicsCmdList* RendererCore::GetGraphicsCmdList()
 
 ComputeCmdList* RendererCore::GetComputeCmdList()
 {
-    CommandList* ctx = m_computeQueue->GetCommandList();
+    CommandList* ctx = m_computeQueue.GetCommandList();
     Assert(ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE, "Invalid downcast.");
 
     return static_cast<ComputeCmdList*>(ctx);
@@ -360,60 +357,60 @@ ComputeCmdList* RendererCore::GetComputeCmdList()
 void RendererCore::ReleaseCmdList(CommandList* ctx)
 {
     if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT)
-        m_directQueue->ReleaseCommandList(ctx);    
+        m_directQueue.ReleaseCommandList(ctx);    
     else if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE)
-        m_computeQueue->ReleaseCommandList(ctx);
+        m_computeQueue.ReleaseCommandList(ctx);
 }
 
 uint64_t RendererCore::ExecuteCmdList(CommandList* ctx)
 {
     if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_DIRECT)
-        return m_directQueue->ExecuteCommandList(ctx);
+        return m_directQueue.ExecuteCommandList(ctx);
     else if (ctx->GetType() == D3D12_COMMAND_LIST_TYPE_COMPUTE)
-        return m_computeQueue->ExecuteCommandList(ctx);
+        return m_computeQueue.ExecuteCommandList(ctx);
 
     return UINT64_MAX;
 }
 
 void RendererCore::SignalDirectQueue(ID3D12Fence* f, uint64_t v)
 {
-    auto* cmdQueue = m_directQueue->GetCommandQueue();
+    auto* cmdQueue = m_directQueue.GetCommandQueue();
     Assert(cmdQueue, "cmdQueue was NULL");
     cmdQueue->Signal(f, v);
 }
 
 void RendererCore::SignalComputeQueue(ID3D12Fence* f, uint64_t v)
 {
-    m_computeQueue->GetCommandQueue()->Signal(f, v);
+    m_computeQueue.GetCommandQueue()->Signal(f, v);
 }
 
 bool RendererCore::IsDirectQueueFenceComplete(uint64_t fenceValue)
 {
-    return m_directQueue->IsFenceComplete(fenceValue);
+    return m_directQueue.IsFenceComplete(fenceValue);
 }
 
 bool RendererCore::IsComputeQueueFenceComplete(uint64_t fenceValue)
 {
-    return m_computeQueue->IsFenceComplete(fenceValue);
+    return m_computeQueue.IsFenceComplete(fenceValue);
 }
 
 void RendererCore::WaitForDirectQueueFenceCPU(uint64_t fenceValue)
 {
-    m_directQueue->WaitForFenceCPU(fenceValue);
+    m_directQueue.WaitForFenceCPU(fenceValue);
 }
 
 void RendererCore::WaitForDirectQueueFenceCPU2(uint64_t fenceValue, HANDLE e)
 {
-    if (m_directQueue->IsFenceComplete(fenceValue))
+    if (m_directQueue.IsFenceComplete(fenceValue))
         return;
 
-    CheckHR(m_directQueue->m_fence->SetEventOnCompletion(fenceValue, e));
+    CheckHR(m_directQueue.m_fence->SetEventOnCompletion(fenceValue, e));
     WaitForSingleObject(e, INFINITE);
 }
 
 void RendererCore::WaitForComputeQueueFenceCPU(uint64_t fenceValue)
 {
-    m_computeQueue->WaitForFenceCPU(fenceValue);
+    m_computeQueue.WaitForFenceCPU(fenceValue);
 }
 
 void RendererCore::WaitForDirectQueueOnComputeQueue(uint64_t v)
@@ -424,18 +421,18 @@ void RendererCore::WaitForDirectQueueOnComputeQueue(uint64_t v)
     //
     // command queue waits (during that time no work is executed) until the fence 
     // reaches the requested value
-    CheckHR(m_computeQueue->m_cmdQueue->Wait(m_directQueue->m_fence.Get(), v));
+    CheckHR(m_computeQueue.m_cmdQueue->Wait(m_directQueue.m_fence.Get(), v));
 }
 
 void RendererCore::WaitForComputeQueueOnDirectQueue(uint64_t v)
 {
-    CheckHR(m_directQueue->m_cmdQueue->Wait(m_computeQueue->m_fence.Get(), v));
+    CheckHR(m_directQueue.m_cmdQueue->Wait(m_computeQueue.m_fence.Get(), v));
 }
 
 void RendererCore::FlushAllCommandQueues()
 {
-    m_directQueue->WaitForIdle();
-    m_computeQueue->WaitForIdle();
+    m_directQueue.WaitForIdle();
+    m_computeQueue.WaitForIdle();
 }
 
 void RendererCore::InitStaticSamplers()

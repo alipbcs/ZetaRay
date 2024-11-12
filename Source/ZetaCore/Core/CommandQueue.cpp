@@ -11,21 +11,7 @@ using namespace ZetaRay::Core;
 
 CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type)
     : m_type(type)
-{
-    auto* device = App::GetRenderer().GetDevice();
-
-    D3D12_COMMAND_QUEUE_DESC queueDesc{};
-    queueDesc.Type = type;
-    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
-    CheckHR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_cmdQueue.GetAddressOf())));
-    CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE, 
-        IID_PPV_ARGS(m_fence.GetAddressOf())));
-
-    m_event = CreateEventA(nullptr, false, false, nullptr);
-    CheckWin32(m_event);
-
-    m_cmdAllocPool.reserve(32);
-}
+{}
 
 CommandQueue::~CommandQueue()
 {
@@ -40,6 +26,23 @@ CommandQueue::~CommandQueue()
 
     for (auto& it : m_cmdAllocPool)
         it.CmdAlloc->Release();
+}
+
+void CommandQueue::Init()
+{
+    auto* device = App::GetRenderer().GetDevice();
+
+    D3D12_COMMAND_QUEUE_DESC queueDesc{};
+    queueDesc.Type = m_type;
+    queueDesc.Flags = D3D12_COMMAND_QUEUE_FLAG_NONE;
+    CheckHR(device->CreateCommandQueue(&queueDesc, IID_PPV_ARGS(m_cmdQueue.GetAddressOf())));
+    CheckHR(device->CreateFence(m_lastCompletedFenceVal, D3D12_FENCE_FLAG_NONE,
+        IID_PPV_ARGS(m_fence.GetAddressOf())));
+
+    m_event = CreateEventA(nullptr, false, false, nullptr);
+    CheckWin32(m_event);
+
+    m_cmdAllocPool.reserve(32);
 }
 
 uint64_t CommandQueue::ExecuteCommandList(CommandList* context)

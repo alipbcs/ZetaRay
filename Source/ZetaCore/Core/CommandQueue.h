@@ -12,12 +12,12 @@ namespace ZetaRay::Core
 
     struct CommandQueue
     {
-        CommandQueue(D3D12_COMMAND_LIST_TYPE type);
+        explicit CommandQueue(D3D12_COMMAND_LIST_TYPE type);
         ~CommandQueue();
-
         CommandQueue(const CommandQueue&) = delete;
         CommandQueue& operator=(const CommandQueue&) = delete;
 
+        void Init();
         ZetaInline ID3D12CommandQueue* GetCommandQueue() { return m_cmdQueue.Get(); }
         CommandList* GetCommandList();
 
