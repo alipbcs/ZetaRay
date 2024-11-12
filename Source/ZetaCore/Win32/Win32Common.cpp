@@ -48,7 +48,7 @@ uint32_t Common::CheckIntrinsicSupport()
     if (cpuInfo[2] & (1 << 29))
         ret |= CPU_Intrinsic::F16C;
 
-    memset(cpuInfo, 0, 4 * sizeof(0));
+    memset(cpuInfo, 0, ZetaArrayLen(cpuInfo) * sizeof(int));
     __cpuid(cpuInfo, 0x7);
 
     if (cpuInfo[1] & (1 << 5))

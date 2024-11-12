@@ -107,7 +107,7 @@ void DisplayPass::Init()
     App::Filesystem::Path p(App::GetAssetDir());
     p.Append("LUT\\tony_mc_mapface.dds");
     auto err = GpuMemory::GetTexture3DFromDisk(p, m_lut);
-    Check(err == LOAD_DDS_RESULT::SUCCESS, "Error while loading DDS texture from path %s: %d", 
+    Check(err == LOAD_DDS_RESULT::SUCCESS, "Error loading DDS texture from path %s: %d", 
         p.Get(), err);
 
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate(DESC_TABLE::COUNT);

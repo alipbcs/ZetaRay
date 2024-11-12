@@ -1209,7 +1209,7 @@ void GuiPass::ParameterTab()
 
 void GuiPass::GpuTimingsTab()
 {
-    if (App::GetTimer().GetTotalFrameCount() % 5 == 0)
+    if (App::GetTimer().GetTotalFrameCount() % 4 == 0)
     {
         auto timings = App::GetRenderer().GetGpuTimer().GetFrameTimings();
         m_cachedTimings.clear();
