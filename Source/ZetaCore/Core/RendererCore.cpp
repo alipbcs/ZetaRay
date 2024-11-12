@@ -60,6 +60,10 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
     //    Constants::NUM_DSV_DESC_HEAP_DESCRIPTORS,
     //    false);
 
+    // Reserve descriptor index 0
+    m_reserved = m_cbvSrvUavDescHeapGpu.Allocate(1);
+    Assert(m_reserved.GPUDescriptorHeapIndex() == 0, "Unexpected GPU descriptor heap index.");
+
     m_directQueue.Init();
     m_computeQueue.Init();
     //m_copyQueue.Init();

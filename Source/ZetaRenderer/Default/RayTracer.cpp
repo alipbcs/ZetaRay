@@ -46,6 +46,15 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
         Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
             (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
     }
+
+    App::Filesystem::Path p(App::GetAssetDir());
+    p.Append("LUT\\rho.dds");
+    auto err = GpuMemory::GetTexture3DFromDisk(p, data.m_rhoLUT);
+    Check(err == LOAD_DDS_RESULT::SUCCESS, "Error loading DDS texture from path %s: %d",
+        p.Get(), err);
+
+    const DescriptorTable& table = App::GetRenderer().ReservedDescTable();
+    Direct3DUtil::CreateTexture3DSRV(data.m_rhoLUT, table.CPUHandle(0));
 }
 
 void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data)

@@ -63,8 +63,8 @@ namespace BSDF
 
         if(surface.Coated())
         {
-            float Fr0 = DielectricF0(surface.coat_eta);
-            float reflectance_c = GGXReflectanceApprox(Fr0, surface.coat_alpha, surface.ndotwo).x;
+            float reflectance_c = GGXReflectance_Dielectric(surface.coat_alpha, 
+                surface.ndotwo, surface.coat_eta);
             float pdf_coat = reflectance_c * surface.coat_weight;
             pdf_base = 1 - pdf_coat;
 
@@ -424,8 +424,8 @@ namespace BSDF
 
         if(surface.Coated())
         {
-            float Fr0 = DielectricF0(surface.coat_eta);
-            float reflectance_c = GGXReflectanceApprox(Fr0, surface.coat_alpha, surface.ndotwo).x;
+            float reflectance_c = GGXReflectance_Dielectric(surface.coat_alpha, 
+                surface.ndotwo, surface.coat_eta);
             float pdf_coat = reflectance_c * surface.coat_weight;
             pdf_base = 1 - pdf_coat;
 
@@ -543,8 +543,8 @@ namespace BSDF
 
         if(surface.Coated())
         {
-            float Fr0 = DielectricF0(surface.coat_eta);
-            float reflectance_c = GGXReflectanceApprox(Fr0, surface.coat_alpha, surface.ndotwo).x;
+            float reflectance_c = GGXReflectance_Dielectric(surface.coat_alpha, 
+                surface.ndotwo, surface.coat_eta);
             float pdf_coat = reflectance_c * surface.coat_weight;
             pdf_base = 1 - pdf_coat;
 

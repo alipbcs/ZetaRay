@@ -189,6 +189,9 @@ namespace ZetaRay::DefaultRenderer
         RenderPass::IndirectLighting IndirecLightingPass;
         Core::RenderNodeHandle IndirecLightingHandle;
 
+        // Reflectance look up texture
+        Core::GpuMemory::Texture m_rhoLUT;
+
         // Descrtiptors
         enum class DESC_TABLE_WND_SIZE_CONST
         {

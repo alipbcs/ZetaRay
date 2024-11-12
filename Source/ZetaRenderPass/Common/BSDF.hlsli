@@ -12,6 +12,7 @@
 #define BSDF_H
 
 #include "Sampling.hlsli"
+#include "StaticTextureSamplers.hlsli"
 #include "../../ZetaCore/Core/Material.h"
 
 // Conventions:
@@ -237,7 +238,7 @@ namespace BSDF
     // Approximates the directional-hemispherical reflectance of the microfacet BRDF 
     // with GGX distribution.
     // Ref: https://github.com/boksajak/brdf/
-    float3 GGXReflectanceApprox(float3 f0, float alpha, float ndotwo)
+    float3 GGXReflectance_Metal(float3 f0, float alpha, float ndotwo)
     {
         const float2x2 A = float2x2(0.995367f, -1.38839f,
             -0.24751f, 1.97442f);
@@ -270,6 +271,25 @@ namespace BSDF
         const float scale = max(0.0f, (G / H));
 
         return bias + scale * f0;
+    }
+
+    // Approximates the directional-hemispherical reflectance of the microfacet BRDF 
+    // with GGX distribution using a precomputed 3D LUT
+    float GGXReflectance_Dielectric(float alpha, float ndotwo, float eta)
+    {
+        Texture3D<float> g_rho = ResourceDescriptorHeap[0];
+        float3 uvw;
+        uvw.x = ndotwo;
+        uvw.y = ((alpha - 0.002025f) / (1.0f - 0.002025f));
+        // Don't interpolate between eta < 1 and eta > 1
+        if(eta > 1.0f)
+            eta = max(1.1f, eta);
+        else
+            eta = min(0.99f, eta);
+
+        uvw.z = ((eta - 0.5f) / (1.99f - 0.5f));
+        float rho = g_rho.SampleLevel(g_samLinearClamp, uvw, 0);
+        return saturate(rho);
     }
 
     //--------------------------------------------------------------------------------------
@@ -1058,9 +1078,8 @@ namespace BSDF
             if(tir_c)
                 return 0;
 
-            float Fr0 = DielectricF0(surface.coat_eta);
             float reflectance_c = surface.CoatSpecular() ? Fr_coat : 
-                GGXReflectanceApprox(Fr0, surface.coat_alpha, surface.ndotwo).x;
+                GGXReflectance_Dielectric(surface.coat_alpha, surface.ndotwo, surface.coat_eta);
 
             // View-dependent absorption
             float c = 0.5f / cosTheta_t + 0.5f / surface.whdotwo;
@@ -1077,11 +1096,9 @@ namespace BSDF
     float3 TransmittanceToDielectricBaseTr(ShadingData surface)
     {
         float3 base_weight = BaseWeight(surface);
-
-        float Fr0_g = DielectricF0(surface.eta);
         // For specular, 1 - reflectance becomes 1 - Fr, which is accounted for separately
         float reflectance_g = surface.GlossSpecular() ? 0 : 
-            GGXReflectanceApprox(Fr0_g, surface.alpha, surface.ndotwo).x;
+            GGXReflectance_Dielectric(surface.alpha, surface.ndotwo, surface.eta);
 
         return (1 - reflectance_g) * base_weight;
     }
@@ -1103,10 +1120,8 @@ namespace BSDF
             return 0;
 
         float3 base_weight = BaseWeight(surface);
-
-        float Fr0_g = DielectricF0(surface.eta);
         float reflectance_g = surface.GlossSpecular() ? Fr_g : 
-            GGXReflectanceApprox(Fr0_g, surface.alpha, surface.ndotwo).x;
+            GGXReflectance_Dielectric(surface.alpha, surface.ndotwo, surface.eta);
 
         return (1 - reflectance_g) * BSDF::EvalDiffuse<false>(surface) * base_weight;
     }
@@ -1157,9 +1172,8 @@ namespace BSDF
                     return ret;
             }
 
-            float Fr0 = DielectricF0(surface.coat_eta);
             float reflectance_c = surface.CoatSpecular() ? Fr_coat : 
-                GGXReflectanceApprox(Fr0, surface.coat_alpha, surface.ndotwo).x;
+                GGXReflectance_Dielectric(surface.coat_alpha, surface.ndotwo, surface.coat_eta);
 
             // View-dependent absorption
             float c = 1.0f / cosThetaT_o;
@@ -1197,7 +1211,7 @@ namespace BSDF
         }
 
         float reflectance_g = surface.GlossSpecular() ? ret.Fr_g.x : 
-            GGXReflectanceApprox(fr0.x, surface.alpha, surface.ndotwo).x;
+            GGXReflectance_Dielectric(surface.alpha, surface.ndotwo, surface.eta);
 
         // Opaque Base, possibly in thin walled mode
         if(!surface.specTr)

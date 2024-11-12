@@ -113,6 +113,7 @@ namespace ZetaRay::Core
 
         ZetaInline Util::Span<D3D12_STATIC_SAMPLER_DESC> GetStaticSamplers() { return m_staticSamplers; };
         ZetaInline int GlobalIdxForDoubleBufferedResources() const { return m_globalDoubleBuffIdx; }
+        ZetaInline const DescriptorTable& ReservedDescTable() const { return m_reserved; }
 
     private:
         void ResizeBackBuffers(HWND hwnd);
@@ -133,6 +134,7 @@ namespace ZetaRay::Core
 
         DescriptorTable m_backbuffDescTable;
         DescriptorTable m_depthBuffDescTable;
+        DescriptorTable m_reserved;
 
         HWND m_hwnd;
         GpuMemory::Texture m_backBuffers[Constants::NUM_BACK_BUFFERS];
