@@ -69,10 +69,10 @@ namespace ZetaRay::Util
         }
 
     private:
-#if defined(__clang__)
-        // Due to [[no_unique_address]] not working, following needs to be larger
+        // Due to [[no_unique_address]] not working in clang-cl < 18, following needs to be larger
+#if !defined(ZETA_HAS_NO_UNIQUE_ADDRESS)
         static constexpr int BUFFER_SIZE = 40;
-#elif defined(_MSC_VER)
+#else
         static constexpr int BUFFER_SIZE = 32;
 #endif
 

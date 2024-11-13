@@ -831,6 +831,8 @@ void TLAS::BuildDynamicBLASes(ComputeCmdList& cmdList)
                 const auto sceneIBGpuVa = scene.GetMeshIB().GpuVA();
 
                 DynamicBlasBuild buildItem;
+                buildItem.TreeLevel = (uint32_t)treeLevelIdx;
+                buildItem.LevelIdx = (uint32_t)i;
                 buildItem.GeoDesc.Type = D3D12_RAYTRACING_GEOMETRY_TYPE_TRIANGLES;
                 buildItem.GeoDesc.Flags = D3D12_RAYTRACING_GEOMETRY_FLAG_NONE;
                 buildItem.GeoDesc.Triangles.IndexBuffer = sceneIBGpuVa + mesh->m_idxBuffStartOffset * sizeof(uint32_t);
@@ -883,7 +885,12 @@ void TLAS::BuildDynamicBLASes(ComputeCmdList& cmdList)
         b.ScratchBufferOffset = currScratchSize;
         currScratchSize += (uint32_t)b.BuildInfo.ScratchDataSizeInBytes;
 
-        m_dynamicBLASes.push_back(DynamicBLAS{ .PageIdx = 0, .PageOffset = b.BlasBufferOffset });
+        // InstanceID is filled in by RebuildTLASInstances()
+        m_dynamicBLASes.push_back(DynamicBLAS{ .PageIdx = 0,
+            .PageOffset = b.BlasBufferOffset,
+            .TreeLevel = b.TreeLevel,
+            .LevelIdx = b.LevelIdx,
+            .InstanceID = UINT32_MAX });
     }
 
     Assert(m_dynamicBLASArenas.empty(), "bug");
@@ -1043,8 +1050,6 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
         SmallVector<DynamicBlasBuild, SystemAllocator, 3> builds;
         builds.reserve(scene.m_pendingRtMeshModeSwitch.size());
 
-        auto* device = App::GetRenderer().GetDevice();
-
         for (auto instance : scene.m_pendingRtMeshModeSwitch)
         {
             const auto treePos = scene.FindTreePosFromID(instance).value();
@@ -1084,7 +1089,8 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
             buildDesc.Inputs.NumDescs = 1;
             buildDesc.Inputs.pGeometryDescs = &b.GeoDesc;
 
-            device->GetRaytracingAccelerationStructurePrebuildInfo(&buildDesc.Inputs, &b.BuildInfo);
+            App::GetRenderer().GetDevice()->GetRaytracingAccelerationStructurePrebuildInfo(
+                &buildDesc.Inputs, &b.BuildInfo);
 
             Assert(b.BuildInfo.ResultDataMaxSizeInBytes > 0,
                 "GetRaytracingAccelerationStructurePrebuildInfo() failed.");
@@ -1138,8 +1144,9 @@ void TLAS::RebuildOrUpdateBLASes(ComputeCmdList& cmdList)
             // InstanceID is filled in by RebuildTLASInstances()
             m_dynamicBLASes.push_back(DynamicBLAS{ .PageIdx = (int)m_dynamicBLASArenas.size() - 1,
                 .PageOffset = m_dynamicBLASArenas.back().CurrOffset,
-                .TreeLevel = b.TreeLevel, 
-                .LevelIdx = b.LevelIdx});
+                .TreeLevel = b.TreeLevel,
+                .LevelIdx = b.LevelIdx,
+                .InstanceID = UINT32_MAX });
             m_dynamicBLASArenas.back().CurrOffset += (uint32)b.BuildInfo.ResultDataMaxSizeInBytes;
 
             touchedPages.push_back((int)(m_dynamicBLASArenas.size() - 1));
@@ -1243,13 +1250,11 @@ void TLAS::RebuildTLASInstances(ComputeCmdList& cmdList)
 
     if (numStaticInstances)
     {
-        m_tlasInstances[0] = D3D12_RAYTRACING_INSTANCE_DESC{
-                .InstanceID = 0,
-                .InstanceMask = RT_AS_SUBGROUP::ALL,
-                .InstanceContributionToHitGroupIndex = 0,
-                .Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE,
-                .AccelerationStructure = m_staticBLAS.m_buffer.GpuVA()
-            };
+        m_tlasInstances[0].InstanceID = 0;
+        m_tlasInstances[0].InstanceMask = RT_AS_SUBGROUP::ALL;
+        m_tlasInstances[0].InstanceContributionToHitGroupIndex = 0;
+        m_tlasInstances[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+        m_tlasInstances[0].AccelerationStructure = m_staticBLAS.m_buffer.GpuVA();
 
         // Identity transform for static BLAS instance
         memset(&m_tlasInstances[0].Transform, 0, sizeof(BLASTransform));
@@ -1342,13 +1347,11 @@ void TLAS::UpdateTLASInstances_StaticCompacted(ComputeCmdList& cmdList)
 
     m_tlasInstances.resize(Max(m_tlasInstances.size(), 1llu));
 
-    m_tlasInstances[0] = D3D12_RAYTRACING_INSTANCE_DESC{
-            .InstanceID = 0,
-            .InstanceMask = RT_AS_SUBGROUP::ALL,
-            .InstanceContributionToHitGroupIndex = 0,
-            .Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE,
-            .AccelerationStructure = m_staticBLAS.m_buffer.GpuVA()
-    };
+    m_tlasInstances[0].InstanceID = 0;
+    m_tlasInstances[0].InstanceMask = RT_AS_SUBGROUP::ALL;
+    m_tlasInstances[0].InstanceContributionToHitGroupIndex = 0;
+    m_tlasInstances[0].Flags = D3D12_RAYTRACING_INSTANCE_FLAG_NONE;
+    m_tlasInstances[0].AccelerationStructure = m_staticBLAS.m_buffer.GpuVA();
 
     // Identity transform for static BLAS instance
     memset(&m_tlasInstances[0].Transform, 0, sizeof(BLASTransform));

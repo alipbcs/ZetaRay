@@ -929,7 +929,8 @@ namespace
                     .MeshIdx = -1,
                     .MeshPrimIdx = -1,
                     .RtMeshMode = RT_MESH_MODE::STATIC,
-                    .RtInstanceMask = RT_AS_SUBGROUP::NON_EMISSIVE };
+                    .RtInstanceMask = RT_AS_SUBGROUP::NON_EMISSIVE,
+                    .IsOpaque = true };
 
             SceneCore& scene = App::GetScene();
             scene.AddInstance(desc, false);

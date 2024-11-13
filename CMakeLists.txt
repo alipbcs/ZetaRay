@@ -45,6 +45,7 @@ set_property(GLOBAL PROPERTY USE_FOLDERS ON)
 # 
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_COMPILE_WARNING_AS_ERROR ON)
 
 if(MSVC)
@@ -72,6 +73,8 @@ if(MSVC)
     # standards conformance
     add_compile_options(/permissive-)
     add_compile_options(/arch:AVX2)
+
+    add_compile_definitions("ZETA_HAS_NO_UNIQUE_ADDRESS")
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
@@ -83,6 +86,11 @@ if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
     add_compile_options(-Wno-unused-local-typedef)
     add_compile_options(-Wno-unused-function)
     add_compile_options(-Wno-unused-private-field)
+
+    if (${CMAKE_CXX_COMPILER_VERSION} VERSION_GREATER_EQUAL 18)
+        add_compile_options(-Wno-nan-infinity-disabled)
+        add_compile_definitions("ZETA_HAS_NO_UNIQUE_ADDRESS")
+    endif()
 
     # Echo the currently compiled filename
     if (${CMAKE_CXX_SIMULATE_ID} STREQUAL MSVC)

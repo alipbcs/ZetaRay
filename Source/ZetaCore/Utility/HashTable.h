@@ -427,10 +427,10 @@ namespace ZetaRay::Util
         Entry* m_end = nullptr;        // Pointer to the end of memory block
         size_t m_numEntries = 0;
         size_t m_numNonTombstoneEntries = 0;
-#if defined(__clang__)
-        Allocator m_allocator;
-#elif defined(_MSC_VER)
+#if defined(ZETA_HAS_NO_UNIQUE_ADDRESS)
         [[msvc::no_unique_address]] Allocator m_allocator;
+#else
+        Allocator m_allocator;
 #endif
     };
 }

@@ -633,10 +633,10 @@ namespace ZetaRay::Util
         T* m_end = nullptr;        // Pointer to element to insert at next (one past the last inserted element)
         T* m_last = nullptr;       // Pointer to the end of memory block
 
-#if defined(__clang__)
-        Allocator m_allocator;
-#elif defined(_MSC_VER)
+#if defined(ZETA_HAS_NO_UNIQUE_ADDRESS)
         [[msvc::no_unique_address]] Allocator m_allocator;
+#else
+        Allocator m_allocator;
 #endif
     };
 
