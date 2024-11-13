@@ -322,7 +322,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
 {
     const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
     const bool tlasReady = data.RtAS.IsReady();
-    const auto tlasID = tlasReady ? data.RtAS.GetTLAS().ID() : GpuMemory::INVALID_ID;
+    const auto tlasID = tlasReady ? data.RtAS.GetTLAS().ID() : Buffer::INVALID_ID;
     const auto numEmissives = App::GetScene().NumEmissiveInstances();
     const auto frame = App::GetTimer().GetTotalFrameCount();
 

@@ -72,6 +72,11 @@ namespace
     }
 #endif
 
+    ZetaInline Texture::ID_TYPE IDFromTexturePath(const Filesystem::Path& texPath)
+    {
+        return XXH3_64_To_32(XXH3_64bits(texPath.Get(), texPath.Length()));
+    }
+
     // Remember every emissive mesh primitive
     struct EmissiveMeshPrim
     {
@@ -421,7 +426,7 @@ namespace
     }
 
     void LoadDDSImages(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-        size_t offset, size_t size, MutableSpan<DDSImage> ddsImages)
+        size_t offset, size_t size, MutableSpan<Texture> ddsImages)
     {
         // For loading DDS data from disk
         MemoryArena memArena(64 * 1024 * 1024);
@@ -435,16 +440,16 @@ namespace
             const cgltf_image& image = model.images[m];
             if (image.uri)
             {
-                Filesystem::Path p(modelDir.GetView());
-                p.Append(image.uri);
-                p.Extension(ext);
+                Filesystem::Path path(modelDir.GetView());
+                path.Append(image.uri);
+                path.Extension(ext);
 
                 if (strcmp(ext, "dds") != 0)
                     continue;
 
-                const uint64_t id = XXH3_64bits(p.Get(), p.Length());
+                const Texture::ID_TYPE id = IDFromTexturePath(path);
                 Texture tex;
-                auto err = GpuMemory::GetTexture2DFromDisk(p, tex, heapArena, ArenaAllocator(memArena));
+                auto err = GpuMemory::GetTexture2DFromDisk(path, id, tex, heapArena, ArenaAllocator(memArena));
 
                 if (err != LOAD_DDS_RESULT::SUCCESS)
                 {
@@ -452,20 +457,20 @@ namespace
                     {
                         LOG_UI_WARNING(
                             "Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n", 
-                            p.Get());
+                            path.Get());
                         continue;
                     }
                     
-                    Check(false, "Error while loading DDS texture in path %s: %d", p.Get(), err);
+                    Check(false, "Error loading DDS texture from path %s: %d", path.Get(), err);
                 }
 
-                ddsImages[m] = DDSImage{ .T = ZetaMove(tex), .ID = id };
+                ddsImages[m] = ZetaMove(tex);
             }
         }
     }
 
     void ProcessMaterials(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-        int offset, int size, const MutableSpan<DDSImage> ddsImages)
+        int offset, int size, MutableSpan<Texture> ddsImages)
     {
         auto getAlphaMode = [](cgltf_alpha_mode m)
             {
@@ -503,10 +508,9 @@ namespace
                 {
                     Check(baseColView.texture->image, "textureView doesn't point to any image.");
 
-                    Filesystem::Path p(modelDir.GetView());
-                    p.Append(baseColView.texture->image->uri);
-
-                    desc.BaseColorTexPath = XXH3_64bits(p.Get(), p.Length());
+                    Filesystem::Path path(modelDir.GetView());
+                    path.Append(baseColView.texture->image->uri);
+                    desc.BaseColorTexID = IDFromTexturePath(path);
                 }
 
                 auto& f = mat.pbr_metallic_roughness.base_color_factor;
@@ -519,11 +523,10 @@ namespace
                 if (normalView.texture)
                 {
                     Check(normalView.texture->image, "textureView doesn't point to any image.");
-                    const char* texPath = normalView.texture->image->uri;
 
-                    Filesystem::Path p(modelDir.GetView());
-                    p.Append(normalView.texture->image->uri);
-                    desc.NormalTexPath = XXH3_64bits(p.Get(), p.Length());
+                    Filesystem::Path path(modelDir.GetView());
+                    path.Append(normalView.texture->image->uri);
+                    desc.NormalTexID = IDFromTexturePath(path);
 
                     desc.NormalScale = (float)mat.normal_texture.scale;
                 }
@@ -537,9 +540,9 @@ namespace
                     Check(metallicRoughnessView.texture->image, 
                         "textureView doesn't point to any image.");
 
-                    Filesystem::Path p(modelDir.GetView());
-                    p.Append(metallicRoughnessView.texture->image->uri);
-                    desc.MetallicRoughnessTexPath = XXH3_64bits(p.Get(), p.Length());
+                    Filesystem::Path path(modelDir.GetView());
+                    path.Append(metallicRoughnessView.texture->image->uri);
+                    desc.MetallicRoughnessTexID = IDFromTexturePath(path);
                 }
 
                 desc.MetallicFactor = (float)mat.pbr_metallic_roughness.metallic_factor;
@@ -552,11 +555,10 @@ namespace
                 if (emissiveView.texture)
                 {
                     Check(emissiveView.texture->image, "textureView doesn't point to any image.");
-                    const char* texPath = emissiveView.texture->image->uri;
 
-                    Filesystem::Path p(modelDir.GetView());
-                    p.Append(emissiveView.texture->image->uri);
-                    desc.EmissiveTexPath = XXH3_64bits(p.Get(), p.Length());
+                    Filesystem::Path path(modelDir.GetView());
+                    path.Append(emissiveView.texture->image->uri);
+                    desc.EmissiveTexID = IDFromTexturePath(path);
                 }
 
                 auto& f = mat.emissive_factor;
@@ -1017,7 +1019,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     SceneCore& scene = App::GetScene();
 
     // All the unique textures that need to be loaded from disk
-    SmallVector<DDSImage> ddsImages;
+    SmallVector<Texture> ddsImages;
     ddsImages.resize(model->images_count);
 
     // Figure out total number of vertices and indices
@@ -1152,9 +1154,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         {
             // For binary search
             std::sort(ddsImages.begin(), ddsImages.end(), 
-                [](const DDSImage& lhs, const DDSImage& rhs)
+                [](const Texture& lhs, const Texture& rhs)
                 {
-                    return lhs.ID < rhs.ID;
+                    return lhs.ID() < rhs.ID();
                 });
 
             Filesystem::Path parent(tc.Path.GetView());

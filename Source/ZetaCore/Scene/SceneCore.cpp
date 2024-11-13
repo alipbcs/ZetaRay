@@ -8,6 +8,7 @@
 #include <algorithm>
 
 using namespace ZetaRay::Core;
+using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Scene::Internal;
 using namespace ZetaRay::Model;
@@ -331,7 +332,7 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, bool lock)
         ReleaseSRWLockExclusive(&m_matLock);
 }
 
-void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asset::DDSImage> ddsImages,
+void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Texture> ddsImages,
     bool lock)
 {
     Material mat;
@@ -352,13 +353,17 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     mat.SetAlphaMode(matDesc.AlphaMode);
     mat.SetDoubleSided(matDesc.DoubleSided);
 
-    auto addTex = [](uint64_t ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
-        MutableSpan<DDSImage> ddsImages)
+    auto addTex = [](Texture::ID_TYPE ID, const char* type, TexSRVDescriptorTable& table, uint32_t& tableOffset, 
+        MutableSpan<Texture> ddsImages)
         {
-            auto idx = BinarySearch(Span(ddsImages), ID, [](const DDSImage& obj) {return obj.ID; });
+            auto idx = BinarySearch(Span(ddsImages), ID, [](const Texture& obj) {return obj.ID(); });
             Check(idx != -1, "%s image with ID %llu was not found.", type, ID);
 
-            tableOffset = table.Add(ZetaMove(ddsImages[idx].T), ID);
+            tableOffset = table.Add(ZetaMove(ddsImages[idx]));
+
+            // HACK Since the texture was moved, ID was changed to -1. Add a dummy texture with the same ID
+            // so that binary search continues to work.
+            ddsImages[idx] = Texture(ID, nullptr, RESOURCE_HEAP_TYPE::COMMITTED);
         };
 
     if (lock)
@@ -367,27 +372,27 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
     {
         uint32_t tableOffset = Material::INVALID_ID;    // i.e. index in GPU descriptor table
 
-        if (matDesc.BaseColorTexPath != MaterialDesc::INVALID_PATH)
+        if (matDesc.BaseColorTexID != Texture::INVALID_ID)
         {
-            addTex(matDesc.BaseColorTexPath, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
+            addTex(matDesc.BaseColorTexID, "BaseColor", m_baseColorDescTable, tableOffset, ddsImages);
             mat.SetBaseColorTex(tableOffset);
         }
     }
 
     {
         uint32_t tableOffset = Material::INVALID_ID;
-        if (matDesc.NormalTexPath != MaterialDesc::INVALID_PATH)
+        if (matDesc.NormalTexID != Texture::INVALID_ID)
         {
-            addTex(matDesc.NormalTexPath, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
+            addTex(matDesc.NormalTexID, "NormalMap", m_normalDescTable, tableOffset, ddsImages);
             mat.SetNormalTex(tableOffset);
         }
     }
 
     {
         uint32_t tableOffset = Material::INVALID_ID;
-        if (matDesc.MetallicRoughnessTexPath != MaterialDesc::INVALID_PATH)
+        if (matDesc.MetallicRoughnessTexID != Texture::INVALID_ID)
         {
-            addTex(matDesc.MetallicRoughnessTexPath, "MetallicRoughnessMap", 
+            addTex(matDesc.MetallicRoughnessTexID, "MetallicRoughnessMap",
                 m_metallicRoughnessDescTable, tableOffset, ddsImages);
 
             mat.SetMetallicRoughnessTex(tableOffset);
@@ -396,9 +401,9 @@ void SceneCore::AddMaterial(const Asset::MaterialDesc& matDesc, MutableSpan<Asse
 
     {
         uint32_t tableOffset = Material::INVALID_ID;
-        if (matDesc.EmissiveTexPath != MaterialDesc::INVALID_PATH)
+        if (matDesc.EmissiveTexID != Texture::INVALID_ID)
         {
-            addTex(matDesc.EmissiveTexPath, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
+            addTex(matDesc.EmissiveTexID, "EmissiveMap", m_emissiveDescTable, tableOffset, ddsImages);
             mat.SetEmissiveTex(tableOffset);
         }
     }

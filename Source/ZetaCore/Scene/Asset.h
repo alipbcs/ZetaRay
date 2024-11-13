@@ -32,7 +32,7 @@ namespace ZetaRay::Scene::Internal
         void Clear();
         // Returns offset of the given texture in the descriptor table. The texture is then loaded from
         // the disk. "id" is hash of the texture path.
-        uint32_t Add(Core::GpuMemory::Texture&& tex, uint64_t id);
+        uint32_t Add(Core::GpuMemory::Texture&& tex);
         void Recycle(uint64_t completedFenceVal);
         ZetaInline uint32_t GPUDescriptorHeapIndex() const { return m_descTable.GPUDescriptorHeapIndex(); }
 
@@ -60,7 +60,8 @@ namespace ZetaRay::Scene::Internal
         const uint32_t m_numMasks;
         uint64_t m_inUseBitset[MAX_NUM_MASKS] = { 0 };
         Core::DescriptorTable m_descTable;
-        Util::HashTable<CacheEntry> m_cache;
+        // TODO Duplicate texture ID storage as key and texture object member
+        Util::HashTable<CacheEntry, Core::GpuMemory::Texture::ID_TYPE> m_cache;
     };
 
     //--------------------------------------------------------------------------------------

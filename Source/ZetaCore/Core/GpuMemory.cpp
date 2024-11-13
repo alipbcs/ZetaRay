@@ -7,6 +7,7 @@
 #include <algorithm>
 #include <bit>
 #include <xxHash/xxhash.h>
+#include "../Utility/Utility.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::App;
@@ -556,7 +557,7 @@ UploadHeapArena::Allocation UploadHeapArena::SubAllocate(uint32_t size, uint32_t
 
 Buffer::Buffer(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType)
     : m_resource(r),
-    m_ID(XXH3_64bits(p, strlen(p)) & UINT32_MAX),
+    m_ID(XXH3_64_To_32(XXH3_64bits(p, strlen(p)))),
     m_heapType(heapType)
 {
     SET_D3D_OBJ_NAME(m_resource, p);
@@ -684,12 +685,20 @@ void ReadbackHeapBuffer::Unmap()
 // Texture
 //--------------------------------------------------------------------------------------
 
-Texture::Texture(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType)
-    : m_resource(r),
-    m_ID(XXH3_64bits(p, strlen(p)) & UINT32_MAX),
+Texture::Texture(const char* name, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType)
+    : m_resource(res),
+    m_ID(XXH3_64_To_32(XXH3_64bits(name, strlen(name)))),
     m_heapType(heapType)
 {
-    SET_D3D_OBJ_NAME(m_resource, p);
+    SET_D3D_OBJ_NAME(m_resource, name);
+}
+
+Texture::Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType)
+    : m_resource(res),
+    m_ID(id),
+    m_heapType(heapType)
+{
+    Assert(id != INVALID_ID, "Invalid ID.");
 }
 
 Texture::~Texture()
@@ -1237,6 +1246,13 @@ void GpuMemory::ReleaseResourceHeap(ResourceHeap& heap)
 Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
     D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
+    Texture::ID_TYPE id = XXH3_64_To_32(XXH3_64bits(name, strlen(name)));
+    return GetTexture2D(id, width, height, format, initialState, flags, mipLevels, clearVal);
+}
+
+Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
+    D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+{
     Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
     Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
     Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
@@ -1270,7 +1286,7 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
         clearVal,
         IID_PPV_ARGS(&texture)));
 
-    return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
+    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
 Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, 
@@ -1346,6 +1362,13 @@ Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t
 Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
     D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
+    Texture::ID_TYPE id = XXH3_64_To_32(XXH3_64bits(name, strlen(name)));
+    return GetTexture2D(id, width, height, format, initialLayout, flags, mipLevels, clearVal);
+}
+
+Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
+    D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+{
     Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
     Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
     Assert(mipLevels <= D3D12_REQ_MIP_LEVELS, "Invalid number of mip levels.");
@@ -1382,7 +1405,7 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
         nullptr,
         IID_PPV_ARGS(&texture)));
 
-    return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
+    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
 Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
@@ -1420,7 +1443,8 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
     return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t)
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, Texture::ID_TYPE ID,
+    Texture& tex)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
     uint32_t width;
@@ -1429,48 +1453,44 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, 
     uint16_t mipCount;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
         ArenaAllocator(ma), width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
 
-    char fn[128];
-    p.Stem(fn);
-    t = GetTexture2D(fn, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+    tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(t.Resource(), subresources);
+    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), subresources);
 
-    return errCode;
+    return LOAD_DDS_RESULT::SUCCESS;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& p, Texture& t, 
-    UploadHeapArena& heapArena, ArenaAllocator allocator)
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+    Texture::ID_TYPE ID, Texture& tex, UploadHeapArena& heapArena, ArenaAllocator allocator)
 {
-    SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
+    SmallVector<D3D12_SUBRESOURCE_DATA, SystemAllocator, 12> subresources;
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
         allocator, width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
 
-    char fn[128];
-    p.Stem(fn);
-    t = GetTexture2D(fn, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+    tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(heapArena, t.Resource(), subresources);
+    g_data->m_uploaders[idx].UploadTexture(heapArena, tex.Resource(), subresources);
 
     return LOAD_DDS_RESULT::SUCCESS;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, Texture& t)
+LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& texPath, Texture& tex)
 {
     SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
     uint32_t width;
@@ -1479,18 +1499,17 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& p, 
     uint16_t mipCount;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(p.GetView().data(), subresources, format, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
         ArenaAllocator(ma), width, height, depth, mipCount);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
 
-    char fn[128];
-    p.Stem(fn);
-    t = GetTexture3D(fn, width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
+    tex = GetTexture3D(texPath.Get(), width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 
+        0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(t.Resource(),
+    g_data->m_uploaders[idx].UploadTexture(tex.Resource(),
         subresources,
         0,
         D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);

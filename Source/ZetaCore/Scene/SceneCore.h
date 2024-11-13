@@ -153,7 +153,7 @@ namespace ZetaRay::Scene
         //
         void AddMaterial(const Model::glTF::Asset::MaterialDesc& mat, bool lock = true);
         void AddMaterial(const Model::glTF::Asset::MaterialDesc& mat,
-            Util::MutableSpan<Model::glTF::Asset::DDSImage> ddsImages, bool lock = true);
+            Util::MutableSpan<Core::GpuMemory::Texture> ddsImages, bool lock = true);
         ZetaInline Util::Optional<const Material*> GetMaterial(uint32_t ID, uint32_t* bufferIdx = nullptr) const
         {
             return m_matBuffer.Get(ID, bufferIdx);

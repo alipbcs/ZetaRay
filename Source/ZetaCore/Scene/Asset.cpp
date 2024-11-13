@@ -36,10 +36,10 @@ void TexSRVDescriptorTable::Init(uint64_t id)
     s.InsertOrAssignDescriptorTable(id, m_descTable);
 }
 
-uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
+uint32_t TexSRVDescriptorTable::Add(Texture&& tex)
 {
     // If texture already exists, just increase the ref count and return it
-    if (auto it = m_cache.find(id); it)
+    if (auto it = m_cache.find(tex.ID()); it)
     {
         const uint32_t offset = it.value()->DescTableOffset;
         Assert(offset < m_descTableSize, "invalid offset.");
@@ -70,8 +70,11 @@ uint32_t TexSRVDescriptorTable::Add(Texture&& tex, uint64_t id)
     auto descCpuHandle = m_descTable.CPUHandle(freeSlot);
     Direct3DUtil::CreateTexture2DSRV(tex, descCpuHandle);
 
-    // Add this texture to the cache
-    m_cache.insert_or_assign(id, CacheEntry{ 
+    // Remember ID before moving the texture
+    const Texture::ID_TYPE id = tex.ID();
+
+    // Add this texture to cache
+    m_cache.insert_or_assign(id, CacheEntry{
         .T = ZetaMove(tex), 
         .DescTableOffset = freeSlot,
         .RefCount = 1 });

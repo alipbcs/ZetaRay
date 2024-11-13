@@ -45,12 +45,10 @@ namespace ZetaRay::Model::glTF::Asset
 
     struct MaterialDesc
     {
-        static constexpr uint64_t INVALID_PATH = UINT64_MAX;
-
-        uint64_t BaseColorTexPath = INVALID_PATH;
-        uint64_t MetallicRoughnessTexPath = INVALID_PATH;
-        uint64_t NormalTexPath = INVALID_PATH;
-        uint64_t EmissiveTexPath = INVALID_PATH;
+        Core::GpuMemory::Texture::ID_TYPE BaseColorTexID = Core::GpuMemory::Texture::INVALID_ID;
+        Core::GpuMemory::Texture::ID_TYPE MetallicRoughnessTexID = Core::GpuMemory::Texture::INVALID_ID;
+        Core::GpuMemory::Texture::ID_TYPE NormalTexID = Core::GpuMemory::Texture::INVALID_ID;
+        Core::GpuMemory::Texture::ID_TYPE EmissiveTexID = Core::GpuMemory::Texture::INVALID_ID;
 
         // Base
         Math::float4 BaseColorFactor = Math::float4(1.0f);
@@ -79,11 +77,5 @@ namespace ZetaRay::Model::glTF::Asset
         bool DoubleSided = false;
         // Unique ID of each material
         uint32_t ID = Scene::DEFAULT_MATERIAL_ID;
-    };
-
-    struct alignas(64) DDSImage
-    {
-        Core::GpuMemory::Texture T;
-        uint64_t ID;
     };
 }

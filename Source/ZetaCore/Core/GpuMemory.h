@@ -11,8 +11,6 @@ namespace ZetaRay::App::Filesystem
 
 namespace ZetaRay::Core::GpuMemory
 {
-    static constexpr uint32_t INVALID_ID = UINT32_MAX;
-
     //
     // Types
     //
@@ -176,6 +174,9 @@ namespace ZetaRay::Core::GpuMemory
 
     struct Buffer
     {
+        using ID_TYPE = uint32_t;
+        static constexpr ID_TYPE INVALID_ID = UINT32_MAX;
+
         Buffer() = default;
         Buffer(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType);
         ~Buffer();
@@ -199,7 +200,7 @@ namespace ZetaRay::Core::GpuMemory
             Assert(m_resource, "Buffer hasn't been initialized.");
             return m_resource->GetDesc();
         }
-        ZetaInline uint32_t ID() const
+        ZetaInline ID_TYPE ID() const
         {
             Assert(m_resource, "Buffer hasn't been initialized.");
             return m_ID;
@@ -207,14 +208,18 @@ namespace ZetaRay::Core::GpuMemory
 
     private:
         ID3D12Resource* m_resource = nullptr;
-        uint32_t m_ID = INVALID_ID;
+        ID_TYPE m_ID = INVALID_ID;
         RESOURCE_HEAP_TYPE m_heapType;
     };
 
     struct Texture
     {
+        using ID_TYPE = uint32_t;
+        static constexpr ID_TYPE INVALID_ID = UINT32_MAX;
+
         Texture() = default;
-        Texture(const char* p, ID3D12Resource* r, RESOURCE_HEAP_TYPE heapType);
+        Texture(const char* name, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType);
+        Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType);
         ~Texture();
         Texture(Texture&&);
         Texture& operator=(Texture&&);
@@ -226,18 +231,15 @@ namespace ZetaRay::Core::GpuMemory
             Assert(m_resource, "Texture hasn't been initialized.");
             return m_resource;
         }
-        ZetaInline uint32_t ID() const
-        {
-            Assert(m_resource, "Texture hasn't been initialized.");
-            return m_ID;
-        }
-        D3D12_RESOURCE_DESC Desc() const
+        ZetaInline ID_TYPE ID() const { return m_ID; }
+        ZetaInline D3D12_RESOURCE_DESC Desc() const
         {
             Assert(m_resource, "Texture hasn't been initialized.");
             return m_resource->GetDesc();
         }
-        RESOURCE_HEAP_TYPE HeapType() const
+        ZetaInline RESOURCE_HEAP_TYPE HeapType() const
         {
+            Assert(m_resource, "Texture hasn't been initialized.");
             return m_heapType;
         }
         // Note: No GpuVa() method - from MS docs: "ID3D12Resource::GetGPUVirtualAddress() 
@@ -245,7 +247,7 @@ namespace ZetaRay::Core::GpuMemory
 
     private:
         ID3D12Resource* m_resource = nullptr;
-        uint32_t m_ID = INVALID_ID;
+        ID_TYPE m_ID = INVALID_ID;
         RESOURCE_HEAP_TYPE m_heapType;
     };
 
@@ -318,6 +320,9 @@ namespace ZetaRay::Core::GpuMemory
     Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
         D3D12_CLEAR_VALUE* clearVal = nullptr);
+    Texture GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
+        D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
+        D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_RESOURCE_STATES initialState, uint32_t flags = 0,
         uint16_t mipLevels = 1, D3D12_CLEAR_VALUE* clearVal = nullptr);
@@ -327,14 +332,17 @@ namespace ZetaRay::Core::GpuMemory
     Texture GetTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0, uint16_t mipLevels = 1,
         D3D12_CLEAR_VALUE* clearVal = nullptr);
+    Texture GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
+        D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0, uint16_t mipLevels = 1,
+        D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
         DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
         uint32_t flags = 0, uint16_t mipLevels = 1);
 
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
-        Texture& t);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& p, 
-        Texture& t, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+        Texture::ID_TYPE ID, Texture& t);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+        Texture::ID_TYPE ID, Texture& t, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, 
         Texture& t);
     Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
