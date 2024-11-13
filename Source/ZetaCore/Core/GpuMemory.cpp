@@ -3,11 +3,11 @@
 #include "CommandList.h"
 #include "../Support/Task.h"
 #include "../App/Filesystem.h"
+#include "../Utility/Utility.h"
 #include <thread>
 #include <algorithm>
 #include <bit>
 #include <xxHash/xxhash.h>
-#include "../Utility/Utility.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::App;
@@ -1446,15 +1446,16 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
 LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, Texture::ID_TYPE ID,
     Texture& tex)
 {
-    SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
+    D3D12_SUBRESOURCE_DATA subresources[DDS_Data::MAX_NUM_SUBRESOURCES];
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
+    uint32_t numSubresources;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
-        ArenaAllocator(ma), width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+        format, ArenaAllocator(ma), width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1462,7 +1463,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), subresources);
+    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), Span(subresources, numSubresources));
 
     return LOAD_DDS_RESULT::SUCCESS;
 }
@@ -1470,14 +1471,15 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
 LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
     Texture::ID_TYPE ID, Texture& tex, UploadHeapArena& heapArena, ArenaAllocator allocator)
 {
-    SmallVector<D3D12_SUBRESOURCE_DATA, SystemAllocator, 12> subresources;
+    D3D12_SUBRESOURCE_DATA subresources[DDS_Data::MAX_NUM_SUBRESOURCES];
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
+    uint32_t numSubresources;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
-        allocator, width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+        format, allocator, width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
@@ -1485,36 +1487,65 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(heapArena, tex.Resource(), subresources);
+    g_data->m_uploaders[idx].UploadTexture(heapArena, tex.Resource(), 
+        Span(subresources, numSubresources));
 
     return LOAD_DDS_RESULT::SUCCESS;
 }
 
+LOAD_DDS_RESULT GpuMemory::GetDDSDataFromDisk(const App::Filesystem::Path& texPath,
+    DDS_Data& dds, UploadHeapArena& heapArena, Support::ArenaAllocator allocator)
+{
+    return Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), dds.subresources, 
+        dds.format, allocator, dds.width, dds.height, dds.depth, dds.mipCount, 
+        dds.numSubresources);
+}
+
 LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& texPath, Texture& tex)
 {
-    SmallVector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator, 12> subresources;
+    // TODO MAX_NUM_SUBRESOURCES is not enough for 3D textures with mipmaps, though 
+    // currently not needed
+    D3D12_SUBRESOURCE_DATA subresources[DDS_Data::MAX_NUM_SUBRESOURCES];
     uint32_t width;
     uint32_t height;
     uint32_t depth;
     uint16_t mipCount;
+    uint32_t numSubresources;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, format,
-        ArenaAllocator(ma), width, height, depth, mipCount);
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+        format, ArenaAllocator(ma), width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
 
-    tex = GetTexture3D(texPath.Get(), width, height, (uint16_t)depth, format, D3D12_RESOURCE_STATE_COPY_DEST, 
-        0, mipCount);
+    tex = GetTexture3D(texPath.Get(), width, height, (uint16_t)depth, format, 
+        D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(tex.Resource(),
-        subresources,
-        0,
-        D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
+    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), Span(subresources, numSubresources),
+        0, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
-    return errCode;
+    return LOAD_DDS_RESULT::SUCCESS;
+}
+
+Texture GpuMemory::GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RESOURCE_DESC1& desc,
+    ID3D12Heap* heap, uint64_t offsetInBytes, UploadHeapArena& heapArena,
+    Span<D3D12_SUBRESOURCE_DATA> subresources)
+{
+    ID3D12Resource* texture;
+    auto* device = App::GetRenderer().GetDevice();
+    CheckHR(device->CreatePlacedResource1(heap,
+        offsetInBytes,
+        &desc,
+        D3D12_RESOURCE_STATE_COPY_DEST,
+        nullptr,
+        IID_PPV_ARGS(&texture)));
+
+    const int idx = GetThreadIndex(g_data->m_threadIDs);
+    g_data->m_uploaders[idx].UploadTexture(heapArena, texture, subresources);
+
+    return Texture(ID, texture, RESOURCE_HEAP_TYPE::PLACED);
 }
 
 Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, 

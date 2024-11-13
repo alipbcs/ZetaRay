@@ -274,6 +274,9 @@ void SceneCore::Shutdown()
     m_meshes.Clear();
     m_emissives.Clear();
 
+    for (auto& heap : m_textureHeaps)
+        heap.Reset();
+
     m_rendererInterface.Shutdown();
 }
 

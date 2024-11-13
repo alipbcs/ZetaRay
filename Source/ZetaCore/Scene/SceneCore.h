@@ -160,6 +160,7 @@ namespace ZetaRay::Scene
         }
         void UpdateMaterial(uint32 ID, const Material& newMat);
         void ResizeAdditionalMaterials(uint32_t num);
+        ZetaInline void AddTextureHeap(Core::GpuMemory::ResourceHeap&& heap) { m_textureHeaps.push_back(ZetaForward(heap)); }
 
         ZetaInline uint32_t GetBaseColMapsDescHeapOffset() const { return m_baseColorDescTable.GPUDescriptorHeapIndex(); }
         ZetaInline uint32_t GetNormalMapsDescHeapOffset() const { return m_normalDescTable.GPUDescriptorHeapIndex(); }
@@ -385,6 +386,7 @@ namespace ZetaRay::Scene
         Internal::TexSRVDescriptorTable m_normalDescTable;
         Internal::TexSRVDescriptorTable m_metallicRoughnessDescTable;
         Internal::TexSRVDescriptorTable m_emissiveDescTable;
+        Util::SmallVector<Core::GpuMemory::ResourceHeap, Support::SystemAllocator, 8> m_textureHeaps;
 
         //
         // Emissives

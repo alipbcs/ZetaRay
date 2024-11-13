@@ -15,7 +15,7 @@ using namespace ZetaRay::Support;
 
 namespace
 {
-    void AdjustPlaneResource(DXGI_FORMAT fmt,
+    ZetaInline void AdjustPlaneResource(DXGI_FORMAT fmt,
         size_t height,
         size_t slicePlane,
         D3D12_SUBRESOURCE_DATA& res)
@@ -58,7 +58,7 @@ namespace
         }
     }
 
-    bool IsDepthStencil(DXGI_FORMAT fmt)
+    ZetaInline bool IsDepthStencil(DXGI_FORMAT fmt)
     {
         switch (fmt)
         {
@@ -79,7 +79,7 @@ namespace
         }
     }
 
-    UINT8 D3D12GetFormatPlaneCount(ID3D12Device* pDevice, DXGI_FORMAT Format)
+    ZetaInline UINT8 D3D12GetFormatPlaneCount(ID3D12Device* pDevice, DXGI_FORMAT Format)
     {
         D3D12_FEATURE_DATA_FORMAT_INFO formatInfo = { Format, 0 };
         if (FAILED(pDevice->CheckFeatureSupport(D3D12_FEATURE_FORMAT_INFO, &formatInfo, sizeof(formatInfo))))
@@ -88,7 +88,7 @@ namespace
         return formatInfo.PlaneCount;
     }
 
-    DXGI_FORMAT GetDXGIFormat(const DDS_PIXELFORMAT& ddpf)
+    ZetaInline DXGI_FORMAT GetDXGIFormat(const DDS_PIXELFORMAT& ddpf)
     {
         if (ddpf.flags & DDS_RGB)
         {
@@ -98,19 +98,13 @@ namespace
             {
             case 32:
                 if (ISBITMASK(0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
-                {
                     return DXGI_FORMAT_R8G8B8A8_UNORM;
-                }
 
                 if (ISBITMASK(0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000))
-                {
                     return DXGI_FORMAT_B8G8R8A8_UNORM;
-                }
 
                 if (ISBITMASK(0x00ff0000, 0x0000ff00, 0x000000ff, 0x00000000))
-                {
                     return DXGI_FORMAT_B8G8R8X8_UNORM;
-                }
 
                 // No DXGI format maps to ISBITMASK(0x000000ff,0x0000ff00,0x00ff0000,0x00000000) aka D3DFMT_X8B8G8R8
 
@@ -122,16 +116,12 @@ namespace
 
                 // For 'correct' writers, this should be 0x000003ff,0x000ffc00,0x3ff00000 for RGB data
                 if (ISBITMASK(0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000))
-                {
                     return DXGI_FORMAT_R10G10B10A2_UNORM;
-                }
 
                 // No DXGI format maps to ISBITMASK(0x000003ff,0x000ffc00,0x3ff00000,0xc0000000) aka D3DFMT_A2R10G10B10
 
                 if (ISBITMASK(0x0000ffff, 0xffff0000, 0x00000000, 0x00000000))
-                {
                     return DXGI_FORMAT_R16G16_UNORM;
-                }
 
                 if (ISBITMASK(0xffffffff, 0x00000000, 0x00000000, 0x00000000))
                 {
@@ -146,20 +136,14 @@ namespace
 
             case 16:
                 if (ISBITMASK(0x7c00, 0x03e0, 0x001f, 0x8000))
-                {
                     return DXGI_FORMAT_B5G5R5A1_UNORM;
-                }
                 if (ISBITMASK(0xf800, 0x07e0, 0x001f, 0x0000))
-                {
                     return DXGI_FORMAT_B5G6R5_UNORM;
-                }
 
                 // No DXGI format maps to ISBITMASK(0x7c00,0x03e0,0x001f,0x0000) aka D3DFMT_X1R5G5B5
 
                 if (ISBITMASK(0x0f00, 0x00f0, 0x000f, 0xf000))
-                {
                     return DXGI_FORMAT_B4G4R4A4_UNORM;
-                }
 
                 // No DXGI format maps to ISBITMASK(0x0f00,0x00f0,0x000f,0x0000) aka D3DFMT_X4R4G4B4
 
@@ -172,57 +156,41 @@ namespace
             if (8 == ddpf.RGBBitCount)
             {
                 if (ISBITMASK(0x000000ff, 0x00000000, 0x00000000, 0x00000000))
-                {
                     return DXGI_FORMAT_R8_UNORM; // D3DX10/11 writes this out as DX10 extension
-                }
 
                 // No DXGI format maps to ISBITMASK(0x0f,0x00,0x00,0xf0) aka D3DFMT_A4L4
 
                 if (ISBITMASK(0x000000ff, 0x00000000, 0x00000000, 0x0000ff00))
-                {
                     return DXGI_FORMAT_R8G8_UNORM; // Some DDS writers assume the bitcount should be 8 instead of 16
-                }
             }
 
             if (16 == ddpf.RGBBitCount)
             {
                 if (ISBITMASK(0x0000ffff, 0x00000000, 0x00000000, 0x00000000))
-                {
                     return DXGI_FORMAT_R16_UNORM; // D3DX10/11 writes this out as DX10 extension
-                }
                 if (ISBITMASK(0x000000ff, 0x00000000, 0x00000000, 0x0000ff00))
-                {
                     return DXGI_FORMAT_R8G8_UNORM; // D3DX10/11 writes this out as DX10 extension
-                }
             }
         }
         else if (ddpf.flags & DDS_ALPHA)
         {
             if (8 == ddpf.RGBBitCount)
-            {
                 return DXGI_FORMAT_A8_UNORM;
-            }
         }
         else if (ddpf.flags & DDS_BUMPDUDV)
         {
             if (16 == ddpf.RGBBitCount)
             {
                 if (ISBITMASK(0x00ff, 0xff00, 0x0000, 0x0000))
-                {
                     return DXGI_FORMAT_R8G8_SNORM; // D3DX10/11 writes this out as DX10 extension
-                }
             }
 
             if (32 == ddpf.RGBBitCount)
             {
                 if (ISBITMASK(0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
-                {
                     return DXGI_FORMAT_R8G8B8A8_SNORM; // D3DX10/11 writes this out as DX10 extension
-                }
                 if (ISBITMASK(0x0000ffff, 0xffff0000, 0x00000000, 0x00000000))
-                {
                     return DXGI_FORMAT_R16G16_SNORM; // D3DX10/11 writes this out as DX10 extension
-                }
 
                 // No DXGI format maps to ISBITMASK(0x3ff00000, 0x000ffc00, 0x000003ff, 0xc0000000) aka D3DFMT_A2W10V10U10
             }
@@ -230,70 +198,42 @@ namespace
         else if (ddpf.flags & DDS_FOURCC)
         {
             if (MAKEFOURCC('D', 'X', 'T', '1') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC1_UNORM;
-            }
             if (MAKEFOURCC('D', 'X', 'T', '3') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC2_UNORM;
-            }
             if (MAKEFOURCC('D', 'X', 'T', '5') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC3_UNORM;
-            }
 
             // While pre-multiplied alpha isn't directly supported by the DXGI formats,
             // they are basically the same as these BC formats so they can be mapped
             if (MAKEFOURCC('D', 'X', 'T', '2') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC2_UNORM;
-            }
             if (MAKEFOURCC('D', 'X', 'T', '4') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC3_UNORM;
-            }
 
             if (MAKEFOURCC('A', 'T', 'I', '1') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC4_UNORM;
-            }
             if (MAKEFOURCC('B', 'C', '4', 'U') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC4_UNORM;
-            }
             if (MAKEFOURCC('B', 'C', '4', 'S') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC4_SNORM;
-            }
 
             if (MAKEFOURCC('A', 'T', 'I', '2') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC5_UNORM;
-            }
             if (MAKEFOURCC('B', 'C', '5', 'U') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC5_UNORM;
-            }
             if (MAKEFOURCC('B', 'C', '5', 'S') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_BC5_SNORM;
-            }
 
             // BC6H and BC7 are written using the "DX10" extended header
 
             if (MAKEFOURCC('R', 'G', 'B', 'G') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_R8G8_B8G8_UNORM;
-            }
             if (MAKEFOURCC('G', 'R', 'G', 'B') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_G8R8_G8B8_UNORM;
-            }
 
             if (MAKEFOURCC('Y', 'U', 'Y', '2') == ddpf.fourCC)
-            {
                 return DXGI_FORMAT_YUY2;
-            }
 
             // Check for D3DFORMAT enums being set here
             switch (ddpf.fourCC)
@@ -328,18 +268,21 @@ namespace
     }
 
     HRESULT FillInitData(size_t width, size_t height, size_t depth, size_t mipCount,
-        size_t arraySize, size_t numberOfPlanes, DXGI_FORMAT format, size_t maxsize, size_t bitSize,
-        const uint8_t* bitData, size_t& twidth, size_t& theight, size_t& tdepth, size_t& skipMip,
-        Vector<D3D12_SUBRESOURCE_DATA>& initData)
+        size_t arraySize, size_t numberOfPlanes, DXGI_FORMAT format, size_t maxsize, 
+        size_t bitSize, const uint8_t* bitData, size_t& twidth, size_t& theight, 
+        size_t& tdepth, size_t& skipMip, uint32_t& numSubresources,
+        MutableSpan<D3D12_SUBRESOURCE_DATA> subresources)
     {
         skipMip = 0;
         twidth = 0;
         theight = 0;
         tdepth = 0;
+        numSubresources = 0;
 
         size_t NumBytes = 0;
         size_t RowBytes = 0;
         const uint8_t* pEndBits = bitData + bitSize;
+        uint32_t currIdx = 0;
 
         for (size_t p = 0; p < numberOfPlanes; ++p)
         {
@@ -377,7 +320,7 @@ namespace
 
                         AdjustPlaneResource(format, h, p, res);
 
-                        initData.emplace_back(res);
+                        subresources[currIdx++] = res;
                     }
                     else if (!j)
                     {
@@ -386,9 +329,7 @@ namespace
                     }
 
                     if (pSrcBits + (NumBytes * d) > pEndBits)
-                    {
                         return HRESULT_FROM_WIN32(ERROR_HANDLE_EOF);
-                    }
 
                     pSrcBits += NumBytes * d;
 
@@ -396,27 +337,22 @@ namespace
                     h = h >> 1;
                     d = d >> 1;
                     if (w == 0)
-                    {
                         w = 1;
-                    }
                     if (h == 0)
-                    {
                         h = 1;
-                    }
                     if (d == 0)
-                    {
                         d = 1;
-                    }
                 }
             }
         }
 
-        return initData.empty() ? E_FAIL : S_OK;
+        numSubresources = currIdx;
+        return currIdx == 0 ? E_FAIL : S_OK;
     }
 
-    void FillSubresourceData(const DDS_HEADER* header, Vector<D3D12_SUBRESOURCE_DATA>& subresources, 
+    void FillSubresourceData(const DDS_HEADER* header, MutableSpan<D3D12_SUBRESOURCE_DATA> subresources,
         const uint8_t* bitData, size_t bitSize, uint32_t& width, uint32_t& height, uint32_t& depth, 
-        uint16_t& mipCount, DXGI_FORMAT& format)
+        uint16_t& mipCount, uint32_t& numSubresources, DXGI_FORMAT& format)
     {
         auto* device = App::GetRenderer().GetDevice();
 
@@ -426,9 +362,7 @@ namespace
 
         mipCount = (uint16_t)header->mipMapCount;
         if (0 == mipCount)
-        {
             mipCount = 1;
-        }
 
         // Bound sizes (for security purposes we don't trust DDS file metadata larger than the Direct3D hardware requirements)
         Check(mipCount <= D3D12_REQ_MIP_LEVELS, "Not supported");
@@ -498,9 +432,7 @@ namespace
             Check(format != DXGI_FORMAT_UNKNOWN, "Not supported");
 
             if (header->flags & DDS_HEADER_FLAGS_VOLUME)
-            {
                 resDim = D3D12_RESOURCE_DIMENSION_TEXTURE3D;
-            }
             else
             {
                 if (header->caps2 & DDS_CUBEMAP)
@@ -569,14 +501,13 @@ namespace
         //}
 
         // Create the texture
-        size_t numberOfResources = (resDim == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
+        size_t maxNumSubresources = (resDim == D3D12_RESOURCE_DIMENSION_TEXTURE3D)
             ? 1 : arraySize;
-        numberOfResources *= mipCount;
-        numberOfResources *= numberOfPlanes;
+        maxNumSubresources *= mipCount;
+        maxNumSubresources *= numberOfPlanes;
 
-        Check(numberOfResources <= D3D12_REQ_SUBRESOURCES, "Invalid arg");
-
-        subresources.reserve(numberOfResources);
+        Check(maxNumSubresources <= D3D12_REQ_SUBRESOURCES, "Invalid arg");
+        Check(subresources.size() >= maxNumSubresources, "Insufficient space in subresource array.");
 
         size_t skipMip = 0;
         size_t twidth = 0;
@@ -586,7 +517,8 @@ namespace
 
         CheckHR(FillInitData(width, height, depth, mipCount, arraySize,
             numberOfPlanes, format, maxsize, bitSize, bitData,
-            twidth, theight, tdepth, skipMip, subresources));
+            twidth, theight, tdepth, skipMip, numSubresources, 
+            subresources));
     }
 
     LOAD_DDS_RESULT LoadTextureDataFromFile(const char* fileName, ArenaAllocator allocator,
@@ -1005,17 +937,11 @@ HRESULT Direct3DUtil::GetSurfaceInfo(size_t width,
     static_assert(sizeof(size_t) == 8, "Not a 64-bit platform!");
 
     if (outNumBytes)
-    {
         *outNumBytes = static_cast<size_t>(numBytes);
-    }
     if (outRowBytes)
-    {
         *outRowBytes = static_cast<size_t>(rowBytes);
-    }
     if (outNumRows)
-    {
         *outNumRows = static_cast<size_t>(numRows);
-    }
 
     return S_OK;
 }
@@ -1034,13 +960,14 @@ UINT64 Direct3DUtil::GetRequiredIntermediateSize(ID3D12Resource* destinationReso
 }
 
 LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
-    Vector<D3D12_SUBRESOURCE_DATA, SystemAllocator>& subresources,
+    MutableSpan<D3D12_SUBRESOURCE_DATA> subresources,
     DXGI_FORMAT& format, 
     ArenaAllocator allocator,
     uint32_t& width, 
     uint32_t& height, 
     uint32_t& depth, 
-    uint16_t& mipCount)
+    uint16_t& mipCount,
+    uint32_t& numSubresources)
 {
     // ddsData is populated with the file contents
     // bitData offsets into ddsData where the data starts
@@ -1054,7 +981,7 @@ LOAD_DDS_RESULT Direct3DUtil::LoadDDSFromFile(const char* path,
         return res;
 
     FillSubresourceData(header, subresources, bitData, bitSize, width, height, 
-        depth, mipCount, format);
+        depth, mipCount, numSubresources, format);
 
     return LOAD_DDS_RESULT::SUCCESS;
 }

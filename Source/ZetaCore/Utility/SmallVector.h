@@ -111,13 +111,13 @@ namespace ZetaRay::Util
 
         ZetaInline T& back()
         {
-            Assert(size() > 0, "Vector is empty");
+            Assert(size() > 0, "Vector is empty.");
             return *(m_beg + size() - 1);
         }
 
         ZetaInline const T& back() const
         {
-            Assert(size() > 0, "Vector is empty");
+            Assert(size() > 0, "Vector is empty.");
             return *(m_beg + size() - 1);
         }
 
@@ -158,7 +158,7 @@ namespace ZetaRay::Util
 
             void* mem = relocate(n);
 
-            // Adjust the pointers
+            // Adjust pointers
             m_beg = reinterpret_cast<T*>(mem);
             m_end = m_beg + oldSize;
             m_last = m_beg + n;
@@ -166,7 +166,7 @@ namespace ZetaRay::Util
 
         void resize(size_t n)
         {
-            static_assert(std::is_default_constructible_v<T>, "T cannot be default constructed.");
+            static_assert(std::is_default_constructible_v<T>, "T is not default-constructible.");
 
             const size_t currCapacity = capacity();
             const size_t oldSize = size();
@@ -213,7 +213,8 @@ namespace ZetaRay::Util
         // existing elements aren't replaced by it. May have to change in the future.
         void resize(size_t n, const T& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T cannot be copy or move constructed.");
+            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, 
+                "T is not copy-or-move-constructible.");
 
             const size_t oldSize = size();
             const size_t currCapacity = capacity();
@@ -239,7 +240,7 @@ namespace ZetaRay::Util
                 }
             }
 
-            // Default destruct leftovers if size decreased
+            // Default-destruct leftovers if size decreased
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
                 if (n < oldSize)
@@ -267,13 +268,15 @@ namespace ZetaRay::Util
 
         void push_back(const T& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, 
+                "T is not move-or-copy-constructible.");
             emplace_back(val);
         }
 
         void push_back(T&& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, 
+                "T is not move-or-copy-constructible.");
             emplace_back(ZetaMove(val));
         }
 
@@ -353,7 +356,7 @@ namespace ZetaRay::Util
             static_assert(std::is_swappable_v<T>, "T is not swappable.");
             const size_t n = size();
             Assert(pos < n, "Out-of-bound access.");
-            Assert(!empty(), "Attempting to erase from an empty Vector");
+            Assert(!empty(), "Attempting to erase from an empty Vector.");
             Assert(pos < n, "Invalid index position.");
 
             if (pos == n - 1)
@@ -391,27 +394,25 @@ namespace ZetaRay::Util
 
         void push_front(const T& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, 
+                "T is not move-or-copy-constructible.");
             static_assert(std::is_swappable_v<T>, "T is not swappable.");
 
             emplace_back(val);
 
-            const size_t n = size();
-
-            if (n > 1)
+            if (const size_t n = size(); n > 1)
                 std::swap(*m_beg, *(m_beg + n - 1));
         }
 
         void push_front(T&& val)
         {
-            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, "T is not move or copy-constructible.");
+            static_assert(std::is_copy_constructible_v<T> || std::is_move_constructible_v<T>, 
+                "T is not move-or-copy-constructible.");
             static_assert(std::is_swappable_v<T>, "T is not swappable.");
 
             emplace_back(ZetaMove(val));
 
-            const size_t n = size();
-
-            if (n > 1)
+            if (const size_t n = size(); n > 1)
                 std::swap(*m_beg, *(m_beg + n - 1));
         }
 
@@ -419,10 +420,8 @@ namespace ZetaRay::Util
         {
             if constexpr (!std::is_trivially_destructible_v<T>)
             {
-                T* curr = m_beg;
-
-                while (curr != m_end)
-                    curr++->~T();
+                for (T* curr = m_beg; curr != m_end; curr++)
+                    curr->~T();
             }
 
             m_end = m_beg;
@@ -516,9 +515,9 @@ namespace ZetaRay::Util
         void move_from(size_t N, Vector<T, Allocator>&& other)
         {
             static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
-                "T cannot be copy or move assigned.");
+                "T is not copy-or-move-assignable.");
             static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
-                "Allocator cannot be copy or move assigned.");
+                "Allocator is not copy-or-move-assignable.");
 
             // Just switch pointers when MovedFrom is using the heap and MovedTo's 
             // inline storage isn't large enough
@@ -582,9 +581,9 @@ namespace ZetaRay::Util
         void copy_from(const Vector<T, Allocator>& other)
         {
             static_assert(std::is_move_assignable_v<T> || std::is_copy_assignable_v<T>,
-                "T cannot be copy or move assigned.");
+                "T is not copy-or-move-assignable.");
             static_assert(std::is_move_assignable_v<Allocator> || std::is_copy_assignable_v<Allocator>,
-                "Allocator cannot be copy or move assigned.");
+                "Allocator is not copy-or-move-assignable.");
 
             const size_t currCapacity = capacity();
             const size_t newSize = other.size();
@@ -679,8 +678,10 @@ namespace ZetaRay::Util
         SmallVector()
             : Vector<T, Allocator>(Allocator())
         {
-            static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
-            static_assert(std::is_default_constructible_v<Allocator>, "Allocator cannot be default-constructed.");
+            static_assert(std::is_default_constructible_v<T>, 
+                "T is not default-constructible.");
+            static_assert(std::is_default_constructible_v<Allocator>, 
+                "Allocator is not default-constructible.");
             init_storage();
         }
         ~SmallVector()
@@ -693,20 +694,20 @@ namespace ZetaRay::Util
         explicit SmallVector(const Allocator& a)
             : Vector<T, Allocator>(a)
         {
-            static_assert(std::is_default_constructible_v<T>, "T cannot be default-constructed.");
+            static_assert(std::is_default_constructible_v<T>, "T is not default-constructible.");
             init_storage();
         }
         explicit SmallVector(const T& t)
             : Vector<T, Allocator>(Allocator())
         {
-            static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
-            static_assert(std::is_default_constructible_v<Allocator>, "Allocator cannot be default-constructed.");
+            static_assert(std::is_copy_constructible_v<T>, "T is not copy-constructible.");
+            static_assert(std::is_default_constructible_v<Allocator>, "Allocator is not default-constructible.");
             init_storage(t);
         }
         SmallVector(const T& t, const Allocator& a)
             : Vector<T, Allocator>(a)
         {
-            static_assert(std::is_copy_constructible_v<T>, "T cannot be copy-constructed.");
+            static_assert(std::is_copy_constructible_v<T>, "T is not copy-constructible.");
             init_storage(t);
         }
         // Copy constructor/assignment
@@ -822,13 +823,8 @@ namespace ZetaRay::Util
 
             if constexpr (!std::is_trivially_default_constructible_v<T>)
             {
-                T* curr = this->m_beg;
-
-                while (curr != this->m_last)
-                {
+                for (T* curr = this->m_beg; curr != this->m_last; curr++)
                     new (curr) T;
-                    curr++;
-                }
             }
 
             Assert(this->has_inline_storage(), "Must've reverted to inline storage.");
@@ -841,13 +837,8 @@ namespace ZetaRay::Util
             this->m_end = this->m_beg + N;
             this->m_last = this->m_beg + N;
 
-            T* curr = this->m_beg;
-
-            while (curr != this->m_last)
-            {
+            for (T* curr = this->m_beg; curr != this->m_last; curr++)
                 new (curr) T(t);
-                curr++;
-            }
 
             Assert(this->has_inline_storage(), "Must've reverted to inline storage.");
             Assert(this->capacity() == N, "Capacity must be N.");

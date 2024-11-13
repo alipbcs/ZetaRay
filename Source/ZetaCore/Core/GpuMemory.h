@@ -254,7 +254,7 @@ namespace ZetaRay::Core::GpuMemory
     struct ResourceHeap
     {
         ResourceHeap() = default;
-        ResourceHeap(ID3D12Heap* heap);
+        explicit ResourceHeap(ID3D12Heap* heap);
         ~ResourceHeap();
         ResourceHeap(ResourceHeap&&);
         ResourceHeap& operator=(ResourceHeap&&);
@@ -339,12 +339,32 @@ namespace ZetaRay::Core::GpuMemory
         DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
         uint32_t flags = 0, uint16_t mipLevels = 1);
 
+    struct DDS_Data
+    {
+        // Up to 4k for 2D textures
+        static constexpr int MAX_NUM_SUBRESOURCES = 13;
+
+        D3D12_SUBRESOURCE_DATA subresources[MAX_NUM_SUBRESOURCES];
+        Texture::ID_TYPE ID;
+        uint32_t width;
+        uint32_t height;
+        uint32_t depth;
+        uint32_t numSubresources;
+        DXGI_FORMAT format;
+        uint16_t mipCount;
+    };
+
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
-        Texture::ID_TYPE ID, Texture& t);
+        Texture::ID_TYPE ID, Texture& tex);
     Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
-        Texture::ID_TYPE ID, Texture& t, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& p, 
-        Texture& t);
-    Texture GetTexture2DAndInit(const char* p, uint64_t width, uint32_t height, DXGI_FORMAT format,
+        Texture::ID_TYPE ID, Texture& tex, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetDDSDataFromDisk(const App::Filesystem::Path& texPath,
+        DDS_Data& dds, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& texPath,
+        Texture& tex);
+    Texture GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0);
+    Texture GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RESOURCE_DESC1& desc,
+        ID3D12Heap* heap, uint64_t offsetInBytes, UploadHeapArena& heapArena,
+        Util::Span<D3D12_SUBRESOURCE_DATA> subresources);
 }

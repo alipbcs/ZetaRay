@@ -569,13 +569,14 @@ namespace ZetaRay::Core::Direct3DUtil
     }
 
     LOAD_DDS_RESULT LoadDDSFromFile(const char* path,
-        Util::Vector<D3D12_SUBRESOURCE_DATA, Support::SystemAllocator>& subresources,
+        Util::MutableSpan<D3D12_SUBRESOURCE_DATA> subresources,
         DXGI_FORMAT& format,
         Support::ArenaAllocator allocator,
         uint32_t& width,
         uint32_t& height,
         uint32_t& depth,
-        uint16_t& mipCount);
+        uint16_t& mipCount,
+        uint32_t& numSubresources);
 
     D3D12_GRAPHICS_PIPELINE_STATE_DESC GetPSODesc(const D3D12_INPUT_LAYOUT_DESC* inputLayout,
         int numRenderTargets,

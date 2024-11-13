@@ -426,47 +426,98 @@ namespace
     }
 
     void LoadDDSImages(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
-        size_t offset, size_t size, MutableSpan<Texture> ddsImages)
+        size_t offset, size_t num, MutableSpan<Texture> ddsImages)
     {
         // For loading DDS data from disk
         MemoryArena memArena(64 * 1024 * 1024);
         // For uploading texture to GPU 
         UploadHeapArena heapArena(64 * 1024 * 1024);
 
-        char ext[8];
+        // Since constructor is not called
+        static_assert(std::is_trivially_default_constructible_v<DDS_Data>,
+            "DDS_Data is not trivially-default-constructible.");
+        DDS_Data* ddsTextures = reinterpret_cast<DDS_Data*>(memArena.AllocateAligned(
+            num * sizeof(DDS_Data)));
+        bool hasInvalid = false;
 
-        for (size_t m = offset; m != offset + size; m++)
+        // Two passes:
+        // 1. Load DDS data from disk
+        // 2. Allocate a heap large enough for all the textures, then create a placed 
+        //    texture for each
+
+        for (size_t m = offset; m != offset + num; m++)
         {
             const cgltf_image& image = model.images[m];
-            if (image.uri)
+            const size_t idx = m - offset;
+            Check(image.uri, "Image has no URI.");
+
+            Filesystem::Path path(modelDir.GetView());
+            path.Append(image.uri);
+
+            char ext[8];
+            path.Extension(ext);
+            Check(strcmp(ext, "dds") == 0, "Non-DDS textures are not supported (%s).\n",
+                path.Get());
+
+            ddsTextures[idx].ID = IDFromTexturePath(path);
+            auto err = GpuMemory::GetDDSDataFromDisk(path, ddsTextures[idx], heapArena, 
+                ArenaAllocator(memArena));
+
+            if (err != LOAD_DDS_RESULT::SUCCESS)
             {
-                Filesystem::Path path(modelDir.GetView());
-                path.Append(image.uri);
-                path.Extension(ext);
-
-                if (strcmp(ext, "dds") != 0)
-                    continue;
-
-                const Texture::ID_TYPE id = IDFromTexturePath(path);
-                Texture tex;
-                auto err = GpuMemory::GetTexture2DFromDisk(path, id, tex, heapArena, ArenaAllocator(memArena));
-
-                if (err != LOAD_DDS_RESULT::SUCCESS)
+                if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
                 {
-                    if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
-                    {
-                        LOG_UI_WARNING(
-                            "Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n", 
-                            path.Get());
-                        continue;
-                    }
-                    
-                    Check(false, "Error loading DDS texture from path %s: %d", path.Get(), err);
+                    LOG_UI_WARNING(
+                        "Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n",
+                        path.Get());
+                    ddsTextures[idx].ID = Texture::INVALID_ID;
+                    hasInvalid = true;
+
+                    continue;
                 }
 
-                ddsImages[m] = ZetaMove(tex);
+                Check(false, "Error loading DDS texture from path %s: %d", path.Get(), err);
             }
         }
+
+        size_t numValid = num;
+        if (hasInvalid)
+        {
+            DDS_Data* firstInvalid = std::partition(ddsTextures, ddsTextures + num,
+                [](const DDS_Data& dds) {return dds.ID != Texture::INVALID_ID; });
+            numValid = firstInvalid - ddsTextures;
+        }
+
+        if (!numValid)
+            return;
+
+        D3D12_RESOURCE_DESC1* texDescs = reinterpret_cast<D3D12_RESOURCE_DESC1*>(memArena.AllocateAligned(
+            numValid * sizeof(D3D12_RESOURCE_DESC1)));
+        D3D12_RESOURCE_ALLOCATION_INFO1* allocInfos = reinterpret_cast<D3D12_RESOURCE_ALLOCATION_INFO1*>(memArena.AllocateAligned(
+            numValid * sizeof(D3D12_RESOURCE_ALLOCATION_INFO1)));
+
+        for (size_t i = 0; i < numValid; i++)
+        {
+            texDescs[i] = Direct3DUtil::Tex2D1(ddsTextures[i].format, ddsTextures[i].width, 
+                ddsTextures[i].height, 1, ddsTextures[i].mipCount);
+        }
+
+        D3D12_RESOURCE_ALLOCATION_INFO info = Direct3DUtil::AllocationInfo(Span(texDescs, numValid),
+            MutableSpan(allocInfos, numValid));
+        auto heap = GpuMemory::GetResourceHeap(info.SizeInBytes);
+
+        // Invalid texture were default-constructed to have INVALID_ID
+        for (size_t i = 0; i < numValid; i++)
+        {
+            Texture tex = GpuMemory::GetPlacedTexture2DAndInit(ddsTextures[i].ID, 
+                texDescs[i], heap.Heap(), allocInfos[i].Offset, heapArena, 
+                Span(ddsTextures[i].subresources, ddsTextures[i].numSubresources));
+
+            // Order of textures is not important
+            ddsImages[offset + i] = ZetaMove(tex);
+        }
+
+        App::GetScene().AddTextureHeap(ZetaMove(heap));
     }
 
     void ProcessMaterials(uint32_t sceneID, const Filesystem::Path& modelDir, const cgltf_data& model,
@@ -677,7 +728,7 @@ namespace
                         uint32_t currMeshTriIdx = 0;
 
                         // Add all triangles for this instance
-                        for (int i = meshPrimInfo.BaseIdxOffset; i < (int)(meshPrimInfo.BaseIdxOffset + meshPrimInfo.NumIndices); i += 3)
+                        for (size_t i = meshPrimInfo.BaseIdxOffset; i < meshPrimInfo.BaseIdxOffset + meshPrimInfo.NumIndices; i += 3)
                         {
                             uint32_t i0 = context.Indices[i];
                             uint32_t i1 = context.Indices[i + 1];
@@ -1008,13 +1059,13 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     //Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
 
     // Load buffers
-    Check(model->buffers_count == 1, "Invalid number of buffers");
+    Check(model->buffers_count == 1, "Invalid number of buffers.");
     Filesystem::Path bufferPath(pathToglTF.GetView());
     bufferPath.Directory();
     bufferPath.Append(model->buffers[0].uri);
     Checkgltf(cgltf_load_buffers(&options, model, bufferPath.Get()));
 
-    Check(model->scene, "No scene found in glTF file: %s.", pathToglTF.GetView());
+    Check(model->scene, "glTF model doesn't have a default scene: %s.", pathToglTF.GetView());
     const uint32_t sceneID = XXH3_64_To_32(XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length()));
     SceneCore& scene = App::GetScene();
 
@@ -1185,7 +1236,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     }
 
     // For each node with an emissive mesh primitive, add all of its triangles to 
-    // the emissive buffer
+    // the emissives buffer
     auto procEmissives = ts.EmplaceTask("gltf::Emissives", [&tc]()
         {
             tc.EmissiveInstances.resize(tc.NumEmissiveInstances);
