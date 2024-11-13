@@ -15,7 +15,7 @@ project(ZetaRay
 
 option(BUILD_TESTS "Build unit tests" OFF)
 option(BUILD_TOOLS "Build tools" ON)
-option(COMPILE_SHADERS_WITH_DEBUG "Additionally compile shaders with debug information included" OFF)
+option(COMPILE_SHADERS_WITH_DEBUG_INFO "Compile shaders with debug information (-Zi in dxc)" OFF)
 
 # set output directories
 set(CMAKE_SUPPRESS_REGENERATION true)
@@ -108,8 +108,7 @@ set(ZETA_RENDER_PASS_DIR "${CMAKE_SOURCE_DIR}/Source/ZetaRenderPass")
 string(LENGTH "${ZETA_RENDER_PASS_DIR}" ZETA_RENDER_PASS_DIR_LEN)
 set(ZETA_RENDERER_DIR "${CMAKE_SOURCE_DIR}/Source/ZetaRenderer")
 set(ASSET_DIR "${CMAKE_SOURCE_DIR}/Assets")
-set(CSO_DIR_DEBUG "${ASSET_DIR}/CSO/Debug")
-set(CSO_DIR_RELEASE "${ASSET_DIR}/CSO/Release")
+set(CSO_DIR "${ASSET_DIR}/CSO")
 
 # 
 # setup DXC

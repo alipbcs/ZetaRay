@@ -125,18 +125,12 @@ namespace
     struct AppData
     {
         inline static constexpr const char* PSO_CACHE_PARENT = "..\\Assets\\PsoCache";
-#if !defined(NDEBUG) && defined(HAS_DEBUG_SHADERS)
-        inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO\\Debug";
-#else
-        inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO\\Release";
-#endif
-
+        inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO";
 #if !defined(NDEBUG)
         inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Debug";
 #else
         inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Release";
 #endif
-
         inline static constexpr const char* ASSET_DIR = "..\\Assets";
         inline static constexpr const char* TOOLS_DIR = "..\\Tools";
         inline static constexpr const char* DXC_PATH = "..\\Tools\\dxc\\bin\\x64\\dxc.exe";
