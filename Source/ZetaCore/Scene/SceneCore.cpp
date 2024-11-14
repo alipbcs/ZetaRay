@@ -286,6 +286,7 @@ uint32_t SceneCore::AddMesh(SmallVector<Vertex>&& vertices, SmallVector<uint32_t
     if (lock)
         AcquireSRWLockExclusive(&m_meshLock);
 
+    m_numTriangles += (uint32_t)indices.size();
     uint32_t idx = m_meshes.Add(ZetaMove(vertices), ZetaMove(indices), matIdx);
 
     if (lock)
@@ -300,6 +301,7 @@ void SceneCore::AddMeshes(SmallVector<Asset::Mesh>&& meshes, SmallVector<Vertex>
     if (lock)
         AcquireSRWLockExclusive(&m_meshLock);
 
+    m_numTriangles += (uint32_t)indices.size();
     m_meshes.AddBatch(ZetaMove(meshes), ZetaMove(vertices), ZetaMove(indices));
 
     if (lock)

@@ -751,14 +751,12 @@ void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const fl
 void GuiPass::RenderProfiler()
 {
     auto& timer = App::GetTimer();
+    auto& scene = App::GetScene();;
 
     if (ImGui::CollapsingHeader(ICON_FA_CHART_LINE "  Stats", ImGuiTreeNodeFlags_None))
     {
         ImGui::Text("Frame %llu", timer.GetTotalFrameCount());
-
-        ImGui::SameLine();
-        ImGui::Text("        ");
-        ImGui::SameLine();
+        ImGui::SeparatorText("Performance");
 
         Span<Support::Stat> stats = App::GetStats().Variable();
 
@@ -799,6 +797,13 @@ void GuiPass::RenderProfiler()
 
         for (auto s : stats)
             func(s);
+
+        ImGui::SeparatorText("Scene");
+        ImGui::Text("\t#Instances: %u", (uint32_t)scene.TotalNumInstances());
+        ImGui::Text("\t#Meshes: %u", (uint32_t)scene.TotalNumMeshes());
+        ImGui::Text("\t#Triangles: %u", (uint32_t)scene.TotalNumTriangles());
+        ImGui::Text("\t#Materials: %u", (uint32_t)scene.TotalNumMaterials());
+        ImGui::Text("\t#Emissive Triangles: %u", (uint32_t)scene.NumEmissiveTriangles());
 
         ImGui::Text("");
     }

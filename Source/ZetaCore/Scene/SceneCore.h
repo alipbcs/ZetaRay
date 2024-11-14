@@ -243,9 +243,12 @@ namespace ZetaRay::Scene
         // Misc
         //
         //ZetaInline Math::AABB GetWorldAABB() { return m_bvh.GetWorldAABB(); }
-        ZetaInline uint32_t GetTotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
-        ZetaInline uint32_t GetNumOpaqueInstances() const { return m_numOpaqueInstances; }
-        ZetaInline uint32_t GetNumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
+        ZetaInline uint32_t TotalNumTriangles() const { return m_numTriangles; }
+        ZetaInline uint32_t TotalNumInstances() const { return (uint32_t)m_IDtoTreePos.size(); }
+        ZetaInline uint32_t TotalNumMeshes() const { return m_meshes.NumMeshes(); }
+        ZetaInline uint32_t TotalNumMaterials() const { return m_matBuffer.NumMaterials(); }
+        ZetaInline uint32_t NumOpaqueInstances() const { return m_numOpaqueInstances; }
+        ZetaInline uint32_t NumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
         ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
         ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
 
@@ -357,6 +360,7 @@ namespace ZetaRay::Scene
         uint32_t m_numDynamicInstances = 0;
         uint32_t m_numOpaqueInstances = 0;
         uint32_t m_numNonOpaqueInstances = 0;
+        uint32_t m_numTriangles = 0;
         bool m_meshBufferStale = false;
         Util::SmallVector<uint64_t, Support::SystemAllocator, 3> m_pendingRtMeshModeSwitch;
         Util::HashTable<uint64_t> m_instanceUpdates;

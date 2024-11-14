@@ -86,6 +86,7 @@ namespace ZetaRay::Scene::Internal
         }
         void UploadToGPU();
         void ResizeAdditionalMaterials(uint32_t num);
+        uint32_t NumMaterials() const { return (uint32_t)m_materials.size(); }
 
         ZetaInline Util::Optional<const Material*> Get(uint32_t ID, uint32* bufferIdx = nullptr) const
         {
@@ -145,8 +146,9 @@ namespace ZetaRay::Scene::Internal
             return {};
         }
 
-        const Core::GpuMemory::Buffer& GetVB() { return m_vertexBuffer; }
-        const Core::GpuMemory::Buffer& GetIB() { return m_indexBuffer; }
+        const Core::GpuMemory::Buffer& GetVB() const { return m_vertexBuffer; }
+        const Core::GpuMemory::Buffer& GetIB() const { return m_indexBuffer; }
+        uint32_t NumMeshes() const { return (uint32_t)m_meshes.size(); }
 
     private:
         Util::HashTable<Model::TriangleMesh> m_meshes;
