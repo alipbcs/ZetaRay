@@ -374,7 +374,7 @@ namespace
                     // happens after vertex and index processing.
                     if (tangentIt != -1)
                         ProcessTangents(model, *prim.attributes[tangentIt].data, vertices, currVtxOffset);
-                    else
+                    else if(prim.material->normal_texture.texture)
                     {
                         Math::ComputeMeshTangentVectors(MutableSpan(vertices.begin() + currVtxOffset, numVertices),
                             Span(indices.begin() + currIdxOffset, numIndices),
