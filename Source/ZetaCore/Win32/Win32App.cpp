@@ -1500,7 +1500,7 @@ namespace ZetaRay
         g_app->m_scene.Init(rendererInterface);
 
         ParamVariant acc;
-        acc.InitFloat("Scene", "Camera", "Acceleration",
+        acc.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Acceleration",
             fastdelegate::FastDelegate1<const ParamVariant&>(&AppImpl::SetCameraAcceleration),
             g_app->m_cameraAcceleration, 1.0f, 100.0f, 1.0f, "Motion");
         App::AddParam(acc);

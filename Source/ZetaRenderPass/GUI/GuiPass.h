@@ -87,10 +87,12 @@ namespace ZetaRay::RenderPass
         static constexpr float m_headerWndHeightPct = 0.02f;
         static constexpr float m_frameHistWidthPct = 0.9f;
         bool m_firstTime = true;
-        bool m_closeLogsTab = false;
+        bool m_logsTabOpen = true;
+        bool m_manuallyCloseLogsTab = false;
         bool m_pendingEmissiveUpdate = false;
         bool m_appWndSizeChanged = false;
         bool m_hideUI = false;
+        int m_prevNumLogs = 0;
 
         enum class ROTATION_MODE
         {

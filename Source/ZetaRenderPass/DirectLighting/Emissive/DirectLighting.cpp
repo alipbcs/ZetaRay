@@ -3,6 +3,7 @@
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <Support/Task.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -105,35 +106,35 @@ void DirectLighting::Init()
     CreateOutputs();
 
     ParamVariant doTemporal;
-    doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
+    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Temporal Resample",
         fastdelegate::MakeDelegate(this, &DirectLighting::TemporalResamplingCallback), m_temporalResampling);
     App::AddParam(doTemporal);
 
     ParamVariant doSpatial;
-    doSpatial.InitBool("Renderer", "Direct Lighting", "Spatial Resample",
+    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Spatial Resample",
         fastdelegate::MakeDelegate(this, &DirectLighting::SpatialResamplingCallback), m_spatialResampling);
     App::AddParam(doSpatial);
 
     ParamVariant maxTemporalM;
-    maxTemporalM.InitInt("Renderer", "Direct Lighting", "M_max",
+    maxTemporalM.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max",
         fastdelegate::MakeDelegate(this, &DirectLighting::MaxTemporalMCallback),
         m_cbSpatioTemporal.M_max, 1, 30, 1);
     App::AddParam(maxTemporalM);
 
     ParamVariant extraDissocclusion;
-    extraDissocclusion.InitBool("Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
+    extraDissocclusion.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
         fastdelegate::MakeDelegate(this, &DirectLighting::ExtraSamplesDisocclusionCallback), 
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_RDI_FLAGS::EXTRA_DISOCCLUSION_SAMPLING));
     App::AddParam(extraDissocclusion);
 
     ParamVariant stochasticSpatial;
-    stochasticSpatial.InitBool("Renderer", "Direct Lighting", "Stochastic Spatial",
+    stochasticSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Stochastic Spatial",
         fastdelegate::MakeDelegate(this, &DirectLighting::StochasticSpatialCallback), 
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL));
     App::AddParam(stochasticSpatial);
 
     ParamVariant alphaMin;
-    alphaMin.InitFloat("Renderer", "Direct Lighting", "Alpha_min",
+    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting", "Alpha_min",
         fastdelegate::MakeDelegate(this, &DirectLighting::AlphaMinCallback),
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);

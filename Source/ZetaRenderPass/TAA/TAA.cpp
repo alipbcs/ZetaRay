@@ -2,6 +2,7 @@
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -54,7 +55,7 @@ void TAA::Init()
     m_localCB.BlendWeight = DefaultParamVals::BlendWeight;
 
     ParamVariant blendWeight;
-    blendWeight.InitFloat("Renderer", "TAA", "BlendWeight", fastdelegate::MakeDelegate(this, &TAA::BlendWeightCallback),
+    blendWeight.InitFloat(ICON_FA_FILM " Renderer", "TAA", "BlendWeight", fastdelegate::MakeDelegate(this, &TAA::BlendWeightCallback),
         DefaultParamVals::BlendWeight, 0.0f, 1.0f, 0.1f);
     App::AddParam(blendWeight);
 

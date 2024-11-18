@@ -4,6 +4,7 @@
 #include "../Support/Task.h"
 #include "../Support/Param.h"
 #include "../App/Timer.h"
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -94,7 +95,7 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
     m_gpuTimer.Init();
 
     ParamVariant p0;
-    p0.InitBool("Renderer", "Display", "VSync", 
+    p0.InitBool(ICON_FA_FILM " Renderer", "Display", "VSync",
         fastdelegate::MakeDelegate(this, &RendererCore::SetVSync), m_vsyncInterval > 0);
     App::AddParam(p0);
 }

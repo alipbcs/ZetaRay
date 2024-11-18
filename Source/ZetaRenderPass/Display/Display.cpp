@@ -7,6 +7,7 @@
 #include <Support/Task.h>
 #include <Math/MatrixFuncs.h>
 #include <App/Log.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -67,19 +68,19 @@ void DisplayPass::Init()
     m_cbLocal.AutoExposure = true;
 
     ParamVariant p1;
-    p1.InitEnum("Renderer", "Display", "Output", 
+    p1.InitEnum(ICON_FA_FILM " Renderer", "Display", "Output", 
         fastdelegate::MakeDelegate(this, &DisplayPass::DisplayOptionCallback),
         Params::DisplayOptions, ZetaArrayLen(Params::DisplayOptions), m_cbLocal.DisplayOption);
     App::AddParam(p1);
 
     ParamVariant p2;
-    p2.InitEnum("Renderer", "Display", "View Transform", 
+    p2.InitEnum(ICON_FA_FILM " Renderer", "Display", "View Transform", 
         fastdelegate::MakeDelegate(this, &DisplayPass::TonemapperCallback),
         Params::Tonemappers, ZetaArrayLen(Params::Tonemappers), m_cbLocal.Tonemapper);
     App::AddParam(p2);
 
     ParamVariant p3;
-    p3.InitBool("Renderer", "Auto Exposure", "Enable", 
+    p3.InitBool(ICON_FA_FILM " Renderer", "Auto Exposure", "Enable", 
         fastdelegate::MakeDelegate(this, &DisplayPass::AutoExposureCallback),
         m_cbLocal.AutoExposure);
     App::AddParam(p3);
@@ -89,7 +90,7 @@ void DisplayPass::Init()
         m_cbLocal.Tonemapper != (uint16_t)Tonemapper::AgX_PUNCHY)
     {
         ParamVariant p7;
-        p7.InitFloat("Renderer", "Display", "Saturation", 
+        p7.InitFloat(ICON_FA_FILM " Renderer", "Display", "Saturation", 
             fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback), 
             1, 0.5, 1.5f, 1e-2f);
         App::AddParam(p7);
@@ -98,7 +99,7 @@ void DisplayPass::Init()
     if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_CUSTOM)
     {
         ParamVariant p4;
-        p4.InitFloat("Renderer", "Display", "Exponent",
+        p4.InitFloat(ICON_FA_FILM " Renderer", "Display", "Exponent",
             fastdelegate::MakeDelegate(this, &DisplayPass::AgxExpCallback),
             1, 0.0, 5.0f, 1e-2f);
         App::AddParam(p4);
@@ -141,7 +142,7 @@ void DisplayPass::SetPickData(const Core::RenderNodeHandle& producerHandle,
 void DisplayPass::ClearPick()
 {
     m_pickID.store(Scene::INVALID_INSTANCE, std::memory_order_relaxed);
-    App::RemoveParam("Renderer", "Display", "Wireframe");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Display", "Wireframe");
 }
 
 void DisplayPass::CaptureScreen()
@@ -506,7 +507,7 @@ void DisplayPass::ReadbackPickIdx()
     if (pickWasDisabled)
     {
         ParamVariant p;
-        p.InitBool("Renderer", "Display", "Wireframe",
+        p.InitBool(ICON_FA_FILM " Renderer", "Display", "Wireframe",
             fastdelegate::MakeDelegate(this, &DisplayPass::WireframeCallback),
             m_wireframe);
         App::AddParam(p);
@@ -545,13 +546,13 @@ void DisplayPass::DisplayOptionCallback(const ParamVariant& p)
     if (m_cbLocal.DisplayOption == (uint32)DisplayOption::ROUGHNESS_TH)
     {
         ParamVariant p1;
-        p1.InitFloat("Renderer", "Display", "Roughness (Th)",
+        p1.InitFloat(ICON_FA_FILM " Renderer", "Display", "Roughness (Th)",
             fastdelegate::MakeDelegate(this, &DisplayPass::RoughnessThCallback),
             1, 0.0, 1.0f, 1e-2f);
         App::AddParam(p1);
     }
     else
-        App::RemoveParam("Renderer", "Display", "Roughness (Th)");
+        App::RemoveParam(ICON_FA_FILM " Renderer", "Display", "Roughness (Th)");
 }
 
 void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
@@ -561,24 +562,24 @@ void DisplayPass::TonemapperCallback(const Support::ParamVariant& p)
     if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_CUSTOM)
     {
         ParamVariant p1;
-        p1.InitFloat("Renderer", "Display", "Exponent",
+        p1.InitFloat(ICON_FA_FILM " Renderer", "Display", "Exponent",
             fastdelegate::MakeDelegate(this, &DisplayPass::AgxExpCallback),
             1, 0.0, 5.0f, 1e-2f);
         App::AddParam(p1);
     }
     else
-        App::RemoveParam("Renderer", "Display", "Exponent");
+        App::RemoveParam(ICON_FA_FILM " Renderer", "Display", "Exponent");
 
     if (m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_DEFAULT ||
         m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_GOLDEN ||
         m_cbLocal.Tonemapper == (uint16_t)Tonemapper::AgX_PUNCHY)
     {
-        App::RemoveParam("Renderer", "Display", "Saturation");
+        App::RemoveParam(ICON_FA_FILM " Renderer", "Display", "Saturation");
     }
     else
     {
         ParamVariant p2;
-        p2.InitFloat("Renderer", "Display", "Saturation",
+        p2.InitFloat(ICON_FA_FILM " Renderer", "Display", "Saturation",
             fastdelegate::MakeDelegate(this, &DisplayPass::SaturationCallback),
             1, 0.5, 1.5f, 1e-2f);
         App::TryAddParam(p2);

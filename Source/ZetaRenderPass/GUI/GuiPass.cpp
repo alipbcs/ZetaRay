@@ -636,12 +636,12 @@ void GuiPass::RenderToolbar(uint64_t pickedID)
             m_currGizmoOperation = ImGuizmo::TRANSLATE;
             m_gizmoActive = true;
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_R))
+        else if (ImGui::IsKeyPressed(ImGuiKey_R))
         {
             m_currGizmoOperation = ImGuizmo::ROTATE;
             m_gizmoActive = true;
         }
-        if (ImGui::IsKeyPressed(ImGuiKey_C))
+        else if (ImGui::IsKeyPressed(ImGuiKey_C))
         {
             m_currGizmoOperation = ImGuizmo::SCALE;
             m_gizmoActive = true;
@@ -649,9 +649,10 @@ void GuiPass::RenderToolbar(uint64_t pickedID)
     }
 
     const char* icon = !m_hideUI ? ICON_FA_TOGGLE_ON "##1" : ICON_FA_TOGGLE_OFF "##1";
-    if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)))
+    if (ImGui::Button(icon, ImVec2(40.0f, 40.0f)) ||
+        ImGui::IsKeyPressed(ImGuiKey_H))
         m_hideUI = !m_hideUI;
-    ImGui::SetItemTooltip("Show/Hide UI");
+    ImGui::SetItemTooltip("Show/Hide UI (H)");
 
     if (ImGui::Button(ICON_FA_CAMERA_RETRO "##2", ImVec2(40.0f, 40.0f)))
         App::GetScene().CaptureScreen();
@@ -683,7 +684,7 @@ void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const fl
     ImGui::PushStyleColor(ImGuiCol_ResizeGripActive, 0);
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(10.0f, style.WindowPadding.y));
 
-    if (ImGui::Begin("Debug Window", nullptr, ImGuiWindowFlags_HorizontalScrollbar |
+    if (ImGui::Begin(ICON_FA_WRENCH " Settings", nullptr, ImGuiWindowFlags_HorizontalScrollbar |
         ImGuiWindowFlags_NoMove))
     {
         m_dbgWndWidthPct = ImGui::GetWindowWidth() / (float)displayWidth;
@@ -702,21 +703,19 @@ void GuiPass::RenderSettings(uint64 pickedID, const TriangleMesh& mesh, const fl
             ImGui::Text("");
         }
 
-        if (ImGui::CollapsingHeader(ICON_FA_WRENCH "  Settings", ImGuiTreeNodeFlags_DefaultOpen))
         {
             ParameterTab();
-            ImGui::Text("");
         }
 
         if (pickedID != Scene::INVALID_INSTANCE)
         {
-            if (ImGui::CollapsingHeader(ICON_FA_CUBE "  Object", ImGuiTreeNodeFlags_DefaultOpen))
+            if (ImGui::CollapsingHeader(ICON_FA_CUBE "  Object"))
             {
                 PickedWorldTransform(pickedID, mesh, W);
                 ImGui::Text("");
             }
 
-            if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material", ImGuiTreeNodeFlags_DefaultOpen))
+            if (ImGui::CollapsingHeader(ICON_FA_PALETTE "  Material"))
             {
                 PickedMaterial(pickedID);
                 ImGui::Text("");
@@ -868,7 +867,7 @@ void GuiPass::RenderLogWindow()
     ImGui::SameLine();
 
     if (ImGui::Button(ICON_FA_XMARK "  Close"))
-        m_closeLogsTab = true;
+        m_manuallyCloseLogsTab = true;
 
     ImGui::Separator();
 
@@ -920,7 +919,12 @@ void GuiPass::RenderMainHeader()
     ImGui::SameLine();
     ImGui::BeginTabBar("Header", ImGuiTabBarFlags_None);
 
-    auto flags = m_closeLogsTab ? ImGuiTabItemFlags_SetSelected : ImGuiTabItemFlags_None;
+    auto flags = ImGuiTabItemFlags_None;
+    if (m_manuallyCloseLogsTab)
+    {
+        flags = ImGuiTabItemFlags_SetSelected;
+        m_manuallyCloseLogsTab = false;
+    }
     const bool showMainWnd = ImGui::BeginTabItem(ICON_FA_DISPLAY "        Main        ", 
         nullptr, flags);
     if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNone))
@@ -957,24 +961,33 @@ void GuiPass::RenderMainHeader()
         ImGui::EndTabItem();
     }
 
-    //auto frameLogs = App::GetFrameLogs().Variable();
+    flags = ImGuiTabItemFlags_None;
 
-    //flags = ImGuiTabItemFlags_None;
-    //if (!m_firstTime && frameLogs.size() != m_prevNumLogs)
-    //{
-    //    for (int i = m_prevNumLogs; i < (int)frameLogs.size(); i++)
-    //    {
-    //        if (frameLogs[i].Type == App::LogMessage::WARNING)
-    //        {
-    //            flags = ImGuiTabItemFlags_SetSelected;
-    //            break;
-    //        }
-    //    }
-    //}
-
-    if (ImGui::BeginTabItem(ICON_FA_TERMINAL "        Logs        ", nullptr, flags))
+    // Open the logs tabs whene there are new warnings
+    if(!m_logsTabOpen)
     {
-        m_closeLogsTab = false;
+        auto& logs = App::GetLogs().View();
+        const int numLogs = (int)logs.size();
+
+        if (numLogs != m_prevNumLogs)
+        {
+            for (int i = m_prevNumLogs; i < numLogs; i++)
+            {
+                if (logs[i].Type == App::LogMessage::WARNING)
+                {
+                    flags = ImGuiTabItemFlags_SetSelected;
+                    break;
+                }
+            }
+        }
+
+        m_prevNumLogs = numLogs;
+    }
+
+    m_logsTabOpen = ImGui::BeginTabItem(ICON_FA_TERMINAL "        Logs        ",
+        nullptr, flags);
+    if(m_logsTabOpen)
+    {
         RenderLogWindow();
         ImGui::EndTabItem();
     }
@@ -1094,6 +1107,62 @@ void GuiPass::CameraTab()
         ImPlot::PopStyleColor();
         ImPlot::EndPlot();
     }
+
+    ImGui::SeparatorText("Parameters");
+
+    {
+        MutableSpan<ParamVariant> params = App::GetParams().Variable();
+
+        // Partition by "Scene"
+        auto firstNonScene = std::partition(params.begin(), params.end(), [](const ParamVariant& p)
+            {
+                return strcmp(p.GetGroup(), ICON_FA_LANDMARK " Scene") == 0;
+            });
+        // Partition by "Camera"
+        auto firstNonCamera = std::partition(params.begin(), firstNonScene, [](const ParamVariant& p)
+            {
+                return strcmp(p.GetSubGroup(), "Camera") == 0;
+            });
+        const int numCameraParams = (int)(firstNonCamera - params.data());
+        if (numCameraParams == 0)
+            return;
+
+        std::sort(params.begin(), firstNonCamera,
+            [](const ParamVariant& p1, const ParamVariant& p2)
+            {
+                return strcmp(p1.GetSubSubGroup(), p2.GetSubSubGroup()) < 0;
+            });
+
+        char curr[ParamVariant::MAX_SUBSUBGROUP_LEN];
+        size_t len = strlen(params[0].GetSubSubGroup());
+        memcpy(curr, params[0].GetSubSubGroup(), len);
+        curr[len] = '\0';
+        int beg = 0;
+        int i = 0;
+
+        for (i = 0; i < numCameraParams; i++)
+        {
+            if (strcmp(params[i].GetSubSubGroup(), curr) != 0)
+            {
+                if (ImGui::TreeNodeEx(curr))
+                {
+                    AddParamRange(params, beg, (int)(i - beg));
+                    ImGui::TreePop();
+                }
+
+                len = strlen(params[i].GetSubSubGroup());
+                memcpy(curr, params[i].GetSubSubGroup(), len);
+                curr[len] = '\0';
+                beg = i;
+            }
+        }
+
+        if (ImGui::TreeNodeEx(curr))
+        {
+            AddParamRange(params, beg, i - beg);
+            ImGui::TreePop();
+        }
+    }
 }
 
 void GuiPass::ParameterTab()
@@ -1121,7 +1190,7 @@ void GuiPass::ParameterTab()
         while (nextGroupIdx < params.size() && (strcmp(params[nextGroupIdx].GetGroup(), currGroup) == 0))
             nextGroupIdx++;
 
-        if (ImGui::TreeNode(currParam_g.GetGroup()))
+        if (ImGui::CollapsingHeader(currParam_g.GetGroup(), ImGuiTreeNodeFlags_DefaultOpen))
         {
             char currSubGroup[ParamVariant::MAX_SUBGROUP_LEN];
 
@@ -1145,6 +1214,12 @@ void GuiPass::ParameterTab()
                 while (nextSubgroupIdx < params.size() && 
                     (strcmp(params[nextSubgroupIdx].GetSubGroup(), currSubGroup) == 0))
                     nextSubgroupIdx++;
+
+                if (strcmp(subGroupName, "Camera") == 0)
+                {
+                    currSubgroupIdx = nextSubgroupIdx;
+                    continue;
+                }
 
                 if (ImGui::TreeNode(currParam_s.GetSubGroup()))
                 {
@@ -1203,7 +1278,7 @@ void GuiPass::ParameterTab()
                 currSubgroupIdx = nextSubgroupIdx;
             }
 
-            ImGui::TreePop();
+            ImGui::Text("");
         }
 
         currGroupIdx = nextGroupIdx;

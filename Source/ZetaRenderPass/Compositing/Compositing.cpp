@@ -2,6 +2,7 @@
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -44,38 +45,38 @@ void Compositing::Init()
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 
     memset(&m_cbComposit, 0, sizeof(m_cbComposit));
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, true);
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, true);
+    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, false);
+    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, false);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
     CreateCompositTexture();
 
     ParamVariant p1;
-    p1.InitBool("Renderer", "Compositing", "Direct (Sky)",
+    p1.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Direct (Sky)",
         fastdelegate::MakeDelegate(this, &Compositing::DirectSkyCallback),
         IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI));
     App::AddParam(p1);
 
     ParamVariant p6;
-    p6.InitBool("Renderer", "Compositing", "Indirect", 
+    p6.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Indirect",
         fastdelegate::MakeDelegate(this, &Compositing::IndirectCallback),
         IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT));
     App::AddParam(p6);
 
     ParamVariant p7;
-    p7.InitBool("Renderer", "Compositing", "Direct (Emissives)", 
+    p7.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Direct (Emissives)",
         fastdelegate::MakeDelegate(this, &Compositing::DirectEmissiveCallback),
         IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
     App::AddParam(p7);
 
     ParamVariant p9;
-    p9.InitBool("Renderer", "Compositing", "Firefly Suppression", 
+    p9.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Firefly Suppression",
         fastdelegate::MakeDelegate(this, &Compositing::FireflyFilterCallback),
         m_filterFirefly);
     App::AddParam(p9);
 
     ParamVariant p10;
-    p10.InitBool("Renderer", "Light Voxel Grid", "Visualize", 
+    p10.InitBool(ICON_FA_FILM " Renderer", "Light Voxel Grid", "Visualize",
         fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
         false);
     App::AddParam(p10);

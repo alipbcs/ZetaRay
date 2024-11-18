@@ -6,6 +6,7 @@
 #include <Support/Param.h>
 #include <Math/MatrixFuncs.h>
 #include <Scene/Camera.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -398,31 +399,31 @@ namespace ZetaRay::DefaultRenderer
         // Render settings
         {
             ParamVariant enableInscattering;
-            enableInscattering.InitBool("Renderer", "Compositing", "Inscattering",
+            enableInscattering.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Inscattering",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetInscatteringEnablement),
                 g_data->m_settings.Inscattering);
             App::AddParam(enableInscattering);
 
             ParamVariant p;
-            p.InitEnum("Renderer", "Anti-Aliasing", "Method",
+            p.InitEnum(ICON_FA_FILM " Renderer", "Anti-Aliasing", "Method",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAA),
                 AAOptions, ZetaArrayLen(AAOptions), (int)g_data->m_settings.AntiAliasing);
             App::AddParam(p);
 
             ParamVariant p1;
-            p1.InitBool("Renderer", "Compositing", "Accumulate", 
+            p1.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Accumulate",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetAccumulation),
                 g_data->m_frameConstants.Accumulate);
             App::AddParam(p1);
 
             ParamVariant p2;
-            p2.InitEnum("Renderer", "Indirect Lighting", "Integrator",
+            p2.InitEnum(ICON_FA_FILM " Renderer", "Indirect Lighting", "Integrator",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetIndirect),
                 IndirectOptions, ZetaArrayLen(IndirectOptions), (int)g_data->m_settings.Indirect);
             App::AddParam(p2);
 
             ParamVariant p3;
-            p3.InitEnum("Scene", "Camera", "Type",
+            p3.InitEnum(ICON_FA_LANDMARK " Scene", "Camera", "Type",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLensType),
                 LensTypes, ZetaArrayLen(LensTypes), 0, "Lens");
             App::AddParam(p3);
@@ -434,19 +435,19 @@ namespace ZetaRay::DefaultRenderer
         // Sun
         {
             ParamVariant p0;
-            p0.InitUnitDir("Light Source", "Sun", "(-)Dir",
+            p0.InitUnitDir(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
                 -g_data->m_frameConstants.SunDir);
             App::AddParam(p0);
 
             ParamVariant p1;
-            p1.InitFloat("Light Source", "Sun", "Illuminance",
+            p1.InitFloat(ICON_FA_LANDMARK " Scene", "Sun", "Illuminance",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunLux),
                 g_data->m_frameConstants.SunIlluminance, 1.0f, 100.0f, 1.0f);
             App::AddParam(p1);
 
             ParamVariant p2;
-            p2.InitFloat("Light Source", "Sun", "Angular Diameter (degrees)",
+            p2.InitFloat(ICON_FA_LANDMARK " Scene", "Sun", "Angular Diameter (degrees)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunAngularDiameter),
                 Defaults::SUN_ANGULAR_DIAMETER, 0.1f, 10.0f, 1e-2f);
             App::AddParam(p2);
@@ -455,43 +456,43 @@ namespace ZetaRay::DefaultRenderer
         // Atmosphere
         {
             ParamVariant p0;
-            p0.InitColor("Scene", "Atmosphere", "Rayleigh scattering color",
+            p0.InitColor(ICON_FA_LANDMARK " Scene", "Atmosphere", "Rayleigh scattering color",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetRayleighSigmaSColor),
                 g_data->m_frameConstants.RayleighSigmaSColor);
             App::AddParam(p0);
 
             ParamVariant p1;
-            p1.InitFloat("Scene", "Atmosphere", "Rayleigh scattering scale",
+            p1.InitFloat(ICON_FA_LANDMARK " Scene", "Atmosphere", "Rayleigh scattering scale",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetRayleighSigmaSScale),
                 g_data->m_frameConstants.RayleighSigmaSScale, 0.0f, 10.0f, 1e-3f);
             App::AddParam(p1);
 
             ParamVariant p2;
-            p2.InitFloat("Scene", "Atmosphere", "Mie scattering coeff.",
+            p2.InitFloat(ICON_FA_LANDMARK " Scene", "Atmosphere", "Mie scattering coeff.",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaS),
                 Defaults::SIGMA_S_MIE, 1e-6f, 1e-1f, 1e-3f);
             App::AddParam(p2);
 
             ParamVariant p3;
-            p3.InitFloat("Scene", "Atmosphere", "Mie absorption coeff.",
+            p3.InitFloat(ICON_FA_LANDMARK " Scene", "Atmosphere", "Mie absorption coeff.",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetMieSigmaA),
                 Defaults::SIGMA_A_MIE, 1e-6f, 10.0f, 1e-3f);
             App::AddParam(p3);
 
             ParamVariant p4;
-            p4.InitFloat("Scene", "Atmosphere", "Ozone absorption scale",
+            p4.InitFloat(ICON_FA_LANDMARK " Scene", "Atmosphere", "Ozone absorption scale",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAScale),
                 g_data->m_frameConstants.OzoneSigmaAScale, 0.0f, 10.0f, 1e-4f);
             App::AddParam(p4);
 
             ParamVariant p5;
-            p5.InitColor("Scene", "Atmosphere", "Ozone absorption color",
+            p5.InitColor(ICON_FA_LANDMARK " Scene", "Atmosphere", "Ozone absorption color",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetOzoneSigmaAColor),
                 g_data->m_frameConstants.OzoneSigmaAColor);
             App::AddParam(p5);
 
             ParamVariant p6;
-            p6.InitFloat("Scene", "Atmosphere", "g (HG Phase Function)",
+            p6.InitFloat(ICON_FA_LANDMARK " Scene", "Atmosphere", "g (HG Phase Function)",
                 fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetgForPhaseHG),
                 Defaults::g, -0.99f, 0.99f, 0.2f);
             App::AddParam(p6);

@@ -6,6 +6,7 @@
 #include <App/Timer.h>
 #include <Support/Param.h>
 #include <algorithm>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -85,7 +86,7 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
     m_matBuffer.Add(DEFAULT_MATERIAL_ID, defaultMat);
 
     ParamVariant animation;
-    animation.InitBool("Scene", "Animation", "Pause",
+    animation.InitBool(ICON_FA_LANDMARK " Scene", "Animation", "Pause",
         fastdelegate::MakeDelegate(this, &SceneCore::AnimateCallback),
         !m_animate);
     App::AddParam(animation);

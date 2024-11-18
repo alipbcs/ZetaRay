@@ -3,6 +3,7 @@
 #include <Scene/SceneRenderer.h>
 #include <Support/Param.h>
 #include <Support/Task.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay::Core;
 using namespace ZetaRay::Core::GpuMemory;
@@ -80,29 +81,29 @@ void SkyDI::Init()
     CreateOutputs();
 
     ParamVariant doTemporal;
-    doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
+    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Temporal Resample",
         fastdelegate::MakeDelegate(this, &SkyDI::TemporalResamplingCallback), m_temporalResampling);
     App::AddParam(doTemporal);
 
     ParamVariant doSpatial;
-    doSpatial.InitBool("Renderer", "Direct Lighting", "Spatial Resample",
+    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Spatial Resample",
         fastdelegate::MakeDelegate(this, &SkyDI::SpatialResamplingCallback), m_spatialResampling);
     App::AddParam(doSpatial);
 
     ParamVariant m_max_sky;
-    m_max_sky.InitInt("Renderer", "Direct Lighting", "M_max (Sky)",
+    m_max_sky.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max (Sky)",
         fastdelegate::MakeDelegate(this, &SkyDI::MaxMSkyCallback),
         DefaultParamVals::M_MAX_SKY, 1, 15, 1);
     App::AddParam(m_max_sky);
 
     ParamVariant m_max_sun;
-    m_max_sun.InitInt("Renderer", "Direct Lighting", "M_max (Sun)",
+    m_max_sun.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max (Sun)",
         fastdelegate::MakeDelegate(this, &SkyDI::MaxMSunCallback),
         DefaultParamVals::M_MAX_SUN, 1, 15, 1);
     App::AddParam(m_max_sun);
 
     ParamVariant alphaMin;
-    alphaMin.InitFloat("Renderer", "Direct Lighting", "Alpha_min",
+    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting", "Alpha_min",
         fastdelegate::MakeDelegate(this, &SkyDI::AlphaMinCallback),
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);
