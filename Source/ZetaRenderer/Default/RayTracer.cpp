@@ -59,7 +59,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
         data.DirecLightingPass.OnWindowResized();
 
         const Texture& t = data.DirecLightingPass.GetOutput(
-            DirectLighting::SHADER_OUT_RES::DENOISED);
+            DirectLighting::SHADER_OUT_RES::FINAL);
         CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
             (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
     }
@@ -119,7 +119,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
         {
             data.DirecLightingPass.Init();
 
-            const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED);
+            const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL);
             CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
                 (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
 
@@ -266,7 +266,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
                     RENDER_NODE_TYPE::COMPUTE, dlg3);
 
                 Texture& td = const_cast<Texture&>(data.DirecLightingPass.GetOutput(
-                    DirectLighting::SHADER_OUT_RES::DENOISED));
+                    DirectLighting::SHADER_OUT_RES::FINAL));
                 renderGraph.RegisterResource(td.Resource(), td.ID());
 
                 // Indirect lighting
@@ -276,7 +276,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
                     RENDER_NODE_TYPE::COMPUTE, dlg2);
 
                 Texture& ti = const_cast<Texture&>(data.IndirecLightingPass.GetOutput(
-                    IndirectLighting::SHADER_OUT_RES::DENOISED));
+                    IndirectLighting::SHADER_OUT_RES::FINAL));
                 renderGraph.RegisterResource(ti.Resource(), ti.ID());
             }
         }
@@ -290,7 +290,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
             RENDER_NODE_TYPE::COMPUTE, dlg2);
 
         Texture& t = const_cast<Texture&>(data.IndirecLightingPass.GetOutput(
-            IndirectLighting::SHADER_OUT_RES::DENOISED));
+            IndirectLighting::SHADER_OUT_RES::FINAL));
         renderGraph.RegisterResource(t.Resource(), t.ID());
     }
 
@@ -411,7 +411,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                     D3D12_RESOURCE_STATE_COPY_DEST);
 
                 renderGraph.AddOutput(data.DirecLightingHandle,
-                    data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+                    data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL).ID(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             }
             // Lighting passes should run after light presampling pass
@@ -443,7 +443,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
                 renderGraph.AddOutput(data.DirecLightingHandle,
-                    data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+                    data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL).ID(),
                     D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
             }
         }
@@ -532,7 +532,7 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
 
         // Outputs
         renderGraph.AddOutput(data.IndirecLightingHandle,
-            data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+            data.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::FINAL).ID(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
     }
 

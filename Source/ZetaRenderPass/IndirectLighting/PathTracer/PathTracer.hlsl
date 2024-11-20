@@ -195,7 +195,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         normal, eta_next, surface, globals, rngThread, rngGroup);
     li = any(isnan(li)) ? 0 : li;
 
-    RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalOrColorAUavDescHeapIdx];
+    RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
     if(g_frame.Accumulate && g_frame.CameraStatic)
     {

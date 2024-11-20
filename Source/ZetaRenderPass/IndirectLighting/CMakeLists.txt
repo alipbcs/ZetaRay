@@ -36,7 +36,5 @@ set(RP_IND_LIGHTING_SRC
     ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_TtC.hlsl
     ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_CtS.hlsl
     ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_Reconnect_StC.hlsl
-    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_SpatialSearch.hlsl
-    ${RP_IND_LIGHTING_DIR}/IndirectDnsr_Temporal.hlsl
-    ${RP_IND_LIGHTING_DIR}/IndirectDnsr_Spatial.hlsl)
+    ${RP_IND_LIGHTING_DIR}/ReSTIR_PT/ReSTIR_PT_SpatialSearch.hlsl)
 set(RP_IND_LIGHTING_SRC ${RP_IND_LIGHTING_SRC} PARENT_SCOPE)

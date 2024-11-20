@@ -19,8 +19,6 @@ namespace ZetaRay::RenderPass
     enum class SKY_DI_SHADER
     {
         SKY_DI,
-        DNSR_TEMPORAL,
-        DNSR_SPATIAL,
         COUNT
     };
 
@@ -57,8 +55,6 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R8_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32_FLOAT;
-            static constexpr DXGI_FORMAT COLOR_A = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            static constexpr DXGI_FORMAT COLOR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
 
@@ -78,19 +74,6 @@ namespace ZetaRay::RenderPass
             RESERVOIR_1_B_UAV,
             RESERVOIR_1_C_UAV,
             //
-            COLOR_A_SRV,
-            COLOR_A_UAV,
-            COLOR_B_SRV,
-            COLOR_B_UAV,
-            //
-            DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV,
             FINAL_UAV,
             //
             COUNT
@@ -107,9 +90,7 @@ namespace ZetaRay::RenderPass
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
-            "SkyDI_cs.cso",
-            "SkyDI_DNSR_Temporal_cs.cso",
-            "SkyDI_DNSR_Spatial_cs.cso"
+            "SkyDI_cs.cso"
         };
 
         struct Reservoir
@@ -124,12 +105,6 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::Texture C;
         };
 
-        struct DenoiserCache
-        {
-            Core::GpuMemory::Texture Diffuse;
-            Core::GpuMemory::Texture Specular;
-        };
-
         void CreateOutputs();
 
         void TemporalResamplingCallback(const Support::ParamVariant& p);
@@ -137,33 +112,20 @@ namespace ZetaRay::RenderPass
         void MaxMSkyCallback(const Support::ParamVariant& p);
         void MaxMSunCallback(const Support::ParamVariant& p);
         void AlphaMinCallback(const Support::ParamVariant& p);
-        void DenoisingCallback(const Support::ParamVariant& p);
-        void TsppDiffuseCallback(const Support::ParamVariant& p);
-        void TsppSpecularCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
 
         // shader reload
         void ReloadTemporalPass();
-        void ReloadDNSRTemporal();
-        void ReloadDNSRSpatial();
 
         Reservoir m_reservoir[2];
         Core::GpuMemory::ResourceHeap m_resHeap;
-        Core::GpuMemory::Texture m_colorA;
-        Core::GpuMemory::Texture m_colorB;
-        DenoiserCache m_dnsrCache[2];
         Core::GpuMemory::Texture m_final;
         int m_currTemporalIdx = 0;
         bool m_temporalResampling = true;
         bool m_spatialResampling = true;
         bool m_isTemporalReservoirValid = false;
-        bool m_isDnsrTemporalCacheValid = false;
 
         Core::DescriptorTable m_descTable;
 
         cb_SkyDI m_cbSpatioTemporal;
-        cb_SkyDI_DNSR_Temporal m_cbDnsrTemporal;
-        cb_SkyDI_DNSR_Spatial m_cbDnsrSpatial;
     };
 }

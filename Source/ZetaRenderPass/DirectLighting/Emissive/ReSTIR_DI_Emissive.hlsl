@@ -376,52 +376,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, mr.y, 
         sampleSetIdx, surface, target, rng_group, rng_thread);
 
-    /*
-    if(g_local.Denoise)
-    {
-        // split into diffuse & specular, so they can be denoised separately
-        surface.SetWi_Refl(target.wi, normal);
-        float3 fr = surface.Fresnel();
-
-        // demodulate base color
-        float3 f_d = (1.0f - fr) * (1.0f - flags.metallic) * surface.ndotwi * ONE_OVER_PI;
-        float3 f_s = 0;
-
-        // demodulate Fresnel for metallic surfaces to preserve texture detail
-        float alphaSq = surface.alpha * surface.alpha;
-        if(flags.metallic)
-        {
-            if(surface.GlossSpecular())
-            {
-                f_s = (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
-            }
-            else
-            {
-                float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
-                f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
-            }
-        }
-        else
-            f_s = BSDF::EvalGloss(surface, fr);
-
-        float3 Li_d = r.Le * target.dwdA * f_d * r.W;
-        float3 Li_s = r.Le * target.dwdA * f_s * r.W;
-        float3 wh = normalize(surface.wo + target.wi);
-        float whdotwo = saturate(dot(wh, surface.wo));
-        float tmp = 1.0f - whdotwo;
-        float tmpSq = tmp * tmp;
-        uint tmpU = asuint(tmpSq * tmpSq * tmp);
-        half2 encoded = half2(asfloat16(uint16_t(tmpU & 0xffff)), asfloat16(uint16_t(tmpU >> 16)));
-
-        RWTexture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorAUavDescHeapIdx];
-        RWTexture2D<half4> g_colorB = ResourceDescriptorHeap[g_local.ColorBUavDescHeapIdx];
-
-        g_colorA[swizzledDTid] = float4(Li_s, Li_d.r);
-        g_colorB[swizzledDTid] = half4(Li_d.gb, encoded);
-    }
-    else
-    */
     {
         float3 li = target.p_hat * r.W;
         li = any(isnan(li)) ? 0 : li;

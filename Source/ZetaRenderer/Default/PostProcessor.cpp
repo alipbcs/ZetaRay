@@ -318,7 +318,7 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
             if (App::GetScene().NumEmissiveInstances())
             {
                 renderGraph.AddInput(data.CompositingHandle,
-                    rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+                    rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL).ID(),
                     D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
             }
             // Sky DI
@@ -331,7 +331,7 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
 
             // Indirect lighting
             renderGraph.AddInput(data.CompositingHandle,
-                rtData.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::DENOISED).ID(),
+                rtData.IndirecLightingPass.GetOutput(IndirectLighting::SHADER_OUT_RES::FINAL).ID(),
                 D3D12_RESOURCE_STATE_NON_PIXEL_SHADER_RESOURCE);
 
             // Inscattering

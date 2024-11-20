@@ -254,58 +254,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     SkyDI_Util::Reservoir r = EstimateDirectLighting(swizzledDTid, pos, normal, z_view, 
         mr.y, surface, rng);
 
-    /*
-    if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::DENOISE))
-    {
-        // split into diffuse & specular, so they can be denoised separately
-        surface.SetWi_Refl(r.wx, normal);
-        float3 fr = surface.Fresnel();
-
-        // demodulate base color
-        float3 f_d = (1.0f - fr) * (1.0f - flags.metallic) * surface.ndotwi * ONE_OVER_PI;
-        
-        // demodulate Fresnel for metallic surfaces to preserve texture detail
-        float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
-        float3 f_s = 0;
-
-        if(flags.metallic)
-        {
-            if(surface.GlossSpecular())
-            {
-                f_s = (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
-            }
-            else
-            {
-                float alphaSq = max(1e-5f, surface.alpha * surface.alpha);
-                float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
-                f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
-            }
-        }
-        else
-            f_s = BSDF::EvalGloss(surface, fr);
-
-        const float3 le = r.lightType == Light::TYPE::SKY ? 
-            Light::Le_Sky(r.wx, g_frame.EnvMapDescHeapOffset) :
-            Light::Le_Sun(pos, g_frame);
-
-        float3 Li_d = le * f_d * r.W;
-        float3 Li_s = le * f_s * r.W;
-        float3 wh = normalize(surface.wo + r.wx);
-        float whdotwo = saturate(dot(wh, surface.wo));
-        float tmp = 1.0f - whdotwo;
-        float tmpSq = tmp * tmp;
-        uint tmpU = asuint(tmpSq * tmpSq * tmp);
-        half2 encoded = half2(asfloat16(uint16_t(tmpU & 0xffff)), asfloat16(uint16_t(tmpU >> 16)));
-
-        RWTexture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.ColorAUavDescHeapIdx];
-        RWTexture2D<half4> g_colorB = ResourceDescriptorHeap[g_local.ColorBUavDescHeapIdx];
-
-        g_colorA[swizzledDTid] = float4(Li_s, Li_d.r);
-        g_colorB[swizzledDTid] = half4(Li_d.gb, encoded);
-    }
-    else
-    */
     {
         float3 ld = r.target * r.W;
         ld = any(isnan(ld)) ? 0 : ld;

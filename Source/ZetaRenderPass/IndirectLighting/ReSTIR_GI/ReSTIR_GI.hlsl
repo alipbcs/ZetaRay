@@ -143,56 +143,11 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     RGI_Util::Reservoir r = RGI_Util::EstimateIndirectLighting(swizzledDTid, origin, lensSample,
         pos, normal, mr.y, eta_next, z_view,  surface, g_frame, g_local, globals, rngThread, rngGroup);
 
-    if (IS_CB_FLAG_SET(CB_IND_FLAGS::DENOISE))
-    {
-        // Split into diffuse & glossy reflection, so they can be denoised separately
-        float3 wi = normalize(r.pos - pos);
-        surface.SetWi_Refl(wi, normal);
-        float3 fr = surface.Fresnel();
-
-        // Demodulate base color
-        float3 f_d = (1.0f - fr) * (1.0f - flags.metallic) * surface.ndotwi * ONE_OVER_PI;
-        float3 f_s = 0;
-
-        // Demodulate Fresnel for metallic surfaces to preserve texture detail
-        float alphaSq = surface.alpha * surface.alpha;
-        if(flags.metallic)
-        {
-            if(surface.GlossSpecular())
-            {
-                f_s = (surface.ndotwh >= MIN_N_DOT_H_SPECULAR);
-            }
-            else
-            {
-                float NDF = BSDF::GGX(surface.ndotwh, alphaSq);
-                float G2Div_ndotwi_ndotwo = BSDF::SmithHeightCorrelatedG2_Opt<1>(alphaSq, surface.ndotwi, surface.ndotwo);
-                f_s = NDF * G2Div_ndotwi_ndotwo * surface.ndotwi;
-            }
-        }
-        else
-            f_s = BSDF::EvalGloss(surface, fr);
-
-        float3 Li_d = r.Lo * f_d * r.W;
-        float3 Li_s = r.Lo * f_s * r.W;
-        float3 wh = normalize(surface.wo + wi);
-        float whdotwo = saturate(dot(wh, surface.wo));
-        float tmp = 1.0f - whdotwo;
-        float tmpSq = tmp * tmp;
-        uint tmpU = asuint(tmpSq * tmpSq * tmp);
-        half2 encoded = half2(asfloat16(uint16_t(tmpU & 0xffff)), asfloat16(uint16_t(tmpU >> 16)));
-
-        RWTexture2D<float4> g_colorA = ResourceDescriptorHeap[g_local.FinalOrColorAUavDescHeapIdx];
-        RWTexture2D<half4> g_colorB = ResourceDescriptorHeap[g_local.ColorBUavDescHeapIdx];
-
-        g_colorA[swizzledDTid] = float4(Li_s, Li_d.r);
-        g_colorB[swizzledDTid] = half4(Li_d.gb, encoded);
-    }
-    else
     {
         float3 li = r.target_z * r.W;
         li = any(isnan(li)) ? 0 : li;
 
-        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalOrColorAUavDescHeapIdx];
+        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
         if(g_frame.Accumulate && g_frame.CameraStatic)
         {

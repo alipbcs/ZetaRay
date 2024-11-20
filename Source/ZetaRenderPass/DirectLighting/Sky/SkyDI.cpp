@@ -72,17 +72,8 @@ void SkyDI::Init()
     CreateOutputs();
 
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
-    memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
-    memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX_SKY | (DefaultParamVals::M_MAX_SUN << 16);
     m_cbSpatioTemporal.Alpha_min = DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
-    m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSRTspp_Diffuse;
-    m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSRTspp_Specular;
-    // SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE, true);
-    // SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::DENOISE, true);
-    // SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::DENOISE, true);
-    // SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE, true);
-    // SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR, true);
 
     ParamVariant doTemporal;
     doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
@@ -112,39 +103,7 @@ void SkyDI::Init()
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);
 
-    // ParamVariant denoise;
-    // denoise.InitBool("Renderer", "Direct Lighting", "Denoise",
-    //     fastdelegate::MakeDelegate(this, &SkyDI::DenoisingCallback), 
-    //     IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE));
-    // App::AddParam(denoise);
-
-    // ParamVariant tsppDiffuse;
-    // tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
-    //     fastdelegate::MakeDelegate(this, &SkyDI::TsppDiffuseCallback),
-    //     m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1);
-    // App::AddParam(tsppDiffuse);
-
-    // ParamVariant tsppSpecular;
-    // tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
-    //     fastdelegate::MakeDelegate(this, &SkyDI::TsppSpecularCallback),
-    //     m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1);
-    // App::AddParam(tsppSpecular);
-
-    // ParamVariant dnsrSpatialFilterDiffuse;
-    // dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
-    //     fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterDiffuseCallback), 
-    //     IS_CB_FLAG_SET(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE));
-    // App::AddParam(dnsrSpatialFilterDiffuse);
-
-    // ParamVariant dnsrSpatialFilterSpecular;
-    // dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Specular)",
-    //     fastdelegate::MakeDelegate(this, &SkyDI::DnsrSpatialFilterSpecularCallback), 
-    //     IS_CB_FLAG_SET(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR));
-    // App::AddParam(dnsrSpatialFilterSpecular);
-
     App::AddShaderReloadHandler("SkyDI", fastdelegate::MakeDelegate(this, &SkyDI::ReloadTemporalPass));
-    //App::AddShaderReloadHandler("SkyDI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRTemporal));
-    //App::AddShaderReloadHandler("SkyDI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &SkyDI::ReloadDNSRSpatial));
 
     m_isTemporalReservoirValid = false;
 
@@ -189,13 +148,6 @@ void SkyDI::Render(CommandList& cmdList)
         barriers.push_back(TextureBarrier_SrvToUavNoSync(
             m_reservoir[m_currTemporalIdx].C.Resource()));
 
-        // transition color outputs into write state
-        if (IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE))
-        {
-            barriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorA.Resource()));
-            barriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorB.Resource()));
-        }
-
         // transition previous reservoirs into read state
         if (m_isTemporalReservoirValid)
         {
@@ -224,8 +176,6 @@ void SkyDI::Render(CommandList& cmdList)
 
         m_cbSpatioTemporal.PrevReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvAIdx);
         m_cbSpatioTemporal.CurrReservoir_A_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavAIdx);
-        // m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
-        // m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
         m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);;
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
@@ -238,97 +188,8 @@ void SkyDI::Render(CommandList& cmdList)
         cmdList.PIXEndEvent();
     }
 
-    // denoiser
-    if(IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE))
-    {
-        // denoiser - temporal
-        {
-            computeCmdList.PIXBeginEvent("SkyDI_DNSR_Temporal");
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Temporal");
-
-            D3D12_TEXTURE_BARRIER barriers[4];
-
-            // transition color into read state
-            barriers[0] = TextureBarrier_UavToSrvWithSync(m_colorA.Resource());
-            barriers[1] = TextureBarrier_UavToSrvWithSync(m_colorB.Resource());
-            // transition current denoiser caches into write
-            barriers[2] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
-            barriers[3] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
-
-            computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
-
-            auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV;
-            auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV;
-            auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV;
-            auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
-
-            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
-            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavDiffuseIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavSpecularIdx);
-            SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::CACHE_VALID, m_isDnsrTemporalCacheValid);
-
-            m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrTemporal) / sizeof(DWORD), &m_cbDnsrTemporal);
-            m_rootSig.End(computeCmdList);
-
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
-            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL));
-            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-            gpuTimer.EndQuery(computeCmdList, queryIdx);
-            cmdList.PIXEndEvent();
-        }
-
-        // denoiser - spatial
-        {
-            computeCmdList.PIXBeginEvent("SkyDI_DNSR_Spatial");
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "SkyDI_DNSR_Spatial");
-
-            D3D12_TEXTURE_BARRIER spatialBarriers[2];
-
-            // transition color into read state
-            spatialBarriers[0] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
-            spatialBarriers[1] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
-
-            computeCmdList.ResourceBarrier(spatialBarriers, ZetaArrayLen(spatialBarriers));
-
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, SKY_DI_DNSR_SPATIAL_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, SKY_DI_DNSR_SPATIAL_GROUP_DIM_Y);
-
-            auto spatialSrvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV : 
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
-            auto spatialSrvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV : 
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
-
-            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)spatialSrvDiffuseIdx);
-            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)spatialSrvSpecularIdx);
-            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);
-            m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
-            m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-            m_cbDnsrSpatial.NumGroupsInTile = SKY_DI_DNSR_SPATIAL_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
-
-            m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
-            m_rootSig.End(computeCmdList);
-
-            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL));
-            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-            gpuTimer.EndQuery(computeCmdList, queryIdx);
-            cmdList.PIXEndEvent();
-        }
-    }
-
     m_isTemporalReservoirValid = true;
     m_currTemporalIdx = 1 - m_currTemporalIdx;
-    m_isDnsrTemporalCacheValid = IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE);
 }
 
 void SkyDI::CreateOutputs()
@@ -350,16 +211,6 @@ void SkyDI::CreateOutputs()
 
     // final
     list.PushTex2D(ResourceFormats::FINAL, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-    // // denoiser
-    // list.PushTex2D(ResourceFormats::COLOR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    // list.PushTex2D(ResourceFormats::COLOR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-    // for (int i = 0; i < 2; i++)
-    // {
-    //     list.PushTex2D(ResourceFormats::FINAL, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    //     list.PushTex2D(ResourceFormats::FINAL, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    // }
 
     list.End();
 
@@ -413,33 +264,6 @@ void SkyDI::CreateOutputs()
         TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE::FINAL_UAV));
-
-    {
-        // func(m_colorA, ResourceFormats::COLOR_A, 
-        //     "SkyDI_COLOR_A", 0, "", allocs[currRes++], 
-        //     (int)DESC_TABLE::COLOR_A_SRV, (int)DESC_TABLE::COLOR_A_UAV,
-        //     0, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
-        // func(m_colorB, ResourceFormats::COLOR_B, 
-        //     "SkyDI_COLOR_B", 0, "", allocs[currRes++], 
-        //     (int)DESC_TABLE::COLOR_B_SRV, (int)DESC_TABLE::COLOR_B_UAV,
-        //     0, D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE);
-    }
-
-    // denoiser cache
-    // for (int i = 0; i < 2; i++)
-    // {
-    //     const auto state = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
-    //     const int descOffset = 4;
-
-    //     func(m_dnsrCache[i].Diffuse, ResourceFormats::FINAL, 
-    //         "SkyDI_DNSR", i, "Diffuse", allocs[currRes++], 
-    //         (int)DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV, (int)DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
-    //         descOffset, state);
-    //     func(m_dnsrCache[i].Specular, ResourceFormats::FINAL, 
-    //         "SkyDI_DNSR", i, "Specular", allocs[currRes++], 
-    //         (int)DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV, (int)DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV,
-    //         descOffset, state);
-    // }
 }
 
 void SkyDI::TemporalResamplingCallback(const Support::ParamVariant& p)
@@ -468,51 +292,9 @@ void SkyDI::AlphaMinCallback(const Support::ParamVariant& p)
     m_cbSpatioTemporal.Alpha_min = newVal * newVal;
 }
 
-void SkyDI::DenoisingCallback(const Support::ParamVariant& p)
-{
-    m_isDnsrTemporalCacheValid = !IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE) ?
-        false : m_isDnsrTemporalCacheValid;
-    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE, p.GetBool());
-    SET_CB_FLAG(m_cbDnsrTemporal, CB_SKY_DI_DNSR_TEMPORAL_FLAGS::DENOISE, p.GetBool());
-    SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::DENOISE, p.GetBool());
-    m_isDnsrTemporalCacheValid = !IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::DENOISE) ?
-        false : m_isDnsrTemporalCacheValid;
-}
-
-void SkyDI::TsppDiffuseCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
-}
-
-void SkyDI::TsppSpecularCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
-}
-
-void SkyDI::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_DIFFUSE, p.GetBool());
-}
-
-void SkyDI::DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbDnsrSpatial, CB_SKY_DI_DNSR_SPATIAL_FLAGS::FILTER_SPECULAR, p.GetBool());
-}
-
 void SkyDI::ReloadTemporalPass()
 {
     const int i = (int)SHADER::SKY_DI;
     m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI.hlsl");
 }
 
-void SkyDI::ReloadDNSRTemporal()
-{
-    const int i = (int)SHADER::DNSR_TEMPORAL;
-    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_DNSR_Temporal.hlsl");
-}
-
-void SkyDI::ReloadDNSRSpatial()
-{
-    const int i = (int)SHADER::DNSR_SPATIAL;
-    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Sky\\SkyDI_DNSR_Spatial.hlsl");
-}

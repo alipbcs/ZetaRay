@@ -95,16 +95,9 @@ void DirectLighting::Init()
     CreateOutputs();
 
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
-    memset(&m_cbDnsrTemporal, 0, sizeof(m_cbDnsrTemporal));
-    memset(&m_cbDnsrSpatial, 0, sizeof(m_cbDnsrSpatial));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
     m_cbSpatioTemporal.StochasticSpatial = true;
     m_cbSpatioTemporal.ExtraSamplesDisocclusion = true;
-    //m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
-    //m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
-    //m_cbSpatioTemporal.Denoise = m_cbDnsrTemporal.Denoise = m_cbDnsrSpatial.Denoise = true;
-    //m_cbDnsrSpatial.FilterDiffuse = true;
-    //m_cbDnsrSpatial.FilterSpecular = true;
 
     ParamVariant doTemporal;
     doTemporal.InitBool("Renderer", "Direct Lighting", "Temporal Resample",
@@ -122,12 +115,6 @@ void DirectLighting::Init()
         m_cbSpatioTemporal.M_max, 1, 30, 1);
     App::AddParam(maxTemporalM);
 
-    //ParamVariant denoise;
-    //denoise.InitBool("Renderer", "Direct Lighting", "Denoise",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::DenoiseCallback), 
-    //    m_cbDnsrTemporal.Denoise, "Denoise");
-    //App::AddParam(denoise);
-
     ParamVariant extraDissocclusion;
     extraDissocclusion.InitBool("Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
         fastdelegate::MakeDelegate(this, &DirectLighting::ExtraSamplesDisocclusionCallback), 
@@ -140,33 +127,7 @@ void DirectLighting::Init()
         m_cbSpatioTemporal.StochasticSpatial);
     App::AddParam(stochasticSpatial);
 
-    //ParamVariant tsppDiffuse;
-    //tsppDiffuse.InitInt("Renderer", "Direct Lighting", "TSPP (Diffuse)",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::TsppDiffuseCallback),
-    //    m_cbDnsrTemporal.MaxTsppDiffuse, 1, 32, 1, "Denoise");
-    //App::AddParam(tsppDiffuse);
-
-    //ParamVariant tsppSpecular;
-    //tsppSpecular.InitInt("Renderer", "Direct Lighting", "TSPP (Specular)",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::TsppSpecularCallback),
-    //    m_cbDnsrTemporal.MaxTsppSpecular, 1, 32, 1, "Denoise");
-    //App::AddParam(tsppSpecular);
-
-    //ParamVariant dnsrSpatialFilterDiffuse;
-    //dnsrSpatialFilterDiffuse.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Diffuse)",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterDiffuseCallback), 
-    //    m_cbDnsrSpatial.FilterDiffuse, "Denoise");
-    //App::AddParam(dnsrSpatialFilterDiffuse);
-
-    //ParamVariant dnsrSpatialFilterSpecular;
-    //dnsrSpatialFilterSpecular.InitBool("Renderer", "Direct Lighting", "Spatial Filter (Specular)",
-    //    fastdelegate::MakeDelegate(this, &DirectLighting::DnsrSpatialFilterSpecularCallback), 
-    //    m_cbDnsrSpatial.FilterSpecular, "Denoise");
-    //App::AddParam(dnsrSpatialFilterSpecular);
-
     App::AddShaderReloadHandler("ReSTIR_DI", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadSpatioTemporal));
-    //App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Temporal", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrTemporal));
-    //App::AddShaderReloadHandler("ReSTIR_DI_DNSR_Spatial", fastdelegate::MakeDelegate(this, &DirectLighting::ReloadDnsrSpatial));
 
     m_isTemporalReservoirValid = false;
 }
@@ -207,13 +168,6 @@ void DirectLighting::Render(CommandList& cmdList)
         textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(
             m_temporalReservoir[m_currTemporalIdx].ReservoirB.Resource()));
 
-        // transition color outputs into write state
-        if (m_cbSpatioTemporal.Denoise)
-        {
-            textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorA.Resource()));
-            textureBarriers.push_back(TextureBarrier_SrvToUavNoSync(m_colorB.Resource()));
-        }
-
         // transition previous reservoirs into read state
         if (m_isTemporalReservoirValid)
         {
@@ -246,9 +200,7 @@ void DirectLighting::Render(CommandList& cmdList)
             m_cbSpatioTemporal.CurrReservoir_B_DescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavBIdx);
         }
 
-        m_cbSpatioTemporal.ColorAUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_UAV);
-        m_cbSpatioTemporal.ColorBUavDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_UAV);
-        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
+        m_cbSpatioTemporal.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::FINAL_UAV);
 
         m_rootSig.SetRootConstants(0, sizeof(m_cbSpatioTemporal) / sizeof(DWORD), &m_cbSpatioTemporal);
         m_rootSig.End(computeCmdList);
@@ -262,96 +214,8 @@ void DirectLighting::Render(CommandList& cmdList)
         cmdList.PIXEndEvent();
     }
 
-    if (m_cbSpatioTemporal.Denoise)
-    {
-        // denoiser - temporal
-        {
-            computeCmdList.PIXBeginEvent("ReSTIR_DI_DNSR_Temporal");
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Temporal");
-
-            D3D12_TEXTURE_BARRIER barriers[4];
-
-            // transition color into read state
-            barriers[0] = TextureBarrier_UavToSrvWithSync(m_colorA.Resource());
-            barriers[1] = TextureBarrier_UavToSrvWithSync(m_colorB.Resource());
-            // transition current denoiser caches into write
-            barriers[2] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
-            barriers[3] = TextureBarrier_SrvToUavNoSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
-
-            computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
-
-            auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV;
-            auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV;
-            auto uavDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV;
-            auto uavSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV;
-
-            m_cbDnsrTemporal.ColorASrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_A_SRV);
-            m_cbDnsrTemporal.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrTemporal.PrevTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrTemporal.PrevTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavDiffuseIdx);
-            m_cbDnsrTemporal.CurrTemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)uavSpecularIdx);
-            m_cbDnsrTemporal.IsTemporalCacheValid = m_isDnsrTemporalCacheValid;
-
-            m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrTemporal) / sizeof(DWORD), &m_cbDnsrTemporal);
-            m_rootSig.End(computeCmdList);
-
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_DNSR_TEMPORAL_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_DNSR_TEMPORAL_GROUP_DIM_Y);
-            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_TEMPORAL));
-            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-            gpuTimer.EndQuery(computeCmdList, queryIdx);
-            cmdList.PIXEndEvent();
-        }
-
-        // denoiser - spatial
-        {
-            const uint32_t dispatchDimX = CeilUnsignedIntDiv(w, RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_X);
-            const uint32_t dispatchDimY = CeilUnsignedIntDiv(h, RESTIR_DI_DNSR_SPATIAL_GROUP_DIM_Y);
-
-            computeCmdList.PIXBeginEvent("ReSTIR_DI_DNSR_Spatial");
-            const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_DI_DNSR_Spatial");
-
-            D3D12_TEXTURE_BARRIER barriers[2];
-
-            // transition color into read state
-            barriers[0] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Diffuse.Resource());
-            barriers[1] = TextureBarrier_UavToSrvWithSync(m_dnsrCache[m_currTemporalIdx].Specular.Resource());
-
-            computeCmdList.ResourceBarrier(barriers, ZetaArrayLen(barriers));
-
-            auto srvDiffuseIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV;
-            auto srvSpecularIdx = m_currTemporalIdx == 1 ? DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV :
-                DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV;
-
-            m_cbDnsrSpatial.TemporalCacheDiffuseDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvDiffuseIdx);
-            m_cbDnsrSpatial.TemporalCacheSpecularDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)srvSpecularIdx);
-            m_cbDnsrSpatial.ColorBSrvDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::COLOR_B_SRV);
-            m_cbDnsrSpatial.FinalDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::DNSR_FINAL_UAV);
-            m_cbDnsrSpatial.DispatchDimX = (uint16_t)dispatchDimX;
-            m_cbDnsrSpatial.DispatchDimY = (uint16_t)dispatchDimY;
-            m_cbDnsrSpatial.NumGroupsInTile = RESTIR_DI_TILE_WIDTH * m_cbDnsrSpatial.DispatchDimY;
-
-            m_rootSig.SetRootConstants(0, sizeof(m_cbDnsrSpatial) / sizeof(DWORD), &m_cbDnsrSpatial);
-            m_rootSig.End(computeCmdList);
-
-            computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::DNSR_SPATIAL));
-            computeCmdList.Dispatch(dispatchDimX, dispatchDimY, 1);
-
-            gpuTimer.EndQuery(computeCmdList, queryIdx);
-            cmdList.PIXEndEvent();
-        }
-    }
-
     m_isTemporalReservoirValid = true;
     m_currTemporalIdx = 1 - m_currTemporalIdx;
-    m_isDnsrTemporalCacheValid = m_cbDnsrTemporal.Denoise;
 }
 
 void DirectLighting::CreateOutputs()
@@ -382,19 +246,9 @@ void DirectLighting::CreateOutputs()
         list.PushTex2D(ResourceFormats::RESERVOIR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
         list.PushTex2D(ResourceFormats::RESERVOIR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
     }
-    
-    // denoiser
-    //list.PushTex2D(ResourceFormats::COLOR_A, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    //list.PushTex2D(ResourceFormats::COLOR_B, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-    //for (int i = 0; i < 2; i++)
-    //{
-    //    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    //    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-    //}
 
     // final
-    list.PushTex2D(ResourceFormats::DNSR_TEMPORAL_CACHE, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
+    list.PushTex2D(ResourceFormats::FINAL, w, h, TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
     list.End();
 
@@ -424,44 +278,13 @@ void DirectLighting::CreateOutputs()
             layout);
     }
 
-    {
-        //constexpr D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
+    m_final = GpuMemory::GetPlacedTexture2D("RDI_Final", w, h,
+        ResourceFormats::FINAL,
+        m_resHeap.Heap(), allocs[currRes++].Offset,
+        D3D12_RESOURCE_STATE_COMMON,
+        TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
 
-        //func(m_colorA, ResourceFormats::COLOR_A, "RDI_COLOR_A", allocs[currRes++], 
-        //    DESC_TABLE::COLOR_A_SRV, DESC_TABLE::COLOR_A_UAV, layout);
-        //func(m_colorB, ResourceFormats::COLOR_B, "RDI_COLOR_B", allocs[currRes++], 
-        //    DESC_TABLE::COLOR_B_SRV, DESC_TABLE::COLOR_B_UAV, layout);
-    }
-
-    // denoiser
-    {
-        //constexpr D3D12_BARRIER_LAYOUT layout = D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE;
-
-        //func(m_dnsrCache[0].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, 
-        //    "RDI_DNSR_Diffuse_0", allocs[currRes++], 
-        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
-        //    layout);
-        //func(m_dnsrCache[1].Diffuse, ResourceFormats::DNSR_TEMPORAL_CACHE, 
-        //    "RDI_DNSR_Diffuse_1", allocs[currRes++],
-        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV,
-        //    layout);
-        //func(m_dnsrCache[0].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, 
-        //    "RDI_DNSR_Specular_0", allocs[currRes++],
-        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV,
-        //    layout);
-        //func(m_dnsrCache[1].Specular, ResourceFormats::DNSR_TEMPORAL_CACHE, 
-        //    "RDI_DNSR_Specular_1", allocs[currRes++],
-        //    DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV, DESC_TABLE::DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV,
-        //    layout);
-
-        m_final = GpuMemory::GetPlacedTexture2D("RDI_Final", w, h,
-            ResourceFormats::DNSR_TEMPORAL_CACHE,
-            m_resHeap.Heap(), allocs[currRes++].Offset,
-            D3D12_RESOURCE_STATE_COMMON,
-            TEXTURE_FLAGS::ALLOW_UNORDERED_ACCESS);
-
-        Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE::DNSR_FINAL_UAV));
-    }
+    Direct3DUtil::CreateTexture2DUAV(m_final, m_descTable.CPUHandle((int)DESC_TABLE::FINAL_UAV));
 }
 
 void DirectLighting::TemporalResamplingCallback(const Support::ParamVariant& p)
@@ -489,37 +312,6 @@ void DirectLighting::StochasticSpatialCallback(const Support::ParamVariant& p)
     m_cbSpatioTemporal.StochasticSpatial = p.GetBool();
 }
 
-void DirectLighting::DenoiseCallback(const Support::ParamVariant& p)
-{
-    m_isDnsrTemporalCacheValid = !m_cbDnsrTemporal.Denoise ? false : m_isDnsrTemporalCacheValid;
-    m_cbSpatioTemporal.Denoise = p.GetBool();
-    m_cbDnsrTemporal.Denoise = p.GetBool();
-    m_cbDnsrSpatial.Denoise = p.GetBool();
-    m_isDnsrTemporalCacheValid = !m_cbDnsrTemporal.Denoise ? false : m_isDnsrTemporalCacheValid;
-}
-
-void DirectLighting::TsppDiffuseCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrTemporal.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
-    m_cbDnsrSpatial.MaxTsppDiffuse = (uint16_t)p.GetInt().m_value;
-}
-
-void DirectLighting::TsppSpecularCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrTemporal.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
-    m_cbDnsrSpatial.MaxTsppSpecular = (uint16_t)p.GetInt().m_value;
-}
-
-void DirectLighting::DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrSpatial.FilterDiffuse = p.GetBool();
-}
-
-void DirectLighting::DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p)
-{
-    m_cbDnsrSpatial.FilterSpecular = p.GetBool();
-}
-
 void DirectLighting::ReloadSpatioTemporal()
 {
     const int i = m_preSampling ? (int)SHADER::SPATIO_TEMPORAL_LIGHT_PRESAMPLING :
@@ -529,15 +321,3 @@ void DirectLighting::ReloadSpatioTemporal()
         "DirectLighting\\Emissive\\ReSTIR_DI_Emissive_WPS.hlsl" :
         "DirectLighting\\Emissive\\ReSTIR_DI_Emissive.hlsl");
 }
-
-//void DirectLighting::ReloadDnsrTemporal()
-//{
-//    const int i = (int)SHADER::DNSR_TEMPORAL;
-//    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Temporal.hlsl");
-//}
-//
-//void DirectLighting::ReloadDnsrSpatial()
-//{
-//    const int i = (int)SHADER::DNSR_SPATIAL;
-//    m_psoLib.Reload(i, m_rootSigObj.Get(), "DirectLighting\\Emissive\\ReSTIR_DI_DNSR_Spatial.hlsl");
-//}

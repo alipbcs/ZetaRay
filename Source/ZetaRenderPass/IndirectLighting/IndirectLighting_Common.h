@@ -31,15 +31,6 @@
 #define RESTIR_PT_SPATIAL_GROUP_DIM_X 8u
 #define RESTIR_PT_SPATIAL_GROUP_DIM_Y 8u
 
-#define INDIRECT_DNSR_TEMPORAL_GROUP_DIM_X 8u
-#define INDIRECT_DNSR_TEMPORAL_GROUP_DIM_Y 8u
-
-#define INDIRECT_DNSR_SPATIAL_GROUP_DIM_X 8u
-#define INDIRECT_DNSR_SPATIAL_GROUP_DIM_Y 8u
-
-#define INDIRECT_DNSR_SPATIAL_TILE_WIDTH 16
-#define INDIRECT_DNSR_SPATIAL_LOG2_TILE_WIDTH 4
-
 namespace CB_IND_FLAGS
 {
     static constexpr uint32_t TEMPORAL_RESAMPLE = 1 << 0;
@@ -83,8 +74,7 @@ struct cb_ReSTIR_GI
     uint32_t CurrReservoir_B_DescHeapIdx;
     uint32_t CurrReservoir_C_DescHeapIdx;
 
-    uint32_t FinalOrColorAUavDescHeapIdx;
-    uint32_t ColorBUavDescHeapIdx;
+    uint32_t FinalDescHeapIdx;
 
     uint32_t Flags;
     uint32_t DispatchDimX_NumGroupsInTile;
@@ -162,39 +152,6 @@ struct cb_ReSTIR_PT_SpatialSearch
     uint32_t OutputDescHeapIdx;
     uint32_t Flags;
     uint32_t Final;
-};
-
-struct cbIndirectDnsrTemporal
-{
-    uint32_t ColorASrvDescHeapIdx;
-    uint32_t ColorBSrvDescHeapIdx;
-    uint32_t PrevTemporalCacheDiffuseDescHeapIdx;
-    uint32_t CurrTemporalCacheDiffuseDescHeapIdx;
-    uint32_t PrevTemporalCacheSpecularDescHeapIdx;
-    uint32_t CurrTemporalCacheSpecularDescHeapIdx;
-    uint32_t PrevReservoir_A_DescHeapIdx;
-
-    uint32_t MaxTsppDiffuse;
-    uint32_t MaxTsppSpecular;
-    uint16_t Denoise;
-    uint16_t IsTemporalCacheValid;
-};
-
-struct cbIndirectDnsrSpatial
-{
-    uint32_t TemporalCacheDiffuseDescHeapIdx;
-    uint32_t TemporalCacheSpecularDescHeapIdx;
-    uint32_t ColorBSrvDescHeapIdx;
-    uint32_t FinalDescHeapIdx;
-
-    uint16_t Denoise;
-    uint16_t DispatchDimX;
-    uint16_t DispatchDimY;
-    uint16_t NumGroupsInTile;
-    uint16_t MaxTsppDiffuse;
-    uint16_t MaxTsppSpecular;
-    uint16_t FilterDiffuse;
-    uint16_t FilterSpecular;
 };
 
 #endif

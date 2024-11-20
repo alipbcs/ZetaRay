@@ -50,8 +50,6 @@ namespace ZetaRay::RenderPass
         ReSTIR_PT_RECONNECT_StC,
         ReSTIR_PT_RECONNECT_StC_E,
         ReSTIR_PT_SPATIAL_SEARCH,
-        DNSR_TEMPORAL,
-        DNSR_SPATIAL,
         COUNT
     };
 
@@ -59,7 +57,7 @@ namespace ZetaRay::RenderPass
     {
         enum class SHADER_OUT_RES
         {
-            DENOISED,
+            FINAL,
             COUNT
         };
 
@@ -102,7 +100,7 @@ namespace ZetaRay::RenderPass
         }
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
-            Assert(i == SHADER_OUT_RES::DENOISED, "Invalid shader output.");
+            Assert(i == SHADER_OUT_RES::FINAL, "Invalid shader output.");
             return m_final;
         }
         void Render(Core::CommandList& cmdList);
@@ -122,9 +120,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32B32A32_FLOAT;
-            static constexpr DXGI_FORMAT COLOR_A = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            static constexpr DXGI_FORMAT COLOR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
-            static constexpr DXGI_FORMAT DNSR_TEMPORAL_CACHE = DXGI_FORMAT_R16G16B16A16_FLOAT;
+            static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
         };
 
         struct ResourceFormats_RPT
@@ -162,20 +158,7 @@ namespace ZetaRay::RenderPass
             RESERVOIR_1_B_UAV,
             RESERVOIR_1_C_UAV,
             //
-            COLOR_A_SRV,
-            COLOR_A_UAV,
-            COLOR_B_SRV,
-            COLOR_B_UAV,
-            //
-            DNSR_TEMPORAL_CACHE_DIFFUSE_0_SRV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_0_SRV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_0_UAV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_0_UAV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_1_SRV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_1_SRV,
-            DNSR_TEMPORAL_CACHE_DIFFUSE_1_UAV,
-            DNSR_TEMPORAL_CACHE_SPECULAR_1_UAV,
-            DNSR_FINAL_UAV,
+            FINAL_UAV,
             //
             COUNT
         };
@@ -303,9 +286,7 @@ namespace ZetaRay::RenderPass
             "ReSTIR_PT_Reconnect_CtS_E_cs.cso",
             "ReSTIR_PT_Reconnect_StC_cs.cso",
             "ReSTIR_PT_Reconnect_StC_E_cs.cso",
-            "ReSTIR_PT_SpatialSearch_cs.cso",
-            "IndirectDnsr_Temporal_cs.cso",
-            "IndirectDnsr_Spatial_cs.cso"
+            "ReSTIR_PT_SpatialSearch_cs.cso"
         };
 
         struct Reservoir_RGI
@@ -359,12 +340,6 @@ namespace ZetaRay::RenderPass
             Core::GpuMemory::Texture D;
         };
 
-        struct DenoiserCache
-        {
-            Core::GpuMemory::Texture Diffuse;
-            Core::GpuMemory::Texture Specular;
-        };
-
         void ResetIntegrator(bool resetAllResources, bool skipNonResources);
         void SwitchToReSTIR_PT(bool skipNonResources);
         void ReleaseReSTIR_PT();
@@ -394,11 +369,6 @@ namespace ZetaRay::RenderPass
         void SortTemporalCallback(const Support::ParamVariant& p);
         void SortSpatialCallback(const Support::ParamVariant& p);
         void TexFilterCallback(const Support::ParamVariant& p);
-        void DenoiseCallback(const Support::ParamVariant& p);
-        void TsppDiffuseCallback(const Support::ParamVariant& p);
-        void TsppSpecularCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterDiffuseCallback(const Support::ParamVariant& p);
-        void DnsrSpatialFilterSpecularCallback(const Support::ParamVariant& p);
 
         // shader reload
         void ReloadRGI();
@@ -415,9 +385,6 @@ namespace ZetaRay::RenderPass
         Core::GpuMemory::Texture m_threadMap[(int)SHIFT::COUNT];
         Core::GpuMemory::Texture m_spatialNeighbor;
         Core::GpuMemory::Texture m_rptTarget;
-        Core::GpuMemory::Texture m_colorA;
-        Core::GpuMemory::Texture m_colorB;
-        DenoiserCache m_dnsrCache[2];
         Core::GpuMemory::Texture m_final;
 
         int m_currTemporalIdx = 0;
@@ -432,7 +399,5 @@ namespace ZetaRay::RenderPass
         cb_ReSTIR_GI m_cbRGI;
         cb_ReSTIR_PT_PathTrace m_cbRPT_PathTrace;
         cb_ReSTIR_PT_Reuse m_cbRPT_Reuse;
-        cbIndirectDnsrTemporal m_cbDnsrTemporal;
-        cbIndirectDnsrSpatial m_cbDnsrSpatial;
     };
 }
