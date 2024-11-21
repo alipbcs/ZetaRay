@@ -313,23 +313,9 @@ void Filesystem::RemoveFile(const char* path)
 bool Filesystem::Exists(const char* path)
 {
     Assert(path, "path argument was NULL.");
+    auto attrib = GetFileAttributesA(path);
 
-    WIN32_FIND_DATAA findData;
-    HANDLE h = FindFirstFileA(path, &findData);
-
-    if (h == INVALID_HANDLE_VALUE)
-    {
-        DWORD e = GetLastError();
-        if (e == ERROR_FILE_NOT_FOUND || e == ERROR_PATH_NOT_FOUND)
-            return false;
-
-        Check(false, "Unexpected error in FindFirstFile() for path %s with the following error code: %d.", 
-            path, e);
-    }
-
-    FindClose(h);
-
-    return true;
+    return (attrib != INVALID_FILE_ATTRIBUTES) && !(attrib & FILE_ATTRIBUTE_DIRECTORY);
 }
 
 size_t Filesystem::GetFileSize(const char* path)
@@ -366,20 +352,12 @@ size_t Filesystem::GetFileSize(const char* path)
 
 void Filesystem::CreateDirectoryIfNotExists(const char* path)
 {
-    if (!CreateDirectoryA(path, nullptr))
-    {
-        auto err = GetLastError();
-        if (err != ERROR_ALREADY_EXISTS)
-        {
-            if (err == ERROR_PATH_NOT_FOUND)
-            {
-                Check(false, "Failed to create directory in path %s: \
-                    One or more intermediate directories do not exist.\n", path)
-            }
-            else
-                Check(false, "Failed to create directory in path %s.\n", path);
-        }
-    }
+    Assert(path, "path argument was NULL.");
+    auto attrib = GetFileAttributesA(path);
+    if ((attrib != INVALID_FILE_ATTRIBUTES) && (attrib & FILE_ATTRIBUTE_DIRECTORY))
+        return;
+
+    CheckWin32(CreateDirectoryA(path, nullptr));
 }
 
 bool Filesystem::Copy(const char* path, const char* newPath, bool overwrite)
