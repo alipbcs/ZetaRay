@@ -37,6 +37,7 @@ namespace BSDF
             BSDFSamplerEval ret;
             ret.bsdfOverPdf = 0;
             ret.pdf = 0;
+            ret.f = 0;
 
             return ret;
         }
@@ -44,6 +45,7 @@ namespace BSDF
         // Joint pdf of sampling the lobe and direction 
         float pdf;
         float3 bsdfOverPdf;
+        float3 f;
     };
 
     struct NoOp 
@@ -99,27 +101,30 @@ namespace BSDF
         ret.pdf *= pdf_base;
 
         BSDFEval eval = BSDF::Unified(surface);
-        ret.f = eval.f * func(wi_r);
+        float3 func_r = func(wi_r);
+        ret.f = eval.f * func_r;
         ret.bsdfOverPdf = ret.f / ret.pdf;
 
         // TIR is for both coat and gloss layers
         if(surface.metallic || !surface.specTr || eval.tir)
             return ret;
 
-        // Transmissive dielectric surface
+        // Transmissive dielectric
+        float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
+        float3 func_t = func(wi_t);
+        float p_r = eval.Fr_g.x * Math::Luminance(func_r);
+        p_r = p_r / (p_r + (1 - eval.Fr_g.x) * Math::Luminance(func_t));
 
         // Use Fresnel to decide between reflection and transmission
-        if (u_wrs_1 < eval.Fr_g.x)
+        if (u_wrs_1 < p_r)
         {
-            ret.bsdfOverPdf /= eval.Fr_g.x;
-            ret.pdf *= eval.Fr_g.x;
+            ret.bsdfOverPdf /= p_r;
+            ret.pdf *= p_r;
         }
         else
         {
-            float3 wi_t = refract(-surface.wo, wh, 1 / surface.eta);
             surface.SetWi_Tr(wi_t, normal, wh);
-            // 1 - fr is multiplied below
-            ret.pdf = 1;
+            ret.pdf = (1 - p_r) * pdf_base;
 
             if(!surface.GlossSpecular())
             {
@@ -136,12 +141,8 @@ namespace BSDF
             // errors). In that case, surface.invalid becomes true, causing bsdf to evaluate 
             // to 0 and the path-tracing loop is terminated.
 
-            // BSDF and pdf both contain 1 - fr, by passing 0 it cancels out
-            ret.f = BSDF::DielectricBaseSpecularTr(surface, 0) * func(wi_t);
+            ret.f = BSDF::DielectricBaseSpecularTr(surface, eval.Fr_g.x) * func_t;
             ret.bsdfOverPdf = ret.f / ret.pdf;
-            ret.bsdfOverPdf /= pdf_base;
-            ret.pdf *= 1 - eval.Fr_g.x;
-            ret.pdf *= pdf_base;
             ret.wi = wi_t;
             ret.lobe = BSDF::LOBE::GLOSSY_T;
         }
@@ -160,6 +161,19 @@ namespace BSDF
 
         return SampleBSDF_NoDiffuse<NoOp>(normal, surface, u_c, u_g, u_wrs_0, u_wrs_1, 
             noop);
+    }
+
+    template<typename Func>
+    BSDFSample SampleBSDF_NoDiffuse(float3 normal, ShadingData surface, Func func, 
+        inout RNG rng)
+    {
+        float2 u_c = rng.Uniform2D();
+        float2 u_g = rng.Uniform2D();
+        float u_wrs_0 = rng.Uniform();
+        float u_wrs_1 = rng.Uniform();
+
+        return SampleBSDF_NoDiffuse(normal, surface, u_c, u_g, u_wrs_0, u_wrs_1, 
+            func);
     }
 
     // For surfaces without specular transmission
@@ -407,6 +421,7 @@ namespace BSDF
         float targetLum = Math::Luminance(target);
         ret.bsdfOverPdf = targetLum > 0 ? target * w_sum / targetLum : 0;
         ret.pdf = w_sum > 0 ? targetLum / w_sum : 0;
+        ret.f = target;
 
         return ret;
     }
@@ -415,12 +430,13 @@ namespace BSDF
     BSDFSamplerEval EvalBSDFSampler_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi, 
         BSDF::LOBE lobe, float unused, Func func)
     {
-        BSDFSamplerEval ret;
-
-        surface.SetWi(wi, normal);
+        float3 wh = surface.SetWi(wi, normal);
         BSDFEval eval = BSDF::Unified(surface);
         const float3 targetScale = func(wi);
         float pdf_base = 1;
+
+        BSDFSamplerEval ret;
+        ret.f = eval.f * targetScale;
 
         if(surface.Coated())
         {
@@ -432,7 +448,7 @@ namespace BSDF
             if(lobe == BSDF::LOBE::COAT)
             {
                 ret.pdf = BSDF::CoatPdf(surface) * pdf_coat;
-                ret.bsdfOverPdf = (eval.f * targetScale) / ret.pdf;
+                ret.bsdfOverPdf = ret.f / ret.pdf;
 
                 return ret;
             }
@@ -441,26 +457,36 @@ namespace BSDF
         const float wh_pdf = BSDF::GGXMicrofacetPdf(surface.alpha, surface.ndotwh, surface.ndotwo);
         ret.pdf = !surface.GlossSpecular() ? wh_pdf / 4.0f : surface.ndotwh >= MIN_N_DOT_H_SPECULAR;
         ret.pdf *= pdf_base;
-        ret.bsdfOverPdf = (eval.f * targetScale) / ret.pdf;
+        ret.bsdfOverPdf = ret.f / ret.pdf;
 
         if(surface.metallic || !surface.specTr || eval.tir)
             return ret;
 
+        const float3 wi_other = lobe == BSDF::LOBE::GLOSSY_R ? 
+            reflect(-surface.wo, wh) :
+            refract(-surface.wo, wh, 1 / surface.eta);
+        float3 targetScaleOther = func(wi_other);
+        float targetScaleLum = Math::Luminance(targetScale);
+        float targetScaleOtherLum = Math::Luminance(targetScaleOther);
+
+        float p_r = eval.Fr_g.x * (lobe == BSDF::LOBE::GLOSSY_R ? targetScaleLum : targetScaleOtherLum);
+        p_r = p_r / (p_r + (1 - eval.Fr_g.x) * (lobe == BSDF::LOBE::GLOSSY_R ? targetScaleOtherLum : targetScaleLum));
+
         if(lobe == BSDF::LOBE::GLOSSY_R)
         {
-            ret.bsdfOverPdf /= eval.Fr_g.x;
-            ret.pdf *= eval.Fr_g.x;
+            ret.bsdfOverPdf /= p_r;
+            ret.pdf *= p_r;
 
             return ret;
         }
 
-        // Since we're dividing by 1 - fr, by passing 0 causes 1 - fr cancels out
         ret.bsdfOverPdf = !surface.invalid * !surface.reflection * 
-            BSDF::TranslucentTrOverPdf(surface, 0);
+            BSDF::TranslucentTrOverPdf(surface, eval.Fr_g.x);
         ret.bsdfOverPdf *= BSDF::TransmittanceToDielectricBaseTr(surface);
         ret.bsdfOverPdf *= targetScale;
         ret.bsdfOverPdf /= pdf_base;
-        ret.pdf = 1 - eval.Fr_g.x;
+        ret.bsdfOverPdf /= (1 - p_r);
+        ret.pdf = 1 - p_r;
         ret.pdf *= surface.GlossSpecular() ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : wh_pdf * surface.whdotwo;
         ret.pdf *= pdf_base;
 
@@ -535,9 +561,11 @@ namespace BSDF
         return EvalBSDFSampler_NoDiffuse(normal, surface, wi, lobe, u_wrs_1, noop);
     }
 
-    float BSDFSamplerPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
+    template<typename Func>
+    float BSDFSamplerPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi,
+        Func func)
     {
-        surface.SetWi(wi, normal);
+        float3 wh = surface.SetWi(wi, normal);
         float pdf_base = 1;
         float pdf_c = 0;
 
@@ -566,15 +594,29 @@ namespace BSDF
         }
 
         // Transmissive dielectric
-
-        float Fr_g = surface.Fresnel().x;
         float pdf_g = surface.GlossSpecular() ? surface.ndotwh >= MIN_N_DOT_H_SPECULAR : 1;
         pdf_g *= pdf_base;
 
-        if(surface.reflection)
-            return Fr_g * pdf_g * (surface.GlossSpecular() ? 1 : (wh_pdf / 4.0f));
+        const float3 wi_other = !surface.reflection? 
+            reflect(-surface.wo, wh) :
+            refract(-surface.wo, wh, 1 / surface.eta);
+        float targetScaleLum = Math::Luminance(func(wi));
+        float targetScaleOtherLum = Math::Luminance(func(wi_other));
+        float Fr_g = surface.Fresnel().x;
+        // Prob. of reflection vs transmission
+        float pdf_r = Fr_g * (surface.reflection ? targetScaleLum : targetScaleOtherLum);
+        pdf_r = pdf_r / (pdf_r + (1 - Fr_g) * (surface.reflection ? targetScaleOtherLum : targetScaleLum));
 
-        pdf_g *= 1 - Fr_g;
+        if(surface.reflection)
+        {
+            // Account for change of density from half vector to incident vector
+            pdf_g *= surface.GlossSpecular() ? 1 : (wh_pdf / 4.0f);
+            pdf_g *= pdf_r;
+
+            return pdf_g + pdf_c;
+        }
+
+        pdf_g *= 1 - pdf_r;
 
         if(!surface.GlossSpecular())
         {
@@ -587,17 +629,25 @@ namespace BSDF
         return pdf_g;
     }
 
-    float BSDFSamplerPdf(float3 normal, BSDF::ShadingData surface, float3 wi_z, inout RNG rng)
+    float BSDFSamplerPdf_NoDiffuse(float3 normal, BSDF::ShadingData surface, float3 wi)
+    {
+        NoOp noop;
+        return BSDFSamplerPdf_NoDiffuse(normal, surface, wi, noop);
+    }
+
+    template<typename Func>
+    float BSDFSamplerPdf(float3 normal, BSDF::ShadingData surface, float3 wi_z, 
+        Func func, inout RNG rng)
     {
         if(surface.specTr)
-            return BSDFSamplerPdf_NoDiffuse(normal, surface, wi_z);
+            return BSDFSamplerPdf_NoDiffuse(normal, surface, wi_z, func);
 
         surface.SetWi(wi_z, normal);
         if(!surface.reflection && !surface.ThinWalled())
             return 0;
 
         BSDFEval eval_z = BSDF::Unified(surface);
-        float targetLum = Math::Luminance(eval_z.f);
+        float targetLum = Math::Luminance(eval_z.f * func(wi_z));
 
         if(targetLum == 0)
             return 0;
@@ -638,7 +688,7 @@ namespace BSDF
             BSDFEval eval = BSDF::Unified(surface);
             Fr_g = eval.Fr_g.x;
             float3 target_dr = eval.f;
-            float targetLum_dr = Math::Luminance(target_dr);
+            float targetLum_dr = Math::Luminance(target_dr * func(wi_d));
 
             float pdf_g = BSDF::GlossPdf(surface);
             float pdf_c = surface.Coated() ? BSDF::CoatPdf(surface) : 0;
@@ -652,7 +702,7 @@ namespace BSDF
         if(!surface.metallic && surface.ThinWalled())
         {
             float3 target_dt = BSDF::DielectricBaseDiffuseTr(surface, Fr_g);
-            float targetLum_dt = Math::Luminance(target_dt);
+            float targetLum_dt = Math::Luminance(target_dt * func(-wi_d));
 
             float w = targetLum_dt / pdf_d;
             w_sum_g += w;
@@ -665,7 +715,7 @@ namespace BSDF
             float3 wi_g = BSDF::SampleGloss(surface, normal, rng.Uniform2D());
             surface.SetWi_Refl(wi_g, normal);
             float3 target_g = BSDF::Unified(surface).f;
-            float targetLum_g = Math::Luminance(target_g);
+            float targetLum_g = Math::Luminance(target_g * func(wi_g));
 
             // Account for change of density from half vector to incident vector
             float pdf_g = BSDF::GlossPdf(surface);
@@ -683,7 +733,7 @@ namespace BSDF
             float3 wi_c = BSDF::SampleCoat(surface, normal, rng.Uniform2D());
             surface.SetWi_Refl(wi_c, normal);
             float3 target_c = BSDF::Unified(surface).f;
-            float targetLum_c = Math::Luminance(target_c);
+            float targetLum_c = Math::Luminance(target_c * func(wi_c));
 
             // Account for change of density from half vector to incident vector
             float pdf_g = BSDF::GlossPdf(surface);
@@ -705,6 +755,12 @@ namespace BSDF
         pdf += surface.ThinWalled() && (w_sum_dt > 0) ? targetLum / w_sum_dt : 0;
 
         return pdf;
+    }
+
+    float BSDFSamplerPdf(float3 normal, BSDF::ShadingData surface, float3 wi_z, inout RNG rng)
+    {
+        NoOp noop;
+        return BSDFSamplerPdf(normal, surface, wi_z, noop, rng);
     }
 }
 

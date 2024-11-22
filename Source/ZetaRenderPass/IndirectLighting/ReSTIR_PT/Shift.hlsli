@@ -572,26 +572,38 @@ namespace RPT_Util
             // Was used for deciding between sun and sky
             rngNEE.Uniform();
 
-            if(rc.lt_k_plus_1 == Light::TYPE::SUN)
+            // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
+            ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
+                g_frame.EnvMapDescHeapOffset);
+
+            // TODO assumes visibility doesn't change. Not necessarily true for temporal.
+            ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sun<false>(y_k, hitInfo.normal, 
+                surface, globals.bvh, g_frame, rngNEE);
+
+            const float pdf_sky = BSDF::BSDFSamplerPdf(hitInfo.normal, surface, -g_frame.SunDir, 
+                rngNEE, leFunc);
+            float3 target_z = ls.ld * ls.pdf_solidAngle;
+            float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
+
+            if(rc.lt_k_plus_1 == Light::TYPE::SKY)
             {
-                // Note: assumes visibility doesn't change. Not necessarily true for temporal.
-                ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sun<false>(y_k, hitInfo.normal, 
-                    surface, globals.bvh, g_frame, rngNEE);
+                BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(hitInfo.normal, surface, 
+                    rc.w_k_lightNormal_w_sky, rc.lobe_k, leFunc, rngNEE);
 
-                ret.target = beta * ls.ld;
+                target_z = eval.f;
+                w_sum += Math::Luminance(eval.bsdfOverPdf);
             }
-            else if(rc.lt_k_plus_1 == Light::TYPE::SKY)
+            else
             {
-                float3 wi = rc.w_k_lightNormal_w_sky;
+                BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(hitInfo.normal, surface, 
+                    leFunc, rngNEE);
 
-                // Note: assumes visibility doesn't change. Not necessarily true for temporal.
-                ReSTIR_Util::DirectLightingEstimate ls = RPT_Util::EvalDirect_Sky<false>(y_k, 
-                    hitInfo.normal, surface, wi, rc.lobe_k, g_frame.EnvMapDescHeapOffset, 
-                    globals.bvh, rngNEE);
-
-                ret.target = beta * ls.ld;
-                ret.partialJacobian *= ls.pdf_solidAngle;
+                w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
             }
+
+            const float targetLum = Math::Luminance(target_z);
+            ret.target = beta * (targetLum > 0 ? target_z * w_sum / targetLum : 0);
+            ret.partialJacobian *= w_sum > 0 ? targetLum / w_sum : 0;
         }
 
         return ret;
@@ -637,23 +649,55 @@ namespace RPT_Util
             // Was used for deciding between sun and sky
             rngNEE.Uniform();
 
-            if(rc.lt_k == Light::TYPE::SUN)
+            // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
+            ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
+                g_frame.EnvMapDescHeapOffset);
+
+            float3 target_z = 0;
+            float3 wi_sun = -g_frame.SunDir;
+            float pdf_sky = 0;
+            // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
+            const bool visible = (wi_sun.y > 0) &&
+                ((dot(wi_sun, normal_k_min_1) > 0) || surface.Transmissive());
+
+            if(visible)
             {
-                ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sun<true>(y_k_min_1, 
-                    normal_k_min_1, surface, globals.bvh, g_frame, rngNEE);
-                ret.target = beta * ls.ld;
-                ret.partialJacobian = 1;
+                surface.SetWi(wi_sun, normal_k_min_1);
+                float3 f = BSDF::Unified(surface).f;
+                target_z = Light::Le_Sun(y_k_min_1, g_frame) * f;
+
+                pdf_sky = BSDF::BSDFSamplerPdf(normal_k_min_1, surface, wi_sun, 
+                    rngNEE, leFunc);
             }
-            else if(rc.lt_k == Light::TYPE::SKY)
+
+            float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
+
+            if(rc.lt_k == Light::TYPE::SKY)
             {
-                float3 wi = rc.w_k_lightNormal_w_sky;
+                BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal_k_min_1, surface, 
+                    rc.w_k_lightNormal_w_sky, rc.lobe_k_min_1, leFunc, rngNEE);
 
-                ReSTIR_Util::DirectLightingEstimate ls = RPT_Util::EvalDirect_Sky<true>(y_k_min_1, 
-                    normal_k_min_1, surface, wi, rc.lobe_k_min_1, g_frame.EnvMapDescHeapOffset, 
-                    globals.bvh, rngNEE);
+                target_z = eval.f;
+                w_sum += Math::Luminance(eval.bsdfOverPdf);
+            }
+            else
+            {
+                BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal_k_min_1, surface, 
+                    leFunc, rngNEE);
 
-                ret.target = beta * ls.ld;
-                ret.partialJacobian = ls.pdf_solidAngle;
+                w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
+            }
+
+            const float targetLum = Math::Luminance(target_z);
+            ret.target = beta * (targetLum > 0 ? target_z * w_sum / targetLum : 0);
+            ret.partialJacobian = w_sum > 0 ? targetLum / w_sum : 0;
+
+            if(dot(ret.target, ret.target) > 0)
+            {
+                float3 wi = rc.lt_k == Light::TYPE::SUN ? -g_frame.SunDir : 
+                    rc.w_k_lightNormal_w_sky;
+                ret.target *= RtRayQuery::Visibility_Ray(y_k_min_1, wi, normal_k_min_1, 
+                    globals.bvh, surface.Transmissive());
             }
         }
 

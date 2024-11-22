@@ -7,58 +7,67 @@
 
 namespace RPT_Util
 {
-    struct SkyIncidentRadiance 
-    {
-        static SkyIncidentRadiance Init(uint descHeapOffset)
-        {
-            SkyIncidentRadiance ret;
-            ret.skyViewDescHeapOffset = descHeapOffset;
-            return ret;
-        }
-
-        float3 operator()(float3 w)
-        {
-            return Light::Le_Sky(w, skyViewDescHeapOffset);
-        }
-
-        uint skyViewDescHeapOffset;
-    };
-
     ReSTIR_Util::DirectLightingEstimate NEE_NonEmissive(float3 pos, float3 normal, 
         BSDF::ShadingData surface, ConstantBuffer<cbFrameConstants> g_frame, 
         RaytracingAccelerationStructure g_bvh, inout RNG rng)
     {
-        float u_sun = rng.Uniform();
+        ReSTIR_Util::DirectLightingEstimate ret = ReSTIR_Util::DirectLightingEstimate::Init();
+        ret.dwdA = 1;
 
-        // Sun and sky can be skipped if sun is below the horizon
-        if(-g_frame.SunDir.y > 0)
+        // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
+        ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
+            g_frame.EnvMapDescHeapOffset);
+
+        float w_sum = 0;
+        float3 target_z = 0;
+        const float u_wrs = rng.Uniform();
+
+        // Sample sun
         {
-            // Skip sun the opaque surface is oriented away
-            float q = (surface.Transmissive() ? 1 : 
-                dot(-g_frame.SunDir, normal) > 0) * P_SUN_VS_SKY;
+            const float3 wi_s = -g_frame.SunDir;
+            // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
+            const bool visible = (wi_s.y > 0) &&
+                ((dot(wi_s, normal) > 0) || surface.Transmissive());
 
-            ReSTIR_Util::DirectLightingEstimate ls;
-            if(u_sun < q)
+            if(visible)
             {
-                ls = ReSTIR_Util::NEE_Sun<false>(pos, normal, surface, g_bvh, g_frame, rng);
-                ls.ld /= q;
-                ls.pdf_solidAngle *= q;
-            }
-            else
-            {
-                ls = ReSTIR_Util::NEE_Sky<false>(pos, normal, surface, g_bvh, 
-                    g_frame.EnvMapDescHeapOffset, rng);
-                ls.ld /= (1 - q);
-                ls.pdf_solidAngle *= (1 - q);
+                surface.SetWi(wi_s, normal);
+                target_z = Light::Le_Sun(pos, g_frame) * BSDF::Unified(surface).f;
             }
 
-            if(dot(ls.ld, ls.ld) > 0)
-                ls.ld *= RtRayQuery::Visibility_Ray(pos, ls.wi, normal, g_bvh, surface.Transmissive());
+            const float pdf_s = BSDF::BSDFSamplerPdf(normal, surface, wi_s, rng, leFunc);
+            w_sum = RT::BalanceHeuristic(1, pdf_s, Math::Luminance(target_z));
 
-            return ls;
+            ret.lt = Light::TYPE::SUN;
+            ret.lobe = BSDF::LOBE::ALL;
+            ret.wi = wi_s;
         }
 
-        return ReSTIR_Util::DirectLightingEstimate::Init();
+        // Sample sky
+        {
+            BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, leFunc, rng);
+
+            const float w_b = Math::Luminance(bsdfSample.bsdfOverPdf);
+            w_sum += w_b;
+
+            if((w_sum > 0) && (u_wrs < (w_b / w_sum)))
+            {
+                ret.lt = Light::TYPE::SKY;
+                ret.lobe = bsdfSample.lobe;
+                ret.wi = bsdfSample.wi;
+
+                target_z = bsdfSample.f;
+            }
+        }
+
+        const float targetLum = Math::Luminance(target_z);
+        ret.ld = targetLum > 0 ? target_z * w_sum / targetLum : 0;
+        ret.pdf_solidAngle = w_sum > 0 ? targetLum / w_sum : 0;
+
+        if(dot(ret.ld, ret.ld) > 0)
+            ret.ld *= RtRayQuery::Visibility_Ray(pos, ret.wi, normal, g_bvh, surface.Transmissive());
+
+        return ret;
     }
 
     ReSTIR_Util::DirectLightingEstimate NEE_Bsdf(float3 pos, float3 normal, 
@@ -218,7 +227,8 @@ namespace RPT_Util
         BSDF::ShadingData surface, float3 wi, BSDF::LOBE lobe, uint skyViewDescHeapOffset, 
         RaytracingAccelerationStructure g_bvh, inout RNG rng)
     {
-        SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(skyViewDescHeapOffset);
+        ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
+            skyViewDescHeapOffset);
         BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal, surface, wi, lobe, leFunc, rng);
 
         ReSTIR_Util::DirectLightingEstimate ret;

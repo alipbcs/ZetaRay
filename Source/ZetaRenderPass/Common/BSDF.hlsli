@@ -682,7 +682,7 @@ namespace BSDF
             this.wodotwi = dot(wo, wi);
         }
 
-        void SetWi(float3 wi, float3 shadingNormal)
+        float3 SetWi(float3 wi, float3 shadingNormal)
         {
             // Transmission happens when wi and wo are on opposite sides of the surface
             float ndotwi_n = dot(shadingNormal, wi);
@@ -706,6 +706,8 @@ namespace BSDF
             wh = !this.reflection && this.eta > 1 ? -wh : wh;
 #endif
             SetWi(wi, shadingNormal, wh);
+
+            return wh;
         }
 
         float3 Fresnel(float3 fr0, out bool tir)
