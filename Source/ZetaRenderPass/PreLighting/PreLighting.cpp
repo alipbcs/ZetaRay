@@ -38,11 +38,41 @@ namespace
 #endif
         }
 
+        struct TempAllocator
+        {
+            void* AllocateAligned(size_t size, size_t alignment)
+            {
+                m_offset += size;
+                Assert(m_offset <= m_sizeInBytes, "bug");
+
+                return m_memPtr;
+            }
+
+            ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment)
+            {}
+
+            void* m_memPtr;
+            size_t m_sizeInBytes;
+            size_t m_offset = 0;
+        };
+
+        const size_t sizeInBytes = N * sizeof(uint32_t);
+        const size_t totalSizeInBytes = 2 * sizeInBytes;
+        App::OneTimeFrameAllocatorWithFallback allocator;
+        void* mem = allocator.AllocateAligned(totalSizeInBytes);
+
+        TempAllocator tempAllocator1{
+            .m_memPtr = mem,
+            .m_sizeInBytes = sizeInBytes };
+        TempAllocator tempAllocator2{
+            .m_memPtr = reinterpret_cast<void*>(reinterpret_cast<uintptr_t>(mem) + sizeInBytes),
+            .m_sizeInBytes = sizeInBytes };
+
         // maintain an index buffer since original ordering of elements must be preserved
-        SmallVector<uint32_t, App::OneTimeFrameAllocatorWithFallback> larger;
+        SmallVector<uint32_t, TempAllocator> larger(tempAllocator1);
         larger.reserve(N);
 
-        SmallVector<uint32_t, App::OneTimeFrameAllocatorWithFallback> smaller;
+        SmallVector<uint32_t, TempAllocator> smaller(tempAllocator2);
         smaller.reserve(N);
 
         for (int64_t i = 0; i < N; i++)
@@ -123,6 +153,8 @@ namespace
 
         for (int64_t i = 0; i < N; i++)
             table[i].CachedP_Alias = table[table[i].Alias].CachedP_Orig;
+
+        allocator.FreeAligned(mem, sizeInBytes);
     }
 }
 

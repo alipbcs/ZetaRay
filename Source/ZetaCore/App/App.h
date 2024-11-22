@@ -185,7 +185,7 @@ namespace ZetaRay::App
 
     struct OneTimeFrameAllocatorWithFallback
     {
-        ZetaInline void* AllocateAligned(size_t size, size_t alignment)
+        ZetaInline void* AllocateAligned(size_t size, size_t alignment = alignof(std::max_align_t))
         {
 #ifndef NDEBUG
             Assert(m_numAllocs++ == 0, "This allocator can't be used more than once.");
@@ -197,7 +197,7 @@ namespace ZetaRay::App
             return _aligned_malloc(size, alignment);
         }
 
-        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment)
+        ZetaInline void FreeAligned(void* mem, size_t size, size_t alignment = alignof(std::max_align_t))
         {
             if(m_usedFallback)
                 _aligned_free(mem);
