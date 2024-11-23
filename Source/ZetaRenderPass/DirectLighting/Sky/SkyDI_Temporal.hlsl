@@ -21,6 +21,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
     BSDF::ShadingData surface, inout RNG rng)
 {
     Reservoir r = Reservoir::Init();
+    SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(g_frame.EnvMapDescHeapOffset);
 
     // Sample sun
 #if 1
@@ -49,7 +50,10 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
 #if 0
         const float w_s = targetLum / sunSample.pdf;
 #else
-        const float w_s = targetLum / 1;
+        float ndotwi = saturate(dot(wi_s, normal));
+        const float pdf_e = ndotwi * ONE_OVER_PI;
+        const float pdf_s = BSDF::BSDFSamplerPdf(normal, surface, wi_s, leFunc, rng);
+        const float w_s = RT::BalanceHeuristic3(1, pdf_e, pdf_s, targetLum);
 #endif
         r.Update(w_s, wi_s, Light::TYPE::SUN, BSDF::LOBE::ALL, false, /*unused*/ 1, 
             target, rng);
@@ -77,7 +81,7 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
 
         // Balance Heuristic
         const float targetLum = Math::Luminance(target);
-        const float pdf_b = BSDF::BSDFSamplerPdf(normal, surface, wi_e, rng);
+        const float pdf_b = BSDF::BSDFSamplerPdf(normal, surface, wi_e, leFunc, rng);
         const float w_e = RT::BalanceHeuristic(pdf_e, pdf_b, targetLum);
 
         r.Update(w_e, wi_e, Light::TYPE::SKY, BSDF::LOBE::ALL, false, /*unused*/ 1, 
@@ -86,7 +90,6 @@ Reservoir RIS_InitialCandidates(uint2 DTid, float3 pos, float3 normal,
 
     // Sample BSDF
     {
-        SkyIncidentRadiance leFunc = SkyIncidentRadiance::Init(g_frame.EnvMapDescHeapOffset);
         BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, leFunc, rng);
 
         float3 wi_b = bsdfSample.wi;
