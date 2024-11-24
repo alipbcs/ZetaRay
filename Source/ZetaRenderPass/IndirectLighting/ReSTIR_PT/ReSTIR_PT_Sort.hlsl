@@ -299,10 +299,9 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint Gidx : 
     {
         [unroll]
         for(int i = 0; i < 4; i++)
-        {
             WriteOutput(Gid.xy, dtID[i], gtID[i], result[i]);
-            return;
-        }
+
+        return;
     }
 
     [unroll]
