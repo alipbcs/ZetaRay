@@ -537,64 +537,111 @@ namespace RPT_Util
         return partialJacobian;
     }
 
-    float4 EstimateDirect(OffsetPathContext ctx, Light::TYPE lt, float3 wd, BSDF::LOBE lobe, 
+    float4 EstimateDirect_y_k_min_1(OffsetPathContext ctx, Light::TYPE lt, float3 wd, BSDF::LOBE lobe, 
         ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, RNG rngNEE)
     {
-        // Was used for deciding between sun and sky
-        rngNEE.Uniform();
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+        const float2 u_wrs = rngNEE.Uniform2D();
+        const float2 u_d = rngNEE.Uniform2D();
+        const float2 u_c = rngNEE.Uniform2D();
+        const float2 u_g = rngNEE.Uniform2D();
+        const float u_wrs_b0 = rngNEE.Uniform();
+        const float u_wrs_b1 = rngNEE.Uniform();
+#else
+        const float u_wrs = rngNEE.Uniform();
+#endif
 
-        // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
         ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
             g_frame.EnvMapDescHeapOffset);
+        const bool specular = ctx.surface.GlossSpecular() && (ctx.surface.metallic || ctx.surface.specTr) && 
+            (!ctx.surface.Coated() || ctx.surface.CoatSpecular());
 
         // TODO assumes visibility doesn't change. Not necessarily true for temporal.
         float3 target_z = 0;
-        float3 wi_sun = -g_frame.SunDir;
-        float pdf_sky = 0;
-        // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
-        const bool visible = (wi_sun.y > 0) &&
-            ((dot(wi_sun, ctx.normal) > 0) || ctx.surface.Transmissive());
+        float w_sum;
 
-        if(visible)
+        // Sun
         {
-            ctx.surface.SetWi(wi_sun, ctx.normal);
-            target_z = Light::Le_Sun(ctx.pos, g_frame) * BSDF::Unified(ctx.surface).f;
+            float3 wi_sun = -g_frame.SunDir;
+            float pdf_b = 0;
+            float pdf_e = 0;
+            // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
+            const bool visible = (wi_sun.y > 0) &&
+                ((dot(wi_sun, ctx.normal) > 0) || ctx.surface.Transmissive());
+
+            if(visible)
+            {
+                ctx.surface.SetWi(wi_sun, ctx.normal);
+                target_z = Light::Le_Sun(ctx.pos, g_frame) * BSDF::Unified(ctx.surface).f;
+                float ndotWi = dot(wi_sun, ctx.normal);
 
 #if SKY_SAMPLING_PREFER_PERFORMANCE == 1
-            pdf_sky = BSDF::BSDFSamplerPdf_NoDiffuse(ctx.normal, ctx.surface, wi_sun, 
-                leFunc);
+                pdf_b = (ndotWi < 0) && ctx.surface.ThinWalled() ? 0 : 
+                    BSDF::BSDFSamplerPdf_NoDiffuse(ctx.normal, ctx.surface, wi_sun, leFunc);
+                pdf_e = !specular * abs(ndotWi) * ONE_OVER_PI;
+                pdf_e *= ctx.surface.ThinWalled() ? 0.5f : ndotWi > 0;
 #else
-            pdf_sky = BSDF::BSDFSamplerPdf(ctx.normal, ctx.surface, wi_sun, 
-                leFunc, rngNEE);
+                pdf_b = BSDF::BSDFSamplerPdf(ctx.normal, ctx.surface, wi_sun, 
+                    leFunc, rngNEE);
 #endif
+            }
+
+            w_sum = RT::BalanceHeuristic3(1, pdf_e, pdf_b, Math::Luminance(target_z));
         }
 
-        float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+        if(!specular)
+        {
+            const bool isZ_e = lt == Light::TYPE::SKY && lobe == BSDF::LOBE::ALL;
+            float3 wi_e = isZ_e ? wd : BSDF::SampleDiffuse(ctx.normal, u_d);
+            float pdf_e = saturate(dot(ctx.normal, wi_e)) * ONE_OVER_PI;
+            if(ctx.surface.ThinWalled())
+            {
+                wi_e = u_wrs_b1 > 0.5 ? -wi_e : wi_e;
+                pdf_e *= 0.5f;
+            }
+            ctx.surface.SetWi(wi_e, ctx.normal);
+            float3 target = leFunc(wi_e) * BSDF::Unified(ctx.surface).f;
+            target_z = isZ_e ? target : target_z;
 
-        if(lt == Light::TYPE::SKY)
+            const float pdf_b = !ctx.surface.reflection && ctx.surface.ThinWalled() ? 0 :
+                BSDF::BSDFSamplerPdf_NoDiffuse(ctx.normal, ctx.surface, wi_e, leFunc);
+            w_sum += RT::BalanceHeuristic(pdf_e, pdf_b, Math::Luminance(target));
+        }
+#endif
+
+        const bool isZ_b = lt == Light::TYPE::SKY && lobe != BSDF::LOBE::ALL;
+        if(isZ_b)
         {
 #if SKY_SAMPLING_PREFER_PERFORMANCE == 1
             BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler_NoDiffuse(ctx.normal, ctx.surface, 
-                wd, lobe, leFunc, rngNEE);
+                wd, lobe, /*unused*/0, leFunc);
+            target_z = eval.f;
+            float ndotwi = dot(wd, ctx.normal);
+            float pdf_e = !specular * abs(ndotwi) * ONE_OVER_PI;
+            pdf_e *= ctx.surface.ThinWalled() ? 0.5f : ndotwi > 0;
+            w_sum += RT::BalanceHeuristic(eval.pdf, pdf_e, Math::Luminance(eval.f));
 #else
             BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(ctx.normal, ctx.surface, 
                 wd, lobe, leFunc, rngNEE);
-#endif
-
             target_z = eval.f;
             w_sum += Math::Luminance(eval.bsdfOverPdf);
+#endif
         }
         else
         {
 #if SKY_SAMPLING_PREFER_PERFORMANCE == 1
             BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(ctx.normal, ctx.surface, 
-                leFunc, rngNEE);
+                u_c, u_g, u_wrs_b0, u_wrs_b1, leFunc);
+            float ndotwi = dot(bsdfSample.wi, ctx.normal);
+            float pdf_e = !specular * abs(ndotwi) * ONE_OVER_PI;
+            pdf_e *= ctx.surface.ThinWalled() ? 0.5f : ndotwi > 0;
+            w_sum += RT::BalanceHeuristic(bsdfSample.pdf, pdf_e, Math::Luminance(bsdfSample.f));
 #else
             BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, 
                 leFunc, rngNEE);
-#endif
-
             w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
+#endif
         }
 
         const float targetLum = Math::Luminance(target_z);
@@ -734,7 +781,7 @@ namespace RPT_Util
             Light::TYPE lt = rc.IsCase2() ? rc.lt_k_plus_1 : rc.lt_k;
             BSDF::LOBE lobe = rc.IsCase2() ? rc.lobe_k : rc.lobe_k_min_1;
             
-            const float4 ldAndPdf = EstimateDirect(ctx, lt, rc.w_k_lightNormal_w_sky, lobe, 
+            const float4 ldAndPdf = EstimateDirect_y_k_min_1(ctx, lt, rc.w_k_lightNormal_w_sky, lobe, 
                 g_frame, globals, rngNEE);
             const float3 target = ldAndPdf.xyz;
             const float targetLum = Math::Luminance(target);

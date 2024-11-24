@@ -116,9 +116,6 @@ namespace ReSTIR_Util
 
         float3 le = Light::Le_Sun(pos, g_frame);
         ret.ld = bsdfxCosTheta * le;
-#if SUPPRESS_SUN_FIREFLIES == 1
-        ret.ld = min(ret.ld, le);
-#endif
         ret.le = le;
         ret.wi = wi;
 

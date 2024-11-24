@@ -9,9 +9,6 @@
 // quality and performance (currently not supported for ReSTIR PT).
 #define SUN_DISK_SAMPLING 0
 
-// Suppresses fireflies from sun at the expense of some bias
-#define SUPPRESS_SUN_FIREFLIES 0
-
 // When true, uses less precise but faster-to-trace shadow rays
 #define APPROXIMATE_EMISSIVE_SHADOW_RAY 1
 

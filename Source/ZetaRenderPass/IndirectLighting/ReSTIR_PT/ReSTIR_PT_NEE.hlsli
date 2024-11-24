@@ -17,50 +17,101 @@ namespace RPT_Util
         // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
         ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
             g_frame.EnvMapDescHeapOffset);
+        const bool specular = surface.GlossSpecular() && (surface.metallic || surface.specTr) && 
+            (!surface.Coated() || surface.CoatSpecular());
 
         float w_sum = 0;
         float3 target_z = 0;
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+        const float2 u_wrs = rng.Uniform2D();
+        const float2 u_d = rng.Uniform2D();
+        const float2 u_c = rng.Uniform2D();
+        const float2 u_g = rng.Uniform2D();
+        const float u_wrs_b0 = rng.Uniform();
+        const float u_wrs_b1 = rng.Uniform();
+#else
         const float u_wrs = rng.Uniform();
-
+#endif
         // Sample sun
         {
             const float3 wi_s = -g_frame.SunDir;
             // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
             const bool visible = (wi_s.y > 0) &&
                 ((dot(wi_s, normal) > 0) || surface.Transmissive());
-            float pdf_s = 0;
+            float pdf_b = 0;
+            float pdf_d = 0;
 
             if(visible)
             {
                 surface.SetWi(wi_s, normal);
                 target_z = Light::Le_Sun(pos, g_frame) * BSDF::Unified(surface).f;
+                float ndotWi = dot(wi_s, normal);
 
 #if SKY_SAMPLING_PREFER_PERFORMANCE == 1
-                pdf_s = BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_s, leFunc);
+                pdf_b = (ndotWi < 0) && surface.ThinWalled() ? 0 : 
+                    BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_s, leFunc);
+                pdf_d = !specular * abs(ndotWi) * ONE_OVER_PI;
+                pdf_d *= surface.ThinWalled() ? 0.5f : ndotWi > 0;
 #else
                 pdf_s = BSDF::BSDFSamplerPdf(normal, surface, wi_s, leFunc, rng);
 #endif
             }
 
-            w_sum = RT::BalanceHeuristic(1, pdf_s, Math::Luminance(target_z));
+            w_sum = RT::BalanceHeuristic3(1, pdf_b, pdf_d, Math::Luminance(target_z));
 
             ret.lt = Light::TYPE::SUN;
             ret.lobe = BSDF::LOBE::ALL;
             ret.wi = wi_s;
         }
 
-        // Sample sky
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+        if(!specular)
+        {
+            float pdf_e;
+            float3 wi_e = BSDF::SampleDiffuse(normal, u_d, pdf_e);
+            if(surface.ThinWalled())
+            {
+                // u_wrs_b1 is not used when surface is thin walled
+                wi_e = u_wrs_b1 > 0.5 ? -wi_e : wi_e;
+                pdf_e *= 0.5f;
+            }
+            surface.SetWi(wi_e, normal);
+            const float3 target = leFunc(wi_e) * BSDF::Unified(surface).f;
+
+            // Balance Heuristic
+            const float pdf_b = !surface.reflection && surface.ThinWalled() ? 0 :
+                BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_e, leFunc);
+            const float w_e = RT::BalanceHeuristic(pdf_e, pdf_b, Math::Luminance(target));
+            w_sum += w_e;
+
+            if((w_sum > 0) && (u_wrs.y < (w_e / w_sum)))
+            {
+                ret.lt = Light::TYPE::SKY;
+                ret.lobe = BSDF::LOBE::ALL;
+                ret.wi = wi_e;
+
+                target_z = target;
+            }
+        }
+#endif
+
+        // BSDF sampling
         {
 #if SKY_SAMPLING_PREFER_PERFORMANCE == 1
             BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, 
-                leFunc, rng);
+                u_c, u_g, u_wrs_b0, u_wrs_b1, leFunc);
+            float ndotwi = dot(bsdfSample.wi, normal);
+            float pdf_e = !specular * abs(ndotwi) * ONE_OVER_PI;
+            pdf_e *= surface.ThinWalled() ? 0.5f : ndotwi > 0;
+            const float w_b = RT::BalanceHeuristic(bsdfSample.pdf, pdf_e, 
+                Math::Luminance(bsdfSample.f));
 #else
             BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, leFunc, rng);
-#endif
             const float w_b = Math::Luminance(bsdfSample.bsdfOverPdf);
+#endif
             w_sum += w_b;
 
-            if((w_sum > 0) && (u_wrs < (w_b / w_sum)))
+            if((w_sum > 0) && (u_wrs.x < (w_b / w_sum)))
             {
                 ret.lt = Light::TYPE::SKY;
                 ret.lobe = bsdfSample.lobe;
