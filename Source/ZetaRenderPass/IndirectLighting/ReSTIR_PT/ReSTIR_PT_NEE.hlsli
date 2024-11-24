@@ -28,14 +28,20 @@ namespace RPT_Util
             // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
             const bool visible = (wi_s.y > 0) &&
                 ((dot(wi_s, normal) > 0) || surface.Transmissive());
+            float pdf_s = 0;
 
             if(visible)
             {
                 surface.SetWi(wi_s, normal);
                 target_z = Light::Le_Sun(pos, g_frame) * BSDF::Unified(surface).f;
+
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+                pdf_s = BSDF::BSDFSamplerPdf_NoDiffuse(normal, surface, wi_s, leFunc);
+#else
+                pdf_s = BSDF::BSDFSamplerPdf(normal, surface, wi_s, leFunc, rng);
+#endif
             }
 
-            const float pdf_s = BSDF::BSDFSamplerPdf(normal, surface, wi_s, rng, leFunc);
             w_sum = RT::BalanceHeuristic(1, pdf_s, Math::Luminance(target_z));
 
             ret.lt = Light::TYPE::SUN;
@@ -45,8 +51,12 @@ namespace RPT_Util
 
         // Sample sky
         {
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+            BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(normal, surface, 
+                leFunc, rng);
+#else
             BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal, surface, leFunc, rng);
-
+#endif
             const float w_b = Math::Luminance(bsdfSample.bsdfOverPdf);
             w_sum += w_b;
 
@@ -244,7 +254,7 @@ namespace RPT_Util
 
     ReSTIR_Util::DirectLightingEstimate EvalDirect_Emissive_Case2(float3 pos, float3 normal, 
         BSDF::ShadingData surface, float3 wi, float3 le, float dwdA, float lightPdf, 
-        BSDF::LOBE lobe, int16 bounce, inout RNG rngReplay, inout RNG rngNEE)
+        BSDF::LOBE lobe, inout RNG rngReplay, inout RNG rngNEE)
     {
         surface.SetWi(wi, normal);
         float3 ld = le * BSDF::Unified(surface).f * dwdA;
@@ -281,7 +291,7 @@ namespace RPT_Util
 
     ReSTIR_Util::DirectLightingEstimate EvalDirect_Emissive_Case3(float3 pos, float3 normal, 
         BSDF::ShadingData surface, float3 wi, float t, float3 le, float3 lightNormal, 
-        float lightPdf, uint lightID, bool twoSided, BSDF::LOBE lobe, int16 bounce, 
+        float lightPdf, uint lightID, bool twoSided, BSDF::LOBE lobe, 
         RaytracingAccelerationStructure g_bvh, inout RNG rngReplay, inout RNG rngNEE)
     {
         float wiDotLightNormal = dot(lightNormal, -wi);

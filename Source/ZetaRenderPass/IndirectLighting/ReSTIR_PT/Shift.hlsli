@@ -466,242 +466,142 @@ namespace RPT_Util
         }
     }
 
-    // Inputs:
-    //  - beta: Throughput of path y_1, ... y_{k - 2}
-    //  - surface: Shading data at vertex y_{k - 1}
-    //  - eta_next: IOR of material at vertex y_{k - 1}
-    template<bool Emissive>
-    OffsetPath Reconnect_Case1Or2(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
-        float eta_curr, float eta_next, RT::RayDifferentials rd, BSDF::ShadingData surface, 
-        bool anyGlossyBounces, float alpha_min, bool regularization, Reconnection rc, 
-        ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, 
-        RNG rngReplay, RNG rngNEE)
+    float StepPath(inout OffsetPathContext ctx, bool anyGlossyBounces, float alpha_min, 
+        bool regularization, Reconnection rc, ConstantBuffer<cbFrameConstants> g_frame, 
+        ReSTIR_Util::Globals globals)
     {
-        OffsetPath ret = OffsetPath::Init();
+        // Not invertible
+        if(!BSDF::IsLobeValid(ctx.surface, rc.lobe_k_min_1))
+            return 0;
+
+        float alpha_lobe_k_min_1 = BSDF::LobeAlpha(ctx.surface, rc.lobe_k_min_1);
 
         // Not invertible
-        if(!BSDF::IsLobeValid(surface, rc.lobe_k_min_1))
-            return ret;
-
-        float alpha_lobe_k_min_1 = BSDF::LobeAlpha(surface, rc.lobe_k_min_1);
-
-        // Not invertible
-        if(!RPT_Util::CanReconnect(alpha_lobe_k_min_1, 1, y_k_min_1, rc.x_k,
+        if(!RPT_Util::CanReconnect(alpha_lobe_k_min_1, 1, ctx.pos, rc.x_k,
             rc.lobe_k_min_1, rc.lobe_k, alpha_min))
-            return ret;
+            return 0;
 
-        float3 w_k_min_1 = normalize(rc.x_k - y_k_min_1);
+        float3 w_k_min_1 = normalize(rc.x_k - ctx.pos);
         int16 bounce = rc.k - (int16)2;
 
         // Evaluate f / p at x_{k - 1}
-        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal_k_min_1, surface, w_k_min_1, 
-            rc.lobe_k_min_1, rngReplay);
+        BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(ctx.normal, ctx.surface, w_k_min_1, 
+            rc.lobe_k_min_1, ctx.rngReplay);
 
         if(dot(eval.bsdfOverPdf, eval.bsdfOverPdf) == 0)
-            return ret;
+            return 0;
 
-        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(y_k_min_1, normal_k_min_1, 
+        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(ctx.pos, ctx.normal, 
             w_k_min_1, globals.bvh, globals.frameMeshData, globals.vertices, globals.indices, 
-            surface.Transmissive());
+            ctx.surface.Transmissive());
 
         // Not invertible
         if(!hitInfo.hit || (hitInfo.ID != rc.ID))
-            return ret;
+            return 0;
 
         // Move to y_k = x_k
-        const float3 y_k = mad(hitInfo.t, w_k_min_1, y_k_min_1);
+        const float3 y_k = mad(hitInfo.t, w_k_min_1, ctx.pos);
         bounce++;
 
         // Update medium (from y_{k - 1} to x_k)
-        const bool transmitted = dot(normal_k_min_1, w_k_min_1) < 0;
-        eta_curr = transmitted ? (eta_curr == ETA_AIR ? eta_next : ETA_AIR) : eta_curr;
-        const bool inTranslucentMedium = eta_curr != ETA_AIR;
+        const bool transmitted = dot(ctx.normal, w_k_min_1) < 0;
+        ctx.eta_curr = transmitted ? (ctx.eta_curr == ETA_AIR ? ctx.eta_next : ETA_AIR) : ctx.eta_curr;
+        const bool inTranslucentMedium = ctx.eta_curr != ETA_AIR;
 
         RtRayQuery::IsotropicSampler is;
-        if(!RtRayQuery::GetMaterialData(-w_k_min_1, globals.materials, g_frame, eta_curr, 
-            rd.uv_grads, hitInfo, surface, eta_next, g_samLinearWrap, is))
+        if(!RtRayQuery::GetMaterialData(-w_k_min_1, globals.materials, g_frame, ctx.eta_curr, 
+            ctx.rd.uv_grads, hitInfo, ctx.surface, ctx.eta_next, g_samLinearWrap, is))
         {
             // Not invertible
-            return ret;
+            return 0;
         }
 
         // if(regularization && anyGlossyBounces)
         //     surface.Regularize();
 
         // Account for transmittance from y_{k - 1} to x_k
-        if(inTranslucentMedium && (surface.trDepth > 0))
+        if(inTranslucentMedium && (ctx.surface.trDepth > 0))
         {
-            float3 extCoeff = -log(surface.baseColor_Fr0_TrCol) / surface.trDepth;
-            beta *= exp(-hitInfo.t * extCoeff);
+            float3 extCoeff = -log(ctx.surface.baseColor_Fr0_TrCol) / ctx.surface.trDepth;
+            ctx.throughput *= exp(-hitInfo.t * extCoeff);
         }
 
-        beta *= eval.bsdfOverPdf;
-        ret.partialJacobian = eval.pdf;
-        ret.partialJacobian *= abs(dot(-w_k_min_1, hitInfo.normal));
-        ret.partialJacobian /= (hitInfo.t * hitInfo.t);
+        float partialJacobian = eval.pdf;
+        partialJacobian *= abs(dot(-w_k_min_1, hitInfo.normal));
+        partialJacobian /= (hitInfo.t * hitInfo.t);
 
-        // Case 1
-        if(rc.lt_k_plus_1 == Light::TYPE::NONE)
-        {
-            float3 w_k = rc.w_k_lightNormal_w_sky;
-            eval = BSDF::EvalBSDFSampler(hitInfo.normal, surface, w_k, 
-                rc.lobe_k, rngReplay);
+        ctx.pos = y_k;
+        ctx.normal = hitInfo.normal;
+        ctx.throughput *= eval.bsdfOverPdf;
 
-            beta *= eval.bsdfOverPdf;
-            ret.target = beta * rc.L;
-            ret.partialJacobian *= eval.pdf;
-
-            return ret;
-        }
-
-        // Case 2: compute direct lighting at y_k(= x_k)
-        if(Emissive)
-        {
-            float3 w_k = rc.w_k_lightNormal_w_sky;
-
-            // Note: For temporal, following assumes visibility didn't change between frames
-            ReSTIR_Util::DirectLightingEstimate ls = RPT_Util::EvalDirect_Emissive_Case2(y_k, 
-                hitInfo.normal, surface, w_k, rc.L, rc.dwdA, rc.lightPdf, rc.lobe_k, 
-                bounce, rngReplay, rngNEE);
-
-            ret.target = beta * ls.ld;
-            ret.partialJacobian *= ls.pdf_solidAngle;
-        }
-        else
-        {
-            // Was used for deciding between sun and sky
-            rngNEE.Uniform();
-
-            // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
-            ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
-                g_frame.EnvMapDescHeapOffset);
-
-            // TODO assumes visibility doesn't change. Not necessarily true for temporal.
-            ReSTIR_Util::DirectLightingEstimate ls = ReSTIR_Util::NEE_Sun<false>(y_k, hitInfo.normal, 
-                surface, globals.bvh, g_frame, rngNEE);
-
-            const float pdf_sky = BSDF::BSDFSamplerPdf(hitInfo.normal, surface, -g_frame.SunDir, 
-                rngNEE, leFunc);
-            float3 target_z = ls.ld * ls.pdf_solidAngle;
-            float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
-
-            if(rc.lt_k_plus_1 == Light::TYPE::SKY)
-            {
-                BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(hitInfo.normal, surface, 
-                    rc.w_k_lightNormal_w_sky, rc.lobe_k, leFunc, rngNEE);
-
-                target_z = eval.f;
-                w_sum += Math::Luminance(eval.bsdfOverPdf);
-            }
-            else
-            {
-                BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(hitInfo.normal, surface, 
-                    leFunc, rngNEE);
-
-                w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
-            }
-
-            const float targetLum = Math::Luminance(target_z);
-            ret.target = beta * (targetLum > 0 ? target_z * w_sum / targetLum : 0);
-            ret.partialJacobian *= w_sum > 0 ? targetLum / w_sum : 0;
-        }
-
-        return ret;
+        return partialJacobian;
     }
 
-    template<bool Emissive>
-    OffsetPath Reconnect_Case3(float3 beta, float3 y_k_min_1, float3 normal_k_min_1, 
-        BSDF::ShadingData surface, float alpha_min, Reconnection rc, 
-        ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, 
-        inout RNG rngReplay, inout RNG rngNEE)
+    float4 EstimateDirect(OffsetPathContext ctx, Light::TYPE lt, float3 wd, BSDF::LOBE lobe, 
+        ConstantBuffer<cbFrameConstants> g_frame, ReSTIR_Util::Globals globals, RNG rngNEE)
     {
-        OffsetPath ret = OffsetPath::Init();
+        // Was used for deciding between sun and sky
+        rngNEE.Uniform();
 
-        // Not invertible
-        if(!BSDF::IsLobeValid(surface, rc.lobe_k_min_1))
-            return ret;
+        // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
+        ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
+            g_frame.EnvMapDescHeapOffset);
 
-        float alpha_lobe_k_min_1 = BSDF::LobeAlpha(surface, rc.lobe_k_min_1);
+        // TODO assumes visibility doesn't change. Not necessarily true for temporal.
+        float3 target_z = 0;
+        float3 wi_sun = -g_frame.SunDir;
+        float pdf_sky = 0;
+        // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
+        const bool visible = (wi_sun.y > 0) &&
+            ((dot(wi_sun, ctx.normal) > 0) || ctx.surface.Transmissive());
 
-        // Not invertible
-        if(alpha_lobe_k_min_1 < alpha_min)
-            return ret;
-
-        if(Emissive)
+        if(visible)
         {
-            float3 wi_k_min_1 = rc.x_k - y_k_min_1;
-            float t = length(wi_k_min_1);
-            wi_k_min_1 /= t;
+            ctx.surface.SetWi(wi_sun, ctx.normal);
+            target_z = Light::Le_Sun(ctx.pos, g_frame) * BSDF::Unified(ctx.surface).f;
 
-            float3 lightNormal = rc.w_k_lightNormal_w_sky;
-            int16 bounce = rc.k - (int16)2;
-            bool twoSided = rc.lightPdf > 0;
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+            pdf_sky = BSDF::BSDFSamplerPdf_NoDiffuse(ctx.normal, ctx.surface, wi_sun, 
+                leFunc);
+#else
+            pdf_sky = BSDF::BSDFSamplerPdf(ctx.normal, ctx.surface, wi_sun, 
+                leFunc, rngNEE);
+#endif
+        }
 
-            ReSTIR_Util::DirectLightingEstimate ls = RPT_Util::EvalDirect_Emissive_Case3(y_k_min_1, 
-                normal_k_min_1, surface, wi_k_min_1, t, rc.L, lightNormal, abs(rc.lightPdf), rc.ID, 
-                twoSided, rc.lobe_k_min_1, bounce, globals.bvh, rngReplay, rngNEE);
+        float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
 
-            ret.target = beta * ls.ld;
-            ret.partialJacobian = ls.pdf_solidAngle;
+        if(lt == Light::TYPE::SKY)
+        {
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+            BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler_NoDiffuse(ctx.normal, ctx.surface, 
+                wd, lobe, leFunc, rngNEE);
+#else
+            BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(ctx.normal, ctx.surface, 
+                wd, lobe, leFunc, rngNEE);
+#endif
+
+            target_z = eval.f;
+            w_sum += Math::Luminance(eval.bsdfOverPdf);
         }
         else
         {
-            // Was used for deciding between sun and sky
-            rngNEE.Uniform();
+#if SKY_SAMPLING_PREFER_PERFORMANCE == 1
+            BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF_NoDiffuse(ctx.normal, ctx.surface, 
+                leFunc, rngNEE);
+#else
+            BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(ctx.normal, ctx.surface, 
+                leFunc, rngNEE);
+#endif
 
-            // Weighted reservoir sampling to sample Le x BSDF, with BSDF lobes as source distributions
-            ReSTIR_Util::SkyIncidentRadiance leFunc = ReSTIR_Util::SkyIncidentRadiance::Init(
-                g_frame.EnvMapDescHeapOffset);
-
-            float3 target_z = 0;
-            float3 wi_sun = -g_frame.SunDir;
-            float pdf_sky = 0;
-            // Skip when Sun is below the horizon or it hits backside of non-transmissive surface
-            const bool visible = (wi_sun.y > 0) &&
-                ((dot(wi_sun, normal_k_min_1) > 0) || surface.Transmissive());
-
-            if(visible)
-            {
-                surface.SetWi(wi_sun, normal_k_min_1);
-                float3 f = BSDF::Unified(surface).f;
-                target_z = Light::Le_Sun(y_k_min_1, g_frame) * f;
-
-                pdf_sky = BSDF::BSDFSamplerPdf(normal_k_min_1, surface, wi_sun, 
-                    rngNEE, leFunc);
-            }
-
-            float w_sum = RT::BalanceHeuristic(1, pdf_sky, Math::Luminance(target_z));
-
-            if(rc.lt_k == Light::TYPE::SKY)
-            {
-                BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(normal_k_min_1, surface, 
-                    rc.w_k_lightNormal_w_sky, rc.lobe_k_min_1, leFunc, rngNEE);
-
-                target_z = eval.f;
-                w_sum += Math::Luminance(eval.bsdfOverPdf);
-            }
-            else
-            {
-                BSDF::BSDFSample bsdfSample = BSDF::SampleBSDF(normal_k_min_1, surface, 
-                    leFunc, rngNEE);
-
-                w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
-            }
-
-            const float targetLum = Math::Luminance(target_z);
-            ret.target = beta * (targetLum > 0 ? target_z * w_sum / targetLum : 0);
-            ret.partialJacobian = w_sum > 0 ? targetLum / w_sum : 0;
-
-            if(dot(ret.target, ret.target) > 0)
-            {
-                float3 wi = rc.lt_k == Light::TYPE::SUN ? -g_frame.SunDir : 
-                    rc.w_k_lightNormal_w_sky;
-                ret.target *= RtRayQuery::Visibility_Ray(y_k_min_1, wi, normal_k_min_1, 
-                    globals.bvh, surface.Transmissive());
-            }
+            w_sum += Math::Luminance(bsdfSample.bsdfOverPdf);
         }
 
-        return ret;
+        const float targetLum = Math::Luminance(target_z);
+        float3 ld = targetLum > 0 ? target_z * w_sum / targetLum : 0;
+        float pdf = w_sum > 0 ? targetLum / w_sum : 0;        
+
+        return float4(ld, pdf);
     }
 
     template<bool Emissive>
@@ -758,19 +658,105 @@ namespace RPT_Util
             }
         }
 
-        RNG rngNEE = RNG::Init(rc.seed_nee);
 
-        if(rc.IsCase3())
+        OffsetPath ret = OffsetPath::Init();
+        
+        if(!rc.IsCase3())
         {
-            return RPT_Util::Reconnect_Case3<Emissive>(ctx.throughput, ctx.pos, ctx.normal, 
-                ctx.surface, alpha_min, rc, g_frame, globals, ctx.rngReplay, rngNEE);
+            ret.partialJacobian = StepPath(ctx, false, alpha_min, regularization, rc, 
+                g_frame, globals);
+
+            if(ret.partialJacobian == 0)
+                return ret;
+
+            // Case 1
+            if(rc.IsCase1())
+            {
+                float3 w_k = rc.w_k_lightNormal_w_sky;
+                BSDF::BSDFSamplerEval eval = BSDF::EvalBSDFSampler(ctx.normal, ctx.surface, 
+                    w_k, rc.lobe_k, ctx.rngReplay);
+
+                ctx.throughput *= eval.bsdfOverPdf;
+                ret.target = ctx.throughput * rc.L;
+                ret.partialJacobian *= eval.pdf;
+
+                return ret;
+            }
         }
         else
         {
-            return RPT_Util::Reconnect_Case1Or2<Emissive>(ctx.throughput, ctx.pos, 
-                ctx.normal, ctx.eta_curr, ctx.eta_next, ctx.rd, ctx.surface, false, 
-                alpha_min, regularization, rc, g_frame, globals, ctx.rngReplay, rngNEE);
+            // Not invertible
+            if(!BSDF::IsLobeValid(ctx.surface, rc.lobe_k_min_1))
+                return ret;
+
+            float alpha_lobe_k_min_1 = BSDF::LobeAlpha(ctx.surface, rc.lobe_k_min_1);
+
+            // Not invertible
+            if(alpha_lobe_k_min_1 < alpha_min)
+                return ret;
         }
+
+        RNG rngNEE = RNG::Init(rc.seed_nee);
+
+        if(Emissive)
+        {
+            if(rc.IsCase2())
+            {
+                float3 w_k = rc.w_k_lightNormal_w_sky;
+
+                // TODO For temporal, following assumes visibility hasn't change between frames
+                ReSTIR_Util::DirectLightingEstimate ls = EvalDirect_Emissive_Case2(ctx.pos, 
+                    ctx.normal, ctx.surface, w_k, rc.L, rc.dwdA, rc.lightPdf, rc.lobe_k, 
+                    ctx.rngReplay, rngNEE);
+
+                ret.target = ctx.throughput * ls.ld;
+                ret.partialJacobian *= ls.pdf_solidAngle;
+            }
+            else
+            {
+                float3 wi_k_min_1 = rc.x_k - ctx.pos;
+                float t = length(wi_k_min_1);
+                wi_k_min_1 /= t;
+
+                float3 lightNormal = rc.w_k_lightNormal_w_sky;
+                bool twoSided = rc.lightPdf > 0;
+
+                ReSTIR_Util::DirectLightingEstimate ls = EvalDirect_Emissive_Case3(ctx.pos, 
+                    ctx.pos, ctx.surface, wi_k_min_1, t, rc.L, lightNormal, abs(rc.lightPdf), rc.ID, 
+                    twoSided, rc.lobe_k_min_1, globals.bvh, ctx.rngReplay, rngNEE);
+
+                ret.target = ctx.throughput * ls.ld;
+                ret.partialJacobian = ls.pdf_solidAngle;
+            }
+        }
+        else
+        {
+            Light::TYPE lt = rc.IsCase2() ? rc.lt_k_plus_1 : rc.lt_k;
+            BSDF::LOBE lobe = rc.IsCase2() ? rc.lobe_k : rc.lobe_k_min_1;
+            
+            const float4 ldAndPdf = EstimateDirect(ctx, lt, rc.w_k_lightNormal_w_sky, lobe, 
+                g_frame, globals, rngNEE);
+            const float3 target = ldAndPdf.xyz;
+            const float targetLum = Math::Luminance(target);
+            ret.target = ctx.throughput * target;
+
+            if(rc.IsCase2())
+                ret.partialJacobian *= ldAndPdf.w;
+            else
+            {
+                ret.partialJacobian = ldAndPdf.w;
+
+                if(dot(ret.target, ret.target) > 0)
+                {
+                    float3 wi = rc.lt_k == Light::TYPE::SUN ? -g_frame.SunDir : 
+                        rc.w_k_lightNormal_w_sky;
+                    ret.target *= RtRayQuery::Visibility_Ray(ctx.pos, wi, ctx.normal, 
+                        globals.bvh, ctx.surface.Transmissive());
+                }
+            }
+        }
+
+        return ret;
     }
 
     OffsetPathContext Replay_kGt2(float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
