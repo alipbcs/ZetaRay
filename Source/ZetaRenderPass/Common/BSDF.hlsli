@@ -45,6 +45,7 @@
 
 #define USE_OREN_NAYAR 1
 #define ENERGY_PRESERVING_OREN_NAYAR 1
+#define APPROXIMATE_EON_MULTISCATTER 1
 
 namespace BSDF
 {
@@ -208,8 +209,8 @@ namespace BSDF
     template<int n>
     float SmithHeightCorrelatedG2_Opt(float alphaSq, float ndotwi, float ndotwo)
     {
-        float denomWo = ndotwi * sqrt((-ndotwo * alphaSq + ndotwo) * ndotwo + alphaSq);
-        float denomWi = ndotwo * sqrt((-ndotwi * alphaSq + ndotwi) * ndotwi + alphaSq);
+        float denomWo = ndotwi * sqrt(mad(mad(-ndotwo, alphaSq, ndotwo), ndotwo, alphaSq));
+        float denomWi = ndotwo * sqrt(mad(mad(-ndotwi, alphaSq, ndotwi), ndotwi, alphaSq));
 
         return (0.5f * n) / (denomWo + denomWi);
     }
@@ -329,6 +330,20 @@ namespace BSDF
         return sinTheta * multiplier_sin + tanTheta * multiplier_tan;
     }
 
+    // Ref: J. Portsmouth, P. Kutz, S. Hill, "EON: A practical energy-preserving rough diffuse BRDF," 
+    //      Journal of Computer Graphics Techniques, 2024.
+    float E_FON_approx(float cosTheta, float roughness)
+    {
+        float mucomp = 1.0 - cosTheta;
+        float mucomp2 = mucomp * mucomp;
+        float2x2 Gcoeffs = float2x2(0.0571085289, 0.491881867, 
+                                    -0.332181442, 0.0714429953);
+        float2 q = mul(Gcoeffs, float2(mucomp, mucomp2));
+        float GoverPi = dot(q, float2(1.0, mucomp2));
+
+        return mad(roughness, GoverPi, 1.0f) / mad(0.287793398f, roughness, 1.0f);
+    }
+
     // Refs: Improved Oren-Nayar model from https://mimosa-pudica.net/improved-oren-nayar.html, 
     // energy-preserving multi-scattering term from the OpenPBR specs.
     // 
@@ -338,34 +353,39 @@ namespace BSDF
     //  - g_wo: OrenNayar_G(cos \theta_o)
     template<bool AccountForMultiScattering>
     float3 OrenNayar(float3 rho, float sigma, float ndotwo, float ndotwi, float wodotwi,
-        float g_wo, bool reflection)
+        float g_wo)
     {
         // Reduces to Lambertian
         if(sigma == 0)
             return ONE_OVER_PI * ndotwi * rho;
 
-        float A = 1.0f / mad(0.287793409f, sigma, 1.0f);
+        float A = 1.0f / mad(0.287793398f, sigma, 1.0f);
         float B = sigma * A;
         float s_over_t = mad(-ndotwi, ndotwo, wodotwi);
         s_over_t = s_over_t > 0 ? s_over_t / max(ndotwi, ndotwo) : s_over_t;
-        float3 f = ONE_OVER_PI * mad(B, s_over_t, A) * rho;
+        float3 f = ONE_OVER_PI * mad(B, s_over_t, A);
         float3 f_comp = 0;
 
-        if(AccountForMultiScattering && reflection)
+        if(AccountForMultiScattering)
         {
-            float avgReflectance = mad(0.072488212f, B, A);
+            float avgReflectance = mad(0.0724882111f, B, A);
             float one_min_avgReflectance = 1 - avgReflectance;
             float tmp = ONE_OVER_PI * (avgReflectance / one_min_avgReflectance);
-            float3 rho_ms_over_piSq = tmp / (1 - rho * one_min_avgReflectance);
-            rho_ms_over_piSq *= rho * rho;
+            float3 rho_ms_over_piSq = tmp / mad(-rho, one_min_avgReflectance, 1);
+            rho_ms_over_piSq *= rho;
 
+#if APPROXIMATE_EON_MULTISCATTER == 0
             float B_over_pi = ONE_OVER_PI * B; 
             float E_wo = mad(B_over_pi, g_wo, A);
             float E_wi = mad(B_over_pi, OrenNayar_G(ndotwi), A);
+#else
+            float E_wo = g_wo;
+            float E_wi = E_FON_approx(ndotwi, sigma);
+#endif
             f_comp = (1 - E_wo) * (1 - E_wi) * rho_ms_over_piSq;
         }
 
-        return ndotwi * (f + f_comp);
+        return ndotwi * (f + f_comp) * rho;
     }
 
     // Includes multiplication by n.wi from the rendering equation
@@ -604,7 +624,11 @@ namespace BSDF
             si.eta = Math::Lerp(eta_no_coat, eta_coated, coat_weight);
 
             // Precompute as it only depends on wo
+#if APPROXIMATE_EON_MULTISCATTER == 0
             si.g_wo = !metallic && !specTr ? OrenNayar_G(max(ndotwo, 1e-4f)) : 0;
+#else
+            si.g_wo = !metallic && !specTr ? E_FON_approx(max(ndotwo, 1e-4f), roughness) : 0;
+#endif
 
             si.coat_weight = coat_weight;
             si.coat_color = coat_color;
@@ -885,12 +909,13 @@ namespace BSDF
         float s = surface.subsurface == 0 ? 1 : (float)surface.subsurface * 0.5f;
 
 #if USE_OREN_NAYAR == 1
-        // Diffuse roughness should be a separate parameter, but for now
-        // use specular roughness
+        // Diffuse roughness should be a separate parameter, but for now use specular 
+        // roughness as existing test scenes don't make use of it and the default value 
+        // of 0 would just reduce everything to Lambertian
         float diffuseRoughness = sqrt(surface.alpha);
         float3 diffuse = OrenNayar<EON>(surface.baseColor_Fr0_TrCol,
             diffuseRoughness, surface.ndotwo, surface.ndotwi, surface.wodotwi,
-            surface.g_wo, surface.reflection);
+            surface.g_wo);
 #else
         float3 diffuse = Lambertian(surface.baseColor_Fr0_TrCol, surface.ndotwi);
 #endif
