@@ -257,6 +257,9 @@ namespace IMGUIZMO_NAMESPACE
       PLANE_Y,          // planeColor[1]
       PLANE_Z,          // planeColor[2]
       SELECTION,        // selectionColor
+      SELECTION_X,      // selectionColor (x axis)
+      SELECTION_Y,      // selectionColor (y axis) 
+      SELECTION_Z,      // selectionColor (z axis)
       INACTIVE,         // inactiveColor
       TRANSLATION_LINE, // translationLineColor
       SCALE_LINE,
@@ -272,14 +275,17 @@ namespace IMGUIZMO_NAMESPACE
    {
       IMGUI_API Style();
 
-      float TranslationLineThickness;   // Thickness of lines for translation gizmo
-      float TranslationLineArrowSize;   // Size of arrow at the end of lines for translation gizmo
-      float RotationLineThickness;      // Thickness of lines for rotation gizmo
-      float RotationOuterLineThickness; // Thickness of line surrounding the rotation gizmo
-      float ScaleLineThickness;         // Thickness of lines for scale gizmo
-      float ScaleLineCircleSize;        // Size of circle at the end of lines for scale gizmo
-      float HatchedAxisLineThickness;   // Thickness of hatched axis lines
-      float CenterCircleSize;           // Size of circle at the center of the translate/scale gizmo
+      float TranslationLineThickness;        // Thickness of lines for translation gizmo
+      float TranslationLineThicknessHovered; // Thickness of lines for translation gizmo when hovered
+      float TranslationLineArrowSize;        // Size of arrow at the end of lines for translation gizmo
+      float RotationLineThickness;           // Thickness of lines for rotation gizmo
+      float RotationLineThicknessHovered;    // Thickness of lines for rotation gizmo when hovered
+      float RotationOuterLineThickness;      // Thickness of line surrounding the rotation gizmo
+      float ScaleLineThickness;              // Thickness of lines for scale gizmo
+      float ScaleLineThicknessHovered;       // Thickness of lines for scale gizmo
+      float ScaleLineCircleSize;             // Size of circle at the end of lines for scale gizmo
+      float HatchedAxisLineThickness;        // Thickness of hatched axis lines
+      float CenterCircleSize;                // Size of circle at the center of the translate/scale gizmo
 
       ImVec4 Colors[COLOR::COUNT];
    };

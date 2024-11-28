@@ -665,23 +665,29 @@ namespace IMGUIZMO_NAMESPACE
    Style::Style()
    {
       // default values
-      TranslationLineThickness   = 3.0f;
-      TranslationLineArrowSize   = 6.0f;
-      RotationLineThickness      = 2.0f;
-      RotationOuterLineThickness = 3.0f;
-      ScaleLineThickness         = 3.0f;
-      ScaleLineCircleSize        = 6.0f;
-      HatchedAxisLineThickness   = 6.0f;
-      CenterCircleSize           = 6.0f;
+      TranslationLineThickness        = 2.0f;
+      TranslationLineThicknessHovered = 3.0f;
+      TranslationLineArrowSize        = 6.0f;
+      RotationLineThickness           = 2.0f;
+      RotationLineThicknessHovered    = 3.0f;
+      RotationOuterLineThickness      = 3.0f;
+      ScaleLineThickness              = 2.0f;
+      ScaleLineThicknessHovered       = 3.0f;
+      ScaleLineCircleSize             = 6.0f;
+      HatchedAxisLineThickness        = 6.0f;
+      CenterCircleSize                = 6.0f;
 
       // initialize default colors
       Colors[DIRECTION_X]           = ImVec4(0.92158204, 0.036889445, 0.084376216, 1.0f);
       Colors[DIRECTION_Y]           = ImVec4(0.16202940, 0.371237785, 0.011612245, 1.0f);
       Colors[DIRECTION_Z]           = ImVec4(0.02842604, 0.230740070, 0.768151283, 1.0f);
-      Colors[PLANE_X]               = ImVec4(0.666f, 0.000f, 0.000f, 0.380f);
-      Colors[PLANE_Y]               = ImVec4(0.000f, 0.666f, 0.000f, 0.380f);
-      Colors[PLANE_Z]               = ImVec4(0.000f, 0.000f, 0.666f, 0.380f);
+      Colors[PLANE_X]               = ImVec4(0.92158204, 0.036889445, 0.084376216, 0.380f);
+      Colors[PLANE_Y]               = ImVec4(0.16202940, 0.371237785, 0.011612245, 0.380f);
+      Colors[PLANE_Z]               = ImVec4(0.02842604, 0.230740070, 0.768151283, 0.380f);
       Colors[SELECTION]             = ImVec4(1.000f, 0.500f, 0.062f, 0.541f);
+      Colors[SELECTION_X]           = ImVec4(1.0f, 0.03688944f, 0.08650046f, 1.0f);
+      Colors[SELECTION_Y]           = ImVec4(0.25415218f, 0.70837593f, 0.0f, 1.0f);
+      Colors[SELECTION_Z]           = ImVec4(0.02518686f, 0.27467736f, 1.0f, 1.0f);
       Colors[INACTIVE]              = ImVec4(0.600f, 0.600f, 0.600f, 0.600f);
       Colors[TRANSLATION_LINE]      = ImVec4(0.666f, 0.666f, 0.666f, 0.666f);
       Colors[SCALE_LINE]            = ImVec4(0.250f, 0.250f, 0.250f, 1.000f);
@@ -1127,7 +1133,7 @@ namespace IMGUIZMO_NAMESPACE
             colors[0] = (type == MT_MOVE_SCREEN) ? selectionColor : IM_COL32_WHITE;
             for (int i = 0; i < 3; i++)
             {
-               colors[i + 1] = (type == (int)(MT_MOVE_X + i)) ? selectionColor : GetColorU32(DIRECTION_X + i);
+               colors[i + 1] = (type == (int)(MT_MOVE_X + i)) ? GetColorU32(SELECTION_X + i) : GetColorU32(DIRECTION_X + i);
                colors[i + 4] = (type == (int)(MT_MOVE_YZ + i)) ? selectionColor : GetColorU32(PLANE_X + i);
                colors[i + 4] = (type == MT_MOVE_SCREEN) ? selectionColor : colors[i + 4];
             }
@@ -1135,13 +1141,13 @@ namespace IMGUIZMO_NAMESPACE
          case ROTATE:
             colors[0] = (type == MT_ROTATE_SCREEN) ? selectionColor : IM_COL32_WHITE;
             for (int i = 0; i < 3; i++)
-               colors[i + 1] = (type == (int)(MT_ROTATE_X + i)) ? selectionColor : GetColorU32(DIRECTION_X + i);
+               colors[i + 1] = (type == (int)(MT_ROTATE_X + i)) ? GetColorU32(SELECTION_X + i) : GetColorU32(DIRECTION_X + i);
             break;
          case SCALEU:
          case SCALE:
             colors[0] = (type == MT_SCALE_XYZ) ? selectionColor : IM_COL32_WHITE;
             for (int i = 0; i < 3; i++)
-               colors[i + 1] = (type == (int)(MT_SCALE_X + i)) ? selectionColor : GetColorU32(DIRECTION_X + i);
+               colors[i + 1] = (type == (int)(MT_SCALE_X + i)) ? GetColorU32(SELECTION_X + i) : GetColorU32(DIRECTION_X + i);
             break;
          // note: this internal function is only called with three possible values for operation
          default:
@@ -1307,9 +1313,16 @@ namespace IMGUIZMO_NAMESPACE
                 axisPos[(axis + 2) % 3]) * gContext.mScreenFactor * rotationDisplayFactor;
             circlePos[i] = worldToPos(pos, gContext.mMVP);
          }
+
          if (!gContext.mbUsing || usingAxis)
-            drawList->AddPolyline(circlePos, circleMul* halfCircleSegmentCount + 1, 
-                colors[3 - axis], false, gContext.mStyle.RotationLineThickness);
+         {
+             const float thickness = type == (int)MT_ROTATE_Z - axis ?
+                 gContext.mStyle.RotationLineThicknessHovered :
+                 gContext.mStyle.RotationLineThickness;
+
+             drawList->AddPolyline(circlePos, circleMul* halfCircleSegmentCount + 1,
+                colors[3 - axis], false, thickness);
+         }
 
          float radiusAxis = sqrtf((ImLengthSqr(worldToPos(gContext.mModel.v.position, 
              gContext.mViewProjection) - circlePos[0])));
@@ -1337,9 +1350,12 @@ namespace IMGUIZMO_NAMESPACE
             pos *= gContext.mScreenFactor * rotationDisplayFactor;
             circlePos[i] = worldToPos(pos + gContext.mModel.v.position, gContext.mViewProjection);
          }
+
+         const COLOR colorBorder = type == (int)MT_ROTATE_X ? SELECTION_X :
+             (type == (int)MT_ROTATE_Y ? SELECTION_Y : SELECTION_Z);
          drawList->AddConvexPolyFilled(circlePos, halfCircleSegmentCount + 1, 
              GetColorU32(ROTATION_USING_FILL));
-         drawList->AddPolyline(circlePos, halfCircleSegmentCount + 1, GetColorU32(ROTATION_USING_BORDER), 
+         drawList->AddPolyline(circlePos, halfCircleSegmentCount + 1, GetColorU32(colorBorder),
              true, gContext.mStyle.RotationLineThickness);
 
          ImVec2 destinationPosOnScreen = circlePos[1];
@@ -1421,8 +1437,12 @@ namespace IMGUIZMO_NAMESPACE
 
                if (!hasTranslateOnAxis || gContext.mbUsing)
                {
-                  drawList->AddLine(baseSSpace, worldDirSSpace, colors[i + 1], 
-                      gContext.mStyle.ScaleLineThickness);
+                    const float thickness = type == (int)MT_SCALE_X + i ?
+                        gContext.mStyle.ScaleLineThicknessHovered :
+                        gContext.mStyle.ScaleLineThickness;
+
+                    drawList->AddLine(baseSSpace, worldDirSSpace, colors[i + 1], 
+                        thickness);
                }
                drawList->AddCircleFilled(worldDirSSpace, gContext.mStyle.ScaleLineCircleSize, 
                    colors[i + 1]);
@@ -1545,13 +1565,17 @@ namespace IMGUIZMO_NAMESPACE
 
          if (!gContext.mbUsing || (gContext.mbUsing && type == MT_MOVE_X + i))
          {
+             const float thickness = type == (int)MT_MOVE_X + i ?
+                 gContext.mStyle.TranslationLineThicknessHovered :
+                 gContext.mStyle.TranslationLineThickness;
+
             // draw axis
             if (belowAxisLimit && Intersects(op, static_cast<OPERATION>(TRANSLATE_X << i)))
             {
                ImVec2 baseSSpace = worldToPos(dirAxis * 0.1f * gContext.mScreenFactor, gContext.mMVP);
                ImVec2 worldDirSSpace = worldToPos(dirAxis * gContext.mScreenFactor, gContext.mMVP);
 
-               drawList->AddLine(baseSSpace, worldDirSSpace, colors[i + 1], gContext.mStyle.TranslationLineThickness);
+               drawList->AddLine(baseSSpace, worldDirSSpace, colors[i + 1], thickness);
 
                // Arrow head begin
                ImVec2 dir(origin - worldDirSSpace);
