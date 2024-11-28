@@ -90,12 +90,10 @@ namespace ZetaRay::App
             COUNT
         };
 
-        static constexpr int MAX_LEN = 512;
-
         LogMessage() = default;
         LogMessage(const char* msg, MsgType t);
 
-        char Msg[MAX_LEN];
+        char* Msg;
         MsgType Type;
     };
 

@@ -65,7 +65,7 @@ float4 mainPS(VSOut psin) : SV_Target
     {
         display = Tonemap::tony_mc_mapface(display, g_local.LUTDescHeapIdx);
         float3 desaturation = Math::Luminance(display);
-        display = lerp(desaturation, display, g_local.Saturation);
+        display = Math::Lerp(desaturation, display, g_local.Saturation);
     }
     else if (g_local.Tonemapper == (int) Tonemapper::AgX_DEFAULT)
         display = Tonemap::AgX_Default(display);

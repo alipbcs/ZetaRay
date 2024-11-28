@@ -64,6 +64,12 @@ namespace Math
     }
 
     template<typename T>
+    T Lerp(T v0, T v1, float t) 
+    {
+        return mad(t, v1, mad(-t, v0, v0));
+    }
+
+    template<typename T>
     T Sanitize(T x)
     {
         return any(isnan(x)) || any(isinf(x)) ? 0 : x;
@@ -254,25 +260,25 @@ namespace Math
         return uv;
     }
 
-    float3 TangentSpaceToWorldSpace(float2 bumpNormal2, float3 tangentW, float3 normalW, float scale)
+    float3 TangentSpaceToWorldSpace(float2 bumpNormal2, float3 tangent, float3 normal, float scale)
     {
-        float3 bumpNormal = float3(2.0f * bumpNormal2 - 1.0f, 0.0f);
-        bumpNormal.z = sqrt(1.0f - saturate(dot(bumpNormal, bumpNormal)));
+        float3 bumpNormal = float3(mad(2.0f, bumpNormal2, -1.0f), 0.0f);
+        bumpNormal.z = sqrt(saturate(1.0f - dot(bumpNormal, bumpNormal)));
         float3 scaledBumpNormal = bumpNormal * float3(scale, scale, 1.0f);
 
         // Invalid scale or bump, normalize() leads to NaN
         if (dot(scaledBumpNormal, scaledBumpNormal) < 1e-6f)
-            return normalW;
+            return normal;
 
         scaledBumpNormal = normalize(scaledBumpNormal);
 
         // Graham-Schmidt orthogonalization
-        normalW = normalize(normalW);
-        tangentW = normalize(tangentW - dot(tangentW, normalW) * normalW);
+        normal = normalize(normal);
+        tangent = normalize(tangent - dot(tangent, normal) * normal);
 
         // Change-of-coordinate transformation from TBN to world space
-        float3 bitangentW = cross(normalW, tangentW);
-        float3x3 TangentSpaceToWorld = float3x3(tangentW, bitangentW, normalW);
+        float3 bitangent = cross(normal, tangent);
+        float3x3 TangentSpaceToWorld = float3x3(tangent, bitangent, normal);
 
         return mul(scaledBumpNormal, TangentSpaceToWorld);
     }
@@ -596,6 +602,11 @@ namespace Math
         return uint16_t2(x & 0xffff, x >> 16);
     }
 
+    uint PackUint16_2ToUint(uint16_t2 e)
+    {
+        return e.x | (uint(e.y) << 16);
+    }
+
     uint16_t2 EncodeAsUNorm2(float2 u)
     {
         u = saturate(u);
@@ -679,7 +690,7 @@ namespace Math
     float3 LinearTosRGB(float3 color)
     {
         float3 sRGBLo = color * 12.92;
-        float3 sRGBHi = (pow(saturate(color), 1.0f / 2.4f) * 1.055) - 0.055;
+        float3 sRGBHi = pow(saturate(color), 1.0f / 2.4f) * 1.055f - 0.055f;
         float3 sRGB = select((color <= 0.0031308f), sRGBLo, sRGBHi);
 
         return sRGB;

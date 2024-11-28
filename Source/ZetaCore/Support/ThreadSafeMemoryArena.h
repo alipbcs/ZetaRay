@@ -73,7 +73,7 @@ namespace ZetaRay::Support
         Util::SmallVector<MemoryBlock, Support::SystemAllocator, ZETA_MAX_NUM_THREADS> m_blocks;
         SRWLOCK m_blocksLock;
         
-        uint32_t m_threadIDs[ZETA_MAX_NUM_THREADS] = { 0 };
+        ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS] = { 0 };
         int m_threadCurrBlockIdx[ZETA_MAX_NUM_THREADS];
         int m_numThreads;
         std::atomic_int32_t m_currBlockIdx;

@@ -46,7 +46,7 @@ namespace ZetaRay::Support
         }
 
         ZetaInline int ThreadPoolSize() const { return m_threadPoolSize; }
-        ZetaInline Util::Span<std::thread::id> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
+        ZetaInline Util::Span<ZETA_THREAD_ID_TYPE> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
 
     private:
         void WorkerThread();
@@ -59,7 +59,7 @@ namespace ZetaRay::Support
         std::atomic_int32_t m_numTasksToFinishTarget = 0;
 
         std::thread m_threadPool[ZETA_MAX_NUM_THREADS];
-        std::thread::id m_threadIDs[ZETA_MAX_NUM_THREADS];
+        ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         ZETA_THREAD_ID_TYPE m_appThreadIds[ZETA_MAX_NUM_THREADS];
 
         // Concurrent task queue
@@ -71,10 +71,12 @@ namespace ZetaRay::Support
 
         moodycamel::BlockingConcurrentQueue<Task, MyTraits> m_taskQueue;
 
-        alignas(alignof(moodycamel::ProducerToken)) uint8_t m_producerTokensMem[sizeof(moodycamel::ProducerToken) * ZETA_MAX_NUM_THREADS];
+        alignas(alignof(moodycamel::ProducerToken)) uint8_t m_producerTokensMem[
+            sizeof(moodycamel::ProducerToken) * ZETA_MAX_NUM_THREADS];
         moodycamel::ProducerToken* m_producerTokens;
 
-        alignas(alignof(moodycamel::ConsumerToken)) uint8_t m_consumerTokensMem[sizeof(moodycamel::ConsumerToken) * ZETA_MAX_NUM_THREADS];
+        alignas(alignof(moodycamel::ConsumerToken)) uint8_t m_consumerTokensMem[
+            sizeof(moodycamel::ConsumerToken) * ZETA_MAX_NUM_THREADS];
         moodycamel::ConsumerToken* m_consumerTokens;
 
         std::atomic_bool m_start = false;

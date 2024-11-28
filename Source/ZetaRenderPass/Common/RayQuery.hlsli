@@ -75,14 +75,17 @@ namespace RtRayQuery
                 q = normalize(q);
 
                 // Texture UV coords
-                float2 uv = V0.TexUV + bary.x * (V1.TexUV - V0.TexUV) + bary.y * (V2.TexUV - V0.TexUV);
+                float tmp = 1 - bary.x - bary.y;
+                float2 uv = mad(bary.y, V2.TexUV, tmp * V0.TexUV);
+                uv = mad(bary.x, V1.TexUV, uv);
                 ret.uv = uv;
 
                 // normal
                 float3 v0_n = Math::DecodeOct32(V0.NormalL);
                 float3 v1_n = Math::DecodeOct32(V1.NormalL);
                 float3 v2_n = Math::DecodeOct32(V2.NormalL);
-                float3 hitNormal = v0_n + bary.x * (v1_n - v0_n) + bary.y * (v2_n - v0_n);
+                float3 hitNormal = mad(bary.y, v2_n, tmp * v0_n);
+                hitNormal = mad(bary.x, v1_n, hitNormal);
                 // transform normal using the inverse transpose
                 // (M^-1)^T = ((SR)^-1)^T
                 //          = (R^-1 S^-1)^T
@@ -228,14 +231,17 @@ namespace RtRayQuery
             q = normalize(q);
 
             // Texture UV coords
-            float2 uv = V0.TexUV + bary.x * (V1.TexUV - V0.TexUV) + bary.y * (V2.TexUV - V0.TexUV);
+            float tmp = 1 - bary.x - bary.y;
+            float2 uv = mad(bary.y, V2.TexUV, tmp * V0.TexUV);
+            uv = mad(bary.x, V1.TexUV, uv);
             hitInfo.uv = uv;
 
             // normal
             float3 v0_n = Math::DecodeOct32(V0.NormalL);
             float3 v1_n = Math::DecodeOct32(V1.NormalL);
             float3 v2_n = Math::DecodeOct32(V2.NormalL);
-            float3 hitNormal = v0_n + bary.x * (v1_n - v0_n) + bary.y * (v2_n - v0_n);
+            float3 hitNormal = mad(bary.y, v2_n, tmp * v0_n);
+            hitNormal = mad(bary.x, v1_n, hitNormal);
             // transform normal using the inverse transpose
             // (M^-1)^T = ((SR)^-1)^T
             //          = (R^-1 S^-1)^T
@@ -305,7 +311,7 @@ namespace RtRayQuery
 
         RayDesc ray;
         ray.Origin = adjustedOrigin;
-        ray.TMin = lerp(0, 8e-5, dot(normal, wi));
+        ray.TMin = Math::Lerp(0.0f, 8e-5f, dot(normal, wi));
         ray.TMax = FLT_MAX;
         ray.Direction = wi;
         

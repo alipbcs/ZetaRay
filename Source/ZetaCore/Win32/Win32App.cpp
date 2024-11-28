@@ -124,13 +124,8 @@ namespace
 
     struct AppData
     {
-        inline static constexpr const char* PSO_CACHE_PARENT = "..\\Assets\\PsoCache";
         inline static constexpr const char* COMPILED_SHADER_DIR = "..\\Assets\\CSO";
-#if !defined(NDEBUG)
-        inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Debug";
-#else
-        inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache\\Release";
-#endif
+        inline static constexpr const char* PSO_CACHE_DIR = "..\\Assets\\PsoCache";
         inline static constexpr const char* ASSET_DIR = "..\\Assets";
         inline static constexpr const char* TOOLS_DIR = "..\\Tools";
         inline static constexpr const char* DXC_PATH = "..\\Tools\\dxc\\bin\\x64\\dxc.exe";
@@ -201,11 +196,14 @@ namespace
         alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
         std::atomic_int32_t m_currTaskSignalIdx = 0;
+
         Motion m_frameMotion;
-        SmallVector<LogMessage> m_frameLogs;
         char m_clipboard[CLIPBOARD_LEN];
         bool m_isInitialized = false;
         bool m_issueResize = false;
+
+        MemoryArena m_logStrArena;
+        SmallVector<LogMessage> m_frameLogs;
     };
 
     AppData* g_app = nullptr;
@@ -824,8 +822,7 @@ namespace ZetaRay::AppImpl
                     AppImpl::OnActivated();
                 }
             }
-
-            if (GetAsyncKeyState(VK_ESCAPE) & (1 << 16))
+            else if (GetAsyncKeyState(VK_ESCAPE) & (1 << 16))
                 g_app->m_scene.ClearPick();
         }
     }
@@ -1027,36 +1024,26 @@ namespace ZetaRay::AppImpl
     }
 
     // Ref: https://github.com/ysc3839/win32-darkmode
-    bool TryInitDarkMode(HMODULE* uxthemeLib)
+    bool TryInitDarkMode(HMODULE* uxthemeLib, HWND hWnd)
     {
         bool darkModeEnabled = false;
 
         *uxthemeLib = LoadLibraryExA("uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (*uxthemeLib)
         {
-            fnOpenNcThemeData openNcThemeData = reinterpret_cast<fnOpenNcThemeData>(
-                GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(49)));
             fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState = 
                 reinterpret_cast<fnRefreshImmersiveColorPolicyState>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(104)));
             fnShouldAppsUseDarkMode shouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(132)));
+            fnSetPreferredAppMode setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
+                GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(135)));
             fnAllowDarkModeForWindow allowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(133)));
 
-            auto ord135 = GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(135));
-            fnSetPreferredAppMode setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(ord135);
-
-            fnIsDarkModeAllowedForWindow isDarkModeAllowedForWindow = 
-                reinterpret_cast<fnIsDarkModeAllowedForWindow>(GetProcAddress(*uxthemeLib, 
-                    MAKEINTRESOURCEA(137)));
-
-            if (openNcThemeData &&
-                refreshImmersiveColorPolicyState &&
+            if (refreshImmersiveColorPolicyState &&
                 shouldAppsUseDarkMode &&
-                allowDarkModeForWindow &&
-                setPreferredAppMode &&
-                isDarkModeAllowedForWindow)
+                setPreferredAppMode)
             {
                 setPreferredAppMode(PreferredAppMode::AllowDark);
 
@@ -1071,6 +1058,8 @@ namespace ZetaRay::AppImpl
                     isHighContrast = highContrast.dwFlags & HCF_HIGHCONTRASTON;
 
                 darkModeEnabled = shouldAppsUseDarkMode() && !isHighContrast;
+                if (darkModeEnabled)
+                    allowDarkModeForWindow(hWnd, true);
             }
         }
 
@@ -1084,7 +1073,7 @@ namespace ZetaRay::AppImpl
         case WM_CREATE:
         {
             HMODULE uxthemeLib = nullptr;
-            BOOL dark = TryInitDarkMode(&uxthemeLib);
+            BOOL dark = TryInitDarkMode(&uxthemeLib, hWnd);
 
             fnSetWindowCompositionAttribute setWindowCompositionAttribute = 
                 reinterpret_cast<fnSetWindowCompositionAttribute>(
@@ -1255,19 +1244,20 @@ namespace ZetaRay::AppImpl
 
     void GetProcessorInfo()
     {
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* buffer = nullptr;
         DWORD buffSize = 0;
-        GetLogicalProcessorInformation(buffer, &buffSize);
-
+        GetLogicalProcessorInformation(nullptr, &buffSize);
         Assert(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "GetLogicalProcessorInformation() failed.");
-        buffer = reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION*>(malloc(buffSize));
 
-        bool rc = GetLogicalProcessorInformation(buffer, &buffSize);
+        SmallVector<unsigned char, SystemAllocator, 1024> buffer;
+        buffer.resize(buffSize);
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* dataPtr =
+            reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION*>(buffer.data());
+
+        bool rc = GetLogicalProcessorInformation(dataPtr, &buffSize);
         Assert(rc, "GetLogicalProcessorInformation() failed.");
 
-        int n = buffSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* curr = buffer;
-
+        const int n = buffSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* curr = dataPtr;
         int logicalProcessorCount = 0;
 
         for (int i = 0; i < n; i++)
@@ -1288,9 +1278,8 @@ namespace ZetaRay::AppImpl
             curr++;
         }
 
-        free(buffer);
-
-        g_app->m_processorCoreCount = Min(g_app->m_processorCoreCount, (uint16_t)(ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
+        g_app->m_processorCoreCount = Min(g_app->m_processorCoreCount, 
+            (uint16_t)(ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
     }
 
     void SetCameraAcceleration(const ParamVariant& p)
@@ -1318,7 +1307,7 @@ namespace ZetaRay::AppImpl
 
     ZetaInline int GetThreadIdx()
     {
-        const ZETA_THREAD_ID_TYPE id = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+        const ZETA_THREAD_ID_TYPE id = GetCurrentThreadId();
 
         int ret = -1;
         __m256i vKey = _mm256_set1_epi32(id);
@@ -1405,13 +1394,15 @@ namespace ZetaRay
 
     LogMessage::LogMessage(const char* msg, LogMessage::MsgType t)
     {
-        const int n = Math::Min((int)strlen(msg), LogMessage::MAX_LEN - 1);
-        Assert(n > 0, "Invalid log message.");
-
         const char* logType = t == MsgType::INFO ? "INFO" : "WARNING";
         Type = t;
 
-        stbsp_snprintf(Msg, LogMessage::MAX_LEN - 1, "[Frame %04d] [tid %05d] [%s] | %s",
+        // Compute total size first (without the null terminator)
+        const int n = stbsp_snprintf(nullptr, 0, "[Frame %04d] [tid %05d] [%s] | %s",
+            g_app->m_timer.GetTotalFrameCount(), GetCurrentThreadId(), logType, msg);
+
+        Msg = reinterpret_cast<char*>(g_app->m_logStrArena.AllocateAligned(n + 1, alignof(char)));
+        stbsp_snprintf(Msg, n + 1, "[Frame %04d] [tid %05d] [%s] | %s",
             g_app->m_timer.GetTotalFrameCount(), GetCurrentThreadId(), logType, msg);
     }
 
@@ -1423,10 +1414,10 @@ namespace ZetaRay
         Check(supported & CPU_Intrinsic::F16C, "F16C is not supported.");
         Check(supported & CPU_Intrinsic::BMI1, "BMI1 is not supported.");
 
-        setlocale(LC_ALL, "C");        // set locale to C
+        // set locale to C
+        setlocale(LC_ALL, "C");
 
         // create PSO cache directories
-        Filesystem::CreateDirectoryIfNotExists(AppData::PSO_CACHE_PARENT);
         Filesystem::CreateDirectoryIfNotExists(AppData::PSO_CACHE_DIR);
 
         HINSTANCE instance = GetModuleHandleA(nullptr);
@@ -1459,19 +1450,19 @@ namespace ZetaRay
         memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
 
         // main thread
-        g_app->m_threadIDs[0] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+        g_app->m_threadIDs[0] = GetCurrentThreadId();
 
         // worker threads
         auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
 
         for (int i = 0; i < workerThreadIDs.size(); i++)
-            g_app->m_threadIDs[i + 1] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(workerThreadIDs[i]);
+            g_app->m_threadIDs[i + 1] = workerThreadIDs[i];
 
         // background threads
         auto backgroundThreadIDs = g_app->m_backgroundThreadPool.ThreadIDs();
 
         for (int i = 0; i < backgroundThreadIDs.size(); i++)
-            g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(backgroundThreadIDs[i]);
+            g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = backgroundThreadIDs[i];
 
         g_app->m_workerThreadPool.Start();
         g_app->m_backgroundThreadPool.Start();
@@ -1485,7 +1476,8 @@ namespace ZetaRay
         // initialize renderer
         const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
         const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
-        g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, g_app->m_displayWidth, g_app->m_displayHeight);
+        g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, 
+            g_app->m_displayWidth, g_app->m_displayHeight);
 
         // ImGui
         AppImpl::InitImGui();
@@ -1507,8 +1499,9 @@ namespace ZetaRay
 
         g_app->m_isInitialized = true;
 
-        LOG_UI(INFO, "Detected %d physical cores.", g_app->m_processorCoreCount);
-        LOG_UI(INFO, "Work area on the primary display monitor is %dx%d.", g_app->m_displayWidth, g_app->m_displayHeight);
+        LOG_UI(INFO, "Detected %d physical CPU cores", g_app->m_processorCoreCount);
+        LOG_UI(INFO, "Work area on the primary display monitor is %dx%d", 
+            g_app->m_displayWidth, g_app->m_displayHeight);
     }
 
     int App::Run()

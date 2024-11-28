@@ -75,11 +75,11 @@ void Compositing::Init()
         m_filterFirefly);
     App::AddParam(p9);
 
-    ParamVariant p10;
-    p10.InitBool(ICON_FA_FILM " Renderer", "Light Voxel Grid", "Visualize",
-        fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
-        false);
-    App::AddParam(p10);
+    //ParamVariant p10;
+    //p10.InitBool(ICON_FA_FILM " Renderer", "Light Voxel Grid", "Visualize",
+    //    fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
+    //    false);
+    //App::AddParam(p10);
 
     App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompositing));
 }

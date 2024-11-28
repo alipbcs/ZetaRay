@@ -30,12 +30,16 @@ namespace
     {
         CloseHandle(writePipe);
 
-        char buffer[512];
+        constexpr int MAX_TO_READ = 1024;
+        void* buffer = App::AllocateFrameAllocator(MAX_TO_READ, alignof(char));
         DWORD numToRead;
-        if (ReadFile(readPipe, buffer, ZetaArrayLen(buffer), &numToRead, nullptr))
+        if (ReadFile(readPipe, buffer, MAX_TO_READ, &numToRead, nullptr))
         {
             if (numToRead)
-                App::Log(buffer, App::LogMessage::WARNING);
+            {
+                reinterpret_cast<char*>(buffer)[numToRead] = '\0';
+                App::Log(reinterpret_cast<char*>(buffer), App::LogMessage::WARNING);
+            }
         }
 
         CloseHandle(readPipe);

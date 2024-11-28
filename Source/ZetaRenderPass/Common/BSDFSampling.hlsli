@@ -462,7 +462,7 @@ namespace BSDF
         if(surface.metallic || !surface.specTr || eval.tir)
             return ret;
 
-        const float3 wi_other = lobe == BSDF::LOBE::GLOSSY_R ? 
+        const float3 wi_other = lobe == BSDF::LOBE::GLOSSY_T ? 
             reflect(-surface.wo, wh) :
             refract(-surface.wo, wh, 1 / surface.eta);
         float3 targetScaleOther = func(wi_other);
@@ -590,7 +590,7 @@ namespace BSDF
                 wh_pdf / 4.0f;
             pdf_gr *= pdf_base;
 
-            return (pdf_c + pdf_gr) * surface.reflection;
+            return surface.reflection ? pdf_c + pdf_gr: 0;
         }
 
         // Transmissive dielectric
@@ -719,7 +719,7 @@ namespace BSDF
 
             // Account for change of density from half vector to incident vector
             float pdf_g = BSDF::GlossPdf(surface);
-            float pdf_d = BSDF::DiffusePdf(surface);
+            float pdf_d = !surface.metallic ? BSDF::DiffusePdf(surface) : 0;
             float pdf_c = surface.Coated() ? BSDF::CoatPdf(surface) : 0;
             float w = RT::BalanceHeuristic3(pdf_g, pdf_d, pdf_c, targetLum_g);
             w_sum_dr += w;
@@ -737,7 +737,7 @@ namespace BSDF
 
             // Account for change of density from half vector to incident vector
             float pdf_g = BSDF::GlossPdf(surface);
-            float pdf_d = BSDF::DiffusePdf(surface);
+            float pdf_d = !surface.metallic ? BSDF::DiffusePdf(surface) : 0;
             float pdf_c = BSDF::CoatPdf(surface);
             float w = RT::BalanceHeuristic3(pdf_g, pdf_d, pdf_c, targetLum_c);
             w_sum_g += w;

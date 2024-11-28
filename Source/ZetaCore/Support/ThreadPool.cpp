@@ -21,7 +21,7 @@ namespace
 
         for (int i = 0; i < threadIds.size(); i++)
         {
-            if (threadIds[i] == std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id()))
+            if (threadIds[i] == GetCurrentThreadId())
             {
                 idx = i;
                 break;
@@ -36,7 +36,8 @@ namespace
 // ThreadPool
 //--------------------------------------------------------------------------------------
 
-void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p)
+void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, 
+    THREAD_PRIORITY priority)
 {
     m_threadPoolSize = poolSize;
     m_totalNumThreads = totalNumThreads;
@@ -70,7 +71,8 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
     for (int i = 0; i < m_threadPoolSize; i++)
     {
         m_threadPool[i] = std::thread(&ThreadPool::WorkerThread, this);
-        m_threadIDs[i] = m_threadPool[i].get_id();
+        m_threadIDs[i] = GetThreadId(m_threadPool[i].native_handle());
+        CheckWin32(m_threadIDs[i]);
 
         wchar_t buff[32];
         //swprintf(buff, L"ZetaWorker_%d", i);
@@ -78,11 +80,17 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
         auto h = SetThreadDescription(m_threadPool[i].native_handle(), buff);
         CheckWin32(SUCCEEDED(h));
 
-        bool success = false;
-        if (p == THREAD_PRIORITY::NORMAL)
-            success = SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_NORMAL);
-        else if (p == THREAD_PRIORITY::BACKGROUND)
-            CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_LOWEST));
+        switch (priority)
+        {
+        case ZetaRay::Support::THREAD_PRIORITY::NORMAL:
+            CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_NORMAL));
+            break;
+        case ZetaRay::Support::THREAD_PRIORITY::BACKGROUND:
+            CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_BELOW_NORMAL));
+            break;
+        default:
+            break;
+        }
     }
 }
 
@@ -150,8 +158,7 @@ void ThreadPool::PumpUntilEmpty()
     const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
-    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
-        std::this_thread::get_id());
+    const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
     Task task;
 
 #if ENABLE_TIMINGS
@@ -220,8 +227,7 @@ void ThreadPool::WorkerThread()
 {
     while (!m_start.load(std::memory_order_acquire));
 
-    const ZETA_THREAD_ID_TYPE tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
-        std::this_thread::get_id());
+    const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
     LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
 
     const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));

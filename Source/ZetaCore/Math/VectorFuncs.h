@@ -36,17 +36,19 @@ namespace ZetaRay::Math
     }
 
     // Returns v1 + t * (v2 - v1)
-    ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, float t)
+    ZetaInline __m128 __vectorcall lerp(const __m128 v0, const __m128 v1, float t)
     {
         __m128 vT = _mm_broadcast_ss(&t);
-        __m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
+        // fma(t, v1, fma(-t, v0, v0));
+        __m128 vInterpolated = _mm_fmadd_ps(vT, v1, _mm_fnmadd_ps(vT, v0, v0));
 
         return vInterpolated;
     }
 
-    ZetaInline __m128 __vectorcall lerp(const __m128 v1, const __m128 v2, __m128 vT)
+    ZetaInline __m128 __vectorcall lerp(const __m128 v0, const __m128 v1, __m128 vT)
     {
-        __m128 vInterpolated = _mm_fmadd_ps(vT, _mm_sub_ps(v2, v1), v1);
+        // fma(t, v1, fma(-t, v0, v0));
+        __m128 vInterpolated = _mm_fmadd_ps(vT, v1, _mm_fnmadd_ps(vT, v0, v0));
 
         return vInterpolated;
     }

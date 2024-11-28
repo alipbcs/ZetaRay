@@ -40,7 +40,7 @@ void* ThreadSafeMemoryArena::AllocateAligned(size_t size, size_t alignment)
     const bool defaultBlockSizeEnough = size + alignment - 1 <= k_defaultBlockSize;
 
     int threadIdx = -1;
-    const ZETA_THREAD_ID_TYPE currThreadID = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(std::this_thread::get_id());
+    const ZETA_THREAD_ID_TYPE currThreadID = GetCurrentThreadId();
 
     for (int i = 0; i < m_numThreads; i++)
     {

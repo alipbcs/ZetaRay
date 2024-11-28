@@ -383,14 +383,13 @@ namespace
         ComPtr<ID3D12Fence> m_fenceCompute;
         uint64_t m_nextFenceVal = 1;    // no need to be atomic
 
-        alignas(32) ZETA_THREAD_ID_TYPE m_threadIDs [ZETA_MAX_NUM_THREADS];
+        alignas(32) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         ResourceUploadBatch m_uploaders[ZETA_MAX_NUM_THREADS];
     };
 
-    ZetaInline int GetThreadIndex(Span<uint32_t> threadIDs)
+    ZetaInline int GetThreadIndex(Span<ZETA_THREAD_ID_TYPE> threadIDs)
     {
-        const uint32_t tid = std::bit_cast<ZETA_THREAD_ID_TYPE, std::thread::id>(
-            std::this_thread::get_id());
+        const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
 
         int ret = -1;
         __m256i vKey = _mm256_set1_epi32(tid);

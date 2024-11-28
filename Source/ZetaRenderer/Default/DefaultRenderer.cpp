@@ -504,36 +504,39 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_settings.AntiAliasing = g_data->PendingAA;
         const auto frame = App::GetTimer().GetTotalFrameCount();
 
-        if (frame <= 1)
+        if (frame <= 1 && App::GetScene().NumEmissiveInstances())
         {
-            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
-            g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
+            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= 
+                Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
+            //g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
 
             if (g_data->m_settings.LightPresampling)
             {
                 // Notes:
-                // 1. Light presampling is off by default. SO the following calls are only needed when it's been enabled.
+                // 1. Light presampling is off by default. So the following calls are only needed when it's been enabled.
                 // 2. Render graph ensures alias table and presampled sets are already computed when GPU 
                 //    accesses them in the following render passes.
-                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
+                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(
+                    Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
                 g_data->m_raytracerData.IndirecLightingPass.SetLightPresamplingParams(true,
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
 
-                ParamVariant p;
-                p.InitBool("Renderer", "Lighting", "Light Voxel Grid", fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLVG),
-                    g_data->m_settings.UseLVG);
-                App::AddParam(p);
+                //ParamVariant p;
+                //p.InitBool("Renderer", "Lighting", "Light Voxel Grid", 
+                //    fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLVG),
+                //    g_data->m_settings.UseLVG);
+                //App::AddParam(p);
             }
             else
             {
-                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
-                    0, 0);
+                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(
+                    Defaults::MIN_NUM_LIGHTS_PRESAMPLING, 0, 0);
 
-                App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
+                //App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
             }
 
-            SetLVGEnablement(g_data->m_settings.UseLVG);
+            //SetLVGEnablement(g_data->m_settings.UseLVG);
         }
 
         auto h0 = ts.EmplaceTask("SceneRenderer::UpdatePasses", []()
@@ -564,7 +567,7 @@ namespace ZetaRay::DefaultRenderer
                     g_data->m_raytracerData, g_data->m_renderGraph);
             });
 
-        // RenderGraph should go last
+        // Render graph should go last
         ts.AddOutgoingEdge(h0, h3);
     }
 

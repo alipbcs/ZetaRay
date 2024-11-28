@@ -282,11 +282,13 @@ namespace BSDF
         uvw.x = ndotwo;
         uvw.y = ((alpha - 0.002025f) / (1.0f - 0.002025f));
         // Don't interpolate between eta < 1 and eta > 1
+        // TODO For some reason, following causes frame spikes with dxc versions 1.8.2405 and newer
+#if 0
         if(eta > 1.0f)
             eta = max(1.1f, eta);
         else
             eta = min(0.99f, eta);
-
+#endif
         uvw.z = ((eta - 0.5f) / (1.99f - 0.5f));
         float rho = g_rho.SampleLevel(g_samLinearClamp, uvw, 0);
         return saturate(rho);
@@ -576,7 +578,7 @@ namespace BSDF
                 float roughness_coated = min(roughness4.x + 2 * roughness4.y, 1);
                 // = roughness_coated^(1 / 4)
                 roughness_coated = rsqrt(rsqrt(roughness_coated));
-                roughness = lerp(roughness, roughness_coated, coat_weight);
+                roughness = Math::Lerp(roughness, roughness_coated, coat_weight);
             }
 
             ShadingData si;
@@ -599,7 +601,7 @@ namespace BSDF
             // To avoid spurious TIR
             float eta_coated = eta_base >= eta_coat ? eta_base / eta_coat : eta_coat / eta_base;
             // Adjust eta when surface is coated
-            si.eta = lerp(eta_no_coat, eta_coated, coat_weight);
+            si.eta = Math::Lerp(eta_no_coat, eta_coated, coat_weight);
 
             // Precompute as it only depends on wo
             si.g_wo = !metallic && !specTr ? OrenNayar_G(max(ndotwo, 1e-4f)) : 0;
@@ -1089,7 +1091,7 @@ namespace BSDF
             float3 coat_tr = exp(c * log(surface.coat_color));
 
             // f = mix(base, layer(base, coat), coat_weight)
-            base_weight = lerp(1, (1 - reflectance_c) * coat_tr, surface.coat_weight);
+            base_weight = Math::Lerp(1.0f.xxx, (1 - reflectance_c) * coat_tr, surface.coat_weight);
         }
 
         return base_weight;
@@ -1195,7 +1197,7 @@ namespace BSDF
             float3 coat_tr = exp(c * log(surface.coat_color));
 
             // f = mix(base, layer(base, coat), coat_weight)
-            base_weight = lerp(1, (1 - reflectance_c) * coat_tr, surface.coat_weight);
+            base_weight = Math::Lerp(1.0f.xxx, (1 - reflectance_c) * coat_tr, surface.coat_weight);
         }
 
         float3 fr0 = surface.metallic ? surface.baseColor_Fr0_TrCol : 
