@@ -160,7 +160,7 @@ namespace ZetaRay::DefaultRenderer
         Core::DescriptorTable TaaOrFsr2OutSRV;
     };
 
-    struct alignas(64) RayTracerData
+    struct alignas(64) PathTracerData
     {
         static constexpr int SKY_LUT_WIDTH = 256;
         static constexpr int SKY_LUT_HEIGHT = 128;
@@ -222,7 +222,7 @@ namespace ZetaRay::DefaultRenderer
 
         GBufferData m_gbuffData;
         PostProcessData m_postProcessorData;
-        RayTracerData m_raytracerData;
+        PathTracerData m_pathTracerData;
 
         AA PendingAA = DEFAULT_AA;
         bool m_sunMoved = false;
@@ -239,7 +239,7 @@ using Data = ZetaRay::DefaultRenderer::PrivateData;
 namespace ZetaRay::DefaultRenderer::Common
 {
     void UpdateFrameConstants(cbFrameConstants& frameConsts, Core::GpuMemory::Buffer& frameConstsBuff,
-        const GBufferData& gbuffData, const RayTracerData& rtData);
+        const GBufferData& gbuffData, const PathTracerData& rtData);
 }
 
 //--------------------------------------------------------------------------------------
@@ -253,23 +253,23 @@ namespace ZetaRay::DefaultRenderer::GBuffer
     void OnWindowSizeChanged(const RenderSettings& settings, GBufferData& data);
 
     void Update(GBufferData& gbuffData);
-    void Register(GBufferData& data, const RayTracerData& rayTracerData, Core::RenderGraph& renderGraph);
-    void AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData, 
+    void Register(GBufferData& data, const PathTracerData& rayTracerData, Core::RenderGraph& renderGraph);
+    void AddAdjacencies(GBufferData& data, const PathTracerData& pathTracerData,
         Core::RenderGraph& renderGraph);
 }
 
 //--------------------------------------------------------------------------------------
-// RayTracer
+// PathTracer
 //--------------------------------------------------------------------------------------
 
-namespace ZetaRay::DefaultRenderer::RayTracer
+namespace ZetaRay::DefaultRenderer::PathTracer
 {
-    void Init(const RenderSettings& settings, RayTracerData& data);
-    void OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data);
+    void Init(const RenderSettings& settings, PathTracerData& data);
+    void OnWindowSizeChanged(const RenderSettings& settings, PathTracerData& data);
 
-    void Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, RayTracerData& data);
-    void Register(const RenderSettings& settings, RayTracerData& data, Core::RenderGraph& renderGraph);
-    void AddAdjacencies(const RenderSettings& settings, RayTracerData& rtData, const GBufferData& gbuffData,
+    void Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, PathTracerData& data);
+    void Register(const RenderSettings& settings, PathTracerData& data, Core::RenderGraph& renderGraph);
+    void AddAdjacencies(const RenderSettings& settings, PathTracerData& rtData, const GBufferData& gbuffData,
         Core::RenderGraph& renderGraph);
 }
 
@@ -281,16 +281,16 @@ namespace ZetaRay::DefaultRenderer::PostProcessor
 {
     void Init(const RenderSettings& settings, PostProcessData& data);
     void OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
-        const RayTracerData& rtData);
+        const PathTracerData& pathTracerData);
 
     void UpdateWndDependentDescriptors(const RenderSettings& settings, PostProcessData& data);
     void UpdateFrameDescriptors(const RenderSettings& settings, PostProcessData& data);
     void UpdatePasses(const RenderSettings& settings, PostProcessData& data);
     void Update(const RenderSettings& settings, PostProcessData& data, const GBufferData& gbufferData,
-        const RayTracerData& rayTracerData);
+        const PathTracerData& pathTracerData);
     void Register(const RenderSettings& settings, PostProcessData& data, GBufferData& gbufferData,
         Core::RenderGraph& renderGraph);
     void AddAdjacencies(const RenderSettings& settings, PostProcessData& data, 
-        const GBufferData& gbufferData,const RayTracerData& rayTracerData, 
+        const GBufferData& gbufferData,const PathTracerData& pathTracerData,
         Core::RenderGraph& renderGraph);
 }

@@ -76,7 +76,7 @@ void PostProcessor::UpdatePasses(const RenderSettings& settings, PostProcessData
 }
 
 void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProcessData& data,
-    const RayTracerData& rtData)
+    const PathTracerData& rtData)
 {
     data.CompositingPass.OnWindowResized();
     data.GuiPass.OnWindowResized();
@@ -90,7 +90,7 @@ void PostProcessor::OnWindowSizeChanged(const RenderSettings& settings, PostProc
 }
 
 void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data, 
-    const GBufferData& gbuffData, const RayTracerData& rtData)
+    const GBufferData& gbuffData, const PathTracerData& rtData)
 {
     UpdatePasses(settings, data);
     UpdateFrameDescriptors(settings, data);
@@ -105,20 +105,20 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI,
                 rtData.WndConstDescTable.GPUDescriptorHeapIndex(
-                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
+                    (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
         }
         // Sky DI
         else
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::SKY_DI,
                 rtData.WndConstDescTable.GPUDescriptorHeapIndex(
-                    (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
+                    (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
         }
 
         // Indirect lighting
         data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INDIRECT,
             rtData.WndConstDescTable.GPUDescriptorHeapIndex(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
+                (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
 
         if (settings.Inscattering)
         {
@@ -130,7 +130,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
             data.CompositingPass.SetVoxelGridMappingExp(p);
             data.CompositingPass.SetVoxelGridDepth(depths.x, depths.y);
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::INSCATTERING,
-                rtData.ConstDescTable.GPUDescriptorHeapIndex((int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
+                rtData.ConstDescTable.GPUDescriptorHeapIndex((int)PathTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
         }
         else
             data.CompositingPass.SetInscatteringEnablement(false);
@@ -275,7 +275,7 @@ void PostProcessor::Register(const RenderSettings& settings, PostProcessData& da
 }
 
 void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessData& data, 
-    const GBufferData& gbuffData, const RayTracerData& rtData, RenderGraph& renderGraph)
+    const GBufferData& gbuffData, const PathTracerData& rtData, RenderGraph& renderGraph)
 {
     const Texture& composited = data.CompositingPass.GetOutput(
         Compositing::SHADER_OUT_RES::COMPOSITED);

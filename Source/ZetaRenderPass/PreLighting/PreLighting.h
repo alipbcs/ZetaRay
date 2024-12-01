@@ -19,15 +19,12 @@ namespace ZetaRay::RenderPass
 {
     enum class PRE_LIGHTING_SHADER
     {
-        ESTIMATE_TRIANGLE_LUMEN,
+        ESTIMATE_TRIANGLE_POWER,
         PRESAMPLING,
         BUILD_LIGHT_VOXEL_GRID,
         COUNT
     };
 
-    // Prepares for lighting by
-    //  - estimating lumen for each emissive triangle (needed for power sampling light sources)
-    //  - estimating local curvature (needed for ray cones)
     struct PreLighting final : public RenderPassBase<(int)PRE_LIGHTING_SHADER::COUNT>
     {
         PreLighting();
@@ -48,13 +45,13 @@ namespace ZetaRay::RenderPass
             m_voxelExtents = extents;
             m_yOffset = offset_y;
         }
-        const Core::GpuMemory::Buffer& GetLumenBuffer() { return m_lumen; }
+        const Core::GpuMemory::Buffer& GetTriEmissivePowerBuffer() { return m_triPower; }
         const Core::GpuMemory::Buffer& GePresampledSets() { return m_sampleSets; }
         const Core::GpuMemory::Buffer& GetLightVoxelGrid() { return m_lvg; }
         Core::GpuMemory::ReadbackHeapBuffer& GetLumenReadbackBuffer() { return m_readback; }
-        // Releasing the lumen buffer and its readback buffer should happen after the alias table 
+        // Releasing the power buffer and its readback buffer should happen after the alias table 
         // has been calculated. Delegate that to code that does that calculation.
-        auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseLumenBufferAndReadback); };
+        auto GetReleaseBuffersDlg() { return fastdelegate::MakeDelegate(this, &PreLighting::ReleaseTriPowerBufferAndReadback); };
 
         void Update();
         void Render(Core::CommandList& cmdList);
@@ -69,17 +66,17 @@ namespace ZetaRay::RenderPass
         using SHADER = PRE_LIGHTING_SHADER;
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {
-            "EstimateTriLumen_cs.cso",
+            "EstimateTriEmissivePower_cs.cso",
             "PresampleEmissives_cs.cso",
             "BuildLightVoxelGrid_cs.cso"
         };
 
         void ToggleLVG();
-        void ReleaseLumenBufferAndReadback();
+        void ReleaseTriPowerBufferAndReadback();
         void ReloadBuildLVG();
 
         Core::GpuMemory::Buffer m_halton;
-        Core::GpuMemory::Buffer m_lumen;
+        Core::GpuMemory::Buffer m_triPower;
         Core::GpuMemory::ReadbackHeapBuffer m_readback;
         Core::GpuMemory::Buffer m_sampleSets;
         Core::GpuMemory::Buffer m_lvg;
@@ -90,7 +87,7 @@ namespace ZetaRay::RenderPass
         Math::uint3 m_voxelGridDim;
         Math::float3 m_voxelExtents;
         float m_yOffset = 0.0;
-        bool m_estimateLumenThisFrame;
+        bool m_estimatePowerThisFrame;
         bool m_doPresamplingThisFrame;
         bool m_buildLVGThisFrame = false;
         bool m_useLVG = false;

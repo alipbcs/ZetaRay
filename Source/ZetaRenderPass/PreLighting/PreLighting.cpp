@@ -191,7 +191,7 @@ PreLighting::PreLighting()
         nullptr,
         true);
 
-    // lumen/sample sets
+    // tri power/sample sets
     m_rootSig.InitAsBufferUAV(5, 0, 0,
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE,
         nullptr,
@@ -230,15 +230,15 @@ void PreLighting::Init()
     ts.Finalize();
     App::Submit(ZetaMove(ts));
 
-    float2 samples[ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI];
+    float2 samples[ESTIMATE_TRI_POWER_NUM_SAMPLES_PER_TRI];
 
-    for (int i = 0; i < ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI; i++)
+    for (int i = 0; i < ESTIMATE_TRI_POWER_NUM_SAMPLES_PER_TRI; i++)
     {
         samples[i].x = Halton(i + 1, 2);
         samples[i].y = Halton(i + 1, 3);
     }
 
-    const size_t sizeInBytes = ESTIMATE_TRI_LUMEN_NUM_SAMPLES_PER_TRI * sizeof(float2);
+    const size_t sizeInBytes = ESTIMATE_TRI_POWER_NUM_SAMPLES_PER_TRI * sizeof(float2);
     m_halton = GpuMemory::GetDefaultHeapBufferAndInit("Halton",
         (uint32)sizeInBytes,
         false,
@@ -247,7 +247,7 @@ void PreLighting::Init()
 
 void PreLighting::Update()
 {
-    m_estimateLumenThisFrame = false;
+    m_estimatePowerThisFrame = false;
     m_doPresamplingThisFrame = false;
     m_currNumTris = (uint32_t)App::GetScene().NumEmissiveTriangles();
     m_useLVG = m_useLVG && (m_currNumTris >= m_minNumLightsForPresampling);
@@ -261,16 +261,16 @@ void PreLighting::Update()
 
     if (App::GetScene().AreEmissiveMaterialsStale())
     {
-        m_estimateLumenThisFrame = true;
-        const size_t currLumenBuffLen = m_lumen.IsInitialized() ? 
-            m_lumen.Desc().Width / sizeof(float) : 0;
+        m_estimatePowerThisFrame = true;
+        const size_t currPowerBuffLen = m_triPower.IsInitialized() ? 
+            m_triPower.Desc().Width / sizeof(float) : 0;
 
-        if (currLumenBuffLen < m_currNumTris)
+        if (currPowerBuffLen < m_currNumTris)
         {
             const uint32_t sizeInBytes = m_currNumTris * sizeof(float);
 
-            // GPU buffer containing lumen estimates per triangle
-            m_lumen = GpuMemory::GetDefaultHeapBuffer("TriLumen",
+            // GPU buffer containing power estimates per triangle
+            m_triPower = GpuMemory::GetDefaultHeapBuffer("TriPower",
                 sizeInBytes,
                 D3D12_RESOURCE_STATE_COMMON,
                 true);
@@ -320,38 +320,38 @@ void PreLighting::Render(CommandList& cmdList)
 
     computeCmdList.SetRootSignature(m_rootSig, m_rootSigObj.Get());
 
-    if (m_estimateLumenThisFrame)
+    if (m_estimatePowerThisFrame)
     {
         Assert(m_readback.IsInitialized(), "no readback buffer.");
         Assert(!m_readback.IsMapped(), "readback buffer can't be mapped while in use by the GPU.");
-        Assert(m_lumen.IsInitialized(), "no lumen buffer.");
+        Assert(m_triPower.IsInitialized(), "Tri emissive power buffer hasn't been initialized.");
 
-        const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_currNumTris, ESTIMATE_TRI_LUMEN_NUM_TRIS_PER_GROUP);
+        const uint32_t dispatchDimX = CeilUnsignedIntDiv(m_currNumTris, ESTIMATE_TRI_POWER_NUM_TRIS_PER_GROUP);
         Assert(dispatchDimX <= D3D12_CS_DISPATCH_MAX_THREAD_GROUPS_PER_DIMENSION, "#blocks exceeded maximum allowed.");
 
-        computeCmdList.PIXBeginEvent("EstimateTriLumen");
-        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateTriLumen");
+        computeCmdList.PIXBeginEvent("EstimateTriPower");
+        const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "EstimateTriPower");
 
-        computeCmdList.ResourceBarrier(m_lumen.Resource(),
+        computeCmdList.ResourceBarrier(m_triPower.Resource(),
             D3D12_RESOURCE_STATE_COPY_SOURCE,
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS);
 
         m_rootSig.SetRootSRV(4, m_halton.GpuVA());
-        m_rootSig.SetRootUAV(5, m_lumen.GpuVA());
+        m_rootSig.SetRootUAV(5, m_triPower.GpuVA());
 
         m_rootSig.End(computeCmdList);
 
-        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ESTIMATE_TRIANGLE_LUMEN));
+        computeCmdList.SetPipelineState(m_psoLib.GetPSO((int)SHADER::ESTIMATE_TRIANGLE_POWER));
         computeCmdList.Dispatch(dispatchDimX, 1, 1);
 
         // copy results to readback buffer, so alias table can be computed on the cpu
-        computeCmdList.ResourceBarrier(m_lumen.Resource(),
+        computeCmdList.ResourceBarrier(m_triPower.Resource(),
             D3D12_RESOURCE_STATE_UNORDERED_ACCESS,
             D3D12_RESOURCE_STATE_COPY_SOURCE);
 
         computeCmdList.CopyBufferRegion(m_readback.Resource(),
             0,
-            m_lumen.Resource(),
+            m_triPower.Resource(),
             0,
             m_currNumTris * sizeof(float));
 
@@ -456,9 +456,9 @@ void PreLighting::ToggleLVG()
     }
 }
 
-void PreLighting::ReleaseLumenBufferAndReadback()
+void PreLighting::ReleaseTriPowerBufferAndReadback()
 {
-    m_lumen.Reset();
+    m_triPower.Reset();
     m_readback.Reset();
     m_buildLVGThisFrame = m_useLVG;
 }

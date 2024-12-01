@@ -29,7 +29,7 @@ namespace
 //--------------------------------------------------------------------------------------
 
 void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameConstsBuff,
-    const GBufferData& gbuffData, const RayTracerData& rtData)
+    const GBufferData& gbuffData, const PathTracerData& rtData)
 {
     auto& renderer = App::GetRenderer();
     const int currIdx = renderer.GlobalIdxForDoubleBufferedResources();
@@ -85,7 +85,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
 
     // Sky-view LUT SRV
     frameConsts.EnvMapDescHeapOffset = rtData.ConstDescTable.GPUDescriptorHeapIndex(
-        (int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
+        (int)PathTracerData::DESC_TABLE_CONST::ENV_MAP_SRV);
 
     float3 prevViewDir = float3(frameConsts.PrevViewInv.m[0].z, frameConsts.PrevViewInv.m[1].z, 
         frameConsts.PrevViewInv.m[2].z);
@@ -240,16 +240,16 @@ namespace ZetaRay::DefaultRenderer
         const int e = p.GetEnum().m_curr;
         Assert(e < (int)IndirectLighting::INTEGRATOR::COUNT, "Invalid enum value.");
         g_data->m_settings.Indirect = (IndirectLighting::INTEGRATOR)e;
-        g_data->m_raytracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
+        g_data->m_pathTracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
     }
 
     void VoxelExtentsCallback(const ParamVariant& p)
     {
         g_data->m_settings.VoxelExtents = p.GetFloat3().m_value;
 
-        g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+        g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+        g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
         g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
@@ -259,9 +259,9 @@ namespace ZetaRay::DefaultRenderer
     {
         g_data->m_settings.VoxelGridyOffset = p.GetFloat().m_value;
 
-        g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+        g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
+        g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
         g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
             g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
@@ -289,9 +289,9 @@ namespace ZetaRay::DefaultRenderer
                 0.1);
             App::AddParam(offset_y);
 
-            g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
+            g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
                 g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-            g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
+            g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
                 g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
             g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
                 g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
@@ -301,8 +301,8 @@ namespace ZetaRay::DefaultRenderer
             App::RemoveParam("Renderer", "Light Voxel Grid", "Extents");
             App::RemoveParam("Renderer", "Light Voxel Grid", "Y Offset");
 
-            g_data->m_raytracerData.PreLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
-            g_data->m_raytracerData.IndirecLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
+            g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
+            g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
         }
     }
 
@@ -383,9 +383,9 @@ namespace ZetaRay::DefaultRenderer
             {
                 GBuffer::Init(g_data->m_settings, g_data->m_gbuffData);
             });
-        ts.EmplaceTask("RayTracer_Init", []()
+        ts.EmplaceTask("PathTracer_Init", []()
             {
-                RayTracer::Init(g_data->m_settings, g_data->m_raytracerData);
+                PathTracer::Init(g_data->m_settings, g_data->m_pathTracerData);
             });
         ts.EmplaceTask("PostProcessor_Init", []()
             {
@@ -516,10 +516,10 @@ namespace ZetaRay::DefaultRenderer
                 // 1. Light presampling is off by default. So the following calls are only needed when it's been enabled.
                 // 2. Render graph ensures alias table and presampled sets are already computed when GPU 
                 //    accesses them in the following render passes.
-                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(
+                g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
                     Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
-                g_data->m_raytracerData.IndirecLightingPass.SetLightPresamplingParams(true,
+                g_data->m_pathTracerData.IndirecLightingPass.SetLightPresamplingParams(true,
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
 
                 //ParamVariant p;
@@ -530,7 +530,7 @@ namespace ZetaRay::DefaultRenderer
             }
             else
             {
-                g_data->m_raytracerData.PreLightingPass.SetLightPresamplingParams(
+                g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
                     Defaults::MIN_NUM_LIGHTS_PRESAMPLING, 0, 0);
 
                 //App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
@@ -542,29 +542,29 @@ namespace ZetaRay::DefaultRenderer
         auto h0 = ts.EmplaceTask("SceneRenderer::UpdatePasses", []()
             {
                 GBuffer::Update(g_data->m_gbuffData);
-                RayTracer::Update(g_data->m_settings, g_data->m_renderGraph, g_data->m_raytracerData);
+                PathTracer::Update(g_data->m_settings, g_data->m_renderGraph, g_data->m_pathTracerData);
                 PostProcessor::Update(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
-                    g_data->m_raytracerData);
+                    g_data->m_pathTracerData);
                 Common::UpdateFrameConstants(g_data->m_frameConstants, g_data->m_frameConstantsBuff, g_data->m_gbuffData, 
-                    g_data->m_raytracerData);
+                    g_data->m_pathTracerData);
             });
 
         auto h3 = ts.EmplaceTask("SceneRenderer::RenderGraph", []()
             {
                 g_data->m_renderGraph.BeginFrame();
 
-                GBuffer::Register(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
-                RayTracer::Register(g_data->m_settings, g_data->m_raytracerData, g_data->m_renderGraph);
+                GBuffer::Register(g_data->m_gbuffData, g_data->m_pathTracerData, g_data->m_renderGraph);
+                PathTracer::Register(g_data->m_settings, g_data->m_pathTracerData, g_data->m_renderGraph);
                 PostProcessor::Register(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
                     g_data->m_renderGraph);
 
                 g_data->m_renderGraph.MoveToPostRegister();
 
-                GBuffer::AddAdjacencies(g_data->m_gbuffData, g_data->m_raytracerData, g_data->m_renderGraph);
-                RayTracer::AddAdjacencies(g_data->m_settings, g_data->m_raytracerData, g_data->m_gbuffData,
+                GBuffer::AddAdjacencies(g_data->m_gbuffData, g_data->m_pathTracerData, g_data->m_renderGraph);
+                PathTracer::AddAdjacencies(g_data->m_settings, g_data->m_pathTracerData, g_data->m_gbuffData,
                     g_data->m_renderGraph);
                 PostProcessor::AddAdjacencies(g_data->m_settings, g_data->m_postProcessorData, g_data->m_gbuffData,
-                    g_data->m_raytracerData, g_data->m_renderGraph);
+                    g_data->m_pathTracerData, g_data->m_renderGraph);
             });
 
         // Render graph should go last
@@ -588,8 +588,8 @@ namespace ZetaRay::DefaultRenderer
     {
         // Following order is important
         GBuffer::OnWindowSizeChanged(g_data->m_settings, g_data->m_gbuffData);
-        RayTracer::OnWindowSizeChanged(g_data->m_settings, g_data->m_raytracerData);
-        PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_raytracerData);
+        PathTracer::OnWindowSizeChanged(g_data->m_settings, g_data->m_pathTracerData);
+        PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_pathTracerData);
 
         g_data->m_renderGraph.Reset();
     }
@@ -606,7 +606,7 @@ namespace ZetaRay::DefaultRenderer
 
     bool IsRTASBuilt()
     {
-        return g_data->m_raytracerData.RtAS.GetTLAS().IsInitialized();
+        return g_data->m_pathTracerData.RtAS.GetTLAS().IsInitialized();
     }
 
     void SceneModified()

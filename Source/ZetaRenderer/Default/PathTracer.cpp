@@ -12,28 +12,28 @@ using namespace ZetaRay::Core::Direct3DUtil;
 using namespace ZetaRay::Scene;
 
 //--------------------------------------------------------------------------------------
-// RayTracer
+// PathTracer
 //--------------------------------------------------------------------------------------
 
-void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
+void PathTracer::Init(const RenderSettings& settings, PathTracerData& data)
 {
     // Allocate descriptor tables
     data.WndConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
-        (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::COUNT);
+        (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::COUNT);
     data.ConstDescTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate(
-        (int)RayTracerData::DESC_TABLE_CONST::COUNT);
+        (int)PathTracerData::DESC_TABLE_CONST::COUNT);
 
     // Inscattering + sku-view lut
-    data.SkyPass.Init(RayTracerData::SKY_LUT_WIDTH, RayTracerData::SKY_LUT_HEIGHT, 
+    data.SkyPass.Init(PathTracerData::SKY_LUT_WIDTH, PathTracerData::SKY_LUT_HEIGHT, 
         settings.Inscattering);
 
     Direct3DUtil::CreateTexture2DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::SKY_VIEW_LUT),
-        data.ConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_CONST::ENV_MAP_SRV));
+        data.ConstDescTable.CPUHandle((int)PathTracerData::DESC_TABLE_CONST::ENV_MAP_SRV));
 
     if (settings.Inscattering)
     {
         Direct3DUtil::CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
-            data.ConstDescTable.CPUHandle((int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
+            data.ConstDescTable.CPUHandle((int)PathTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
     }
 
     data.PreLightingPass.Init();
@@ -41,10 +41,10 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
     {
         data.IndirecLightingPass.Init(settings.Indirect);
 
-        const Texture& denoised = data.IndirecLightingPass.GetOutput(
-            IndirectLighting::SHADER_OUT_RES::DENOISED);
-        Direct3DUtil::CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
+        const Texture& indirectFinal = data.IndirecLightingPass.GetOutput(
+            IndirectLighting::SHADER_OUT_RES::FINAL);
+        Direct3DUtil::CreateTexture2DSRV(indirectFinal, data.WndConstDescTable.CPUHandle(
+            (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
     }
 
     App::Filesystem::Path p(App::GetAssetDir());
@@ -57,7 +57,7 @@ void RayTracer::Init(const RenderSettings& settings, RayTracerData& data)
     Direct3DUtil::CreateTexture3DSRV(data.m_rhoLUT, table.CPUHandle(0));
 }
 
-void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerData& data)
+void PathTracer::OnWindowSizeChanged(const RenderSettings& settings, PathTracerData& data)
 {
     // GPU is flushed after resize, safe to reuse descriptors
 
@@ -70,7 +70,7 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
         const Texture& t = data.DirecLightingPass.GetOutput(
             DirectLighting::SHADER_OUT_RES::FINAL);
         CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
+            (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
     }
 
     if (data.SkyDI_Pass.IsInitialized())
@@ -79,21 +79,21 @@ void RayTracer::OnWindowSizeChanged(const RenderSettings& settings, RayTracerDat
 
         const Texture& t = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
         CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
+            (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
     }
 
     {
         data.IndirecLightingPass.OnWindowResized();
 
-        const Texture& denoised = data.IndirecLightingPass.GetOutput(
-            IndirectLighting::SHADER_OUT_RES::DENOISED);
-        CreateTexture2DSRV(denoised, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
+        const Texture& indirectFinal = data.IndirecLightingPass.GetOutput(
+            IndirectLighting::SHADER_OUT_RES::FINAL);
+        CreateTexture2DSRV(indirectFinal, data.WndConstDescTable.CPUHandle(
+            (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::INDIRECT));
     }
 }
 
-void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, 
-    RayTracerData& data)
+void PathTracer::Update(const RenderSettings& settings, Core::RenderGraph& renderGraph, 
+    PathTracerData& data)
 {
     const auto numEmissives = App::GetScene().NumEmissiveInstances();
 
@@ -103,7 +103,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 
         CreateTexture3DSRV(data.SkyPass.GetOutput(Sky::SHADER_OUT_RES::INSCATTERING),
             data.ConstDescTable.CPUHandle(
-                (int)RayTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
+                (int)PathTracerData::DESC_TABLE_CONST::INSCATTERING_SRV));
     }
     else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
         data.SkyPass.SetInscatteringEnablement(false);
@@ -114,7 +114,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 
         const Texture& skyDIOutTex = data.SkyDI_Pass.GetOutput(SkyDI::SHADER_OUT_RES::DENOISED);
         CreateTexture2DSRV(skyDIOutTex, data.WndConstDescTable.CPUHandle(
-            (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
+            (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::SKY_DI));
     }
 
     data.RtAS.Update();
@@ -130,7 +130,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
 
             const Texture& t = data.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL);
             CreateTexture2DSRV(t, data.WndConstDescTable.CPUHandle(
-                (int)RayTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
+                (int)PathTracerData::DESC_TABLE_WND_SIZE_CONST::EMISSIVE_DI));
 
             data.DirecLightingPass.SetLightPresamplingParams(settings.LightPresampling,
                 Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
@@ -145,7 +145,7 @@ void RayTracer::Update(const RenderSettings& settings, Core::RenderGraph& render
     }
 }
 
-void RayTracer::Register(const RenderSettings& settings, RayTracerData& data, 
+void PathTracer::Register(const RenderSettings& settings, PathTracerData& data, 
     RenderGraph& renderGraph)
 {
     // Rt AS rebuild/update
@@ -201,9 +201,9 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
         // Read back emissive lumen buffer and compute alias table on CPU
         if (App::GetScene().AreEmissiveMaterialsStale())
         {
-            auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
-            renderGraph.RegisterResource(const_cast<Buffer&>(triLumenBuff).Resource(), 
-                triLumenBuff.ID(), D3D12_RESOURCE_STATE_COPY_SOURCE, false);
+            auto& triPowerBuffer = data.PreLightingPass.GetTriEmissivePowerBuffer();
+            renderGraph.RegisterResource(const_cast<Buffer&>(triPowerBuffer).Resource(),
+                triPowerBuffer.ID(), D3D12_RESOURCE_STATE_COPY_SOURCE, false);
 
             fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(&data.EmissiveAliasTable,
                 &EmissiveTriangleAliasTable::Render);
@@ -317,7 +317,7 @@ void RayTracer::Register(const RenderSettings& settings, RayTracerData& data,
     }
 }
 
-void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& data, 
+void PathTracer::AddAdjacencies(const RenderSettings& settings, PathTracerData& data, 
     const GBufferData& gbuffData, RenderGraph& renderGraph)
 {
     const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
@@ -371,14 +371,14 @@ void RayTracer::AddAdjacencies(const RenderSettings& settings, RayTracerData& da
         // Pre lighting
         if (App::GetScene().AreEmissiveMaterialsStale())
         {
-            const auto& triLumenBuff = data.PreLightingPass.GetLumenBuffer();
+            const auto& triPowerBuffer = data.PreLightingPass.GetTriEmissivePowerBuffer();
 
             renderGraph.AddOutput(data.PreLightingPassHandle,
-                triLumenBuff.ID(),
+                triPowerBuffer.ID(),
                 D3D12_RESOURCE_STATE_COPY_SOURCE);
 
             renderGraph.AddInput(data.EmissiveAliasTableHandle,
-                triLumenBuff.ID(),
+                triPowerBuffer.ID(),
                 D3D12_RESOURCE_STATE_COPY_SOURCE);
 
             renderGraph.AddOutput(data.EmissiveAliasTableHandle,

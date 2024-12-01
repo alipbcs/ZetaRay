@@ -321,9 +321,9 @@ void GBuffer::Update(GBufferData& gbufferData)
         gbufferData.UavDescTable[outIdx].GPUDescriptorHeapIndex(GBufferData::GBUFFER::BASE_COLOR));
 }
 
-void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, RenderGraph& renderGraph)
+void GBuffer::Register(GBufferData& data, const PathTracerData& pathTracerData, RenderGraph& renderGraph)
 {
-    const bool tlasReady = rayTracerData.RtAS.IsReady();
+    const bool tlasReady = pathTracerData.RtAS.IsReady();
     if (!tlasReady)
         return;
 
@@ -350,12 +350,12 @@ void GBuffer::Register(GBufferData& data, const RayTracerData& rayTracerData, Re
     renderGraph.RegisterResource(data.EmissiveColor.Resource(), data.EmissiveColor.ID());
 }
 
-void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerData,
+void GBuffer::AddAdjacencies(GBufferData& data, const PathTracerData& pathTracerData,
     RenderGraph& renderGraph)
 {
     const int outIdx = App::GetRenderer().GlobalIdxForDoubleBufferedResources();
 
-    const bool tlasReady = rayTracerData.RtAS.IsReady();
+    const bool tlasReady = pathTracerData.RtAS.IsReady();
     if (!tlasReady)
         return;
 
@@ -363,7 +363,7 @@ void GBuffer::AddAdjacencies(GBufferData& data, const RayTracerData& rayTracerDa
     const D3D12_RESOURCE_STATES depthBuffOutState = D3D12_RESOURCE_STATE_UNORDERED_ACCESS;
 
     renderGraph.AddInput(data.GBufferPassHandle,
-        rayTracerData.RtAS.GetTLAS().ID(),
+        pathTracerData.RtAS.GetTLAS().ID(),
         D3D12_RESOURCE_STATE_RAYTRACING_ACCELERATION_STRUCTURE);
 
     renderGraph.AddOutput(data.GBufferPassHandle, data.BaseColor[outIdx].ID(), gbufferOutState);
