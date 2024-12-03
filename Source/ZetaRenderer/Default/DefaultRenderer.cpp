@@ -243,79 +243,6 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_pathTracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
     }
 
-    void VoxelExtentsCallback(const ParamVariant& p)
-    {
-        g_data->m_settings.VoxelExtents = p.GetFloat3().m_value;
-
-        g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-    }
-
-    void YOffsetCallback(const ParamVariant& p)
-    {
-        g_data->m_settings.VoxelGridyOffset = p.GetFloat().m_value;
-
-        g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(true, g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
-            g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-    }
-
-    void SetLVGEnablement(bool enable)
-    {
-        if (enable)
-        {
-            ParamVariant extents;
-            extents.InitFloat3("Renderer", "Light Voxel Grid", "Extents",
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::VoxelExtentsCallback),
-                g_data->m_settings.VoxelExtents,
-                0.1,
-                2,
-                0.1);
-            App::AddParam(extents);
-
-            ParamVariant offset_y;
-            offset_y.InitFloat("Renderer", "Light Voxel Grid", "Y Offset",
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::YOffsetCallback),
-                g_data->m_settings.VoxelGridyOffset,
-                0,
-                2,
-                0.1);
-            App::AddParam(offset_y);
-
-            g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
-                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-            g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(enable, g_data->m_settings.VoxelGridDim,
-                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-            g_data->m_postProcessorData.CompositingPass.SetLightVoxelGridParams(g_data->m_settings.VoxelGridDim,
-                g_data->m_settings.VoxelExtents, g_data->m_settings.VoxelGridyOffset);
-        }
-        else
-        {
-            App::RemoveParam("Renderer", "Light Voxel Grid", "Extents");
-            App::RemoveParam("Renderer", "Light Voxel Grid", "Y Offset");
-
-            g_data->m_pathTracerData.PreLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
-            g_data->m_pathTracerData.IndirecLightingPass.SetLightVoxelGridParams(false, uint3(0), float3(0), 0);
-        }
-    }
-
-    void SetLVG(const ParamVariant& p)
-    {
-        bool newVal = p.GetBool();
-        if (newVal == g_data->m_settings.UseLVG)
-            return;
-
-        g_data->m_settings.UseLVG = newVal;
-        SetLVGEnablement(newVal);
-    }
-
     void SetLensType(const Support::ParamVariant& p)
     {
         g_data->m_frameConstants.DoF = p.GetEnum().m_curr;
@@ -398,11 +325,11 @@ namespace ZetaRay::DefaultRenderer
 
         // Render settings
         {
-            ParamVariant enableInscattering;
-            enableInscattering.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Inscattering",
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetInscatteringEnablement),
-                g_data->m_settings.Inscattering);
-            App::AddParam(enableInscattering);
+            //ParamVariant enableInscattering;
+            //enableInscattering.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Inscattering",
+            //    fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetInscatteringEnablement),
+            //    g_data->m_settings.Inscattering);
+            //App::AddParam(enableInscattering);
 
             ParamVariant p;
             p.InitEnum(ICON_FA_FILM " Renderer", "Anti-Aliasing", "Method",

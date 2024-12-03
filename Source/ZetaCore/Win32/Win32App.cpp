@@ -622,11 +622,11 @@ namespace ZetaRay::AppImpl
         CheckHR(g_app->m_renderer.GetAdapter()->QueryVideoMemoryInfo(0, DXGI_MEMORY_SEGMENT_GROUP_LOCAL, &memoryInfo));
 
         if (memoryInfo.CurrentUsage > memoryInfo.Budget)
-            LOG_UI_WARNING("VRam usage exceeded available budget; performance can be severely impacted.");
+            LOG_UI_WARNING("VRAM usage exceeded available budget; performance can be severely impacted.");
 
         g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
-        g_app->m_frameStats.emplace_back("GPU", "VRam Usage (MB)", memoryInfo.CurrentUsage >> 20);
-        g_app->m_frameStats.emplace_back("GPU", "VRam Budget (MB)", memoryInfo.Budget >> 20);
+        g_app->m_frameStats.emplace_back("GPU", "VRAM Usage (MB)", memoryInfo.CurrentUsage >> 20);
+        g_app->m_frameStats.emplace_back("GPU", "VRAM Budget (MB)", memoryInfo.Budget >> 20);
         g_app->m_frameStats.emplace_back("Frame", "Frame temp memory usage (kb)", tempMemoryUsage >> 10);
     }
 

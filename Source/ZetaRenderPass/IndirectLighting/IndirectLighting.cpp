@@ -166,13 +166,13 @@ void IndirectLighting::Init(INTEGRATOR method)
     App::AddParam(rr);
 
     ParamVariant maxDiffuseBounces;
-    maxDiffuseBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Non Tr. Bounces",
+    maxDiffuseBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Bounces (Non Tr.)",
         fastdelegate::MakeDelegate(this, &IndirectLighting::MaxNonTrBouncesCallback),
         DefaultParamVals::MAX_NON_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxDiffuseBounces);
 
     ParamVariant maxTransmissionBounces;
-    maxTransmissionBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Glossy Tr. Bounces",
+    maxTransmissionBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Bounces (Transmissive)",
         fastdelegate::MakeDelegate(this, &IndirectLighting::MaxGlossyTrBouncesCallback),
         DefaultParamVals::MAX_GLOSSY_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxTransmissionBounces);

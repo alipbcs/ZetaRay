@@ -1,6 +1,7 @@
 #include "Compositing.h"
 #include <Core/CommandList.h>
 #include <Scene/SceneRenderer.h>
+#include <Scene/SceneCore.h>
 #include <Support/Param.h>
 #include "../Assets/Font/IconsFontAwesome6.h"
 
@@ -45,16 +46,13 @@ void Compositing::Init()
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 
     memset(&m_cbComposit, 0, sizeof(m_cbComposit));
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, false);
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, false);
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);
 
     CreateCompositTexture();
 
     ParamVariant p1;
-    p1.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Direct (Sky)",
-        fastdelegate::MakeDelegate(this, &Compositing::DirectSkyCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI));
+    p1.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Direct",
+        fastdelegate::MakeDelegate(this, &Compositing::DirectCallback), m_directLighting);
     App::AddParam(p1);
 
     ParamVariant p6;
@@ -63,23 +61,11 @@ void Compositing::Init()
         IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT));
     App::AddParam(p6);
 
-    ParamVariant p7;
-    p7.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Direct (Emissives)",
-        fastdelegate::MakeDelegate(this, &Compositing::DirectEmissiveCallback),
-        IS_CB_FLAG_SET(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI));
-    App::AddParam(p7);
-
     ParamVariant p9;
     p9.InitBool(ICON_FA_FILM " Renderer", "Compositing", "Firefly Suppression",
         fastdelegate::MakeDelegate(this, &Compositing::FireflyFilterCallback),
         m_filterFirefly);
     App::AddParam(p9);
-
-    //ParamVariant p10;
-    //p10.InitBool(ICON_FA_FILM " Renderer", "Light Voxel Grid", "Visualize",
-    //    fastdelegate::MakeDelegate(this, &Compositing::VisualizeLVGCallback),
-    //    false);
-    //App::AddParam(p10);
 
     App::AddShaderReloadHandler("Compositing", fastdelegate::MakeDelegate(this, &Compositing::ReloadCompositing));
 }
@@ -167,34 +153,24 @@ void Compositing::CreateCompositTexture()
     Direct3DUtil::CreateTexture2DUAV(m_compositTex, m_descTable.CPUHandle((int)DESC_TABLE::LIGHT_ACCUM_UAV));
 }
 
-void Compositing::SetSkyIllumEnablement(bool b)
-{
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, b);
-}
-
 void Compositing::FireflyFilterCallback(const Support::ParamVariant& p)
 {
     m_filterFirefly = p.GetBool();
 }
 
-void Compositing::DirectSkyCallback(const Support::ParamVariant& p)
+void Compositing::DirectCallback(const Support::ParamVariant& p)
 {
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, p.GetBool());
+    m_directLighting = p.GetBool();
+
+    if(App::GetScene().NumEmissiveInstances())
+        SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, m_directLighting);
+    else
+        SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::SKY_DI, m_directLighting);
 }
 
 void Compositing::IndirectCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, p.GetBool());
-}
-
-void Compositing::DirectEmissiveCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::EMISSIVE_DI, p.GetBool());
-}
-
-void Compositing::VisualizeLVGCallback(const Support::ParamVariant& p)
-{
-    SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::VISUALIZE_LVG, p.GetBool());
 }
 
 void Compositing::ReloadCompositing()

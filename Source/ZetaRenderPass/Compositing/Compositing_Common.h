@@ -29,17 +29,8 @@ struct cbCompositing
     float DepthMappingExp;
     float VoxelGridNearZ;
     float VoxelGridFarZ;
-    float Offset_y;
 
     uint32_t Flags;
-
-    float Extents_x;
-    float Extents_y;
-    float Extents_z;
-    uint16_t GridDim_x;
-    uint16_t GridDim_y;
-    uint16_t GridDim_z;
-    uint16_t pad;
 };
 
 struct cbFireflyFilter
