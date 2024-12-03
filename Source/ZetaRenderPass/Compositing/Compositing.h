@@ -101,7 +101,7 @@ namespace ZetaRay::RenderPass
 
         struct ResourceFormats
         {
-            static constexpr DXGI_FORMAT LIGHT_ACCUM = DXGI_FORMAT_R16G16B16A16_FLOAT;
+            static constexpr DXGI_FORMAT LIGHT_ACCUM = DXGI_FORMAT_R32G32B32A32_FLOAT;
         };
 
         enum class DESC_TABLE
