@@ -35,7 +35,7 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
     globals.indices = g_indices;
     globals.materials = g_materials;
     uint maxNonTrBounces = g_local.Packed & 0xf;
-    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> PACKED_INDEX::NUM_GLOSSY_BOUNCES) & 0xf;
     globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
         (uint16_t)maxNonTrBounces;
 
@@ -44,48 +44,9 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
 
 // Shift base path in spatial domain to offset path in current pixel's domain
 OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample, 
-    float3 pos, float3 normal, GBuffer::Flags flags, float roughness, Reconnection rc_spatial, 
-    Globals globals)
+    float3 pos, float3 normal, float eta_next, BSDF::ShadingData surface, 
+    Reconnection rc_spatial, Globals globals)
 {
-    GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-        GBUFFER_OFFSET::BASE_COLOR];
-    const float4 baseColor = flags.subsurface ? g_baseColor[DTid] : float4(g_baseColor[DTid].rgb, 0);
-
-    float eta_curr = ETA_AIR;
-    float eta_next = DEFAULT_ETA_MAT;
-
-    if(flags.transmissive)
-    {
-        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::IOR];
-
-        float ior = g_ior[DTid];
-        eta_next = GBuffer::DecodeIOR(ior);
-    }
-
-    float coat_weight = 0;
-    float3 coat_color = 0.0f;
-    float coat_roughness = 0;
-    float coat_ior = DEFAULT_ETA_COAT;
-
-    if(flags.coated)
-    {
-        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-            GBUFFER_OFFSET::COAT];
-        uint3 packed = g_coat[DTid].xyz;
-
-        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
-        coat_weight = coat.weight;
-        coat_color = coat.color;
-        coat_roughness = coat.roughness;
-        coat_ior = coat.ior;
-    }
-
-    const float3 wo = normalize(origin - pos);
-    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, roughness, 
-        baseColor.rgb, eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, (half)baseColor.a,
-        coat_weight, coat_color, coat_roughness, coat_ior);
-
     Math::TriDifferentials triDiffs;
     RT::RayDifferentials rd;
 
@@ -104,13 +65,13 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
         rd = RT::RayDifferentials::Init(DTid, renderDim, g_frame.TanHalfFOV, 
             g_frame.AspectRatio, g_frame.CurrCameraJitter, 
             g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, 
-            g_frame.CurrView[2].xyz, g_frame.DoF, g_frame.FocusDepth, 
+            g_frame.CurrView[2].xyz, g_frame.DoF, g_frame.FocusDepth,
             lensSample, origin);
     }
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
 
-    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos, normal, eta_next, surface, rd, 
+    return RPT_Util::Shift2<NEE_EMISSIVE, true>(DTid, pos, normal, eta_next, surface, rd, 
         triDiffs, rc_spatial, g_local.RBufferA_NtC_DescHeapIdx, 
         g_local.RBufferA_NtC_DescHeapIdx + 1, g_local.RBufferA_NtC_DescHeapIdx + 2, 
         g_local.RBufferA_NtC_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
@@ -119,12 +80,12 @@ OffsetPath ShiftSpatialToCurrent(uint2 DTid, float3 origin, float2 lensSample,
 
 // Copies reservoir data along with the reconnection found after temporal reuse (if any)
 // to next frame's reservoir
-void CopyToNextFrame(uint2 DTid, Reservoir r_curr)
+void CopyToNextFrame(uint2 DTid, Reservoir r_curr, uint M_max)
 {
     if(!r_curr.rc.Empty())
     {
         r_curr.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-            Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(DTid, 
+            Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(DTid, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,
@@ -135,12 +96,12 @@ void CopyToNextFrame(uint2 DTid, Reservoir r_curr)
             g_local.PrevReservoir_A_DescHeapIdx + 1, g_local.PrevReservoir_A_DescHeapIdx + 2, 
             g_local.PrevReservoir_A_DescHeapIdx + 3, g_local.PrevReservoir_A_DescHeapIdx + 4, 
             g_local.PrevReservoir_A_DescHeapIdx + 5, g_local.PrevReservoir_A_DescHeapIdx + 6,
-            g_local.MaxSpatialM);
+            M_max);
     }
     else
     {
         r_curr.WriteReservoirData(DTid, g_local.PrevReservoir_A_DescHeapIdx,
-            g_local.PrevReservoir_A_DescHeapIdx + 1, g_local.MaxSpatialM);
+            g_local.PrevReservoir_A_DescHeapIdx + 1, M_max);
     }
 }
 
@@ -152,14 +113,14 @@ void CopyToNextFrame(uint2 DTid, Reservoir r_curr)
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_SPATIAL_GROUP_DIM_X, RESTIR_PT_SPATIAL_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+        uint2(RESTIR_PT_SPATIAL_GROUP_DIM_X, RESTIR_PT_SPATIAL_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH, 
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
     uint2 swizzledDTid = DTid.xy;
@@ -178,41 +139,13 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
             return;
     }
 
-    GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
-        GBUFFER_OFFSET::METALLIC_ROUGHNESS];
+    GBUFFER_METALLIC_ROUGHNESS g_metallicRoughness = ResourceDescriptorHeap[
+        g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
     GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
     if (flags.invalid || flags.emissive)
         return;
-
-    Reservoir r_curr = Reservoir::Load_NonReconnection<
-        Texture2D<uint4>, Texture2D<float2> >(swizzledDTid, 
-        g_local.Reservoir_A_DescHeapIdx, g_local.Reservoir_A_DescHeapIdx + 1);
-    r_curr.LoadTarget(swizzledDTid, g_local.TargetDescHeapIdx);
-
-    Texture2D<uint2> g_neighbor = ResourceDescriptorHeap[g_local.SpatialNeighborHeapIdx];
-    int2 samplePos = (int2)g_neighbor[swizzledDTid];
-
-    float waveSum = WaveActiveSum(r_curr.w_sum);
-    float waveAvgExclusive = (waveSum - r_curr.w_sum) / WaveGetLaneCount();
-    waveSum = WaveActiveSum(r_curr.w_sum * (samplePos.x == UINT8_MAX));
-
-    // Couldn't find reusable spatial neighbor
-    if(samplePos.x == UINT8_MAX)
-    {
-        if(IS_CB_FLAG_SET(CB_IND_FLAGS::BOILING_SUPPRESSION))
-            RPT_Util::SuppressOutlierReservoirs(waveAvgExclusive, r_curr);
-
-        RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W, 
-            g_local.Packed, g_local.Final, g_frame);
-        CopyToNextFrame(swizzledDTid, r_curr);
-
-        return;
-    }
-
-    samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
-    samplePos += swizzledDTid;
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::DEPTH];
@@ -238,13 +171,80 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
+    GBUFFER_BASE_COLOR g_baseColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+        GBUFFER_OFFSET::BASE_COLOR];
+    const float4 baseColor = flags.subsurface ? g_baseColor[swizzledDTid] : 
+        float4(g_baseColor[swizzledDTid].rgb, 0);
+
+    float eta_curr = ETA_AIR;
+    float eta_next = DEFAULT_ETA_MAT;
+
+    if(flags.transmissive)
+    {
+        GBUFFER_IOR g_ior = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::IOR];
+
+        float ior = g_ior[swizzledDTid];
+        eta_next = GBuffer::DecodeIOR(ior);
+    }
+
+    float coat_weight = 0;
+    float3 coat_color = 0.0f;
+    float coat_roughness = 0;
+    float coat_ior = DEFAULT_ETA_COAT;
+
+    if(flags.coated)
+    {
+        GBUFFER_COAT g_coat = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::COAT];
+        uint3 packed = g_coat[swizzledDTid].xyz;
+
+        GBuffer::Coat coat = GBuffer::UnpackCoat(packed);
+        coat_weight = coat.weight;
+        coat_color = coat.color;
+        coat_roughness = coat.roughness;
+        coat_ior = coat.ior;
+    }
+
+    const float3 wo = normalize(origin - pos);
+    BSDF::ShadingData surface = BSDF::ShadingData::Init(normal, wo, flags.metallic, 
+        mr.y, baseColor.rgb, eta_curr, eta_next, flags.transmissive, flags.trDepthGt0, 
+        (half)baseColor.a, coat_weight, coat_color, coat_roughness, coat_ior);
+
+    Reservoir r_curr = Reservoir::Load_NonReconnection<Texture2D<uint4>, Texture2D<float2> >(
+        swizzledDTid, g_local.Reservoir_A_DescHeapIdx, g_local.Reservoir_A_DescHeapIdx + 1);
+    r_curr.LoadTarget(swizzledDTid, g_local.TargetDescHeapIdx);
+
+    Texture2D<uint2> g_neighbor = ResourceDescriptorHeap[g_local.SpatialNeighborHeapIdx];
+    int2 samplePos = (int2)g_neighbor[swizzledDTid];
+
+    float waveSum = WaveActiveSum(r_curr.w_sum);
+    float waveAvgExclusive = (waveSum - r_curr.w_sum) / WaveGetLaneCount();
+    waveSum = WaveActiveSum(r_curr.w_sum * (samplePos.x == UINT8_MAX));
+
+    uint M_max = (g_local.Packed >> PACKED_INDEX::MAX_SPATIAL_M) & 0xf;
+    M_max = !r_curr.rc.Empty() && r_curr.rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_T ? 
+        min(M_max, M_MAX_X_K_TRANSMISSIVE) : M_max;
+
+    // Couldn't find reusable spatial neighbor
+    if(samplePos.x == UINT8_MAX)
+    {
+        if(IS_CB_FLAG_SET(CB_IND_FLAGS::BOILING_SUPPRESSION))
+            RPT_Util::SuppressOutlierReservoirs(waveAvgExclusive, r_curr);
+
+        RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W, 
+            g_local.Packed, g_local.FinalDescHeapIdx, g_frame);
+        CopyToNextFrame(swizzledDTid, r_curr, M_max);
+
+        return;
+    }
+
+    samplePos -= RPT_Util::SPATIAL_NEIGHBOR_OFFSET;
+    samplePos += swizzledDTid;
+
     Reservoir r_spatial = Reservoir::Load_NonReconnection<Texture2D<uint4>, 
         Texture2D<float2> >(samplePos, g_local.Reservoir_A_DescHeapIdx, 
         g_local.Reservoir_A_DescHeapIdx + 1);
-
-    RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.Final];
-    const float prevDeriv = g_final[swizzledDTid].w;
-    const float prevWSum = r_curr.w_sum;
 
     if((r_curr.w_sum != 0) && (r_spatial.M > 0) && !r_curr.rc.Empty())
         r_curr.LoadWSum(swizzledDTid, g_local.PrevReservoir_A_DescHeapIdx + 1);
@@ -265,15 +265,18 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         r_curr.W = targetLum > 0 ? r_curr.w_sum / targetLum : 0;
         r_curr.M = M_new;
 
-        CopyToNextFrame(swizzledDTid, r_curr);
+        CopyToNextFrame(swizzledDTid, r_curr, M_max);
         RPT_Util::WriteOutputColor(swizzledDTid, r_curr.target * r_curr.W,
-            g_local.Packed, g_local.Final, g_frame);
+            g_local.Packed, g_local.FinalDescHeapIdx, g_frame);
 
         return;
     }
 
+    M_max = r_spatial.rc.x_k_in_motion ? min(M_max, M_MAX_X_K_IN_MOTION) : M_max;
+    r_spatial.rc.x_k_in_motion = false;
+
     r_spatial.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-        Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(samplePos, 
+        Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(samplePos, 
         g_local.Reservoir_A_DescHeapIdx + 2, 
         g_local.Reservoir_A_DescHeapIdx + 3,
         g_local.Reservoir_A_DescHeapIdx + 4,
@@ -282,7 +285,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
 
     // Shift spatial neighbor's path to current pixel and resample
     OffsetPath shift = ShiftSpatialToCurrent(swizzledDTid, origin, lensSample,
-        pos, normal, flags, mr.y, r_spatial.rc, globals);
+        pos, normal, eta_next, surface, r_spatial.rc, globals);
 
     float targetLum_curr = Math::Luminance(shift.target);
     float targetLum_spatial = r_spatial.W > 0 ? r_spatial.w_sum / r_spatial.W : 0;
@@ -292,7 +295,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     bool changed = false;
 
     // RIS weight becomes zero when target = 0
-    if(targetLum_curr > 1e-5 && jacobian > 1e-5 && jacobian < 100)
+    if(targetLum_curr > 1e-6 && jacobian > 1e-5 && jacobian < 100)
     {
         RNG rng = RNG::Init(RNG::PCG3d(swizzledDTid.xyy).xz, g_frame.FrameNum + 511);
 
@@ -322,25 +325,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     }
 
     // If reconnection didn't change, skip writing it
-    const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
-    const uint16 numPasses = uint16((g_local.Packed >> 14) & 0x3);
+    // const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
+    const uint16 numPasses = 1;
+    const uint16 passIdx = 0;
     if(changed)
     {
+        M_max = shift.surfKMin1Tramsmissive ? min(M_max, M_MAX_X_K_TRANSMISSIVE) : M_max;
+
         r_curr.Write<NEE_EMISSIVE>(swizzledDTid, g_local.PrevReservoir_A_DescHeapIdx,
             g_local.PrevReservoir_A_DescHeapIdx + 1, g_local.PrevReservoir_A_DescHeapIdx + 2, 
             g_local.PrevReservoir_A_DescHeapIdx + 3, g_local.PrevReservoir_A_DescHeapIdx + 4, 
             g_local.PrevReservoir_A_DescHeapIdx + 5, g_local.PrevReservoir_A_DescHeapIdx + 6, 
-            g_local.MaxSpatialM);
+            M_max);
 
         // Skip last pass
         if(numPasses > 1 && (passIdx + 1 != numPasses))
             r_curr.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
     }
     else
-        CopyToNextFrame(swizzledDTid, r_curr);
+        CopyToNextFrame(swizzledDTid, r_curr, M_max);
 
     float3 li = r_curr.target * r_curr.W;
     RPT_Util::DebugColor(r_curr.rc, g_local.Packed, li);
-    RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.Final,
+    RPT_Util::WriteOutputColor(swizzledDTid, li, g_local.Packed, g_local.FinalDescHeapIdx,
          g_frame, false);
 }

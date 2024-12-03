@@ -4,6 +4,7 @@
 #include <Support/Param.h>
 #include <Scene/SceneCore.h>
 #include <Support/Task.h>
+#include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -142,14 +143,13 @@ void IndirectLighting::Init(INTEGRATOR method)
         DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
     m_cbRGI.MaxNonTrBounces = DefaultParamVals::MAX_NON_TR_BOUNCES;
     m_cbRGI.MaxGlossyTrBounces = DefaultParamVals::MAX_GLOSSY_TR_BOUNCES;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_Reuse.Packed = DefaultParamVals::MAX_NON_TR_BOUNCES |
-        (DefaultParamVals::MAX_GLOSSY_TR_BOUNCES << 4) |
-        (DefaultParamVals::M_MAX << 16);
     m_cbRPT_PathTrace.TexFilterDescHeapIdx = EnumToSamplerIdx(DefaultParamVals::TEX_FILTER);
-    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Reuse.TexFilterDescHeapIdx = m_cbRPT_PathTrace.TexFilterDescHeapIdx;
-    m_cbRPT_Reuse.MaxSpatialM = DefaultParamVals::M_MAX_SPATIAL;
-    m_cbDnsrTemporal.MaxTsppDiffuse = m_cbDnsrSpatial.MaxTsppDiffuse = DefaultParamVals::DNSR_TSPP_DIFFUSE;
-    m_cbDnsrTemporal.MaxTsppSpecular = m_cbDnsrSpatial.MaxTsppSpecular = DefaultParamVals::DNSR_TSPP_SPECULAR;
+    m_cbRPT_PathTrace.Packed = m_cbRPT_Reuse.Packed = DefaultParamVals::MAX_NON_TR_BOUNCES |
+        (DefaultParamVals::MAX_GLOSSY_TR_BOUNCES << PACKED_INDEX::NUM_GLOSSY_BOUNCES) |
+        (DefaultParamVals::M_MAX << PACKED_INDEX::MAX_TEMPORAL_M) |
+        (DefaultParamVals::M_MAX_SPATIAL << PACKED_INDEX::MAX_SPATIAL_M) |
+        (m_cbRPT_PathTrace.TexFilterDescHeapIdx << PACKED_INDEX::TEX_FILTER);
+    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_PathTrace.TexFilterDescHeapIdx;
 
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::RUSSIAN_ROULETTE, DefaultParamVals::RUSSIAN_ROULETTE);
@@ -157,33 +157,34 @@ void IndirectLighting::Init(INTEGRATOR method)
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::SORT_TEMPORAL, true);
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_TEMPORAL, true);
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::SORT_SPATIAL, true);
+    SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::BOILING_SUPPRESSION, DefaultParamVals::BOILING_SUPPRESSION);
 
     ParamVariant rr;
-    rr.InitBool("Renderer", "Indirect Lighting", "Russian Roulette",
+    rr.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Russian Roulette",
         fastdelegate::MakeDelegate(this, &IndirectLighting::RussianRouletteCallback),
         DefaultParamVals::RUSSIAN_ROULETTE, "Path Sampling");
     App::AddParam(rr);
 
     ParamVariant maxDiffuseBounces;
-    maxDiffuseBounces.InitInt("Renderer", "Indirect Lighting", "Max Non Tr. Bounces",
+    maxDiffuseBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Non Tr. Bounces",
         fastdelegate::MakeDelegate(this, &IndirectLighting::MaxNonTrBouncesCallback),
         DefaultParamVals::MAX_NON_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxDiffuseBounces);
 
     ParamVariant maxTransmissionBounces;
-    maxTransmissionBounces.InitInt("Renderer", "Indirect Lighting", "Max Glossy Tr. Bounces",
+    maxTransmissionBounces.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Max Glossy Tr. Bounces",
         fastdelegate::MakeDelegate(this, &IndirectLighting::MaxGlossyTrBouncesCallback),
         DefaultParamVals::MAX_GLOSSY_TR_BOUNCES, 1, 8, 1, "Path Sampling");
     App::AddParam(maxTransmissionBounces);
 
-    ParamVariant pathRegularization;
-    pathRegularization.InitBool("Renderer", "Indirect Lighting", "Path Regularization",
-        fastdelegate::MakeDelegate(this, &IndirectLighting::PathRegularizationCallback),
-        DefaultParamVals::PATH_REGULARIZATION, "Path Sampling");
-    App::AddParam(pathRegularization);
+    //ParamVariant pathRegularization;
+    //pathRegularization.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Path Regularization",
+    //    fastdelegate::MakeDelegate(this, &IndirectLighting::PathRegularizationCallback),
+    //    DefaultParamVals::PATH_REGULARIZATION, "Path Sampling");
+    //App::AddParam(pathRegularization);
 
     ParamVariant texFilter;
-    texFilter.InitEnum("Renderer", "Indirect Lighting", "Texture Filter",
+    texFilter.InitEnum(ICON_FA_FILM " Renderer", "Indirect Lighting", "Texture Filter",
         fastdelegate::MakeDelegate(this, &IndirectLighting::TexFilterCallback),
         Params::TextureFilter, ZetaArrayLen(Params::TextureFilter), (uint32)DefaultParamVals::TEX_FILTER);
     App::AddParam(texFilter);
@@ -616,7 +617,6 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
             cb.DispatchDimX_NumGroupsInTile = ((RESTIR_PT_TILE_WIDTH * dispatchDimY) << 16) | dispatchDimX;
             cb.OutputDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_UAV);
             cb.Flags = m_cbRPT_Reuse.Flags;
-            cb.Final = m_cbRPT_Reuse.Final;
 
             m_rootSig.SetRootConstants(0, sizeof(cb) / sizeof(DWORD), &cb);
             m_rootSig.End(computeCmdList);
@@ -897,8 +897,11 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         computeCmdList.PIXBeginEvent("ReSTIR_PT_PathTrace");
         const uint32_t queryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_PT_PathTrace");
 
-        SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator,
-            Reservoir_RPT::NUM * 2 + RBuffer::NUM * 2 + (int)SHIFT::COUNT + 1> textureBarriers;
+        constexpr int N = Reservoir_RPT::NUM * 2 +      // reservoir
+            RBuffer::NUM * (int)SHIFT::COUNT +          // r-buffers
+            (int)SHIFT::COUNT +                         // thread maps
+            1;                                          // spatial neighbor
+        SmallVector<D3D12_TEXTURE_BARRIER, SystemAllocator, N> textureBarriers;
 
         // Current reservoirs into UAV
         if (m_reservoir_RPT[m_currTemporalIdx].Layout != D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_UNORDERED_ACCESS)
@@ -1019,7 +1022,10 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
         Reservoir_RPT::NUM * 2 == (int)DESC_TABLE_RPT::RESERVOIR_1_C_UAV);
 
     // Reservoirs (double buffered) + 2 thread maps + 2 r-buffers
-    constexpr int N = 2 * Reservoir_RPT::NUM + (int)SHIFT::COUNT + 2 + (int)SHIFT::COUNT * RBuffer::NUM;
+    constexpr int N = 2 * Reservoir_RPT::NUM + 
+        (int)SHIFT::COUNT + 
+        2 + 
+        (int)SHIFT::COUNT * RBuffer::NUM;
     PlacedResourceList<N> list;
 
     for (int i = 0; i < 2; i++)
@@ -1189,7 +1195,7 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
     m_cbRPT_Reuse.SpatialNeighborHeapIdx = m_descTable.GPUDescriptorHeapIndex(
         (int)DESC_TABLE_RPT::SPATIAL_NEIGHBOR_SRV);
     m_cbRPT_Reuse.TargetDescHeapIdx = m_cbRPT_PathTrace.TargetDescHeapIdx;
-    m_cbRPT_Reuse.Final = m_cbRPT_PathTrace.Final;
+    m_cbRPT_Reuse.FinalDescHeapIdx = m_cbRPT_PathTrace.Final;
 
     // Add ReSTIR PT parameters and shader reload handlers
     if (!skipNonResources)
@@ -1200,57 +1206,55 @@ void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
             fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Temporal));
         App::AddShaderReloadHandler("ReSTIR_PT_Spatial", 
             fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_Spatial));
-        App::AddShaderReloadHandler("ReSTIR_PT_SpatialSearch", 
-            fastdelegate::MakeDelegate(this, &IndirectLighting::ReloadRPT_SpatialSearch));
 
         ParamVariant alphaMin;
-        alphaMin.InitFloat("Renderer", "Indirect Lighting", "Alpha_min",
+        alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Indirect Lighting", "Alpha_min",
             fastdelegate::MakeDelegate(this, &IndirectLighting::AlphaMinCallback),
             DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f, "Reuse");
         App::AddParam(alphaMin);
 
         ParamVariant p2;
-        p2.InitEnum("Renderer", "Indirect Lighting", "Debug View",
+        p2.InitEnum(ICON_FA_FILM " Renderer", "Indirect Lighting", "Debug View",
             fastdelegate::MakeDelegate(this, &IndirectLighting::DebugViewCallback),
-            Params::DebugView, ZetaArrayLen(Params::DebugView), 0);
+            Params::DebugView, ZetaArrayLen(Params::DebugView), 0, "Reuse");
         App::AddParam(p2);
 
         ParamVariant doSpatial;
-        doSpatial.InitInt("Renderer", "Indirect Lighting", "Spatial Resample",
+        doSpatial.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "Spatial Resample",
             fastdelegate::MakeDelegate(this, &IndirectLighting::SpatialResamplingCallback),
             m_numSpatialPasses, 0, 2, 1, "Reuse");
         App::AddParam(doSpatial);
 
         ParamVariant sortTemporal;
-        sortTemporal.InitBool("Renderer", "Indirect Lighting", "Sort (Temporal)",
+        sortTemporal.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Sort (Temporal)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::SortTemporalCallback), true, "Reuse");
         App::AddParam(sortTemporal);
 
         ParamVariant sortSpatial;
-        sortSpatial.InitBool("Renderer", "Indirect Lighting", "Sort (Spatial)",
+        sortSpatial.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Sort (Spatial)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::SortSpatialCallback), true, "Reuse");
         App::AddParam(sortSpatial);
 
         ParamVariant doTemporal;
-        doTemporal.InitBool("Renderer", "Indirect Lighting", "Temporal Resample",
+        doTemporal.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Temporal Resample",
             fastdelegate::MakeDelegate(this, &IndirectLighting::TemporalResamplingCallback),
             m_doTemporalResampling, "Reuse");
         App::AddParam(doTemporal);
 
         ParamVariant maxTemporalM;
-        maxTemporalM.InitInt("Renderer", "Indirect Lighting", "M_max (Temporal)",
+        maxTemporalM.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Temporal)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::M_maxTCallback),
             DefaultParamVals::M_MAX, 1, 15, 1, "Reuse");
         App::AddParam(maxTemporalM);
 
         ParamVariant maxSpatialM;
-        maxSpatialM.InitInt("Renderer", "Indirect Lighting", "M_max (Spatial)",
+        maxSpatialM.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Spatial)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::M_maxSCallback),
-            DefaultParamVals::M_MAX_SPATIAL, 1, 15, 1, "Reuse");
+            DefaultParamVals::M_MAX_SPATIAL, 1, 12, 1, "Reuse");
         App::AddParam(maxSpatialM);
 
         ParamVariant suppressOutliers;
-        suppressOutliers.InitBool("Renderer", "Indirect Lighting", "Boiling Suppression",
+        suppressOutliers.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Boiling Suppression",
             fastdelegate::MakeDelegate(this, &IndirectLighting::BoilingSuppressionCallback),
             DefaultParamVals::BOILING_SUPPRESSION, "Reuse");
         App::AddParam(suppressOutliers);
@@ -1287,15 +1291,16 @@ void IndirectLighting::ReleaseReSTIR_PT()
     App::RemoveShaderReloadHandler("ReSTIR_PT_Spatial");
     App::RemoveShaderReloadHandler("ReSTIR_PT_SpatialSearch");
 
-    App::RemoveParam("Renderer", "Indirect Lighting", "Alpha_min");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Debug View");
-    App::RemoveParam("Renderer", "Indirect Lighting", "M_max (Temporal)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "M_max (Spatial)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Spatial Resample");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Sort (Temporal)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Sort (Spatial)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Temporal Resample");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Boiling Suppression");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Alpha_min");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Debug View");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Temporal)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Spatial)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Spatial Resample");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Sort (Temporal)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Sort (Spatial)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Temporal Resample");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Boiling Suppression");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Lower M-cap Disoccluded");
 }
 
 void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
@@ -1366,25 +1371,25 @@ void IndirectLighting::SwitchToReSTIR_GI(bool skipNonResources)
     if (!skipNonResources)
     {
         ParamVariant stochasticMultibounce;
-        stochasticMultibounce.InitBool("Renderer", "Indirect Lighting", "Stochastic Multi-bounce",
+        stochasticMultibounce.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Stochastic Multi-bounce",
             fastdelegate::MakeDelegate(this, &IndirectLighting::StochasticMultibounceCallback),
             DefaultParamVals::STOCHASTIC_MULTI_BOUNCE, "Path Sampling");
         App::AddParam(stochasticMultibounce);
 
         ParamVariant doTemporal;
-        doTemporal.InitBool("Renderer", "Indirect Lighting", "Temporal Resample",
+        doTemporal.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Temporal Resample",
             fastdelegate::MakeDelegate(this, &IndirectLighting::TemporalResamplingCallback),
             m_doTemporalResampling, "Reuse");
         App::AddParam(doTemporal);
 
         ParamVariant maxM;
-        maxM.InitInt("Renderer", "Indirect Lighting", "M_max (Temporal)",
+        maxM.InitInt(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Temporal)",
             fastdelegate::MakeDelegate(this, &IndirectLighting::M_maxTCallback),
             DefaultParamVals::M_MAX, 1, 15, 1, "Reuse");
         App::AddParam(maxM);
 
         ParamVariant suppressOutliers;
-        suppressOutliers.InitBool("Renderer", "Indirect Lighting", "Boiling Suppression",
+        suppressOutliers.InitBool(ICON_FA_FILM " Renderer", "Indirect Lighting", "Boiling Suppression",
             fastdelegate::MakeDelegate(this, &IndirectLighting::BoilingSuppressionCallback),
             DefaultParamVals::BOILING_SUPPRESSION, "Reuse");
         App::AddParam(suppressOutliers);
@@ -1405,15 +1410,10 @@ void IndirectLighting::ReleaseReSTIR_GI()
     m_resHeap.Reset();
 
     App::RemoveShaderReloadHandler("ReSTIR_GI");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Stochastic Multi-bounce");
-    App::RemoveParam("Renderer", "Indirect Lighting", "M_max (Temporal)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Boiling Suppression");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Temporal Resample");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Denoise");
-    App::RemoveParam("Renderer", "Indirect Lighting", "TSPP (Diffuse)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "TSPP (Specular)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Spatial Filter (Diffuse)");
-    App::RemoveParam("Renderer", "Indirect Lighting", "Spatial Filter (Specular)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Stochastic Multi-bounce");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "M_max (Temporal)");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Boiling Suppression");
+    App::RemoveParam(ICON_FA_FILM " Renderer", "Indirect Lighting", "Temporal Resample");
 }
 
 void IndirectLighting::SwitchToPathTracer(bool skipNonResources)
@@ -1454,7 +1454,8 @@ void IndirectLighting::MaxNonTrBouncesCallback(const Support::ParamVariant& p)
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
     m_cbRGI.MaxNonTrBounces = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf;
+    constexpr uint32 ONES_COMP = ~(0xfu << PACKED_INDEX::NUM_DIFFUSE_BOUNCES);
+    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ONES_COMP;
     m_cbRPT_PathTrace.Packed |= newVal;
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
@@ -1463,8 +1464,9 @@ void IndirectLighting::MaxGlossyTrBouncesCallback(const Support::ParamVariant& p
 {
     const auto newVal = (uint16_t)p.GetInt().m_value;
     m_cbRGI.MaxGlossyTrBounces = newVal;
-    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ~0xf0;
-    m_cbRPT_PathTrace.Packed |= (newVal << 4);
+    constexpr uint32 ONES_COMP = ~(0xfu << PACKED_INDEX::NUM_GLOSSY_BOUNCES);
+    m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ONES_COMP;
+    m_cbRPT_PathTrace.Packed |= (newVal << PACKED_INDEX::NUM_GLOSSY_BOUNCES);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
@@ -1494,22 +1496,27 @@ void IndirectLighting::M_maxTCallback(const Support::ParamVariant& p)
 {
     auto newM = (uint16_t)p.GetInt().m_value;
     m_cbRGI.M_max = newM;
-    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ~0xf0000);
-    m_cbRPT_PathTrace.Packed |= (newM << 16);
+    constexpr uint32 ONES_COMP = ~(0xfu << PACKED_INDEX::MAX_TEMPORAL_M);
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
+    m_cbRPT_PathTrace.Packed |= (newM << PACKED_INDEX::MAX_TEMPORAL_M);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::M_maxSCallback(const Support::ParamVariant& p)
 {
     auto newM = (uint16_t)p.GetInt().m_value;
-    m_cbRPT_Reuse.MaxSpatialM = p.GetInt().m_value;
+    constexpr uint32 ONES_COMP = ~(0xfu << PACKED_INDEX::MAX_SPATIAL_M);
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
+    m_cbRPT_PathTrace.Packed |= (newM << PACKED_INDEX::MAX_SPATIAL_M);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::DebugViewCallback(const Support::ParamVariant& p)
 {
     auto newVal = (uint16_t)p.GetEnum().m_curr;
-    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ~0xfff00000);
-    m_cbRPT_PathTrace.Packed |= (newVal << 20);
+    constexpr uint32 ONES_COMP = ~(0xf << PACKED_INDEX::DEBUG_VIEW);
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
+    m_cbRPT_PathTrace.Packed |= (newVal << PACKED_INDEX::DEBUG_VIEW);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
@@ -1526,9 +1533,12 @@ void IndirectLighting::SortSpatialCallback(const Support::ParamVariant& p)
 
 void IndirectLighting::TexFilterCallback(const Support::ParamVariant& p)
 {
-    m_cbRPT_PathTrace.TexFilterDescHeapIdx = EnumToSamplerIdx((TEXTURE_FILTER)p.GetEnum().m_curr);
-    m_cbRGI.TexFilterDescHeapIdx = m_cbRPT_Reuse.TexFilterDescHeapIdx =
-        m_cbRPT_PathTrace.TexFilterDescHeapIdx;
+    auto newVal = EnumToSamplerIdx((TEXTURE_FILTER)p.GetEnum().m_curr);
+    constexpr uint32 ONES_COMP = ~(0xfu << PACKED_INDEX::TEX_FILTER);
+    m_cbRPT_PathTrace.TexFilterDescHeapIdx = newVal;
+    m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
+    m_cbRPT_PathTrace.Packed |= (newVal << PACKED_INDEX::TEX_FILTER);
+    m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
 }
 
 void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p)
@@ -1536,6 +1546,8 @@ void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::BOILING_SUPPRESSION, p.GetBool());
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::PathRegularizationCallback(const Support::ParamVariant& p)
@@ -1548,7 +1560,8 @@ void IndirectLighting::PathRegularizationCallback(const Support::ParamVariant& p
 void IndirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
 {
     float newVal = p.GetFloat().m_value;
-    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min = newVal * newVal;
+    m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min = 
+        newVal * newVal;
 }
 
 void IndirectLighting::ReloadRGI()

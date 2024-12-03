@@ -61,10 +61,9 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
     globals.indices = g_indices;
     globals.materials = g_materials;
     uint maxNonTrBounces = g_local.Packed & 0xf;
-    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> PACKED_INDEX::NUM_GLOSSY_BOUNCES) & 0xf;
     globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
         (uint16_t)maxNonTrBounces;
-
 #if NEE_EMISSIVE == 1
     globals.emissives = g_emissives;
     globals.sampleSets = g_sampleSets;
@@ -76,7 +75,7 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
 }
 
 void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t, 
-    uint ID, BSDF::ShadingData surface, PrevHit prevHit, DirectLightingEstimate ls, 
+    uint ID, uint meshIdx, BSDF::ShadingData surface, PrevHit prevHit, DirectLightingEstimate ls, 
     uint seed_nee, inout Reconnection rc)
 {
     // Possibly update reconnection vertex (Case 2)
@@ -85,7 +84,7 @@ void MaybeSetCase2OrCase3(int16 pathVertex, float3 pos, float3 normal, float t,
     if(rc.Empty() && RPT_Util::CanReconnect(prevHit.alpha_lobe, alpha_lobe_direct, 
         0, pos, prevHit.lobe, ls.lobe, g_local.Alpha_min))
     {
-        rc.SetCase2(pathVertex, pos, t, normal, ID, 
+        rc.SetCase2(pathVertex, pos, t, normal, ID, meshIdx,
             prevHit.wi, prevHit.lobe, prevHit.pdf, 
             ls.wi, ls.lobe, ls.pdf_solidAngle, ls.lt, ls.pdf_light, 
             ls.le, seed_nee, ls.dwdA);
@@ -133,7 +132,7 @@ void EstimateDirectAndUpdateRC(int16 pathVertex, float3 pos, Hit hitInfo,
             rc.L = half3(ls_b.ld * throughput_k);
 
             MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 
-                surface, prevHit, ls_b, /*unused*/ 0, rc);
+                hitInfo.meshIdx, surface, prevHit, ls_b, /*unused*/ 0, rc);
 
             float risWeight = Math::Luminance(fOverPdf);
             r.Update(risWeight, fOverPdf, rc, rngNEE);
@@ -162,7 +161,7 @@ void EstimateDirectAndUpdateRC(int16 pathVertex, float3 pos, Hit hitInfo,
             rc.L = half3(ls.ld * throughput_k);
 
             MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 
-                surface, prevHit, ls, seed_nee, rc);
+                hitInfo.meshIdx, surface, prevHit, ls, seed_nee, rc);
 
             float risWeight = Math::Luminance(fOverPdf);
             r.Update(risWeight, fOverPdf, rc, rngNEE);
@@ -185,7 +184,7 @@ void EstimateDirectAndUpdateRC(int16 pathVertex, float3 pos, Hit hitInfo,
         rc.L = half3(ls.ld * throughput_k);
 
         MaybeSetCase2OrCase3(pathVertex, pos, hitInfo.normal, hitInfo.t, hitInfo.ID, 
-            surface, prevHit, ls, seed_nee, rc);
+            hitInfo.meshIdx, surface, prevHit, ls, seed_nee, rc);
 
         float risWeight = Math::Luminance(fOverPdf);
         r.Update(risWeight, fOverPdf, rc, rngNEE);
@@ -231,11 +230,11 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
         const int16 pathVertex = bounce + (int16)2;
 
 #if NEE_EMISSIVE == 0
-        Hit hitInfo = Hit::FindClosest<true>(pos, normal, bsdfSample.wi, g_bvh, g_frameMeshData, 
+        Hit hitInfo = Hit::FindClosest<true, true>(pos, normal, bsdfSample.wi, g_bvh, g_frameMeshData, 
             g_vertices, g_indices, surface.Transmissive());
 #else
         // Use the same BSDF ray used for direct lighting at previous path vertex
-        RtRayQuery::Hit hitInfo = nextHit.ToHitInfo(bsdfSample.wi, g_frameMeshData, 
+        RtRayQuery::Hit hitInfo = nextHit.ToHitInfo<true>(bsdfSample.wi, g_frameMeshData, 
             g_vertices, g_indices);
 #endif
 
@@ -328,7 +327,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
             0, 0, prevHit.lobe, bsdfSample.lobe, g_local.Alpha_min))
         {
             reconnection.SetCase1(pathVertex, pos, hitInfo.t, hitInfo.normal, hitInfo.ID,
-                -surface.wo, prevBsdfSampleLobe, prevBsdfSamplePdf,
+                hitInfo.meshIdx, -surface.wo, prevBsdfSampleLobe, prevBsdfSamplePdf,
                 bsdfSample.wi, bsdfSample.lobe, bsdfSample.pdf);
 
             throughput_k = 1;
@@ -358,7 +357,7 @@ RPT_Util::Reservoir PathTrace(float3 pos, float3 normal, float ior, BSDF::Shadin
     return r;
 }
 
-RPT_Util::Reservoir RIS_InitialCandidates(uint16_t2 DTid, uint16_t2 Gid, float3 origin, 
+RPT_Util::Reservoir RIS_InitialCandidates(uint2 DTid, uint2 Gid, float3 origin, 
     float2 lensSample, float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
     out float3 li)
 {
@@ -425,17 +424,17 @@ RPT_Util::Reservoir RIS_InitialCandidates(uint16_t2 DTid, uint16_t2 Gid, float3 
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
-    const uint16_t2 swizzledDTid = (uint16_t2)Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_PATH_TRACE_GROUP_DIM_X, RESTIR_PT_PATH_TRACE_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+    uint2 swizzledGid;
+    const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
+        uint2(RESTIR_PT_PATH_TRACE_GROUP_DIM_X, RESTIR_PT_PATH_TRACE_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH,
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
-    const uint16_t2 swizzledDTid = (uint16_t2)DTid.xy;
-    const uint16_t2 swizzledGid = (uint16_t2)Gid.xy;
+    const uint2 swizzledDTid = DTid.xy;
+    const uint2 swizzledGid = Gid.xy;
 #endif
 
     if (swizzledDTid.x >= g_frame.RenderWidth || swizzledDTid.y >= g_frame.RenderHeight)

@@ -63,7 +63,7 @@ namespace RPT_Util
         // w_{k - 1} = \hat {x_k - x_{k - 1}}
         // t = || x_k - x_{k - 1} ||
         void SetCase1(int16 k, float3 x_k, float t, float3 normal_k, uint hitID, 
-            float3 w_k_min_1, BSDF::LOBE l_k_min_1, float pdf_w_k_min_1, 
+            uint meshIdx, float3 w_k_min_1, BSDF::LOBE l_k_min_1, float pdf_w_k_min_1, 
             float3 w_k, BSDF::LOBE l_k, float pdf_w_k)
         {
             this.lobe_k_min_1 = l_k_min_1;
@@ -71,6 +71,7 @@ namespace RPT_Util
             this.k = k;
             this.x_k = x_k;
             this.ID = hitID;
+            this.meshIdx = meshIdx;
             this.lt_k = Light::TYPE::NONE;
             this.lobe_k = l_k;
             this.w_k_lightNormal_w_sky = w_k;
@@ -85,15 +86,16 @@ namespace RPT_Util
 
         // seed: RNG state for direct lighting at x_k
         void SetCase2(int16 k, float3 x_k, float t, float3 normal_k, uint hitID, 
-            float3 w_k_min_1, BSDF::LOBE l_k_min_1, float pdf_w_k_min_1, 
-            float3 w_k, BSDF::LOBE l_k, float pdf_w_k,
-            Light::TYPE t_k_plus_1, float pdf_light, float3 le, uint seed, float dwdA)
+            uint meshIdx, float3 w_k_min_1, BSDF::LOBE l_k_min_1, float pdf_w_k_min_1, 
+            float3 w_k, BSDF::LOBE l_k, float pdf_w_k, Light::TYPE t_k_plus_1, 
+            float pdf_light, float3 le, uint seed, float dwdA)
         {
             this.lobe_k_min_1 = l_k_min_1;
 
             this.k = k;
             this.x_k = x_k;
             this.ID = hitID;
+            this.meshIdx = meshIdx;
             this.lt_k = Light::TYPE::NONE;
             this.lobe_k = l_k;
             this.w_k_lightNormal_w_sky = w_k;
@@ -147,6 +149,7 @@ namespace RPT_Util
         float3 x_k;
         // Tri ID when x_k is not on a light source and light ID otherwise
         uint ID;
+        uint meshIdx;
         float partialJacobian;
         // A union =
         //  - w_k, when case = 1 
@@ -165,6 +168,7 @@ namespace RPT_Util
         BSDF::LOBE lobe_k;
         Light::TYPE lt_k;
         Light::TYPE lt_k_plus_1;
+        bool x_k_in_motion;
     };
 
     struct OffsetPath
@@ -174,12 +178,14 @@ namespace RPT_Util
             OffsetPath ret;
             ret.target = 0;
             ret.partialJacobian = 0;
+            ret.surfKMin1Tramsmissive = false;
 
             return ret;
         }
 
         float3 target;
         float partialJacobian;
+        bool surfKMin1Tramsmissive;
     };
 
     struct OffsetPathContext
@@ -368,6 +374,7 @@ namespace RPT_Util
         return true;
     }
 
+    template<bool InCurrFrame>
     void Replay(int16 numBounces, BSDF::BSDFSample bsdfSample, float alpha_min, 
         bool regularization, ConstantBuffer<cbFrameConstants> g_frame, SamplerState samp,
         ReSTIR_Util::Globals globals, inout OffsetPathContext ctx)
@@ -387,8 +394,8 @@ namespace RPT_Util
 
         while(true)
         {
-            RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<false>(ctx.pos, ctx.normal, 
-                bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
+            RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<false, InCurrFrame>(ctx.pos, 
+                ctx.normal, bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
                 globals.indices, ctx.surface.Transmissive());
 
             // Not invertible -- base path would've stopped here
@@ -466,6 +473,7 @@ namespace RPT_Util
         }
     }
 
+    template<bool InCurrFrame>
     float StepPath(inout OffsetPathContext ctx, bool anyGlossyBounces, float alpha_min, 
         bool regularization, Reconnection rc, ConstantBuffer<cbFrameConstants> g_frame, 
         ReSTIR_Util::Globals globals)
@@ -491,7 +499,7 @@ namespace RPT_Util
         if(dot(eval.bsdfOverPdf, eval.bsdfOverPdf) == 0)
             return 0;
 
-        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(ctx.pos, ctx.normal, 
+        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true, InCurrFrame>(ctx.pos, ctx.normal, 
             w_k_min_1, globals.bvh, globals.frameMeshData, globals.vertices, globals.indices, 
             ctx.surface.Transmissive());
 
@@ -651,7 +659,7 @@ namespace RPT_Util
         return float4(ld, pdf);
     }
 
-    template<bool Emissive>
+    template<bool Emissive, bool InCurrFrame>
     OffsetPath Shift2(uint2 DTid, float3 pos, float3 normal, float ior, 
         BSDF::ShadingData surface, RT::RayDifferentials rd, Math::TriDifferentials triDiffs, 
         RPT_Util::Reconnection rc, uint rbufferASrv, uint rbufferBSrv, uint rbufferCSrv, 
@@ -707,10 +715,11 @@ namespace RPT_Util
 
 
         OffsetPath ret = OffsetPath::Init();
+        ret.surfKMin1Tramsmissive = ctx.surface.specTr;
         
         if(!rc.IsCase3())
         {
-            ret.partialJacobian = StepPath(ctx, false, alpha_min, regularization, rc, 
+            ret.partialJacobian = StepPath<InCurrFrame>(ctx, false, alpha_min, regularization, rc, 
                 g_frame, globals);
 
             if(ret.partialJacobian == 0)
@@ -806,6 +815,7 @@ namespace RPT_Util
         return ret;
     }
 
+    template<bool InCurrFrame>
     OffsetPathContext Replay_kGt2(float3 pos, float3 normal, float ior, BSDF::ShadingData surface, 
         RT::RayDifferentials rd, Math::TriDifferentials triDiffs, Reconnection rc, 
         float alpha_min, bool regularization, SamplerState samp, 
@@ -842,7 +852,7 @@ namespace RPT_Util
         ctx.rd.UpdateRays(ctx.pos, ctx.normal, bsdfSample.wi, ctx.surface.wo, 
             triDiffs, dpdx, dpdy, dot(bsdfSample.wi, ctx.normal) < 0, ctx.surface.eta);
 
-        RPT_Util::Replay(numBounces, bsdfSample, alpha_min, regularization, g_frame, 
+        RPT_Util::Replay<InCurrFrame>(numBounces, bsdfSample, alpha_min, regularization, g_frame, 
             samp, globals, ctx);
 
         return ctx;

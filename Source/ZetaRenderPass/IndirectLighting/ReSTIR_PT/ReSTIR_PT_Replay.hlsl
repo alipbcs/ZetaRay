@@ -39,7 +39,7 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
     globals.indices = g_indices;
     globals.materials = g_materials;
     uint maxNonTrBounces = g_local.Packed & 0xf;
-    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> PACKED_INDEX::NUM_GLOSSY_BOUNCES) & 0xf;
     globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
         (uint16_t)maxNonTrBounces;
 
@@ -117,9 +117,10 @@ OffsetPathContext ReplayCurrentInTemporalDomain(uint2 prevPosSS, float3 origin,
     rd.ComputeUVDifferentials(dpdx, dpdy, triDiffs.dpdu, triDiffs.dpdv);
 
     const bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
+    const uint texFilterDescHeapIdx = (g_local.Packed >> PACKED_INDEX::TEX_FILTER) & 0xf;
+    SamplerState samp = SamplerDescriptorHeap[texFilterDescHeapIdx];
 
-    return Replay_kGt2(prevPos, normal, eta_next, surface, rd, triDiffs, rc_curr, 
+    return Replay_kGt2<false>(prevPos, normal, eta_next, surface, rd, triDiffs, rc_curr, 
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
@@ -208,9 +209,10 @@ OffsetPathContext ReplayCurrentInSpatialDomain(uint2 samplePosSS, RPT_Util::Reco
         lensSample_n, origin_n);
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
+    const uint texFilterDescHeapIdx = (g_local.Packed >> PACKED_INDEX::TEX_FILTER) & 0xf;
+    SamplerState samp = SamplerDescriptorHeap[texFilterDescHeapIdx];
 
-    return Replay_kGt2(pos_n, normal_n, eta_next, surface_n, rd, triDiffs, rc_curr, 
+    return Replay_kGt2<true>(pos_n, normal_n, eta_next, surface_n, rd, triDiffs, rc_curr, 
         g_local.Alpha_min, regularization, samp, g_frame, globals);
 }
 
@@ -273,9 +275,10 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
         lensSample, origin);
 
     const bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
-    SamplerState samp = SamplerDescriptorHeap[g_local.TexFilterDescHeapIdx];
+    const uint texFilterDescHeapIdx = (g_local.Packed >> PACKED_INDEX::TEX_FILTER) & 0xf;
+    SamplerState samp = SamplerDescriptorHeap[texFilterDescHeapIdx];
 
-    return Replay_kGt2(pos, normal, eta_next, surface, rd, triDiffs, rc, g_local.Alpha_min, 
+    return Replay_kGt2<true>(pos, normal, eta_next, surface, rd, triDiffs, rc, g_local.Alpha_min, 
         regularization, samp, g_frame, globals);
 }
 
@@ -287,14 +290,14 @@ OffsetPathContext ReplayInCurrent(uint2 DTid, float3 origin, float2 lensSample, 
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_TEMPORAL_GROUP_DIM_X, RESTIR_PT_TEMPORAL_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+        uint2(RESTIR_PT_TEMPORAL_GROUP_DIM_X, RESTIR_PT_TEMPORAL_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH, 
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
     uint2 swizzledDTid = DTid.xy;
@@ -419,7 +422,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(!r_prev.rc.Empty() && (r_prev.rc.k > 2))
     {
         r_prev.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-            Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(prevPixel, 
+            Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(prevPixel, 
             g_local.PrevReservoir_A_DescHeapIdx + 2, 
             g_local.PrevReservoir_A_DescHeapIdx + 3,
             g_local.PrevReservoir_A_DescHeapIdx + 4,
@@ -453,7 +456,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(!r_spatial.rc.Empty() && (r_spatial.rc.k > 2))
     {
         r_spatial.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-            Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(samplePos, 
+            Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(samplePos, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,
@@ -478,7 +481,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(!r_curr.rc.Empty() && (r_curr.rc.k > 2))
     {
         r_curr.Load_Reconnection<NEE_EMISSIVE, RWTexture2D<uint4>, RWTexture2D<uint4>, 
-            RWTexture2D<half>, RWTexture2D<float2>, RWTexture2D<uint> >(swizzledDTid, 
+            RWTexture2D<half>, RWTexture2D<float2>, RWTexture2D<uint2> >(swizzledDTid, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,
@@ -503,7 +506,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(!r_curr.rc.Empty() && (r_curr.rc.k > 2))
     {
         r_curr.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-            Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(swizzledDTid, 
+            Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(swizzledDTid, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,

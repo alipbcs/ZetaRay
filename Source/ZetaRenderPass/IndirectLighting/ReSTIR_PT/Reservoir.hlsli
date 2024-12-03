@@ -44,18 +44,20 @@ namespace RPT_Util
             return false;
         }
 
-        template<typename TexC, typename TexD, typename TexE>
-        void LoadCase1(uint2 DTid, TexC g_inC, TexD g_inD, TexE g_inE)
+        template<typename TexC, typename TexD, typename TexE, typename TexG>
+        void LoadCase1(uint2 DTid, TexC g_inC, TexD g_inD, TexE g_inE, TexG g_inG)
         {
             uint4 inC = g_inC[DTid];
             uint4 inD = g_inD[DTid];
             half inE = g_inE[DTid];
+            uint inG = g_inG[DTid].y;
 
             this.rc.partialJacobian = asfloat(inC.x);
             this.rc.seed_replay = inC.y;
             this.rc.ID = inC.z;
             this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
             this.rc.x_k = float3(asfloat(inC.w), asfloat(inD.xy));
+            this.rc.meshIdx = inG;
 
             uint16_t2 lh = uint16_t2(inD.w & 0xffff, inD.w >> 16);
             this.rc.L = half3(asfloat16(lh), inE);
@@ -76,14 +78,15 @@ namespace RPT_Util
             {
                 half inE = g_inE[DTid];
                 float2 inF = g_inF[DTid];
-                uint inG = g_inG[DTid];
+                uint2 inG = g_inG[DTid];
 
                 uint16_t2 lh = uint16_t2(inD.w & 0xffff, inD.w >> 16);
                 this.rc.L = half3(asfloat16(lh), inE);
                 this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
                 this.rc.lightPdf = inF.x;
                 this.rc.dwdA = inF.y;
-                this.rc.seed_nee = inG;
+                this.rc.seed_nee = inG.x;
+                this.rc.meshIdx = inG.y;
             }
             else
             {
@@ -92,6 +95,8 @@ namespace RPT_Util
                     this.rc.w_k_lightNormal_w_sky = Math::DecodeOct32(Math::UnpackUintToUint16(inD.z));
                     this.rc.seed_nee = inD.w;
                 }
+                
+                this.rc.meshIdx = g_inG[DTid].y;
             }
         }
 
@@ -140,7 +145,8 @@ namespace RPT_Util
             this.rc.lobe_k_min_1 = BSDF::LobeFromValue(metadata.y & 0x7);
             this.rc.lobe_k = BSDF::LobeFromValue((metadata.y >> 3) & 0x7);
             this.rc.lt_k = Light::TypeFromValue((metadata.y >> 6) & 0x3);
-            this.rc.lt_k_plus_1 = Light::TypeFromValue(metadata.z);
+            this.rc.lt_k_plus_1 = Light::TypeFromValue(metadata.z & 0x3);
+            this.rc.x_k_in_motion = metadata.z >> 2;
             this.M = (uint16_t)(metadata.x >> 4);
         }
 
@@ -200,7 +206,7 @@ namespace RPT_Util
             TexG g_inG = ResourceDescriptorHeap[inputGIdx];
 
             if(this.rc.IsCase1())
-                this.LoadCase1<TexC, TexD, TexE>(DTid, g_inC, g_inD, g_inE);
+                this.LoadCase1<TexC, TexD, TexE>(DTid, g_inC, g_inD, g_inE, g_inG);
             else if(this.rc.IsCase2())
                 this.LoadCase2<Emissive, TexC, TexD, TexE, TexF, TexG>(DTid, g_inC, g_inD, g_inE, g_inF, g_inG);
             else
@@ -231,7 +237,7 @@ namespace RPT_Util
                 return ret;
   
             if(ret.rc.IsCase1())
-                ret.LoadCase1<TexC, TexD, TexE >(DTid, g_inC, g_inD, g_inE);
+                ret.LoadCase1<TexC, TexD, TexE >(DTid, g_inC, g_inD, g_inE, g_inG);
             else if(ret.rc.IsCase2())
                 ret.LoadCase2<Emissive, TexC, TexD, TexE, TexF, TexG >(DTid, g_inC, g_inD, g_inE, g_inF, g_inG);
             else
@@ -259,7 +265,7 @@ namespace RPT_Util
         }
 
         void WriteCase1(uint2 DTid, RWTexture2D<uint4> g_outC, RWTexture2D<uint4> g_outD, 
-            RWTexture2D<half> g_outE)
+            RWTexture2D<half> g_outE, RWTexture2D<uint2> g_outG)
         {
             g_outC[DTid] = uint4(asuint(this.rc.partialJacobian), this.rc.seed_replay, 
                 this.rc.ID, asuint(this.rc.x_k.x));
@@ -271,11 +277,12 @@ namespace RPT_Util
             g_outD[DTid] = uint4(asuint(this.rc.x_k.yz), w_k_encoded, 
                 asuint16(lh.r) | (uint(asuint16(lh.g)) << 16));
             g_outE[DTid] = this.rc.L.b;
+            g_outG[DTid].y = this.rc.meshIdx;
         }
 
         template<bool Emissive>
         void WriteCase2(uint2 DTid, RWTexture2D<uint4> g_outC, RWTexture2D<uint4> g_outD, 
-            RWTexture2D<half> g_outE, RWTexture2D<float2> g_outF, RWTexture2D<uint> g_outG)
+            RWTexture2D<half> g_outE, RWTexture2D<float2> g_outF, RWTexture2D<uint2> g_outG)
         {
             g_outC[DTid] = uint4(asuint(this.rc.partialJacobian), this.rc.seed_replay, 
                 this.rc.ID, asuint(this.rc.x_k.x));
@@ -290,7 +297,7 @@ namespace RPT_Util
                     asuint16(lh.r) | (uint(asuint16(lh.g)) << 16));
                 g_outE[DTid] = this.rc.L.b;
                 g_outF[DTid] = float2(this.rc.lightPdf, this.rc.dwdA);
-                g_outG[DTid] = this.rc.seed_nee;
+                g_outG[DTid] = uint2(this.rc.seed_nee, this.rc.meshIdx);
             }
             else
             {
@@ -298,6 +305,8 @@ namespace RPT_Util
                     g_outD[DTid] = uint4(asuint(this.rc.x_k.yz), w_k_encoded, this.rc.seed_nee);
                 else
                     g_outD[DTid].xy = asuint(this.rc.x_k.yz);
+
+                g_outG[DTid].y = this.rc.meshIdx;
             }
         }
 
@@ -388,8 +397,8 @@ namespace RPT_Util
             RWTexture2D<half> g_outE = ResourceDescriptorHeap[outputEIdx];
             // (lightPdf, dwdA)
             RWTexture2D<float2> g_outF = ResourceDescriptorHeap[outputFIdx];
-            // (seed_nee)
-            RWTexture2D<uint> g_outG = ResourceDescriptorHeap[outputGIdx];
+            // (seed_nee, meshIdx)
+            RWTexture2D<uint2> g_outG = ResourceDescriptorHeap[outputGIdx];
 
             // A
             uint m = M_max == 0 ? this.M : min(this.M, M_max);
@@ -400,7 +409,8 @@ namespace RPT_Util
             metadata.y = BSDF::LobeToValue(this.rc.lobe_k_min_1) |
                 (BSDF::LobeToValue(this.rc.lobe_k) << 3) |
                 (Light::TypeToValue(this.rc.lt_k) << 6);
-            metadata.z = Light::TypeToValue(this.rc.lt_k_plus_1);
+            metadata.z = Light::TypeToValue(this.rc.lt_k_plus_1) | 
+                (uint(this.rc.x_k_in_motion) << 2);
             g_outA[DTid].xyz = metadata;
 
             // B
@@ -422,7 +432,7 @@ namespace RPT_Util
             //  - L
             //  - w_k_lightNormal_w_sky (= w_k)
             if(this.rc.IsCase1())
-                this.WriteCase1(DTid, g_outC, g_outD, g_outE);
+                this.WriteCase1(DTid, g_outC, g_outD, g_outE, g_outG);
 
             // Case 2) x_{k + 1} on a light source
             //  - x_k

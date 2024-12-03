@@ -37,11 +37,21 @@ namespace CB_IND_FLAGS
     static constexpr uint32_t SPATIAL_RESAMPLE = 1 << 1;
     static constexpr uint32_t STOCHASTIC_MULTI_BOUNCE = 1 << 2;
     static constexpr uint32_t RUSSIAN_ROULETTE = 1 << 3;
-    static constexpr uint32_t DENOISE = 1 << 4;
-    static constexpr uint32_t BOILING_SUPPRESSION = 1 << 5;
-    static constexpr uint32_t PATH_REGULARIZATION = 1 << 6;
-    static constexpr uint32_t SORT_TEMPORAL = 1 << 7;
-    static constexpr uint32_t SORT_SPATIAL = 1 << 8;
+    static constexpr uint32_t BOILING_SUPPRESSION = 1 << 4;
+    static constexpr uint32_t PATH_REGULARIZATION = 1 << 5;
+    static constexpr uint32_t SORT_TEMPORAL = 1 << 6;
+    static constexpr uint32_t SORT_SPATIAL = 1 << 7;
+};
+
+namespace PACKED_INDEX
+{
+    // DebugView << 24 | M_max << 20 | M_max << 16 | #Spatial << 14 | SpatialPass << 12 | Glossy << 4 | Diffuse
+    static constexpr uint32_t NUM_DIFFUSE_BOUNCES = 0;
+    static constexpr uint32_t NUM_GLOSSY_BOUNCES = 4;
+    static constexpr uint32_t MAX_TEMPORAL_M = 16;
+    static constexpr uint32_t MAX_SPATIAL_M = 20;
+    static constexpr uint32_t TEX_FILTER = 24;
+    static constexpr uint32_t DEBUG_VIEW = 28;
 };
 
 enum class RPT_DEBUG_VIEW
@@ -122,16 +132,13 @@ struct cb_ReSTIR_PT_Reuse
     uint32_t RBufferA_NtC_DescHeapIdx;
     uint32_t SpatialNeighborHeapIdx;
     uint32_t TargetDescHeapIdx;
-    uint32_t Final;
+    uint32_t FinalDescHeapIdx;
 
     uint32_t Flags;
     uint32_t DispatchDimX_NumGroupsInTile;
  
-    // DebugView << 20 | M_max << 16 | #Spatial << 14 | SpatialPass << 12 | Glossy << 8 | Glossy Refl << 4 | Diffuse
     uint32_t Packed;
     float Alpha_min;
-    uint32_t TexFilterDescHeapIdx;
-    uint32_t MaxSpatialM;
 };
 
 struct cb_ReSTIR_PT_Sort
@@ -151,7 +158,6 @@ struct cb_ReSTIR_PT_SpatialSearch
     uint32_t Packed;
     uint32_t OutputDescHeapIdx;
     uint32_t Flags;
-    uint32_t Final;
 };
 
 #endif

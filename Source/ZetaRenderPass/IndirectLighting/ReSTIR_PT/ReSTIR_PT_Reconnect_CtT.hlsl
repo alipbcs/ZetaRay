@@ -35,7 +35,7 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
     globals.indices = g_indices;
     globals.materials = g_materials;
     uint maxNonTrBounces = g_local.Packed & 0xf;
-    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> PACKED_INDEX::NUM_GLOSSY_BOUNCES) & 0xf;
     globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
         (uint16_t)maxNonTrBounces;
 
@@ -116,7 +116,7 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
 
-    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, prevPos, normal, eta_next, surface, 
+    return RPT_Util::Shift2<NEE_EMISSIVE, false>(DTid, prevPos, normal, eta_next, surface, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
         g_local.RBufferA_CtN_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
@@ -131,14 +131,14 @@ OffsetPath ShiftCurrentToTemporal(uint2 DTid, uint2 prevPosSS, float3 origin,
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_TEMPORAL_GROUP_DIM_X, RESTIR_PT_TEMPORAL_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+        uint2(RESTIR_PT_TEMPORAL_GROUP_DIM_X, RESTIR_PT_TEMPORAL_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH, 
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
     uint2 swizzledDTid = DTid.xy;
@@ -248,12 +248,28 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if(r_curr.w_sum != 0 && r_prev.M > 0 && !r_curr.rc.Empty())
     {
         r_curr.Load_Reconnection<NEE_EMISSIVE, RWTexture2D<uint4>, RWTexture2D<uint4>, 
-            RWTexture2D<half>, RWTexture2D<float2>, RWTexture2D<uint> >(swizzledDTid, 
+            RWTexture2D<half>, RWTexture2D<float2>, RWTexture2D<uint2> >(swizzledDTid, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,
             g_local.Reservoir_A_DescHeapIdx + 5,
             g_local.Reservoir_A_DescHeapIdx + 6);
+
+        if(r_curr.rc.IsCase1() || r_curr.rc.IsCase2())
+        {
+            const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(r_curr.rc.meshIdx)];
+            float4 q_curr = Math::DecodeNormalized4(meshData.Rotation);
+            q_curr = normalize(q_curr);
+            float3 x_local = Math::InverseTransformTRS(r_curr.rc.x_k, meshData.Translation, 
+                q_curr, meshData.Scale);
+
+            float3 prevTranslation = meshData.Translation - meshData.dTranslation;
+            float4 q_prev = Math::DecodeNormalized4(meshData.PrevRotation);
+            q_prev = normalize(q_prev);
+
+            r_curr.rc.x_k = Math::TransformTRS(x_local, prevTranslation, q_prev, 
+                meshData.PrevScale);
+        }
 
         Globals globals = InitGlobals(flags.transmissive);
         OffsetPath shift = ShiftCurrentToTemporal(swizzledDTid, prevPixel, origin_t, 

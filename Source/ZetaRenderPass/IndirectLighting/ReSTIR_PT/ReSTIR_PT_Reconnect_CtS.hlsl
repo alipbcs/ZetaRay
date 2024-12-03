@@ -35,7 +35,7 @@ ReSTIR_Util::Globals InitGlobals(bool transmissive)
     globals.indices = g_indices;
     globals.materials = g_materials;
     uint maxNonTrBounces = g_local.Packed & 0xf;
-    uint maxGlossyTrBounces = (g_local.Packed >> 4) & 0xf;
+    uint maxGlossyTrBounces = (g_local.Packed >> PACKED_INDEX::NUM_GLOSSY_BOUNCES) & 0xf;
     globals.maxNumBounces = transmissive ? (uint16_t)maxGlossyTrBounces :
         (uint16_t)maxNonTrBounces;
 
@@ -135,7 +135,7 @@ OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, Reconnection rc_
 
     bool regularization = IS_CB_FLAG_SET(CB_IND_FLAGS::PATH_REGULARIZATION);
 
-    return RPT_Util::Shift2<NEE_EMISSIVE>(DTid, pos_n, normal_n, eta_next, surface_n, 
+    return RPT_Util::Shift2<NEE_EMISSIVE, true>(DTid, pos_n, normal_n, eta_next, surface_n, 
         rd, triDiffs, rc_curr, g_local.RBufferA_CtN_DescHeapIdx, 
         g_local.RBufferA_CtN_DescHeapIdx + 1, g_local.RBufferA_CtN_DescHeapIdx + 2, 
         g_local.RBufferA_CtN_DescHeapIdx + 3, g_local.Alpha_min, regularization, 
@@ -150,14 +150,14 @@ OffsetPath ShiftCurrentToSpatial(uint2 DTid, uint2 samplePosSS, Reconnection rc_
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_SPATIAL_GROUP_DIM_X, RESTIR_PT_SPATIAL_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+        uint2(RESTIR_PT_SPATIAL_GROUP_DIM_X, RESTIR_PT_SPATIAL_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH, 
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
     uint2 swizzledDTid = DTid.xy;
@@ -203,7 +203,7 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     if((r_curr.w_sum != 0) && !r_curr.rc.Empty())
     {
         r_curr.Load_Reconnection<NEE_EMISSIVE, Texture2D<uint4>, Texture2D<uint4>, 
-            Texture2D<half>, Texture2D<float2>, Texture2D<uint> >(swizzledDTid, 
+            Texture2D<half>, Texture2D<float2>, Texture2D<uint2> >(swizzledDTid, 
             g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3,
             g_local.Reservoir_A_DescHeapIdx + 4,

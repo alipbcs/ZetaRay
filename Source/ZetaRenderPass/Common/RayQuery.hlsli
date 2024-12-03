@@ -14,7 +14,7 @@ namespace RtRayQuery
 {
     struct Hit
     {
-        template<bool ID>
+        template<bool ID, bool Curr>
         static Hit FindClosest(float3 pos, float3 normal, float3 wi, RaytracingAccelerationStructure g_bvh, 
             StructuredBuffer<RT::MeshInstance> g_frameMeshData, StructuredBuffer<Vertex> g_vertices, 
             StructuredBuffer<uint> g_indices, bool transmissive)
@@ -59,6 +59,7 @@ namespace RtRayQuery
 
                 ret.t = rayQuery.CommittedRayT();
                 ret.matIdx = meshData.MatIdx;
+                ret.meshIdx = meshIdx;
 
                 uint tri = rayQuery.CommittedPrimitiveIndex() * 3;
                 tri += meshData.BaseIdxOffset;
@@ -70,7 +71,9 @@ namespace RtRayQuery
                 Vertex V1 = g_vertices[NonUniformResourceIndex(i1)];
                 Vertex V2 = g_vertices[NonUniformResourceIndex(i2)];
 
-                float4 q = Math::DecodeNormalized4(meshData.Rotation);
+                float3 t = Curr ? meshData.Translation : meshData.Translation - meshData.dTranslation;
+                float4 q = Math::DecodeNormalized4(Curr ? meshData.Rotation : meshData.PrevRotation);
+                float3 s = Curr ? meshData.Scale : meshData.PrevScale;
                 // Due to quantization, it's necessary to renormalize
                 q = normalize(q);
 
@@ -91,15 +94,15 @@ namespace RtRayQuery
                 //          = (R^-1 S^-1)^T
                 //          = (S^-1)^T (R^T)^T
                 //          = S^-1 R
-                const float3 scaleInv = 1.0f / meshData.Scale;
+                const float3 scaleInv = 1.0f / s;
                 hitNormal *= scaleInv;
                 hitNormal = Math::RotateVector(hitNormal, q);
                 hitNormal = normalize(hitNormal);
                 ret.normal = hitNormal;
 
-                float3 v0W = Math::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
-                float3 v1W = Math::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
-                float3 v2W = Math::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
+                float3 v0W = Math::TransformTRS(V0.PosL, t, q, s);
+                float3 v1W = Math::TransformTRS(V1.PosL, t, q, s);
+                float3 v2W = Math::TransformTRS(V2.PosL, t, q, s);
 
                 float3 n0W = v0_n * scaleInv;
                 n0W = Math::RotateVector(n0W, q);
@@ -134,6 +137,7 @@ namespace RtRayQuery
         float2 uv;
         float3 normal;
         uint ID;
+        uint meshIdx;
         bool hit;
         Math::TriDifferentials triDiffs;
         uint16_t matIdx;
@@ -201,6 +205,7 @@ namespace RtRayQuery
             return this.emissiveTriIdx != UINT32_MAX;
         }
 
+        template<bool Curr>
         Hit ToHitInfo(float3 wi, StructuredBuffer<RT::MeshInstance> g_frameMeshData, 
             StructuredBuffer<Vertex> g_vertices, 
             StructuredBuffer<uint> g_indices)
@@ -214,6 +219,7 @@ namespace RtRayQuery
 
             const uint meshIdx = this.geoIdx + this.insID;
             const RT::MeshInstance meshData = g_frameMeshData[NonUniformResourceIndex(meshIdx)];
+            hitInfo.meshIdx = meshIdx;
             hitInfo.matIdx = meshData.MatIdx;
 
             uint tri = primIdx * 3;
@@ -226,7 +232,10 @@ namespace RtRayQuery
             Vertex V1 = g_vertices[NonUniformResourceIndex(i1)];
             Vertex V2 = g_vertices[NonUniformResourceIndex(i2)];
 
-            float4 q = Math::DecodeNormalized4(meshData.Rotation);
+            float3 t = Curr ? meshData.Translation : meshData.Translation - meshData.dTranslation;
+            float4 q = Math::DecodeNormalized4(Curr ? meshData.Rotation : meshData.PrevRotation);
+            float3 s = Curr ? meshData.Scale : meshData.PrevScale;
+
             // Due to quantization, it's necessary to renormalize
             q = normalize(q);
 
@@ -247,15 +256,15 @@ namespace RtRayQuery
             //          = (R^-1 S^-1)^T
             //          = (S^-1)^T (R^T)^T
             //          = S^-1 R
-            const float3 scaleInv = 1.0f / meshData.Scale;
+            const float3 scaleInv = 1.0f / s;
             hitNormal *= scaleInv;
             hitNormal = Math::RotateVector(hitNormal, q);
             hitNormal = normalize(hitNormal);
             hitInfo.normal = hitNormal;
 
-            float3 v0W = Math::TransformTRS(V0.PosL, meshData.Translation, q, meshData.Scale);
-            float3 v1W = Math::TransformTRS(V1.PosL, meshData.Translation, q, meshData.Scale);
-            float3 v2W = Math::TransformTRS(V2.PosL, meshData.Translation, q, meshData.Scale);
+            float3 v0W = Math::TransformTRS(V0.PosL, t, q, s);
+            float3 v1W = Math::TransformTRS(V1.PosL, t, q, s);
+            float3 v2W = Math::TransformTRS(V2.PosL, t, q, s);
 
             float3 n0W = v0_n * scaleInv;
             n0W = Math::RotateVector(n0W, q);

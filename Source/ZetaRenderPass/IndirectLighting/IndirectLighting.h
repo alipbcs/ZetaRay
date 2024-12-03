@@ -131,7 +131,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RESERVOIR_D = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT RESERVOIR_E = DXGI_FORMAT_R16_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_F = DXGI_FORMAT_R32G32_FLOAT;
-            static constexpr DXGI_FORMAT RESERVOIR_G = DXGI_FORMAT_R32_UINT;
+            static constexpr DXGI_FORMAT RESERVOIR_G = DXGI_FORMAT_R32G32_UINT;
             static constexpr DXGI_FORMAT SPATIAL_NEIGHBOR = DXGI_FORMAT_R8G8_UINT;
             static constexpr DXGI_FORMAT THREAD_MAP = DXGI_FORMAT_R16_UINT;
             static constexpr DXGI_FORMAT RBUFFER_A = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -230,14 +230,12 @@ namespace ZetaRay::RenderPass
         struct DefaultParamVals
         {
             static constexpr int M_MAX = 10;
-            static constexpr int M_MAX_SPATIAL = 6;
-            static constexpr int DNSR_TSPP_DIFFUSE = 32;
-            static constexpr int DNSR_TSPP_SPECULAR = 20;
-            static constexpr int MAX_NON_TR_BOUNCES = 2;
-            static constexpr int MAX_GLOSSY_TR_BOUNCES = 3;
+            static constexpr int M_MAX_SPATIAL = 8;
+            static constexpr int MAX_NON_TR_BOUNCES = 3;
+            static constexpr int MAX_GLOSSY_TR_BOUNCES = 4;
             static constexpr bool RUSSIAN_ROULETTE = true;
             static constexpr bool STOCHASTIC_MULTI_BOUNCE = true;
-            static constexpr bool BOILING_SUPPRESSION = false;
+            static constexpr bool BOILING_SUPPRESSION = true;
             static constexpr bool PATH_REGULARIZATION = false;
             static constexpr float ROUGHNESS_MIN = 0.175f;
             static constexpr float D_MIN = 1e-4f;
@@ -349,8 +347,10 @@ namespace ZetaRay::RenderPass
         void RenderPathTracer(Core::ComputeCmdList& computeCmdList);
         void RenderReSTIR_GI(Core::ComputeCmdList& computeCmdList);
         void RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList);
-        void ReSTIR_PT_Temporal(Core::ComputeCmdList& computeCmdList, Util::Span<ID3D12Resource*> currReservoirs);
-        void ReSTIR_PT_Spatial(Core::ComputeCmdList& computeCmdList, Util::Span<ID3D12Resource*> currReservoirs,
+        void ReSTIR_PT_Temporal(Core::ComputeCmdList& computeCmdList, 
+            Util::Span<ID3D12Resource*> currReservoirs);
+        void ReSTIR_PT_Spatial(Core::ComputeCmdList& computeCmdList, 
+            Util::Span<ID3D12Resource*> currReservoirs,
             Util::Span<ID3D12Resource*> prevReservoirs);
 
         // param callbacks

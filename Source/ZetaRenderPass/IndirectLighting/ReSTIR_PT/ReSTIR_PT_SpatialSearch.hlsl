@@ -52,31 +52,26 @@ int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, f
         if(samplePosSS.x == DTid.x && samplePosSS.y == DTid.y)
             continue;
 
-        const float sampleDepth = g_depth[samplePosSS];
-        if (sampleDepth == FLT_MAX)
-            continue;
-
-        const float3 samplePos = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
-            sampleDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
-            g_frame.CurrCameraJitter);
-
         const float2 sampleMR = g_metallicRoughness[samplePosSS];
         GBuffer::Flags sampleFlags = GBuffer::DecodeMetallic(sampleMR.x);
 
-        const float3 sampleNormal = Math::DecodeUnitVector(g_normal[samplePosSS]);
-
-        if (!RPT_Util::PlaneHeuristic(samplePos, normal, pos, viewDepth))
+        if(sampleFlags.invalid || sampleFlags.emissive)
             continue;
-
-        if(sampleFlags.emissive)
+        if(metallic != sampleFlags.metallic)
             continue;
-
+        if(transmissive != sampleFlags.transmissive)
+            continue;
         if(abs(sampleMR.y - roughness) > MAX_ROUGHNESS_DIFF_SPATIAL_REUSE)
             continue;
 
-        if(transmissive != sampleFlags.transmissive)
-            continue;
+        const float sampleDepth = g_depth[samplePosSS];
+        const float3 samplePos = Math::WorldPosFromScreenSpace(samplePosSS, renderDim,
+            sampleDepth, g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
+            g_frame.CurrCameraJitter);
+        const float3 sampleNormal = Math::DecodeUnitVector(g_normal[samplePosSS]);
 
+        if (!RPT_Util::PlaneHeuristic(samplePos, normal, pos, viewDepth, 0.01))
+            continue;
         if(dot(sampleNormal, normal) < MIN_NORMAL_SIMILARITY_SPATIAL_REUSE)
             continue;
 
@@ -94,14 +89,14 @@ int2 FindSpatialNeighbor(uint2 DTid, float3 pos, float3 normal, bool metallic, f
 void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid : SV_GroupThreadID)
 {
 #if THREAD_GROUP_SWIZZLING == 1
-    uint16_t2 swizzledGid;
+    uint2 swizzledGid;
 
     const uint2 swizzledDTid = Common::SwizzleThreadGroup(DTid, Gid, GTid, 
-        uint16_t2(RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_X, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_Y),
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile & 0xffff), 
+        uint2(RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_X, RESTIR_PT_SPATIAL_SEARCH_GROUP_DIM_Y),
+        g_local.DispatchDimX_NumGroupsInTile & 0xffff, 
         RESTIR_PT_TILE_WIDTH, 
         RESTIR_PT_LOG2_TILE_WIDTH, 
-        uint16_t(g_local.DispatchDimX_NumGroupsInTile >> 16),
+        g_local.DispatchDimX_NumGroupsInTile >> 16,
         swizzledGid);
 #else
     const uint2 swizzledDTid = DTid.xy;
@@ -122,7 +117,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::DEPTH];
     const float viewDepth = g_depth[swizzledDTid];
-
     const float3 pos = Math::WorldPosFromScreenSpace(swizzledDTid,
         float2(g_frame.RenderWidth, g_frame.RenderHeight), viewDepth, 
         g_frame.TanHalfFOV, g_frame.AspectRatio, g_frame.CurrViewInv, 
@@ -132,8 +126,10 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::NORMAL];
     const float3 normal = Math::DecodeUnitVector(g_normal[swizzledDTid]);
 
-    const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
-    RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum + passIdx)).xy, g_frame.FrameNum);
+    // const uint16 passIdx = uint16((g_local.Packed >> 12) & 0x3);
+    const uint16 passIdx = 0;
+    RNG rng = RNG::Init(RNG::PCG3d(uint3(swizzledDTid, g_frame.FrameNum + passIdx)).xy, 
+        g_frame.FrameNum);
     const uint16_t scale = (uint16_t)1;
 
     const int2 neighbor = FindSpatialNeighbor(swizzledDTid, pos, normal, flags.metallic, 

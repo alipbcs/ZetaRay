@@ -71,7 +71,7 @@ namespace RGI_Util
         rd.UpdateRays(primaryPos, primaryNormal, bsdfSample.wi, primarySurface.wo, triDiffs, 
             dpdx, dpdy, dot(bsdfSample.wi, primaryNormal) < 0, primarySurface.eta);
 
-        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true>(primaryPos, primaryNormal, 
+        RtRayQuery::Hit hitInfo = RtRayQuery::Hit::FindClosest<true, true>(primaryPos, primaryNormal, 
             bsdfSample.wi, globals.bvh, globals.frameMeshData, globals.vertices, 
             globals.indices, primarySurface.Transmissive());
 

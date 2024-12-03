@@ -79,7 +79,7 @@ namespace ReSTIR_RT
                 break;
 
             // Trace a ray to find next path vertex
-            hitInfo = RtRayQuery::Hit::FindClosest<false>(pos, normal, bsdfSample.wi, globals.bvh, 
+            hitInfo = RtRayQuery::Hit::FindClosest<false, true>(pos, normal, bsdfSample.wi, globals.bvh, 
                 globals.frameMeshData, globals.vertices, globals.indices, 
                 surface.Transmissive());
 

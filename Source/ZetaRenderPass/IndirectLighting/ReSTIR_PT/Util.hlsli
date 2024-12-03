@@ -57,7 +57,7 @@ namespace RPT_Util
 
     void SuppressOutlierReservoirs(float waveAvgExclusive, inout RPT_Util::Reservoir r)
     {
-        if(r.w_sum > 70 * waveAvgExclusive)
+        if(r.w_sum > 50 * waveAvgExclusive)
         {
             r.M = 0;
             r.w_sum = 0;
@@ -68,7 +68,7 @@ namespace RPT_Util
 
     void DebugColor(Reconnection rc, uint packed, inout float3 c)
     {
-        uint option = packed >> 20;
+        const uint option = packed >> PACKED_INDEX::DEBUG_VIEW;
         if(option == (int)RPT_DEBUG_VIEW::NONE)
             return;
 
@@ -109,13 +109,13 @@ namespace RPT_Util
                 if(rc.lobe_k_min_1 == BSDF::LOBE::DIFFUSE_R)
                     c = float3(0.384, 0.12, 0.2134);
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_R)
-                    c = float3(0.12, 0.284, 0.2134);
+                    c = float3(0.12, 0.4284, 0.2134);
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::GLOSSY_T)
                     c = float3(0.1134, 0.12, 0.634);
                 else if(rc.lobe_k_min_1 == BSDF::LOBE::DIFFUSE_T)
-                    c = float3(0.25f, 0.25f, 0);
-                else
                     c = float3(0.25f, 0.25f, 0.25f);
+                else
+                    c = float3(0.55f, 0.55f, 0.0f);
             }
         }
         else if(option == (int)RPT_DEBUG_VIEW::CONNECTION_LOBE_K)
@@ -142,7 +142,8 @@ namespace RPT_Util
         ConstantBuffer<cbFrameConstants> g_frame,
         bool filterToBlackWhenDebugViewEnabled = true)
     {
-        if((filterToBlackWhenDebugViewEnabled && ((packed >> 20) != (int) RPT_DEBUG_VIEW::NONE)))
+        const uint debugView = packed >> PACKED_INDEX::DEBUG_VIEW;
+        if((filterToBlackWhenDebugViewEnabled && (debugView != (uint)RPT_DEBUG_VIEW::NONE)))
             li = 0;
 
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[outDescHeapIdx];
