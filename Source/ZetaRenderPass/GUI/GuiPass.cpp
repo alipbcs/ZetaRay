@@ -1631,6 +1631,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
 
 void GuiPass::PickedMaterial(uint64 pickedID)
 {
+    const bool pickChangedFromLastTime = m_lastPickedID != pickedID;
+    m_lastPickedID = pickedID;
+
     auto& scene = App::GetScene();
     const auto meshID = scene.GetInstanceMeshID(pickedID);
     const auto& mesh = *scene.GetMesh(meshID).value();
@@ -1812,20 +1815,47 @@ void GuiPass::PickedMaterial(uint64 pickedID)
         if (textured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
 
-        if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&emissiveFactor), ImGuiColorEditFlags_Float))
-        {
-            float3 diff = oldColor - emissiveFactor;
+        const char* modes[] = { "(Linear) RGB", "Temperature" };
+        m_emissiveColorMode = pickChangedFromLastTime ? EMISSIVE_COLOR_MODE::RGB : m_emissiveColorMode;
+        bool colorModeChanged = ImGui::Combo("Color Mode", (int*)&m_emissiveColorMode, modes, ZetaArrayLen(modes));
+        bool switchedToTemperature = false;
 
-            // Avoid spamming update when difference is close to zero
-            if (diff.dot(diff) > 1e-5)
+        if (m_emissiveColorMode == EMISSIVE_COLOR_MODE::RGB)
+        {
+            if (ImGui::ColorEdit3("Color", reinterpret_cast<float*>(&emissiveFactor), ImGuiColorEditFlags_Float))
             {
-                mat.SetEmissiveFactor(emissiveFactor);
-                modified = true;
-                m_pendingEmissiveUpdate = true;
+                float3 diff = oldColor - emissiveFactor;
+
+                // Avoid spamming update when difference is close to zero
+                if (diff.dot(diff) > 1e-5)
+                {
+                    mat.SetEmissiveFactor(emissiveFactor);
+                    modified = true;
+                    m_pendingEmissiveUpdate = true;
+                }
+            }
+        }
+        else
+        {
+            switchedToTemperature = colorModeChanged;
+            m_currColorTemperature = switchedToTemperature ? DEFAULT_COLOR_TEMPERATURE : 
+                m_currColorTemperature;
+            if (switchedToTemperature || ImGui::SliderFloat("Temperature", &m_currColorTemperature, 1000, 40000, "%.2f"))
+            {
+                emissiveFactor = sRGBToLinear(ColorTemperatureTosRGB(m_currColorTemperature));
+                float3 diff = oldColor - emissiveFactor;
+
+                // Avoid spamming update when difference is close to zero
+                if (diff.dot(diff) > 1e-5)
+                {
+                    mat.SetEmissiveFactor(emissiveFactor);
+                    modified = true;
+                    m_pendingEmissiveUpdate = true;
+                }
             }
         }
 
-        colorEditFinished = ImGui::IsItemDeactivatedAfterEdit();
+        colorEditFinished = switchedToTemperature || ImGui::IsItemDeactivatedAfterEdit();
 
         if (textured)
             ImGui::PopStyleColor();

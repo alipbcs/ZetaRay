@@ -3,6 +3,7 @@
 #include "../RenderPass.h"
 #include <Core/GpuMemory.h>
 #include <Core/GpuTimer.h>
+#include <Scene/SceneCommon.h>
 #include "GuiPass_Common.h"
 
 namespace ZetaRay::Core
@@ -38,6 +39,15 @@ namespace ZetaRay::RenderPass
         void Render(Core::CommandList& cmdList);
 
     private:
+        static constexpr int NUM_CBV = 0;
+        static constexpr int NUM_SRV = 0;
+        static constexpr int NUM_UAV = 0;
+        static constexpr int NUM_GLOBS = 0;
+        static constexpr int NUM_CONSTS = sizeof(cbGuiPass) / sizeof(DWORD);
+
+        inline static constexpr const char* COMPILED_VS[] = { "ImGui_vs.cso" };
+        inline static constexpr const char* COMPILED_PS[] = { "ImGui_ps.cso" };
+
         void UpdateBuffers();
         void RenderUI();
         void RenderSettings(uint64 pickedID, const Model::TriangleMesh& mesh, 
@@ -56,15 +66,6 @@ namespace ZetaRay::RenderPass
         void PickedMaterial(uint64 pickedID);
         void PickedWorldTransform(uint64 pickedID, const Model::TriangleMesh& mesh, 
             const Math::float4x4a& W);
-
-        static constexpr int NUM_CBV = 0;
-        static constexpr int NUM_SRV = 0;
-        static constexpr int NUM_UAV = 0;
-        static constexpr int NUM_GLOBS = 0;
-        static constexpr int NUM_CONSTS = sizeof(cbGuiPass) / sizeof(DWORD);
-
-        inline static constexpr const char* COMPILED_VS[] = { "ImGui_vs.cso" };
-        inline static constexpr const char* COMPILED_PS[] = { "ImGui_ps.cso" };
 
         struct ImGuiFrameBufferData
         {
@@ -93,6 +94,13 @@ namespace ZetaRay::RenderPass
         bool m_appWndSizeChanged = false;
         bool m_hideUI = false;
         int m_prevNumLogs = 0;
+        uint64_t m_lastPickedID = Scene::INVALID_INSTANCE;
+
+        enum class EMISSIVE_COLOR_MODE
+        {
+            RGB,
+            TEMPERATURE
+        };
 
         enum class ROTATION_MODE
         {
@@ -108,6 +116,9 @@ namespace ZetaRay::RenderPass
 
         ROTATION_MODE m_rotationMode = ROTATION_MODE::AXIS_ANGLE;
         TRANSFORMATION m_transform = TRANSFORMATION::LOCAL;
+        EMISSIVE_COLOR_MODE m_emissiveColorMode = EMISSIVE_COLOR_MODE::RGB;
+        static constexpr float DEFAULT_COLOR_TEMPERATURE = 6500.0f;
+        float m_currColorTemperature = DEFAULT_COLOR_TEMPERATURE;
 
         // ImGuizmo::TRANSLATE
         uint32_t m_currGizmoOperation = 7;

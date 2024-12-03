@@ -65,4 +65,7 @@ namespace ZetaRay::Math
 
         return ret;
     }
+
+    Math::float3 sRGBToLinear(const Math::float3& color);
+    Math::float3 ColorTemperatureTosRGB(float temperature);
 }

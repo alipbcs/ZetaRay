@@ -32,7 +32,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float2& operator-=(const float2& other)
         {
             x -= other.x;
@@ -40,7 +39,6 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float2& operator*=(float f)
         {
             x *= f;
@@ -48,11 +46,24 @@ namespace ZetaRay::Math
 
             return *this;
         }
-
         constexpr float2& operator*=(float2 f)
         {
             x *= f.x;
             y *= f.y;
+
+            return *this;
+        }
+        constexpr float2& operator/=(float2 f)
+        {
+            x /= f.x;
+            y /= f.y;
+
+            return *this;
+        }
+        constexpr float2& operator/=(float f)
+        {
+            x /= f;
+            y /= f;
 
             return *this;
         }
@@ -131,6 +142,22 @@ namespace ZetaRay::Math
             x *= f;
             y *= f;
             z *= f;
+
+            return *this;
+        }
+        constexpr float3& operator/=(float3 f)
+        {
+            x /= f.x;
+            y /= f.y;
+            z /= f.z;
+
+            return *this;
+        }
+        constexpr float3& operator/=(float f)
+        {
+            x /= f;
+            y /= f;
+            z /= f;
 
             return *this;
         }
@@ -238,6 +265,24 @@ namespace ZetaRay::Math
             y *= f;
             z *= f;
             w *= f;
+
+            return *this;
+        }
+        constexpr float4& operator/=(float4 f)
+        {
+            x /= f.x;
+            y /= f.y;
+            z /= f.z;
+            w /= f.w;
+
+            return *this;
+        }
+        constexpr float4& operator/=(float f)
+        {
+            x /= f;
+            y /= f;
+            z /= f;
+            w /= f;
 
             return *this;
         }
