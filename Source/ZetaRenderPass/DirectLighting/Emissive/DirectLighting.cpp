@@ -1,6 +1,6 @@
 #include "DirectLighting.h"
 #include <Core/CommandList.h>
-#include <Scene/SceneRenderer.h>
+#include <Scene/SceneCore.h>
 #include <Support/Param.h>
 #include <Support/Task.h>
 #include "../Assets/Font/IconsFontAwesome6.h"
@@ -362,32 +362,39 @@ void DirectLighting::CreateOutputs()
 void DirectLighting::TemporalResamplingCallback(const Support::ParamVariant& p)
 {
     m_temporalResampling = p.GetBool();
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 {
     m_spatialResampling = p.GetBool();
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::MaxTemporalMCallback(const Support::ParamVariant& p)
 {
-    m_cbSpatioTemporal.M_max = (uint16_t) p.GetInt().m_value;
+    m_cbSpatioTemporal.M_max = (uint16_t)p.GetInt().m_value;
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::ExtraSamplesDisocclusionCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::EXTRA_DISOCCLUSION_SAMPLING, p.GetBool());
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::StochasticSpatialCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL, p.GetBool());
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
 {
     float newVal = p.GetFloat().m_value;
     m_cbSpatioTemporal.Alpha_min = newVal * newVal;
+
+    App::GetScene().SceneModified();
 }
 
 void DirectLighting::ReloadTemporal()

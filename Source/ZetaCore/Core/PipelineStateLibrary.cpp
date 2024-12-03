@@ -4,6 +4,7 @@
 #include <App/Common.h>
 #include <App/Timer.h>
 #include <Support/Task.h>
+#include <Scene/SceneCore.h>
 
 using namespace ZetaRay;
 using namespace ZetaRay::Core;
@@ -285,6 +286,8 @@ void PipelineStateLibrary::Reload(uint64_t idx, ID3D12RootSignature* rootSig,
 
     // Replace the old PSO
     m_compiledPSOs[idx] = pso;
+    
+    App::GetScene().SceneModified();
 }
 
 ID3D12PipelineState* PipelineStateLibrary::CompileGraphicsPSO(uint32_t idx,

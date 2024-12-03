@@ -4,6 +4,7 @@
 #include "../Math/CollisionFuncs.h"
 #include "../Math/Sampling.h"
 #include "../Support/Param.h"
+#include "SceneCore.h"
 #include "../Assets/Font/IconsFontAwesome6.h"
 
 using namespace ZetaRay::Scene;
@@ -71,9 +72,6 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     m_viewFrustum = ViewFrustum(fov, aspectRatio, nearZ, m_farZ);
     m_jitteringEnabled = jitter;
 
-    m_pixelSampleAreaWidth = 1.0f / App::GetRenderer().GetRenderWidth();
-    m_pixelSampleAreaHeight = 1.0f / App::GetRenderer().GetRenderHeight();
-
     // "Ray Tracing Gems", ch. 20, eq. (30)
     m_pixelSpreadAngle = atanf(2 * m_tanHalfFOV / App::GetRenderer().GetRenderHeight());
 
@@ -134,12 +132,6 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
         m_rotFrictionCoeff, 1, 50, 1, "Motion");
     App::AddParam(coeffAng);
 
-    ParamVariant clampTo0;
-    clampTo0.InitBool(ICON_FA_LANDMARK " Scene", "Camera", "Snap Small V0 To Zero",
-        fastdelegate::MakeDelegate(this, &Camera::ClampSmallV0To0),
-        m_clampSmallV0ToZero, "Motion");
-    App::AddParam(clampTo0);
-
     ParamVariant focusDepth;
     focusDepth.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Focus Depth",
         fastdelegate::MakeDelegate(this, &Camera::FocusDepthCallback),
@@ -192,14 +184,6 @@ void Camera::Update(const Motion& m)
     vNewEye = _mm_add_ps(vNewEye, vEye);
     vInitialVelocity = vVelocity;
 
-    if (m_clampSmallV0ToZero)
-    {
-        __m128 vForceIs0 = _mm_cmpeq_ps(vForce, _mm_setzero_ps());
-        __m128 vV0Near0 = _mm_cmple_ps(abs(vInitialVelocity), _mm_set1_ps(3e-2f));
-        __m128 vClamp = _mm_and_ps(vForceIs0, vV0Near0);
-        vInitialVelocity = _mm_blendv_ps(vInitialVelocity, _mm_setzero_ps(), vClamp);
-    }
-
     setCamPos(vNewEye, m_view, m_viewInv);
     m_posW = store(vNewEye);
     m_initialVelocity = store(vInitialVelocity);
@@ -209,7 +193,6 @@ void Camera::Update(const Motion& m)
         const uint32_t frame = App::GetTimer().GetTotalFrameCount() % m_jitterPhaseCount;
         m_currJitter.x = Halton(frame + 1, 2) - 0.5f;
         m_currJitter.y = Halton(frame + 1, 3) - 0.5f;
-
 #if 0
         // Shift each pixel by a value in [-0.5 / PixelWidth, 0.5 / PixelWidth] * [-0.5 / PixelHeight, 0.5 / PixelHeight]
         // Jitter is relative to unit pixel offset -- [-0.5, -0.5] x [+0.5, +0.5]
@@ -244,10 +227,6 @@ void Camera::OnWindowSizeChanged()
     UpdateProj();
 
     m_pixelSpreadAngle = atanf(2 * m_tanHalfFOV / renderfHeight);
-
-    m_pixelSampleAreaWidth = 1.0f / renderWidth;
-    m_pixelSampleAreaHeight = 1.0f / renderfHeight;
-
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
 
@@ -307,6 +286,8 @@ void Camera::SetFOV(const ParamVariant& p)
     m_tanHalfFOV = tanf(0.5f * m_FOV);
 
     UpdateProj();
+
+    App::GetScene().SceneModified();
 }
 
 void Camera::SetJitteringEnabled(const ParamVariant& p)
@@ -329,11 +310,6 @@ void Camera::SetAngularFrictionCoeff(const Support::ParamVariant& p)
     m_rotFrictionCoeff = p.GetFloat2().m_value;
 }
 
-void Camera::ClampSmallV0To0(const Support::ParamVariant& p)
-{
-    m_clampSmallV0ToZero = p.GetBool();
-}
-
 void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
 {
     m_rotAccScale = p.GetFloat2().m_value;
@@ -342,14 +318,17 @@ void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
 void Camera::FocusDepthCallback(const Support::ParamVariant& p)
 {
     m_focusDepth = p.GetFloat().m_value;
+    App::GetScene().SceneModified();
 }
 
 void Camera::FStopCallback(const Support::ParamVariant& p)
 {
     m_fStop = p.GetFloat().m_value;
+    App::GetScene().SceneModified();
 }
 
 void Camera::FocalLengthCallback(const Support::ParamVariant& p)
 {
     m_focalLength = p.GetFloat().m_value;
+    App::GetScene().SceneModified();
 }

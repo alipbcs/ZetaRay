@@ -92,9 +92,8 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
     float3 currViewDir = float3(frameConsts.CurrViewInv.m[0].z, frameConsts.CurrViewInv.m[1].z, 
         frameConsts.CurrViewInv.m[2].z);
     float3 delta_pos = prevCameraPos - frameConsts.CameraPos;
-    float3 delta_dir = prevViewDir - currViewDir;
-    bool cameraStatic = (delta_pos.dot(delta_pos) < FLT_EPSILON) &&
-        (delta_dir.dot(delta_dir) < FLT_EPSILON);
+    bool cameraStatic = (delta_pos.dot(delta_pos) < 3e-6f) &&
+        (prevViewDir.dot(currViewDir) >= 0.99999);
     cameraStatic = cameraStatic && !g_data->m_sunMoved && !g_data->m_sceneChanged;
     frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
         frameConsts.NumFramesCameraStatic + 1 : 0;
@@ -165,6 +164,8 @@ namespace ZetaRay::DefaultRenderer
         }
 
         App::SetUpscaleFactor(newUpscaleFactor);
+
+        g_data->m_sceneChanged = true;
     }
 
     void SetSunDir(const ParamVariant& p)
@@ -241,6 +242,8 @@ namespace ZetaRay::DefaultRenderer
         Assert(e < (int)IndirectLighting::INTEGRATOR::COUNT, "Invalid enum value.");
         g_data->m_settings.Indirect = (IndirectLighting::INTEGRATOR)e;
         g_data->m_pathTracerData.IndirecLightingPass.SetMethod(g_data->m_settings.Indirect);
+
+        g_data->m_sceneChanged = true;
     }
 
     void SetLensType(const Support::ParamVariant& p)
@@ -448,22 +451,24 @@ namespace ZetaRay::DefaultRenderer
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
                 g_data->m_pathTracerData.IndirecLightingPass.SetLightPresamplingParams(true,
                     Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
-
-                //ParamVariant p;
-                //p.InitBool("Renderer", "Lighting", "Light Voxel Grid", 
-                //    fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetLVG),
-                //    g_data->m_settings.UseLVG);
-                //App::AddParam(p);
             }
             else
             {
                 g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
                     Defaults::MIN_NUM_LIGHTS_PRESAMPLING, 0, 0);
-
-                //App::RemoveParam("Renderer", "Lighting", "Light Voxel Grid");
             }
 
-            //SetLVGEnablement(g_data->m_settings.UseLVG);
+            // Move the sun below the horizon when there are emissives
+            g_data->m_frameConstants.SunDir = float3(0.0f, 1.0f, 0.0f);
+
+            // HACK UI params can't be modified from outside - remove then readd
+            App::RemoveParam(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir");
+
+            ParamVariant p0;
+            p0.InitUnitDir(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir",
+                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
+                -g_data->m_frameConstants.SunDir);
+            App::AddParam(p0);
         }
 
         auto h0 = ts.EmplaceTask("SceneRenderer::UpdatePasses", []()
@@ -519,6 +524,7 @@ namespace ZetaRay::DefaultRenderer
         PostProcessor::OnWindowSizeChanged(g_data->m_settings, g_data->m_postProcessorData, g_data->m_pathTracerData);
 
         g_data->m_renderGraph.Reset();
+        g_data->m_sceneChanged = true;
     }
 
     Core::RenderGraph* GetRenderGraph()

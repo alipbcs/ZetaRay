@@ -250,6 +250,7 @@ namespace ZetaRay::Scene
         ZetaInline uint32_t NumOpaqueInstances() const { return m_numOpaqueInstances; }
         ZetaInline uint32_t NumNonOpaqueInstances() const { return m_numNonOpaqueInstances; }
         ZetaInline Core::RenderGraph* GetRenderGraph() { return m_rendererInterface.GetRenderGraph(); }
+        ZetaInline void SceneModified() { m_rendererInterface.SceneModified(); }
         ZetaInline void DebugDrawRenderGraph() { m_rendererInterface.DebugDrawRenderGraph(); }
 
         //

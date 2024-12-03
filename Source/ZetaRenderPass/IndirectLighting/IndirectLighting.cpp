@@ -1458,6 +1458,8 @@ void IndirectLighting::MaxNonTrBouncesCallback(const Support::ParamVariant& p)
     m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ONES_COMP;
     m_cbRPT_PathTrace.Packed |= newVal;
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::MaxGlossyTrBouncesCallback(const Support::ParamVariant& p)
@@ -1468,28 +1470,36 @@ void IndirectLighting::MaxGlossyTrBouncesCallback(const Support::ParamVariant& p
     m_cbRPT_PathTrace.Packed = m_cbRPT_PathTrace.Packed & ONES_COMP;
     m_cbRPT_PathTrace.Packed |= (newVal << PACKED_INDEX::NUM_GLOSSY_BOUNCES);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::StochasticMultibounceCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::STOCHASTIC_MULTI_BOUNCE, p.GetBool());
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::RussianRouletteCallback(const Support::ParamVariant& p)
 {
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::RUSSIAN_ROULETTE, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::RUSSIAN_ROULETTE, p.GetBool());
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::TemporalResamplingCallback(const Support::ParamVariant& p)
 {
     m_doTemporalResampling = p.GetBool();
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::SpatialResamplingCallback(const Support::ParamVariant& p)
 {
     m_numSpatialPasses = p.GetInt().m_value;
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::M_maxTCallback(const Support::ParamVariant& p)
@@ -1500,6 +1510,8 @@ void IndirectLighting::M_maxTCallback(const Support::ParamVariant& p)
     m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
     m_cbRPT_PathTrace.Packed |= (newM << PACKED_INDEX::MAX_TEMPORAL_M);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::M_maxSCallback(const Support::ParamVariant& p)
@@ -1509,6 +1521,8 @@ void IndirectLighting::M_maxSCallback(const Support::ParamVariant& p)
     m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
     m_cbRPT_PathTrace.Packed |= (newM << PACKED_INDEX::MAX_SPATIAL_M);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::DebugViewCallback(const Support::ParamVariant& p)
@@ -1539,6 +1553,8 @@ void IndirectLighting::TexFilterCallback(const Support::ParamVariant& p)
     m_cbRPT_PathTrace.Packed = (m_cbRPT_PathTrace.Packed & ONES_COMP);
     m_cbRPT_PathTrace.Packed |= (newVal << PACKED_INDEX::TEX_FILTER);
     m_cbRPT_Reuse.Packed = m_cbRPT_PathTrace.Packed;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::BoilingSuppressionCallback(const Support::ParamVariant& p)
@@ -1555,6 +1571,8 @@ void IndirectLighting::PathRegularizationCallback(const Support::ParamVariant& p
     SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
     SET_CB_FLAG(m_cbRPT_Reuse, CB_IND_FLAGS::PATH_REGULARIZATION, p.GetBool());
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
@@ -1562,6 +1580,8 @@ void IndirectLighting::AlphaMinCallback(const Support::ParamVariant& p)
     float newVal = p.GetFloat().m_value;
     m_cbRPT_PathTrace.Alpha_min = m_cbRPT_Reuse.Alpha_min = 
         newVal * newVal;
+
+    App::GetScene().SceneModified();
 }
 
 void IndirectLighting::ReloadRGI()

@@ -1,6 +1,6 @@
 #include "SkyDI.h"
 #include <Core/CommandList.h>
-#include <Scene/SceneRenderer.h>
+#include <Scene/SceneCore.h>
 #include <Support/Param.h>
 #include <Support/Task.h>
 #include "../Assets/Font/IconsFontAwesome6.h"
@@ -340,27 +340,32 @@ void SkyDI::CreateOutputs()
 void SkyDI::TemporalResamplingCallback(const Support::ParamVariant& p)
 {
     m_temporalResampling = p.GetBool();
+    App::GetScene().SceneModified();
 }
 
 void SkyDI::SpatialResamplingCallback(const Support::ParamVariant& p)
 {
     m_spatialResampling = p.GetBool();
+    App::GetScene().SceneModified();
 }
 
 void SkyDI::MaxMSkyCallback(const Support::ParamVariant& p)
 {
     m_cbSpatioTemporal.M_max = (m_cbSpatioTemporal.M_max & 0xffff0000) | p.GetInt().m_value;
+    App::GetScene().SceneModified();
 }
 
 void SkyDI::MaxMSunCallback(const Support::ParamVariant& p)
 {
     m_cbSpatioTemporal.M_max = (m_cbSpatioTemporal.M_max & 0xffff) | (p.GetInt().m_value << 16);
+    App::GetScene().SceneModified();
 }
 
 void SkyDI::AlphaMinCallback(const Support::ParamVariant& p)
 {
     float newVal = p.GetFloat().m_value;
     m_cbSpatioTemporal.Alpha_min = newVal * newVal;
+    App::GetScene().SceneModified();
 }
 
 void SkyDI::ReloadTemporalPass()
