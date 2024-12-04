@@ -285,7 +285,7 @@ namespace ZetaRay::DefaultRenderer
         g_data->m_frameConstants.PlanetRadius = Defaults::PLANET_RADIUS;
         g_data->m_frameConstants.g = Defaults::g;
         g_data->m_frameConstants.NumFramesCameraStatic = 0;
-        g_data->m_frameConstants.Accumulate = false;
+        g_data->m_frameConstants.Accumulate = true;
         g_data->m_frameConstants.DoF = 0;
 
         auto normalizeAndStore = [](float3 v, float3& cbVal, float& cbScale)

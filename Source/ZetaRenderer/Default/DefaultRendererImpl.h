@@ -59,13 +59,13 @@ namespace ZetaRay::DefaultRenderer
 
     inline static const char* LensTypes[] = { "Pinhole", "Thin Lens" };
 
-    static constexpr auto DEFAULT_AA = AA::TAA;
+    static constexpr auto DEFAULT_AA = AA::NONE;
 
     struct alignas(64) RenderSettings
     {
         bool Inscattering = false;
         AA AntiAliasing = DEFAULT_AA;
-        RenderPass::IndirectLighting::INTEGRATOR Indirect = RenderPass::IndirectLighting::INTEGRATOR::ReSTIR_GI;
+        RenderPass::IndirectLighting::INTEGRATOR Indirect = RenderPass::IndirectLighting::INTEGRATOR::ReSTIR_PT;
 
         // Presampled sets
         bool LightPresampling = false;
