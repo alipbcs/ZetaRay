@@ -1663,11 +1663,18 @@ void GuiPass::PickedMaterial(uint64 pickedID)
         if (mrTextured)
             ImGui::PushStyleColor(ImGuiCol_Text, texturedCol);
 
+        const bool disabled = mat.Transmissive();
+        if (disabled)
+            ImGui::BeginDisabled();
+
         if (ImGui::Checkbox("Metallic", &metallic))
         {
             mat.SetMetallic(metallic);
             modified = true;
         }
+
+        if (disabled)
+            ImGui::EndDisabled();
 
         if (mrTextured)
             ImGui::PopStyleColor();
@@ -1708,9 +1715,9 @@ void GuiPass::PickedMaterial(uint64 pickedID)
         const bool baseColorTextured = mat.GetBaseColorTex() != Material::INVALID_ID;
         float3 color = mat.GetBaseColorFactor();
         float depth = HalfToFloat(mat.GetTransmissionDepth().x);
-        bool thinWalled = mat.ThinWalled();
+        const bool disabled = mat.Metallic() || mat.ThinWalled();
 
-        if (thinWalled)
+        if (disabled)
             ImGui::BeginDisabled();
 
         if (ImGui::Checkbox("Transmissive", &transmissive))
@@ -1737,7 +1744,7 @@ void GuiPass::PickedMaterial(uint64 pickedID)
             modified = true;
         }
 
-        if (thinWalled)
+        if (disabled)
             ImGui::EndDisabled();
 
         ImGui::TreePop();
@@ -1746,9 +1753,9 @@ void GuiPass::PickedMaterial(uint64 pickedID)
     if (ImGui::TreeNode("Subsurface"))
     {
         float subsurface = mat.GetSubsurface();
-        bool thinWalled = mat.ThinWalled();
+        const bool disabled = mat.Metallic() || mat.Transmissive() || !mat.ThinWalled();
 
-        if (mat.Transmissive() || !thinWalled)
+        if (disabled)
             ImGui::BeginDisabled();
 
         if (ImGui::SliderFloat("Weight", &subsurface, 0.0f, 1.0f, "%.2f"))
@@ -1757,7 +1764,7 @@ void GuiPass::PickedMaterial(uint64 pickedID)
             modified = true;
         }
 
-        if (mat.Transmissive() || !thinWalled)
+        if (disabled)
             ImGui::EndDisabled();
 
         ImGui::TreePop();
@@ -1889,7 +1896,8 @@ void GuiPass::PickedMaterial(uint64 pickedID)
             modified = true;
         }
 
-        if (mat.Transmissive() || !mat.DoubleSided())
+        const bool disabled = mat.Transmissive() || !mat.DoubleSided();
+        if (disabled)
             ImGui::BeginDisabled();
 
         if (ImGui::Checkbox("Thin Walled", &thinWalled))
@@ -1898,7 +1906,7 @@ void GuiPass::PickedMaterial(uint64 pickedID)
             modified = true;
         }
 
-        if (mat.Transmissive() || !mat.DoubleSided())
+        if (disabled)
             ImGui::EndDisabled();
 
         ImGui::TreePop();

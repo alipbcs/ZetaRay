@@ -620,7 +620,15 @@ namespace
             }
 
             if (mat.has_ior)
+            {
+                if ((mat.ior.ior - 1.0f) < 1e-3f)
+                {
+                    LOG_UI_WARNING("IOR value of %.3f for material %s is invalid.\n",
+                        mat.ior.ior, mat.name ? mat.name : "unnamed");
+                }
+
                 desc.SpecularIOR = mat.ior.ior;
+            }
             if (mat.has_transmission)
                 desc.TransmissionWeight = mat.transmission.transmission_factor;
             if (mat.has_clearcoat)
