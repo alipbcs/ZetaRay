@@ -68,8 +68,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
     frameConsts.PixelSpreadAngle = cam.GetPixelSpreadAngle();
     frameConsts.TanHalfFOV = cam.GetTanHalfFOV();
     frameConsts.FocusDepth = cam.GetFocusDepth();
-    // mul by 0.5 to get radius from diameter
-    frameConsts.LensRadius = 0.5f * (cam.GetFocalLength() / 1000.0f) / cam.GetFStop();
+    frameConsts.LensRadius = cam.GetLensRadius();;
     frameConsts.PrevView = frameConsts.CurrView;
     frameConsts.CurrView = float3x4(cam.GetCurrView());
     frameConsts.PrevViewInv = frameConsts.CurrViewInv;

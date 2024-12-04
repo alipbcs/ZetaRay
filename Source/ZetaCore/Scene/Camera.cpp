@@ -95,10 +95,11 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     __m128 vBasisZ = _mm_insert_ps(vT.vRow[2], vT.vRow[2], 0x8);
     __m128 vEye = _mm_load_ps(reinterpret_cast<float*>(&m_posW));
 
-    Math::v_float4x4 vViewToWorld(vBasisX, vBasisY, vBasisZ, vEye);
+    v_float4x4 vViewToWorld(vBasisX, vBasisY, vBasisZ, vEye);
     m_viewInv = store(vViewToWorld);
 
     UpdateProj();
+    UpdateFocalLength();
 
     m_basisX = store(vBasisX);
     m_basisY = store(vBasisY);
@@ -111,7 +112,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
     ParamVariant fovParam;
     fovParam.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "FOV", fastdelegate::MakeDelegate(this, &Camera::SetFOV),
-        Math::RadiansToDegrees(m_FOV), 45, 90, 1, "Lens");
+        Math::RadiansToDegrees(m_FOV), 20, 90, 1, "Lens");
     App::AddParam(fovParam);
 
     ParamVariant coeff;
@@ -141,14 +142,8 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     ParamVariant fstop;
     fstop.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "F-Stop",
         fastdelegate::MakeDelegate(this, &Camera::FStopCallback),
-        m_fStop, 1.0f, 5.0f, 1e-2f, "Lens");
+        m_fStop, 0.1f, 5.0f, 1e-2f, "Lens");
     App::AddParam(fstop);
-
-    ParamVariant focalLen;
-    focalLen.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Focal Length (mm)",
-        fastdelegate::MakeDelegate(this, &Camera::FocalLengthCallback),
-        m_focalLength, 10.0f, 100.0f, 1e-1f, "Lens");
-    App::AddParam(focalLen);
 
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
 }
@@ -217,14 +212,20 @@ void Camera::UpdateProj()
     m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
 }
 
+void Camera::UpdateFocalLength()
+{
+    float sensorHeight = m_sensorWidth / m_aspectRatio;
+    m_focalLength = (0.5f * sensorHeight) / m_tanHalfFOV;
+}
+
 void Camera::OnWindowSizeChanged()
 {
     const int renderWidth = App::GetRenderer().GetRenderWidth();
     const int renderfHeight = App::GetRenderer().GetRenderHeight();
-
     m_aspectRatio = (float)renderWidth / renderfHeight;
 
     UpdateProj();
+    UpdateFocalLength();
 
     m_pixelSpreadAngle = atanf(2 * m_tanHalfFOV / renderfHeight);
     m_jitterPhaseCount = int(BASE_PHASE_COUNT * powf(App::GetUpscalingFactor(), 2.0f));
@@ -286,6 +287,7 @@ void Camera::SetFOV(const ParamVariant& p)
     m_tanHalfFOV = tanf(0.5f * m_FOV);
 
     UpdateProj();
+    UpdateFocalLength();
 
     App::GetScene().SceneModified();
 }
@@ -324,11 +326,5 @@ void Camera::FocusDepthCallback(const Support::ParamVariant& p)
 void Camera::FStopCallback(const Support::ParamVariant& p)
 {
     m_fStop = p.GetFloat().m_value;
-    App::GetScene().SceneModified();
-}
-
-void Camera::FocalLengthCallback(const Support::ParamVariant& p)
-{
-    m_focalLength = p.GetFloat().m_value;
     App::GetScene().SceneModified();
 }
