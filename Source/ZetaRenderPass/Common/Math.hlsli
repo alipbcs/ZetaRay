@@ -286,31 +286,37 @@ namespace Math
     // Builds an orthonormal coordinate system.
     // Ref: T. Duff, J. Burgess, P. Christensen, C. Hery, A. Kensler, M. Liani, 
     // R. Villemin, "Building an Orthonormal Basis, Revisited," Journal of Computer Graphics Techniques, 2017.
-    void revisedONB(float3 n, out float3 b1, out float3 b2)
+    struct CoordinateSystem
     {
-        const float s = SignNotZero(n.z);
-        const float a = -1.0 / (s + n.z);
-        const float b = n.x * n.y * a;
-        b1 = float3(mad(n.x * a, n.x * s, 1.0f), s * b, -s * n.x);
-        b2 = float3(b, mad(n.y * a, n.y, s), -n.y);
-    }
+        static CoordinateSystem Build(float3 n)
+        {
+            const float s = SignNotZero(n.z);
+            const float a = -1.0 / (s + n.z);
+            const float b = n.x * n.y * a;
+
+            CoordinateSystem ret;
+            ret.b1 = float3(mad(n.x * a, n.x * s, 1.0f), s * b, -s * n.x);
+            ret.b2 = float3(b, mad(n.y * a, n.y, s), -n.y);
+
+            return ret;
+        }
+
+        float3 b1;
+        float3 b2;
+    };
 
     float3 WorldToTangentFrame(float3 normal, float3 w)
     {
-        float3 b1;
-        float3 b2;
-        Math::revisedONB(normal, b1, b2);
-        float3x3 worldToLocal = float3x3(b1, b2, normal);
+        CoordinateSystem onb = CoordinateSystem::Build(normal);
+        float3x3 worldToLocal = float3x3(onb.b1, onb.b2, normal);
 
         return mul(worldToLocal, w);
     }
 
     float3 FromTangentFrameToWorld(float3 normal, float3 w_local)
     {
-        float3 b1;
-        float3 b2;
-        Math::revisedONB(normal, b1, b2);
-        float3x3 localToWorld_T = float3x3(b1, b2, normal);
+        CoordinateSystem onb = CoordinateSystem::Build(normal);
+        float3x3 localToWorld_T = float3x3(onb.b1, onb.b2, normal);
 
         return mul(w_local, localToWorld_T);
     }
@@ -353,7 +359,9 @@ namespace Math
             if (abs(det) < 1e-7f)
             {
                 float3 normal = normalize(cross(p1 - p0, p2 - p0));
-                Math::revisedONB(normal, ret.dpdu, ret.dpdv);
+                CoordinateSystem onb = CoordinateSystem::Build(normal);
+                ret.dpdu = onb.b1;
+                ret.dpdv = onb.b2;
                 ret.dndu = 0;
                 ret.dndv = 0;
 

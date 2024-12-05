@@ -224,10 +224,8 @@ namespace Light
             float3 sampleLocal = Sampling::UniformSampleCone(rng.Uniform2D(), 
                 sunCosAngularRadius, pdf_light);
             
-            float3 T;
-            float3 B;
-            Math::revisedONB(sunDir, T, B);
-            float3 wi_light = mad(sampleLocal.x, T, mad(sampleLocal.y, B, sampleLocal.z * sunDir));
+            Math::CoordinateSystem onb = Math::CoordinateSystem::Build(sunDir);
+            float3 wi_light = mad(sampleLocal.x, onb.b1, mad(sampleLocal.y, onb.b2, sampleLocal.z * sunDir));
 
             surface.SetWi(wi_light, normal);
             ret.f = BSDF::Unified(surface).f;

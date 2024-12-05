@@ -520,18 +520,16 @@ namespace BSDF
     {
 #if USE_ISOTROPIC_VNDF == 0
         // Build an orthonormal basis C around the normal such that it points towards +Z.
-        float3 b1;
-        float3 b2;
-        Math::revisedONB(shadingNormal, b1, b2);
+        Math::CoordinateSystem onb = Math::CoordinateSystem::Build(shadingNormal);
 
         // Transform wo from world space to C. M = [b1 b2 n] goes from C to world space, so 
         // we need its inverse. Since M is an orthogonal matrix, its inverse is just its transpose.
-        float3x3 worldToLocal = float3x3(b1, b2, shadingNormal);
+        float3x3 worldToLocal = float3x3(onb.b1, onb.b2, shadingNormal);
         float3 woLocal = mul(worldToLocal, wo);
         float3 whLocal = SampleGGXVNDF(woLocal, alpha, alpha, u);
 
         // Go from local space back to world space.
-        float3 wh = mad(whLocal.x, b1, mad(whLocal.y, b2, whLocal.z * shadingNormal));
+        float3 wh = mad(whLocal.x, onb.b1, mad(whLocal.y, onb.b2, whLocal.z * shadingNormal));
 #else
         float3 wh = SampleGGXVNDF_Isotropic(wo, alpha, shadingNormal, u);
 #endif
@@ -927,10 +925,8 @@ namespace BSDF
     {
         float3 wiLocal = Sampling::SampleCosineWeightedHemisphere(u, pdf);
 
-        float3 T;
-        float3 B;
-        Math::revisedONB(normal, T, B);
-        float3 wiWorld = mad(wiLocal.x, T, mad(wiLocal.y, B, wiLocal.z * normal));
+        Math::CoordinateSystem onb = Math::CoordinateSystem::Build(normal);
+        float3 wiWorld = mad(wiLocal.x, onb.b1, mad(wiLocal.y, onb.b2, wiLocal.z * normal));
 
         return wiWorld;
     }
