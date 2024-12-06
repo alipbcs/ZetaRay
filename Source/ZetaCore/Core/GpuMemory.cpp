@@ -1442,7 +1442,7 @@ Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t heigh
     return Texture(name, texture, RESOURCE_HEAP_TYPE::COMMITTED);
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, Texture::ID_TYPE ID,
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* texPath, Texture::ID_TYPE ID,
     Texture& tex)
 {
     D3D12_SUBRESOURCE_DATA subresources[DDS_Data::MAX_NUM_SUBRESOURCES];
@@ -1453,7 +1453,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     uint32_t numSubresources;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath, subresources, 
         format, ArenaAllocator(ma), width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
@@ -1467,7 +1467,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     return LOAD_DDS_RESULT::SUCCESS;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* texPath,
     Texture::ID_TYPE ID, Texture& tex, UploadHeapArena& heapArena, ArenaAllocator allocator)
 {
     D3D12_SUBRESOURCE_DATA subresources[DDS_Data::MAX_NUM_SUBRESOURCES];
@@ -1477,7 +1477,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     uint16_t mipCount;
     uint32_t numSubresources;
     DXGI_FORMAT format;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath, subresources, 
         format, allocator, width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
@@ -1492,15 +1492,15 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const App::Filesystem::Path& tex
     return LOAD_DDS_RESULT::SUCCESS;
 }
 
-LOAD_DDS_RESULT GpuMemory::GetDDSDataFromDisk(const App::Filesystem::Path& texPath,
+LOAD_DDS_RESULT GpuMemory::GetDDSDataFromDisk(const char* texPath,
     DDS_Data& dds, UploadHeapArena& heapArena, Support::ArenaAllocator allocator)
 {
-    return Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), dds.subresources, 
+    return Direct3DUtil::LoadDDSFromFile(texPath, dds.subresources, 
         dds.format, allocator, dds.width, dds.height, dds.depth, dds.mipCount, 
         dds.numSubresources);
 }
 
-LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& texPath, Texture& tex)
+LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* texPath, Texture& tex)
 {
     // TODO MAX_NUM_SUBRESOURCES is not enough for 3D textures with mipmaps, though 
     // currently not needed
@@ -1512,13 +1512,13 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const App::Filesystem::Path& tex
     uint32_t numSubresources;
     DXGI_FORMAT format;
     MemoryArena ma;
-    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath.GetView().data(), subresources, 
+    const auto errCode = Direct3DUtil::LoadDDSFromFile(texPath, subresources, 
         format, ArenaAllocator(ma), width, height, depth, mipCount, numSubresources);
 
     if (errCode != LOAD_DDS_RESULT::SUCCESS)
         return errCode;
 
-    tex = GetTexture3D(texPath.Get(), width, height, (uint16_t)depth, format, 
+    tex = GetTexture3D(texPath, width, height, (uint16_t)depth, format, 
         D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
     const int idx = GetThreadIndex(g_data->m_threadIDs);

@@ -16,32 +16,4 @@ namespace ZetaRay::App::Filesystem
     void CreateDirectoryIfNotExists(const char* path);
     bool Copy(const char* srcPath, const char* dstPath, bool overwrite = false);
     bool IsDirectory(const char* path);
-
-    struct Path
-    {
-        Path() = default;
-        explicit Path(Util::StrView str);
-
-        Path(const Path&) = delete;
-        Path& operator=(const Path&) = delete;
-
-        ZetaInline bool IsEmpty() const { return m_path.empty(); }
-        void Reset(Util::StrView str);
-        ZetaInline void Resize(size_t n) { m_path.resize(n); };
-        Filesystem::Path& Append(Util::StrView str);
-        Filesystem::Path& ToParent();
-        Filesystem::Path& Directory();
-        void Stem(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
-        void Extension(Util::MutableSpan<char> buff, size_t* outStrLen = nullptr) const;
-        ZetaInline char* Get() { return m_path.begin(); }
-        ZetaInline const char* Get() const { return m_path.begin(); }
-        ZetaInline Util::StrView GetView() const { return Util::StrView(m_path.begin(), m_path.size()); }
-        ZetaInline size_t Length() const { return m_path.size(); }
-        void ConvertToBackslashes();
-        void ConvertToForwardSlashes();
-
-    private:
-        static constexpr size_t DEFAULT_PATH_LENGTH = 128;
-        Util::SmallVector<char, Support::SystemAllocator, DEFAULT_PATH_LENGTH> m_path;
-    };
 }

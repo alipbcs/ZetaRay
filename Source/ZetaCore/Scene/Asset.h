@@ -6,11 +6,6 @@
 #include "../RayTracing/RtCommon.h"
 #include <Utility/Optional.h>
 
-namespace ZetaRay::App::Filesystem
-{
-    struct Path;
-}
-
 namespace ZetaRay::Scene::Internal
 {
     //--------------------------------------------------------------------------------------

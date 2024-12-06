@@ -4,11 +4,6 @@
 #include "../Utility/Span.h"
 #include "../Support/OffsetAllocator.h"
 
-namespace ZetaRay::App::Filesystem
-{
-    struct Path;
-}
-
 namespace ZetaRay::Core::GpuMemory
 {
     //
@@ -354,13 +349,13 @@ namespace ZetaRay::Core::GpuMemory
         uint16_t mipCount;
     };
 
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const char* texPath,
         Texture::ID_TYPE ID, Texture& tex);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const App::Filesystem::Path& texPath, 
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture2DFromDisk(const char* texPath,
         Texture::ID_TYPE ID, Texture& tex, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetDDSDataFromDisk(const App::Filesystem::Path& texPath,
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetDDSDataFromDisk(const char* texPath,
         DDS_Data& dds, UploadHeapArena& heapArena, Support::ArenaAllocator allocator);
-    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const App::Filesystem::Path& texPath,
+    Core::Direct3DUtil::LOAD_DDS_RESULT GetTexture3DFromDisk(const char* texPath,
         Texture& tex);
     Texture GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0);

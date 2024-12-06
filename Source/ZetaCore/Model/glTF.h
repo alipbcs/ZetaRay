@@ -1,11 +1,6 @@
 #pragma once
 
-#include "../App/ZetaRay.h"
-
-namespace ZetaRay::App::Filesystem
-{
-    struct Path;
-}
+#include "../App/Path.h"
 
 namespace ZetaRay::Model::glTF
 {

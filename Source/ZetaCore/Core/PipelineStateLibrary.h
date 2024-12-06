@@ -1,7 +1,7 @@
 #pragma once
 
 #include "../Core/Device.h"
-#include "../App/Filesystem.h"
+#include "../App/Path.h"
 #include <atomic>
 
 namespace ZetaRay::Core

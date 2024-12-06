@@ -49,7 +49,7 @@ void PathTracer::Init(const RenderSettings& settings, PathTracerData& data)
 
     App::Filesystem::Path p(App::GetAssetDir());
     p.Append("LUT\\rho.dds");
-    auto err = GpuMemory::GetTexture3DFromDisk(p, data.m_rhoLUT);
+    auto err = GpuMemory::GetTexture3DFromDisk(p.Get(), data.m_rhoLUT);
     Check(err == LOAD_DDS_RESULT::SUCCESS, "Error loading DDS texture from path %s: %d",
         p.Get(), err);
 

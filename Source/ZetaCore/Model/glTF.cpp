@@ -460,7 +460,7 @@ namespace
                 path.Get());
 
             ddsTextures[idx].ID = IDFromTexturePath(path);
-            auto err = GpuMemory::GetDDSDataFromDisk(path, ddsTextures[idx], heapArena, 
+            auto err = GpuMemory::GetDDSDataFromDisk(path.Get(), ddsTextures[idx], heapArena,
                 ArenaAllocator(memArena));
 
             if (err != LOAD_DDS_RESULT::SUCCESS)
