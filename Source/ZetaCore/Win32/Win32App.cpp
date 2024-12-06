@@ -163,6 +163,7 @@ namespace
         int16 m_lastLMBClickPosX = 0;
         int16 m_lastLMBClickPosY = 0;
         bool m_picked = false;
+        bool m_multiPick = false;
         int m_inMouseWheelMove = 0;
         bool m_inSizeMove = false;
         bool m_minimized = false;
@@ -637,7 +638,7 @@ namespace ZetaRay::AppImpl
         ImGui_UpdateMouse();
         ImGui::NewFrame();
 
-        if (!(GetAsyncKeyState(VK_LSHIFT) & (1 << 16)))
+        if (!(GetAsyncKeyState(VK_LSHIFT) & (1 << 15)))
         {
             float scale = g_app->m_inMouseWheelMove ? g_app->m_inMouseWheelMove * 20 : 1.0f;
             scale = g_app->m_frameMotion.Acceleration.z != 0 || g_app->m_frameMotion.Acceleration.x != 0 ?
@@ -668,8 +669,13 @@ namespace ZetaRay::AppImpl
 
         if (g_app->m_picked)
         {
-            g_app->m_scene.Pick(g_app->m_lastLMBClickPosX, g_app->m_lastLMBClickPosY);
+            if (g_app->m_multiPick)
+                g_app->m_scene.MultiPick(g_app->m_lastLMBClickPosX, g_app->m_lastLMBClickPosY);
+            else
+                g_app->m_scene.Pick(g_app->m_lastLMBClickPosX, g_app->m_lastLMBClickPosY);
+
             g_app->m_picked = false;
+            g_app->m_multiPick = false;
         }
 
         g_app->m_scene.Update(g_app->m_timer.GetElapsedTime(), sceneTS, sceneRendererTS);
@@ -850,14 +856,17 @@ namespace ZetaRay::AppImpl
         {
             int16 x = GET_X_LPARAM(lParam);
             int16 y = GET_Y_LPARAM(lParam);
+            constexpr uint32_t buttons = MK_LBUTTON | MK_CONTROL;
+            constexpr uint32_t ignoreButtons = ~buttons;
 
-            if (btnState == MK_LBUTTON)
+            if ((btnState & buttons) && !(btnState & ignoreButtons))
             {
                 SetCapture(g_app->m_hwnd);
                 g_app->m_lastMousePosX = x;
                 g_app->m_lastMousePosY = y;
                 g_app->m_lastLMBClickPosX = x;
                 g_app->m_lastLMBClickPosY = y;
+                g_app->m_multiPick = btnState & MK_CONTROL;
             }
         }
     }
@@ -1013,7 +1022,7 @@ namespace ZetaRay::AppImpl
                 }
 
                 if (found)
-                    g_app->m_params.erase(i);
+                    g_app->m_params.erase_at_index(i);
             }
         }
 
@@ -1786,19 +1795,19 @@ namespace ZetaRay
         return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
     }
 
-    RWSynchronizedVariable<MutableSpan<ParamVariant>> App::GetParams()
+    SynchronizedMutableSpan<ParamVariant> App::GetParams()
     {
-        return RWSynchronizedVariable<MutableSpan<ParamVariant>>(g_app->m_params, g_app->m_paramLock);
+        return SynchronizedMutableSpan<ParamVariant>(g_app->m_params, g_app->m_paramLock);
     }
 
-    RSynchronizedVariable<MutableSpan<ShaderReloadHandler>> App::GetShaderReloadHandlers()
+    SynchronizedMutableSpan<ShaderReloadHandler> App::GetShaderReloadHandlers()
     {
-        return RSynchronizedVariable<MutableSpan<ShaderReloadHandler>>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
+        return SynchronizedMutableSpan<ShaderReloadHandler>(g_app->m_shaderReloadHandlers, g_app->m_shaderReloadLock);
     }
 
-    RWSynchronizedVariable<Span<Stat>> App::GetStats()
+    SynchronizedSpan<Stat> App::GetStats()
     {
-        return RWSynchronizedVariable<Span<Stat>>(g_app->m_frameStats, g_app->m_statsLock);
+        return SynchronizedSpan<Stat>(g_app->m_frameStats, g_app->m_statsLock);
     }
 
     void App::AddParam(ParamVariant& p)
@@ -1877,7 +1886,7 @@ namespace ZetaRay
         }
 
         if (found)
-            g_app->m_shaderReloadHandlers.erase(i);
+            g_app->m_shaderReloadHandlers.erase_at_index(i);
 
         ReleaseSRWLockExclusive(&g_app->m_shaderReloadLock);
     }

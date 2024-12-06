@@ -1,9 +1,5 @@
 #pragma once
 
-#ifndef _M_X64
-#error 64-bit platform is required
-#endif
-
 #define _HAS_EXCEPTIONS 0
 
 #include <cstdint>

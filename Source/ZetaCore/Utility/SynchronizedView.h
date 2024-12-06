@@ -1,6 +1,7 @@
 #pragma once
 
 #include "../Win32/Win32.h"
+#include "Span.h"
 
 namespace ZetaRay::Util
 {
@@ -13,12 +14,10 @@ namespace ZetaRay::Util
         {
             AcquireSRWLockShared(&m_lock);
         }
-
         ~RSynchronizedView()
         {
             ReleaseSRWLockShared(&m_lock);
         }
-
         RSynchronizedView(RSynchronizedView&&) = delete;
         RSynchronizedView& operator=(RSynchronizedView&&) = delete;
 
@@ -38,12 +37,10 @@ namespace ZetaRay::Util
         {
             AcquireSRWLockExclusive(&m_lock);
         }
-
         ~RWSynchronizedView()
         {
             ReleaseSRWLockExclusive(&m_lock);
         }
-
         RWSynchronizedView(RWSynchronizedView&&) = delete;
         RWSynchronizedView& operator=(RWSynchronizedView&&) = delete;
 
@@ -55,56 +52,44 @@ namespace ZetaRay::Util
     };
 
     template<typename T>
-    struct RSynchronizedVariable
+    struct SynchronizedSpan
     {
-        static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
-
-        RSynchronizedVariable(T t, SRWLOCK& lock)
-            : m_var(t),
+        SynchronizedSpan(Util::Span<T> t, SRWLOCK& lock)
+            : m_span(t),
             m_lock(lock)
         {
             AcquireSRWLockShared(&m_lock);
         }
-
-        ~RSynchronizedVariable()
+        ~SynchronizedSpan()
         {
             ReleaseSRWLockShared(&m_lock);
         }
+        SynchronizedSpan(SynchronizedSpan&&) = delete;
+        SynchronizedSpan& operator=(SynchronizedSpan&&) = delete;
 
-        RSynchronizedVariable(RSynchronizedVariable&&) = delete;
-        RSynchronizedVariable& operator=(RSynchronizedVariable&&) = delete;
-
-        const T Variable() const { return m_var; }
-
+        const Util::Span<T> m_span;
     private:
-        const T m_var;
         SRWLOCK& m_lock;
-    };
-
+    };    
+    
     template<typename T>
-    struct RWSynchronizedVariable
+    struct SynchronizedMutableSpan
     {
-        static_assert(std::is_copy_assignable_v<T>, "T must be copy assignable.");
-
-        RWSynchronizedVariable(T t, SRWLOCK& lock)
-            : m_var(t),
+        SynchronizedMutableSpan(Util::MutableSpan<T> t, SRWLOCK& lock)
+            : m_span(t),
             m_lock(lock)
         {
             AcquireSRWLockExclusive(&m_lock);
         }
-
-        ~RWSynchronizedVariable()
+        ~SynchronizedMutableSpan()
         {
             ReleaseSRWLockExclusive(&m_lock);
         }
+        SynchronizedMutableSpan(SynchronizedMutableSpan&&) = delete;
+        SynchronizedMutableSpan& operator=(SynchronizedMutableSpan&&) = delete;
 
-        RWSynchronizedVariable(RWSynchronizedVariable&&) = delete;
-        RWSynchronizedVariable& operator=(RWSynchronizedVariable&&) = delete;
-
-        T Variable() const { return m_var; }
-
+        const Util::MutableSpan<T> m_span;
     private:
-        T m_var;
         SRWLOCK& m_lock;
     };
 }

@@ -5,6 +5,7 @@
 #include "SceneRenderer.h"
 #include "SceneCommon.h"
 #include "../Utility/Utility.h"
+#include "../Utility/SynchronizedView.h"
 #include <xxHash/xxhash.h>
 #include <atomic>
 
@@ -256,17 +257,22 @@ namespace ZetaRay::Scene
         //
         // Picking
         //
-        ZetaInline void Pick(uint16 screenPosX, uint16 screenPosY) { m_rendererInterface.Pick(screenPosX, screenPosY); }
-        ZetaInline void ClearPick() 
+        ZetaInline void Pick(uint16 screenPosX, uint16 screenPosY) 
         { 
-            m_rendererInterface.ClearPick(); 
-            m_pickedInstance.store(Scene::INVALID_INSTANCE, std::memory_order_relaxed);
+            m_multiPick = false;
+            m_rendererInterface.Pick(screenPosX, screenPosY); 
         }
-        ZetaInline void SetPickedInstance(uint64 instanceID) 
+        ZetaInline void MultiPick(uint16 screenPosX, uint16 screenPosY) 
         { 
-            m_pickedInstance.store(instanceID, std::memory_order_relaxed);
+            m_multiPick = true;
+            m_rendererInterface.Pick(screenPosX, screenPosY); 
         }
-        ZetaInline uint64 GetPickedInstance() { return m_pickedInstance.load(std::memory_order_relaxed); }
+        void ClearPick();
+        void SetPickedInstance(uint64 instanceID);
+        ZetaInline Util::SynchronizedSpan<uint64_t> GetPickedInstances()
+        { 
+            return Util::SynchronizedSpan<uint64_t>(m_pickedInstances, m_pickLock);
+        }
         ZetaInline void CaptureScreen() { m_rendererInterface.CaptureScreen(); }
 
     private:
@@ -351,7 +357,8 @@ namespace ZetaRay::Scene
         Util::SmallVector<TreeLevel, Support::SystemAllocator, 3> m_sceneGraph;
         // Previous frame's world transformation
         Util::HashTable<Math::float4x3> m_prevToWorlds;
-        std::atomic_uint64_t m_pickedInstance = Scene::INVALID_INSTANCE;
+        Util::SmallVector<uint64, Support::SystemAllocator, 4> m_pickedInstances;
+        bool m_multiPick = false;
         bool m_isPaused = false;
 
         //
@@ -405,6 +412,7 @@ namespace ZetaRay::Scene
         SRWLOCK m_meshLock = SRWLOCK_INIT;
         SRWLOCK m_instanceLock = SRWLOCK_INIT;
         SRWLOCK m_emissiveLock = SRWLOCK_INIT;
+        SRWLOCK m_pickLock = SRWLOCK_INIT;
 
         //
         // Animation

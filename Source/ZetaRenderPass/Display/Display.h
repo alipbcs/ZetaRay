@@ -119,7 +119,7 @@ namespace ZetaRay::RenderPass
             "Sobel_ps.cso" 
         };
 
-        void DrawPicked(Core::GraphicsCmdList& cmdList);
+        void DrawPicked(Core::GraphicsCmdList& cmdList, Util::Span<uint64_t> picks);
         void CreatePSOs();
         void ReadbackPickIdx();
         void ReadbackScreenCapture();
@@ -142,7 +142,6 @@ namespace ZetaRay::RenderPass
         // Picking data
         int m_producerHandle = -1;
         Core::GpuMemory::ReadbackHeapBuffer* m_readback = nullptr;
-        std::atomic_uint64_t m_pickID = Scene::INVALID_INSTANCE;
         fastdelegate::FastDelegate0<> m_pickDlg;
         Core::GpuMemory::Texture m_pickMask;
         bool m_wireframe = false;

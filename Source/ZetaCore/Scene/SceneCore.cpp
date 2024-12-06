@@ -72,10 +72,12 @@ void SceneCore::Init(Renderer::Interface& rendererInterface)
 
     m_baseColorDescTable.Init(XXH3_64bits(GlobalResource::BASE_COLOR_DESCRIPTOR_TABLE,
         strlen(GlobalResource::BASE_COLOR_DESCRIPTOR_TABLE)));
-    m_normalDescTable.Init(XXH3_64bits(GlobalResource::NORMAL_DESCRIPTOR_TABLE, strlen(GlobalResource::NORMAL_DESCRIPTOR_TABLE)));
+    m_normalDescTable.Init(XXH3_64bits(GlobalResource::NORMAL_DESCRIPTOR_TABLE, 
+        strlen(GlobalResource::NORMAL_DESCRIPTOR_TABLE)));
     m_metallicRoughnessDescTable.Init(XXH3_64bits(GlobalResource::METALLIC_ROUGHNESS_DESCRIPTOR_TABLE,
         strlen(GlobalResource::METALLIC_ROUGHNESS_DESCRIPTOR_TABLE)));
-    m_emissiveDescTable.Init(XXH3_64bits(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE, strlen(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE)));
+    m_emissiveDescTable.Init(XXH3_64bits(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE, 
+        strlen(GlobalResource::EMISSIVE_DESCRIPTOR_TABLE)));
 
     m_rendererInterface.Init();
 
@@ -1064,4 +1066,44 @@ void SceneCore::ConvertSubtreeDynamic(uint32_t treeLevel, Range r)
 void SceneCore::AnimateCallback(const ParamVariant& p)
 {
     m_animate = !p.GetBool();
+}
+
+void SceneCore::ClearPick()
+{
+    m_rendererInterface.ClearPick();
+
+    AcquireSRWLockExclusive(&m_pickLock);
+    m_pickedInstances.clear();
+    ReleaseSRWLockExclusive(&m_pickLock);
+}
+
+void SceneCore::SetPickedInstance(uint64 instanceID)
+{
+    AcquireSRWLockExclusive(&m_pickLock);
+
+    if (!m_multiPick)
+    {
+        m_pickedInstances.resize(1);
+        m_pickedInstances[0] = instanceID;
+    }
+    else
+    {
+        // NOTE usually there aren't more than a few objects picked
+        // at the same time, so linear search should be fine
+        bool found = false;
+        for (size_t i = 0; i < m_pickedInstances.size(); i++)
+        {
+            if (m_pickedInstances[i] == instanceID)
+            {
+                m_pickedInstances.erase_at_index(i);
+                found = true;
+                break;
+            }
+        }
+
+        if(!found)
+            m_pickedInstances.push_back(instanceID);
+    }
+
+    ReleaseSRWLockExclusive(&m_pickLock);
 }

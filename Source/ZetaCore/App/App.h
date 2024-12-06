@@ -25,22 +25,19 @@ namespace ZetaRay::Util
     class Vector;
 
     template<typename T>
-    struct RSynchronizedView;
-
-    template<typename T>
-    struct RSynchronizedVariable;
-
-    template<typename T>
     struct RWSynchronizedView;
-
-    template<typename T>
-    struct RWSynchronizedVariable;
 
     template<typename T>
     struct Span;
 
     template<typename T>
     struct MutableSpan;
+
+    template<typename T>
+    struct SynchronizedSpan;
+
+    template<typename T>
+    struct SynchronizedMutableSpan;
 
     struct StrView;
 }
@@ -137,11 +134,11 @@ namespace ZetaRay::App
     void AddParam(Support::ParamVariant& p);
     void TryAddParam(Support::ParamVariant& p);
     void RemoveParam(const char* group, const char* subgroup, const char* name);
-    Util::RWSynchronizedVariable<Util::MutableSpan<Support::ParamVariant>> GetParams();
+    Util::SynchronizedMutableSpan<Support::ParamVariant> GetParams();
 
     void AddShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg);
     void RemoveShaderReloadHandler(const char* name);
-    Util::RSynchronizedVariable<Util::MutableSpan<ShaderReloadHandler>> GetShaderReloadHandlers();
+    Util::SynchronizedMutableSpan<ShaderReloadHandler> GetShaderReloadHandlers();
 
     // These could be implemented as templated functions, but that would require the 
     // implementation to be in the header, which would then expose some heavy 
@@ -152,7 +149,7 @@ namespace ZetaRay::App
     void AddFrameStat(const char* group, const char* name, uint64_t f);
     void AddFrameStat(const char* group, const char* name, uint32_t num, 
         uint32_t total);
-    Util::RWSynchronizedVariable<Util::Span<Support::Stat>> GetStats();
+    Util::SynchronizedSpan<Support::Stat> GetStats();
     Util::Span<float> GetFrameTimeHistory();
 
     const char* GetPSOCacheDir();

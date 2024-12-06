@@ -25,6 +25,7 @@ using namespace ZetaRay::Core::GpuMemory;
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Scene;
 using namespace ZetaRay::Math;
+using namespace ZetaRay::Util;
 using namespace ZetaRay::Core::Direct3DUtil;
 
 //--------------------------------------------------------------------------------------
@@ -141,7 +142,6 @@ void DisplayPass::SetPickData(const Core::RenderNodeHandle& producerHandle,
 
 void DisplayPass::ClearPick()
 {
-    m_pickID.store(Scene::INVALID_INSTANCE, std::memory_order_relaxed);
     App::RemoveParam(ICON_FA_FILM " Renderer", "Display", "Wireframe");
 }
 
@@ -188,6 +188,7 @@ void DisplayPass::Render(CommandList& cmdList)
 
     auto& renderer = App::GetRenderer();
     auto& gpuTimer = renderer.GetGpuTimer();
+    auto& scene = App::GetScene();
 
     directCmdList.PIXBeginEvent("Display");
     const uint32_t queryIdx = gpuTimer.BeginQuery(directCmdList, "Display");
@@ -202,7 +203,7 @@ void DisplayPass::Render(CommandList& cmdList)
 
     if (RenderNodeHandle(m_producerHandle).IsValid())
     {
-        const uint64_t fence = App::GetScene().GetRenderGraph()->GetCompletionFence(
+        const uint64_t fence = scene.GetRenderGraph()->GetCompletionFence(
             RenderNodeHandle(m_producerHandle));
         Assert(fence != UINT64_MAX, "Invalid fence value.");
 
@@ -233,12 +234,12 @@ void DisplayPass::Render(CommandList& cmdList)
     directCmdList.OMSetRenderTargets(1, &m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV], true, nullptr);
     directCmdList.DrawInstanced(3, 1, 0, 0);
 
-    if (m_pickID.load(std::memory_order_relaxed) != Scene::INVALID_INSTANCE)
-        DrawPicked(directCmdList);
+    if (auto picks = scene.GetPickedInstances().m_span; !picks.empty())
+        DrawPicked(directCmdList, picks);
 
     if (m_captureScreen)
     {
-        ID3D12Resource* backbuffer = const_cast<Texture&>(App::GetRenderer().GetCurrentBackBuffer()).Resource();
+        ID3D12Resource* backbuffer = const_cast<Texture&>(renderer.GetCurrentBackBuffer()).Resource();
         directCmdList.ResourceBarrier(backbuffer,
             D3D12_RESOURCE_STATE_RENDER_TARGET,
             D3D12_RESOURCE_STATE_COPY_SOURCE);
@@ -283,11 +284,9 @@ void DisplayPass::Render(CommandList& cmdList)
     directCmdList.PIXEndEvent();
 }
 
-void DisplayPass::DrawPicked(GraphicsCmdList& cmdList)
+void DisplayPass::DrawPicked(GraphicsCmdList& cmdList, Span<uint64_t> picks)
 {
-    if (m_pickID == Scene::INVALID_INSTANCE)
-        return;
-
+    Assert(!picks.empty(), "Invalid argument.");
     const auto& camera = App::GetCamera();
     auto& frustum = camera.GetCameraFrustumViewSpace();
     auto viewInv = camera.GetViewInv();
@@ -297,98 +296,101 @@ void DisplayPass::DrawPicked(GraphicsCmdList& cmdList)
     v_ViewFrustum vFrustum(const_cast<ViewFrustum&>(frustum));
     vFrustum = transform(vM, vFrustum);
 
-    v_AABB vBox(App::GetScene().GetAABB(m_pickID));
-    v_float4x4 vW = load4x3(App::GetScene().GetToWorld(m_pickID));
-    vBox = transform(vW, vBox);
-
-    // Avoid drawing the gizmo if picked instance is outside the frustum
-    if (instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
-        return;
-
-    // Draw mask
+    for (auto ID : picks)
     {
-        auto& scene = App::GetScene();
-        auto meshID = scene.GetInstanceMeshID(m_pickID);
-        auto* mesh = scene.GetMesh(meshID).value();
-        float4x3 toWorld = scene.GetToWorld(m_pickID);
+        v_AABB vBox(App::GetScene().GetAABB(ID));
+        v_float4x4 vW = load4x3(App::GetScene().GetToWorld(ID));
+        vBox = transform(vW, vBox);
 
-        const Camera& cam = App::GetCamera();
-        v_float4x4 vView = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
-        v_float4x4 vProj = load4x4(const_cast<float4x4a&>(cam.GetProj()));
-        v_float4x4 vVP = mul(vView, vProj);
-        v_float4x4 vW2 = load4x3(toWorld);
-        v_float4x4 vWVP = mul(vW2, vVP);
-        float4x4a wvp = store(vWVP);
+        // Skip if outside the view frustum
+        if (instersectFrustumVsAABB(vFrustum, vBox) == COLLISION_TYPE::DISJOINT)
+            continue;
 
-        cbDrawPicked cb;
-        cb.row0 = wvp.m[0];
-        cb.row1 = wvp.m[1];
-        cb.row2 = wvp.m[2];
-        cb.row3 = wvp.m[3];
+        // Draw mask
+        {
+            auto& scene = App::GetScene();
+            auto meshID = scene.GetInstanceMeshID(ID);
+            auto* mesh = scene.GetMesh(meshID).value();
+            float4x3 toWorld = scene.GetToWorld(ID);
 
-        const Buffer& sceneVB = App::GetScene().GetMeshVB();
-        const Buffer& sceneIB = App::GetScene().GetMeshIB();
+            const Camera& cam = App::GetCamera();
+            v_float4x4 vView = load4x4(const_cast<float4x4a&>(cam.GetCurrView()));
+            v_float4x4 vProj = load4x4(const_cast<float4x4a&>(cam.GetProj()));
+            v_float4x4 vVP = mul(vView, vProj);
+            v_float4x4 vW2 = load4x3(toWorld);
+            v_float4x4 vWVP = mul(vW2, vVP);
+            float4x4a wvp = store(vWVP);
 
-        D3D12_VERTEX_BUFFER_VIEW vbv;
-        vbv.StrideInBytes = sizeof(Vertex);
-        vbv.BufferLocation = sceneVB.GpuVA() + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
-        vbv.SizeInBytes = mesh->m_numVertices * sizeof(Vertex);
+            cbDrawPicked cb;
+            cb.row0 = wvp.m[0];
+            cb.row1 = wvp.m[1];
+            cb.row2 = wvp.m[2];
+            cb.row3 = wvp.m[3];
 
-        D3D12_INDEX_BUFFER_VIEW ibv;
-        ibv.Format = DXGI_FORMAT_R32_UINT;
-        ibv.BufferLocation = sceneIB.GpuVA() + mesh->m_idxBuffStartOffset * sizeof(uint32);
-        ibv.SizeInBytes = mesh->m_numIndices * sizeof(uint32);
+            const Buffer& sceneVB = App::GetScene().GetMeshVB();
+            const Buffer& sceneIB = App::GetScene().GetMeshIB();
 
-        auto layoutToRT = TextureBarrier(m_pickMask.Resource(),
-            D3D12_BARRIER_SYNC_NONE,
-            D3D12_BARRIER_SYNC_DRAW,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_LAYOUT_RENDER_TARGET,
-            D3D12_BARRIER_ACCESS_NO_ACCESS,
-            D3D12_BARRIER_ACCESS_RENDER_TARGET);
-        cmdList.ResourceBarrier(layoutToRT);
+            D3D12_VERTEX_BUFFER_VIEW vbv;
+            vbv.StrideInBytes = sizeof(Vertex);
+            vbv.BufferLocation = sceneVB.GpuVA() + mesh->m_vtxBuffStartOffset * sizeof(Vertex);
+            vbv.SizeInBytes = mesh->m_numVertices * sizeof(Vertex);
 
-        auto* pso = m_wireframe ? m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED_WIREFRAME) :
-            m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED);
-        cmdList.SetPipelineState(pso);
-        cmdList.IASetVertexAndIndexBuffers(vbv, ibv);
-        auto cpuHandle = m_rtvDescTable.CPUHandle(0);
-        cmdList.OMSetRenderTargets(1, &cpuHandle, true, nullptr);
+            D3D12_INDEX_BUFFER_VIEW ibv;
+            ibv.Format = DXGI_FORMAT_R32_UINT;
+            ibv.BufferLocation = sceneIB.GpuVA() + mesh->m_idxBuffStartOffset * sizeof(uint32);
+            ibv.SizeInBytes = mesh->m_numIndices * sizeof(uint32);
 
-        cmdList.ClearRenderTargetView(cpuHandle, 0, 0, 0, 0);
+            auto layoutToRT = TextureBarrier(m_pickMask.Resource(),
+                D3D12_BARRIER_SYNC_NONE,
+                D3D12_BARRIER_SYNC_DRAW,
+                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+                D3D12_BARRIER_LAYOUT_RENDER_TARGET,
+                D3D12_BARRIER_ACCESS_NO_ACCESS,
+                D3D12_BARRIER_ACCESS_RENDER_TARGET);
+            cmdList.ResourceBarrier(layoutToRT);
 
-        m_rootSig.SetRootConstants(0, sizeof(cbDrawPicked) / sizeof(uint32), &cb);
-        m_rootSig.End(cmdList);
+            auto* pso = m_wireframe ? m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED_WIREFRAME) :
+                m_psoLib.GetPSO((int)DISPLAY_SHADER::DRAW_PICKED);
+            cmdList.SetPipelineState(pso);
+            cmdList.IASetVertexAndIndexBuffers(vbv, ibv);
+            auto cpuHandle = m_rtvDescTable.CPUHandle(0);
+            cmdList.OMSetRenderTargets(1, &cpuHandle, true, nullptr);
 
-        cmdList.DrawIndexedInstanced(mesh->m_numIndices,
-            1,
-            0,
-            0,
-            0);
-    }
+            cmdList.ClearRenderTargetView(cpuHandle, 0, 0, 0, 0);
 
-    // Sobel
-    {
-        cmdList.SetPipelineState(m_psoLib.GetPSO((int)DISPLAY_SHADER::SOBEL));
-        cmdList.OMSetRenderTargets(1, &m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV], true, nullptr);
+            m_rootSig.SetRootConstants(0, sizeof(cbDrawPicked) / sizeof(uint32), &cb);
+            m_rootSig.End(cmdList);
 
-        auto syncDrawAndLayoutToRead = TextureBarrier(m_pickMask.Resource(),
-            D3D12_BARRIER_SYNC_DRAW,
-            D3D12_BARRIER_SYNC_PIXEL_SHADING,
-            D3D12_BARRIER_LAYOUT_RENDER_TARGET,
-            D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
-            D3D12_BARRIER_ACCESS_RENDER_TARGET,
-            D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
-        cmdList.ResourceBarrier(syncDrawAndLayoutToRead);
+            cmdList.DrawIndexedInstanced(mesh->m_numIndices,
+                1,
+                0,
+                0,
+                0);
+        }
 
-        cbSobel cb;
-        cb.MaskDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::PICK_MASK_SRV);
-        cb.Wireframe = m_wireframe;
+        // Sobel
+        {
+            cmdList.SetPipelineState(m_psoLib.GetPSO((int)DISPLAY_SHADER::SOBEL));
+            cmdList.OMSetRenderTargets(1, &m_cpuDescs[(int)SHADER_IN_CPU_DESC::RTV], true, nullptr);
 
-        m_rootSig.SetRootConstants(0, sizeof(cbSobel) / sizeof(uint32), &cb);
-        m_rootSig.End(cmdList);
+            auto syncDrawAndLayoutToRead = TextureBarrier(m_pickMask.Resource(),
+                D3D12_BARRIER_SYNC_DRAW,
+                D3D12_BARRIER_SYNC_PIXEL_SHADING,
+                D3D12_BARRIER_LAYOUT_RENDER_TARGET,
+                D3D12_BARRIER_LAYOUT_DIRECT_QUEUE_SHADER_RESOURCE,
+                D3D12_BARRIER_ACCESS_RENDER_TARGET,
+                D3D12_BARRIER_ACCESS_SHADER_RESOURCE);
+            cmdList.ResourceBarrier(syncDrawAndLayoutToRead);
 
-        cmdList.DrawInstanced(3, 1, 0, 0);
+            cbSobel cb;
+            cb.MaskDescHeapIdx = m_descTable.GPUDescriptorHeapIndex((int)DESC_TABLE::PICK_MASK_SRV);
+            cb.Wireframe = m_wireframe;
+
+            m_rootSig.SetRootConstants(0, sizeof(cbSobel) / sizeof(uint32), &cb);
+            m_rootSig.End(cmdList);
+
+            cmdList.DrawInstanced(3, 1, 0, 0);
+        }
     }
 }
 
@@ -486,7 +488,8 @@ void DisplayPass::CreatePSOs()
 void DisplayPass::ReadbackPickIdx()
 {
     Assert(m_readback, "Readback buffer hasn't been set.");
-    auto pickWasDisabled = m_pickID == Scene::INVALID_INSTANCE;
+    auto& scene = App::GetScene();
+    auto pickWasDisabled = scene.GetPickedInstances().m_span.empty();
     m_readback->Map();
 
     uint32* data = reinterpret_cast<uint32*>(m_readback->MappedMemory());
@@ -499,10 +502,8 @@ void DisplayPass::ReadbackPickIdx()
     if (rtMeshIdx == UINT32_MAX)
         return;
 
-    auto id = App::GetScene().GetIDFromRtMeshIdx(rtMeshIdx);
-    m_pickID.store(id, std::memory_order_relaxed);
-
-    App::GetScene().SetPickedInstance(id);
+    auto id = scene.GetIDFromRtMeshIdx(rtMeshIdx);
+    scene.SetPickedInstance(id);
 
     if (pickWasDisabled)
     {

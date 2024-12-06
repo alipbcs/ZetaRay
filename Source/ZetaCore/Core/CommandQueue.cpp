@@ -82,7 +82,7 @@ ID3D12CommandAllocator* CommandQueue::GetCommandAllocator()
             if (!m_cmdAllocPool.empty() && m_cmdAllocPool[0].FenceToWaitFor <= m_lastCompletedFenceVal)
             {
                 cmdAlloc = m_cmdAllocPool[0];
-                m_cmdAllocPool.erase(0);
+                m_cmdAllocPool.erase_at_index(0);
 
                 std::make_heap(m_cmdAllocPool.begin(), m_cmdAllocPool.end(),
                     [](const ReleasedCmdAlloc& lhs, const ReleasedCmdAlloc& rhs)

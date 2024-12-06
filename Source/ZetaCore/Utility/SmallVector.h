@@ -351,13 +351,12 @@ namespace ZetaRay::Util
         }
 
         // Erases an element by swapping it with the last element. Returns a pointer to the next element.
-        T* erase(size_t pos)
+        T* erase_at_index(size_t pos)
         {
             static_assert(std::is_swappable_v<T>, "T is not swappable.");
             const size_t n = size();
             Assert(pos < n, "Out-of-bound access.");
             Assert(!empty(), "Attempting to erase from an empty Vector.");
-            Assert(pos < n, "Invalid index position.");
 
             if (pos == n - 1)
             {
@@ -372,24 +371,10 @@ namespace ZetaRay::Util
         }
 
         // Erases an element by swapping it with the last element. Returns a pointer to the next element.
-        T* erase(T& item)
+        T* erase(const T& item)
         {
-            static_assert(std::is_swappable_v<T>, "T is not swappable.");
-            const size_t n = size();
             const size_t pos = &item - m_beg;
-            Assert(!empty(), "Attempting to erase from an empty Vector.");
-            Assert(pos >= 0 && pos < n, "Out-of-bound access.");
-
-            if (pos == n - 1)
-            {
-                pop_back();
-                return m_beg + pos;
-            }
-
-            std::swap(*(m_beg + pos), *(m_beg + n - 1));
-            pop_back();
-
-            return m_beg + pos;
+            return erase_at_index(pos);
         }
 
         void push_front(const T& val)

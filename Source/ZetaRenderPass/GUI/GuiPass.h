@@ -55,8 +55,8 @@ namespace ZetaRay::RenderPass
         void RenderProfiler();
         void RenderLogWindow();
         void RenderMainHeader();
-        void RenderToolbar(uint64 pickedID);
-        void RenderGizmo(uint64_t pickedID, const Model::TriangleMesh& mesh, 
+        void RenderToolbar();
+        void RenderGizmo(Util::Span<uint64> pickedIDs, const Model::TriangleMesh& mesh, 
             const Math::float4x4a& W);
         void InfoTab();
         void CameraTab();

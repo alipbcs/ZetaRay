@@ -521,26 +521,27 @@ void GuiPass::RenderUI()
 {
     ImGuizmo::BeginFrame();
 
-    SceneCore& scene = App::GetScene();
-    const uint64_t pickedID = App::GetScene().GetPickedInstance();
-
-    RenderToolbar(pickedID);
+    RenderToolbar();
 
     if (!m_hideUI)
     {
+        SceneCore& scene = App::GetScene();
         TriangleMesh instanceMesh;
         float4x4a W;
+        uint64_t firstPicked = Scene::INVALID_INSTANCE;
 
-        if (pickedID != Scene::INVALID_INSTANCE)
+        if (auto picks = scene.GetPickedInstances(); !picks.m_span.empty())
         {
-            W = float4x4a(scene.GetToWorld(pickedID));
-            instanceMesh = *scene.GetInstanceMesh(pickedID).value();
+            firstPicked = picks.m_span[0];
+
+            W = float4x4a(scene.GetToWorld(firstPicked));
+            instanceMesh = *scene.GetInstanceMesh(firstPicked).value();
 
             if (m_gizmoActive)
-                RenderGizmo(pickedID, instanceMesh, W);
+                RenderGizmo(picks.m_span, instanceMesh, W);
         }
 
-        RenderSettings(pickedID, instanceMesh, W);
+        RenderSettings(firstPicked, instanceMesh, W);
         RenderMainHeader();
     }
 
@@ -548,7 +549,7 @@ void GuiPass::RenderUI()
     m_appWndSizeChanged = false;
 }
 
-void GuiPass::RenderToolbar(uint64_t pickedID)
+void GuiPass::RenderToolbar()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
@@ -757,8 +758,6 @@ void GuiPass::RenderProfiler()
         ImGui::Text("Frame %llu", timer.GetTotalFrameCount());
         ImGui::SeparatorText("Performance");
 
-        Span<Support::Stat> stats = App::GetStats().Variable();
-
         auto func = [](Stat& s)
             {
                 switch (s.GetType())
@@ -794,7 +793,7 @@ void GuiPass::RenderProfiler()
                 }
             };
 
-        for (auto s : stats)
+        for (auto s : App::GetStats().m_span)
             func(s);
 
         ImGui::SeparatorText("Scene");
@@ -1000,7 +999,7 @@ void GuiPass::RenderMainHeader()
     ImGui::End();
 }
 
-void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const float4x4a& W)
+void GuiPass::RenderGizmo(Span<uint64_t> pickedIDs, const TriangleMesh& mesh, const float4x4a& W)
 {
     if (!ImGuizmo::IsUsingAny())
     {
@@ -1033,7 +1032,10 @@ void GuiPass::RenderGizmo(uint64_t pickedID, const TriangleMesh& mesh, const flo
         ImGuizmo::WORLD, W_new, dt, dr, ds, nullptr);
 
     if (modified)
-        App::GetScene().TransformInstance(pickedID, dt, float3x3(dr), ds);
+    {
+        for(auto ID : pickedIDs)
+            App::GetScene().TransformInstance(ID, dt, float3x3(dr), ds);
+    }
 }
 
 void GuiPass::InfoTab()
@@ -1111,47 +1113,49 @@ void GuiPass::CameraTab()
     ImGui::SeparatorText("Parameters");
 
     {
-        MutableSpan<ParamVariant> params = App::GetParams().Variable();
+        auto params = App::GetParams();
 
         // Partition by "Scene"
-        auto firstNonScene = std::partition(params.begin(), params.end(), [](const ParamVariant& p)
+        auto firstNonScene = std::partition(params.m_span.begin(), params.m_span.end(), 
+            [](const ParamVariant& p)
             {
                 return strcmp(p.GetGroup(), ICON_FA_LANDMARK " Scene") == 0;
             });
         // Partition by "Camera"
-        auto firstNonCamera = std::partition(params.begin(), firstNonScene, [](const ParamVariant& p)
+        auto firstNonCamera = std::partition(params.m_span.begin(), firstNonScene, 
+            [](const ParamVariant& p)
             {
                 return strcmp(p.GetSubGroup(), "Camera") == 0;
             });
-        const int numCameraParams = (int)(firstNonCamera - params.data());
+        const int numCameraParams = (int)(firstNonCamera - params.m_span.data());
         if (numCameraParams == 0)
             return;
 
-        std::sort(params.begin(), firstNonCamera,
+        std::sort(params.m_span.begin(), firstNonCamera,
             [](const ParamVariant& p1, const ParamVariant& p2)
             {
                 return strcmp(p1.GetSubSubGroup(), p2.GetSubSubGroup()) < 0;
             });
 
         char curr[ParamVariant::MAX_SUBSUBGROUP_LEN];
-        size_t len = strlen(params[0].GetSubSubGroup());
-        memcpy(curr, params[0].GetSubSubGroup(), len);
+        size_t len = strlen(params.m_span[0].GetSubSubGroup());
+        memcpy(curr, params.m_span[0].GetSubSubGroup(), len);
         curr[len] = '\0';
         int beg = 0;
         int i = 0;
 
         for (i = 0; i < numCameraParams; i++)
         {
-            if (strcmp(params[i].GetSubSubGroup(), curr) != 0)
+            if (strcmp(params.m_span[i].GetSubSubGroup(), curr) != 0)
             {
                 if (ImGui::TreeNodeEx(curr))
                 {
-                    AddParamRange(params, beg, (int)(i - beg));
+                    AddParamRange(params.m_span, beg, (int)(i - beg));
                     ImGui::TreePop();
                 }
 
-                len = strlen(params[i].GetSubSubGroup());
-                memcpy(curr, params[i].GetSubSubGroup(), len);
+                len = strlen(params.m_span[i].GetSubSubGroup());
+                memcpy(curr, params.m_span[i].GetSubSubGroup(), len);
                 curr[len] = '\0';
                 beg = i;
             }
@@ -1159,7 +1163,7 @@ void GuiPass::CameraTab()
 
         if (ImGui::TreeNodeEx(curr))
         {
-            AddParamRange(params, beg, i - beg);
+            AddParamRange(params.m_span, beg, i - beg);
             ImGui::TreePop();
         }
     }
@@ -1167,27 +1171,29 @@ void GuiPass::CameraTab()
 
 void GuiPass::ParameterTab()
 {
-    MutableSpan<ParamVariant> params = App::GetParams().Variable();
+    auto params = App::GetParams();
     char currGroup[ParamVariant::MAX_GROUP_LEN];
 
     ImGui::PushItemWidth(ImGui::GetContentRegionAvail().x * 0.55f);
 
     // Sort by group
-    std::sort(params.begin(), params.end(), [](const ParamVariant& p1, const ParamVariant& p2)
+    std::sort(params.m_span.begin(), params.m_span.end(), 
+        [](const ParamVariant& p1, const ParamVariant& p2)
         {
             return strcmp(p1.GetGroup(), p2.GetGroup()) < 0;
         });
 
-    for (int currGroupIdx = 0; currGroupIdx < (int)params.size();)
+    for (int currGroupIdx = 0; currGroupIdx < (int)params.m_span.size();)
     {
-        ParamVariant& currParam_g = params[currGroupIdx];
+        ParamVariant& currParam_g = params.m_span[currGroupIdx];
         const size_t groupLen = strlen(currParam_g.GetGroup());
         memcpy(currGroup, currParam_g.GetGroup(), groupLen);
         currGroup[groupLen] = '\0';
 
         // Find the range of parameters for this group
         int nextGroupIdx = currGroupIdx;
-        while (nextGroupIdx < params.size() && (strcmp(params[nextGroupIdx].GetGroup(), currGroup) == 0))
+        while (nextGroupIdx < params.m_span.size() && 
+            (strcmp(params.m_span[nextGroupIdx].GetGroup(), currGroup) == 0))
             nextGroupIdx++;
 
         if (ImGui::CollapsingHeader(currParam_g.GetGroup(), ImGuiTreeNodeFlags_DefaultOpen))
@@ -1195,7 +1201,7 @@ void GuiPass::ParameterTab()
             char currSubGroup[ParamVariant::MAX_SUBGROUP_LEN];
 
             // Sort by subgroup among current group
-            std::sort(params.begin() + currGroupIdx, params.begin() + nextGroupIdx,
+            std::sort(params.m_span.begin() + currGroupIdx, params.m_span.begin() + nextGroupIdx,
                 [](const ParamVariant& p1, const ParamVariant& p2)
                 {
                     return strcmp(p1.GetSubGroup(), p2.GetSubGroup()) < 0;
@@ -1204,15 +1210,15 @@ void GuiPass::ParameterTab()
             // Add the parameters in this subgroup
             for (int currSubgroupIdx = currGroupIdx; currSubgroupIdx < nextGroupIdx;)
             {
-                ParamVariant& currParam_s = params[currSubgroupIdx];
+                ParamVariant& currParam_s = params.m_span[currSubgroupIdx];
                 const char* subGroupName = currParam_s.GetSubGroup();
                 const size_t subGroupLen = strlen(subGroupName);
                 memcpy(currSubGroup, subGroupName, subGroupLen);
                 currSubGroup[subGroupLen] = '\0';
 
                 int nextSubgroupIdx = currSubgroupIdx;
-                while (nextSubgroupIdx < params.size() && 
-                    (strcmp(params[nextSubgroupIdx].GetSubGroup(), currSubGroup) == 0))
+                while (nextSubgroupIdx < params.m_span.size() &&
+                    (strcmp(params.m_span[nextSubgroupIdx].GetSubGroup(), currSubGroup) == 0))
                     nextSubgroupIdx++;
 
                 if (strcmp(subGroupName, "Camera") == 0)
@@ -1230,7 +1236,7 @@ void GuiPass::ParameterTab()
                     bool hasSubsubgroups = false;
                     for (int i = currSubgroupIdx; i < nextSubgroupIdx; i++)
                     {
-                        if (params[i].GetSubSubGroup()[0] != '\0')
+                        if (params.m_span[i].GetSubSubGroup()[0] != '\0')
                         {
                             hasSubsubgroups = true;
                             break;
@@ -1238,7 +1244,7 @@ void GuiPass::ParameterTab()
                     }
 
                     // Sort by subsubgroup among current subgroup
-                    std::sort(params.begin() + currSubgroupIdx, params.begin() + nextSubgroupIdx,
+                    std::sort(params.m_span.begin() + currSubgroupIdx, params.m_span.begin() + nextSubgroupIdx,
                         [](const ParamVariant& p1, const ParamVariant& p2)
                         {
                             return strcmp(p1.GetSubSubGroup(), p2.GetSubSubGroup()) < 0;
@@ -1248,29 +1254,29 @@ void GuiPass::ParameterTab()
                     {
                         for (int currSubsubgroupIdx = currSubgroupIdx; currSubsubgroupIdx < nextSubgroupIdx;)
                         {
-                            ParamVariant& currParam_ss = params[currSubsubgroupIdx];
+                            ParamVariant& currParam_ss = params.m_span[currSubsubgroupIdx];
                             const size_t subSubgroupLen = strlen(currParam_ss.GetSubSubGroup());
                             memcpy(currSubsubGroup, currParam_ss.GetSubSubGroup(), subSubgroupLen);
                             currSubsubGroup[subSubgroupLen] = '\0';
 
                             int nextSubsubgroupIdx = currSubsubgroupIdx;
-                            while (nextSubsubgroupIdx < params.size() &&
-                                (strcmp(params[nextSubsubgroupIdx].GetSubSubGroup(), currSubsubGroup) == 0))
+                            while (nextSubsubgroupIdx < params.m_span.size() &&
+                                (strcmp(params.m_span[nextSubsubgroupIdx].GetSubSubGroup(), currSubsubGroup) == 0))
                                 nextSubsubgroupIdx++;
 
                             if (subSubgroupLen > 0)
                             {
                                 ImGui::SeparatorText(currParam_ss.GetSubSubGroup());
-                                AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
+                                AddParamRange(params.m_span, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
                             }
                             else
-                                AddParamRange(params, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
+                                AddParamRange(params.m_span, currSubsubgroupIdx, nextSubsubgroupIdx - currSubsubgroupIdx);
 
                             currSubsubgroupIdx = nextSubsubgroupIdx;
                         }
                     }
                     else
-                        AddParamRange(params, currSubgroupIdx, nextSubgroupIdx - currSubgroupIdx);
+                        AddParamRange(params.m_span, currSubgroupIdx, nextSubgroupIdx - currSubgroupIdx);
 
                     ImGui::TreePop();
                 }
@@ -1341,12 +1347,12 @@ void GuiPass::GpuTimingsTab()
 
 void GuiPass::ShaderReloadTab()
 {
-    auto reloadHandlers = App::GetShaderReloadHandlers();
-    MutableSpan<App::ShaderReloadHandler> handlers = reloadHandlers.Variable();
+    auto handlers = App::GetShaderReloadHandlers();
 
-    if (!handlers.empty())
+    if (!handlers.m_span.empty())
     {
-        std::sort(handlers.begin(), handlers.end(), [](const App::ShaderReloadHandler& lhs, const App::ShaderReloadHandler& rhs)
+        std::sort(handlers.m_span.begin(), handlers.m_span.end(), 
+            [](const App::ShaderReloadHandler& lhs, const App::ShaderReloadHandler& rhs)
             {
                 return strcmp(lhs.Name, rhs.Name) < 0;
             });
@@ -1355,11 +1361,11 @@ void GuiPass::ShaderReloadTab()
     ImGui::Text("Select a shader to reload:");
 
     // TODO m_currShader becomes invalid when there's been a change in reloadHandlers 
-    if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? handlers[m_currShader].Name : "None", 0))
+    if (ImGui::BeginCombo("Shader", m_currShader >= 0 ? handlers.m_span[m_currShader].Name : "None", 0))
     {
         int i = 0;
 
-        for (auto& handler : handlers)
+        for (auto& handler : handlers.m_span)
         {
             bool selected = (m_currShader == i);
             if (ImGui::Selectable(handler.Name, selected))
@@ -1378,7 +1384,7 @@ void GuiPass::ShaderReloadTab()
         ImGui::BeginDisabled();
 
     if (ImGui::Button("Reload"))
-        handlers[m_currShader].Dlg();
+        handlers.m_span[m_currShader].Dlg();
 
     if (m_currShader == -1)
         ImGui::EndDisabled();
