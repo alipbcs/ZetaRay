@@ -89,28 +89,33 @@ namespace
 
     struct ThreadContext
     {
+        const App::Filesystem::Path* glTFPath;
         uint32_t SceneID;
-        const App::Filesystem::Path& Path;
         cgltf_data* Model;
+
+        SmallVector<Vertex> Vertices;
+        SmallVector<uint32_t> Indices;
+        SmallVector<Mesh> Meshes;
+        // All unique textures that need to be loaded from disk
+        SmallVector<Texture> DDSImages;
+        SmallVector<EmissiveMeshPrim> EmissiveMeshPrims;
+        SmallVector<EmissiveInstance> EmissiveInstances;
+        SmallVector<RT::EmissiveTriangle> RTEmissives;
+
         int NumMeshWorkers;
         int NumImgWorkers;
         size_t* MeshThreadOffsets;
         size_t* MeshThreadSizes;
         size_t* ImgThreadOffsets;
         size_t* ImgThreadSizes;
-        SmallVector<Vertex> Vertices;
-        std::atomic_uint32_t& CurrVtxOffset;
-        SmallVector<uint32_t> Indices;
-        std::atomic_uint32_t& CurrIdxOffset;
-        SmallVector<Mesh> Meshes;
-        std::atomic_uint32_t& CurrMeshPrimOffset;
-        MutableSpan<EmissiveMeshPrim> EmissiveMeshPrims;
         uint32_t* EmissiveMeshPrimCountPerWorker;
-        SmallVector<RT::EmissiveTriangle>& RTEmissives;
-        SmallVector<EmissiveInstance>& EmissiveInstances;
-        int NumEmissiveMeshPrims;
-        int NumEmissiveInstances;
-        uint32_t NumEmissiveTris;
+
+        std::atomic_uint32_t CurrVtxOffset = 0;
+        std::atomic_uint32_t CurrIdxOffset = 0;
+        std::atomic_uint32_t CurrMeshPrimOffset = 0;
+        int NumEmissiveMeshPrims = 0;
+        int NumEmissiveInstances = 0;
+        uint32_t NumEmissiveTris = 0;
     };
 
     void ResetEmissiveSubsets(MutableSpan<EmissiveMeshPrim> subsets)
@@ -1060,8 +1065,6 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     cgltf_data* model = nullptr;
     Checkgltf(cgltf_parse_file(&options, pathToglTF.GetView().data(), &model));
 
-    //Check(model->extensions_required_count == 0, "Required glTF extensions are not supported.");
-
     // Load buffers
     Check(model->buffers_count == 1, "Invalid number of buffers.");
     Filesystem::Path bufferPath(pathToglTF.GetView());
@@ -1072,10 +1075,6 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     Check(model->scene, "glTF model doesn't have a default scene: %s.", pathToglTF.GetView());
     const uint32_t sceneID = XXH3_64_To_32(XXH3_64bits(pathToglTF.GetView().data(), pathToglTF.Length()));
     SceneCore& scene = App::GetScene();
-
-    // All the unique textures that need to be loaded from disk
-    SmallVector<Texture> ddsImages;
-    ddsImages.resize(model->images_count);
 
     // Figure out total number of vertices and indices
     size_t totalNumVertices;
@@ -1097,18 +1096,6 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         total += levels[i];
 
     // Preallocate
-    SmallVector<Core::Vertex> vertices;
-    SmallVector<uint32_t> indices;
-    SmallVector<Mesh> meshes;
-    SmallVector<EmissiveMeshPrim> emissivePrims;
-    SmallVector<RT::EmissiveTriangle> rtEmissives;
-    SmallVector<EmissiveInstance> emissiveInstances;
-
-    vertices.resize(totalNumVertices);
-    indices.resize(totalNumIndices);
-    meshes.resize(totalNumMeshPrims);
-    emissivePrims.resize(totalNumMeshPrims);
-    ResetEmissiveSubsets(emissivePrims);
     scene.ResizeAdditionalMaterials((uint32_t)model->materials_count);
     scene.ReserveInstances(levels, total);
 
@@ -1137,31 +1124,25 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         imgWorkerCount,
         MIN_IMAGES_PER_WORKER);
 
-    std::atomic_uint32_t currVtxOffset = 0;
-    std::atomic_uint32_t currIdxOffset = 0;
-    std::atomic_uint32_t currMeshPrimOffset = 0;
+    ThreadContext tc;
+    tc.glTFPath = &pathToglTF;
+    tc.SceneID = sceneID;
+    tc.Model = model;
+    tc.NumMeshWorkers = numMeshWorkers;
+    tc.NumImgWorkers = numImgWorkers;
+    tc.MeshThreadOffsets = meshWorkerOffset;
+    tc.MeshThreadSizes = meshWorkerCount;
+    tc.ImgThreadOffsets = imgWorkerOffset;
+    tc.ImgThreadSizes = imgWorkerCount;
+    tc.EmissiveMeshPrimCountPerWorker = workerEmissiveCount;
 
-    ThreadContext tc{ .SceneID = sceneID,
-        .Path = pathToglTF,
-        .Model = model,
-        .NumMeshWorkers = numMeshWorkers,
-        .NumImgWorkers = numImgWorkers,
-        .MeshThreadOffsets = meshWorkerOffset, .MeshThreadSizes = meshWorkerCount,
-        .ImgThreadOffsets = imgWorkerOffset, .ImgThreadSizes = imgWorkerCount,
-        .Vertices = vertices,
-        .CurrVtxOffset = currVtxOffset,
-        .Indices = indices,
-        .CurrIdxOffset = currIdxOffset,
-        .Meshes = meshes,
-        .CurrMeshPrimOffset = currMeshPrimOffset,
-        .EmissiveMeshPrims = emissivePrims,
-        .EmissiveMeshPrimCountPerWorker = workerEmissiveCount,
-        .RTEmissives = rtEmissives,
-        .EmissiveInstances = emissiveInstances,
-        .NumEmissiveMeshPrims = 0,
-        .NumEmissiveInstances = 0,
-        .NumEmissiveTris = 0
-    };
+    // Preallocate
+    tc.Vertices.resize(totalNumVertices);
+    tc.Indices.resize(totalNumIndices);
+    tc.Meshes.resize(totalNumMeshPrims);
+    tc.DDSImages.resize(model->images_count);
+    tc.EmissiveMeshPrims.resize(totalNumMeshPrims);
+    ResetEmissiveSubsets(tc.EmissiveMeshPrims);
 
     TaskSet ts;
 
@@ -1183,8 +1164,9 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
             // In order to do only one allocation, number of emissive mesh primitives was assumed
             // to be the worst case -- total number of mesh primitives. As such, there may be a number 
             // of "null" entries in the EmissiveMeshPrims. Now that the actual size is known, adjust 
-            // the Span range accordingly.
-            tc.EmissiveMeshPrims = MutableSpan(tc.EmissiveMeshPrims.data(), tc.NumEmissiveMeshPrims);
+            // the size accordingly.
+            //tc.EmissiveMeshPrims = MutableSpan(tc.EmissiveMeshPrims.data(), tc.NumEmissiveMeshPrims);
+            tc.EmissiveMeshPrims.resize(tc.NumEmissiveMeshPrims);
             NumEmissiveInstancesAndTriangles(tc);
         });
 
@@ -1199,26 +1181,27 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
                     tc.Vertices, tc.CurrVtxOffset,
                     tc.Indices, tc.CurrIdxOffset,
                     tc.Meshes, tc.CurrMeshPrimOffset,
-                    tc.EmissiveMeshPrims, tc.EmissiveMeshPrimCountPerWorker[workerIdx]);
+                    tc.EmissiveMeshPrims, 
+                    tc.EmissiveMeshPrimCountPerWorker[workerIdx]);
             });
 
         ts.AddOutgoingEdge(procMesh, procEmissiveMeshPrims);
     }
 
-    auto procMats = ts.EmplaceTask("gltf::Materials", [&tc, &ddsImages]()
+    auto procMats = ts.EmplaceTask("gltf::Materials", [&tc]()
         {
             // For binary search
-            std::sort(ddsImages.begin(), ddsImages.end(), 
+            std::sort(tc.DDSImages.begin(), tc.DDSImages.end(),
                 [](const Texture& lhs, const Texture& rhs)
                 {
                     return lhs.ID() < rhs.ID();
                 });
 
-            Filesystem::Path parent(tc.Path.GetView());
+            Filesystem::Path parent(tc.glTFPath->GetView());
             parent.ToParent();
 
             ProcessMaterials(tc.SceneID, parent, *tc.Model, 0, (int)tc.Model->materials_count, 
-                ddsImages);
+                tc.DDSImages);
         });
 
     for (int i = 0; i < numImgWorkers; i++)
@@ -1226,13 +1209,13 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
         StackStr(tname, n, "gltf::Img_%d", i);
 
         // Loads dds textures from disk and upload them to GPU
-        auto h = ts.EmplaceTask(tname, [&pathToglTF, &ddsImages, &tc, workerIdx = i]()
+        auto h = ts.EmplaceTask(tname, [&tc, workerIdx = i]()
             {
-                Filesystem::Path parent(pathToglTF.GetView());
+                Filesystem::Path parent(tc.glTFPath->GetView());
                 parent.ToParent();
 
                 LoadDDSImages(tc.SceneID, parent, *tc.Model, tc.ImgThreadOffsets[workerIdx], 
-                    tc.ImgThreadSizes[workerIdx], ddsImages);
+                    tc.ImgThreadSizes[workerIdx], tc.DDSImages);
             });
 
         // Material processing should start after textures are loaded
@@ -1258,7 +1241,7 @@ void glTF::Load(const App::Filesystem::Path& pathToglTF)
     ts.AddOutgoingEdge(procEmissiveMeshPrims, procEmissives);
     ts.AddOutgoingEdge(procMats, procEmissives);
 
-    auto procNodes = ts.EmplaceTask("gltf::Nodes", [&tc]()
+    ts.EmplaceTask("gltf::Nodes", [&tc]()
         {
             ProcessNodes(*tc.Model, tc.SceneID);
         });
