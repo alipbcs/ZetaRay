@@ -33,6 +33,8 @@ namespace ZetaRay::Core
         void Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
             uint16_t displayWidth, uint16_t displayHeight);
         void Shutdown();
+        void InitBasic();
+        void ShutdownBasic() {};
         void OnWindowSizeChanged(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight, 
             uint16_t displayWidth, uint16_t displayHeight);
         void WaitForSwapChainWaitableObject();

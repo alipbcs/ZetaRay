@@ -32,7 +32,7 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
     m_hwnd = hwnd;
 
     m_deviceObjs.InitializeAdapter();
-    m_deviceObjs.CreateDevice();
+    m_deviceObjs.CreateDevice(true);
     InitStaticSamplers();
 
     CheckHR(m_deviceObjs.m_device->CreateFence(0, D3D12_FENCE_FLAG_NONE, 
@@ -98,6 +98,13 @@ void RendererCore::Init(HWND hwnd, uint16_t renderWidth, uint16_t renderHeight,
     p0.InitBool(ICON_FA_FILM " Renderer", "Display", "VSync",
         fastdelegate::MakeDelegate(this, &RendererCore::SetVSync), m_vsyncInterval > 0);
     App::AddParam(p0);
+}
+
+void RendererCore::InitBasic()
+{
+    m_deviceObjs.InitializeAdapter();
+    m_deviceObjs.CreateDevice(false);
+    InitStaticSamplers();
 }
 
 void RendererCore::ResizeBackBuffers(HWND hwnd)

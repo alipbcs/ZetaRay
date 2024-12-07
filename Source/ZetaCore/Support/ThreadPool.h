@@ -14,7 +14,7 @@ namespace ZetaRay::Support
         ThreadPool& operator=(const ThreadPool&) = delete;
 
         void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, App::THREAD_PRIORITY priority);
-        void Start();
+        void Start(Util::Span<ZETA_THREAD_ID_TYPE> threadIDs);
         void Shutdown();
 
         void Enqueue(TaskSet&& ts);

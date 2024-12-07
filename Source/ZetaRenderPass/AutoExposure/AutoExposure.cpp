@@ -29,7 +29,7 @@ AutoExposure::AutoExposure()
     m_rootSig.InitAsBufferUAV(2, 0, 0, D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE);
 }
 
-void AutoExposure::Init()
+void AutoExposure::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -42,7 +42,16 @@ void AutoExposure::Init()
         D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
     RenderPassBase::InitRenderPass("AutoExposure", flags);
-    m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
+
+    m_psoLib.CompileComputePSO((int)SHADER::HISTOGRAM, m_rootSigObj.Get(),
+        COMPILED_CS[(int)SHADER::HISTOGRAM]);
+    m_psoLib.CompileComputePSO((int)SHADER::WEIGHTED_AVG, m_rootSigObj.Get(),
+        COMPILED_CS[(int)SHADER::WEIGHTED_AVG]);
+}
+
+void AutoExposure::Init()
+{
+    InitPSOs();
 
     m_minLum = DefaultParamVals::MinLum;
     m_maxLum = DefaultParamVals::MaxLum;
@@ -76,11 +85,7 @@ void AutoExposure::Init()
         DefaultParamVals::LumMapExp, 1e-1f, 1.0f, 1e-2f);
     App::AddParam(p3);
 
-    m_psoLib.CompileComputePSO((int)SHADER::HISTOGRAM, m_rootSigObj.Get(),
-        COMPILED_CS[(int)SHADER::HISTOGRAM]);
-    m_psoLib.CompileComputePSO((int)SHADER::WEIGHTED_AVG, m_rootSigObj.Get(),
-        COMPILED_CS[(int)SHADER::WEIGHTED_AVG]);
-
+    m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateResources();
 
     App::AddShaderReloadHandler("AutoExposure", fastdelegate::MakeDelegate(this, &AutoExposure::Reload));

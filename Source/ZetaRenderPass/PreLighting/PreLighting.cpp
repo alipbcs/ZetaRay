@@ -198,7 +198,7 @@ PreLighting::PreLighting()
         true);
 }
 
-void PreLighting::Init()
+void PreLighting::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -210,8 +210,7 @@ void PreLighting::Init()
         D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-    auto& renderer = App::GetRenderer();
-    auto samplers = renderer.GetStaticSamplers();
+    auto samplers = App::GetRenderer().GetStaticSamplers();
     RenderPassBase::InitRenderPass("PreLighting", flags, samplers);
 
     TaskSet ts;
@@ -229,6 +228,11 @@ void PreLighting::Init()
     ts.Sort();
     ts.Finalize();
     App::Submit(ZetaMove(ts));
+}
+
+void PreLighting::Init()
+{
+    InitPSOs();
 
     float2 samples[ESTIMATE_TRI_POWER_NUM_SAMPLES_PER_TRI];
 

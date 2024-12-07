@@ -140,15 +140,19 @@ namespace
             std::atomic_bool BlockFlag;
         };
 
+        alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
+        TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
+        std::atomic_int32_t m_currTaskSignalIdx = 0;
+
+        FrameMemoryContext m_frameMemoryContext;
+        FrameMemory<FRAME_ALLOCATOR_BLOCK_SIZE> m_frameMemory;
+
         ThreadPool m_workerThreadPool;
         ThreadPool m_backgroundThreadPool;
         RendererCore m_renderer;
         Timer m_timer;
         SceneCore m_scene;
         Camera m_camera;
-
-        FrameMemory<FRAME_ALLOCATOR_BLOCK_SIZE> m_frameMemory;
-        FrameMemoryContext m_frameMemoryContext;
 
         uint16_t m_processorCoreCount = 0;
         HWND m_hwnd;
@@ -192,10 +196,6 @@ namespace
         SRWLOCK m_shaderReloadLock = SRWLOCK_INIT;
         SRWLOCK m_statsLock = SRWLOCK_INIT;
         SRWLOCK m_logLock = SRWLOCK_INIT;
-
-        alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
-        TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
-        std::atomic_int32_t m_currTaskSignalIdx = 0;
 
         Motion m_frameMotion;
         char m_clipboard[CLIPBOARD_LEN];
@@ -1473,7 +1473,7 @@ namespace ZetaRay
         g_app = new (std::nothrow) AppData;
 
         CpuInfo cpuInfo = App::GetProcessorInfo();
-        g_app->m_processorCoreCount = Min(cpuInfo.NumPhysicalCores,
+        g_app->m_processorCoreCount = (uint16)Min(cpuInfo.NumPhysicalCores,
             (ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
 
         // create the window
@@ -1513,8 +1513,8 @@ namespace ZetaRay
         for (int i = 0; i < backgroundThreadIDs.size(); i++)
             g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = backgroundThreadIDs[i];
 
-        g_app->m_workerThreadPool.Start();
-        g_app->m_backgroundThreadPool.Start();
+        g_app->m_workerThreadPool.Start(GetAllThreadIDs());
+        g_app->m_backgroundThreadPool.Start(GetAllThreadIDs());
 
         RECT rect;
         GetClientRect(g_app->m_hwnd, &rect);
@@ -1551,6 +1551,48 @@ namespace ZetaRay
         LOG_UI(INFO, "Detected %d physical CPU cores", g_app->m_processorCoreCount);
         LOG_UI(INFO, "Work area on the primary display monitor is %dx%d", 
             g_app->m_displayWidth, g_app->m_displayHeight);
+    }
+
+    void App::InitBasic()
+    {
+        setlocale(LC_ALL, "C");
+        
+        g_app = new (std::nothrow) AppData;
+
+        CpuInfo cpuInfo = App::GetProcessorInfo();
+        g_app->m_processorCoreCount = (uint16)Min(cpuInfo.NumPhysicalCores, ZETA_MAX_NUM_THREADS);
+
+        // initialize thread pools
+        const int totalNumThreads = g_app->m_processorCoreCount;
+        g_app->m_workerThreadPool.Init(g_app->m_processorCoreCount - 1,
+            totalNumThreads,
+            L"ZetaWorker",
+            THREAD_PRIORITY::NORMAL);
+
+        memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
+
+        // main thread
+        g_app->m_threadIDs[0] = GetCurrentThreadId();
+
+        // worker threads
+        auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
+
+        for (int i = 0; i < workerThreadIDs.size(); i++)
+            g_app->m_threadIDs[i + 1] = workerThreadIDs[i];
+
+        g_app->m_workerThreadPool.Start(Span(g_app->m_threadIDs, g_app->m_processorCoreCount));
+
+        // renderer (for d3dDevice)
+        g_app->m_renderer.InitBasic();
+    }
+
+    void App::ShutdownBasic()
+    {
+        g_app->m_renderer.ShutdownBasic();
+        g_app->m_workerThreadPool.Shutdown();
+
+        delete g_app;
+        g_app = nullptr;
     }
 
     int App::Run()

@@ -96,7 +96,7 @@ IndirectLighting::IndirectLighting()
         true);
 }
 
-void IndirectLighting::Init(INTEGRATOR method)
+void IndirectLighting::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -134,6 +134,11 @@ void IndirectLighting::Init(INTEGRATOR method)
         ts[t].Finalize();
         App::Submit(ZetaMove(ts[t]));
     }
+}
+
+void IndirectLighting::Init(INTEGRATOR method)
+{
+    InitPSOs();
 
     memset(&m_cbRGI, 0, sizeof(m_cbRGI));
     memset(&m_cbRPT_PathTrace, 0, sizeof(m_cbRPT_PathTrace));

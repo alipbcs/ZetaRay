@@ -51,6 +51,7 @@ namespace ZetaRay::RenderPass
         DisplayPass();
         ~DisplayPass() = default;
 
+        void InitPSOs();
         void Init();
         void SetCpuDescriptor(SHADER_IN_CPU_DESC i, D3D12_CPU_DESCRIPTOR_HANDLE h)
         {

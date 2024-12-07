@@ -39,7 +39,7 @@ SkyDI::SkyDI()
         GlobalResource::RT_SCENE_BVH_PREV);
 }
 
-void SkyDI::Init()
+void SkyDI::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -51,8 +51,7 @@ void SkyDI::Init()
         D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-    auto& renderer = App::GetRenderer();
-    auto samplers = renderer.GetStaticSamplers();
+    auto samplers = App::GetRenderer().GetStaticSamplers();
     RenderPassBase::InitRenderPass("SkyDI", flags, samplers);
 
     TaskSet ts;
@@ -72,12 +71,17 @@ void SkyDI::Init()
     ts.Sort();
     ts.Finalize(&waitObj);
     App::Submit(ZetaMove(ts));
+}
+
+void SkyDI::Init()
+{
+    InitPSOs();
 
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX_SKY | (DefaultParamVals::M_MAX_SUN << 16);
     m_cbSpatioTemporal.Alpha_min = DefaultParamVals::ROUGHNESS_MIN * DefaultParamVals::ROUGHNESS_MIN;
 
-    m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
+    m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateOutputs();
 
     ParamVariant doTemporal;
@@ -112,8 +116,6 @@ void SkyDI::Init()
     App::AddShaderReloadHandler("SkyDI (Spatial)", fastdelegate::MakeDelegate(this, &SkyDI::ReloadSpatialPass));
 
     m_isTemporalReservoirValid = false;
-
-    waitObj.Wait();
 }
 
 void SkyDI::OnWindowResized()

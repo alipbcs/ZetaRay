@@ -116,6 +116,8 @@ namespace ZetaRay::App
 
     void Init(Scene::Renderer::Interface& rendererInterface, 
         const char* name = nullptr);
+    void InitBasic();
+    void ShutdownBasic();
     int Run();
     void Abort();
 
@@ -145,9 +147,9 @@ namespace ZetaRay::App
     bool IsFullScreen();
     const App::Timer& GetTimer();
 
-    Util::Span<uint32_t> GetWorkerThreadIDs();
-    Util::Span<uint32_t> GetBackgroundThreadIDs();
-    Util::Span<uint32_t> GetAllThreadIDs();
+    Util::Span<ZETA_THREAD_ID_TYPE> GetWorkerThreadIDs();
+    Util::Span<ZETA_THREAD_ID_TYPE> GetBackgroundThreadIDs();
+    Util::Span<ZETA_THREAD_ID_TYPE> GetAllThreadIDs();
 
     void AddParam(Support::ParamVariant& p);
     void TryAddParam(Support::ParamVariant& p);

@@ -36,6 +36,7 @@ namespace ZetaRay::RenderPass
         DirectLighting();
         ~DirectLighting() = default;
 
+        void InitPSOs();
         void Init();
         void OnWindowResized();
         void SetLightPresamplingParams(bool enabled, int numSampleSets, int sampleSetSize)
@@ -92,7 +93,7 @@ namespace ZetaRay::RenderPass
         {
             static constexpr int M_MAX = 20;
             // Use half-vector copy for anything lower
-            static constexpr float ROUGHNESS_MIN = 0.05;
+            static constexpr float ROUGHNESS_MIN = 0.05f;
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {

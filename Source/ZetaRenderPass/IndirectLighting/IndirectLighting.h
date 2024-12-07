@@ -72,6 +72,7 @@ namespace ZetaRay::RenderPass
         IndirectLighting();
         ~IndirectLighting() = default;
 
+        void InitPSOs();
         void Init(INTEGRATOR method);
         void OnWindowResized();
         void SetMethod(INTEGRATOR method);

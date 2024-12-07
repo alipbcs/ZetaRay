@@ -44,7 +44,7 @@ DisplayPass::DisplayPass()
     m_rootSig.InitAsConstants(1, NUM_CONSTS, 1);
 }
 
-void DisplayPass::Init()
+void DisplayPass::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -59,6 +59,11 @@ void DisplayPass::Init()
     auto samplers = renderer.GetStaticSamplers();
     RenderPassBase::InitRenderPass("Display", flags, samplers);
     CreatePSOs();
+}
+
+void DisplayPass::Init()
+{
+    InitPSOs();
 
     memset(&m_cbLocal, 0, sizeof(m_cbLocal));
     m_cbLocal.DisplayOption = (uint16_t)DisplayOption::DEFAULT;
@@ -112,6 +117,7 @@ void DisplayPass::Init()
     Check(err == LOAD_DDS_RESULT::SUCCESS, "Error loading DDS texture from path %s: %d", 
         p.Get(), err);
 
+    auto& renderer = App::GetRenderer();
     m_descTable = renderer.GetGpuDescriptorHeap().Allocate(DESC_TABLE::COUNT);
     Direct3DUtil::CreateTexture3DSRV(m_lut, m_descTable.CPUHandle(DESC_TABLE::TONEMAPPER_LUT_SRV));
 

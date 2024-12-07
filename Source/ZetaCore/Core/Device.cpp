@@ -52,7 +52,7 @@ void DeviceObjects::InitializeAdapter()
     Common::WideToCharStr(desc.Description, m_deviceName);
 }
 
-void DeviceObjects::CreateDevice()
+void DeviceObjects::CreateDevice(bool checkFeatureSupport)
 {
     ID3D12Device* device;
 
@@ -87,6 +87,9 @@ void DeviceObjects::CreateDevice()
     infoQueue->Release();
 
 #endif
+
+    if (!checkFeatureSupport)
+        return;
 
 #ifdef STABLE_GPU_POWER_STATE
     CheckHR(device->SetStablePowerState(true));

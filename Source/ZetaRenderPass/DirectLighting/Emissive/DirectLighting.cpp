@@ -63,7 +63,7 @@ DirectLighting::DirectLighting()
         GlobalResource::RT_FRAME_MESH_INSTANCES_CURR);
 }
 
-void DirectLighting::Init()
+void DirectLighting::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -75,8 +75,7 @@ void DirectLighting::Init()
         D3D12_ROOT_SIGNATURE_FLAG_DENY_PIXEL_SHADER_ROOT_ACCESS |
         D3D12_ROOT_SIGNATURE_FLAG_DENY_GEOMETRY_SHADER_ROOT_ACCESS;
 
-    auto& renderer = App::GetRenderer();
-    auto samplers = renderer.GetStaticSamplers();
+    auto samplers = App::GetRenderer().GetStaticSamplers();
     RenderPassBase::InitRenderPass("DirectLighting", flags, samplers);
 
     TaskSet ts;
@@ -95,6 +94,11 @@ void DirectLighting::Init()
     ts.Sort();
     ts.Finalize();
     App::Submit(ZetaMove(ts));
+}
+
+void DirectLighting::Init()
+{
+    InitPSOs();
 
     memset(&m_cbSpatioTemporal, 0, sizeof(m_cbSpatioTemporal));
     m_cbSpatioTemporal.M_max = DefaultParamVals::M_MAX;
@@ -102,7 +106,7 @@ void DirectLighting::Init()
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL, true);
     SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::EXTRA_DISOCCLUSION_SAMPLING, true);
 
-    m_descTable = renderer.GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
+    m_descTable = App::GetRenderer().GetGpuDescriptorHeap().Allocate((int)DESC_TABLE::COUNT);
     CreateOutputs();
 
     ParamVariant doTemporal;

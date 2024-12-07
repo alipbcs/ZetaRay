@@ -78,9 +78,8 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
     }
 }
 
-void ThreadPool::Start()
+void ThreadPool::Start(Span<ZETA_THREAD_ID_TYPE> threadIDs)
 {
-    auto threadIDs = App::GetAllThreadIDs();
     Assert(threadIDs.size() == m_totalNumThreads, "these must match");
 
     for (int i = 0; i < threadIDs.size(); i++)

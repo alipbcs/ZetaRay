@@ -30,6 +30,7 @@ namespace ZetaRay::RenderPass
         GBufferRT(GBufferRT&&) = delete;
         GBufferRT& operator=(GBufferRT&&) = delete;
 
+        void InitPSOs();
         void Init();
         void SetGBufferUavDescTableGpuHeapIdx(uint32_t descHeapIdx) { m_cbLocal.UavTableDescHeapIdx = descHeapIdx; }
         ZetaInline void PickPixel(uint16 pixelX, uint16 pixelY)

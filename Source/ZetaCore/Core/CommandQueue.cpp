@@ -15,17 +15,20 @@ CommandQueue::CommandQueue(D3D12_COMMAND_LIST_TYPE type)
 
 CommandQueue::~CommandQueue()
 {
-    WaitForIdle();
+    if (m_initialized)
+    {
+        WaitForIdle();
 
-    CommandList* ctx;
-    while (m_contextPool.try_dequeue(ctx))
-        delete ctx;
+        CommandList* ctx;
+        while (m_contextPool.try_dequeue(ctx))
+            delete ctx;
 
-    if (m_event)
-        CloseHandle(m_event);
+        if (m_event)
+            CloseHandle(m_event);
 
-    for (auto& it : m_cmdAllocPool)
-        it.CmdAlloc->Release();
+        for (auto& it : m_cmdAllocPool)
+            it.CmdAlloc->Release();
+    }
 }
 
 void CommandQueue::Init()
@@ -43,6 +46,7 @@ void CommandQueue::Init()
     CheckWin32(m_event);
 
     m_cmdAllocPool.reserve(32);
+    m_initialized = true;
 }
 
 uint64_t CommandQueue::ExecuteCommandList(CommandList* context)

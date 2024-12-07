@@ -79,7 +79,7 @@ namespace ZetaRay::Core
     {
     public:
         void InitializeAdapter();
-        void CreateDevice();
+        void CreateDevice(bool checkFeatureSupport);
         void CreateSwapChain(ID3D12CommandQueue* directQueue, HWND hwnd, int w, int h, int numBuffers,
             DXGI_FORMAT format, int maxLatency);
         void ResizeSwapChain(int w, int h, int maxLatency);

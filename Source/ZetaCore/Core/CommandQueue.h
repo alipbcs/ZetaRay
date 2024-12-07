@@ -47,6 +47,7 @@ namespace ZetaRay::Core
         HANDLE m_event;
         std::shared_mutex m_poolMtx;
         std::shared_mutex m_fenceMtx;
+        bool m_initialized = false;
 
         struct ReleasedCmdAlloc
         {
@@ -54,7 +55,7 @@ namespace ZetaRay::Core
             uint64_t FenceToWaitFor;
         };
 
-        Util::SmallVector<ReleasedCmdAlloc> m_cmdAllocPool;
+        Util::SmallVector<ReleasedCmdAlloc, Support::SystemAllocator, 8> m_cmdAllocPool;
 
         struct MyTraits : public moodycamel::ConcurrentQueueDefaultTraits
         {

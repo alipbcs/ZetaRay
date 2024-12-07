@@ -30,6 +30,7 @@ namespace ZetaRay::RenderPass
         PreLighting();
         ~PreLighting() = default;
 
+        void InitPSOs();
         void Init();
         void OnWindowResized() {};
         void SetLightPresamplingParams(uint32_t minToEnale, uint32_t numSampleSets, uint32_t sampleSetSize)

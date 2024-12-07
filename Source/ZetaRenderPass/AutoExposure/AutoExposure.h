@@ -35,6 +35,7 @@ namespace ZetaRay::RenderPass
         AutoExposure();
         ~AutoExposure() = default;
 
+        void InitPSOs();
         void Init();
         void SetDescriptor(SHADER_IN_DESC i, uint32_t heapIdx)
         {

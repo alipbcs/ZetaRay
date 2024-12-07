@@ -43,6 +43,7 @@ namespace ZetaRay::RenderPass
         Compositing();
         ~Compositing() = default;
 
+        void InitPSOs();
         void Init();
         void SetInscatteringEnablement(bool enable) { SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INSCATTERING, enable); }
         void SetVoxelGridDepth(float zNear, float zFar) { m_cbComposit.VoxelGridNearZ = zNear, m_cbComposit.VoxelGridFarZ = zFar; }

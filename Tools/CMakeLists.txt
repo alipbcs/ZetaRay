@@ -1,1 +1,2 @@
 add_subdirectory(BCnCompressglTF)
+add_subdirectory(PrecompileShaders)

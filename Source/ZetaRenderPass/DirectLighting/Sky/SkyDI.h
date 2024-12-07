@@ -34,6 +34,7 @@ namespace ZetaRay::RenderPass
         SkyDI();
         ~SkyDI() = default;
 
+        void InitPSOs();
         void Init();
         void OnWindowResized();
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
@@ -86,9 +87,7 @@ namespace ZetaRay::RenderPass
             static constexpr int M_MAX_SKY = 15;
             static constexpr int M_MAX_SUN = 3;
             // Use half-vector copy for anything lower
-            static constexpr float ROUGHNESS_MIN = 0.35;
-            static constexpr int DNSRTspp_Diffuse = 16;
-            static constexpr int DNSRTspp_Specular = 16;
+            static constexpr float ROUGHNESS_MIN = 0.35f;
         };
 
         inline static constexpr const char* COMPILED_CS[(int)SHADER::COUNT] = {

@@ -28,7 +28,7 @@ Compositing::Compositing()
         GlobalResource::FRAME_CONSTANTS_BUFFER);
 }
 
-void Compositing::Init()
+void Compositing::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -44,6 +44,11 @@ void Compositing::Init()
 
     for (int i = 0; i < (int)SHADER::COUNT; i++)
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
+}
+
+void Compositing::Init()
+{
+    InitPSOs();
 
     memset(&m_cbComposit, 0, sizeof(m_cbComposit));
     SET_CB_FLAG(m_cbComposit, CB_COMPOSIT_FLAGS::INDIRECT, true);

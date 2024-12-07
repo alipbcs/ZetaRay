@@ -61,7 +61,7 @@ GBufferRT::GBufferRT()
         D3D12_ROOT_DESCRIPTOR_FLAG_DATA_VOLATILE, nullptr, true);
 }
 
-void GBufferRT::Init()
+void GBufferRT::InitPSOs()
 {
     constexpr D3D12_ROOT_SIGNATURE_FLAGS flags =
         D3D12_ROOT_SIGNATURE_FLAG_CBV_SRV_UAV_HEAP_DIRECTLY_INDEXED |
@@ -83,6 +83,11 @@ void GBufferRT::Init()
     for (int i = 0; i < (int)GBUFFER_SHADER::COUNT; i++)
         m_psoLib.CompileComputePSO(i, m_rootSigObj.Get(), COMPILED_CS[i]);
 #endif
+}
+
+void GBufferRT::Init()
+{
+    InitPSOs();
 
     memset(&m_cbLocal, 0, sizeof(m_cbLocal));
     m_cbLocal.PickedPixelX = UINT16_MAX;
