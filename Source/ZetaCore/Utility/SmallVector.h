@@ -648,14 +648,14 @@ namespace ZetaRay::Util
     // Chandler Carruth, "High Performance Code 201: Hybrid Data Structures", CppCon 2016.
     //--------------------------------------------------------------------------------------
 
-    constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)
-    {
-        return Math::Max(0u, (uint32_t)Math::Min(
-            (32 - Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT,
-            (64 - Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT));
-    }
+    //constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)
+    //{
+    //    return Math::Max(0u, Math::Min(
+    //        (32 - (int)Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT,
+    //        (64 - (int)Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT));
+    //}
 
-    template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator, uint32_t N = GetExcessSize(sizeof(T), alignof(T))>
+    template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator, uint32_t N = 0>
     class SmallVector : public Vector<T, Allocator>
     {
     public:
@@ -676,8 +676,8 @@ namespace ZetaRay::Util
             if constexpr (!std::is_trivially_destructible_v<Allocator>)
                 this->m_allocator.~Allocator();
         }
-        explicit SmallVector(const Allocator& a)
-            : Vector<T, Allocator>(a)
+        explicit SmallVector(const Allocator& allocator)
+            : Vector<T, Allocator>(allocator)
         {
             static_assert(std::is_default_constructible_v<T>, "T is not default-constructible.");
             init_storage();
@@ -689,11 +689,18 @@ namespace ZetaRay::Util
             static_assert(std::is_default_constructible_v<Allocator>, "Allocator is not default-constructible.");
             init_storage(t);
         }
-        SmallVector(const T& t, const Allocator& a)
-            : Vector<T, Allocator>(a)
+        SmallVector(const T& t, const Allocator& allocator)
+            : Vector<T, Allocator>(allocator)
         {
             static_assert(std::is_copy_constructible_v<T>, "T is not copy-constructible.");
             init_storage(t);
+        }
+        SmallVector(size_t count, const Allocator& allocator = Allocator())
+            : Vector<T, Allocator>(allocator)
+        {
+            static_assert(std::is_default_constructible_v<T>, "T is not default-constructible.");
+            init_storage();
+            this->resize(count);
         }
         // Copy constructor/assignment
         SmallVector(const SmallVector& other)
@@ -838,6 +845,10 @@ namespace ZetaRay::Util
             Assert(this->capacity() == N, "Capacity must be N.");
         }
 
+#if defined(ZETA_HAS_NO_UNIQUE_ADDRESS)
+        [[msvc::no_unique_address]] InlineStorage<T, N> m_inlineStorage;
+#else
         InlineStorage<T, N> m_inlineStorage;
+#endif
     };
 }

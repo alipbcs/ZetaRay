@@ -456,28 +456,23 @@ namespace
 
             char ext[8];
             path.Extension(ext);
-            Check(strcmp(ext, "dds") == 0, "Non-DDS textures are not supported (%s).\n",
-                path.Get());
+            if (strcmp(ext, "dds") != 0)
+            {
+                LOG_UI_WARNING(
+                    "Texture in path %s either hasn't been converted to DDS format or is not referenced by any materials. Skipping...\n",
+                    path.Get());
+
+                ddsTextures[idx].ID = Texture::INVALID_ID;
+                hasInvalid = true;
+
+                continue;
+            }
 
             ddsTextures[idx].ID = IDFromTexturePath(path);
             auto err = GpuMemory::GetDDSDataFromDisk(path.Get(), ddsTextures[idx], heapArena,
                 ArenaAllocator(memArena));
 
-            if (err != LOAD_DDS_RESULT::SUCCESS)
-            {
-                if (err == LOAD_DDS_RESULT::FILE_NOT_FOUND)
-                {
-                    LOG_UI_WARNING(
-                        "Texture in path %s was present in the glTF scene file, but wasn't found on disk. Skipping...\n",
-                        path.Get());
-                    ddsTextures[idx].ID = Texture::INVALID_ID;
-                    hasInvalid = true;
-
-                    continue;
-                }
-
-                Check(false, "Error loading DDS texture from path %s: %d", path.Get(), err);
-            }
+            Check(err == LOAD_DDS_RESULT::SUCCESS, "Error loading DDS texture from path %s: %d", path.Get(), err);
         }
 
         size_t numValid = num;

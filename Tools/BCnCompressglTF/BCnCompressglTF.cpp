@@ -1,16 +1,16 @@
-#include <App/Filesystem.h>
+#include <App/Path.h>
 #include <App/Common.h>
 #include <Support/MemoryArena.h>
 #include <algorithm>
+#include <Utility/Utility.h>
 #include "TexConv/texconv.h"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include <stb/stb_image.h>
 
-#define JSON_NOEXCEPTION
-#define JSON_NO_IO
-#include <json/json.hpp>
-using json = nlohmann::json;
+#define CGLTF_IMPLEMENTATION
+#define CGLTF_WRITE_IMPLEMENTATION
+#include <cgltf/cgltf_write.h>
 
 #include <wrl/client.h>
 using Microsoft::WRL::ComPtr;
@@ -23,6 +23,9 @@ using namespace ZetaRay::Math;
 
 namespace
 {
+    using ArenaPath = Filesystem::FilePath<ArenaAllocator, 256>;
+    using ArenaPathNoInline = Filesystem::FilePath<ArenaAllocator, 0>;
+
     static constexpr int DEFAULT_MAX_TEX_RES = 4096;
     static constexpr const char* COMPRESSED_DIR_NAME = "compressed";
 
@@ -65,7 +68,7 @@ namespace
     static constexpr int MAX_NUM_ARGS = Max(
         Max(TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS),
         Max(Max(TEX_CONV_ARGV_NO_OVERWRITE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE::NUM_ARGS),
-                  Max(TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS)));
+            Max(TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::NUM_ARGS, TEX_CONV_ARGV_OVERWRITE_SWIZZLE::NUM_ARGS)));
 
     enum TEXTURE_TYPE
     {
@@ -90,6 +93,101 @@ namespace
         default:
             Check(false, "unreachable case.");
             return "";
+        }
+    }
+
+    ZetaInline void DecodeURI_Inplace(ArenaPathNoInline& str, MemoryArena& arena)
+    {
+        auto hexToDecimal = [](unsigned char c)
+            {
+                if (c >= 48 && c <= 57)
+                    return c - 48;
+                if (c >= 65 && c <= 70)
+                    return c - 65 + 10;
+                if (c >= 97 && c <= 102)
+                    return c - 97 + 10;
+
+                return -1;
+            };
+
+        const int N = (int)str.Length();
+        const unsigned char* beg = reinterpret_cast<const unsigned char*>(str.Get());
+        bool needsConversion = false;
+
+        for (int i = 0; i < N; i++)
+        {
+            if (beg[i] == '%')
+            {
+                needsConversion = true;
+                break;
+            }
+        }
+
+        if (!needsConversion)
+            return;
+
+        ArenaPath converted(arena);
+        converted.Resize(str.Length());
+        int curr = 0;
+        unsigned char* out = reinterpret_cast<unsigned char*>(converted.Get());
+
+        while (curr < N)
+        {
+            unsigned char c = *(beg + curr);
+
+            if (c == '%')
+            {
+                int d1 = hexToDecimal(*(beg + curr + 1));
+                Check(d1 != -1, "Unrecognized percent-encoding.");
+                int d2 = hexToDecimal(*(beg + curr + 2));
+                Check(d2 != -1, "Unrecognized percent-encoding.");
+
+                unsigned char newC = (unsigned char)((d1 << 4) + d2);
+                *(out++) = newC;
+                curr += 3;
+
+                continue;
+            }
+
+            *(out++) = c;
+            curr++;
+        }
+
+        str.Reset(converted.GetView());
+    }
+
+    ZetaInline bool IsASCII(const ArenaPathNoInline& path)
+    {
+        auto view = path.GetView();
+
+        for (size_t i = 0; i < path.Length(); i++)
+        {
+            if (view[i] < 0)
+                return false;
+        }
+
+        return true;
+    }
+
+    void DecodeImageURIs(const ArenaPath& gltfPath, cgltf_data& model, MemoryArena& arena, 
+        bool validate)
+    {
+        for (size_t i = 0; i < model.images_count; i++)
+        {
+            const cgltf_image& image = model.images[i];
+            Check(image.uri, "Image has no URI.");
+
+            ArenaPathNoInline imgPath(image.uri, arena);
+            if (validate)
+                Check(IsASCII(imgPath), "Paths with non-ASCII characters are not supported.");
+
+            DecodeURI_Inplace(imgPath, arena);
+
+            // DirectXTex expects backslashes
+            imgPath.ConvertToBackslashes();
+            // Modify to decoded path
+            Assert(!imgPath.HasInlineStorage(), "Bug");
+            model.images[i].uri = imgPath.Get();
         }
     }
 
@@ -127,100 +225,22 @@ namespace
                 DXGI_ADAPTER_DESC desc;
                 hr = pAdapter->GetDesc(&desc);
                 if (SUCCEEDED(hr))
-                {
                     wprintf(L"\n[Using DirectCompute on \"%ls\"]\n", desc.Description);
-                }
             }
         }
     }
 
-    void DecodeURI_Inplace(Filesystem::Path& str)
-    {
-        const unsigned char* beg = reinterpret_cast<const unsigned char*>(str.Get());
-        const int N = (int)str.Length();
-        int curr = 0;
-        bool needsConversion = false;
-        Filesystem::Path converted;
-        converted.Resize(str.Length());
-
-        auto hexToDecimal = [](unsigned char c)
-            {
-                if (c >= 48 && c <= 57)
-                    return c - 48;
-                if (c >= 65 && c <= 70)
-                    return c - 65 + 10;
-                if (c >= 97 && c <= 102)
-                    return c - 97 + 10;
-
-                return -1;
-            };
-
-        unsigned char* out = reinterpret_cast<unsigned char*>(converted.Get());
-
-        while (curr < N)
-        {
-            unsigned char c = *(beg + curr);
-
-            if (c == '%')
-            {
-                needsConversion = true;
-
-                int d1 = hexToDecimal(*(beg + curr + 1));
-                Check(d1 != -1, "Unrecognized percent-encoding.");
-                int d2 = hexToDecimal(*(beg + curr + 2));
-                Check(d2 != -1, "Unrecognized percent-encoding.");
-
-                unsigned char newC = (unsigned char)((d1 << 4) + d2);
-                *(out++) = newC;
-                curr += 3;
-
-                continue;
-            }
-
-            *(out++) = c;
-            curr++;
-        }
-
-        if (needsConversion)
-            str.Reset(converted.GetView());
-    }
-
-    bool CompressedExists(const Filesystem::Path& imagePath, const Filesystem::Path& outDir)
-    {
-        char filename[MAX_PATH];
-        size_t fnLen;
-        imagePath.Stem(filename, &fnLen);
-
-        // change the extension to dds
-        Check(fnLen + 5 < ZetaArrayLen(filename), "buffer is too small.");
-        filename[fnLen] = '.';
-        filename[fnLen + 1] = 'd';
-        filename[fnLen + 2] = 'd';
-        filename[fnLen + 3] = 's';
-        filename[fnLen + 4] = '\0';
-
-        Filesystem::Path compressedPath(outDir.GetView());
-        compressedPath.Append(filename);
-
-        if (Filesystem::Exists(compressedPath.Get()))
-        {
-            printf("Compressed texture already exists in the path %s. Skipping...\n", compressedPath.Get());
-            return true;
-        }
-
-        return false;
-    }
-
-    bool ConvertTextures(TEXTURE_TYPE texType, const Filesystem::Path& pathToglTF, 
-        const Filesystem::Path& outDir, Span<int> textureMaps, Span<Filesystem::Path> imagePaths, 
-        ID3D11Device* device, bool srgb, bool forceOverwrite, int maxRes)
+    bool ConvertTextures(TEXTURE_TYPE texType, const ArenaPath& glTFPath, 
+        const ArenaPath& compressedDir, const char* compressedDirName,
+        cgltf_data& model, Span<int> textureMaps, MemoryArena& arena, ID3D11Device* device, 
+        bool srgb, bool forceOverwrite, int maxRes, Span<int> toSkip)
     {
         const char* formatStr = srgb ?
             (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::CMD) :
             (texType == METALNESS_ROUGHNESS ?
                 (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SWIZZLE::CMD : TEX_CONV_ARGV_NO_OVERWRITE_SWIZZLE::CMD) :
                 (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE::CMD : TEX_CONV_ARGV_NO_OVERWRITE::CMD));
-        
+
         const int numArgs = srgb ?
             (forceOverwrite ? TEX_CONV_ARGV_OVERWRITE_SRGB::NUM_ARGS : TEX_CONV_ARGV_NO_OVERWRITE_SRGB::NUM_ARGS) :
             (texType == METALNESS_ROUGHNESS ?
@@ -231,107 +251,114 @@ namespace
 
         for (auto tex : textureMaps)
         {
-            // URI paths are relative to gltf file
-            Filesystem::Path imgPath(pathToglTF.GetView());
-            imgPath.Directory();
-
-            auto& imgUri = imagePaths[tex];
-            imgPath.Append(imgUri.Get());
-            // DirectXTex expects backslashes
-            imgPath.ConvertToBackslashes();
-
-            if (!forceOverwrite && CompressedExists(imgPath, outDir))
+            auto idx = BinarySearch(toSkip, tex);
+            if (idx != -1)
                 continue;
 
-            int x;
-            int y;
-            int comp;
-            Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s", 
-                imgPath.Get(), stbi_failure_reason());
+            ArenaPath uriPath(model.images[tex].uri, arena);
 
-            int w = Min(x, maxRes);
-            int h = Min(y, maxRes);
+            // URI paths are relative to gltf file
+            SmallVector<char, ArenaAllocator, 256> filename(arena);
 
-            // Direct3D requires BC image to be multiple of 4 in width & height
-            w = (int)AlignUp(w, 4);
-            h = (int)AlignUp(h, 4);
+            // resize for worst case
+            filename.resize(uriPath.Length() + 5);
 
-            char buff[512];
-            const int len = stbsp_snprintf(buff, sizeof(buff), formatStr, w, h, texFormat, 
-                outDir.GetView().data(), imgPath.Get());
-            Check(len < sizeof(buff), "buffer is too small.");
+            // extract image file name
+            size_t fnLen;
+            uriPath.Stem(filename, &fnLen);
 
-            wchar_t wideBuff[1024];
-            int n = Common::CharToWideStr(buff, wideBuff);
-            Check(n < ZetaArrayLen(wideBuff), "buffer is too small.");
+            // change extension to dds
+            filename[fnLen] = '.';
+            filename[fnLen + 1] = 'd';
+            filename[fnLen + 2] = 'd';
+            filename[fnLen + 3] = 's';
+            filename[fnLen + 4] = '\0';
 
-            wchar_t* ptr = wideBuff;
+            ArenaPath ddsPath(compressedDir.GetView(), arena);
+            ddsPath.Append(filename.data());
 
-            wchar_t* args[MAX_NUM_ARGS];
-            int currArg = 0;
-
-            while (ptr != wideBuff + n)
+            if (forceOverwrite || !Filesystem::Exists(ddsPath.Get()))
             {
-                args[currArg] = ptr;
+                Filesystem::Path imgPath(glTFPath.GetView());
+                imgPath.Directory();
+                imgPath.Append(model.images[tex].uri);
 
-                // spaces are valid for last argument (file path)
-                while ((currArg == numArgs - 1 || *ptr != ' ') && *ptr != '\0')
-                    ptr++;
+                // DirectXTex expects backslashes
+                imgPath.ConvertToBackslashes();
 
-                *ptr++ = '\0';
-                currArg++;
+                int x;
+                int y;
+                int comp;
+                Check(stbi_info(imgPath.Get(), &x, &y, &comp), "stbi_info() for path %s failed: %s",
+                    imgPath.Get(), stbi_failure_reason());
+
+                int w = Min(x, maxRes);
+                int h = Min(y, maxRes);
+
+                // Direct3D requires BC image to be multiple of 4 in width & height
+                w = (int)AlignUp(w, 4);
+                h = (int)AlignUp(h, 4);
+
+                // Returns length without the null terminatir
+                const int len = stbsp_snprintf(nullptr, 0, formatStr, w, h, texFormat,
+                    compressedDir.GetView().data(), imgPath.Get());
+                // Now allocate a buffer large enough for the whole string plus
+                // null terminator
+                char* buffer = reinterpret_cast<char*>(arena.AllocateAligned(len + 1, 1));
+                stbsp_snprintf(buffer, len + 1, formatStr, w, h, texFormat,
+                    compressedDir.GetView().data(), imgPath.Get());
+
+                int wideStrLen = Common::CharToWideStrLen(buffer);
+                wchar_t* wideBuffer = reinterpret_cast<wchar_t*>(arena.AllocateAligned(wideStrLen));
+                Common::CharToWideStr(buffer, MutableSpan(wideBuffer, wideStrLen));
+
+                wchar_t* ptr = wideBuffer;
+                wchar_t* args[MAX_NUM_ARGS];
+                int currArg = 0;
+
+                while (ptr != wideBuffer + wideStrLen)
+                {
+                    args[currArg] = ptr;
+
+                    // spaces are valid for last argument (file path)
+                    while ((currArg == numArgs - 1 || *ptr != ' ') && *ptr != '\0')
+                        ptr++;
+
+                    *ptr++ = '\0';
+                    currArg++;
+                }
+
+                auto success = TexConv(numArgs, args, device);
+
+                if (success != 0)
+                {
+                    printf("TexConv for path %s failed. Exiting...\n", model.images[tex].uri);
+                    return false;
+                }
             }
+            else
+                printf("Compressed texture already exists in the path %s. Skipping...\n", ddsPath.Get());
 
-            auto success = TexConv(numArgs, args, device);
+            // Modify URI to dds path. URI paths are relative to gltf file.
+            ArenaPathNoInline ddsPathRelglTF(compressedDirName, arena);
+            ddsPathRelglTF.Append(filename.data());
+            ddsPathRelglTF.ConvertToForwardSlashes();
 
-            if (success != 0)
-            {
-                printf("TexConv for path %s failed. Exiting...\n", imgPath.Get());
-                return false;
-            }
+            model.images[tex].uri = ddsPathRelglTF.Get();
         }
 
         return true;
     }
 
-    void ModifyImageURIs(json& data, const char* compressedDirName, const Filesystem::Path& gltfPath)
+    void WriteModifiedglTF(cgltf_data& model, const ArenaPath& gltfPath, MemoryArena& arena)
     {
-        std::string s;
-        char filename[MAX_PATH];
+        SmallVector<char, ArenaAllocator, 256> filename(arena);
+        filename.resize(gltfPath.Length());
 
         size_t fnLen;
-
-        if (data.contains("images"))
-        {
-            for (auto& img : data["images"])
-            {
-                s = img["uri"];
-
-                // extract the image file name
-                Filesystem::Path p((StrView(s.data(), s.size())));
-                DecodeURI_Inplace(p);
-                p.Stem(filename, &fnLen);
-
-                // change the extension to dds
-                Check(fnLen + 5 < ZetaArrayLen(filename), "buffer is too small.");
-                filename[fnLen] = '.';
-                filename[fnLen + 1] = 'd';
-                filename[fnLen + 2] = 'd';
-                filename[fnLen + 3] = 's';
-                filename[fnLen + 4] = '\0';
-
-                // URI paths are relative to gltf scene file
-                Filesystem::Path newPath(compressedDirName);
-                newPath.Append(filename);
-                newPath.ConvertToForwardSlashes();
-
-                img["uri"] = newPath.Get();
-            }
-        }
-
         gltfPath.Stem(filename, &fnLen);
+        filename.resize(fnLen + 11);
 
-        Check(fnLen + 10 < ZetaArrayLen(filename), "buffer is too small.");
         filename[fnLen] = '_';
         filename[fnLen + 1] = 'z';
         filename[fnLen + 2] = 'e';
@@ -345,26 +372,16 @@ namespace
         filename[fnLen + 10] = '\0';
 
         Filesystem::Path convertedPath(gltfPath.GetView());
-        convertedPath.Directory().Append(filename);
+        convertedPath.Directory().Append(StrView(filename.data(), filename.size()));
 
-        s = data.dump(4);
-        uint8_t* str = reinterpret_cast<uint8_t*>(s.data());
-        Filesystem::WriteToFile(convertedPath.Get(), str, (uint32_t)s.size());
-
-        printf("glTF scene file with modified image URIs has been written to %s...\n", convertedPath.Get());
-    }
-
-    ZetaInline bool IsASCII(const Filesystem::Path& path)
-    {
-        auto view = path.GetView();
-
-        for (size_t i = 0; i < path.Length(); i++)
+        cgltf_options options = {};
+        if (cgltf_write_file(&options, convertedPath.Get(), &model) != cgltf_result_success)
         {
-            if (view[i] < 0) 
-                return false;
+            printf("Error writing modified glTF to path %s\n", convertedPath.Get());
+            return;
         }
 
-        return true;
+        printf("glTF scene file with modified image URIs has been written to %s...\n", convertedPath.Get());
     }
 
     ZetaInline void ReportUsageError()
@@ -381,7 +398,8 @@ int main(int argc, char* argv[])
         return 0;
     }
 
-    Filesystem::Path gltfPath(argv[1]);
+    MemoryArena arena(64 * 1024);
+    ArenaPath gltfPath(argv[1], arena);
     if (!Filesystem::Exists(gltfPath.Get()))
     {
         printf("No such file found in the path %s\nExiting...\n", gltfPath.Get());
@@ -400,13 +418,13 @@ int main(int argc, char* argv[])
             validate = false;
         else if (strcmp(argv[i], "-mr") == 0)
         {
-            if(i == argc - 1)
-            { 
+            if (i == argc - 1)
+            {
                 ReportUsageError();
                 return 0;
             }
             maxRes = atoi(argv[i + 1]);
-            if(maxRes == 0)
+            if (maxRes == 0)
             {
                 ReportUsageError();
                 return 0;
@@ -418,54 +436,37 @@ int main(int argc, char* argv[])
     }
 
     maxRes = maxRes == -1 ? DEFAULT_MAX_TEX_RES : maxRes;
-    printf("Compressing textures for %s...\nMaximum output resolution set to %dx%d\n", 
+    printf("Compressing textures for %s...\nMaximum output resolution set to %dx%d...\n",
         argv[1], maxRes, maxRes);
 
-    MemoryArena arena(64 * 1024);
-
-    SmallVector<uint8_t, Support::ArenaAllocator> file(arena);
-    Filesystem::LoadFromFile(gltfPath.Get(), file);
-
-    json data = json::parse(file.data(), file.data() + file.size(), nullptr, false);
-
-    if (!data.contains("images"))
+    cgltf_options options{};
+    cgltf_data* model = nullptr;
+    if (cgltf_parse_file(&options, gltfPath.Get(), &model) != cgltf_result_success)
     {
-        ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
+        printf("Error parsing glTF from path %s\n", gltfPath.Get());
         return 0;
     }
 
-    SmallVector<Filesystem::Path, Support::ArenaAllocator> imagePaths(arena);
-    imagePaths.resize(data["images"].size());
-
+    if (model->images_count == 0)
     {
-        std::string s;
-        s.resize(MAX_PATH);
-        int i = 0;
-
-        for (auto& img : data["images"])
-        {
-            s = img["uri"];
-            imagePaths[i].Reset(StrView(s.data(), s.size()));
-
-            if (validate)
-                Check(IsASCII(imagePaths[i]), "Paths with non-ASCII characters are not supported.");
-
-            DecodeURI_Inplace(imagePaths[i++]);
-        }
+        printf("No images found. Exiting...");
+        return 0;
     }
 
-    const size_t numMats = data["materials"].size();
+    DecodeImageURIs(gltfPath, *model, arena, validate);
 
-    SmallVector<int, Support::ArenaAllocator> normalMaps(arena);
+    const size_t numMats = model->materials_count;
+
+    SmallVector<int, ArenaAllocator> normalMaps(arena);
     normalMaps.reserve(numMats);
 
     // extract normal map texture indices
-    for (auto& mat : data["materials"])
+    for (size_t i = 0; i < numMats; i++)
     {
-        if (mat.contains("normalTexture"))
+        if (cgltf_texture* tex = model->materials[i].normal_texture.texture; tex)
         {
-            const int texIdx = mat["normalTexture"]["index"];
-            const int imgIdx = data["textures"][texIdx]["source"];
+            int imgIdx = (int)(tex->image - model->images);
+            Assert(imgIdx < model->images_count, "Invalid image index.");
             normalMaps.push_back(imgIdx);
         }
     }
@@ -480,68 +481,69 @@ int main(int argc, char* argv[])
     emissiveMaps.reserve(numMats);
 
     // extract pbr texture indices
-    for (auto& mat : data["materials"])
+    for (size_t i = 0; i < numMats; i++)
     {
-        if (mat.contains("pbrMetallicRoughness"))
+        if (model->materials[i].has_pbr_metallic_roughness)
         {
-            auto& pbr = mat["pbrMetallicRoughness"];
-            
-            if (pbr.contains("baseColorTexture"))
+            cgltf_pbr_metallic_roughness& pbr = model->materials[i].pbr_metallic_roughness;
+
+            if (cgltf_texture* tex = pbr.base_color_texture.texture; tex)
             {
-                const int texIdx = pbr["baseColorTexture"]["index"];
-                const int imgIdx = data["textures"][texIdx]["source"];
+                int imgIdx = (int)(tex->image - model->images);
+                Assert(imgIdx < model->images_count, "Invalid image index.");
                 baseColorMaps.push_back(imgIdx);
             }
 
-            if (pbr.contains("metallicRoughnessTexture"))
+            if (cgltf_texture* tex = pbr.metallic_roughness_texture.texture; tex)
             {
-                const int texIdx = pbr["metallicRoughnessTexture"]["index"];
-                const int imgIdx = data["textures"][texIdx]["source"];
+                int imgIdx = (int)(tex->image - model->images);
+                Assert(imgIdx < model->images_count, "Invalid image index.");
                 metalnessRoughnessMaps.push_back(imgIdx);
             }
         }
     }
 
     // extract emissive map texture indices
-    for (auto& mat : data["materials"])
+    for (size_t i = 0; i < numMats; i++)
     {
-        if (mat.contains("emissiveTexture"))
+        if (cgltf_texture* tex = model->materials[i].emissive_texture.texture; tex)
         {
-            const int texIdx = mat["emissiveTexture"]["index"];
-            const int imgIdx = data["textures"][texIdx]["source"];
+            int imgIdx = (int)(tex->image - model->images);
+            Assert(imgIdx < model->images_count, "Invalid image index.");
             emissiveMaps.push_back(imgIdx);
         }
     }
+
+    SmallVector<int, Support::ArenaAllocator> skip(arena);
 
     if (validate)
     {
         bool isValid = true;
         SmallVector<int, Support::ArenaAllocator> intersections(arena);
-        intersections.resize(numMats, -1);
+        intersections.resize(model->textures_count, -1);
 
         std::sort(baseColorMaps.begin(), baseColorMaps.end());
         std::sort(normalMaps.begin(), normalMaps.end());
         std::sort(metalnessRoughnessMaps.begin(), metalnessRoughnessMaps.end());
         std::sort(emissiveMaps.begin(), emissiveMaps.end());
 
-        auto checkIntersections = [&data, &intersections, &isValid](SmallVector<int, Support::ArenaAllocator>& vec1,
-            SmallVector<int, Support::ArenaAllocator>& vec2, const char* n1, const char* n2)
-        {
-            std::set_intersection(vec1.begin(), vec1.end(), vec2.begin(), vec2.end(), intersections.begin());
-
-            for (int& i : intersections)
+        auto checkIntersections = [model, &intersections, &isValid](Span<int> vec1,
+            Span<int> vec2, const char* n1, const char* n2)
             {
-                if (i == -1)
-                    break;
+                std::set_intersection(vec1.begin(), vec1.end(), vec2.begin(), vec2.end(), intersections.begin());
 
-                std::string texPath = data["images"][i]["uri"];
-                printf("WARNING: Following texture is used both as a(n) %s map and a(n) %s map:\n%s\n", 
-                    n1, n2, texPath.c_str());
+                for (int& i : intersections)
+                {
+                    if (i == -1)
+                        break;
 
-                i = -1;
-                isValid = false;
-            }
-        };
+                    printf("WARNING: Following texture is used both as a(n) %s map and a(n) %s map:\n%s\n",
+                        n1, n2, model->images[i].uri);
+
+                    i = -1;
+                    isValid = false;
+                }
+            };
 
         checkIntersections(baseColorMaps, normalMaps, "base-color", "normal");
         checkIntersections(baseColorMaps, metalnessRoughnessMaps, "base-color", "metalness-roughness");
@@ -555,6 +557,38 @@ int main(int argc, char* argv[])
             printf("glTF validation failed. Exiting...\n");
             return 0;
         }
+
+        SmallVector<int, Support::ArenaAllocator> temp(arena);
+        temp.resize(model->textures_count, -1);
+        skip.resize(model->textures_count, -1);
+
+        // Input and output can't overlap
+        auto endIt = std::merge(baseColorMaps.begin(), baseColorMaps.end(), 
+            normalMaps.begin(), normalMaps.end(),
+            temp.begin());
+        temp.resize(endIt - temp.begin());
+
+        endIt = std::merge(temp.begin(), temp.end(),
+            metalnessRoughnessMaps.begin(), metalnessRoughnessMaps.end(),
+            skip.begin());
+        skip.resize(endIt - skip.begin());
+
+        endIt = std::merge(skip.begin(), skip.end(),
+            emissiveMaps.begin(), emissiveMaps.end(),
+            temp.begin());
+        temp.resize(endIt - temp.begin());
+
+        SmallVector<int, Support::ArenaAllocator> all(model->images_count, arena);
+        for (size_t i = 0; i < model->images_count; i++)
+            all[i] = (int)i;
+
+        endIt = std::set_difference(all.begin(), all.end(), 
+            temp.begin(), temp.end(),
+            skip.begin());
+        skip.resize(endIt - skip.begin());
+
+        for (auto i : skip)
+            printf("Image with URI %s is not referenced by any materials and will be skipped...\n", model->images[i].uri);
     }
 
     printf("Stats:\n\
@@ -563,45 +597,42 @@ int main(int argc, char* argv[])
         #base-color textures: %llu\n\
         #normal-map textures: %llu\n\
         #metalness-roughness textures: %llu\n\
-        #emissive textures: %llu\n", imagePaths.size(), data["textures"].size(), baseColorMaps.size(), normalMaps.size(),
-        metalnessRoughnessMaps.size(), emissiveMaps.size());
-   
+        #emissive textures: %llu\n", model->images_count, model->textures_count, baseColorMaps.size(),
+        normalMaps.size(), metalnessRoughnessMaps.size(), emissiveMaps.size());
+
     ComPtr<ID3D11Device> device;
     CreateDevice(device.GetAddressOf());
-
-    // Set locale for output since GetErrorDesc can get localized strings.
-    std::locale::global(std::locale(""));
 
     // Initialize COM (needed for WIC)
     auto hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
     Check(hr == S_OK, "CoInitializeEx() failed with code %x.", hr);
 
-    Filesystem::Path outDir(gltfPath.Get());
-    outDir.Directory().Append(COMPRESSED_DIR_NAME);
-    Filesystem::CreateDirectoryIfNotExists(outDir.Get());
+    ArenaPath compressedDir(gltfPath.Get(), arena);
+    compressedDir.Directory().Append(COMPRESSED_DIR_NAME);
+    Filesystem::CreateDirectoryIfNotExists(compressedDir.Get());
 
-    if (!ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, outDir, baseColorMaps, imagePaths,
-        device.Get(), true, forceOverwrite, maxRes))
+    if (!ConvertTextures(TEXTURE_TYPE::BASE_COLOR, gltfPath, compressedDir, COMPRESSED_DIR_NAME,
+        *model, baseColorMaps, arena, device.Get(), true, forceOverwrite, maxRes, skip))
     {
         return 0;
     }
-    if (!ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, outDir, normalMaps, imagePaths,
-        device.Get(), false, forceOverwrite, maxRes))
+    if (!ConvertTextures(TEXTURE_TYPE::NORMAL_MAP, gltfPath, compressedDir, COMPRESSED_DIR_NAME,
+        *model, normalMaps, arena, device.Get(), false, forceOverwrite, maxRes, skip))
     {
         return 0;
     }
-    if (!ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, outDir, metalnessRoughnessMaps,
-        imagePaths, device.Get(), false, forceOverwrite, maxRes))
+    if (!ConvertTextures(TEXTURE_TYPE::METALNESS_ROUGHNESS, gltfPath, compressedDir, COMPRESSED_DIR_NAME,
+        *model, metalnessRoughnessMaps, arena, device.Get(), false, forceOverwrite, maxRes, skip))
     {
         return 0;
     }
-    if (!ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, outDir, emissiveMaps, imagePaths,
-        device.Get(), true, forceOverwrite, maxRes))
+    if (!ConvertTextures(TEXTURE_TYPE::EMISSIVE, gltfPath, compressedDir, COMPRESSED_DIR_NAME,
+        *model, emissiveMaps, arena, device.Get(), true, forceOverwrite, maxRes, skip))
     {
         return 0;
     }
 
-    ModifyImageURIs(data, COMPRESSED_DIR_NAME, gltfPath);
+    WriteModifiedglTF(*model, gltfPath, arena);
 
     return 0;
 }

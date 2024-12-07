@@ -15,14 +15,10 @@
 #include <ShlObj.h>
 
 #include <algorithm>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <fstream>
-#include <locale>
-#include <memory>
 #include <set>
-#include <string>
 
 #include <wrl\client.h>
 

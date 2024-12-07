@@ -15,6 +15,7 @@ namespace ZetaRay::App::Common
     };
 
     int WideToCharStr(const wchar_t* wideStr, Util::MutableSpan<char> str);
+    int CharToWideStrLen(const char* str);
     int CharToWideStr(const char* str, Util::MutableSpan<wchar_t> wideStr);
 
     uint32_t CheckIntrinsicSupport();

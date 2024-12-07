@@ -18,7 +18,6 @@ External/*
 !External/FastDelegate
 !External/FSR2
 !External/stb
-!External/json
 !External/ImGui
 External/ImGui/imgui_*
 External/ImGui/imnodes*

@@ -17,6 +17,12 @@ int Common::WideToCharStr(const wchar_t* wideStr, MutableSpan<char> str)
     return size;
 }
 
+int Common::CharToWideStrLen(const char* str)
+{
+    const int size = MultiByteToWideChar(CP_UTF8, 0, str, -1, nullptr, 0);
+    return size;
+}
+
 int Common::CharToWideStr(const char* str, Util::MutableSpan<wchar_t> wideStr)
 {
     // #size includes terminating null character

@@ -37,7 +37,7 @@ target_include_directories(BCnCompressglTF BEFORE PRIVATE "${ZETA_CORE_DIR}" "${
 target_link_libraries(BCnCompressglTF ZetaCore ole32.lib shell32.lib version.lib d3d11.lib dxgi.lib)
 set_target_properties(BCnCompressglTF PROPERTIES VS_DEBUGGER_WORKING_DIRECTORY "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}")
 
-target_compile_options(BCnCompressglTF PRIVATE /fp:fast "$<$<NOT:$<CONFIG:DEBUG>>:/guard:cf>")
+target_compile_options(BCnCompressglTF PRIVATE /fp:precise "$<$<NOT:$<CONFIG:DEBUG>>:/guard:cf>")
 target_link_options(BCnCompressglTF PRIVATE /DYNAMICBASE /NXCOMPAT)
 
 if (CMAKE_CXX_COMPILER_VERSION VERSION_GREATER_EQUAL 19.24)
