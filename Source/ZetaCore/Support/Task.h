@@ -5,8 +5,6 @@
 #include "../App/App.h"
 #include <atomic>
 
-#define USE_TASK_NAMES 0
-
 namespace ZetaRay::Support
 {
     enum class TASK_PRIORITY
@@ -27,19 +25,15 @@ namespace ZetaRay::Support
         static constexpr int MAX_NAME_LENGTH = 64;
 
         Task() = default;
-        Task(const char* name, TASK_PRIORITY p, Util::Function&& f);
+        Task(const char* name, TASK_PRIORITY priority, Util::Function&& f);
         ~Task() = default;
-
         Task(Task&&);
         Task& operator=(Task&&);
 
-        void Reset(const char* name, TASK_PRIORITY p, Util::Function&& f);
-#if USE_TASK_NAMES == 1
-        ZetaInline const char* GetName() const { return m_name; }
-#endif
+        void Reset(const char* name, TASK_PRIORITY priority, Util::Function&& f);
         ZetaInline int GetSignalHandle() const { return m_signalHandle; }
         ZetaInline Util::Span<int> GetAdjacencies() { return Util::Span(m_adjacentTailNodes); }
-        ZetaInline TASK_PRIORITY GetPriority() { return m_priority; }
+        ZetaInline TASK_PRIORITY GetPriority() const { return m_priority; }
 
         ZetaInline void DoTask()
         {
@@ -49,11 +43,7 @@ namespace ZetaRay::Support
 
     private:
         Util::Function m_dlg;
-        Util::SmallVector<int, App::FrameAllocator> m_adjacentTailNodes;
-
-#if USE_TASK_NAMES == 1
-        char m_name[MAX_NAME_LENGTH];
-#endif
+        Util::SmallVector<int, App::FrameAllocator, 3> m_adjacentTailNodes;
         int m_signalHandle = -1;
         int m_indegree = 0;
         TASK_PRIORITY m_priority;

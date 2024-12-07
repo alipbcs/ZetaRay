@@ -1,13 +1,5 @@
 #include "ThreadPool.h"
-#include "../Win32/Win32.h"
 #include "../App/Log.h"
-
-#define LOG_TASK_TIMINGS 0
-#define ENABLE_TIMINGS 0
-
-#if ENABLE_TIMINGS == 1
-#include "../App/Timer.h"
-#endif
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::App;
@@ -19,7 +11,7 @@ namespace
     {
         int idx = -1;
 
-        for (int i = 0; i < threadIds.size(); i++)
+        for (int i = 0; i < (int)threadIds.size(); i++)
         {
             if (threadIds[i] == GetCurrentThreadId())
             {
@@ -41,6 +33,10 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 {
     m_threadPoolSize = poolSize;
     m_totalNumThreads = totalNumThreads;
+
+    // Tokens below have to conisder that threads outside this thread pool
+    // (e.g. the main thread) may also insert tasks and occasionally execute 
+    // tasks (for example when trying to pump the queue to empty it)
 
     // Consumers
     {
@@ -71,26 +67,14 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
     for (int i = 0; i < m_threadPoolSize; i++)
     {
         m_threadPool[i] = std::thread(&ThreadPool::WorkerThread, this);
-        m_threadIDs[i] = GetThreadId(m_threadPool[i].native_handle());
-        CheckWin32(m_threadIDs[i]);
+        m_threadIDs[i] = App::GetThreadID(m_threadPool[i].native_handle());
 
-        wchar_t buff[32];
+        wchar_t buffer[32];
         //swprintf(buff, L"ZetaWorker_%d", i);
-        swprintf(buff, L"%ls_%d", threadNamePrefix, i);
-        auto h = SetThreadDescription(m_threadPool[i].native_handle(), buff);
-        CheckWin32(SUCCEEDED(h));
+        swprintf(buffer, L"%ls_%d", threadNamePrefix, i);
+        App::SetThreadDesc(m_threadPool[i].native_handle(), buffer);
 
-        switch (priority)
-        {
-        case ZetaRay::Support::THREAD_PRIORITY::NORMAL:
-            CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_NORMAL));
-            break;
-        case ZetaRay::Support::THREAD_PRIORITY::BACKGROUND:
-            CheckWin32(SetThreadPriority(m_threadPool[i].native_handle(), THREAD_PRIORITY_BELOW_NORMAL));
-            break;
-        default:
-            break;
-        }
+        App::SetThreadPriority(m_threadPool[i].native_handle(), priority);
     }
 }
 
@@ -100,7 +84,7 @@ void ThreadPool::Start()
     Assert(threadIDs.size() == m_totalNumThreads, "these must match");
 
     for (int i = 0; i < threadIDs.size(); i++)
-        m_appThreadIds[i] = threadIDs[i];
+        m_allThreadIds[i] = threadIDs[i];
 
     m_start.store(true, std::memory_order_release);
 }
@@ -114,10 +98,7 @@ void ThreadPool::Shutdown()
 
     for (int i = 0; i < m_threadPoolSize; i++)
     {
-        Task t("NoOp", TASK_PRIORITY::NORMAL, []()
-            {
-            });
-
+        Task t("NoOp", TASK_PRIORITY::NORMAL, []() {});
         Enqueue(ZetaMove(t));
     }
 
@@ -125,12 +106,12 @@ void ThreadPool::Shutdown()
         m_threadPool[i].join();
 }
 
-void ThreadPool::Enqueue(Task&& t)
+void ThreadPool::Enqueue(Task&& task)
 {
-    const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
+    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
-    bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[idx], ZetaMove(t));
+    bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[idx], ZetaMove(task));
     Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 
     m_numTasksToFinishTarget.fetch_add(1, std::memory_order_relaxed);
@@ -145,7 +126,7 @@ void ThreadPool::Enqueue(TaskSet&& ts)
     m_numTasksInQueue.fetch_add(ts.GetSize(), std::memory_order_release);
     auto tasks = ts.GetTasks();
 
-    const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
+    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
     bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], 
@@ -155,15 +136,11 @@ void ThreadPool::Enqueue(TaskSet&& ts)
 
 void ThreadPool::PumpUntilEmpty()
 {
-    const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
+    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
 
     const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
     Task task;
-
-#if ENABLE_TIMINGS
-    DeltaTimer timer;
-#endif
 
     // "try_dequeue()" returning false doesn't guarantee that queue is empty
     while (m_numTasksInQueue.load(std::memory_order_acquire) != 0)
@@ -177,23 +154,7 @@ void ThreadPool::PumpUntilEmpty()
             // Block if this task depends on other unfinished tasks
             App::WaitForAdjacentHeadNodes(taskHandle);
 
-#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
-            LOG("_Thread %u started \t%s...\n", tid, task.GetName());
-#endif
-
-#if ENABLE_TIMINGS
-            timer.Start();
-#endif
-
             task.DoTask();
-
-#if ENABLE_TIMINGS
-            timer.End();
-#endif
-
-#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
-            LOG("_Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
-#endif
 
             // Signal dependent tasks that this task has finished
             auto adjacencies = task.GetAdjacencies();
@@ -230,12 +191,8 @@ void ThreadPool::WorkerThread()
     const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
     LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
 
-    const int idx = FindThreadIdx(Span(m_appThreadIds, m_totalNumThreads));
+    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
     Assert(idx != -1, "Thread ID was not found");
-
-#if ENABLE_TIMINGS
-    DeltaTimer timer;
-#endif
 
     while (true)
     {
@@ -255,23 +212,7 @@ void ThreadPool::WorkerThread()
         if(task.GetPriority() != TASK_PRIORITY::BACKGROUND)
             App::WaitForAdjacentHeadNodes(taskHandle);
 
-#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
-        LOG("Thread %u started \t%s...\n", tid, task.GetName());
-#endif
-
-#if ENABLE_TIMINGS
-        timer.Start();
-#endif
-
         task.DoTask();
-
-#if ENABLE_TIMINGS
-        timer.End();
-#endif
-
-#if ENABLE_TIMINGS && LOG_TASK_TIMINGS
-        LOG("Thread %u finished \t%s in %u[us]\n", tid, task.GetName(), (uint32_t)timer.DeltaMicro());
-#endif
 
         // Signal dependent tasks that this task has finished
         if (task.GetPriority() != TASK_PRIORITY::BACKGROUND)

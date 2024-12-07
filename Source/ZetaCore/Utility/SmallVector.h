@@ -648,14 +648,18 @@ namespace ZetaRay::Util
     // Chandler Carruth, "High Performance Code 201: Hybrid Data Structures", CppCon 2016.
     //--------------------------------------------------------------------------------------
 
-    //constexpr uint32_t GetExcessSize(uint32_t sizeofT, uint32_t alignofT)
-    //{
-    //    return Math::Max(0u, Math::Min(
-    //        (32 - (int)Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT,
-    //        (64 - (int)Math::AlignUp((uint32_t)sizeof(void*) * 3, alignofT)) / sizeofT));
-    //}
+    template<typename T, Support::AllocatorType Allocator>
+    constexpr uint32_t GetExcessSize()
+    {
+        auto vecSize = Math::AlignUp(sizeof(Vector<T, Allocator>), alignof(T));
+        auto alignment = Math::Max(alignof(T), alignof(std::max_align_t));
+        int total = (int)Math::AlignUp(vecSize + 1, alignment);
+        int leftover = (total - (int)vecSize) / sizeof(T);
+        return Math::Max<int>(0, leftover);
+    }
 
-    template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator, uint32_t N = 0>
+    template<typename T, Support::AllocatorType Allocator = Support::SystemAllocator, 
+        uint32_t N = GetExcessSize<T, Allocator>()>
     class SmallVector : public Vector<T, Allocator>
     {
     public:

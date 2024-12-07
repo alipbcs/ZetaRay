@@ -5,40 +5,27 @@
 
 namespace ZetaRay::Support
 {
-    enum class THREAD_PRIORITY
-    {
-        NORMAL,
-        BACKGROUND
-    };
-
     class ThreadPool
     {
     public:
         ThreadPool() = default;
         ~ThreadPool() = default;
-
         ThreadPool(const ThreadPool&) = delete;
         ThreadPool& operator=(const ThreadPool&) = delete;
 
-        // Creates the threads and sets up the concurrent task queue.
-        void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, THREAD_PRIORITY p);
-        //void SetThreadIds(Span<std::thread::id> allThreadIds);
+        void Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, App::THREAD_PRIORITY priority);
         void Start();
-
-        // Signals the shutdown flag
         void Shutdown();
 
-        // Enqueues tasks
         void Enqueue(TaskSet&& ts);
         void Enqueue(Task&& t);
 
         // The calling thread dequeues task until task queue becomes empty
         void PumpUntilEmpty();
-
-        // Waits until are tasks are "finished" (!= empty queue)
+        // Waits until all tasks are finished (!= empty queue)
         bool TryFlush();
 
-        bool AreAllTasksFinished()
+        ZetaInline bool AreAllTasksFinished() const
         {
             const bool isEmpty = m_numTasksFinished.load(std::memory_order_acquire) == 
                 m_numTasksToFinishTarget.load(std::memory_order_acquire);
@@ -46,21 +33,23 @@ namespace ZetaRay::Support
         }
 
         ZetaInline int ThreadPoolSize() const { return m_threadPoolSize; }
-        ZetaInline Util::Span<ZETA_THREAD_ID_TYPE> ThreadIDs() { return Util::Span(m_threadIDs, m_threadPoolSize); }
+        ZetaInline Util::Span<ZETA_THREAD_ID_TYPE> ThreadIDs() const { return Util::Span(m_threadIDs, m_threadPoolSize); }
 
     private:
         void WorkerThread();
 
         int m_threadPoolSize;
         int m_totalNumThreads;
-
         std::atomic_int32_t m_numTasksInQueue = 0;
         std::atomic_int32_t m_numTasksFinished = 0;
         std::atomic_int32_t m_numTasksToFinishTarget = 0;
 
         std::thread m_threadPool[ZETA_MAX_NUM_THREADS];
+        // Thread IDs of worker threads from this thread pool
         ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
-        ZETA_THREAD_ID_TYPE m_appThreadIds[ZETA_MAX_NUM_THREADS];
+        // Thread IDs of worker threads from this thread pool in addition to all the 
+        // other threads that may insert tasks such as the main thread
+        ZETA_THREAD_ID_TYPE m_allThreadIds[ZETA_MAX_NUM_THREADS];
 
         // Concurrent task queue
         // Source: https://github.com/cameron314/concurrentqueue

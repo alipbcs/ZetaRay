@@ -1,6 +1,5 @@
 #include "../App/Log.h"
 #include "../Support/FrameMemory.h"
-#include "../Utility/SynchronizedView.h"
 #include "../App/Timer.h"
 #include "../App/Common.h"
 #include "../Support/Param.h"
@@ -1251,46 +1250,6 @@ namespace ZetaRay::AppImpl
         ShowWindow(g_app->m_hwnd, SW_SHOWNORMAL);
     }
 
-    void GetProcessorInfo()
-    {
-        DWORD buffSize = 0;
-        GetLogicalProcessorInformation(nullptr, &buffSize);
-        Assert(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "GetLogicalProcessorInformation() failed.");
-
-        SmallVector<unsigned char, SystemAllocator, 1024> buffer;
-        buffer.resize(buffSize);
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* dataPtr =
-            reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION*>(buffer.data());
-
-        bool rc = GetLogicalProcessorInformation(dataPtr, &buffSize);
-        Assert(rc, "GetLogicalProcessorInformation() failed.");
-
-        const int n = buffSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
-        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* curr = dataPtr;
-        int logicalProcessorCount = 0;
-
-        for (int i = 0; i < n; i++)
-        {
-            switch (curr->Relationship)
-            {
-            case RelationProcessorCore:
-                g_app->m_processorCoreCount++;
-
-                // A hyperthreaded core supplies more than one logical processor.
-                logicalProcessorCount += (int)__popcnt64(curr->ProcessorMask);
-                break;
-
-            default:
-                break;
-            }
-
-            curr++;
-        }
-
-        g_app->m_processorCoreCount = Min(g_app->m_processorCoreCount, 
-            (uint16_t)(ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
-    }
-
     void SetCameraAcceleration(const ParamVariant& p)
     {
         g_app->m_cameraAcceleration = p.GetFloat().m_value;
@@ -1390,6 +1349,85 @@ namespace ZetaRay::AppImpl
 
 namespace ZetaRay
 {
+    CpuInfo App::GetProcessorInfo()
+    {
+        DWORD buffSize = 0;
+        GetLogicalProcessorInformation(nullptr, &buffSize);
+        Assert(GetLastError() == ERROR_INSUFFICIENT_BUFFER, "GetLogicalProcessorInformation() failed.");
+
+        SmallVector<unsigned char, SystemAllocator, 1024> buffer;
+        buffer.resize(buffSize);
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* dataPtr =
+            reinterpret_cast<SYSTEM_LOGICAL_PROCESSOR_INFORMATION*>(buffer.data());
+
+        bool rc = GetLogicalProcessorInformation(dataPtr, &buffSize);
+        Assert(rc, "GetLogicalProcessorInformation() failed.");
+
+        const int n = buffSize / sizeof(SYSTEM_LOGICAL_PROCESSOR_INFORMATION);
+        SYSTEM_LOGICAL_PROCESSOR_INFORMATION* curr = dataPtr;
+        //int logicalProcessorCount = 0;
+
+        CpuInfo ret{};
+
+        for (int i = 0; i < n; i++)
+        {
+            switch (curr->Relationship)
+            {
+            case RelationProcessorCore:
+                ret.NumPhysicalCores++;
+
+                // A hyperthreaded core supplies more than one logical processor.
+                ret.NumLogicalCores += (int)__popcnt64(curr->ProcessorMask);
+                break;
+
+            default:
+                break;
+            }
+
+            curr++;
+        }
+
+        return ret;
+    }
+
+    ZETA_THREAD_ID_TYPE App::GetCurrentThreadID()
+    {
+        return GetCurrentThreadId();
+    }
+
+    ZETA_THREAD_ID_TYPE App::GetThreadID(void* handle)
+    {
+        Assert(handle, "Invalid handle.");
+
+        auto id = GetThreadId(handle);
+        CheckWin32(id);
+
+        return id;
+    }
+
+    void App::SetThreadPriority(void* handle, THREAD_PRIORITY priority)
+    {
+        switch (priority)
+        {
+        case THREAD_PRIORITY::NORMAL:
+            CheckWin32(::SetThreadPriority(handle, THREAD_PRIORITY_NORMAL));
+            break;
+        case THREAD_PRIORITY::BACKGROUND:
+            CheckWin32(::SetThreadPriority(handle, THREAD_PRIORITY_BELOW_NORMAL));
+            break;
+        default:
+            break;
+        }
+    }
+
+    void App::SetThreadDesc(void* handle, wchar_t* buffer)
+    {
+        Assert(handle && buffer, "Invalid args.");
+
+        auto hr = SetThreadDescription(handle, buffer);
+        CheckWin32(SUCCEEDED(hr));
+    }
+
     ShaderReloadHandler::ShaderReloadHandler(const char* name, fastdelegate::FastDelegate0<> dlg)
         : Dlg(dlg)
     {
@@ -1434,7 +1472,9 @@ namespace ZetaRay
 
         g_app = new (std::nothrow) AppData;
 
-        AppImpl::GetProcessorInfo();
+        CpuInfo cpuInfo = App::GetProcessorInfo();
+        g_app->m_processorCoreCount = Min(cpuInfo.NumPhysicalCores,
+            (ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
 
         // create the window
         AppImpl::CreateAppWindow(instance);

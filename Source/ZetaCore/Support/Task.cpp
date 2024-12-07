@@ -4,88 +4,62 @@
 
 using namespace ZetaRay::Support;
 using namespace ZetaRay::Util;
+using namespace ZetaRay::Math;
 
 //--------------------------------------------------------------------------------------
 // Task
 //--------------------------------------------------------------------------------------
 
-Task::Task(const char* name, TASK_PRIORITY p, Function&& f)
-    : m_priority(p)
+Task::Task(const char* name, TASK_PRIORITY priority, Function&& f)
+    : m_dlg(ZetaMove(f)),
+    m_priority(priority)
 {
-#if USE_TASK_NAMES == 1
-    int n = stbsp_snprintf(m_name, MAX_NAME_LENGTH, "Frame %u | %s", App::GetTimer().GetTotalFrameCount(), name);
-    Assert(n < MAX_NAME_LENGTH, "not enough space in buffer");
-#endif
-
-    m_dlg = ZetaMove(f);
-
-    if(p == TASK_PRIORITY::NORMAL)
+    if(m_priority == TASK_PRIORITY::NORMAL)
         m_signalHandle = App::RegisterTask();
 }
 
 Task::Task(Task&& other)
+    : m_dlg(ZetaMove(other.m_dlg)),
+    m_signalHandle(other.m_signalHandle),
+    m_indegree(other.m_indegree),
+    m_priority(other.m_priority)
 {
-    if (this == &other)
-        return;
-
     //m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
     m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
     other.m_adjacentTailNodes.clear();
 
-    m_dlg = ZetaMove(other.m_dlg);
-    std::swap(m_indegree, other.m_indegree);
-    std::swap(m_signalHandle, other.m_signalHandle);
-    m_priority = other.m_priority;
+    other.m_indegree = 0;
     other.m_signalHandle = -1;
-
-#if USE_TASK_NAMES == 1
-    memcpy(m_name, other.m_name, MAX_NAME_LENGTH);
-    memset(other.m_name, '\0', MAX_NAME_LENGTH);
-#endif
-
-    //m_indegreeAtomic.store(other.m_indegreeAtomic.load(std::memory_order_relaxed));
-    //m_blockFlag.store(false, std::memory_order_relaxed);
 }
 
 Task& Task::operator=(Task&& other)
 {
+    if (this == &other)
+        return *this;
+
     //m_adjacentTailNodes.swap(other.m_adjacentTailNodes);
     m_adjacentTailNodes = ZetaMove(other.m_adjacentTailNodes);
     other.m_adjacentTailNodes.clear();
 
     m_dlg = ZetaMove(other.m_dlg);
-    std::swap(m_indegree, other.m_indegree);
-    std::swap(m_signalHandle, other.m_signalHandle);
+    m_indegree = other.m_indegree;
+    m_signalHandle = other.m_signalHandle;
     m_priority = other.m_priority;
+    other.m_indegree = 0;
     other.m_signalHandle = -1;
-
-#if USE_TASK_NAMES == 1
-    memcpy(m_name, other.m_name, MAX_NAME_LENGTH);
-    memset(other.m_name, '\0', MAX_NAME_LENGTH);
-#endif
-
-    //m_indegreeAtomic.store(other.m_indegreeAtomic.load(std::memory_order_relaxed));
-    //m_blockFlag.store(false, std::memory_order_relaxed);
 
     return *this;
 }
 
-void Task::Reset(const char* name, TASK_PRIORITY p, Function&& f)
+void Task::Reset(const char* name, TASK_PRIORITY priority, Function&& f)
 {
-    m_priority = p;
-    Check(m_signalHandle == -1, "Reinitialization is not allowed.");
+    Assert(m_signalHandle == -1, "Reinitialization is not allowed.");
 
-#if USE_TASK_NAMES == 1
-    int n = stbsp_snprintf(m_name, MAX_NAME_LENGTH, "Frame %llu | %s", App::GetTimer().GetTotalFrameCount(), name);
-    Assert(n < MAX_NAME_LENGTH, "not enough space in buffer");
-#endif
-
+    m_priority = priority;
     m_indegree = 0;
     m_dlg = ZetaMove(f);
-    //m_blockFlag.store(true, std::memory_order_relaxed);
-    //m_indegreeAtomic.store(0, std::memory_order_relaxed);
 
-    if(p == TASK_PRIORITY::NORMAL)
+    if(m_priority == TASK_PRIORITY::NORMAL)
         m_signalHandle = App::RegisterTask();
 }
 
@@ -165,7 +139,11 @@ void TaskSet::Finalize(WaitObject* waitObj)
         // for dependencies inside the TaskSet
         if (indegree > 0 || m_tasks[i].m_indegree > 0)
         {
-            m_tasks[i].m_indegree = Math::Max(indegree, m_tasks[i].m_indegree);
+            // Dependencies between TaskSets only increase the indegree
+            // for root nodes (which have indegree of 0 inside the taskset)
+            Assert(indegree * m_tasks[i].m_indegree == 0, "bug");
+            m_tasks[i].m_indegree = Max(indegree, m_tasks[i].m_indegree);
+
             // Only need to register tasks that have indegree > 0
             App::TaskFinalizedCallback(m_tasks[i].m_signalHandle, m_tasks[i].m_indegree);
         }

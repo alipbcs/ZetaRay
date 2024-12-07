@@ -65,6 +65,8 @@ namespace ZetaRay::Scene::Renderer
 
 namespace ZetaRay::App
 {
+    static constexpr int FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE = 512 * 1024;
+
     struct ShaderReloadHandler
     {
         ShaderReloadHandler() = default;
@@ -94,7 +96,23 @@ namespace ZetaRay::App
         MsgType Type;
     };
 
-    static constexpr int FRAME_ALLOCATOR_MAX_ALLOCATION_SIZE = 512 * 1024;
+    struct CpuInfo
+    {
+        int NumPhysicalCores;
+        int NumLogicalCores;
+    };
+
+    enum class THREAD_PRIORITY
+    {
+        NORMAL,
+        BACKGROUND
+    };
+
+    CpuInfo GetProcessorInfo();
+    ZETA_THREAD_ID_TYPE GetCurrentThreadID();
+    ZETA_THREAD_ID_TYPE GetThreadID(void* handle);
+    void SetThreadPriority(void* handle, THREAD_PRIORITY priority);
+    void SetThreadDesc(void* handle, wchar_t* buffer);
 
     void Init(Scene::Renderer::Interface& rendererInterface, 
         const char* name = nullptr);
