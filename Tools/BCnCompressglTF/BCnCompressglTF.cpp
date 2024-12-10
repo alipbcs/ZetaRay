@@ -558,9 +558,11 @@ int main(int argc, char* argv[])
             return 0;
         }
 
+        const size_t allTexIndices = baseColorMaps.size() + normalMaps.size() +
+            metalnessRoughnessMaps.size() + emissiveMaps.size();
         SmallVector<int, Support::ArenaAllocator> temp(arena);
-        temp.resize(model->textures_count, -1);
-        skip.resize(model->textures_count, -1);
+        temp.resize(allTexIndices);
+        skip.resize(allTexIndices);
 
         // Input and output can't overlap
         auto endIt = std::merge(baseColorMaps.begin(), baseColorMaps.end(), 
@@ -573,6 +575,7 @@ int main(int argc, char* argv[])
             skip.begin());
         skip.resize(endIt - skip.begin());
 
+        temp.resize(skip.size() + emissiveMaps.size());
         endIt = std::merge(skip.begin(), skip.end(),
             emissiveMaps.begin(), emissiveMaps.end(),
             temp.begin());
@@ -582,6 +585,7 @@ int main(int argc, char* argv[])
         for (size_t i = 0; i < model->images_count; i++)
             all[i] = (int)i;
 
+        skip.resize(model->images_count);
         endIt = std::set_difference(all.begin(), all.end(), 
             temp.begin(), temp.end(),
             skip.begin());
