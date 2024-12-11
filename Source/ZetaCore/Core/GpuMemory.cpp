@@ -692,12 +692,19 @@ Texture::Texture(const char* name, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapT
     SET_D3D_OBJ_NAME(m_resource, name);
 }
 
-Texture::Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType)
+Texture::Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType,
+    const char* dbgName)
     : m_resource(res),
     m_ID(id),
     m_heapType(heapType)
 {
     Assert(id != INVALID_ID, "Invalid ID.");
+
+    if (m_resource)
+    {
+        StackStr(name, N, "Tex2D_%u", id);
+        SET_D3D_OBJ_NAME(m_resource, dbgName ? dbgName : name);
+    }
 }
 
 Texture::~Texture()
@@ -1246,11 +1253,12 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
     Texture::ID_TYPE id = XXH3_64_To_32(XXH3_64bits(name, strlen(name)));
-    return GetTexture2D(id, width, height, format, initialState, flags, mipLevels, clearVal);
+    return GetTexture2D(id, width, height, format, initialState, flags, mipLevels, clearVal, name);
 }
 
 Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
-    D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+    D3D12_RESOURCE_STATES initialState, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal,
+    const char* dbgName)
 {
     Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
     Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
@@ -1285,7 +1293,7 @@ Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t he
         clearVal,
         IID_PPV_ARGS(&texture)));
 
-    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED);
+    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED, dbgName);
 }
 
 Texture GpuMemory::GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, 
@@ -1362,11 +1370,12 @@ Texture GpuMemory::GetTexture2D(const char* name, uint64_t width, uint32_t heigh
     D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
 {
     Texture::ID_TYPE id = XXH3_64_To_32(XXH3_64bits(name, strlen(name)));
-    return GetTexture2D(id, width, height, format, initialLayout, flags, mipLevels, clearVal);
+    return GetTexture2D(id, width, height, format, initialLayout, flags, mipLevels, clearVal, name);
 }
 
 Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
-    D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal)
+    D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags, uint16_t mipLevels, D3D12_CLEAR_VALUE* clearVal,
+    const char* dbgName)
 {
     Assert(width < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid width.");
     Assert(height < D3D12_REQ_TEXTURE2D_U_OR_V_DIMENSION, "Invalid height.");
@@ -1404,7 +1413,7 @@ Texture GpuMemory::GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t he
         nullptr,
         IID_PPV_ARGS(&texture)));
 
-    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED);
+    return Texture(id, texture, RESOURCE_HEAP_TYPE::COMMITTED, dbgName);
 }
 
 Texture GpuMemory::GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
@@ -1530,7 +1539,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* texPath, Texture& te
 
 Texture GpuMemory::GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RESOURCE_DESC1& desc,
     ID3D12Heap* heap, uint64_t offsetInBytes, UploadHeapArena& heapArena,
-    Span<D3D12_SUBRESOURCE_DATA> subresources)
+    Span<D3D12_SUBRESOURCE_DATA> subresources, const char* dbgName)
 {
     ID3D12Resource* texture;
     auto* device = App::GetRenderer().GetDevice();
@@ -1544,7 +1553,7 @@ Texture GpuMemory::GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RE
     const int idx = GetThreadIndex(g_data->m_threadIDs);
     g_data->m_uploaders[idx].UploadTexture(heapArena, texture, subresources);
 
-    return Texture(ID, texture, RESOURCE_HEAP_TYPE::PLACED);
+    return Texture(ID, texture, RESOURCE_HEAP_TYPE::PLACED, dbgName);
 }
 
 Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_t height, 

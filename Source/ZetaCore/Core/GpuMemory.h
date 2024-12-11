@@ -214,7 +214,8 @@ namespace ZetaRay::Core::GpuMemory
 
         Texture() = default;
         Texture(const char* name, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType);
-        Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType);
+        Texture(ID_TYPE id, ID3D12Resource* res, RESOURCE_HEAP_TYPE heapType,
+            const char* dbgName = nullptr);
         ~Texture();
         Texture(Texture&&);
         Texture& operator=(Texture&&);
@@ -317,7 +318,7 @@ namespace ZetaRay::Core::GpuMemory
         D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_RESOURCE_STATES initialState, uint32_t flags = 0, uint16_t mipLevels = 1,
-        D3D12_CLEAR_VALUE* clearVal = nullptr);
+        D3D12_CLEAR_VALUE* clearVal = nullptr, const char* dbgName = nullptr);
     Texture GetPlacedTexture2D(const char* name, uint64_t width, uint32_t height, DXGI_FORMAT format,
         ID3D12Heap* heap, uint64_t offsetInBytes, D3D12_RESOURCE_STATES initialState, uint32_t flags = 0,
         uint16_t mipLevels = 1, D3D12_CLEAR_VALUE* clearVal = nullptr);
@@ -329,7 +330,7 @@ namespace ZetaRay::Core::GpuMemory
         D3D12_CLEAR_VALUE* clearVal = nullptr);
     Texture GetTexture2D(Texture::ID_TYPE id, uint64_t width, uint32_t height, DXGI_FORMAT format,
         D3D12_BARRIER_LAYOUT initialLayout, uint32_t flags = 0, uint16_t mipLevels = 1,
-        D3D12_CLEAR_VALUE* clearVal = nullptr);
+        D3D12_CLEAR_VALUE* clearVal = nullptr, const char* dbgName = nullptr);
     Texture GetTexture3D(const char* name, uint64_t width, uint32_t height, uint16_t depth,
         DXGI_FORMAT format, D3D12_RESOURCE_STATES initialState,
         uint32_t flags = 0, uint16_t mipLevels = 1);
@@ -361,5 +362,5 @@ namespace ZetaRay::Core::GpuMemory
         D3D12_RESOURCE_STATES initialState, uint8_t* pixels, uint32_t flags = 0);
     Texture GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RESOURCE_DESC1& desc,
         ID3D12Heap* heap, uint64_t offsetInBytes, UploadHeapArena& heapArena,
-        Util::Span<D3D12_SUBRESOURCE_DATA> subresources);
+        Util::Span<D3D12_SUBRESOURCE_DATA> subresources, const char* dbgName = nullptr);
 }
