@@ -168,7 +168,7 @@ namespace
         SRWLOCK m_logLock = SRWLOCK_INIT;
 
         HWND m_hwnd;
-        HWND m_mouseHwnd;
+        HWND m_imguiMouseHwnd;
         FrameTime m_frameTime;
         Motion m_frameMotion;
         std::atomic_int32_t m_currTaskSignalIdx = 0;
@@ -212,7 +212,7 @@ namespace
     // See https://learn.microsoft.com/en-us/windows/win32/tablet/system-events-and-mouse-messages
     // Prefer to call this at the top of the message handler to avoid the possibility of 
     // other Win32 calls interfering with this.
-    ImGuiMouseSource GetMouseSourceFromMessageExtraInfo()
+    ImGuiMouseSource ImGui_GetMouseSourceFromMessageExtraInfo()
     {
         LPARAM extra_info = GetMessageExtraInfo();
         if ((extra_info & 0xFFFFFF80) == 0xFF515700)
@@ -279,22 +279,18 @@ namespace
             if (!io.WantSetMousePos && g_app->m_imguiMouseTrackedArea == 0)
             {
                 POINT pos;
-                if (GetCursorPos(&pos) && ::ScreenToClient(g_app->m_hwnd, &pos))
+                if (GetCursorPos(&pos) && ScreenToClient(g_app->m_hwnd, &pos))
                     io.AddMousePosEvent((float)pos.x, (float)pos.y);
             }
         }
-
-        // Update OS mouse cursor with the cursor requested by imgui
-        ImGuiMouseCursor mouse_cursor = io.MouseDrawCursor ? ImGuiMouseCursor_None : ImGui::GetMouseCursor();
-        if (g_app->m_imguiCursor != mouse_cursor)
-        {
-            g_app->m_imguiCursor = mouse_cursor;
-            ImGui_UpdateMouseCursor();
-        }
     }
 
-    ImGuiKey ImGui_VirtualKeyToImGuiKey(WPARAM wParam)
+    ImGuiKey ImGui_VirtualKeyToImGuiKey(WPARAM wParam, LPARAM lParam)
     {
+        // There is no distinct VK_xxx for keypad enter, instead it is VK_RETURN + KF_EXTENDED.
+        if ((wParam == VK_RETURN) && (HIWORD(lParam) & KF_EXTENDED))
+            return ImGuiKey_KeypadEnter;
+
         switch (wParam)
         {
         case VK_TAB: return ImGuiKey_Tab;
@@ -343,7 +339,6 @@ namespace
         case VK_MULTIPLY: return ImGuiKey_KeypadMultiply;
         case VK_SUBTRACT: return ImGuiKey_KeypadSubtract;
         case VK_ADD: return ImGuiKey_KeypadAdd;
-            //case IM_VK_KEYPAD_ENTER: return ImGuiKey_KeypadEnter;
         case VK_LSHIFT: return ImGuiKey_LeftShift;
         case VK_LCONTROL: return ImGuiKey_LeftCtrl;
         case VK_LMENU: return ImGuiKey_LeftAlt;
@@ -440,6 +435,23 @@ namespace
         io.AddKeyEvent(ImGuiMod_Shift, ImGui_IsVkDown(VK_SHIFT));
         io.AddKeyEvent(ImGuiMod_Alt, ImGui_IsVkDown(VK_MENU));
         io.AddKeyEvent(ImGuiMod_Super, ImGui_IsVkDown(VK_LWIN) || ImGui_IsVkDown(VK_RWIN));
+    }
+
+    void ImGui_ProcessKeyEventsWorkarounds()
+    {
+        // Left & right Shift keys: when both are pressed together, Windows tend to not 
+        // generate the WM_KEYUP event for the first released one.
+        if (ImGui::IsKeyDown(ImGuiKey_LeftShift) && !ImGui_IsVkDown(VK_LSHIFT))
+            ImGui_AddKeyEvent(ImGuiKey_LeftShift, false, VK_LSHIFT);
+        if (ImGui::IsKeyDown(ImGuiKey_RightShift) && !ImGui_IsVkDown(VK_RSHIFT))
+            ImGui_AddKeyEvent(ImGuiKey_RightShift, false, VK_RSHIFT);
+
+        // Sometimes WM_KEYUP for Win key is not passed down to the app (e.g. for Win+V 
+        // on some setups, according to GLFW).
+        if (ImGui::IsKeyDown(ImGuiKey_LeftSuper) && !ImGui_IsVkDown(VK_LWIN))
+            ImGui_AddKeyEvent(ImGuiKey_LeftSuper, false, VK_LWIN);
+        if (ImGui::IsKeyDown(ImGuiKey_RightSuper) && !ImGui_IsVkDown(VK_RWIN))
+            ImGui_AddKeyEvent(ImGuiKey_RightSuper, false, VK_RWIN);
     }
 }
 
@@ -545,7 +557,7 @@ namespace ZetaRay::AppImpl
         colors[ImGuiCol_TitleBg] = ImVec4(26 / 255.0f, 26 / 255.0f, 26 / 255.0f, 1.0f);
         colors[ImGuiCol_Tab] = ImVec4(0.046665083f, 0.046665083f, 0.046665083f, 1.0f);
         colors[ImGuiCol_TabHovered] = ImVec4(40 / 255.0f, 42 / 255.0f, 47 / 255.0f, 1.0f);
-        colors[ImGuiCol_TabActive] = ImVec4(7 / 255.0f, 26 / 255.0f, 56 / 255.0f, 1.0f);
+        colors[ImGuiCol_TabSelected] = ImVec4(7 / 255.0f, 26 / 255.0f, 56 / 255.0f, 1.0f);
         colors[ImGuiCol_TitleBg] = colors[ImGuiCol_Tab];
         colors[ImGuiCol_TitleBgActive] = ImVec4(0.08865560f, 0.08865560f, 0.08865560f, 1.0f);
         colors[ImGuiCol_FrameBg] = ImVec4(10 / 255.0f, 10 / 255.0f, 10 / 255.0f, 1.0f);
@@ -632,6 +644,17 @@ namespace ZetaRay::AppImpl
         UpdateStats(tempMemoryUsage);
 
         ImGui_UpdateMouse();
+        ImGui_ProcessKeyEventsWorkarounds();
+
+        // Update OS mouse cursor with the cursor requested by imgui
+        ImGuiMouseCursor mouse_cursor = ImGui::GetIO().MouseDrawCursor ? ImGuiMouseCursor_None : 
+            ImGui::GetMouseCursor();
+        if (g_app->m_imguiCursor != mouse_cursor)
+        {
+            g_app->m_imguiCursor = mouse_cursor;
+            ImGui_UpdateMouseCursor();
+        }
+
         ImGui::NewFrame();
 
         if (!(GetAsyncKeyState(VK_LSHIFT) & (1 << 15)))
@@ -707,58 +730,10 @@ namespace ZetaRay::AppImpl
         }
     }
 
-    void OnToggleFullscreenWindow()
-    {
-        // switch from windowed to full-screen
-        if (!g_app->m_isFullScreen)
-        {
-            GetWindowRect(g_app->m_hwnd, &g_app->m_wndRectCache);
-
-            // Make the window borderless so that the client area can fill the screen.
-            SetWindowLong(g_app->m_hwnd, GWL_STYLE, WS_OVERLAPPED & ~(WS_CAPTION | WS_MAXIMIZEBOX | WS_MINIMIZEBOX | WS_SYSMENU | WS_THICKFRAME));
-
-            RECT fullscreenWindowRect;
-
-            // Get the settings of the display on which the app's window is currently displayed
-            DXGI_OUTPUT_DESC desc = g_app->m_renderer.GetOutputMonitorDesc();
-            fullscreenWindowRect = desc.DesktopCoordinates;
-
-            SetWindowPos(g_app->m_hwnd,
-                HWND_NOTOPMOST,
-                fullscreenWindowRect.left,
-                fullscreenWindowRect.top,
-                fullscreenWindowRect.right,
-                fullscreenWindowRect.bottom,
-                SWP_FRAMECHANGED | SWP_NOACTIVATE);
-
-            ShowWindow(g_app->m_hwnd, SW_MAXIMIZE);
-        }
-        else
-        {
-            // Restore the window's attributes and size.
-            SetWindowLong(g_app->m_hwnd, GWL_STYLE, WS_OVERLAPPED);
-
-            SetWindowPos(
-                g_app->m_hwnd,
-                HWND_NOTOPMOST,
-                g_app->m_wndRectCache.left,
-                g_app->m_wndRectCache.top,
-                g_app->m_wndRectCache.right - g_app->m_wndRectCache.left,
-                g_app->m_wndRectCache.bottom - g_app->m_wndRectCache.top,
-                SWP_FRAMECHANGED | SWP_NOACTIVATE);
-
-            ShowWindow(g_app->m_hwnd, SW_NORMAL);
-        }
-
-        g_app->m_isFullScreen = !g_app->m_isFullScreen;
-    }
-
     void OnKeyboard(UINT message, WPARAM wParam, LPARAM lParam)
     {
         if (ImGui::GetCurrentContext() == nullptr)
             return;
-
-        ImGuiIO& io = ImGui::GetIO();
 
         const bool is_key_down = (message == WM_KEYDOWN || message == WM_SYSKEYDOWN);
         if (wParam < 256)
@@ -766,16 +741,13 @@ namespace ZetaRay::AppImpl
             // Submit modifiers
             ImGui_UpdateKeyModifiers();
 
-            // Obtain virtual key code
-            // (keypad enter doesn't have its own... VK_RETURN with KF_EXTENDED flag means 
-            // keypad enter, see IM_VK_KEYPAD_ENTER definition for details, it is mapped to ImGuiKey_KeyPadEnter.)
-            int vk = (int)wParam;
-            //if ((wParam == VK_RETURN) && (HIWORD(lParam) & KF_EXTENDED))
-            //    vk = IM_VK_KEYPAD_ENTER;
-            const ImGuiKey key = ImGui_VirtualKeyToImGuiKey(vk);
+            // Obtain virtual key code and convert to ImGuiKey
+            const ImGuiKey key = ImGui_VirtualKeyToImGuiKey(wParam, lParam);
+            const int vk = (int)wParam;
             const int scancode = (int)LOBYTE(HIWORD(lParam));
 
-            // Special behavior for VK_SNAPSHOT / ImGuiKey_PrintScreen as Windows doesn't emit the key down event.
+            // Special behavior for VK_SNAPSHOT / ImGuiKey_PrintScreen as Windows doesn't 
+            // emit the key down event.
             if (key == ImGuiKey_PrintScreen && !is_key_down)
                 ImGui_AddKeyEvent(key, true, vk, scancode);
 
@@ -809,7 +781,7 @@ namespace ZetaRay::AppImpl
             }
         }
 
-        if (!io.WantCaptureKeyboard)
+        if (!ImGui::GetIO().WantCaptureKeyboard)
         {
             if (GetAsyncKeyState('P') & (1 << 16))
             {
@@ -834,17 +806,19 @@ namespace ZetaRay::AppImpl
         if (ImGui::GetCurrentContext() == nullptr)
             return;
 
-        ImGuiIO& io = ImGui::GetIO();
-
-        ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
+        ImGuiMouseSource mouse_source = ImGui_GetMouseSourceFromMessageExtraInfo();
         int button = 0;
-        if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK) { button = 0; }
-        if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK) { button = 1; }
-        if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK) { button = 2; }
+        if (message == WM_LBUTTONDOWN || message == WM_LBUTTONDBLCLK)
+            button = 0;
+        if (message == WM_RBUTTONDOWN || message == WM_RBUTTONDBLCLK)
+            button = 1;
+        if (message == WM_MBUTTONDOWN || message == WM_MBUTTONDBLCLK)
+            button = 2;
         if (g_app->m_imguiMouseButtonsDown == 0 && GetCapture() == nullptr)
             SetCapture(g_app->m_hwnd);
 
         g_app->m_imguiMouseButtonsDown |= 1 << button;
+        ImGuiIO& io = ImGui::GetIO();
         io.AddMouseSourceEvent(mouse_source);
         io.AddMouseButtonEvent(button, true);
 
@@ -874,11 +848,14 @@ namespace ZetaRay::AppImpl
 
         ImGuiIO& io = ImGui::GetIO();
 
-        ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
+        ImGuiMouseSource mouse_source = ImGui_GetMouseSourceFromMessageExtraInfo();
         int button = 0;
-        if (message == WM_LBUTTONUP) { button = 0; }
-        if (message == WM_RBUTTONUP) { button = 1; }
-        if (message == WM_MBUTTONUP) { button = 2; }
+        if (message == WM_LBUTTONUP)
+            button = 0;
+        if (message == WM_RBUTTONUP)
+            button = 1;
+        if (message == WM_MBUTTONUP)
+            button = 2;
 
         g_app->m_imguiMouseButtonsDown &= ~(1 << button);
         if (g_app->m_imguiMouseButtonsDown == 0 && GetCapture() == g_app->m_hwnd)
@@ -905,16 +882,15 @@ namespace ZetaRay::AppImpl
         if (ImGui::GetCurrentContext() == nullptr)
             return;
 
-        ImGuiIO& io = ImGui::GetIO();
-
         // We need to call TrackMouseEvent in order to receive WM_MOUSELEAVE events
-        ImGuiMouseSource mouse_source = GetMouseSourceFromMessageExtraInfo();
+        ImGuiMouseSource mouse_source = ImGui_GetMouseSourceFromMessageExtraInfo();
         const int area = (message == WM_MOUSEMOVE) ? 1 : 2;
-        g_app->m_mouseHwnd = hwnd;
+        g_app->m_imguiMouseHwnd = hwnd;
+
         if (g_app->m_imguiMouseTrackedArea != area)
         {
             TRACKMOUSEEVENT tme_cancel = { sizeof(tme_cancel), TME_CANCEL, hwnd, 0 };
-            TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ? 
+            TRACKMOUSEEVENT tme_track = { sizeof(tme_track), (DWORD)((area == 2) ?
                 (TME_LEAVE | TME_NONCLIENT) : TME_LEAVE), hwnd, 0 };
             if (g_app->m_imguiMouseTrackedArea != 0)
                 TrackMouseEvent(&tme_cancel);
@@ -928,6 +904,7 @@ namespace ZetaRay::AppImpl
         if (message == WM_NCMOUSEMOVE && ScreenToClient(hwnd, &mouse_pos) == FALSE)
             return;
 
+        ImGuiIO& io = ImGui::GetIO();
         io.AddMouseSourceEvent(mouse_source);
         io.AddMousePosEvent((float)mouse_pos.x, (float)mouse_pos.y);
 
@@ -1150,14 +1127,19 @@ namespace ZetaRay::AppImpl
         }
         return 0;
 
+        case WM_MOUSEMOVE:
+        case WM_NCMOUSEMOVE:
+            AppImpl::OnMouseMove(message, wParam, lParam, hWnd);
+            return 0;
+
         case WM_MOUSELEAVE:
         case WM_NCMOUSELEAVE:
         {
             const int area = (message == WM_MOUSELEAVE) ? 1 : 2;
             if (g_app->m_imguiMouseTrackedArea == area)
             {
-                if (g_app->m_mouseHwnd == hWnd)
-                    g_app->m_mouseHwnd = nullptr;
+                if (g_app->m_imguiMouseHwnd == hWnd)
+                    g_app->m_imguiMouseHwnd = nullptr;
 
                 g_app->m_imguiMouseTrackedArea = 0;
                 ImGui::GetIO().AddMousePosEvent(-FLT_MAX, -FLT_MAX);
@@ -1177,11 +1159,6 @@ namespace ZetaRay::AppImpl
             AppImpl::OnMouseUp(message, wParam, lParam);
             return 0;
 
-        case WM_MOUSEMOVE:
-        case WM_NCMOUSEMOVE:
-            AppImpl::OnMouseMove(message, wParam, lParam, hWnd);
-            return 0;
-
         case WM_MOUSEWHEEL:
             AppImpl::OnMouseWheel(message, wParam, lParam);
             return 0;
@@ -1195,6 +1172,14 @@ namespace ZetaRay::AppImpl
             if (LOWORD(lParam) == HTCLIENT && ImGui_UpdateMouseCursor())
                 return 1;
             return DefWindowProc(hWnd, message, wParam, lParam);
+
+        case WM_SETFOCUS:
+        case WM_KILLFOCUS:
+            if (ImGui::GetCurrentContext() == nullptr)
+                return DefWindowProc(hWnd, message, wParam, lParam);;
+
+            ImGui::GetIO().AddFocusEvent(message == WM_SETFOCUS);
+            return 0;
 
         case WM_DESTROY:
             AppImpl::OnDestroy();

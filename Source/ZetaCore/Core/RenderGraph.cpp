@@ -1117,17 +1117,24 @@ void RenderGraph::DebugDrawGraph()
         ImNodes::EndNodeTitleBar();
 
 #ifndef NDEBUG
-        for (auto b : m_renderNodes[currNode].Barriers)
+        if(m_renderNodes[currNode].Barriers.empty())
+            ImGui::Text("");
+        else
         {
-            char buff[64] = { '\0' };
-            UINT n = sizeof(buff);
-            CheckHR(b.Transition.pResource->GetPrivateData(WKPDID_D3DDebugObjectName, &n, buff));
+            for (auto b : m_renderNodes[currNode].Barriers)
+            {
+                char buff[64] = { '\0' };
+                UINT n = sizeof(buff);
+                CheckHR(b.Transition.pResource->GetPrivateData(WKPDID_D3DDebugObjectName, &n, buff));
 
-            ImGui::Text("\t\tRes: %s\n\tBefore: %s\nAfter: %s",
-                buff,
-                GetResStateName(b.Transition.StateBefore),
-                GetResStateName(b.Transition.StateAfter));
+                ImGui::Text("\t\tRes: %s\n\tBefore: %s\nAfter: %s",
+                    buff,
+                    GetResStateName(b.Transition.StateBefore),
+                    GetResStateName(b.Transition.StateAfter));
+            }
         }
+#else
+        ImGui::Text("");
 #endif
 
         const int prevBatchSize = currBatchIdx > 0 ? batchSize[currBatchIdx - 1] : 0;

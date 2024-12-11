@@ -896,7 +896,7 @@ void GuiPass::RenderMainHeader()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImGui::PushStyleColor(ImGuiCol_Tab, style.Colors[ImGuiCol_WindowBg]);
-    ImGui::PushStyleColor(ImGuiCol_TabActive, 
+    ImGui::PushStyleColor(ImGuiCol_TabSelected,
         ImVec4(0.0295568369f, 0.0295568369f, 0.0295568369f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_TabHovered, 
         ImVec4(0.05098039215f, 0.05490196078f, 0.05490196078f, 1.0f));
