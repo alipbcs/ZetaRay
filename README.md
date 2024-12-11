@@ -3,7 +3,7 @@
 
 A hobby real-time Direct3D 12 path tracer. Mainly developed for learning and experimenting with the latest research in real-time rendering. 
 
-To achieve real-time frame rates, this renderer utilizes recent developments such as hardware-accelerated ray tracing (DXR), advanced sampling (ReSTIR), denoising, and smart upscaling (AMD FSR2).
+To achieve real-time frame rates, this renderer utilizes recent developments such as hardware-accelerated ray tracing (DXR), advanced sampling (ReSTIR), and smart upscaling (AMD FSR2).
 
 <div align="center">
   <img src="Assets/Images/8.png?raw=true" alt="Sponza" style="zoom:60%"/>
@@ -47,38 +47,54 @@ A render graph can help with all of the above; by analyzing resource dependencie
   <p style="text-align: center;"><i>A sample frame render graph.</i></p>
 </div>
 
+### Sample Editor
+
+The main sample application ([`Samples/ZetaLab`](./Samples/ZetaLab/)) provides a light editor experience with the following features:
+ - Load glTF scenes ([note the preprocessing step below](#building-and-running))
+ - Change object transformations (translation, rotation, and scaling) using a 3D gizmo
+ - Modify material properties
+ - Move light sources (sun and sky or emissives) and change their intensity, color, etc.
+ - Renderer options, such as the number of light bounces, texture filtering, ReSTIR reuse parameters, camera settings (pinhole or thin lens, FOV, f-stop), tonemapper, and more
+ - GPU performance metrics:
+   - Frametime graph
+   - Frametime for individual shaders using hardware timestamp queries
+   - VRAM usage
+ - Hot-reload shaders
+
 ## Requirements
 
 1. GPU with hardware-accelerated ray tracing support (NVIDIA RTX 2000 series or later, AMD RX 6000 series or later). Tested on RTX 3070 desktop and RTX 3060 laptop.
-2. Windows 10 1909 or later (required by [Agility SDK](https://devblogs.microsoft.com/directx/gettingstarted-dx12agility/)).
+2. Windows 10 1909 or later.
 3. [Visual Studio 2019 or later](https://visualstudio.microsoft.com/downloads/). Builds with both MSVC and ClangCL toolsets.
 4. [CMake 3.21 or later](https://cmake.org/download/).
 
-## Build
+## Building and Running
 
-Standard CMake build. Make a build directory somewhere you like, then call CMake from inside that directory and point it to ([`./CMakeLists`](./CMakeLists.txt)) in the top-level project directory (`./build` is preferred as it's included in [`.gitignore`](./.gitignore)).
+Building is just standard CMake. In the project directory, run:
 
-## Sample App
+```bash
+> mkdir build
+> cd build
+> cmake ..
+```
 
-The main sample application ([`Samples/ZetaLab/`](./Samples/ZetaLab/)) works by loading a glTF scene and then proceeding to rendering that scene while exposing various settings through the UI window. 
-
-Note that glTF scenes need to be preprocessed first by generating mipmaps and converting textures to DDS format. A command-line utility app ([`Tools/BCnCompressglTF`](./Tools/BCnCompressglTF/)) is provided for that purpose. It can be used as follows:
+Before running the project, glTF scenes need to be preprocessed first by generating mipmaps and converting textures to DDS format. A command-line utility app ([`Tools/BCnCompressglTF`](./Tools/BCnCompressglTF/)) is provided for this purpose. It can be used as follows:
 
 ```bash
 > cd bin
-> .\BCnCompressglTF <path-to-gltf>
+> BCnCompressglTF <path-to-gltf>
 ```
 The outputs are:
 1. The converted glTF scene file in the same directory with a `_zeta` suffix (e.g., `myscene.gltf` -> `myscene_zeta.gltf`) 
 2. The compressed textures in the `<path-to-gltf-directory>/compressed` directory.
 
-For convenience, a preprocessed Cornell Box scene is provided ([`Assets/CornellBox/cornell9.gltf`](./Assets/CornellBox/cornell9.gltf)). After building the project, you can run it as follows:
+For convenience, a preprocessed Cornell Box scene is provided ([`Assets/CornellBox/cornell.gltf`](./Assets/CornellBox/cornell9.gltf)). After building the project, you can run it as follows:
 ```bash
 > cd bin
-> .\ZetaLab ..\Assets\CornellBox\cornell9.gltf
+> ZetaLab ../Assets/CornellBox/cornell.gltf
 ```
 
-Currently, unicode paths are not supported. Support is planned for a future release.
+Currently, Unicode paths are not supported. Support is planned for a future release.
 
 ## Screenshots
 
@@ -88,8 +104,13 @@ Currently, unicode paths are not supported. Support is planned for a future rele
 
   </br>
 
+  <img src="Assets/Images/13.png?raw=true" alt="Classroom" style="zoom:50%"/>
+  <p style="text-align: center;"><i>Modified Blender 'Agent 327 Barbershop'. (Original Scene from <a href="https://www.blender.org/download/demo-files/">Blender demo files</a>.)</i></p>
+
+  </br>
+
   <img src="Assets/Images/2.png?raw=true" alt="Classroom" style="zoom:50%"/>
-  <p style="text-align: center;"><i>(Modified) Blender Classroom. (<a href="https://www.blender.org/download/demo-files/">Original Scene</a> by Christophe Seux</a>.)</i></p>
+  <p style="text-align: center;"><i>Modified Blender 'Classroom'. (<a href="https://www.blender.org/download/demo-files/">Original Scene</a> by Christophe Seux.)</i></p>
 
   </br>
 
@@ -147,13 +168,13 @@ dynamic direct lighting," *ACM Transactions on Graphics*, 2020.
 - [Dear ImGui](https://github.com/ocornut/imgui)
 - [doctest](https://github.com/doctest/doctest)
 - [FastDelegate](https://www.codeproject.com/Articles/7150/Member-Function-Pointers-and-the-Fastest-Possible)
+- [ImGuizmo](https://github.com/CedricGuillemet/ImGuizmo)
 - [ImPlot](https://github.com/epezent/implot)
 - [imnodes](https://github.com/Nelarius/imnodes)
-- [json](https://github.com/nlohmann/json)
 - [moodycamel::ConcurrentQueue](https://github.com/cameron314/concurrentqueue)
 - [stb](https://github.com/nothings/stb)
 - [xxHash](https://github.com/Cyan4973/xxHash)
 
 ## License
 
-MIT license—see [`LICENSE`](./LICENSE) for more details.
+MIT License—see [`LICENSE`](./LICENSE) for more details.
