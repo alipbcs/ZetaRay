@@ -53,30 +53,11 @@ namespace ZetaRay::RenderPass
         static constexpr int NUM_GLOBS = 6;
         static constexpr int NUM_CONSTS = (int)(sizeof(cbGBufferRt) / sizeof(DWORD));
 
-        inline static constexpr const char* COMPILED_RTPSO = "GBufferRT_lib.cso";
-
-        struct ShaderTable
-        {
-            static constexpr int NUM_RAYGEN_SHADERS = 1;
-            static constexpr int NUM_MISS_SHADERS = 1;
-            static constexpr int NUM_HIT_GROUPS = 1;
-
-            Core::GpuMemory::Buffer ShaderRecords;
-            void* RayGenShaderIdentifier;
-            void* MissShaderIdentifier;
-            void* HitGroupIdentifier;
-            size_t RayGenRecordStartInBytes;
-            size_t MissRecordStartInBytes;
-            size_t HitRecordStartInBytes;
-        };
-
         inline static constexpr const char* COMPILED_CS[(int)GBUFFER_SHADER::COUNT] = {
             "GBufferRT_Inline_cs.cso"
         };
 
-        //void CreateRTPSO();
-        //void BuildShaderTable();
-        void ReloadGBufferInline();
+        void ReloadShader();
 
         Core::GpuMemory::Buffer m_pickedInstance;
         Core::GpuMemory::ReadbackHeapBuffer m_readbackBuffer;
