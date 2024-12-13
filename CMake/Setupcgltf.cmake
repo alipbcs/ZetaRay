@@ -1,9 +1,10 @@
 function(Setupcgltf)
     set(CGLTF_DIR "${EXTERNAL_DIR}/cgltf")
     file(GLOB_RECURSE HEADER_PATH "${CGLTF_DIR}/cgltf.h")
+    file(GLOB_RECURSE HEADER_PATH_WRITE "${CGLTF_DIR}/cgltf_write.h")
     set(CGLTF_VER "1.14")
 
-    if(HEADER_PATH STREQUAL "")
+    if(HEADER_PATH STREQUAL "" OR HEADER_PATH_WRITE STREQUAL "")
         file(MAKE_DIRECTORY ${CGLTF_DIR})
 
         # download
@@ -13,7 +14,7 @@ function(Setupcgltf)
         file(DOWNLOAD "${URL}" "${ARCHIVE_PATH}" TIMEOUT 120)
         file(ARCHIVE_EXTRACT INPUT "${ARCHIVE_PATH}" DESTINATION "${CGLTF_DIR}/temp")
 
-        # copy header
+        # copy headers
         file(GLOB_RECURSE HEADER "${CGLTF_DIR}/temp/*cgltf*.h")
         file(COPY ${HEADER} DESTINATION ${CGLTF_DIR})
             
