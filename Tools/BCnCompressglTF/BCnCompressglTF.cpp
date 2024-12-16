@@ -183,8 +183,6 @@ namespace
 
             DecodeURI_Inplace(imgPath, arena);
 
-            // DirectXTex expects backslashes
-            imgPath.ConvertToBackslashes();
             // Modify to decoded path
             Assert(!imgPath.HasInlineStorage(), "Bug");
             model.images[i].uri = imgPath.Get();
