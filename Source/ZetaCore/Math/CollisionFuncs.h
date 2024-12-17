@@ -47,7 +47,7 @@ namespace ZetaRay::Math
     }
 
     // Returns the union of two AABBs
-    ZetaInline v_AABB __vectorcall compueUnionAABB(const v_AABB vBox1, const v_AABB vBox2)
+    ZetaInline v_AABB __vectorcall unionAABB(const v_AABB vBox1, const v_AABB vBox2)
     {
         __m128 vMin1 = _mm_sub_ps(vBox1.vCenter, vBox1.vExtents);
         __m128 vMax1 = _mm_add_ps(vBox1.vCenter, vBox1.vExtents);
@@ -66,7 +66,7 @@ namespace ZetaRay::Math
         return vRet;
     }
 
-    ZetaInline float __vectorcall computeAABBSurfaceArea(v_AABB vBox)
+    ZetaInline float __vectorcall AABBSurfaceArea(v_AABB vBox)
     {
         const __m128 vEight = _mm_set1_ps(8.0f);
         const __m128 vYZX = _mm_shuffle_ps(vBox.vExtents, vBox.vExtents, V_SHUFFLE_XYZW(1, 2, 0, 0));
@@ -107,7 +107,7 @@ namespace ZetaRay::Math
     }
 
     // Returns the AABB that results from the intersection of two AABBs
-    ZetaInline v_AABB __vectorcall computeOverlapAABB(const v_AABB vBox1, const v_AABB vBox2)
+    ZetaInline v_AABB __vectorcall overlapAABB(const v_AABB vBox1, const v_AABB vBox2)
     {
         __m128 vMin1 = _mm_sub_ps(vBox1.vCenter, vBox1.vExtents);
         __m128 vMax1 = _mm_add_ps(vBox1.vCenter, vBox1.vExtents);

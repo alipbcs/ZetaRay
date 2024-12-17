@@ -92,7 +92,7 @@ void Common::UpdateFrameConstants(cbFrameConstants& frameConsts, Buffer& frameCo
         frameConsts.CurrViewInv.m[2].z);
     float3 delta_pos = prevCameraPos - frameConsts.CameraPos;
     bool cameraStatic = (delta_pos.dot(delta_pos) < 3e-6f) &&
-        (prevViewDir.dot(currViewDir) >= 0.99999);
+        (prevViewDir.dot(currViewDir) >= 0.9999995);
     cameraStatic = cameraStatic && !g_data->m_sunMoved && !g_data->m_sceneChanged;
     frameConsts.NumFramesCameraStatic = cameraStatic && frameConsts.Accumulate ? 
         frameConsts.NumFramesCameraStatic + 1 : 0;

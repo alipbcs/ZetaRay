@@ -119,7 +119,7 @@ namespace ZetaRay::Scene
         int m_jitterPhaseCount;
         bool m_jitteringEnabled = false;
         float m_frictionCoeff = 10.0f;
-        Math::float2 m_rotAccScale = Math::float2(31.0f, 25.0f);
-        Math::float2 m_rotFrictionCoeff = Math::float2(27.0f, 22.0f);
+        Math::float2 m_angularAcc = Math::float2(19.0f);
+        Math::float2 m_angularDamping = Math::float2(19.0f);
     };
 }

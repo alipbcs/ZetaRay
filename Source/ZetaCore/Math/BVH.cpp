@@ -14,13 +14,13 @@ namespace
     {
         ZetaInline void __vectorcall Extend(v_AABB box)
         {
-            Box = NumEntries > 0 ? compueUnionAABB(Box, box) : box;
+            Box = NumEntries > 0 ? unionAABB(Box, box) : box;
             NumEntries++;
         }
 
         ZetaInline void __vectorcall Extend(Bin bin)
         {
-            Box = NumEntries > 0 ? compueUnionAABB(Box, bin.Box) : bin.Box;
+            Box = NumEntries > 0 ? unionAABB(Box, bin.Box) : bin.Box;
             NumEntries += bin.NumEntries;
         }
 
@@ -52,7 +52,7 @@ void BVH::Node::InitAsInternal(Span<BVH::BVHInput> instances, int base, int coun
     v_AABB vBox(instances[base].BoundingBox);
 
     for (int i = base + 1; i < base + count; i++)
-        vBox = compueUnionAABB(vBox, v_AABB(instances[i].BoundingBox));
+        vBox = unionAABB(vBox, v_AABB(instances[i].BoundingBox));
 
     BoundingBox = store(vBox);
     RightChild = right;
@@ -87,7 +87,7 @@ void BVH::Build(Span<BVHInput> instances)
         v_AABB vBox(m_instances[0].BoundingBox);
 
         for (int i = 1; i < m_instances.size(); i++)
-            vBox = compueUnionAABB(vBox, v_AABB(m_instances[i].BoundingBox));
+            vBox = unionAABB(vBox, v_AABB(m_instances[i].BoundingBox));
 
         m_nodes[0].BoundingBox = store(vBox);
         m_nodes[0].Base = 0;
@@ -130,7 +130,7 @@ int BVH::BuildSubtree(int base, int count, int parent)
         vMinPoint = _mm_min_ps(vMinPoint, vInstanceBox.vCenter);
         vMaxPoint = _mm_max_ps(vMaxPoint, vInstanceBox.vCenter);
 
-        vNodeBox = compueUnionAABB(vNodeBox, v_AABB(m_instances[i].BoundingBox));
+        vNodeBox = unionAABB(vNodeBox, v_AABB(m_instances[i].BoundingBox));
     }
 
     v_AABB vCentroidAABB;
@@ -202,19 +202,19 @@ int BVH::BuildSubtree(int base, int count, int parent)
                 currLeftSum += bins[plane].NumEntries;
                 leftCount[plane] = currLeftSum;
 
-                currLeftBox = compueUnionAABB(bins[plane].Box, currLeftBox);
-                leftSurfaceArea[plane] = computeAABBSurfaceArea(currLeftBox);
+                currLeftBox = unionAABB(bins[plane].Box, currLeftBox);
+                leftSurfaceArea[plane] = AABBSurfaceArea(currLeftBox);
                 currRightSum += bins[NUM_SAH_BINS - 1 - plane].NumEntries;
                 rightCount[NUM_SAH_BINS - 2 - plane] = currRightSum;
 
-                currRightBox = compueUnionAABB(bins[NUM_SAH_BINS - 1 - plane].Box, currRightBox);
-                rightSurfaceArea[NUM_SAH_BINS - 2 - plane] = computeAABBSurfaceArea(currRightBox);
+                currRightBox = unionAABB(bins[NUM_SAH_BINS - 1 - plane].Box, currRightBox);
+                rightSurfaceArea[NUM_SAH_BINS - 2 - plane] = AABBSurfaceArea(currRightBox);
             }
         }
 
         int lowestCostPlane = -1;
         float lowestCost = FLT_MAX;
-        const float parentSurfaceArea = computeAABBSurfaceArea(vNodeBox);
+        const float parentSurfaceArea = AABBSurfaceArea(vNodeBox);
 
         // Cost of split along each split plane
         for (int i = 0; i < NUM_SAH_BINS - 1; i++)
@@ -327,8 +327,8 @@ int BVH::Find(uint64_t instanceID, const Math::AABB& queryBox, int& nodeIdx)
             v_AABB vLeft(m_nodes[currNodeIdx + 1].BoundingBox);
             v_AABB vRight(m_nodes[node.RightChild].BoundingBox);
 
-            v_AABB vOverlapLeft = Math::computeOverlapAABB(vBox, vLeft);
-            v_AABB vOverlapRight = Math::computeOverlapAABB(vBox, vRight);
+            v_AABB vOverlapLeft = Math::overlapAABB(vBox, vLeft);
+            v_AABB vOverlapRight = Math::overlapAABB(vBox, vRight);
 
             Math::AABB Left = Math::store(vOverlapLeft);
             Math::AABB Right = Math::store(vOverlapRight);
@@ -388,7 +388,7 @@ void BVH::Update(Span<BVHUpdateInput> instances)
                 if (Math::intersectAABBvsAABB(vParentBox, vNewBox) == COLLISION_TYPE::CONTAINS)
                     break;
 
-                vParentBox = Math::compueUnionAABB(vParentBox, vNewBox);
+                vParentBox = Math::unionAABB(vParentBox, vNewBox);
                 parentNode.BoundingBox = Math::store(vParentBox);
 
                 currParent = m_nodes[currParent].Parent;

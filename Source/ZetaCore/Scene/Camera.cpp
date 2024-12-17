@@ -116,22 +116,22 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     App::AddParam(fovParam);
 
     ParamVariant coeff;
-    coeff.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Friction Coeff.",
+    coeff.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Friction",
         fastdelegate::MakeDelegate(this, &Camera::SetFrictionCoeff),
         m_frictionCoeff, 1, 20, 1, "Motion");
     App::AddParam(coeff);
 
     ParamVariant accAng;
-    accAng.InitFloat2(ICON_FA_LANDMARK " Scene", "Camera", "Acceleration (Angular)",
+    accAng.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Acc. (Angular)",
         fastdelegate::MakeDelegate(this, &Camera::SetAngularAcceleration),
-        m_rotAccScale, 1.0f, 70.0f, 1.0f, "Motion");
+        m_angularAcc.x, 1.0f, 50.0f, 1.0f, "Motion");
     App::AddParam(accAng);
 
-    ParamVariant coeffAng;
-    coeffAng.InitFloat2(ICON_FA_LANDMARK " Scene", "Camera", "Friction Coeff. (Angular)",
+    ParamVariant dampScale;
+    dampScale.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Damping (Angular)",
         fastdelegate::MakeDelegate(this, &Camera::SetAngularFrictionCoeff),
-        m_rotFrictionCoeff, 1, 50, 1, "Motion");
-    App::AddParam(coeffAng);
+        m_angularDamping.x, 1, 50, 1e-2, "Motion");
+    App::AddParam(dampScale);
 
     ParamVariant focusDepth;
     focusDepth.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Focus Depth",
@@ -150,10 +150,11 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
 void Camera::Update(const Motion& m)
 {
-    float2 dMouse = float2(m.dMouse_x, m.dMouse_y) * m_rotAccScale;
-    float2 acc = dMouse - m_rotFrictionCoeff * m_initialAngularVelocity;
-    float2 newVelocity = acc * m.dt + m_initialAngularVelocity;
-    float2 dtheta = acc * m.dt * m.dt / 2 + m_initialAngularVelocity * m.dt;
+    constexpr float adt = 1.0f / 60.0f;
+    float2 dMouse = float2(m.dMouse_x, m.dMouse_y) * m_angularAcc;
+    float2 acc = dMouse - m_angularDamping * m_initialAngularVelocity;
+    float2 newVelocity = acc * adt + m_initialAngularVelocity;
+    float2 dtheta = acc * adt * adt / 2 + m_initialAngularVelocity * adt;
     m_initialAngularVelocity = newVelocity;
 
     if (dtheta.x != 0.0)
@@ -309,12 +310,12 @@ void Camera::SetFrictionCoeff(const Support::ParamVariant& p)
 
 void Camera::SetAngularFrictionCoeff(const Support::ParamVariant& p)
 {
-    m_rotFrictionCoeff = p.GetFloat2().m_value;
+    m_angularDamping = float2(p.GetFloat().m_value);
 }
 
 void Camera::SetAngularAcceleration(const Support::ParamVariant& p)
 {
-    m_rotAccScale = p.GetFloat2().m_value;
+    m_angularAcc = float2(p.GetFloat().m_value);
 }
 
 void Camera::FocusDepthCallback(const Support::ParamVariant& p)
