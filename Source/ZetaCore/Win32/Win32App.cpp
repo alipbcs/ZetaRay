@@ -1828,6 +1828,7 @@ namespace ZetaRay
     int App::GetNumWorkerThreads() { return g_app->m_processorCoreCount; }
     int App::GetNumBackgroundThreads() { return AppData::NUM_BACKGROUND_THREADS; }
     uint32_t App::GetDPI() { return g_app->m_dpi; }
+    float App::GetDPIScaling() { return (float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI; }
     float App::GetUpscalingFactor() { return g_app->m_upscaleFactor; }
     bool App::IsFullScreen() { return g_app->m_isFullScreen; }
     const App::Timer& App::GetTimer() { return g_app->m_timer; }

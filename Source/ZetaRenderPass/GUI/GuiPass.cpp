@@ -1040,22 +1040,20 @@ void GuiPass::RenderGizmo(Span<uint64_t> pickedIDs, const TriangleMesh& mesh, co
 
 void GuiPass::InfoTab()
 {
+    const float pad = 128.0f * App::GetDPIScaling();
+
     auto& renderer = App::GetRenderer();
     ImGui::Text(" - Device:");
-    ImGui::SameLine(160);
+    ImGui::SameLine(pad);
     ImGui::Text("%s", renderer.GetDeviceDescription());
     ImGui::Text(" - Render Resolution:");
-    ImGui::SameLine(160);
+    ImGui::SameLine(pad);
     ImGui::Text("%d x %d", renderer.GetRenderWidth(), 
         renderer.GetRenderHeight());
     ImGui::Text(" - Display Resolution:");
-    ImGui::SameLine(160);
+    ImGui::SameLine(pad);
     ImGui::Text("%d x %d (%u DPI)", renderer.GetDisplayWidth(), 
         renderer.GetDisplayHeight(), App::GetDPI());
-    ImGui::Text("");
-    ImGui::Text(" - Controls:");
-    ImGui::Text("\t- WASD+LMB moves the camera");
-    ImGui::Text("\t- MMB zooms in/out");
 }
 
 void GuiPass::CameraTab()
@@ -1066,8 +1064,9 @@ void GuiPass::CameraTab()
     float3 viewBasisY = camera.GetBasisY();
     float3 viewBasisZ = camera.GetBasisZ();
 
+    const float pad = 220.0f * App::GetDPIScaling();
     ImGui::Text(" - Camera Position: (%.3f, %.3f, %.3f)", camPos.x, camPos.y, camPos.z);
-    ImGui::SameLine(275);
+    ImGui::SameLine(pad);
     if (ImGui::Button(ICON_FA_COPY " Copy##0"))
     {
         StackStr(buffer, n, "%.4f, %.4f, %.4f", camPos.x, camPos.y, camPos.z);
@@ -1078,7 +1077,7 @@ void GuiPass::CameraTab()
     ImGui::Text(" - View Basis X: (%.3f, %.3f, %.3f)", viewBasisX.x, viewBasisX.y, viewBasisX.z);
     ImGui::Text(" - View Basis Y: (%.3f, %.3f, %.3f)", viewBasisY.x, viewBasisY.y, viewBasisY.z);
     ImGui::Text(" - View Basis Z: (%.3f, %.3f, %.3f)", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
-    ImGui::SameLine(275);
+    ImGui::SameLine(pad);
     if (ImGui::Button(ICON_FA_COPY " Copy##1"))
     {
         StackStr(buffer, n, "%.4f, %.4f, %.4f", viewBasisZ.x, viewBasisZ.y, viewBasisZ.z);
@@ -1395,17 +1394,19 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
     // Instance info
     if (ImGui::TreeNodeEx("Info", ImGuiTreeNodeFlags_NoTreePushOnOpen))
     {
+        const float pad = 96.0f * App::GetDPIScaling();
+
         ImGui::Text(" - ID:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(pad);
         ImGui::Text("%llu", pickedID);
         ImGui::Text(" - #Vertices:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(pad);
         ImGui::Text("%u", mesh.m_numVertices);
         ImGui::Text(" - #Triangles:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(pad);
         ImGui::Text("%u", mesh.m_numIndices / 3);
         ImGui::Text(" - Material ID:");
-        ImGui::SameLine(120);
+        ImGui::SameLine(pad);
         ImGui::Text("%u", mesh.m_materialID);
         ImGui::Text("");
     }
@@ -1449,9 +1450,10 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
 
         // Transformation mode
         {
+            const float pad = 48.0f * App::GetDPIScaling();
             const char* modes[] = { "Local", "World" };
             ImGui::Text("");
-            ImGui::SameLine(60);
+            ImGui::SameLine(pad);
             ImGui::Text("Mode");
             ImGui::SameLine();
             ImGui::Combo("##20", (int*)&m_transform, modes, ZetaArrayLen(modes));
@@ -1467,15 +1469,16 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
             if (ImGui::SliderFloat("##0", &newTr.Translation.x, -50.0f, 50.0f, "%.2f"))
                 modified = true;
 
+            const float pad = 69.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad);
             ImGui::Text("Y");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##1", &newTr.Translation.y, -15.0f, 15.0f, "%.2f"))
                 modified = true;
 
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad);
             ImGui::Text("Z");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##2", &newTr.Translation.z, -50.0f, 50.0f, "%.2f"))
@@ -1498,8 +1501,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                     return float4(n * sinf(0.5f * theta), cosf(0.5f * theta));
                 };
 
+            const float pad_x = 21.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(27);
+            ImGui::SameLine(pad_x);
             ImGui::Text("Rotation X");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##4", &axisOrQuatXyz.x, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
@@ -1515,8 +1519,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_y = 69.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad_y);
             ImGui::Text("Y");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##5", &axisOrQuatXyz.y, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
@@ -1532,8 +1537,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_z = 68.8f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad_z);
             ImGui::Text("Z");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##6", &axisOrQuatXyz.z, -1.0f, 1.0f, "%.3f", ImGuiSliderFlags_AlwaysClamp))
@@ -1549,8 +1555,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_w = 65.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(84);
+            ImGui::SameLine(pad_w);
             ImGui::Text("W");
             ImGui::SameLine();
             const float range_min = m_rotationMode == ROTATION_MODE::AXIS_ANGLE ? 0.0f : -1.0f;
@@ -1571,9 +1578,10 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_m = 48.0f * App::GetDPIScaling();
             const char* modes[] = { "Axis Angle", "Quaternion (XYZW)" };
             ImGui::Text("");
-            ImGui::SameLine(60);
+            ImGui::SameLine(pad_m);
             ImGui::Text("Mode");
             ImGui::SameLine();
             ImGui::Combo("##10", (int*)&m_rotationMode, modes, ZetaArrayLen(modes));
@@ -1584,8 +1592,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
             // To avoid scale = 0
             constexpr float MIN_SCALE_RATIO = 1e-3f;
 
+            const float pad_x = 37.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(47);
+            ImGui::SameLine(pad_x);
             ImGui::Text("Scale X");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##11", &newTr.Scale.x, MIN_SCALE_RATIO, 20.0f, "%.3f"))
@@ -1595,8 +1604,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_y = 69.6f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad_y);
             ImGui::Text("Y");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##12", &newTr.Scale.y, MIN_SCALE_RATIO, 20.0f, "%.3f"))
@@ -1605,8 +1615,9 @@ void GuiPass::PickedWorldTransform(uint64 pickedID, const TriangleMesh& mesh, co
                 modified = true;
             }
 
+            const float pad_z = 68.8f * App::GetDPIScaling();
             ImGui::Text("");
-            ImGui::SameLine(87);
+            ImGui::SameLine(pad_z);
             ImGui::Text("Z");
             ImGui::SameLine();
             if (ImGui::SliderFloat("##13", &newTr.Scale.z, MIN_SCALE_RATIO, 20.0f, "%.3f"))

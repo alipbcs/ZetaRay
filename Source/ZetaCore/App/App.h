@@ -142,6 +142,7 @@ namespace ZetaRay::App
     int GetNumWorkerThreads();
     int GetNumBackgroundThreads();
     uint32_t GetDPI();
+    float GetDPIScaling();
     float GetUpscalingFactor();
     void SetUpscaleFactor(float f);
     bool IsFullScreen();
