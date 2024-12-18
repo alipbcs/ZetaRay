@@ -34,7 +34,7 @@ To achieve real-time frame rates, this renderer utilizes recent developments suc
 
 ### Render Graph
 
-Modern graphics APIs such as Vulkan and Direct3D 12 require resource barriers to be placed manually by the programmer. These barriers control synchronization, memory visibility, and additionally for textures, resource layout. As program complexity grows, manual placement can lead to issues such as:
+Graphics APIs such as Vulkan and Direct3D 12 require resource barriers to be placed manually by the programmer. These barriers control synchronization, memory visibility, and additionally for textures, resource layout. As program complexity grows, manual placement can lead to issues such as:
    - Becoming highly error-prone and limiting extensibility and prototyping.
    - GPU command buffers can be recorded in multiple threads; correct usage and prevention of data-race issues may be hard to achieve.
 
@@ -50,11 +50,11 @@ A render graph can help with all of the above; by analyzing resource dependencie
 ### Sample Editor
 
 The main sample application ([`Samples/ZetaLab`](./Samples/ZetaLab/)) provides a light editor experience with the following features:
- - Load glTF scenes ([note the preprocessing step below](#building-and-running))
+ - Load glTF scenes ([note the preprocessing step below](#build))
  - Change object transformations (translation, rotation, and scaling) using a 3D gizmo
  - Modify material properties
  - Move light sources (sun and sky or emissives) and change their intensity, color, etc.
- - Renderer options, such as the number of light bounces, texture filtering, ReSTIR reuse parameters, camera settings (pinhole or thin lens, FOV, f-stop), tonemapper, and more
+ - Renderer options, such as the number of light bounces, texture filtering, ReSTIR parameters, camera settings (pinhole or thin lens, FOV, f-stop), tonemapper, and more
  - GPU performance metrics:
    - Frametime graph
    - Frametime for individual shaders using hardware timestamp queries
@@ -63,14 +63,14 @@ The main sample application ([`Samples/ZetaLab`](./Samples/ZetaLab/)) provides a
 
 ## Requirements
 
-1. GPU with hardware-accelerated ray tracing support (NVIDIA RTX 2000 series or later, AMD RX 6000 series or later). Tested on RTX 3070 desktop and RTX 3060 laptop.
-2. Windows 10 1909 or later.
+1. GPU with hardware-accelerated ray tracing support (Nvidia RTX 2000 series or later, AMD RX 6000 series or later)
+2. Windows 10 1909 or later
 3. [Visual Studio 2019 or later](https://visualstudio.microsoft.com/downloads/). Builds with both MSVC and ClangCL toolsets.
-4. [CMake 3.21 or later](https://cmake.org/download/).
+4. [CMake 3.21 or later](https://cmake.org/download/)
 
-## Building and Running
+## Build
 
-Building is just standard CMake. In the project directory, run:
+Standard CMake. In the project directory, run:
 
 ```bash
 > mkdir build
