@@ -142,53 +142,23 @@ namespace
 
         alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
-        std::atomic_int32_t m_currTaskSignalIdx = 0;
 
         FrameMemoryContext m_frameMemoryContext;
+        Camera m_camera;
         FrameMemory<FRAME_ALLOCATOR_BLOCK_SIZE> m_frameMemory;
-
         ThreadPool m_workerThreadPool;
         ThreadPool m_backgroundThreadPool;
         RendererCore m_renderer;
         Timer m_timer;
         SceneCore m_scene;
-        Camera m_camera;
-
-        uint16_t m_processorCoreCount = 0;
-        HWND m_hwnd;
-        RECT m_wndRectCache;
-        uint16_t m_displayWidth;
-        uint16_t m_displayHeight;
-        bool m_isActive = true;
-        bool m_manuallyPaused = false;
-        int16 m_lastMousePosX = 0;
-        int16 m_lastMousePosY = 0;
-        int16 m_lastLMBClickPosX = 0;
-        int16 m_lastLMBClickPosY = 0;
-        bool m_picked = false;
-        bool m_multiPick = false;
-        int m_inMouseWheelMove = 0;
-        bool m_inSizeMove = false;
-        bool m_minimized = false;
-        bool m_isFullScreen = false;
-        ImGuiMouseCursor m_imguiCursor = ImGuiMouseCursor_COUNT;
-        HWND m_mouseHwnd;
-        int m_imguiMouseTrackedArea = 0;   // 0: not tracked, 1: client are, 2: non-client area
-        int m_imguiMouseButtonsDown = 0;
-        bool m_imguiMouseTracked = false;
-        uint16_t m_dpi;
         Core::GpuMemory::Texture m_imguiFontTex;
         Core::DescriptorTable m_fontTexSRV;
-
-        float m_upscaleFactor = 1.0f;
-        float m_queuedUpscaleFactor = 1.0f;
-        float m_cameraAcceleration = 40.0f;
-
         SmallVector<ParamVariant> m_params;
         SmallVector<ParamUpdate, SystemAllocator, 32> m_paramsUpdates;
         SmallVector<ShaderReloadHandler> m_shaderReloadHandlers;
         SmallVector<Stat, FrameAllocator> m_frameStats;
-        FrameTime m_frameTime;
+        MemoryArena m_logStrArena;
+        SmallVector<LogMessage> m_frameLogs;
 
         SRWLOCK m_stdOutLock = SRWLOCK_INIT;
         SRWLOCK m_paramLock = SRWLOCK_INIT;
@@ -197,13 +167,40 @@ namespace
         SRWLOCK m_statsLock = SRWLOCK_INIT;
         SRWLOCK m_logLock = SRWLOCK_INIT;
 
+        HWND m_hwnd;
+        HWND m_mouseHwnd;
+        FrameTime m_frameTime;
         Motion m_frameMotion;
+        std::atomic_int32_t m_currTaskSignalIdx = 0;
+        int m_inMouseWheelMove = 0;
+        RECT m_wndRectCache;
+        ImGuiMouseCursor m_imguiCursor = ImGuiMouseCursor_COUNT;
+        int m_imguiMouseTrackedArea = 0;   // 0: not tracked, 1: client are, 2: non-client area
+        int m_imguiMouseButtonsDown = 0;
+        float m_upscaleFactor = 1.0f;
+        float m_queuedUpscaleFactor = 1.0f;
+        float m_cameraAcceleration = 40.0f;
+        RECT m_dpiChangeNewRect;
+        uint16_t m_processorCoreCount = 0;
+        uint16_t m_displayWidth;
+        uint16_t m_displayHeight;
+        int16 m_lastMousePosX = 0;
+        int16 m_lastMousePosY = 0;
+        int16 m_lastLMBClickPosX = 0;
+        int16 m_lastLMBClickPosY = 0;
+        uint16_t m_dpi;
+        bool m_isActive = true;
+        bool m_manuallyPaused = false;
+        bool m_picked = false;
+        bool m_multiPick = false;
+        bool m_inSizeMove = false;
+        bool m_minimized = false;
+        bool m_isFullScreen = false;
+        bool m_imguiMouseTracked = false;
         char m_clipboard[CLIPBOARD_LEN];
         bool m_isInitialized = false;
         bool m_issueResize = false;
-
-        MemoryArena m_logStrArena;
-        SmallVector<LogMessage> m_frameLogs;
+        bool m_dpiChanged = false;
     };
 
     AppData* g_app = nullptr;
@@ -469,20 +466,22 @@ namespace ZetaRay::AppImpl
         fontSizePixelsDPI = roundf(fontSizePixelsDPI);
 
         ImFontConfig font_cfg;
+        // Retain ownership of font data so ImGui wouldn't free it
         font_cfg.FontDataOwnedByAtlas = false;
         io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data), 
             fontSizePixelsDPI, &font_cfg);
 
-        float baseFontSize = 16;
+        float baseFontSize = 16.0f;
         baseFontSize *= ((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
         // FontAwesome fonts need to have their sizes reduced by 2.0f/3.0f in order to align correctly
         float iconFontSize = baseFontSize * 2.0f / 3.0f;
 
-        static const ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
+        constexpr ImWchar icons_ranges[] = { ICON_MIN_FA, ICON_MAX_FA, 0 };
         ImFontConfig icons_config;
         icons_config.MergeMode = true;
         icons_config.PixelSnapH = true;
         icons_config.GlyphMinAdvanceX = iconFontSize;
+        // Retain ownership of font data so ImGui wouldn't free it
         icons_config.FontDataOwnedByAtlas = false;
 
         auto iconFont = fpGetFont(FONT_TYPE::FONT_AWESOME_6);
@@ -496,6 +495,8 @@ namespace ZetaRay::AppImpl
 
         g_app->m_imguiFontTex = GpuMemory::GetTexture2DAndInit("ImGuiFont", width, height,
             DXGI_FORMAT_R8G8B8A8_UNORM, D3D12_RESOURCE_STATE_PIXEL_SHADER_RESOURCE, pixels);
+        // Data copied to upload heap, safe to release
+        io.Fonts->ClearTexData();
 
         g_app->m_fontTexSRV = App::GetRenderer().GetGpuDescriptorHeap().Allocate(1);
         Direct3DUtil::CreateTexture2DSRV(g_app->m_imguiFontTex, g_app->m_fontTexSRV.CPUHandle(0));
@@ -524,18 +525,8 @@ namespace ZetaRay::AppImpl
     void OnDPIChanged(uint16_t newDPI, const RECT* newRect)
     {
         g_app->m_dpi = newDPI;
-
-        SetWindowPos(g_app->m_hwnd, nullptr,
-            newRect->left,
-            newRect->top,
-            newRect->right - newRect->left,
-            newRect->bottom - newRect->top,
-            SWP_NOZORDER | SWP_NOACTIVATE);
-
-        LoadFont();
-
-        ImGuiStyle& style = ImGui::GetStyle();
-        style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
+        g_app->m_dpiChangeNewRect = *newRect;
+        g_app->m_dpiChanged = true;
     }
 
     void InitImGui()
@@ -1273,6 +1264,27 @@ namespace ZetaRay::AppImpl
         }
     }
 
+    void ChangeDPIIfQueued()
+    {
+        if (g_app->m_dpiChanged)
+        {
+            SetWindowPos(g_app->m_hwnd, nullptr,
+                g_app->m_dpiChangeNewRect.left,
+                g_app->m_dpiChangeNewRect.top,
+                g_app->m_dpiChangeNewRect.right - g_app->m_dpiChangeNewRect.left,
+                g_app->m_dpiChangeNewRect.bottom - g_app->m_dpiChangeNewRect.top,
+                SWP_NOZORDER | SWP_NOACTIVATE);
+
+            // Fonts need to be rebuilt
+            LoadFont();
+
+            ImGuiStyle& style = ImGui::GetStyle();
+            style.ScaleAllSizes((float)g_app->m_dpi / USER_DEFAULT_SCREEN_DPI);
+
+            g_app->m_dpiChanged = false;
+        }
+    }
+
     ZetaInline int GetThreadIdx()
     {
         const ZETA_THREAD_ID_TYPE id = GetCurrentThreadId();
@@ -1629,7 +1641,8 @@ namespace ZetaRay
             if (!success)
                 continue;
 
-            // at this point, all worker tasks from previous frame are done (GPU may still be executing those though)
+            // at this point, all worker tasks from previous frame are done (GPU may still 
+            // be executing those though)
             g_app->m_currTaskSignalIdx.store(0, std::memory_order_relaxed);
             const size_t tempMemoryUsed = g_app->m_frameMemory.TotalSize();
 
@@ -1646,26 +1659,21 @@ namespace ZetaRay
             // Startup is counted as "frame" 0, so program loop starts from frame 1
             g_app->m_timer.Tick();
             AppImpl::ResizeIfQueued();
+            AppImpl::ChangeDPIIfQueued();
 
-            // update app
-            {
-                TaskSet appTS;
-
-                appTS.EmplaceTask("AppUpdates", []()
-                    {
-                        AppImpl::ApplyParamUpdates();
-                    });
-
-                appTS.Sort();
-                appTS.Finalize();
-                Submit(ZetaMove(appTS));
-            }
-
-            // update scene
+            // update
             {
                 TaskSet sceneTS;
                 TaskSet sceneRendererTS;
                 AppImpl::Update(sceneTS, sceneRendererTS, tempMemoryUsed);
+
+                if (!g_app->m_paramsUpdates.empty())
+                {
+                    sceneTS.EmplaceTask("ParamUpdates", []()
+                        {
+                            AppImpl::ApplyParamUpdates();
+                        });
+                }
 
                 auto h0 = sceneRendererTS.EmplaceTask("ResourceUploadSubmission", []()
                     {
