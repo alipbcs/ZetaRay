@@ -101,7 +101,7 @@ void PostProcessor::Update(const RenderSettings& settings, PostProcessData& data
     if (rtData.RtAS.IsReady())
     {
         // Emissive DI
-        if (App::GetScene().NumEmissiveInstances())
+        if (App::GetScene().EmissiveLighting())
         {
             data.CompositingPass.SetGpuDescriptor(Compositing::SHADER_IN_GPU_DESC::EMISSIVE_DI,
                 rtData.WndConstDescTable.GPUDescriptorHeapIndex(
@@ -315,7 +315,7 @@ void PostProcessor::AddAdjacencies(const RenderSettings& settings, PostProcessDa
         if (tlasReady)
         {
             // Emissive DI
-            if (App::GetScene().NumEmissiveInstances())
+            if (App::GetScene().EmissiveLighting())
             {
                 renderGraph.AddInput(data.CompositingHandle,
                     rtData.DirecLightingPass.GetOutput(DirectLighting::SHADER_OUT_RES::FINAL).ID(),

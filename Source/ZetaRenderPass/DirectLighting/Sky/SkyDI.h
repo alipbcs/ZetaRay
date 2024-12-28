@@ -37,6 +37,7 @@ namespace ZetaRay::RenderPass
         void InitPSOs();
         void Init();
         void OnWindowResized();
+        void ResetTemporal();
         const Core::GpuMemory::Texture& GetOutput(SHADER_OUT_RES i) const
         {
             Assert(i == SHADER_OUT_RES::DENOISED, "Invalid shader output.");

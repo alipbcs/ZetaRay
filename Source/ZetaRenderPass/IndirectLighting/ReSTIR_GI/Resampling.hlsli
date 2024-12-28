@@ -592,7 +592,11 @@ namespace RGI_Util
 
             if(IS_CB_FLAG_SET(CB_IND_FLAGS::BOILING_SUPPRESSION))
                 SuppressOutlierReservoirs(r);
+        }
 
+        if (IS_CB_FLAG_SET(CB_IND_FLAGS::TEMPORAL_RESAMPLE) ||
+            IS_CB_FLAG_SET(CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES))
+        {
             RGI_Util::WriteReservoir(DTid, r, g_local.CurrReservoir_A_DescHeapIdx,
                 g_local.CurrReservoir_B_DescHeapIdx, g_local.CurrReservoir_C_DescHeapIdx, 
                 g_local.M_max);

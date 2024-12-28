@@ -41,6 +41,7 @@ namespace CB_IND_FLAGS
     static constexpr uint32_t PATH_REGULARIZATION = 1 << 5;
     static constexpr uint32_t SORT_TEMPORAL = 1 << 6;
     static constexpr uint32_t SORT_SPATIAL = 1 << 7;
+    static constexpr uint32_t RESET_TEMPORAL_TEXTURES = 1 << 8;
 };
 
 namespace PACKED_INDEX

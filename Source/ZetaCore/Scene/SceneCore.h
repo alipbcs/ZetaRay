@@ -227,11 +227,13 @@ namespace ZetaRay::Scene
         //
         void AddEmissives(Util::SmallVector<Model::glTF::Asset::EmissiveInstance>&& emissiveInstances,
             Util::SmallVector<RT::EmissiveTriangle>&& emissiveTris, bool lock);
+        ZetaInline bool EmissiveLighting() const { return !m_ignoreEmissives && (m_emissives.NumInstances() > 0); }
         ZetaInline size_t NumEmissiveInstances() const { return m_emissives.NumInstances(); }
         ZetaInline size_t NumEmissiveTriangles() const { return m_emissives.NumTriangles(); }
         ZetaInline bool AreEmissivePositionsStale() const { return m_staleEmissivePositions; }
         ZetaInline bool AreEmissiveMaterialsStale() const { return m_staleEmissiveMats; }
         void UpdateEmissiveMaterial(uint64_t instanceID, const Math::float3& emissiveFactor, float strength);
+        void ToggleEmissivesCallback(const Support::ParamVariant& p);
 
         //
         // Animation
@@ -407,6 +409,7 @@ namespace ZetaRay::Scene
         Util::SmallVector<uint64_t, App::FrameAllocator> m_toUpdateEmissives;
         bool m_staleEmissiveMats = false;
         bool m_staleEmissivePositions = false;
+        bool m_ignoreEmissives = false;
 
         SRWLOCK m_matLock = SRWLOCK_INIT;
         SRWLOCK m_meshLock = SRWLOCK_INIT;

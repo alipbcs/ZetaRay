@@ -63,7 +63,7 @@ void PathTracer::OnWindowSizeChanged(const RenderSettings& settings, PathTracerD
 
     data.PreLightingPass.OnWindowResized();
 
-    if (App::GetScene().NumEmissiveInstances())
+    if (data.DirecLightingPass.IsInitialized())
     {
         data.DirecLightingPass.OnWindowResized();
 
@@ -96,6 +96,7 @@ void PathTracer::Update(const RenderSettings& settings, Core::RenderGraph& rende
     PathTracerData& data)
 {
     const auto numEmissives = App::GetScene().NumEmissiveInstances();
+    const auto emissiveLighting = App::GetScene().EmissiveLighting();
 
     if (settings.Inscattering && !data.SkyPass.IsInscatteringEnabled())
     {
@@ -108,7 +109,7 @@ void PathTracer::Update(const RenderSettings& settings, Core::RenderGraph& rende
     else if (!settings.Inscattering && data.SkyPass.IsInscatteringEnabled())
         data.SkyPass.SetInscatteringEnablement(false);
 
-    if (numEmissives == 0 && !data.SkyDI_Pass.IsInitialized())
+    if (!emissiveLighting && !data.SkyDI_Pass.IsInitialized())
     {
         data.SkyDI_Pass.Init();
 
@@ -124,7 +125,7 @@ void PathTracer::Update(const RenderSettings& settings, Core::RenderGraph& rende
     // Recompute alias table only if there are stale emissives
     if (numEmissives > 0)
     {
-        if (!data.DirecLightingPass.IsInitialized())
+        if (emissiveLighting && !data.DirecLightingPass.IsInitialized())
         {
             data.DirecLightingPass.Init();
 
@@ -157,7 +158,8 @@ void PathTracer::Register(const RenderSettings& settings, PathTracerData& data,
     }
 
     const bool tlasReady = data.RtAS.IsReady();
-    const bool hasEmissives = App::GetScene().NumEmissiveInstances() > 0;
+    const bool numEmissives = App::GetScene().NumEmissiveInstances();
+    const bool emissiveLighting = App::GetScene().EmissiveLighting();
     const auto frame = App::GetTimer().GetTotalFrameCount();
 
     // Sky-view lut + inscattering
@@ -190,7 +192,7 @@ void PathTracer::Register(const RenderSettings& settings, PathTracerData& data,
             false);
     }
 
-    if (hasEmissives)
+    if (numEmissives)
     {
         // Pre lighting
         fastdelegate::FastDelegate1<CommandList&> dlg1 = fastdelegate::MakeDelegate(&data.PreLightingPass,
@@ -254,7 +256,7 @@ void PathTracer::Register(const RenderSettings& settings, PathTracerData& data,
             if (!settings.LightPresampling || presampledSetsBuiltOnce)
             {
                 // Pre lighting
-                if (settings.LightPresampling && presampledSetsBuiltOnce)
+                if (settings.LightPresampling && presampledSetsBuiltOnce && emissiveLighting)
                 {
                     auto& presampled = data.PreLightingPass.GePresampledSets();
                     renderGraph.RegisterResource(const_cast<Buffer&>(presampled).Resource(), 
@@ -269,14 +271,17 @@ void PathTracer::Register(const RenderSettings& settings, PathTracerData& data,
                 }
 
                 // Direct lighting
-                fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DirecLightingPass,
-                    &DirectLighting::Render);
-                data.DirecLightingHandle = renderGraph.RegisterRenderPass("DirectLighting", 
-                    RENDER_NODE_TYPE::COMPUTE, dlg3);
+                if (emissiveLighting)
+                {
+                    fastdelegate::FastDelegate1<CommandList&> dlg3 = fastdelegate::MakeDelegate(&data.DirecLightingPass,
+                        &DirectLighting::Render);
+                    data.DirecLightingHandle = renderGraph.RegisterRenderPass("DirectLighting", 
+                        RENDER_NODE_TYPE::COMPUTE, dlg3);
 
-                Texture& td = const_cast<Texture&>(data.DirecLightingPass.GetOutput(
-                    DirectLighting::SHADER_OUT_RES::FINAL));
-                renderGraph.RegisterResource(td.Resource(), td.ID());
+                    Texture& td = const_cast<Texture&>(data.DirecLightingPass.GetOutput(
+                        DirectLighting::SHADER_OUT_RES::FINAL));
+                    renderGraph.RegisterResource(td.Resource(), td.ID());
+                }
 
                 // Indirect lighting
                 fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(
@@ -304,7 +309,7 @@ void PathTracer::Register(const RenderSettings& settings, PathTracerData& data,
     }
 
     // Sky DI
-    if (!hasEmissives && tlasReady)
+    if (!emissiveLighting && tlasReady)
     {
         fastdelegate::FastDelegate1<CommandList&> dlg2 = fastdelegate::MakeDelegate(
             &data.SkyDI_Pass, &SkyDI::Render);
@@ -324,6 +329,7 @@ void PathTracer::AddAdjacencies(const RenderSettings& settings, PathTracerData& 
     const bool tlasReady = data.RtAS.IsReady();
     const auto tlasID = tlasReady ? data.RtAS.GetTLAS().ID() : Buffer::INVALID_ID;
     const auto numEmissives = App::GetScene().NumEmissiveInstances();
+    const auto emissiveLighting = App::GetScene().EmissiveLighting();
     const auto frame = App::GetTimer().GetTotalFrameCount();
 
     // Rt AS
@@ -360,10 +366,10 @@ void PathTracer::AddAdjacencies(const RenderSettings& settings, PathTracerData& 
     
     // When light presampling is enabled, sample sets are available starting frame frame 2
     const bool presampledSetsBuiltOnce = frame > 1;
-    if ((numEmissives > 0) && (!settings.LightPresampling || presampledSetsBuiltOnce))
+    if (emissiveLighting && (!settings.LightPresampling || presampledSetsBuiltOnce))
         handles.push_back(data.DirecLightingHandle);
 
-    if(numEmissives == 0)
+    if(!emissiveLighting)
         handles.push_back(data.SkyDI_Handle);
 
     if (numEmissives)
@@ -403,7 +409,7 @@ void PathTracer::AddAdjacencies(const RenderSettings& settings, PathTracerData& 
         }
 
         // Direct + indirect lighting
-        if (tlasReady)
+        if (tlasReady && emissiveLighting)
         {
             // Lighting passes should run after alias table when it's recomputed
             if (!settings.LightPresampling && 
@@ -547,7 +553,7 @@ void PathTracer::AddAdjacencies(const RenderSettings& settings, PathTracerData& 
     }
 
     // Sky DI
-    if (numEmissives == 0 && tlasReady)
+    if (!emissiveLighting && tlasReady)
     {
         // Denoised output
         renderGraph.AddOutput(data.SkyDI_Handle,

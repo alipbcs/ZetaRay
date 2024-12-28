@@ -85,29 +85,29 @@ void SkyDI::Init()
     CreateOutputs();
 
     ParamVariant doTemporal;
-    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Temporal Resample",
+    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Sky)", "Temporal Resample",
         fastdelegate::MakeDelegate(this, &SkyDI::TemporalResamplingCallback), m_temporalResampling);
     App::AddParam(doTemporal);
 
     ParamVariant doSpatial;
-    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Spatial Resample",
+    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Sky)", "Spatial Resample",
         fastdelegate::MakeDelegate(this, &SkyDI::SpatialResamplingCallback), m_spatialResampling);
     App::AddParam(doSpatial);
 
     ParamVariant m_max_sky;
-    m_max_sky.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max (Sky)",
+    m_max_sky.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting (Sky)", "M_max (Sky)",
         fastdelegate::MakeDelegate(this, &SkyDI::MaxMSkyCallback),
         DefaultParamVals::M_MAX_SKY, 1, 15, 1);
     App::AddParam(m_max_sky);
 
     ParamVariant m_max_sun;
-    m_max_sun.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max (Sun)",
+    m_max_sun.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting (Sky)", "M_max (Sun)",
         fastdelegate::MakeDelegate(this, &SkyDI::MaxMSunCallback),
         DefaultParamVals::M_MAX_SUN, 1, 15, 1);
     App::AddParam(m_max_sun);
 
     ParamVariant alphaMin;
-    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting", "Alpha_min",
+    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting (Sky)", "Alpha_min",
         fastdelegate::MakeDelegate(this, &SkyDI::AlphaMinCallback),
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);
@@ -123,6 +123,13 @@ void SkyDI::OnWindowResized()
     CreateOutputs();
     m_isTemporalReservoirValid = false;
     m_currTemporalIdx = 0;
+}
+
+void SkyDI::ResetTemporal()
+{
+    m_isTemporalReservoirValid = false;
+    m_currTemporalIdx = 0;
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::RESET_TEMPORAL_TEXTURES, true);
 }
 
 void SkyDI::Render(CommandList& cmdList)
@@ -243,6 +250,7 @@ void SkyDI::Render(CommandList& cmdList)
 
     m_isTemporalReservoirValid = true;
     m_currTemporalIdx = 1 - m_currTemporalIdx;
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_SKY_DI_FLAGS::RESET_TEMPORAL_TEXTURES, false);
 }
 
 void SkyDI::CreateOutputs()

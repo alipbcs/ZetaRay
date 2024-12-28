@@ -131,6 +131,15 @@ void SceneCore::Update(double dt, TaskSet& sceneTS, TaskSet& sceneRendererTS)
     // goes from > 0 to 0, it doesn't matter
     m_staleEmissivePositions = m_staleEmissivePositions || !m_emissives.Initialized();
 
+    if (!m_emissives.Initialized() && numInstances)
+    {
+        ParamVariant emissives;
+        emissives.InitBool(ICON_FA_LANDMARK " Scene", "Emissives", "Enabled",
+            fastdelegate::MakeDelegate(this, &SceneCore::ToggleEmissivesCallback),
+            !m_ignoreEmissives);
+        App::AddParam(emissives);
+    }
+
     // When emissives have stale position or material
     if (numInstances && (m_staleEmissivePositions || m_staleEmissiveMats))
     {
@@ -703,6 +712,13 @@ void SceneCore::UpdateEmissiveMaterial(uint64_t instanceID, const float3& emissi
 {
     m_emissives.UpdateMaterial(instanceID, emissiveFactor, strength);
     m_rendererInterface.SceneModified();
+}
+
+void SceneCore::ToggleEmissivesCallback(const Support::ParamVariant& p)
+{
+    m_ignoreEmissives = !p.GetBool();
+    m_rendererInterface.SceneModified();
+    m_rendererInterface.ToggleEmissives();
 }
 
 void SceneCore::InitWorldTransformations()

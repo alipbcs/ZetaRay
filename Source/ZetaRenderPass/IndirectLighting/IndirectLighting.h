@@ -75,6 +75,7 @@ namespace ZetaRay::RenderPass
         void InitPSOs();
         void Init(INTEGRATOR method);
         void OnWindowResized();
+        void ResetTemporal();
         void SetMethod(INTEGRATOR method);
         void SetLightPresamplingParams(bool enable, int numSampleSets, int sampleSetSize)
         {

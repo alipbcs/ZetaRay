@@ -13,6 +13,7 @@ namespace CB_SKY_DI_FLAGS
 {
     static constexpr uint32_t TEMPORAL_RESAMPLE = 1 << 0;
     static constexpr uint32_t SPATIAL_RESAMPLE = 1 << 1;
+    static constexpr uint32_t RESET_TEMPORAL_TEXTURES = 1 << 2;
 };
 
 struct cb_SkyDI

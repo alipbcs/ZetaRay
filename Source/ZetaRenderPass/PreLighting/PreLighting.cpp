@@ -292,22 +292,25 @@ void PreLighting::Update()
     if (m_currNumTris < m_minNumLightsForPresampling)
         return;
 
-    m_doPresamplingThisFrame = true;
-
-    if (!m_sampleSets.IsInitialized())
+    if (App::GetScene().EmissiveLighting())
     {
-        Assert(m_numSampleSets > 0 && m_sampleSetSize > 0, "Rresampling params haven't been set.");
-        const uint32_t sizeInBytes = m_numSampleSets * m_sampleSetSize * 
-            sizeof(RT::PresampledEmissiveTriangle);
+        m_doPresamplingThisFrame = true;
 
-        m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
-            sizeInBytes,
-            D3D12_RESOURCE_STATE_COMMON,
-            true);
+        if (!m_sampleSets.IsInitialized())
+        {
+            Assert(m_numSampleSets > 0 && m_sampleSetSize > 0, "Rresampling params haven't been set.");
+            const uint32_t sizeInBytes = m_numSampleSets * m_sampleSetSize * 
+                sizeof(RT::PresampledEmissiveTriangle);
 
-        auto& r = App::GetRenderer().GetSharedShaderResources();
-        r.InsertOrAssignDefaultHeapBuffer(GlobalResource::PRESAMPLED_EMISSIVE_SETS, 
-            m_sampleSets);
+            m_sampleSets = GpuMemory::GetDefaultHeapBuffer("EmissiveSampleSets",
+                sizeInBytes,
+                D3D12_RESOURCE_STATE_COMMON,
+                true);
+
+            auto& r = App::GetRenderer().GetSharedShaderResources();
+            r.InsertOrAssignDefaultHeapBuffer(GlobalResource::PRESAMPLED_EMISSIVE_SETS, 
+                m_sampleSets);
+        }
     }
 }
 

@@ -357,7 +357,9 @@ namespace ZetaRay::DefaultRenderer
                 LensTypes, ZetaArrayLen(LensTypes), 0, "Lens");
             App::AddParam(p3);
 
-            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
+            const auto& scene = App::GetScene();
+            g_data->m_settings.LightPresampling = scene.EmissiveLighting() && 
+                (scene.NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING);
             g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
         }
 
@@ -432,42 +434,49 @@ namespace ZetaRay::DefaultRenderer
     {
         g_data->m_settings.AntiAliasing = g_data->PendingAA;
         const auto frame = App::GetTimer().GetTotalFrameCount();
+        const auto& scene = App::GetScene();
 
-        if (frame <= 1 && App::GetScene().NumEmissiveInstances())
+        g_data->m_settings.LightPresampling = scene.EmissiveLighting() && 
+            App::GetScene().NumEmissiveTriangles() >= Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
+
+        if (frame <= 1)
         {
-            g_data->m_settings.LightPresampling = App::GetScene().NumEmissiveTriangles() >= 
-                Defaults::MIN_NUM_LIGHTS_PRESAMPLING;
-            //g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
-
-            if (g_data->m_settings.LightPresampling)
+            if (scene.EmissiveLighting())
             {
-                // Notes:
-                // 1. Light presampling is off by default. So the following calls are only needed when it's been enabled.
-                // 2. Render graph ensures alias table and presampled sets are already computed when GPU 
-                //    accesses them in the following render passes.
-                g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
-                    Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
-                    Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
-                g_data->m_pathTracerData.IndirecLightingPass.SetLightPresamplingParams(true,
-                    Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
+                //g_data->m_settings.UseLVG = g_data->m_settings.UseLVG && g_data->m_settings.LightPresampling;
+
+                // Move the sun below the horizon when there are emissives
+                g_data->m_frameConstants.SunDir = float3(0.0f, 1.0f, 0.0f);
+
+                // HACK UI params can't be modified from outside - remove then readd
+                App::RemoveParam(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir");
+
+                ParamVariant p0;
+                p0.InitUnitDir(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir",
+                    fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
+                    -g_data->m_frameConstants.SunDir);
+                App::AddParam(p0);
             }
-            else
-            {
-                g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
-                    Defaults::MIN_NUM_LIGHTS_PRESAMPLING, 0, 0);
-            }
+        }
 
-            // Move the sun below the horizon when there are emissives
-            g_data->m_frameConstants.SunDir = float3(0.0f, 1.0f, 0.0f);
-
-            // HACK UI params can't be modified from outside - remove then readd
-            App::RemoveParam(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir");
-
-            ParamVariant p0;
-            p0.InitUnitDir(ICON_FA_LANDMARK " Scene", "Sun", "(-)Dir",
-                fastdelegate::FastDelegate1<const ParamVariant&>(&DefaultRenderer::SetSunDir),
-                -g_data->m_frameConstants.SunDir);
-            App::AddParam(p0);
+        if (g_data->m_settings.LightPresampling)
+        {
+            // Notes:
+            // 1. Light presampling is off by default. So the following calls are only needed when it's been enabled.
+            // 2. Render graph ensures alias table and presampled sets are already computed when GPU 
+            //    accesses them in the following render passes.
+            g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
+                Defaults::MIN_NUM_LIGHTS_PRESAMPLING,
+                Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
+            g_data->m_pathTracerData.IndirecLightingPass.SetLightPresamplingParams(true,
+                Defaults::NUM_SAMPLE_SETS, Defaults::SAMPLE_SET_SIZE);
+        }
+        else
+        {
+            g_data->m_pathTracerData.PreLightingPass.SetLightPresamplingParams(
+                Defaults::MIN_NUM_LIGHTS_PRESAMPLING, 0, 0);
+            g_data->m_pathTracerData.IndirecLightingPass.SetLightPresamplingParams(false,
+                0, 0);
         }
 
         auto h0 = ts.EmplaceTask("SceneRenderer::UpdatePasses", []()
@@ -560,6 +569,16 @@ namespace ZetaRay::DefaultRenderer
     {
         g_data->m_postProcessorData.DisplayPass.CaptureScreen();
     }
+
+    void ToggleEmissives()
+    {
+        if(g_data->m_pathTracerData.SkyDI_Pass.IsInitialized())
+            g_data->m_pathTracerData.SkyDI_Pass.ResetTemporal();
+        if(g_data->m_pathTracerData.DirecLightingPass.IsInitialized())
+            g_data->m_pathTracerData.DirecLightingPass.ResetTemporal();
+
+        g_data->m_pathTracerData.IndirecLightingPass.ResetTemporal();
+    }
 }
 
 //--------------------------------------------------------------------------------------
@@ -585,6 +604,7 @@ Scene::Renderer::Interface DefaultRenderer::InitAndGetInterface()
     rndIntrf.Pick = &DefaultRenderer::Pick;
     rndIntrf.ClearPick = &DefaultRenderer::ClearPick;
     rndIntrf.CaptureScreen = &DefaultRenderer::CaptureScreen;
+    rndIntrf.ToggleEmissives = &DefaultRenderer::ToggleEmissives;
 
     return rndIntrf;
 }

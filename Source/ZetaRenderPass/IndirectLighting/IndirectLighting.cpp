@@ -209,6 +209,14 @@ void IndirectLighting::OnWindowResized()
     m_currTemporalIdx = 0;
 }
 
+void IndirectLighting::ResetTemporal()
+{
+    m_isTemporalReservoirValid = false;
+    m_currTemporalIdx = 0;
+    SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES, true);
+    SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES, true);
+}
+
 void IndirectLighting::SetMethod(INTEGRATOR method)
 {
     const auto old = m_method;
@@ -254,7 +262,7 @@ void IndirectLighting::RenderPathTracer(Core::ComputeCmdList& computeCmdList)
     m_rootSig.SetRootConstants(0, sizeof(m_cbRGI) / sizeof(DWORD), &m_cbRGI);
     m_rootSig.End(computeCmdList);
 
-    auto sh = App::GetScene().NumEmissiveInstances() > 0 ? SHADER::PATH_TRACER_WoPS :
+    auto sh = App::GetScene().EmissiveLighting() ? SHADER::PATH_TRACER_WoPS :
         SHADER::PATH_TRACER;
     if (m_preSampling)
         sh = SHADER::PATH_TRACER_WPS;
@@ -346,7 +354,7 @@ void IndirectLighting::RenderReSTIR_GI(ComputeCmdList& computeCmdList)
         m_rootSig.SetRootConstants(0, sizeof(m_cbRGI) / sizeof(DWORD), &m_cbRGI);
         m_rootSig.End(computeCmdList);
 
-        auto sh = App::GetScene().NumEmissiveInstances() > 0 ? SHADER::ReSTIR_GI_WoPS :
+        auto sh = App::GetScene().EmissiveLighting() ? SHADER::ReSTIR_GI_WoPS :
             SHADER::ReSTIR_GI;
         if (m_preSampling)
             sh = m_useLVG ? SHADER::ReSTIR_GI_LVG : SHADER::ReSTIR_GI_WPS;
@@ -367,7 +375,7 @@ void IndirectLighting::ReSTIR_PT_Temporal(ComputeCmdList& computeCmdList,
     auto& gpuTimer = renderer.GetGpuTimer();
     const uint32_t w = renderer.GetRenderWidth();
     const uint32_t h = renderer.GetRenderHeight();
-    const bool emissive = App::GetScene().NumEmissiveInstances() > 0;
+    const bool emissive = App::GetScene().EmissiveLighting();
 
     computeCmdList.PIXBeginEvent("ReSTIR_PT_Temporal");
     const uint32_t allQueryIdx = gpuTimer.BeginQuery(computeCmdList, "ReSTIR_PT_Temporal");
@@ -595,7 +603,7 @@ void IndirectLighting::ReSTIR_PT_Spatial(ComputeCmdList& computeCmdList,
     auto& gpuTimer = renderer.GetGpuTimer();
     const uint32_t w = renderer.GetRenderWidth();
     const uint32_t h = renderer.GetRenderHeight();
-    const bool emissive = App::GetScene().NumEmissiveInstances() > 0;
+    const bool emissive = App::GetScene().EmissiveLighting();
 
     // Current frame's temporal reservoirs become the inputs, previous
     // frame temporal reservoirs become the outputs
@@ -970,7 +978,7 @@ void IndirectLighting::RenderReSTIR_PT(Core::ComputeCmdList& computeCmdList)
         m_rootSig.SetRootConstants(0, sizeof(m_cbRPT_PathTrace) / sizeof(DWORD), &m_cbRPT_PathTrace);
         m_rootSig.End(computeCmdList);
 
-        auto sh = App::GetScene().NumEmissiveInstances() > 0 ? SHADER::ReSTIR_PT_PATH_TRACE_WoPS :
+        auto sh = App::GetScene().EmissiveLighting() ? SHADER::ReSTIR_PT_PATH_TRACE_WoPS :
             SHADER::ReSTIR_PT_PATH_TRACE;
         sh = m_preSampling ? SHADER::ReSTIR_PT_PATH_TRACE_WPS : sh;
 
@@ -1012,6 +1020,8 @@ void IndirectLighting::Render(CommandList& cmdList)
 
     m_isTemporalReservoirValid = true;
     m_currTemporalIdx = 1 - m_currTemporalIdx;
+    SET_CB_FLAG(m_cbRPT_PathTrace, CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES, false);
+    SET_CB_FLAG(m_cbRGI, CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES, false);
 }
 
 void IndirectLighting::SwitchToReSTIR_PT(bool skipNonResources)
@@ -1594,7 +1604,7 @@ void IndirectLighting::ReloadRGI()
     auto sh = SHADER::ReSTIR_GI;
     const char* p = "IndirectLighting\\ReSTIR_GI\\ReSTIR_GI.hlsl";
 
-    if (App::GetScene().NumEmissiveInstances() > 0)
+    if (App::GetScene().EmissiveLighting())
     {
         p = "IndirectLighting\\ReSTIR_GI\\Variants\\ReSTIR_GI_WoPS.hlsl";
         sh = SHADER::ReSTIR_GI_WoPS;
@@ -1621,7 +1631,7 @@ void IndirectLighting::ReloadRPT_PathTrace()
     auto sh = SHADER::ReSTIR_PT_PATH_TRACE;
     const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_PathTrace.hlsl";
 
-    if (App::GetScene().NumEmissiveInstances() > 0)
+    if (App::GetScene().EmissiveLighting())
     {
         p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_PathTrace_WoPS.hlsl";
         sh = SHADER::ReSTIR_PT_PATH_TRACE_WoPS;
@@ -1646,7 +1656,7 @@ void IndirectLighting::ReloadRPT_Temporal()
             auto sh = SHADER::ReSTIR_PT_RECONNECT_CtT;
             const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtT.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_RECONNECT_CtT_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtT_E.hlsl";
@@ -1661,7 +1671,7 @@ void IndirectLighting::ReloadRPT_Temporal()
             auto sh = SHADER::ReSTIR_PT_RECONNECT_TtC;
             const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_TtC.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_RECONNECT_TtC_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_TtC_E.hlsl";
@@ -1676,7 +1686,7 @@ void IndirectLighting::ReloadRPT_Temporal()
             auto sh = SHADER::ReSTIR_PT_REPLAY_CtT;
             const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Replay.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_REPLAY_CtT_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_E.hlsl";
@@ -1694,7 +1704,7 @@ void IndirectLighting::ReloadRPT_Temporal()
     auto sh = SHADER::ReSTIR_PT_REPLAY_TtC;
     const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_TtC.hlsl";
 
-    if (App::GetScene().NumEmissiveInstances() > 0)
+    if (App::GetScene().EmissiveLighting())
     {
         sh = SHADER::ReSTIR_PT_REPLAY_TtC_E;
         p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_TtC_E.hlsl";
@@ -1715,7 +1725,7 @@ void IndirectLighting::ReloadRPT_Spatial()
             auto sh = SHADER::ReSTIR_PT_RECONNECT_CtS;
             const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_CtS.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_RECONNECT_CtS_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_CtS_E.hlsl";
@@ -1730,7 +1740,7 @@ void IndirectLighting::ReloadRPT_Spatial()
             auto sh = SHADER::ReSTIR_PT_RECONNECT_StC;
             const char* p = "IndirectLighting\\ReSTIR_PT\\ReSTIR_PT_Reconnect_StC.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_RECONNECT_StC_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Reconnect_StC_E.hlsl";
@@ -1745,7 +1755,7 @@ void IndirectLighting::ReloadRPT_Spatial()
             auto sh = SHADER::ReSTIR_PT_REPLAY_CtS;
             const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_CtS.hlsl";
 
-            if (App::GetScene().NumEmissiveInstances() > 0)
+            if (App::GetScene().EmissiveLighting())
             {
                 sh = SHADER::ReSTIR_PT_REPLAY_CtS_E;
                 p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_CtS_E.hlsl";
@@ -1763,7 +1773,7 @@ void IndirectLighting::ReloadRPT_Spatial()
     auto sh = SHADER::ReSTIR_PT_REPLAY_StC;
     const char* p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_StC.hlsl";
 
-    if (App::GetScene().NumEmissiveInstances() > 0)
+    if (App::GetScene().EmissiveLighting())
     {
         sh = SHADER::ReSTIR_PT_REPLAY_StC_E;
         p = "IndirectLighting\\ReSTIR_PT\\Variants\\ReSTIR_PT_Replay_StC_E.hlsl";

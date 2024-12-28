@@ -176,7 +176,7 @@ namespace ZetaRay::Support
     {
         static const int MAX_NAME_LEN = 32;
         static const int MAX_GROUP_LEN = 16;
-        static const int MAX_SUBGROUP_LEN = 24;
+        static const int MAX_SUBGROUP_LEN = 28;
         static const int MAX_SUBSUBGROUP_LEN = 16;
 
         void InitFloat(const char* group, const char* subgroup, const char* name, 

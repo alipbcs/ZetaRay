@@ -46,6 +46,7 @@ namespace ZetaRay::Scene::Renderer
     using fp_Pick = void(*)(uint16 screenPosX, uint16 screenPosY);
     using fp_ClearPick = void(*)();
     using fp_CaptureScreen = void(*)();
+    using fp_ToggleEmissives = void(*)();
 
     struct Interface
     {
@@ -61,5 +62,6 @@ namespace ZetaRay::Scene::Renderer
         fp_Pick Pick;
         fp_ClearPick ClearPick;
         fp_CaptureScreen CaptureScreen;
+        fp_ToggleEmissives ToggleEmissives;
     };
 }

@@ -219,17 +219,21 @@ Reservoir EstimateDirectLighting(uint2 DTid, float3 pos, float3 normal, float z_
                 r, rng_thread);
         }
 
-        // Note: Results are improved when spatial doesn't feed into next frame's 
-        // temporal reservoirs. May need to revisit in the future.
-        r.Write(DTid, g_local.CurrReservoir_A_DescHeapIdx,
-            g_local.CurrReservoir_A_DescHeapIdx + 1, (uint16)g_local.M_max);
-
         if(IS_CB_FLAG_SET(CB_RDI_FLAGS::SPATIAL_RESAMPLE))
         {
             bool disoccluded = !temporalCandidate.valid && (dot(motionVec, motionVec) > 0);
             r.target = disoccluded ? -r.target : r.target;
             r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
         }
+    }
+
+    if (IS_CB_FLAG_SET(CB_RDI_FLAGS::TEMPORAL_RESAMPLE) ||
+        IS_CB_FLAG_SET(CB_RDI_FLAGS::RESET_TEMPORAL_TEXTURES)) 
+    {
+        // Note: Results are improved when spatial doesn't feed into next frame's 
+        // temporal reservoirs. May need to revisit in the future.
+        r.Write(DTid, g_local.CurrReservoir_A_DescHeapIdx,
+            g_local.CurrReservoir_A_DescHeapIdx + 1, (uint16)g_local.M_max);
     }
 
     return r;

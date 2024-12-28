@@ -525,15 +525,17 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     // could become < 1.
     r.W = targetLum > 0 ? max(r.w_sum / targetLum, 1.0f) : 0;
 
-    if(IS_CB_FLAG_SET(CB_IND_FLAGS::TEMPORAL_RESAMPLE))
+    if(IS_CB_FLAG_SET(CB_IND_FLAGS::TEMPORAL_RESAMPLE) || 
+        IS_CB_FLAG_SET(CB_IND_FLAGS::RESET_TEMPORAL_TEXTURES))
     {
         r.Write<NEE_EMISSIVE>(swizzledDTid, g_local.Reservoir_A_DescHeapIdx, 
             g_local.Reservoir_A_DescHeapIdx + 1, g_local.Reservoir_A_DescHeapIdx + 2, 
             g_local.Reservoir_A_DescHeapIdx + 3, g_local.Reservoir_A_DescHeapIdx + 4,
             g_local.Reservoir_A_DescHeapIdx + 5, g_local.Reservoir_A_DescHeapIdx + 6);
-
-        r.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
     }
+
+    if(IS_CB_FLAG_SET(CB_IND_FLAGS::TEMPORAL_RESAMPLE))
+        r.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
     else
     {
         RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.Final];

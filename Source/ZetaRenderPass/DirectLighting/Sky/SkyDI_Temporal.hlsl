@@ -137,15 +137,19 @@ Reservoir InitialCandidatesAndTemporalReuse(uint2 DTid, float3 pos, float3 norma
                 g_frame, r, rng);
         }
 
+        if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE))
+            r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
+    }
+
+    if (IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::TEMPORAL_RESAMPLE) || 
+        IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::RESET_TEMPORAL_TEXTURES))
+    {
         const uint M_max = r.lightType == Light::TYPE::SKY ? g_local.M_max & 0xffff : 
             g_local.M_max >> 16;
         r.Write(DTid, g_local.CurrReservoir_A_DescHeapIdx,
             g_local.CurrReservoir_A_DescHeapIdx + 1, 
             g_local.CurrReservoir_A_DescHeapIdx + 2,
             M_max);
-
-        if(IS_CB_FLAG_SET(CB_SKY_DI_FLAGS::SPATIAL_RESAMPLE))
-            r.WriteTarget(DTid, g_local.TargetDescHeapIdx);
     }
 
     return r;
@@ -181,8 +185,27 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     const float2 mr = g_metallicRoughness[swizzledDTid];
     GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
-    if (flags.invalid || flags.emissive)
+    if (flags.invalid)
         return;
+
+    if(flags.emissive)
+    {
+        GBUFFER_EMISSIVE_COLOR g_emissiveColor = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset +
+            GBUFFER_OFFSET::EMISSIVE_COLOR];
+        float3 le = g_emissiveColor[swizzledDTid].rgb;
+
+        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
+
+        if(g_frame.Accumulate && g_frame.CameraStatic)
+        {
+            float3 prev = g_final[swizzledDTid].rgb;
+            g_final[swizzledDTid].rgb = prev + le;
+        }
+        else
+            g_final[swizzledDTid].rgb = le;
+
+        return;
+    }
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::DEPTH];

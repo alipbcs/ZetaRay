@@ -110,35 +110,35 @@ void DirectLighting::Init()
     CreateOutputs();
 
     ParamVariant doTemporal;
-    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Temporal Resample",
+    doTemporal.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "Temporal Resample",
         fastdelegate::MakeDelegate(this, &DirectLighting::TemporalResamplingCallback), m_temporalResampling);
     App::AddParam(doTemporal);
 
     ParamVariant doSpatial;
-    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Spatial Resample",
+    doSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "Spatial Resample",
         fastdelegate::MakeDelegate(this, &DirectLighting::SpatialResamplingCallback), m_spatialResampling);
     App::AddParam(doSpatial);
 
     ParamVariant maxTemporalM;
-    maxTemporalM.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting", "M_max",
+    maxTemporalM.InitInt(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "M_max",
         fastdelegate::MakeDelegate(this, &DirectLighting::MaxTemporalMCallback),
         m_cbSpatioTemporal.M_max, 1, 30, 1);
     App::AddParam(maxTemporalM);
 
     ParamVariant extraDissocclusion;
-    extraDissocclusion.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Extra Sampling (Disocclusion)",
+    extraDissocclusion.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "Extra Sampling (Disocclusion)",
         fastdelegate::MakeDelegate(this, &DirectLighting::ExtraSamplesDisocclusionCallback), 
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_RDI_FLAGS::EXTRA_DISOCCLUSION_SAMPLING));
     App::AddParam(extraDissocclusion);
 
     ParamVariant stochasticSpatial;
-    stochasticSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting", "Stochastic Spatial",
+    stochasticSpatial.InitBool(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "Stochastic Spatial",
         fastdelegate::MakeDelegate(this, &DirectLighting::StochasticSpatialCallback), 
         IS_CB_FLAG_SET(m_cbSpatioTemporal, CB_RDI_FLAGS::STOCHASTIC_SPATIAL));
     App::AddParam(stochasticSpatial);
 
     ParamVariant alphaMin;
-    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting", "Alpha_min",
+    alphaMin.InitFloat(ICON_FA_FILM " Renderer", "Direct Lighting (Emissive)", "Alpha_min",
         fastdelegate::MakeDelegate(this, &DirectLighting::AlphaMinCallback),
         DefaultParamVals::ROUGHNESS_MIN, 0.0f, 1.0f, 1e-2f);
     App::AddParam(alphaMin);
@@ -154,6 +154,13 @@ void DirectLighting::OnWindowResized()
     CreateOutputs();
     m_isTemporalReservoirValid = false;
     m_currTemporalIdx = 0;
+}
+
+void DirectLighting::ResetTemporal()
+{
+    m_isTemporalReservoirValid = false;
+    m_currTemporalIdx = 0;
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::RESET_TEMPORAL_TEXTURES, true);
 }
 
 void DirectLighting::Render(CommandList& cmdList)
@@ -273,6 +280,7 @@ void DirectLighting::Render(CommandList& cmdList)
 
     m_isTemporalReservoirValid = true;
     m_currTemporalIdx = 1 - m_currTemporalIdx;
+    SET_CB_FLAG(m_cbSpatioTemporal, CB_RDI_FLAGS::RESET_TEMPORAL_TEXTURES, false);
 }
 
 void DirectLighting::CreateOutputs()

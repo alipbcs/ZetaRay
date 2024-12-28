@@ -39,6 +39,7 @@ namespace ZetaRay::RenderPass
         void InitPSOs();
         void Init();
         void OnWindowResized();
+        void ResetTemporal();
         void SetLightPresamplingParams(bool enabled, int numSampleSets, int sampleSetSize)
         {
             Assert(!enabled || (numSampleSets > 0 && sampleSetSize > 0), 

@@ -15,6 +15,7 @@ namespace CB_RDI_FLAGS
     static constexpr uint32_t SPATIAL_RESAMPLE = 1 << 1;
     static constexpr uint32_t STOCHASTIC_SPATIAL = 1 << 2;
     static constexpr uint32_t EXTRA_DISOCCLUSION_SAMPLING = 1 << 3;
+    static constexpr uint32_t RESET_TEMPORAL_TEXTURES = 1 << 4;
 };
 
 struct cb_ReSTIR_DI
