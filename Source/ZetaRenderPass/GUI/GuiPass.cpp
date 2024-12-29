@@ -801,6 +801,7 @@ void GuiPass::RenderProfiler()
         ImGui::Text("\t#Meshes: %u", (uint32_t)scene.TotalNumMeshes());
         ImGui::Text("\t#Triangles: %u", (uint32_t)scene.TotalNumTriangles());
         ImGui::Text("\t#Materials: %u", (uint32_t)scene.TotalNumMaterials());
+        ImGui::Text("\t#Emissive Instances: %u", (uint32_t)scene.NumEmissiveInstances());
         ImGui::Text("\t#Emissive Triangles: %u", (uint32_t)scene.NumEmissiveTriangles());
 
         ImGui::Text("");

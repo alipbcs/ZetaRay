@@ -615,7 +615,13 @@ namespace ZetaRay::AppImpl
         if (memoryInfo.CurrentUsage > memoryInfo.Budget)
             LOG_UI_WARNING("VRAM usage exceeded available budget; performance can be severely impacted.");
 
+        float movingAvg = 0;
+        constexpr int N = 8;
+        for (int i = 0; i < N; i++)
+            movingAvg += frameStats.FrameTimeHist[frameStats.HIST_LEN - 1 - i];
+
         g_app->m_frameStats.emplace_back("Frame", "FPS", g_app->m_timer.GetFramesPerSecond());
+        g_app->m_frameStats.emplace_back("Frame", "Frame time", movingAvg / N);
         g_app->m_frameStats.emplace_back("GPU", "VRAM Usage (MB)", memoryInfo.CurrentUsage >> 20);
         g_app->m_frameStats.emplace_back("GPU", "VRAM Budget (MB)", memoryInfo.Budget >> 20);
         g_app->m_frameStats.emplace_back("Frame", "Frame temp memory usage (kb)", tempMemoryUsage >> 10);
