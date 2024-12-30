@@ -383,34 +383,8 @@ namespace
         ComPtr<ID3D12Fence> m_fenceCompute;
         uint64_t m_nextFenceVal = 1;    // no need to be atomic
 
-        alignas(32) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
-        ResourceUploadBatch m_uploaders[ZETA_MAX_NUM_THREADS];
+        ResourceUploadBatch m_uploaders[MAX_NUM_THREADS];
     };
-
-    ZetaInline int GetThreadIndex(Span<ZETA_THREAD_ID_TYPE> threadIDs)
-    {
-        const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
-
-        int ret = -1;
-        __m256i vKey = _mm256_set1_epi32(tid);
-
-        for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8)
-        {
-            __m256i vIDs = _mm256_load_si256((__m256i*)(threadIDs.data() + i));
-            __m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
-            int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
-
-            if (mask != 0)
-            {
-                ret = i + _tzcnt_u32(mask);
-                break;
-            }
-        }
-
-        Assert(ret != -1, "Thread index was not found.");
-
-        return ret;
-    }
 
     GpuMemoryImplData* g_data = nullptr;
 }
@@ -827,11 +801,6 @@ void GpuMemory::Init()
         g_data->m_fenceDirect.GetAddressOf())));
     CheckHR(device->CreateFence(0, D3D12_FENCE_FLAG_NONE, IID_PPV_ARGS(
         g_data->m_fenceCompute.GetAddressOf())));
-
-    auto workerThreadIDs = App::GetWorkerThreadIDs();
-
-    for (int i = 0; i < workerThreadIDs.size(); i++)
-        g_data->m_threadIDs[i] = workerThreadIDs[i];
 }
 
 void GpuMemory::BeginFrame()
@@ -1157,8 +1126,7 @@ Buffer GpuMemory::GetDefaultHeapBufferAndInit(const char* name, uint32_t sizeInB
         allowUAV,
         false);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), initData.Data, 
+    g_data->m_uploaders[g_threadIdx].UploadBuffer(buffer.Resource(), initData.Data,
         (uint32)initData.SizeInBytes, 0, forceSeparateUploadBuffer);
 
     return buffer;
@@ -1177,8 +1145,7 @@ Buffer GpuMemory::GetPlacedHeapBufferAndInit(const char* name, uint32_t sizeInBy
         allowUAV,
         false);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), initData.Data,
+    g_data->m_uploaders[g_threadIdx].UploadBuffer(buffer.Resource(), initData.Data,
         (uint32)initData.SizeInBytes, 0, forceSeparateUploadBuffer);
 
     return buffer;
@@ -1189,8 +1156,7 @@ void GpuMemory::UploadToDefaultHeapBuffer(Buffer& buffer, uint32_t sizeInBytes,
 {
     Assert(sourceData.SizeInBytes >= sizeInBytes, "Out-of-bound memory access of source data.");
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadBuffer(buffer.Resource(), sourceData.Data, sizeInBytes,
+    g_data->m_uploaders[g_threadIdx].UploadBuffer(buffer.Resource(), sourceData.Data, sizeInBytes,
         destOffsetInBytes);
 }
 
@@ -1470,8 +1436,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* texPath, Texture::ID
 
     tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), Span(subresources, numSubresources));
+    g_data->m_uploaders[g_threadIdx].UploadTexture(tex.Resource(), Span(subresources, numSubresources));
 
     return LOAD_DDS_RESULT::SUCCESS;
 }
@@ -1494,8 +1459,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture2DFromDisk(const char* texPath,
 
     tex = GetTexture2D(ID, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(heapArena, tex.Resource(), 
+    g_data->m_uploaders[g_threadIdx].UploadTexture(heapArena, tex.Resource(),
         Span(subresources, numSubresources));
 
     return LOAD_DDS_RESULT::SUCCESS;
@@ -1530,8 +1494,7 @@ LOAD_DDS_RESULT GpuMemory::GetTexture3DFromDisk(const char* texPath, Texture& te
     tex = GetTexture3D(texPath, width, height, (uint16_t)depth, format, 
         D3D12_RESOURCE_STATE_COPY_DEST, 0, mipCount);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(tex.Resource(), Span(subresources, numSubresources),
+    g_data->m_uploaders[g_threadIdx].UploadTexture(tex.Resource(), Span(subresources, numSubresources),
         0, D3D12_RESOURCE_STATE_ALL_SHADER_RESOURCE);
 
     return LOAD_DDS_RESULT::SUCCESS;
@@ -1550,8 +1513,7 @@ Texture GpuMemory::GetPlacedTexture2DAndInit(Texture::ID_TYPE ID, const D3D12_RE
         nullptr,
         IID_PPV_ARGS(&texture)));
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(heapArena, texture, subresources);
+    g_data->m_uploaders[g_threadIdx].UploadTexture(heapArena, texture, subresources);
 
     return Texture(ID, texture, RESOURCE_HEAP_TYPE::PLACED, dbgName);
 }
@@ -1561,8 +1523,7 @@ Texture GpuMemory::GetTexture2DAndInit(const char* name, uint64_t width, uint32_
 {
     Texture t = GetTexture2D(name, width, height, format, D3D12_RESOURCE_STATE_COPY_DEST, flags);
 
-    const int idx = GetThreadIndex(g_data->m_threadIDs);
-    g_data->m_uploaders[idx].UploadTexture(t.Resource(), pixels, postCopyState);
+    g_data->m_uploaders[g_threadIdx].UploadTexture(t.Resource(), pixels, postCopyState);
 
     return t;
 }

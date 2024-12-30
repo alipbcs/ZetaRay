@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../Utility/Error.h"
+#include "../App/App.h"
 #include <string.h>
 
 namespace ZetaRay::Support
@@ -77,7 +77,7 @@ namespace ZetaRay::Support
             return sum;
         }
 
-        static constexpr int NUM_BLOCKS = ZETA_MAX_NUM_THREADS * 2;
+        static constexpr int NUM_BLOCKS = MAX_NUM_THREADS * 2;
         static constexpr int NUM_FRAMES_TO_FREE_DELAY = 10;
         static constexpr size_t BLOCK_SIZE = BlockSize;
 

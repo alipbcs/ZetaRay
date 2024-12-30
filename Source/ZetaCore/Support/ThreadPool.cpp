@@ -5,31 +5,12 @@ using namespace ZetaRay::Support;
 using namespace ZetaRay::App;
 using namespace ZetaRay::Util;
 
-namespace
-{
-    ZetaInline int FindThreadIdx(Span<ZETA_THREAD_ID_TYPE> threadIds)
-    {
-        int idx = -1;
-
-        for (int i = 0; i < (int)threadIds.size(); i++)
-        {
-            if (threadIds[i] == GetCurrentThreadId())
-            {
-                idx = i;
-                break;
-            }
-        }
-
-        return idx;
-    }
-}
-
 //--------------------------------------------------------------------------------------
 // ThreadPool
 //--------------------------------------------------------------------------------------
 
 void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNamePrefix, 
-    THREAD_PRIORITY priority)
+    THREAD_PRIORITY priority, int threadIdxOffset)
 {
     m_threadPoolSize = poolSize;
     m_totalNumThreads = totalNumThreads;
@@ -66,8 +47,9 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
 
     for (int i = 0; i < m_threadPoolSize; i++)
     {
-        m_threadPool[i] = std::thread(&ThreadPool::WorkerThread, this);
-        m_threadIDs[i] = App::GetThreadID(m_threadPool[i].native_handle());
+        // g_threadIdx needs to be unique for all threads - threadIdxOffset is used
+        // to account for other threads
+        m_threadPool[i] = std::thread(&ThreadPool::WorkerThread, this, threadIdxOffset + i);
 
         wchar_t buffer[32];
         //swprintf(buff, L"ZetaWorker_%d", i);
@@ -78,13 +60,8 @@ void ThreadPool::Init(int poolSize, int totalNumThreads, const wchar_t* threadNa
     }
 }
 
-void ThreadPool::Start(Span<ZETA_THREAD_ID_TYPE> threadIDs)
+void ThreadPool::Start()
 {
-    Assert(threadIDs.size() == m_totalNumThreads, "these must match");
-
-    for (int i = 0; i < threadIDs.size(); i++)
-        m_allThreadIds[i] = threadIDs[i];
-
     m_start.store(true, std::memory_order_release);
 }
 
@@ -107,10 +84,7 @@ void ThreadPool::Shutdown()
 
 void ThreadPool::Enqueue(Task&& task)
 {
-    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
-    Assert(idx != -1, "Thread ID was not found");
-
-    bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[idx], ZetaMove(task));
+    bool memAllocFailed = m_taskQueue.enqueue(m_producerTokens[g_threadIdx], ZetaMove(task));
     Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 
     m_numTasksToFinishTarget.fetch_add(1, std::memory_order_relaxed);
@@ -125,26 +99,19 @@ void ThreadPool::Enqueue(TaskSet&& ts)
     m_numTasksInQueue.fetch_add(ts.GetSize(), std::memory_order_release);
     auto tasks = ts.GetTasks();
 
-    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
-    Assert(idx != -1, "Thread ID was not found");
-
-    bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[idx], 
+    bool memAllocFailed = m_taskQueue.enqueue_bulk(m_producerTokens[g_threadIdx],
         std::make_move_iterator(tasks.data()), tasks.size());
     Assert(memAllocFailed, "moodycamel::ConcurrentQueue couldn't allocate memory.");
 }
 
 void ThreadPool::PumpUntilEmpty()
 {
-    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
-    Assert(idx != -1, "Thread ID was not found");
-
-    const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
     Task task;
 
     // "try_dequeue()" returning false doesn't guarantee that queue is empty
     while (m_numTasksInQueue.load(std::memory_order_acquire) != 0)
     {
-        if (m_taskQueue.try_dequeue(m_consumerTokens[idx], task))
+        if (m_taskQueue.try_dequeue(m_consumerTokens[g_threadIdx], task))
         {
             m_numTasksInQueue.fetch_sub(1, std::memory_order_relaxed);
 
@@ -183,15 +150,14 @@ bool ThreadPool::TryFlush()
     return success;
 }
 
-void ThreadPool::WorkerThread()
+void ThreadPool::WorkerThread(int idx)
 {
-    while (!m_start.load(std::memory_order_acquire));
+    Assert(g_threadIdx == -1, "Two or more threads have the same global index.");
+    g_threadIdx = idx;
 
-    const ZETA_THREAD_ID_TYPE tid = GetCurrentThreadId();
-    LOG_UI(INFO, "Thread %u waiting for tasks...\n", tid);
+    while (!m_start.load(std::memory_order_acquire)) {}
 
-    const int idx = FindThreadIdx(Span(m_allThreadIds, m_totalNumThreads));
-    Assert(idx != -1, "Thread ID was not found");
+    LOG_UI(INFO, "Thread %d waiting for tasks...\n", g_threadIdx);
 
     while (true)
     {
@@ -202,7 +168,7 @@ void ThreadPool::WorkerThread()
             break;
 
         // block if there aren't any tasks
-        m_taskQueue.wait_dequeue(m_consumerTokens[idx], task);
+        m_taskQueue.wait_dequeue(m_consumerTokens[g_threadIdx], task);
         m_numTasksInQueue.fetch_sub(1, std::memory_order_acquire);
 
         const int taskHandle = task.GetSignalHandle();
@@ -224,5 +190,5 @@ void ThreadPool::WorkerThread()
         m_numTasksFinished.fetch_add(1, std::memory_order_release);
     }
 
-    LOG_UI(INFO, "Thread %u exiting...\n", tid);
+    LOG_UI(INFO, "Thread %d exiting...\n", g_threadIdx);
 }

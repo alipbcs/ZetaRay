@@ -12,6 +12,9 @@ namespace ZetaRay::Support
     struct alignas(64) Task;
     struct ParamVariant;
     struct Stat;
+
+    static constexpr int MAX_NUM_THREADS = 16;
+    inline thread_local int g_threadIdx = -1;
 }
 
 namespace ZetaRay::App
@@ -109,8 +112,6 @@ namespace ZetaRay::App
     };
 
     CpuInfo GetProcessorInfo();
-    ZETA_THREAD_ID_TYPE GetCurrentThreadID();
-    ZETA_THREAD_ID_TYPE GetThreadID(void* handle);
     void SetThreadPriority(void* handle, THREAD_PRIORITY priority);
     void SetThreadDesc(void* handle, wchar_t* buffer);
 
@@ -147,10 +148,6 @@ namespace ZetaRay::App
     void SetUpscaleFactor(float f);
     bool IsFullScreen();
     const App::Timer& GetTimer();
-
-    Util::Span<ZETA_THREAD_ID_TYPE> GetWorkerThreadIDs();
-    Util::Span<ZETA_THREAD_ID_TYPE> GetBackgroundThreadIDs();
-    Util::Span<ZETA_THREAD_ID_TYPE> GetAllThreadIDs();
 
     void AddParam(Support::ParamVariant& p);
     void TryAddParam(Support::ParamVariant& p);

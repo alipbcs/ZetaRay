@@ -10,13 +10,12 @@
 #pragma warning(disable : 4189) // local variable is initialized but not referenced
 #pragma warning(disable : 4324) // structure was padded due to alignment specifier
 
+// Ref: https://www.foonathan.net/2020/09/move-forward/
 #define ZetaMove(x) static_cast<std::remove_reference_t<decltype(x)>&&>(x)
 #define ZetaForward(x) static_cast<decltype(x)&&>(x)
+
 #define ZetaInline __forceinline
 #define ZetaArrayLen(x) sizeof(x) / sizeof(x[0])
-
-#define ZETA_MAX_NUM_THREADS 16
-#define ZETA_THREAD_ID_TYPE uint32_t
 
 #define uint8 uint8_t
 #define uint16 uint16_t

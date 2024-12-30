@@ -117,7 +117,7 @@ namespace
 {
     struct FrameMemoryContext
     {
-        alignas(64) int m_threadFrameAllocIndices[ZETA_MAX_NUM_THREADS] = { -1 };
+        alignas(64) int m_threadFrameAllocIndices[MAX_NUM_THREADS] = { -1 };
         std::atomic_int32_t m_currFrameAllocIndex;
     };
 
@@ -140,7 +140,6 @@ namespace
             std::atomic_bool BlockFlag;
         };
 
-        alignas(64) ZETA_THREAD_ID_TYPE m_threadIDs[ZETA_MAX_NUM_THREADS];
         TaskSignal m_registeredTasks[MAX_NUM_TASKS_PER_FRAME];
 
         FrameMemoryContext m_frameMemoryContext;
@@ -1276,31 +1275,6 @@ namespace ZetaRay::AppImpl
         }
     }
 
-    ZetaInline int GetThreadIdx()
-    {
-        const ZETA_THREAD_ID_TYPE id = GetCurrentThreadId();
-
-        int ret = -1;
-        __m256i vKey = _mm256_set1_epi32(id);
-
-        for (int i = 0; i < ZETA_MAX_NUM_THREADS; i += 8)
-        {
-            __m256i vIDs = _mm256_load_si256((__m256i*)(g_app->m_threadIDs + i));
-            __m256i vRes = _mm256_cmpeq_epi32(vIDs, vKey);
-            int mask = _mm256_movemask_ps(_mm256_castsi256_ps(vRes));
-
-            if (mask != 0)
-            {
-                ret = i + _tzcnt_u32(mask);
-                break;
-            }
-        }
-
-        Assert(ret != -1, "thread index was not found.");
-
-        return ret;
-    }
-
     template<size_t blockSize>
     ZetaInline void* AllocateFrameAllocator(FrameMemory<blockSize>& frameMemory, FrameMemoryContext& context,
         size_t size, size_t alignment)
@@ -1311,11 +1285,8 @@ namespace ZetaRay::AppImpl
         Assert(size + alignment - 1 <= frameMemory.BLOCK_SIZE,
             "allocations larger than FrameMemory::BLOCK_SIZE are not possible with FrameAllocator.");
 
-        const int threadIdx = GetThreadIdx();
-        Assert(threadIdx != -1, "thread idx was not found");
-
         // current memory block has enough space
-        int allocIdx = context.m_threadFrameAllocIndices[threadIdx];
+        int allocIdx = context.m_threadFrameAllocIndices[g_threadIdx];
 
         // first time in this frame
         if (allocIdx != -1)
@@ -1335,7 +1306,7 @@ namespace ZetaRay::AppImpl
 
         // allocate/reuse a new block
         allocIdx = context.m_currFrameAllocIndex.fetch_add(1, std::memory_order_relaxed);
-        context.m_threadFrameAllocIndices[threadIdx] = allocIdx;
+        context.m_threadFrameAllocIndices[g_threadIdx] = allocIdx;
         auto& block = frameMemory.GetAndInitIfEmpty(allocIdx);
         Assert(block.Offset == 0, "block offset should be initially 0");
 
@@ -1391,21 +1362,6 @@ namespace ZetaRay
         }
 
         return ret;
-    }
-
-    ZETA_THREAD_ID_TYPE App::GetCurrentThreadID()
-    {
-        return GetCurrentThreadId();
-    }
-
-    ZETA_THREAD_ID_TYPE App::GetThreadID(void* handle)
-    {
-        Assert(handle, "Invalid handle.");
-
-        auto id = GetThreadId(handle);
-        CheckWin32(id);
-
-        return id;
     }
 
     void App::SetThreadPriority(void* handle, THREAD_PRIORITY priority)
@@ -1477,47 +1433,40 @@ namespace ZetaRay
 
         CpuInfo cpuInfo = App::GetProcessorInfo();
         g_app->m_processorCoreCount = (uint16)Min(cpuInfo.NumPhysicalCores,
-            (ZETA_MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
+            (MAX_NUM_THREADS - AppData::NUM_BACKGROUND_THREADS));
 
         // create the window
         AppImpl::CreateAppWindow(instance);
         SetWindowTextA(g_app->m_hwnd, name ? name : "ZetaRay");
 
-        // initialize thread pools
+        // Initialize thread pools - totalNumThreads is passed to account for all the 
+        // other threads that may insert tasks such as the main thread
         const int totalNumThreads = g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS;
+
+        // main thread
+        g_threadIdx = 0;
+
+        // Offset by 1 to account for main thread
         g_app->m_workerThreadPool.Init(g_app->m_processorCoreCount - 1,
             totalNumThreads,
             L"ZetaWorker",
-            THREAD_PRIORITY::NORMAL);
+            THREAD_PRIORITY::NORMAL,
+            1);
 
+        // Offset by m_processorCoreCount to account for main thread and worker threads
         g_app->m_backgroundThreadPool.Init(AppData::NUM_BACKGROUND_THREADS,
             totalNumThreads,
             L"ZetaBackgroundWorker",
-            THREAD_PRIORITY::BACKGROUND);
+            THREAD_PRIORITY::BACKGROUND,
+            g_app->m_processorCoreCount);
 
-        // initialize frame allocators
-        memset(g_app->m_frameMemoryContext.m_threadFrameAllocIndices, -1, sizeof(int) * ZETA_MAX_NUM_THREADS);
+        // Initialize frame allocators
+        memset(g_app->m_frameMemoryContext.m_threadFrameAllocIndices, -1, 
+            sizeof(int) * MAX_NUM_THREADS);
         g_app->m_frameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
-        memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
-
-        // main thread
-        g_app->m_threadIDs[0] = GetCurrentThreadId();
-
-        // worker threads
-        auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
-
-        for (int i = 0; i < workerThreadIDs.size(); i++)
-            g_app->m_threadIDs[i + 1] = workerThreadIDs[i];
-
-        // background threads
-        auto backgroundThreadIDs = g_app->m_backgroundThreadPool.ThreadIDs();
-
-        for (int i = 0; i < backgroundThreadIDs.size(); i++)
-            g_app->m_threadIDs[workerThreadIDs.size() + 1 + i] = backgroundThreadIDs[i];
-
-        g_app->m_workerThreadPool.Start(GetAllThreadIDs());
-        g_app->m_backgroundThreadPool.Start(GetAllThreadIDs());
+        g_app->m_workerThreadPool.Start();
+        g_app->m_backgroundThreadPool.Start();
 
         RECT rect;
         GetClientRect(g_app->m_hwnd, &rect);
@@ -1563,27 +1512,20 @@ namespace ZetaRay
         g_app = new (std::nothrow) AppData;
 
         CpuInfo cpuInfo = App::GetProcessorInfo();
-        g_app->m_processorCoreCount = (uint16)Min(cpuInfo.NumPhysicalCores, ZETA_MAX_NUM_THREADS);
+        g_app->m_processorCoreCount = (uint16)Min(cpuInfo.NumPhysicalCores, MAX_NUM_THREADS);
 
-        // initialize thread pools
+        // Initialize thread pool
         const int totalNumThreads = g_app->m_processorCoreCount;
         g_app->m_workerThreadPool.Init(g_app->m_processorCoreCount - 1,
             totalNumThreads,
             L"ZetaWorker",
-            THREAD_PRIORITY::NORMAL);
-
-        memset(g_app->m_threadIDs, 0, ZetaArrayLen(g_app->m_threadIDs) * sizeof(uint32_t));
+            THREAD_PRIORITY::NORMAL,
+            1);
 
         // main thread
-        g_app->m_threadIDs[0] = GetCurrentThreadId();
+        g_threadIdx = 0;
 
-        // worker threads
-        auto workerThreadIDs = g_app->m_workerThreadPool.ThreadIDs();
-
-        for (int i = 0; i < workerThreadIDs.size(); i++)
-            g_app->m_threadIDs[i + 1] = workerThreadIDs[i];
-
-        g_app->m_workerThreadPool.Start(Span(g_app->m_threadIDs, g_app->m_processorCoreCount));
+        g_app->m_workerThreadPool.Start();
 
         // renderer (for d3dDevice)
         g_app->m_renderer.InitBasic();
@@ -1641,7 +1583,7 @@ namespace ZetaRay
             if (g_app->m_timer.GetTotalFrameCount() > 0)
             {
                 g_app->m_frameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
-                for (int i = 0; i < ZETA_MAX_NUM_THREADS; i++)
+                for (int i = 0; i < MAX_NUM_THREADS; i++)
                     g_app->m_frameMemoryContext.m_threadFrameAllocIndices[i] = -1;
                 g_app->m_frameMemory.Reset();        // set the offset to 0, essentially releasing the memory
             }
@@ -1860,21 +1802,6 @@ namespace ZetaRay
     {
         if (g_app)
             ReleaseSRWLockExclusive(&g_app->m_stdOutLock);
-    }
-
-    Span<uint32_t> App::GetWorkerThreadIDs()
-    {
-        return Span(g_app->m_threadIDs, g_app->m_processorCoreCount);
-    }
-
-    Span<uint32_t> App::GetBackgroundThreadIDs()
-    {
-        return Span(g_app->m_threadIDs + g_app->m_processorCoreCount, AppData::NUM_BACKGROUND_THREADS);
-    }
-
-    Span<uint32_t> App::GetAllThreadIDs()
-    {
-        return Span(g_app->m_threadIDs, g_app->m_processorCoreCount + AppData::NUM_BACKGROUND_THREADS);
     }
 
     SynchronizedMutableSpan<ParamVariant> App::GetParams()

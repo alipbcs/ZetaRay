@@ -14,7 +14,5 @@ set(SUPPORT_SRC
     "${SUPPORT_DIR}/Task.cpp"
     "${SUPPORT_DIR}/Task.h"
     "${SUPPORT_DIR}/ThreadPool.cpp"
-    "${SUPPORT_DIR}/ThreadPool.h"
-    "${SUPPORT_DIR}/ThreadSafeMemoryArena.h"
-    "${SUPPORT_DIR}/ThreadSafeMemoryArena.cpp")
+    "${SUPPORT_DIR}/ThreadPool.h")
 set(SUPPORT_SRC ${SUPPORT_SRC} PARENT_SCOPE)
