@@ -43,7 +43,7 @@ namespace ZetaRay::Scene
         ZetaInline const Math::float4x4a& GetProjNonInfiniteFarZ() const { return m_projNonInfinite; }
         ZetaInline const Math::float3 GetPos() const { return Math::float3(m_posW.x, m_posW.y, m_posW.z); }
         ZetaInline float GetAspectRatio() const { return m_aspectRatio; }
-        ZetaInline float GetFOV() const { return m_FOV; }
+        ZetaInline float GetFOV() const { return m_fov; }
         ZetaInline float GetNearZ() const { return m_nearZ; }
         ZetaInline float GetFarZ() const { return m_farZ; }
         ZetaInline float GetTanHalfFOV() const { return m_tanHalfFOV; }
@@ -95,7 +95,7 @@ namespace ZetaRay::Scene
         Math::float4a m_basisY;
         Math::float4a m_basisZ;
 
-        float m_FOV;
+        float m_fov;
         float m_aspectRatio;
         float m_nearZ;
         float m_farZ;

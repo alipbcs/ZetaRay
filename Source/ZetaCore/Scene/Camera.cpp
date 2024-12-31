@@ -64,11 +64,11 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     float3 focusOrViewDir, bool lookAt)
 {
     m_posW = float4a(posw, 1.0f);
-    m_FOV = fov;
-    m_tanHalfFOV = tanf(0.5f * m_FOV);
+    m_fov = fov;
+    m_aspectRatio = aspectRatio;
+    m_tanHalfFOV = tanf(0.5f * m_fov);
     m_nearZ = nearZ;
     m_farZ = FLT_MAX;
-    m_aspectRatio = aspectRatio;
     m_viewFrustum = ViewFrustum(fov, aspectRatio, nearZ, m_farZ);
     m_jitteringEnabled = jitter;
 
@@ -112,7 +112,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
     ParamVariant fovParam;
     fovParam.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "FOV", fastdelegate::MakeDelegate(this, &Camera::SetFOV),
-        Math::RadiansToDegrees(m_FOV), 20, 90, 1, "Lens");
+        Math::RadiansToDegrees(m_fov), 20, 90, 1, "Lens");
     App::AddParam(fovParam);
 
     ParamVariant coeff;
@@ -150,11 +150,9 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
 
 void Camera::Update(const Motion& m)
 {
-    constexpr float adt = 1.0f / 60.0f;
-    float2 dMouse = float2(m.dMouse_x, m.dMouse_y) * m_angularAcc;
-    float2 acc = dMouse - m_angularDamping * m_initialAngularVelocity;
-    float2 newVelocity = acc * adt + m_initialAngularVelocity;
-    float2 dtheta = acc * adt * adt / 2 + m_initialAngularVelocity * adt;
+    float2 acc = float2(m.dMouse_x, m.dMouse_y) * m_angularAcc - m_angularDamping * m_initialAngularVelocity;
+    float2 newVelocity = acc * m.dt + m_initialAngularVelocity;
+    float2 dtheta = 0.5f * acc * m.dt * m.dt + m_initialAngularVelocity * m.dt;
     m_initialAngularVelocity = newVelocity;
 
     if (dtheta.x != 0.0)
@@ -205,12 +203,12 @@ void Camera::UpdateProj()
 {
     v_float4x4 vP;
 
-    vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ);
+    vP = perspectiveReverseZ(m_aspectRatio, m_fov, m_nearZ);
     m_proj = store(vP);
-    vP = perspectiveReverseZ(m_aspectRatio, m_FOV, m_nearZ, m_farZNonInfinite);
+    vP = perspectiveReverseZ(m_aspectRatio, m_fov, m_nearZ, m_farZNonInfinite);
     m_projNonInfinite = store(vP);
 
-    m_viewFrustum = ViewFrustum(m_FOV, m_aspectRatio, m_nearZ, m_farZ);
+    m_viewFrustum = ViewFrustum(m_fov, m_aspectRatio, m_nearZ, m_farZ);
 }
 
 void Camera::UpdateFocalLength()
@@ -284,8 +282,8 @@ void Camera::RotateY(float theta)
 
 void Camera::SetFOV(const ParamVariant& p)
 {
-    m_FOV = Math::DegreesToRadians(p.GetFloat().m_value);
-    m_tanHalfFOV = tanf(0.5f * m_FOV);
+    m_fov = Math::DegreesToRadians(p.GetFloat().m_value);
+    m_tanHalfFOV = tanf(0.5f * m_fov);
 
     UpdateProj();
     UpdateFocalLength();
