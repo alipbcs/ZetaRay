@@ -557,6 +557,9 @@ namespace ZetaRay::DefaultRenderer
 
     void Pick(uint16 screenPosX, uint16 screenPosY)
     {
+        if (!g_data->m_pathTracerData.RtAS.IsReady())
+            return;
+
         g_data->m_gbuffData.GBufferPass.PickPixel(screenPosX, screenPosY);
     }
 
