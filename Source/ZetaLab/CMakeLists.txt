@@ -1,4 +1,4 @@
-add_executable(ZetaLab WIN32 "${CMAKE_SOURCE_DIR}/Samples/ZetaLab/ZetaLab.cpp")
+add_executable(ZetaLab WIN32 "${CMAKE_SOURCE_DIR}/Source/ZetaLab/ZetaLab.cpp")
 target_link_libraries(ZetaLab ZetaCore ZetaRenderer ZetaRenderPass)
 target_include_directories(ZetaLab BEFORE PRIVATE ${ZETA_CORE_DIR} ${ZETA_RENDERER_DIR} ${ZETA_RENDER_PASS_DIR})
 set_target_properties(ZetaLab PROPERTIES DEBUG_POSTFIX ${CMAKE_DEBUG_POSTFIX})

@@ -116,7 +116,6 @@ set(CSO_DIR "${ASSET_DIR}/CSO")
 SetupDXC(DXC_BIN_DIR)
 
 add_subdirectory(Source)
-add_subdirectory(Samples)
 
 if(BUILD_TESTS)
     add_subdirectory(Tests)

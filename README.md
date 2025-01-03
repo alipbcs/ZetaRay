@@ -49,7 +49,7 @@ A render graph can help with all of the above; by analyzing resource dependencie
 
 ### Sample Editor
 
-The main sample application ([`Samples/ZetaLab`](./Samples/ZetaLab/)) provides a light editor experience with the following features:
+The main sample application ([`Source/ZetaLab`](./Source/ZetaLab/)) provides a light editor experience with the following features:
  - Load glTF scenes ([note the preprocessing step below](#build))
  - Change object transformations (translation, rotation, and scaling) using a 3D gizmo
  - Modify material properties
