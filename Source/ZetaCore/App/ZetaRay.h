@@ -4,12 +4,6 @@
 
 #include <cstdint>
 
-#pragma warning(disable : 4996) // _CRT_SECURE_NO_WARNINGS
-#pragma warning(disable : 4101) // unreferenced local variable
-#pragma warning(disable : 4100) // unreferenced formal parameter
-#pragma warning(disable : 4189) // local variable is initialized but not referenced
-#pragma warning(disable : 4324) // structure was padded due to alignment specifier
-
 // Ref: https://www.foonathan.net/2020/09/move-forward/
 #define ZetaMove(x) static_cast<std::remove_reference_t<decltype(x)>&&>(x)
 #define ZetaForward(x) static_cast<decltype(x)&&>(x)

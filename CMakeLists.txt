@@ -74,10 +74,26 @@ if(MSVC)
     add_compile_options(/permissive-)
     add_compile_options(/arch:AVX2)
 
+    # disable a few MSVC warnings
+    if (NOT CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        # _CRT_SECURE_NO_WARNINGS
+        add_compile_options(/wd4996)
+        # unreferenced local variable
+        add_compile_options(/wd4101)
+        # unreferenced formal parameter
+        add_compile_options(/wd4100)
+        # local variable is initialized but not referenced
+        add_compile_options(/wd4189)
+        # structure was padded due to alignment specifier
+        add_compile_options(/wd4324)
+    endif()
+
     add_compile_definitions("ZETA_HAS_NO_UNIQUE_ADDRESS")
 endif()
 
 if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options(-Wno-unused-parameter)
+    add_compile_options(-Wno-deprecated-declarations)
     add_compile_options(-Wno-reorder-ctor)
     add_compile_options(-Wno-unused-variable)
     add_compile_options(-Wno-unused-but-set-variable)
