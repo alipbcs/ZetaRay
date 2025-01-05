@@ -122,7 +122,7 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RESERVOIR_A = DXGI_FORMAT_R32G32B32A32_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_B = DXGI_FORMAT_R16G16B16A16_FLOAT;
             static constexpr DXGI_FORMAT RESERVOIR_C = DXGI_FORMAT_R32G32B32A32_FLOAT;
-            static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R16G16B16A16_FLOAT;
+            static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R32G32B32A32_FLOAT;
         };
 
         struct ResourceFormats_RPT
@@ -141,7 +141,6 @@ namespace ZetaRay::RenderPass
             static constexpr DXGI_FORMAT RBUFFER_C = DXGI_FORMAT_R32G32B32A32_UINT;
             static constexpr DXGI_FORMAT RBUFFER_D = DXGI_FORMAT_R16_UINT;
             static constexpr DXGI_FORMAT TARGET = DXGI_FORMAT_R32G32B32A32_FLOAT;
-            static constexpr DXGI_FORMAT FINAL = DXGI_FORMAT_R32G32B32A32_FLOAT;
         };
 
         enum class DESC_TABLE_RGI
