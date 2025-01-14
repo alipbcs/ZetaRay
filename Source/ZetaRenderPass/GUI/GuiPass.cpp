@@ -553,11 +553,11 @@ void GuiPass::RenderToolbar()
 {
     ImGuiStyle& style = ImGui::GetStyle();
     ImGui::PushStyleColor(ImGuiCol_ButtonHovered,
-        ImVec4(0.09521219013259, 0.09521219013259, 0.09521219013259, 1.0f));
+        ImVec4(0.09521219013259f, 0.09521219013259f, 0.09521219013259f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_ButtonActive,
-        ImVec4(0.0630100295, 0.168269396, 0.45078584552, 1.0f));
+        ImVec4(0.0630100295f, 0.168269396f, 0.45078584552f, 1.0f));
     ImGui::PushStyleColor(ImGuiCol_Button,
-        ImVec4(0.039556837, 0.039556837, 0.039556837, 0.87f));
+        ImVec4(0.039556837f, 0.039556837f, 0.039556837f, 0.87f));
     ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(style.ItemSpacing.x, 1));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(1, 1));
 
@@ -841,7 +841,7 @@ void GuiPass::RenderProfiler()
 
 void GuiPass::RenderLogWindow()
 {
-    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.014286487, 0.014286487, 0.0142864870, 0.995f));
+    ImGui::PushStyleColor(ImGuiCol_WindowBg, ImVec4(0.014286487f, 0.014286487f, 0.0142864870f, 0.995f));
     ImGui::PushStyleVar(ImGuiStyleVar_WindowPadding, ImVec2(15, 15));
     // Hide resize grip
     ImGui::PushStyleColor(ImGuiCol_ResizeGrip, 0);
@@ -1295,24 +1295,40 @@ void GuiPass::ParameterTab()
 
 void GuiPass::GpuTimingsTab()
 {
-    if (App::GetTimer().GetTotalFrameCount() % 4 == 0)
-    {
         auto timings = App::GetRenderer().GetGpuTimer().GetFrameTimings();
-        m_cachedTimings.clear();
-        m_cachedTimings.append_range(timings.begin(), timings.end());
-
-        if (m_cachedTimings.size() > 0)
+        if(timings.empty())
         {
-            std::sort(m_cachedTimings.begin(), m_cachedTimings.begin() + m_cachedTimings.size(),
-                [](const GpuTimer::Timing& t0, const GpuTimer::Timing& t1)
-                {
-                    return strcmp(t0.Name, t1.Name) < 0;
-                });
+            m_gpuTimings.clear();
+            return;
         }
-    }
 
-    if (m_cachedTimings.empty())
-        return;
+        // Temporary copy of previous timings needed for shuffling
+        SmallVector<RenderPassTiming, App::FrameAllocator> prev;
+        prev.append_range(m_gpuTimings.begin(), m_gpuTimings.end());
+
+        m_gpuTimings.resize(timings.size());
+
+        // timings is sorted, so insertion happens in sorted order
+        for(size_t i = 0; i < timings.size(); i++)
+        {
+            auto it = std::lower_bound(prev.begin(), prev.end(), timings[i], 
+                [](const RenderPassTiming& item, const GpuTimer::Timing& key)
+                {
+                    return strcmp(item.Name, key.Name) < 0;
+                });
+
+            if(it == prev.end())
+                _mm256_store_ps(m_gpuTimings[i].Delta, _mm256_setzero_ps());
+            else
+            {
+                // Shift right
+                auto idx = it - prev.begin();
+                memcpy(m_gpuTimings[i].Delta + 1, prev[idx].Delta, sizeof(float) * 7);
+            }
+
+            memcpy(m_gpuTimings[i].Name, timings[i].Name, GpuTimer::Timing::MAX_NAME_LENGTH);
+            m_gpuTimings[i].Delta[0] = (float)timings[i].Delta;
+        }
 
     constexpr ImGuiTableFlags flags = ImGuiTableFlags_ScrollY | ImGuiTableFlags_ScrollX | 
         ImGuiTableFlags_Hideable | ImGuiTableFlags_RowBg | ImGuiTableFlags_PadOuterX | 
@@ -1330,15 +1346,20 @@ void GuiPass::GpuTimingsTab()
         ImGui::TableSetupColumn("\t\tDelta (ms)", ImGuiTableColumnFlags_None);
         ImGui::TableHeadersRow();
 
-        for (int row = 0; row < (int)m_cachedTimings.size(); row++)
+        for (int row = 0; row < (int)m_gpuTimings.size(); row++)
         {
             ImGui::TableNextRow();
 
             ImGui::TableSetColumnIndex(0);
-            ImGui::Text(" %s", m_cachedTimings[row].Name);
+            ImGui::Text(" %s", m_gpuTimings[row].Name);
 
             ImGui::TableSetColumnIndex(1);
-            ImGui::Text("\t\t\t%.3f", (float)m_cachedTimings[row].Delta);
+
+            float sum = 0.0f;
+            for(int i = 0; i < RenderPassTiming::WND_LEN; i++)
+                sum += m_gpuTimings[row].Delta[i];
+
+            ImGui::Text("\t\t\t%.3f", sum / RenderPassTiming::WND_LEN);
         }
 
         ImGui::EndTable();
@@ -1657,7 +1678,7 @@ void GuiPass::PickedMaterial(uint64 pickedID)
     const auto& mesh = *scene.GetMesh(meshID).value();
     Material mat = *scene.GetMaterial(mesh.m_materialID).value();
     bool modified = false;
-    constexpr ImVec4 texturedCol = ImVec4(0.9587256, 0.76055556, 0.704035435, 1);
+    constexpr ImVec4 texturedCol = ImVec4(0.9587256f, 0.76055556f, 0.704035435f, 1);
 
     if (ImGui::TreeNode("Base"))
     {

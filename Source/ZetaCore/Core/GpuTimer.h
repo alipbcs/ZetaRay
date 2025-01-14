@@ -47,7 +47,7 @@ namespace ZetaRay::Core
         ComPtr<ID3D12QueryHeap> m_queryHeap;
         GpuMemory::ReadbackHeapBuffer m_readbackBuff;
 
-        Util::SmallVector<Timing> m_timings[Constants::NUM_BACK_BUFFERS + 1];
+        Util::SmallVector<Timing, Support::SystemAllocator, MAX_NUM_QUERIES> m_timings[Constants::NUM_BACK_BUFFERS + 1];
         int m_queryCounts[Constants::NUM_BACK_BUFFERS + 1] = { 0 };
         std::atomic<int32_t> m_frameQueryCount;
 

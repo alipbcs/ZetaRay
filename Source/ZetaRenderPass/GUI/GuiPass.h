@@ -75,9 +75,22 @@ namespace ZetaRay::RenderPass
             int NumVertices = 5000;
         };
 
+        struct alignas(32) RenderPassTiming
+        {
+            RenderPassTiming()
+            {
+                Name[0] = '\0';
+            }
+
+            static constexpr int WND_LEN = 8;
+
+            float Delta[WND_LEN];
+            char Name[Core::GpuTimer::Timing::MAX_NAME_LENGTH];
+        };
+
+        Util::SmallVector<RenderPassTiming, Support::SystemAllocator, 32> m_gpuTimings;
         ImGuiFrameBufferData m_imguiFrameBuffs[Core::Constants::NUM_BACK_BUFFERS];
         D3D12_CPU_DESCRIPTOR_HANDLE m_cpuDescriptors[SHADER_IN_CPU_DESC::COUNT] = { 0 };
-        Util::SmallVector<Core::GpuTimer::Timing> m_cachedTimings;
 
         int m_currShader = -1;
         float m_dbgWndWidthPct = 0.21f;

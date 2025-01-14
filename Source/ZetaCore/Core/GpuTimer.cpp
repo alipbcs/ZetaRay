@@ -113,6 +113,13 @@ void GpuTimer::BeginFrame()
                 m_timings[Constants::NUM_BACK_BUFFERS].append_range(
                     m_timings[lastCompletedFrameIdx].begin(),
                     m_timings[lastCompletedFrameIdx].end(), true);
+
+                std::sort(m_timings[Constants::NUM_BACK_BUFFERS].begin(), 
+                    m_timings[Constants::NUM_BACK_BUFFERS].begin() + m_queryCounts[lastCompletedFrameIdx],
+                    [](const Timing& t0, const Timing& t1)
+                    {
+                        return strcmp(t0.Name, t1.Name) < 0;
+                    });
             }
 
             m_queryCounts[Constants::NUM_BACK_BUFFERS] = m_queryCounts[lastCompletedFrameIdx];
