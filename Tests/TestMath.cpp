@@ -14,8 +14,8 @@ using namespace ZetaRay::Math;
 TEST_CASE("3x3 Determinant")
 {
     float4x3 M(float3(1, 0, 0),
-        float3(0, -1.19209290e-07, 0.999999940),
-        float3(0, -0.999999940, -1.19209290e-07),
+        float3(0, -1.19209290e-07f, 0.999999940f),
+        float3(0, -0.999999940f, -1.19209290e-07f),
         float3(0, 0, 1));
 
     v_float4x4 vM = load4x3(M);
@@ -29,7 +29,7 @@ TEST_CASE("SRT Decomposition")
 {
     float3 scaleFactor = float3(1.5f, 2.0f, 1.0f);
     float3 translation = float3(-2.0f, 0.34f, -5.7f);
-    float theta = 0.610865238;
+    float theta = 0.610865238f;
 
     v_float4x4 vS = scale(scaleFactor.x, scaleFactor.y, scaleFactor.z);
     v_float4x4 vR = rotateZ(theta);
@@ -64,7 +64,7 @@ TEST_CASE("TRS Decomposition")
 {
     float3 scaleFactor = float3(1.5f, 2.0f, 1.0f);
     float3 translation = float3(-2.0f, 0.34f, -5.7f);
-    float theta = 0.610865238;
+    float theta = 0.610865238f;
 
     v_float4x4 vS = scale(scaleFactor.x, scaleFactor.y, scaleFactor.z);
     v_float4x4 vR = rotateZ(theta);

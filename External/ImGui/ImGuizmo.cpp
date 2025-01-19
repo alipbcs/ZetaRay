@@ -678,12 +678,12 @@ namespace IMGUIZMO_NAMESPACE
       CenterCircleSize                = 6.0f;
 
       // initialize default colors
-      Colors[DIRECTION_X]           = ImVec4(0.92158204, 0.036889445, 0.084376216, 1.0f);
-      Colors[DIRECTION_Y]           = ImVec4(0.16202940, 0.371237785, 0.011612245, 1.0f);
-      Colors[DIRECTION_Z]           = ImVec4(0.02842604, 0.230740070, 0.768151283, 1.0f);
-      Colors[PLANE_X]               = ImVec4(0.92158204, 0.036889445, 0.084376216, 0.380f);
-      Colors[PLANE_Y]               = ImVec4(0.16202940, 0.371237785, 0.011612245, 0.380f);
-      Colors[PLANE_Z]               = ImVec4(0.02842604, 0.230740070, 0.768151283, 0.380f);
+      Colors[DIRECTION_X]           = ImVec4(0.92158204f, 0.036889445f, 0.084376216f, 1.0f);
+      Colors[DIRECTION_Y]           = ImVec4(0.16202940f, 0.371237785f, 0.011612245f, 1.0f);
+      Colors[DIRECTION_Z]           = ImVec4(0.02842604f, 0.230740070f, 0.768151283f, 1.0f);
+      Colors[PLANE_X]               = ImVec4(0.92158204f, 0.036889445f, 0.084376216f, 0.380f);
+      Colors[PLANE_Y]               = ImVec4(0.16202940f, 0.371237785f, 0.011612245f, 0.380f);
+      Colors[PLANE_Z]               = ImVec4(0.02842604f, 0.230740070f, 0.768151283f, 0.380f);
       Colors[SELECTION]             = ImVec4(1.000f, 0.500f, 0.062f, 0.541f);
       Colors[SELECTION_X]           = ImVec4(1.0f, 0.03688944f, 0.08650046f, 1.0f);
       Colors[SELECTION_Y]           = ImVec4(0.25415218f, 0.70837593f, 0.0f, 1.0f);

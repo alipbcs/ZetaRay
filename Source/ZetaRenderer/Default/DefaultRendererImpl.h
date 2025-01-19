@@ -40,7 +40,7 @@ namespace ZetaRay::DefaultRenderer
         static constexpr int MIN_NUM_LIGHTS_PRESAMPLING = int((EMISSIVE_SET_MEM_BUDGET_MB * 1024 * 1024) /
             sizeof(RT::PresampledEmissiveTriangle));
         static constexpr Math::uint3 VOXEL_GRID_DIM = Math::uint3(32, 8, 40);
-        static constexpr Math::float3 VOXEL_EXTENTS = Math::float3(0.6, 0.45, 0.6);
+        static constexpr Math::float3 VOXEL_EXTENTS = Math::float3(0.6f, 0.45f, 0.6f);
     };
 
     enum class AA

@@ -68,8 +68,8 @@ if(MSVC)
     add_compile_options("$<$<CONFIG:DEBUG>:/Ob1>")
     # disable RTTI
     add_compile_options(/GR-)
-    # fast floating point
-    add_compile_options(/fp:fast)
+    # precise floating point
+    add_compile_options(/fp:precise)
     # standards conformance
     add_compile_options(/permissive-)
     add_compile_options(/arch:AVX2)

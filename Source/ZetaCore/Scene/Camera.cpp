@@ -130,7 +130,7 @@ void Camera::Init(float3 posw, float aspectRatio, float fov, float nearZ, bool j
     ParamVariant dampScale;
     dampScale.InitFloat(ICON_FA_LANDMARK " Scene", "Camera", "Damping (Angular)",
         fastdelegate::MakeDelegate(this, &Camera::SetAngularFrictionCoeff),
-        m_angularDamping.x, 1, 50, 1e-2, "Motion");
+        m_angularDamping.x, 1, 50, 1e-2f, "Motion");
     App::AddParam(dampScale);
 
     ParamVariant focusDepth;
