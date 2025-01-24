@@ -142,7 +142,8 @@ namespace BSDF
             // to 0 and the path-tracing loop is terminated.
 
             ret.f = BSDF::DielectricBaseSpecularTr(surface, eval.Fr_g.x) * func_t;
-            ret.bsdfOverPdf = ret.f / ret.pdf;
+            // if code reached here, pdf should > 0 unless dwh_dwi = 0
+            ret.bsdfOverPdf = ret.pdf > 0 ? ret.f / ret.pdf : 0;
             ret.wi = wi_t;
             ret.lobe = BSDF::LOBE::GLOSSY_T;
         }

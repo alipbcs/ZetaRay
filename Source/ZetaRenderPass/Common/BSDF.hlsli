@@ -421,7 +421,7 @@ namespace BSDF
     {
         float denom = mad(whdotwo, 1 / eta, whdotwi);
         denom *= denom;
-        float dwh_dwi = whdotwi / denom;
+        float dwh_dwi = denom > 0 ? whdotwi / denom : 0;
 
         return dwh_dwi;
     }
