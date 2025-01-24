@@ -144,9 +144,3 @@ namespace ImGui
 //
 // Manual tracking of obsolete stuff
 //
-
-// Used by ImPlot & imnodes
-#define IM_OFFSETOF(_TYPE,_MEMBER)  offsetof(_TYPE, _MEMBER)
-
-// Used by ImPlot
-#define IM_FLOOR IM_TRUNC
