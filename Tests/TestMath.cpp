@@ -267,25 +267,25 @@ TEST_CASE("RayVsAABB")
     auto gete = [&rng]() {return 1.0f + rng.Uniform() * 1000.0f; };
     auto geto = [&rng]() {return rng.Uniform() * 50.0f - rng.Uniform() * 50.0f; };
     auto getd = [&rng]()
-    {
-        float f = rng.Uniform();
-        bool z = f > 0.1f;
-        float3 res(0.01f + rng.Uniform(), 0.01f + rng.Uniform(), 0.01f + rng.Uniform());
-
-        if (z)
         {
-            uint32_t c = rng.UniformUint() % 3;
+            float f = rng.Uniform();
+            bool z = f > 0.1f;
+            float3 res(0.01f + rng.Uniform(), 0.01f + rng.Uniform(), 0.01f + rng.Uniform());
 
-            if (c == 0)
-                res.x = 0.0f;
-            else if (c == 1)
-                res.y = 0.0f;
-            else
-                res.z = 0.0f;
-        }
+            if (z)
+            {
+                uint32_t c = rng.UniformUint() % 3;
 
-        return res;
-    };
+                if (c == 0)
+                    res.x = 0.0f;
+                else if (c == 1)
+                    res.y = 0.0f;
+                else
+                    res.z = 0.0f;
+            }
+
+            return res;
+        };
 
     const int N = 100'000;
 
@@ -322,7 +322,7 @@ TEST_CASE("MergingAABBs")
     vBox1.vExtents = _mm_setr_ps(10.0f, 5.0f, 14.0f, 0.0f);
 
     v_AABB vBox2 = v_AABB::Init();
-    v_AABB vMergedBox = compueUnionAABB(vBox1, vBox2);
+    v_AABB vMergedBox = unionAABB(vBox1, vBox2);
     AABB box = store(vMergedBox);
     AABB box2 = store(vBox1);
 
@@ -394,7 +394,7 @@ TEST_CASE("PerspectiveMat")
 TEST_CASE("RotationMatFromQuaternion")
 {
     __m128 vQs[4];
-    
+
     vQs[0] = _mm_setr_ps(-0.5614617466926575f,
         -0.4267434775829315f,
         0.3989279866218567f,
@@ -459,7 +459,7 @@ TEST_CASE("QuaternionFromRotationMat")
 
     v_float4x4 vR = rotate(vAxis, PI / 6);
     float4 result = quaternionFromRotationMat1(vR);
-    
+
     CHECK(fabsf(result.x - 0.0691723f) <= FLT_EPSILON);
     CHECK(fabsf(result.y - 0.1383446f) <= FLT_EPSILON);
     CHECK(fabsf(result.z - 0.2075168f) <= FLT_EPSILON);
