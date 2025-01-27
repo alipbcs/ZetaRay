@@ -3,7 +3,6 @@ function(Copy FILES DEST TARGET_NAME)
         get_filename_component(FILE ${FULL_FILENAME} NAME)
         add_custom_command(
             OUTPUT ${DEST}/${FILE}
-            PRE_BUILD
             COMMAND ${CMAKE_COMMAND} -E make_directory ${DEST}
             COMMAND ${CMAKE_COMMAND} -E copy_if_different ${FULL_FILENAME} ${DEST}
             MAIN_DEPENDENCY ${FULL_FILENAME}
