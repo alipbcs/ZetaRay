@@ -1,5 +1,7 @@
 # ZetaRay
+
 [![MIT](https://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/licenses/MIT)
+[![build-and-test](https://github.com/alipbcs/ZetaRay/actions/workflows/build.yml/badge.svg)](https://github.com/alipbcs/ZetaRay/actions/workflows/build.yml)
 
 A hobby real-time Direct3D 12 path tracer. Mainly developed for learning and experimenting with the latest research in real-time rendering. 
 
