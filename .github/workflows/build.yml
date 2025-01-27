@@ -1,0 +1,52 @@
+name: build-and-test
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'Source/**'
+      - 'Tests/**'
+      - 'CMake/**'
+      - 'Tools/**'
+      - '!Tools/Natvis/**'
+  pull_request:
+    branches:
+      - master
+    paths:
+      - 'Source/**'
+      - 'Tests/**'
+      - 'CMake/**'
+      - 'Tools/**'
+      - '!Tools/Natvis/**'
+
+jobs:
+  build:
+    name: ${{ matrix.compiler }}-${{ matrix.config }}
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        compiler: [msvc, clang]
+        config: [Debug, Release]
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Configure CMake
+        run: |
+          mkdir build
+          cmake -S . -B build -G "Visual Studio 17 2022" -T ${{ matrix.compiler == 'msvc' && 'host=x64' || 'ClangCL' }} -DBUILD_TESTS=on
+
+      - name: Build
+        run: cmake --build build --config ${{ matrix.config }}
+
+      - name: Test
+        shell: bash
+        run: |
+          if [ "${{ matrix.config }}" == "Debug" ]; then
+            "bin/Testsd.exe"
+          else
+            "bin/Tests.exe"
+          fi
