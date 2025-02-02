@@ -1,5 +1,5 @@
 function(SetupAgilitySDK SDK_VERSION)
-    set(VER "1.613.3")
+    set(VER "1.615.0")
     set(SDK_DIR "${EXTERNAL_DIR}/D3D12/${VER}")
 
     file(GLOB_RECURSE CORE_DLL_PATH "${SDK_DIR}/*D3D12Core.dll")
