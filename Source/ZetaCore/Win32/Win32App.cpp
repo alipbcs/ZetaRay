@@ -461,12 +461,19 @@ namespace ZetaRay::AppImpl
         ImGuiIO& io = ImGui::GetIO();
         io.Fonts->Clear();
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
+#endif
         using getFontFP = FontSpan(*)(FONT_TYPE f);
         HINSTANCE fontLib = LoadLibraryExA("Font", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
         CheckWin32(fontLib);
 
         auto fpGetFont = reinterpret_cast<getFontFP>(GetProcAddress(fontLib, "GetFont"));
         CheckWin32(fpGetFont);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
         constexpr auto fontType = FONT_TYPE::BFONT;
         FontSpan f = fpGetFont(fontType);
@@ -479,7 +486,7 @@ namespace ZetaRay::AppImpl
         ImFontConfig font_cfg;
         // Retain ownership of font data so ImGui wouldn't free it
         font_cfg.FontDataOwnedByAtlas = false;
-        io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data), 
+        io.Fonts->AddFontFromMemoryCompressedBase85TTF(reinterpret_cast<const char*>(f.Data),
             fontSizePixelsDPI, &font_cfg);
 
         float baseFontSize = 16.0f;
@@ -496,7 +503,7 @@ namespace ZetaRay::AppImpl
         icons_config.FontDataOwnedByAtlas = false;
 
         auto iconFont = fpGetFont(FONT_TYPE::FONT_AWESOME_6);
-        io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(iconFont.Data), (int)iconFont.N, 
+        io.Fonts->AddFontFromMemoryTTF(const_cast<void*>(iconFont.Data), (int)iconFont.N,
             iconFontSize, &icons_config, icons_ranges);
 
         unsigned char* pixels;
@@ -646,7 +653,7 @@ namespace ZetaRay::AppImpl
         ImGui_ProcessKeyEventsWorkarounds();
 
         // Update OS mouse cursor with the cursor requested by imgui
-        ImGuiMouseCursor mouse_cursor = ImGui::GetIO().MouseDrawCursor ? ImGuiMouseCursor_None : 
+        ImGuiMouseCursor mouse_cursor = ImGui::GetIO().MouseDrawCursor ? ImGuiMouseCursor_None :
             ImGui::GetMouseCursor();
         if (g_app->m_imguiCursor != mouse_cursor)
         {
@@ -676,7 +683,7 @@ namespace ZetaRay::AppImpl
         }
         else
         {
-            if(g_app->m_inMouseWheelMove)
+            if (g_app->m_inMouseWheelMove)
                 g_app->m_cameraAcceleration *= (1 + g_app->m_inMouseWheelMove * 0.1f);
         }
 
@@ -1012,15 +1019,22 @@ namespace ZetaRay::AppImpl
         *uxthemeLib = LoadLibraryExA("uxtheme.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
         if (*uxthemeLib)
         {
-            fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState = 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
+#endif
+            fnRefreshImmersiveColorPolicyState refreshImmersiveColorPolicyState =
                 reinterpret_cast<fnRefreshImmersiveColorPolicyState>(
-                GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(104)));
+                    GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(104)));
             fnShouldAppsUseDarkMode shouldAppsUseDarkMode = reinterpret_cast<fnShouldAppsUseDarkMode>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(132)));
             fnSetPreferredAppMode setPreferredAppMode = reinterpret_cast<fnSetPreferredAppMode>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(135)));
             fnAllowDarkModeForWindow allowDarkModeForWindow = reinterpret_cast<fnAllowDarkModeForWindow>(
                 GetProcAddress(*uxthemeLib, MAKEINTRESOURCEA(133)));
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
 
             if (refreshImmersiveColorPolicyState &&
                 shouldAppsUseDarkMode &&
@@ -1056,9 +1070,16 @@ namespace ZetaRay::AppImpl
             HMODULE uxthemeLib = nullptr;
             BOOL dark = TryInitDarkMode(&uxthemeLib, hWnd);
 
-            fnSetWindowCompositionAttribute setWindowCompositionAttribute = 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
+#endif
+            fnSetWindowCompositionAttribute setWindowCompositionAttribute =
                 reinterpret_cast<fnSetWindowCompositionAttribute>(
-                GetProcAddress(GetModuleHandleA("user32.dll"), "SetWindowCompositionAttribute"));
+                    GetProcAddress(GetModuleHandleA("user32.dll"), "SetWindowCompositionAttribute"));
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
             if (setWindowCompositionAttribute)
             {
                 WINDOWCOMPOSITIONATTRIBDATA data = { WCA_USEDARKMODECOLORS, &dark, sizeof(dark) };
@@ -1461,7 +1482,7 @@ namespace ZetaRay
             g_app->m_processorCoreCount);
 
         // Initialize frame allocators
-        memset(g_app->m_frameMemoryContext.m_threadFrameAllocIndices, -1, 
+        memset(g_app->m_frameMemoryContext.m_threadFrameAllocIndices, -1,
             sizeof(int) * MAX_NUM_THREADS);
         g_app->m_frameMemoryContext.m_currFrameAllocIndex.store(0, std::memory_order_release);
 
@@ -1477,7 +1498,7 @@ namespace ZetaRay
         // initialize renderer
         const float renderWidth = g_app->m_displayWidth / g_app->m_upscaleFactor;
         const float renderHeight = g_app->m_displayHeight / g_app->m_upscaleFactor;
-        g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight, 
+        g_app->m_renderer.Init(g_app->m_hwnd, (uint16_t)renderWidth, (uint16_t)renderHeight,
             g_app->m_displayWidth, g_app->m_displayHeight);
 
         // ImGui
@@ -1501,14 +1522,14 @@ namespace ZetaRay
         g_app->m_isInitialized = true;
 
         LOG_UI(INFO, "Detected %d physical CPU cores", g_app->m_processorCoreCount);
-        LOG_UI(INFO, "Work area on the primary display monitor is %dx%d", 
+        LOG_UI(INFO, "Work area on the primary display monitor is %dx%d",
             g_app->m_displayWidth, g_app->m_displayHeight);
     }
 
     void App::InitBasic()
     {
         setlocale(LC_ALL, "C");
-        
+
         g_app = new (std::nothrow) AppData;
 
         CpuInfo cpuInfo = App::GetProcessorInfo();
@@ -1678,7 +1699,7 @@ namespace ZetaRay
     int App::RegisterTask()
     {
         int idx = g_app->m_currTaskSignalIdx.fetch_add(1, std::memory_order_relaxed);
-        Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME, 
+        Assert(idx < AppData::MAX_NUM_TASKS_PER_FRAME,
             "Number of task signals exceeded MAX_NUM_TASKS_PER_FRAME.");
 
         return idx;
@@ -1728,7 +1749,7 @@ namespace ZetaRay
 
     void App::Submit(Task&& t)
     {
-        Assert(t.GetPriority() == TASK_PRIORITY::NORMAL, 
+        Assert(t.GetPriority() == TASK_PRIORITY::NORMAL,
             "Background task is not allowed to be executed on the main thread pool.");
         g_app->m_workerThreadPool.Enqueue(ZetaMove(t));
     }
@@ -1740,7 +1761,7 @@ namespace ZetaRay
 
     void App::SubmitBackground(Task&& t)
     {
-        Assert(t.GetPriority() == TASK_PRIORITY::BACKGROUND, 
+        Assert(t.GetPriority() == TASK_PRIORITY::BACKGROUND,
             "Normal-priority task is not allowed to be executed on the background thread pool.");
         g_app->m_backgroundThreadPool.Enqueue(ZetaMove(t));
     }
@@ -1836,7 +1857,7 @@ namespace ZetaRay
 
         // TODO Linear search can be slow if there are a lot of parameters
         bool found = false;
-        for(auto& param : g_app->m_params)
+        for (auto& param : g_app->m_params)
         {
             if (param.ID() == p.ID())
             {

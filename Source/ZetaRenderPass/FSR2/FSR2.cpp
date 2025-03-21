@@ -67,6 +67,10 @@ namespace
             m_fsrDxLib = LoadLibraryExA("ffx_fsr2_api_dx12_x64", NULL, LOAD_LIBRARY_SEARCH_APPLICATION_DIR);
             CheckWin32(m_fsrDxLib);
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wcast-function-type-mismatch"
+#endif
             FpCreate = reinterpret_cast<fp_Fsr2ContextCreate>(GetProcAddress(m_fsrLib, "ffxFsr2ContextCreate"));
             CheckWin32(FpCreate);
             FpDestroy = reinterpret_cast<fp_Fsr2ContextDestroy>(GetProcAddress(m_fsrLib, "ffxFsr2ContextDestroy"));
@@ -75,6 +79,9 @@ namespace
             CheckWin32(FpDispatch);
             FpGetShaderPermutation = reinterpret_cast<fp_Fsr2GetPermBlobByIdx>(GetProcAddress(m_fsrDxLib, "fsr2GetPermutationBlobByIndexDX12"));
             CheckWin32(FpGetShaderPermutation);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
         }
 
         void Free()
@@ -106,7 +113,8 @@ namespace
     {
         FSR2_Data()
             : m_psoLib(m_psoCache)
-        {}
+        {
+        }
 
         static constexpr uint32_t FLAGS = FFX_FSR2_ENABLE_HIGH_DYNAMIC_RANGE |
             FFX_FSR2_ENABLE_DEPTH_INVERTED |
@@ -530,18 +538,18 @@ namespace
 
         if (resDesc->resourceDescription.type == FFX_RESOURCE_TYPE_BUFFER)
         {
-            Assert(resDesc->usage != FFX_RESOURCE_USAGE_RENDERTARGET, 
+            Assert(resDesc->usage != FFX_RESOURCE_USAGE_RENDERTARGET,
                 "Buffers can't be used as render targets.");
 
             if (resDesc->initData)
             {
                 g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBufferAndInit(resName,
-                    state, allowUAV, 
-                    MemoryRegion{.Data = resDesc->initData, .SizeInBytes = resDesc->initDataSize });
+                    state, allowUAV,
+                    MemoryRegion{ .Data = resDesc->initData, .SizeInBytes = resDesc->initDataSize });
             }
             else
             {
-                g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBuffer(resName, 
+                g_fsr2Data->m_defaultHeapBuffs[resDesc->id] = GpuMemory::GetDefaultHeapBuffer(resName,
                     resDesc->initDataSize, state, allowUAV);
             }
 
