@@ -78,33 +78,38 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
     GBuffer::Flags flags = GBuffer::DecodeMetallic(g_metallicRoughness[DTid.xy].x);
 
     RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
+    uint numInvalid = g_frame.Accumulate && g_frame.CameraStatic ? asuint(g_composited[DTid.xy].w) : 0;
+    float3 sky = SkyColor(DTid.xy);
     
     if (flags.invalid)
     {
-        g_composited[DTid.xy].rgb = SkyColor(DTid.xy);
+        numInvalid = g_frame.Accumulate && g_frame.CameraStatic ? numInvalid + 1 : 0;
+        g_composited[DTid.xy] = float4(sky, asfloat(numInvalid));
+
         return;
     }
 
-    float3 color = 0.0;
+    const uint numFramesAccumulated = g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1;
+    float3 color = sky * (float)numInvalid / numFramesAccumulated; 
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SKY_DI) && g_local.SkyDIDescHeapIdx != 0)
     {
         Texture2D<float4> g_sky = ResourceDescriptorHeap[g_local.SkyDIDescHeapIdx];
         float3 ls = g_sky[DTid.xy].rgb;
-        color += ls / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
+        color += ls / numFramesAccumulated;
     }
     else if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::EMISSIVE_DI) && g_local.EmissiveDIDescHeapIdx != 0)
     {
         Texture2D<float4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDescHeapIdx];
         float3 le = g_emissive[DTid.xy].rgb;
-        color += le / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
+        color += le / numFramesAccumulated;
     }
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !flags.emissive && g_local.IndirectDescHeapIdx != 0)
     {
         Texture2D<float4> g_indirect = ResourceDescriptorHeap[g_local.IndirectDescHeapIdx];
         float3 li = g_indirect[DTid.xy].rgb;
-        color += li / (g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1);
+        color += li / numFramesAccumulated;
     }
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INSCATTERING))
@@ -158,5 +163,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         // }
     }
 
-    g_composited[DTid.xy].rgb = color;
+    g_composited[DTid.xy] = float4(color, asfloat(numInvalid));
 }
