@@ -50,8 +50,8 @@ float4 mainPS(VSOut psin) : SV_Target
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + GBUFFER_OFFSET::DEPTH];
     float z = g_depth.SampleLevel(g_samPointClamp, uv, 0);
-    if(z == FLT_MAX)
-        return float4(display, 1);
+    if(g_local.DisplayOption != (int)DisplayOption::DEFAULT && z == FLT_MAX)
+        return 0;
 
     if(g_local.AutoExposure)
     {

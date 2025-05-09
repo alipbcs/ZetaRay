@@ -172,6 +172,32 @@ namespace Light
         return le;
     }
 
+    float3 Le_SkyWithSunDisk(uint2 DTid, ConstantBuffer<cbFrameConstants> g_frame)
+    {
+        float3 wc = RT::GeneratePinholeCameraRay(DTid, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
+            g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, 
+            g_frame.CurrView[2].xyz, g_frame.CurrCameraJitter);
+
+        float3 rayOrigin = float3(0, 1e-1, 0);
+        rayOrigin.y += g_frame.PlanetRadius;
+
+        float3 wTemp = wc;
+        // cos(a - b) = cos a cos b + sin a sin b
+        wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - wc.y * wc.y) * 
+            g_frame.SunSinAngularRadius;
+
+        float t;
+        bool intersectedPlanet = Volume::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, 
+            wTemp, t);
+
+        // a disk that's supposed to be the sun
+        if (dot(-wc, g_frame.SunDir) >= g_frame.SunCosAngularRadius && !intersectedPlanet)
+            return g_frame.SunIlluminance;
+        // sample the sky texture
+        else
+            return Light::Le_Sky(wc, g_frame.EnvMapDescHeapOffset);
+    }
+
     // Assumes area light is diffuse
     float3 Le_EmissiveTriangle(RT::EmissiveTriangle tri, float2 bary, uint emissiveMapsDescHeapOffset, 
         SamplerState s = g_samPointWrap)

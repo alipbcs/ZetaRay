@@ -444,9 +444,16 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         GBUFFER_OFFSET::METALLIC_ROUGHNESS];
     const float2 mr = g_metallicRoughness[swizzledDTid];
     GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
+    
+    RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.Final];
 
     if (flags.invalid || flags.emissive)
+    {
+        if(!g_frame.Accumulate || !g_frame.CameraStatic)
+            g_final[swizzledDTid].rgb = 0;
+    
         return;
+    }
 
     GBUFFER_DEPTH g_depth = ResourceDescriptorHeap[g_frame.CurrGBufferDescHeapOffset + 
         GBUFFER_OFFSET::DEPTH];
@@ -538,8 +545,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
         r.WriteTarget(swizzledDTid, g_local.TargetDescHeapIdx);
     else
     {
-        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.Final];
-
         RPT_Util::DebugColor(r.rc, g_local.Packed, li);
         li = any(isnan(li)) ? 0 : li;
 

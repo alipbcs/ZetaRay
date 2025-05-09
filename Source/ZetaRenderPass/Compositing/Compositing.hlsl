@@ -14,46 +14,6 @@ ConstantBuffer<cbFrameConstants> g_frame : register(b1);
 // Helper Functions
 //--------------------------------------------------------------------------------------
 
-float3 SkyColor(uint2 DTid)
-{
-    float3 wc = RT::GeneratePinholeCameraRay(DTid, float2(g_frame.RenderWidth, g_frame.RenderHeight), 
-        g_frame.AspectRatio, g_frame.TanHalfFOV, g_frame.CurrView[0].xyz, g_frame.CurrView[1].xyz, 
-        g_frame.CurrView[2].xyz, g_frame.CurrCameraJitter);
-
-    float3 rayOrigin = float3(0, 1e-1, 0);
-    rayOrigin.y += g_frame.PlanetRadius;
-
-    float3 wTemp = wc;
-    // cos(a - b) = cos a cos b + sin a sin b
-    wTemp.y = wTemp.y * g_frame.SunCosAngularRadius + sqrt(1 - wc.y * wc.y) * 
-        g_frame.SunSinAngularRadius;
-
-    float t;
-    bool intersectedPlanet = Volume::IntersectRayPlanet(g_frame.PlanetRadius, rayOrigin, 
-        wTemp, t);
-
-    // a disk that's supposed to be the sun
-    if (dot(-wc, g_frame.SunDir) >= g_frame.SunCosAngularRadius && !intersectedPlanet)
-    {
-        return g_frame.SunIlluminance;
-    }
-    // sample the sky texture
-    else
-    {
-        float2 thetaPhi = Math::SphericalFromCartesian(wc);
-        
-        const float u = thetaPhi.y * ONE_OVER_2_PI;
-        float v = thetaPhi.x * ONE_OVER_PI;
-        
-        float s = thetaPhi.x >= PI_OVER_2 ? 1.0f : -1.0f;
-        v = (thetaPhi.x - PI_OVER_2) * 0.5f;
-        v = 0.5f + s * sqrt(abs(v) * ONE_OVER_PI);
-
-        Texture2D<float3> g_envMap = ResourceDescriptorHeap[g_frame.EnvMapDescHeapOffset];
-        return g_envMap.SampleLevel(g_samLinearClamp, float2(u, v), 0.0f);
-    }
-}
-
 float3 MapIdxToColor(uint i) 
 {
     float r = (i & 0xff) / 255.0f;
@@ -78,39 +38,38 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
     GBuffer::Flags flags = GBuffer::DecodeMetallic(g_metallicRoughness[DTid.xy].x);
 
     RWTexture2D<float4> g_composited = ResourceDescriptorHeap[g_local.OutputUAVDescHeapIdx];
-    uint numInvalid = g_frame.Accumulate && g_frame.CameraStatic ? asuint(g_composited[DTid.xy].w) : 0;
-    float3 sky = SkyColor(DTid.xy);
+    const bool accumulate = g_frame.Accumulate && g_frame.CameraStatic;
     
-    if (flags.invalid)
+    if (flags.invalid && !accumulate)
     {
-        numInvalid = g_frame.Accumulate && g_frame.CameraStatic ? numInvalid + 1 : 0;
-        g_composited[DTid.xy] = float4(sky, asfloat(numInvalid));
-
+        const bool dirLighting = IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SKY_DI) || IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::EMISSIVE_DI);
+        g_composited[DTid.xy].xyz = dirLighting ? Light::Le_SkyWithSunDisk(DTid.xy, g_frame) : 0;
         return;
     }
 
-    const uint numFramesAccumulated = g_frame.Accumulate && g_frame.CameraStatic ? g_frame.NumFramesCameraStatic : 1;
-    float3 color = sky * (float)numInvalid / numFramesAccumulated; 
+    const uint numFramesAccumulated = accumulate ? g_frame.NumFramesCameraStatic : 1;
+    float3 color = 0; 
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::SKY_DI) && g_local.SkyDIDescHeapIdx != 0)
     {
         Texture2D<float4> g_sky = ResourceDescriptorHeap[g_local.SkyDIDescHeapIdx];
-        float3 ls = g_sky[DTid.xy].rgb;
-        color += ls / numFramesAccumulated;
+        color = g_sky[DTid.xy].rgb;
     }
     else if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::EMISSIVE_DI) && g_local.EmissiveDIDescHeapIdx != 0)
     {
         Texture2D<float4> g_emissive = ResourceDescriptorHeap[g_local.EmissiveDIDescHeapIdx];
         float3 le = g_emissive[DTid.xy].rgb;
-        color += le / numFramesAccumulated;
+        color += le;
     }
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INDIRECT) && !flags.emissive && g_local.IndirectDescHeapIdx != 0)
     {
         Texture2D<float4> g_indirect = ResourceDescriptorHeap[g_local.IndirectDescHeapIdx];
         float3 li = g_indirect[DTid.xy].rgb;
-        color += li / numFramesAccumulated;
+        color += li;
     }
+
+    color /= numFramesAccumulated;
 
     if (IS_CB_FLAG_SET(CB_COMPOSIT_FLAGS::INSCATTERING))
     {
@@ -163,5 +122,5 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 GTid : SV_GroupThreadID, uint 
         // }
     }
 
-    g_composited[DTid.xy] = float4(color, asfloat(numInvalid));
+    g_composited[DTid.xy].xyz = color;
 }

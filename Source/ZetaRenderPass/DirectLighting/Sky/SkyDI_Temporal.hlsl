@@ -185,8 +185,21 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     const float2 mr = g_metallicRoughness[swizzledDTid];
     GBuffer::Flags flags = GBuffer::DecodeMetallic(mr.x);
 
+    RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
+
     if (flags.invalid)
+    {
+        if(g_frame.Accumulate && g_frame.CameraStatic)
+        {
+            float3 prev = g_final[swizzledDTid].rgb;
+            g_final[swizzledDTid].xyz = prev * (g_frame.NumFramesCameraStatic > 1) + 
+                Light::Le_SkyWithSunDisk(swizzledDTid, g_frame);
+        }
+        else
+            g_final[swizzledDTid].xyz = 0;
+
         return;
+    }
 
     if(flags.emissive)
     {
@@ -279,7 +292,6 @@ void main(uint3 DTid : SV_DispatchThreadID, uint3 Gid : SV_GroupID, uint3 GTid :
     {
         float3 ld = r.target * r.W;
         ld = any(isnan(ld)) ? 0 : ld;
-        RWTexture2D<float4> g_final = ResourceDescriptorHeap[g_local.FinalDescHeapIdx];
 
         if(g_frame.Accumulate && g_frame.CameraStatic && g_frame.NumFramesCameraStatic > 1)
         {
