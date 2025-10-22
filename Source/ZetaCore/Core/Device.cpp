@@ -99,7 +99,7 @@ void DeviceObjects::CreateDevice(bool checkFeatureSupport)
     D3D12_FEATURE_DATA_D3D12_OPTIONS5 feature;
     CheckHR(m_device->CheckFeatureSupport(D3D12_FEATURE_D3D12_OPTIONS5, 
         &feature, sizeof(feature)));
-    Check(feature.RaytracingTier == D3D12_RAYTRACING_TIER_1_1, 
+    Check(feature.RaytracingTier >= D3D12_RAYTRACING_TIER_1_1,
         "Raytracing Tier 1.1 is not supported.");
 
     // Shader model 6.6
